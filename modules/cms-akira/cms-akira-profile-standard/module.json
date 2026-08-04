@@ -4,6 +4,7 @@
     "version": "1.0.0",
     "description": "Cms Akira Profile Standard module for Ikabud Kernel",
     "author": "Ikabud",
+    "suite": "cms-akira",
     "depends": [
         "cms-akira-core",
         "cms-akira-editor",
@@ -13,6 +14,8 @@
     "owns_tables": [],
     "reads_tables": [],
     "entry_module": true,
+    "entry_delegate": "cms",
+    "authentication_provider": "cms",
     "migrations": [
         "database/migrations/001_initial.sql"
     ],

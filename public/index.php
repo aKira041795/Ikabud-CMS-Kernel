@@ -575,6 +575,10 @@ switch ($handler) {
         kernelHandleApiTenantDbUpsert();
         exit;
 
+    case 'apiTenantRepairScope':
+        kernelHandleApiTenantRepairScope();
+        exit;
+
     case 'apiTenantStatusSet':
         kernelHandleApiTenantStatusSet();
         exit;

@@ -377,6 +377,13 @@ function moduleTenantSettingsCanReadExplicitTenant(string $moduleId, int $tenant
 
 function moduleTenantSettingsTableExists(PDO $db): bool
 {
+    // Use the driver-aware inspector when available (mysql information_schema,
+    // sqlite sqlite_master). It also logs inspection failures instead of
+    // silently treating them as "table absent".
+    if (function_exists('tenantDatabaseHasTable')) {
+        return tenantDatabaseHasTable($db, moduleTenantSettingsTable());
+    }
+
     try {
         $stmt = $db->query("SHOW TABLES LIKE '" . moduleTenantSettingsTable() . "'");
         return $stmt && $stmt->fetchColumn() !== false;
@@ -800,6 +807,45 @@ function discoverModules(): array
         kernelRegisterModuleReadContracts($result);
     }
     return $result;
+}
+
+/**
+ * Resolve the module that owns the auth/login surface for a tenant entry
+ * module.
+ *
+ * Preference order:
+ * 1. Manifest-declared `entry_delegate` (explicit routing delegate).
+ * 2. Manifest-declared `authentication_provider` (auth owner).
+ * 3. Legacy aliases (e.g. `ehr-core` -> `ehr`).
+ * 4. The entry module itself.
+ *
+ * This replaces hard-coded knowledge of specific profile families in the
+ * kernel routing layer: relationships are declared in the manifest instead.
+ */
+function tenantEntryModuleDelegateId(string $entryModuleId): string
+{
+    $entryModuleId = trim($entryModuleId);
+    if ($entryModuleId === '') {
+        return $entryModuleId;
+    }
+
+    $modules = discoverModules();
+    $manifest = $modules[$entryModuleId] ?? null;
+    if (is_array($manifest)) {
+        $delegate = trim((string)($manifest['entry_delegate'] ?? ''));
+        if ($delegate === '') {
+            $delegate = trim((string)($manifest['authentication_provider'] ?? ''));
+        }
+        if ($delegate !== '') {
+            return $delegate;
+        }
+    }
+
+    if ($entryModuleId === 'ehr-core') {
+        return 'ehr';
+    }
+
+    return $entryModuleId;
 }
 
 /**

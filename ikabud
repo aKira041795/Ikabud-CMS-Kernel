@@ -237,12 +237,12 @@ function cliRunBaseModuleMigration(MigrationRunner $runner, PDO $baseDb, string 
 
 function cliResolveEntryAuthAlias(string $moduleId): string
 {
-    if ($moduleId === 'ehr-core') {
-        return 'ehr';
+    if (function_exists('tenantEntryModuleDelegateId')) {
+        return tenantEntryModuleDelegateId($moduleId);
     }
 
-    if (str_starts_with($moduleId, 'cms-akira-profile-')) {
-        return 'cms';
+    if ($moduleId === 'ehr-core') {
+        return 'ehr';
     }
 
     return $moduleId;

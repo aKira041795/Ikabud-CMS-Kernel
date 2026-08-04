@@ -129,11 +129,22 @@ if (!function_exists('kernelExecuteSqlStatements')) {
 }
 
 if (!function_exists('kernelTenantScopedMigrationSync')) {
-    function kernelTenantScopedMigrationSync(int $tenantId, ?string $entryModuleId = null): array
+    /**
+     * Synchronize a tenant's migrations through a scoped wrapper.
+     *
+     * Scope repair is NON-destructive by default: drift is detected, reported,
+     * and returned to the caller so an operator can decide. Destructive cleanup
+     * is only possible when an explicit admin action passes `$destructive` AND
+     * `$confirmed`.
+     *
+     * @param bool $destructive Whether to allow physical table cleanup.
+     * @param bool $confirmed    Typed confirmation required for destructive mode.
+     */
+    function kernelTenantScopedMigrationSync(int $tenantId, ?string $entryModuleId = null, bool $destructive = false, bool $confirmed = false): array
     {
         $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : null;
 
-        $repairBefore = tenantRepairMigrationScopeDrift($tenantId, $entryModuleId);
+        $repairBefore = tenantRepairMigrationScopeDrift($tenantId, $entryModuleId, $destructive, $confirmed);
         if (empty($repairBefore['ok'])) {
             return [
                 'ok' => false,
@@ -141,6 +152,7 @@ if (!function_exists('kernelTenantScopedMigrationSync')) {
                 'error' => (string)($repairBefore['error'] ?? 'Unknown scope-repair error'),
                 'tenant_id' => $tenantId,
                 'entry_module_id' => $entryModuleId,
+                'scope_repair_before' => $repairBefore,
             ];
         }
 
@@ -157,7 +169,7 @@ if (!function_exists('kernelTenantScopedMigrationSync')) {
             ];
         }
 
-        $repairAfter = tenantRepairMigrationScopeDrift($tenantId, $entryModuleId);
+        $repairAfter = tenantRepairMigrationScopeDrift($tenantId, $entryModuleId, $destructive, $confirmed);
         if (empty($repairAfter['ok'])) {
             return [
                 'ok' => false,
@@ -167,6 +179,7 @@ if (!function_exists('kernelTenantScopedMigrationSync')) {
                 'entry_module_id' => $entryModuleId,
                 'migration_sync' => $sync,
                 'scope_repair_before' => $repairBefore,
+                'scope_repair_after' => $repairAfter,
             ];
         }
 
@@ -651,6 +664,80 @@ if (!function_exists('kernelHandleApiTenantDbUpsert')) {
             echo json_encode([
                 'ok' => false,
                 'error' => $debug ? ('Failed to save DB connection: ' . $e->getMessage()) : 'Failed to save DB connection',
+            ]);
+        }
+    }
+}
+
+if (!function_exists('kernelHandleApiTenantRepairScope')) {
+    /**
+     * Explicit admin endpoint for migration-scope drift.
+     *
+     * Default behavior is a DRY RUN: it reports which modules are outside the
+     * tenant entry plan and which tables would be dropped, without changing
+     * anything. Destructive cleanup requires `{"destructive": true,
+     * "confirmed": true}`.
+     */
+    function kernelHandleApiTenantRepairScope(): void
+    {
+        if (!kernelPrepareTenantAdminJsonRequest()) {
+            return;
+        }
+
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+        $entryModuleId = trim((string)($input['entry_module_id'] ?? ''));
+        $destructive = !empty($input['destructive']);
+        $confirmed = !empty($input['confirmed']);
+
+        if ($tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
+            return;
+        }
+
+        try {
+            $repair = tenantRepairMigrationScopeDrift(
+                $tenantId,
+                $entryModuleId !== '' ? $entryModuleId : null,
+                $destructive,
+                $confirmed
+            );
+
+            if (empty($repair['ok'])) {
+                http_response_code(400);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => $repair['error'] ?? 'Scope repair failed',
+                    'tenant_id' => $tenantId,
+                    'dry_run' => true,
+                    'request_id' => request_id(),
+                ]);
+                return;
+            }
+
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
+            echo json_encode(array_merge($repair, [
+                'ok' => true,
+                'request_id' => request_id(),
+                'note' => $destructive
+                    ? 'destructive scope repair executed with confirmation'
+                    : 'dry run — no changes made; pass destructive=true + confirmed=true to apply cleanup',
+            ]));
+        } catch (Throwable $e) {
+            write_log('apiTenantRepairScope failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'destructive' => $destructive,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
+            http_response_code(500);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Failed to run scope repair',
+                'tenant_id' => $tenantId,
+                'request_id' => request_id(),
             ]);
         }
     }

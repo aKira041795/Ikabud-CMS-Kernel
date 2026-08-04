@@ -69,12 +69,28 @@ function tenantDatabaseHasTable(PDO $db, string $tableName): bool
     }
 
     try {
+        $driver = strtolower((string)($db->getAttribute(PDO::ATTR_DRIVER_NAME) ?: 'mysql'));
+        if ($driver === 'sqlite') {
+            $stmt = $db->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :table_name LIMIT 1");
+            $stmt->execute([':table_name' => $tableName]);
+            return (bool)$stmt->fetchColumn();
+        }
+
         $stmt = $db->prepare(
             'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
         );
         $stmt->execute([':table_name' => $tableName]);
         return (bool)$stmt->fetchColumn();
     } catch (Throwable $e) {
+        // Inspecting the schema must never masquerade "query failed" as
+        // "table absent": log the failure so operators can distinguish a
+        // real missing table from a permission/connection problem.
+        if (function_exists('write_log')) {
+            write_log('tenant_database_has_table_error', 'warning', [
+                'table' => $tableName,
+                'error' => $e->getMessage(),
+            ]);
+        }
         return false;
     }
 }
@@ -200,13 +216,12 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
         $entryBundleRoots[$seedModuleId] = true;
     }
 
-    while (!empty($queue)) {
-        $current = array_shift($queue);
-        if (!is_string($current) || !isset($enabled[$current])) {
-            continue;
+    $forwardExpand = static function (string $moduleId) use (&$selected, &$queue, $enabled, $exposesByCapability): void {
+        if (!isset($enabled[$moduleId])) {
+            return;
         }
 
-        $manifest = $enabled[$current];
+        $manifest = $enabled[$moduleId];
 
         $moduleDepends = $manifest['depends'] ?? [];
         if (is_array($moduleDepends)) {
@@ -250,7 +265,14 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
                 }
             }
         }
+    };
 
+    while (!empty($queue)) {
+        $current = array_shift($queue);
+        if (!is_string($current)) {
+            continue;
+        }
+        $forwardExpand($current);
     }
 
     if (isset($enabled['anti-spam']) && !isset($selected['anti-spam'])) {
@@ -261,6 +283,7 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
     // the declared entry-bundle roots, not on every dependency discovered
     // during closure expansion. This keeps tenant entry selection deterministic
     // and avoids pulling unrelated module trees.
+    $reverseSelected = [];
     foreach ($enabled as $moduleId => $candidate) {
         if (isset($selected[$moduleId])) {
             continue;
@@ -275,9 +298,22 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
             $dep = trim((string)$dep);
             if ($dep !== '' && isset($entryBundleRoots[$dep])) {
                 $selected[$moduleId] = true;
+                $reverseSelected[] = $moduleId;
                 break;
             }
         }
+    }
+
+    // Newly reverse-selected modules may bring their own required dependencies.
+    // Run one more forward closure over them so the plan stays complete without
+    // recursively discovering further reverse dependents.
+    $queue = $reverseSelected;
+    while (!empty($queue)) {
+        $current = array_shift($queue);
+        if (!is_string($current)) {
+            continue;
+        }
+        $forwardExpand($current);
     }
 
     $planned = [];
@@ -293,6 +329,41 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
 
     sort($planned);
     return $planned;
+}
+
+/**
+ * Report module dependencies that cannot be resolved instead of silently
+ * omitting them from the tenant plan.
+ *
+ * Scans the `depends` (module-id) list of every module in scope and returns the
+ * references that have no discoverable manifest. Callers can surface these to
+ * an operator rather than shipping an incomplete plan without explanation.
+ *
+ * @return array<int, array{module: string, depends: string}>
+ */
+function tenantProvisionPlanMissingDependencies(?string $entryModuleId): array
+{
+    $entryModuleId = trim((string)$entryModuleId);
+    $modules = discoverModules();
+    $scope = $entryModuleId !== '' ? $modules : getEnabledModules();
+
+    $missing = [];
+    foreach ($scope as $moduleId => $manifest) {
+        if (!is_array($manifest)) {
+            continue;
+        }
+        $deps = $manifest['depends'] ?? [];
+        if (!is_array($deps)) {
+            continue;
+        }
+        foreach ($deps as $dep) {
+            $dep = trim((string)$dep);
+            if ($dep !== '' && !isset($modules[$dep])) {
+                $missing[] = ['module' => (string)$moduleId, 'depends' => $dep];
+            }
+        }
+    }
+    return $missing;
 }
 
 function tenantEntryModuleIdForTenant(int $tenantId): ?string
@@ -748,6 +819,18 @@ function tenantEntryModuleFamilyPrefix(?string $entryModuleId): string
         return '';
     }
 
+    // Authoritative family boundary: the manifest-declared `suite` (e.g.
+    // "cms-akira"). Naming is not a contract; the suite field is.
+    $allModules = discoverModules();
+    $manifest = $allModules[$entryModuleId] ?? null;
+    if (is_array($manifest)) {
+        $suite = trim((string)($manifest['suite'] ?? ''));
+        if ($suite !== '') {
+            return $suite;
+        }
+    }
+
+    // Legacy fallback only: first two hyphen-separated segments.
     if (preg_match('/^([a-z0-9]+-[a-z0-9]+)/', $entryModuleId, $matches)) {
         return (string)$matches[1];
     }
@@ -755,15 +838,111 @@ function tenantEntryModuleFamilyPrefix(?string $entryModuleId): string
     return $entryModuleId;
 }
 
-function tenantFilterDriftCleanupModules(array $unexpectedModules, ?string $entryModuleId = null): array
+/**
+ * Read the module ids that the tenant has explicitly engaged with, based on
+ * rows present in the tenant-scoped module settings table. These modules are
+ * treated as tenant-enabled add-ons and are never candidates for cleanup.
+ *
+ * @return array<int, string>
+ */
+function tenantEnabledModuleIdsForTenant(PDO $db): array
 {
-    if ($unexpectedModules === []) {
+    if (!moduleTenantSettingsTableExists($db)) {
         return [];
     }
 
-    $allModules = discoverModules();
+    try {
+        $stmt = $db->query('SELECT DISTINCT module_id FROM ' . moduleTenantSettingsTable());
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $ids = [];
+        foreach ($rows as $row) {
+            $mid = trim((string)$row);
+            if ($mid !== '') {
+                $ids[$mid] = true;
+            }
+        }
+        return array_keys($ids);
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('tenant_enabled_modules_read_error', 'warning', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+        return [];
+    }
+}
+
+/**
+ * Determine whether another module holds a dependency on this module's owned
+ * tables or exposed capabilities. Such modules must never be auto-cleaned.
+ */
+function tenantModuleHasExternalReferences(string $moduleId, array $manifest, array $allModules): bool
+{
+    $ownedTables = array_map('strval', (array)($manifest['owns_tables'] ?? []));
+    $exposedCaps = [];
+    foreach ((array)(($manifest['capabilities'] ?? [])['exposes'] ?? []) as $expose) {
+        $cid = is_string($expose) ? $expose : (string)($expose['id'] ?? '');
+        if ($cid !== '') {
+            $exposedCaps[$cid] = true;
+        }
+    }
+
+    foreach ($allModules as $otherId => $other) {
+        if ((string)$otherId === $moduleId || !is_array($other)) {
+            continue;
+        }
+
+        $otherOwned = array_map('strval', (array)($other['owns_tables'] ?? []));
+        $otherCoOwned = array_map('strval', (array)($other['co_owns_tables'] ?? []));
+        $otherReads = array_map('strval', (array)($other['reads_tables'] ?? []));
+        foreach ($ownedTables as $tableName) {
+            if (
+                in_array($tableName, $otherReads, true)
+                || in_array($tableName, $otherCoOwned, true)
+                || in_array($tableName, $otherOwned, true)
+            ) {
+                return true;
+            }
+        }
+
+        foreach ((array)(($other['capabilities'] ?? [])['depends'] ?? []) as $dep) {
+            $depId = is_string($dep) ? $dep : (string)($dep['id'] ?? '');
+            if ($depId !== '' && isset($exposedCaps[$depId])) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Pure decision logic for migration-scope drift. Separated from the DB work so
+ * it can be unit-tested without a live tenant database.
+ *
+ * @param array<int, string> $unexpectedModules  modules present in _migrations but not in the entry plan
+ * @param array<string, array<string, mixed>> $allModules
+ * @param array<int, string> $tenantEnabledModules
+ * @return array{
+ *   cleanup_modules: array<int, string>,
+ *   retained_modules: array<string, string>,
+ *   would_drop_tables: array<int, string>,
+ *   family_prefix: string,
+ *   entry_module_id: string
+ * }
+ */
+function tenantComputeMigrationScopeCleanup(array $unexpectedModules, ?string $entryModuleId, array $allModules, array $tenantEnabledModules): array
+{
     $familyPrefix = tenantEntryModuleFamilyPrefix($entryModuleId);
-    $filtered = [];
+    $familyPrefixDash = $familyPrefix !== '' ? $familyPrefix . '-' : '';
+    $tenantEnabledMap = [];
+    foreach ($tenantEnabledModules as $enabledModuleId) {
+        $tenantEnabledMap[(string)$enabledModuleId] = true;
+    }
+
+    $cleanup = [];
+    $retained = [];
+    $wouldDrop = [];
 
     foreach ($unexpectedModules as $moduleId) {
         $moduleId = trim((string)$moduleId);
@@ -771,109 +950,272 @@ function tenantFilterDriftCleanupModules(array $unexpectedModules, ?string $entr
             continue;
         }
 
-        // Do not auto-clean modules in the same product family as the selected entry module.
-        if ($familyPrefix !== '' && str_starts_with($moduleId, $familyPrefix . '-')) {
+        // Explicitly tenant-enabled add-ons are never cleanup candidates.
+        if (isset($tenantEnabledMap[$moduleId])) {
+            $retained[$moduleId] = 'tenant_enabled';
+            continue;
+        }
+
+        // Same suite/family as the entry module is retained.
+        if ($familyPrefixDash !== '' && str_starts_with($moduleId, $familyPrefixDash)) {
+            $retained[$moduleId] = 'same_family';
             continue;
         }
 
         $manifest = $allModules[$moduleId] ?? null;
         if (!is_array($manifest)) {
+            $retained[$moduleId] = 'manifest_unavailable';
             continue;
         }
 
         $ownsTables = $manifest['owns_tables'] ?? [];
-        // Drift cleanup is for physical table pollution only.
         if (!is_array($ownsTables) || $ownsTables === []) {
+            $retained[$moduleId] = 'no_owned_tables';
             continue;
         }
 
-        $filtered[] = $moduleId;
+        if (tenantModuleHasExternalReferences($moduleId, $manifest, $allModules)) {
+            $retained[$moduleId] = 'referenced';
+            continue;
+        }
+
+        $cleanup[] = $moduleId;
+        foreach ($ownsTables as $tableName) {
+            $tableName = trim((string)$tableName);
+            if ($tableName !== '') {
+                $wouldDrop[] = $tableName;
+            }
+        }
     }
 
-    return $filtered;
+    return [
+        'cleanup_modules' => array_values(array_unique($cleanup)),
+        'retained_modules' => $retained,
+        'would_drop_tables' => array_values(array_unique($wouldDrop)),
+        'family_prefix' => $familyPrefix,
+        'entry_module_id' => trim((string)$entryModuleId),
+    ];
 }
 
-function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId = null): array
+/**
+ * Detect and (only when explicitly requested) repair migration-scope drift for
+ * a tenant database.
+ *
+ * Safety model:
+ * - Default (non-destructive): detect, report, and require explicit
+ *   confirmation. Never touches tables or migration rows.
+ * - Destructive mode requires BOTH `$destructive = true` and
+ *   `$confirmed = true` (a typed confirmation from an explicit admin action).
+ * - Tenant-enabled add-on modules, same-suite modules, modules whose tables or
+ *   capabilities are referenced elsewhere, and modules without owned tables
+ *   are never cleanup candidates.
+ * - A backup checkpoint (the migration rows that will be removed) is captured
+ *   before any destructive step.
+ * - Migration rows are only deleted AFTER every drop succeeds, so a partial
+ *   failure never leaves untracked tables.
+ *
+ * @param PDO|null $db Optional injected connection (used by tests).
+ */
+function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId = null, bool $destructive = false, bool $confirmed = false, ?PDO $db = null): array
 {
     if ($tenantId <= 0) {
         return ['ok' => false, 'error' => 'Invalid tenant ID'];
     }
 
-    $db = app()->dbForTenant($tenantId);
+    if ($db === null) {
+        $db = app()->dbForTenant($tenantId);
+    }
     if (!$db) {
         return ['ok' => false, 'error' => 'Tenant DB connection unavailable', 'tenant_id' => $tenantId];
     }
 
     $entryModuleId = $entryModuleId !== null ? trim($entryModuleId) : tenantEntryModuleIdForTenant($tenantId);
     $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : '';
+
     $unexpectedModules = tenantUnexpectedMigratedModules($db, $entryModuleId !== '' ? $entryModuleId : null);
-    $unexpectedModules = tenantFilterDriftCleanupModules($unexpectedModules, $entryModuleId !== '' ? $entryModuleId : null);
-    if ($unexpectedModules === []) {
+    $tenantEnabled = tenantEnabledModuleIdsForTenant($db);
+    $decision = tenantComputeMigrationScopeCleanup(
+        $unexpectedModules,
+        $entryModuleId !== '' ? $entryModuleId : null,
+        discoverModules(),
+        $tenantEnabled
+    );
+
+    $cleanupModules = (array)($decision['cleanup_modules'] ?? []);
+    $baseResult = [
+        'ok' => true,
+        'tenant_id' => $tenantId,
+        'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+        'dry_run' => !$destructive,
+        'changed' => false,
+        'unexpected_modules' => array_values($unexpectedModules),
+        'cleanup_modules' => $cleanupModules,
+        'retained_modules' => (array)($decision['retained_modules'] ?? []),
+        'would_drop_tables' => (array)($decision['would_drop_tables'] ?? []),
+        'dropped_tables' => [],
+        'deleted_migration_rows' => 0,
+        'deleted_tenant_settings_rows' => 0,
+        'family_prefix' => (string)($decision['family_prefix'] ?? ''),
+        'tenant_enabled_modules' => array_values($tenantEnabled),
+    ];
+
+    if ($cleanupModules === []) {
+        return $baseResult;
+    }
+
+    if (!$destructive) {
+        // Detect / report only. No confirmation is required for a dry run.
+        return $baseResult;
+    }
+
+    if (!$confirmed) {
         return [
-            'ok' => true,
+            'ok' => false,
+            'error' => 'destructive scope repair requires explicit confirmation (confirmed=true)',
             'tenant_id' => $tenantId,
             'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'dry_run' => false,
             'changed' => false,
-            'unexpected_modules' => [],
-            'dropped_tables' => [],
-            'deleted_migration_rows' => 0,
-            'deleted_tenant_settings_rows' => 0,
+            'unexpected_modules' => array_values($unexpectedModules),
+            'cleanup_modules' => $cleanupModules,
+            'would_drop_tables' => (array)($decision['would_drop_tables'] ?? []),
         ];
+    }
+
+    // Backup checkpoint: capture the migration rows that will be removed so an
+    // operator can restore them if the cleanup was a mistake.
+    $backup = [];
+    try {
+        $placeholders = implode(',', array_fill(0, count($cleanupModules), '?'));
+        $backupStmt = $db->prepare(
+            'SELECT module, migration, batch, executed_at FROM _migrations WHERE module IN (' . $placeholders . ')'
+        );
+        $backupStmt->execute($cleanupModules);
+        $backup = $backupStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $backupStmt->closeCursor();
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('tenant_scope_repair_backup_failed', 'warning', [
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     $allModules = discoverModules();
     $droppedTables = [];
 
     try {
-        $db->exec('SET FOREIGN_KEY_CHECKS=0');
-        foreach ($unexpectedModules as $moduleId) {
-            $manifest = $allModules[$moduleId] ?? null;
-            if (!is_array($manifest)) {
-                continue;
-            }
-            $ownsTables = $manifest['owns_tables'] ?? [];
-            if (!is_array($ownsTables)) {
-                continue;
-            }
-            foreach ($ownsTables as $tableName) {
-                $tableName = trim((string)$tableName);
-                if ($tableName === '') {
+        $fkDisabled = false;
+        try {
+            $db->exec('SET FOREIGN_KEY_CHECKS=0');
+            $fkDisabled = true;
+        } catch (Throwable $e) {
+            // Driver without FK toggle (e.g. sqlite in tests) — proceed.
+        }
+
+        try {
+            foreach ($cleanupModules as $moduleId) {
+                $manifest = $allModules[$moduleId] ?? null;
+                if (!is_array($manifest)) {
                     continue;
                 }
-                if (!tenantDatabaseHasTable($db, $tableName)) {
+                $ownsTables = $manifest['owns_tables'] ?? [];
+                if (!is_array($ownsTables)) {
                     continue;
                 }
-                $escaped = str_replace('`', '``', $tableName);
-                $db->exec('DROP TABLE IF EXISTS `' . $escaped . '`');
-                $droppedTables[] = $tableName;
+                foreach ($ownsTables as $tableName) {
+                    $tableName = trim((string)$tableName);
+                    if ($tableName === '') {
+                        continue;
+                    }
+                    if (!tenantDatabaseHasTable($db, $tableName)) {
+                        continue;
+                    }
+                    $escaped = str_replace('`', '``', $tableName);
+                    $db->exec('DROP TABLE IF EXISTS `' . $escaped . '`');
+                    $droppedTables[] = $tableName;
+                }
+            }
+        } finally {
+            if ($fkDisabled) {
+                try {
+                    $db->exec('SET FOREIGN_KEY_CHECKS=1');
+                } catch (Throwable $e) {
+                    // Best-effort restore; nothing else to do.
+                }
             }
         }
-    } finally {
-        $db->exec('SET FOREIGN_KEY_CHECKS=1');
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('tenant_scope_repair_drop_failed', 'error', [
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'error' => $e->getMessage(),
+                'dropped_tables_so_far' => $droppedTables,
+            ]);
+        }
+        // Do NOT delete migration rows on a partial failure — leave them so the
+        // module is still tracked and can be repaired manually.
+        return [
+            'ok' => false,
+            'error' => 'scope repair drop failed: ' . $e->getMessage(),
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'dry_run' => false,
+            'changed' => false,
+            'dropped_tables' => $droppedTables,
+            'deleted_migration_rows' => 0,
+            'deleted_tenant_settings_rows' => 0,
+            'cleanup_modules' => $cleanupModules,
+            'backup' => $backup,
+        ];
     }
 
-    $placeholders = implode(',', array_fill(0, count($unexpectedModules), '?'));
-    $deleteMigrations = $db->prepare('DELETE FROM _migrations WHERE module IN (' . $placeholders . ')');
-    $deleteMigrations->execute($unexpectedModules);
-    $deletedMigrationRows = (int)$deleteMigrations->rowCount();
-
+    // All drops succeeded — now prune tracking rows.
+    $deletedMigrationRows = 0;
     $deletedSettingsRows = 0;
-    if (tenantDatabaseHasTable($db, 'tenant_module_settings')) {
-        $deleteSettings = $db->prepare('DELETE FROM tenant_module_settings WHERE module_id IN (' . $placeholders . ')');
-        $deleteSettings->execute($unexpectedModules);
-        $deletedSettingsRows = (int)$deleteSettings->rowCount();
+    $placeholders = implode(',', array_fill(0, count($cleanupModules), '?'));
+    try {
+        $deleteMigrations = $db->prepare('DELETE FROM _migrations WHERE module IN (' . $placeholders . ')');
+        $deleteMigrations->execute($cleanupModules);
+        $deletedMigrationRows = (int)$deleteMigrations->rowCount();
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('tenant_scope_repair_migration_delete_failed', 'warning', [
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
-    return [
+    if (tenantDatabaseHasTable($db, moduleTenantSettingsTable())) {
+        try {
+            $deleteSettings = $db->prepare('DELETE FROM ' . moduleTenantSettingsTable() . ' WHERE module_id IN (' . $placeholders . ')');
+            $deleteSettings->execute($cleanupModules);
+            $deletedSettingsRows = (int)$deleteSettings->rowCount();
+        } catch (Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('tenant_scope_repair_settings_delete_failed', 'warning', [
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    return array_merge($baseResult, [
         'ok' => true,
-        'tenant_id' => $tenantId,
-        'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+        'dry_run' => false,
         'changed' => true,
-        'unexpected_modules' => $unexpectedModules,
         'dropped_tables' => $droppedTables,
         'deleted_migration_rows' => $deletedMigrationRows,
         'deleted_tenant_settings_rows' => $deletedSettingsRows,
-    ];
+        'backup' => $backup,
+    ]);
 }
 
 function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = null): array

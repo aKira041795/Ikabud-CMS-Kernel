@@ -5,13 +5,13 @@ declare(strict_types=1);
 if (!function_exists('kernelHandlePageLogin')) {
     function kernelResolveEntryModuleAlias(string $entryModuleId): string
     {
+        if (function_exists('tenantEntryModuleDelegateId')) {
+            return tenantEntryModuleDelegateId($entryModuleId);
+        }
+
         static $aliases = [
             'ehr-core' => 'ehr',
         ];
-
-        if (str_starts_with($entryModuleId, 'cms-akira-profile-')) {
-            return 'cms';
-        }
 
         return $aliases[$entryModuleId] ?? $entryModuleId;
     }

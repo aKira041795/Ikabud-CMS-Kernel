@@ -99,51 +99,67 @@ class TenantEntryRouter
             return '/';
         }
 
-        if (str_starts_with($entry, 'cms-akira-profile-')) {
-            return '/cms/login';
+        // Resolve the auth/login surface from the manifest. A profile entry
+        // module (e.g. cms-akira-profile-*) delegates its auth surface to
+        // another module via entry_delegate / authentication_provider, so the
+        // landing path is derived from the delegate's routes — not hard-coded.
+        $delegate = $entry;
+        if (function_exists('tenantEntryModuleDelegateId')) {
+            $delegate = tenantEntryModuleDelegateId($entry);
+        }
+        if ($delegate === '') {
+            $delegate = $entry;
         }
 
         static $landingCache = [];
-        if (isset($landingCache[$entry])) {
-            return $landingCache[$entry];
+        if (isset($landingCache[$delegate])) {
+            return $landingCache[$delegate];
         }
 
         // Check APCu for cross-process cache before expensive routes.php load
         $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
-        $apcuKey = 'ikabud:entry_landing:v3:' . sha1($entry);
+        $apcuKey = 'ikabud:entry_landing:v4:' . sha1($delegate);
         if ($apcuEnabled) {
             $cached = apcu_fetch($apcuKey, $success);
             if ($success && is_string($cached)) {
-                $landingCache[$entry] = $cached;
+                $landingCache[$delegate] = $cached;
                 return $cached;
             }
         }
 
-        $entryRoot = '/' . $entry;
-        $entryLogin = '/' . $entry . '/login';
+        $delegateRoot = '/' . $delegate;
+        $delegateLogin = '/' . $delegate . '/login';
         $result = '/login';
-        // If the entry module declares an explicit root route, prefer it.
-        // Otherwise prefer a conventional login route if it exists.
+        // When the entry module delegates its auth surface to another module,
+        // an unauthenticated visitor must be sent to the delegate's LOGIN page
+        // (never the delegate's public root). When the module owns its own auth
+        // surface (no delegation), preserve legacy behavior: prefer an explicit
+        // root route, otherwise the conventional login route.
+        $delegatesAuth = $delegate !== $entry;
         try {
             if (defined('BASE_PATH')) {
                 $routesFile = '';
                 if (function_exists('modulePathForId')) {
-                    $modulePath = modulePathForId($entry);
+                    $modulePath = modulePathForId($delegate);
                     if (is_string($modulePath) && $modulePath !== '') {
                         $routesFile = rtrim($modulePath, '/') . '/routes.php';
                     }
                 }
                 if ($routesFile === '') {
-                    $routesFile = rtrim((string)BASE_PATH, '/') . '/modules/' . $entry . '/routes.php';
+                    $routesFile = rtrim((string)BASE_PATH, '/') . '/modules/' . $delegate . '/routes.php';
                 }
                 if (is_file($routesFile)) {
                     $routes = require $routesFile;
                     $get = is_array($routes) ? ($routes['GET'] ?? []) : [];
                     if (is_array($get)) {
-                        if (array_key_exists($entryRoot, $get)) {
-                            $result = $entryRoot;
-                        } elseif (array_key_exists($entryLogin, $get)) {
-                            $result = $entryLogin;
+                        if ($delegatesAuth) {
+                            if (array_key_exists($delegateLogin, $get)) {
+                                $result = $delegateLogin;
+                            }
+                        } elseif (array_key_exists($delegateRoot, $get)) {
+                            $result = $delegateRoot;
+                        } elseif (array_key_exists($delegateLogin, $get)) {
+                            $result = $delegateLogin;
                         }
                     }
                 }
@@ -151,12 +167,13 @@ class TenantEntryRouter
         } catch (Throwable $e) {
             $this->logRewriteWarning('tenant_entry_landing_resolution_failed', [
                 'entry_module_id' => $entry,
+                'delegate_module_id' => $delegate,
                 'error' => $e->getMessage(),
             ]);
         }
 
         // Store in both caches for future lookups
-        $landingCache[$entry] = $result;
+        $landingCache[$delegate] = $result;
         if ($apcuEnabled) {
             apcu_store($apcuKey, $result, 3600); // 1 hour TTL
         }
