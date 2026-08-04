@@ -32,6 +32,8 @@ $fleet = [
 ];
 
 // ── valid extension passes ───────────────────────────────────────────────
+// G5 route-ownership resolves against the real on-disk cms-akira-seo module,
+// so the contribution route must match one it actually registers.
 $validExt = [
     'id' => 'cms-akira-seo',
     'name' => 'SEO',
@@ -39,11 +41,11 @@ $validExt = [
     'kind' => 'extension',
     'extends' => 'cms-akira-core',
     'contributes' => [['extension_point' => 'cms.sidebar', 'provider' => 'cms-akira-seo.nav@1']],
-    'admin_contributions' => [['host' => 'cms', 'location' => 'sidebar', 'label' => 'SEO', 'route' => '/admin/cms/seo']],
+    'admin_contributions' => [['host' => 'cms', 'location' => 'sidebar', 'label' => 'SEO', 'route' => '/admin/cms-akira-seo']],
 ];
 $r = validateModuleSuiteContractForInstall($validExt, $fleet);
 $assert(!empty($r['ok']), 'valid extension passes install gate');
-$assert(count($r['checks']) === 4, 'install gate runs 4 checks', (string)count($r['checks'] ?? []));
+$assert(count($r['checks']) === 6, 'install gate runs 6 checks', (string)count($r['checks'] ?? []));
 
 // ── extension without installed host is rejected ─────────────────────────
 $orphan = $validExt;
@@ -63,6 +65,12 @@ $badHost = $validExt;
 $badHost['admin_contributions'] = [['host' => 'ghost-shell', 'location' => 'sidebar', 'label' => 'X', 'route' => '/x']];
 $r = validateModuleSuiteContractForInstall($badHost, $fleet);
 $assert(empty($r['ok']), 'contribution to unknown host fails install gate');
+
+// ── contribution route not owned by module is rejected (G5) ──────────────
+$badRoute = $validExt;
+$badRoute['admin_contributions'] = [['host' => 'cms', 'location' => 'sidebar', 'label' => 'SEO', 'route' => '/admin/cms/not-registered']];
+$r = validateModuleSuiteContractForInstall($badRoute, $fleet);
+$assert(empty($r['ok']), 'contribution with unregistered route fails install gate');
 
 // ── profile that installs itself is rejected ─────────────────────────────
 $selfProfile = [

@@ -1754,3 +1754,172 @@ function _cmsIsInGlobalOrAnyTenantRegistry(string $moduleId): bool
 
     return false;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Product Suite Extension Manager — admin page + APIs
+//
+// These are thin shells over the Kernel services (moduleSuiteGraph,
+// uninstallModule, enable/disable). Product suites (CMS Akira, PAL, …) can
+// reuse the same endpoints for their own "→ Extensions" screens.
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Admin page: Product Suite Extension Manager.
+ * Lists product suites with their core, extensions, adapters, and profiles,
+ * plus per-module health, compatibility, enable state, and lifecycle actions.
+ */
+function cmsAdminProductExtensions(array $params = []): void
+{
+    $user = cmsRequireCap('settings.manage');
+
+    $graph = moduleSuiteGraph();
+    $modules = discoverModules();
+
+    $suites = [];
+    foreach ($graph as $suiteId => $suite) {
+        $entry = [
+            'id'               => $suiteId,
+            'name'             => (string)($suite['name'] ?? $suiteId),
+            'core'             => $suite['core'],
+            'extension_points' => $suite['extension_points'],
+            'modules'          => [],
+        ];
+        foreach ($suite['modules'] as $moduleId) {
+            $m = $modules[$moduleId] ?? [];
+            $cert = validateModuleCertification($m);
+            $entry['modules'][] = [
+                'id'           => $moduleId,
+                'name'         => (string)($m['name'] ?? $moduleId),
+                'version'      => (string)($m['version'] ?? '—'),
+                'kind'         => function_exists('moduleManifestKindFromManifest') ? moduleManifestKindFromManifest($m) : '',
+                'extends'      => (string)($m['extends'] ?? ''),
+                'enabled'      => !empty($m['_enabled']),
+                'health_ok'    => !empty($cert['ok']),
+                'health_score' => (string)($cert['score'] ?? '0') . '/' . (string)($cert['max'] ?? '0'),
+                'admin_contributions' => count(is_array($m['admin_contributions'] ?? null) ? $m['admin_contributions'] : []),
+                'uninstall'    => function_exists('moduleUninstallPolicyForModule') ? moduleUninstallPolicyForModule($moduleId) : [],
+            ];
+        }
+        usort($entry['modules'], static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+        $suites[] = $entry;
+    }
+
+    usort($suites, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+
+    echo cmsRender('modules/cms/admin/extensions.disyl', array_merge(cmsAdminContext($user, 'extensions', [
+        ['label' => 'Extensions', 'url' => ''],
+    ]), [
+        'page_title'  => 'Product Extensions',
+        'suites_json' => json_encode($suites, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    ]));
+}
+
+/**
+ * API: GET /api/v1/cms/suites
+ * Returns the product suite graph with per-module health/compatibility for
+ * the extension-manager UI.
+ */
+function cmsApiProductSuites(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('settings.manage');
+
+    $graph = moduleSuiteGraph();
+    $modules = discoverModules();
+
+    $suites = [];
+    foreach ($graph as $suiteId => $suite) {
+        $members = [];
+        foreach ($suite['modules'] as $moduleId) {
+            $m = $modules[$moduleId] ?? [];
+            $cert = validateModuleCertification($m);
+            $members[] = [
+                'id'           => $moduleId,
+                'name'         => (string)($m['name'] ?? $moduleId),
+                'version'      => (string)($m['version'] ?? '—'),
+                'kind'         => function_exists('moduleManifestKindFromManifest') ? moduleManifestKindFromManifest($m) : '',
+                'extends'      => (string)($m['extends'] ?? ''),
+                'enabled'      => !empty($m['_enabled']),
+                'health_ok'    => !empty($cert['ok']),
+                'health_score' => (string)($cert['score'] ?? '0') . '/' . (string)($cert['max'] ?? '0'),
+                'admin_contributions' => count(is_array($m['admin_contributions'] ?? null) ? $m['admin_contributions'] : []),
+            ];
+        }
+        usort($members, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+        $suites[] = [
+            'id'               => $suiteId,
+            'name'             => (string)($suite['name'] ?? $suiteId),
+            'core'             => $suite['core'],
+            'extension_points' => $suite['extension_points'],
+            'modules'          => $members,
+        ];
+    }
+    usort($suites, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+
+    echo json_encode(['ok' => true, 'suites' => $suites]);
+    exit;
+}
+
+/**
+ * API: POST /api/v1/cms/modules/{module_id}/uninstall
+ * Uninstalls a CMS-installed module via the Kernel lifecycle service.
+ * Body options:
+ *   - purge: drop owned tables (data removal)
+ *   - export: export owned tables before purge
+ *   - force: bypass disable_safe=false
+ *   - confirm_purge: explicit operator intent for data drop
+ */
+function cmsApiModuleUninstall(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
+
+    $moduleId = trim((string)($params['module_id'] ?? ''));
+    if ($moduleId === '') {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'module_id required']);
+        exit;
+    }
+
+    if (!_cmsIsRegisteredSubModule($moduleId)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Module "' . $moduleId . '" is a kernel module and cannot be uninstalled from the CMS.']);
+        exit;
+    }
+
+    $input = cmsInput();
+    $opts = [];
+    if (!empty($input['purge'])) {
+        $opts['purge'] = true;
+    }
+    if (!empty($input['export'])) {
+        $opts['export'] = true;
+    }
+    if (!empty($input['force'])) {
+        $opts['force'] = true;
+    }
+    if (!empty($input['confirm_purge'])) {
+        $opts['confirm_purge'] = true;
+    }
+
+    $result = uninstallModule($moduleId, $opts);
+    if (empty($result['ok'])) {
+        http_response_code(400);
+        echo json_encode([
+            'ok' => false,
+            'error' => (string)($result['error'] ?? 'Uninstall failed'),
+            'error_code' => (string)($result['error_code'] ?? 'uninstall_failed'),
+        ]);
+        exit;
+    }
+
+    echo json_encode([
+        'ok'      => true,
+        'module_id' => $moduleId,
+        'purged'  => !empty($opts['purge']),
+        'export'  => $result['export'] ?? null,
+        'message' => 'Module "' . $moduleId . '" uninstalled.',
+    ]);
+    exit;
+}

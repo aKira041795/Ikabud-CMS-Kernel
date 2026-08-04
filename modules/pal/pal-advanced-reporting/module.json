@@ -1,0 +1,65 @@
+{
+    "id": "pal-advanced-reporting",
+    "name": "PAL Advanced Reporting",
+    "version": "1.0.0",
+    "description": "PAL Advanced Reporting extension — proves the product suite + extension model is not CMS-specific by contributing a report provider and sidebar surface to the PAL suite.",
+    "author": "Ikabud",
+    "suite": "pal",
+    "kind": "extension",
+    "extends": "pal-core",
+    "depends": [
+        "pal-core"
+    ],
+    "contributes": [
+        {
+            "extension_point": "pal.report.providers",
+            "provider": "pal-advanced-reporting.report-provider@1"
+        },
+        {
+            "extension_point": "pal.sidebar",
+            "provider": "pal-advanced-reporting.sidebar@1"
+        }
+    ],
+    "admin_contributions": [
+        {
+            "id": "pal-advanced-reporting.sidebar",
+            "host": "pal-core",
+            "location": "sidebar",
+            "group": "reports",
+            "label": "Advanced Reports",
+            "icon": "chart",
+            "route": "/admin/pal/advanced-reports",
+            "permission": "pal.reports.advanced.view",
+            "order": 40
+        }
+    ],
+    "compatibility": {
+        "kernel": ">=6.0.0",
+        "suite": ">=1.0.0"
+    },
+    "uninstall": {
+        "disable_safe": true,
+        "retain_data_by_default": true,
+        "supports_data_export": true,
+        "requires_confirmation_to_drop_data": true
+    },
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "pal.reports.advanced.list@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List advanced PAL reports"
+            }
+        ],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": []
+}

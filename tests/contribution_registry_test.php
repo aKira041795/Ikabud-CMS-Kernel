@@ -96,6 +96,65 @@ $section = $result[$sectionIdx] ?? null;
 $assert(is_array($section) && !empty($section['section']), 'bridge marks grouped item as section');
 $assert(is_array($section['children'] ?? null) && ($section['children'][0]['label'] ?? '') === 'SEO', 'bridge nests SEO as child of Optimization section');
 
+// ── S4: stable contribution ids ──────────────────────────────────────────
+$idFleet = [
+    'mod-a' => ['id' => 'mod-a', 'name' => 'A', 'version' => '1.0.0', '_enabled' => true, 'admin_contributions' => [
+        ['host' => 'cms', 'location' => 'sidebar', 'label' => 'A Nav', 'route' => '/admin/a'],
+    ]],
+    'mod-b' => ['id' => 'mod-b', 'name' => 'B', 'version' => '1.0.0', '_enabled' => true, 'admin_contributions' => [
+        ['host' => 'cms', 'location' => 'sidebar', 'id' => 'mod-b.other', 'label' => 'B Nav', 'route' => '/admin/b'],
+    ]],
+    'mod-c' => ['id' => 'mod-c', 'name' => 'C', 'version' => '1.0.0', '_enabled' => true, 'admin_contributions' => [
+        ['host' => 'cms', 'location' => 'sidebar', 'id' => 'mod-b.other', 'label' => 'C Dup', 'route' => '/admin/c'],
+    ]],
+];
+$idRegistry = kernelContributionRegistry($idFleet);
+$idSidebar = $idRegistry['cms:sidebar'] ?? [];
+$idLabels = array_column($idSidebar, 'label');
+$assert(count($idSidebar) === 2, 'duplicate contribution id drops the later entry', (string)count($idSidebar));
+$assert(in_array('A Nav', $idLabels, true), 'first module contribution present');
+$assert(in_array('B Nav', $idLabels, true), 'second module contribution present');
+$assert(!in_array('C Dup', $idLabels, true), 'duplicate-id contribution rejected (first-wins)');
+$assert(($idRegistry['_conflicts'][0]['module'] ?? '') === 'mod-c', 'duplicate conflict recorded with module id');
+
+// ── S4: role-based contribution filtering ────────────────────────────────
+$roleFleet = [
+    'mod-r1' => ['id' => 'mod-r1', 'name' => 'R1', 'version' => '1.0.0', '_enabled' => true, 'admin_contributions' => [
+        ['host' => 'cms', 'location' => 'sidebar', 'label' => 'Admin Only', 'route' => '/admin/r1', 'roles' => ['admin']],
+    ]],
+    'mod-r2' => ['id' => 'mod-r2', 'name' => 'R2', 'version' => '1.0.0', '_enabled' => true, 'admin_contributions' => [
+        ['host' => 'cms', 'location' => 'sidebar', 'label' => 'Everyone', 'route' => '/admin/r2'],
+    ]],
+];
+$adminCtx = ['user' => ['role' => 'admin']];
+$adminNav = kernelContributionsForHostLocation('cms', 'sidebar', $roleFleet, $adminCtx);
+$adminLabels = array_column($adminNav, 'label');
+$assert(in_array('Admin Only', $adminLabels, true), 'admin role sees role-restricted contribution');
+$assert(in_array('Everyone', $adminLabels, true), 'admin role sees unrestricted contribution');
+$editorCtx = ['user' => ['role' => 'editor']];
+$editorNav = kernelContributionsForHostLocation('cms', 'sidebar', $roleFleet, $editorCtx);
+$editorLabels = array_column($editorNav, 'label');
+$assert(!in_array('Admin Only', $editorLabels, true), 'non-admin role does not leak role-restricted contribution');
+$assert(in_array('Everyone', $editorLabels, true), 'non-admin role sees unrestricted contribution');
+
+// ── S4: tenant-level contribution filtering ──────────────────────────────
+$tenantFleet = [
+    'mod-t' => ['id' => 'mod-t', 'name' => 'T', 'version' => '1.0.0', '_enabled' => true, 'admin_contributions' => [
+        ['host' => 'cms', 'location' => 'sidebar', 'label' => 'Tenant Surf', 'route' => '/admin/t'],
+    ]],
+];
+// isModuleEnabledForTenant reads tenant settings; without a real tenant DB row
+// the default-enabled path applies. We assert the context plumbing does not
+// crash and that context tenant id resolution works.
+$ctxTenant = kernelContributionContextTenantId(['tenant_id' => 42]);
+$assert($ctxTenant === 42, 'context tenant_id resolves from explicit context');
+$ctxTenantStr = kernelContributionContextTenantId(['tenant_id' => '7']);
+$assert($ctxTenantStr === 7, 'context tenant_id resolves from numeric string');
+$ctxTenantNone = kernelContributionContextTenantId([]);
+$assert($ctxTenantNone === null || is_int($ctxTenantNone), 'no tenant context yields null or current tenant');
+$tenantNav = kernelContributionsForHostLocation('cms', 'sidebar', $tenantFleet, ['tenant_id' => 42]);
+$assert(is_array($tenantNav), 'tenant-context query returns array without error');
+
 // ── live hook registration sanity ────────────────────────────────────────
 $hooks = app()->hooks();
 if (function_exists('cmsGetExtensionNavItems')) {

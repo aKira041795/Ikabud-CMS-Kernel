@@ -1,0 +1,180 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6" x-data="cmsProductExtensions()">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">Product Extensions</h1>
+            <p class="mt-0.5 text-sm text-slate-500">Manage product suites and their extensions. Each optional extension contributes its own surfaces automatically; only the product core owns static navigation.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-400" x-text="suites.length ? suites.length + ' product suite(s)' : 'No product suites'"></span>
+        </div>
+    </div>
+
+    <!-- Lifecycle message -->
+    <div x-show="msg" x-cloak class="text-sm rounded-xl px-4 py-3" :class="msgOk ? 'bg-green-50 text-green-700' : 'bg-rose-50 text-rose-700'" x-text="msg"></div>
+
+    <!-- Suites -->
+    <template x-for="suite in suites" :key="suite.id">
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900" x-text="suite.name"></h3>
+                    <p class="mt-0.5 text-xs text-slate-500" x-text="suite.id + (suite.core ? ' · core: ' + suite.core : '')"></p>
+                </div>
+                <div class="flex flex-wrap gap-1.5" x-show="suite.extension_points && suite.extension_points.length">
+                    <template x-for="pt in suite.extension_points" :key="pt">
+                        <span class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-indigo-50 text-indigo-700" x-text="pt"></span>
+                    </template>
+                </div>
+            </div>
+
+            <div class="divide-y divide-slate-100">
+                <template x-for="mod in suite.modules" :key="mod.id">
+                    <div class="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p class="font-semibold text-sm text-slate-900" x-text="mod.name"></p>
+                                <span class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full"
+                                      :class="{
+                                        'bg-violet-100 text-violet-700': mod.kind === 'product-core',
+                                        'bg-sky-100 text-sky-700': mod.kind === 'extension',
+                                        'bg-teal-100 text-teal-700': mod.kind === 'adapter',
+                                        'bg-amber-100 text-amber-700': mod.kind === 'profile',
+                                        'bg-slate-100 text-slate-600': !mod.kind
+                                      }" x-text="mod.kind || 'module'"></span>
+                                <span x-show="mod.enabled" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-100 text-emerald-700">Enabled</span>
+                                <span x-show="!mod.enabled" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-500">Disabled</span>
+                                <span x-show="mod.health_ok" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">Healthy</span>
+                                <span x-show="!mod.health_ok" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-rose-100 text-rose-700" x-text="'Health ' + mod.health_score"></span>
+                            </div>
+                            <div class="mt-1.5 flex flex-wrap gap-2 text-[11px] text-slate-400">
+                                <span x-text="'v' + mod.version"></span>
+                                <span x-show="mod.extends" x-text="'extends ' + mod.extends"></span>
+                                <span x-show="mod.admin_contributions" x-text="mod.admin_contributions + ' admin contribution(s)'"></span>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button @click="toggleModule(mod)" :disabled="busy === ('toggle:' + mod.id)"
+                                    class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors"
+                                    :class="mod.enabled ? 'text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100' : 'text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100'">
+                                <span x-text="mod.enabled ? 'Disable' : 'Enable'"></span>
+                            </button>
+                            <button @click="openUninstall(mod)" :disabled="busy === ('uninstall:' + mod.id)"
+                                    class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl border border-rose-200 text-rose-600 bg-white hover:bg-rose-50 transition-colors">
+                                Uninstall
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <div x-show="suites.length === 0" x-cloak class="text-sm text-slate-500 rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center">
+        No product suites declared yet. Add a `suite` + `kind` to your module manifests to appear here.
+    </div>
+
+    <!-- Uninstall modal -->
+    <div x-show="uninstallOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4" @keydown.escape.window="uninstallOpen = false">
+        <div class="fixed inset-0 bg-black/35 backdrop-blur-sm" @click="uninstallOpen = false" x-transition.opacity></div>
+        <div class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20" x-show="uninstallOpen" x-transition>
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900" x-text="'Uninstall ' + (uninstallForm.name || 'module')"></h3>
+                    <p class="mt-1 text-sm text-slate-500">Disable stops behavior and keeps data. Uninstall removes code and keeps data by default. Purge drops owned data — requires explicit confirmation.</p>
+                </div>
+                <button type="button" class="rounded-2xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors" @click="uninstallOpen = false">Close</button>
+            </div>
+            <div class="space-y-4 px-6 py-5">
+                <label class="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" x-model="uninstallForm.export" class="rounded border-slate-300">
+                    Export owned tables before removal
+                </label>
+                <label class="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" x-model="uninstallForm.purge" class="rounded border-slate-300">
+                    Purge owned data (drop tables)
+                </label>
+                <div x-show="uninstallForm.purge" x-cloak>
+                    <label class="flex items-center gap-2 text-sm text-rose-700">
+                        <input type="checkbox" x-model="uninstallForm.confirmPurge" class="rounded border-rose-300">
+                        I confirm dropping this module's owned data
+                    </label>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                    <button type="button" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors" @click="uninstallOpen = false">Cancel</button>
+                    <button type="button" @click="confirmUninstall()" :disabled="busy === ('uninstall:' + uninstallForm.id)" class="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 transition-colors">
+                        <span x-text="busy === ('uninstall:' + uninstallForm.id) ? 'Uninstalling…' : 'Uninstall'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SUITES_JSON = {suites_json|raw};
+    function cmsProductExtensions() {
+        return {
+            suites: typeof SUITES_JSON !== 'undefined' ? SUITES_JSON : [],
+            busy: '',
+            msg: '',
+            msgOk: true,
+            uninstallOpen: false,
+            uninstallForm: { id: '', name: '', purge: false, export: false, confirmPurge: false },
+            toggleModule(mod) {
+                const self = this;
+                const key = 'toggle:' + mod.id;
+                this.busy = key;
+                fetch(CMS_BASE + '/api/v1/cms/modules/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({ module_id: mod.id, enable: !mod.enabled })
+                }).then(r => r.json()).then(data => {
+                    self.busy = '';
+                    if (data.ok) {
+                        mod.enabled = data.enabled;
+                        self.msg = data.message || 'Module updated.';
+                        self.msgOk = true;
+                    } else {
+                        self.msg = data.error || 'Toggle failed.';
+                        self.msgOk = false;
+                    }
+                }).catch(() => { self.busy = ''; self.msg = 'Toggle request failed.'; self.msgOk = false; });
+            },
+            openUninstall(mod) {
+                this.uninstallForm = { id: mod.id, name: mod.name, purge: false, export: false, confirmPurge: false };
+                this.uninstallOpen = true;
+            },
+            confirmUninstall() {
+                const self = this;
+                const key = 'uninstall:' + this.uninstallForm.id;
+                this.busy = key;
+                fetch(CMS_BASE + '/api/v1/cms/modules/' + this.uninstallForm.id + '/uninstall', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({
+                        purge: this.uninstallForm.purge,
+                        export: this.uninstallForm.export,
+                        confirm_purge: this.uninstallForm.confirmPurge
+                    })
+                }).then(r => r.json()).then(data => {
+                    self.busy = '';
+                    self.uninstallOpen = false;
+                    if (data.ok) {
+                        self.msg = data.message || 'Module uninstalled.';
+                        self.msgOk = true;
+                        // Reload to reflect removal.
+                        window.setTimeout(() => window.location.reload(), 900);
+                    } else {
+                        self.msg = data.error || 'Uninstall failed.';
+                        self.msgOk = false;
+                    }
+                }).catch(() => { self.busy = ''; self.msg = 'Uninstall request failed.'; self.msgOk = false; });
+            }
+        };
+    }
+</script>
+{/block}

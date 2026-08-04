@@ -307,19 +307,31 @@ function moduleSuiteAdminHost(string $suiteId): ?string
 /**
  * Normalize a raw admin_contributions entry into the canonical shape.
  *
+ * A stable `id` is derived when not declared: `<module>.<location>` for the
+ * first contribution from a module at a location, or `<module>.<location>.<n>`
+ * for subsequent ones (caller supplies the explicit raw id when present).
+ *
  * @param array<string,mixed> $raw
  * @return array<string,mixed>
  */
 function kernelContributionNormalize(array $raw, string $moduleId): array
 {
+    $location = trim((string)($raw['location'] ?? ''));
+    $declaredId = trim((string)($raw['id'] ?? ''));
+    $id = $declaredId !== ''
+        ? $declaredId
+        : ($moduleId . '.' . ($location !== '' ? $location : 'surface'));
+
     return [
+        'id'         => $id,
         'host'       => trim((string)($raw['host'] ?? '')),
-        'location'   => trim((string)($raw['location'] ?? '')),
+        'location'   => $location,
         'group'      => trim((string)($raw['group'] ?? '')),
         'label'      => trim((string)($raw['label'] ?? '')),
         'icon'       => trim((string)($raw['icon'] ?? '')),
         'route'      => trim((string)($raw['route'] ?? '')),
         'permission' => trim((string)($raw['permission'] ?? '')),
+        'roles'      => is_array($raw['roles'] ?? null) ? array_values(array_filter(array_map('strval', $raw['roles']))) : [],
         'order'      => is_int($raw['order'] ?? null) ? $raw['order'] : 0,
         'active_key' => trim((string)($raw['active_key'] ?? '')),
         'module'     => $moduleId,
@@ -327,21 +339,99 @@ function kernelContributionNormalize(array $raw, string $moduleId): array
 }
 
 /**
+ * Resolve the effective tenant id for contribution filtering from a context
+ * array or the current request (multi-tenant mode).
+ *
+ * @param array<string,mixed>|null $context
+ */
+function kernelContributionContextTenantId(?array $context = null): ?int
+{
+    if (is_array($context) && array_key_exists('tenant_id', $context)) {
+        $raw = $context['tenant_id'];
+        if (is_int($raw) && $raw > 0) {
+            return $raw;
+        }
+        if (is_string($raw) && ctype_digit($raw)) {
+            return (int)$raw;
+        }
+        return null;
+    }
+    if (function_exists('moduleTenantSettingsTenantId')) {
+        $current = moduleTenantSettingsTenantId();
+        if (is_int($current) && $current > 0) {
+            return $current;
+        }
+    }
+    return null;
+}
+
+/**
+ * Determine whether a module is allowed to contribute for the given context:
+ *  - explicit tenant id → isModuleEnabledForTenant()
+ *  - otherwise → manifest _enabled flag (already tenant-aware in tenant mode)
+ *
+ * @param array<string,mixed>|null $context
+ */
+function kernelContributionModuleAllowed(string $moduleId, array $manifest, ?array $context = null): bool
+{
+    if (empty($manifest['_enabled'])) {
+        return false;
+    }
+    $tenantId = kernelContributionContextTenantId($context);
+    if ($tenantId !== null && function_exists('isModuleEnabledForTenant')) {
+        // Explicit tenant context overrides the ambient _enabled flag so a
+        // globally-installed module that is disabled for this tenant does not
+        // leak into it.
+        return isModuleEnabledForTenant($moduleId, $tenantId);
+    }
+    return true;
+}
+
+/**
+ * Apply role-based filtering to a normalized contribution.
+ *
+ * @param array<string,mixed> $contrib
+ * @param array<string,mixed>|null $context
+ */
+function kernelContributionRoleAllowed(array $contrib, ?array $context = null): bool
+{
+    $roles = is_array($contrib['roles'] ?? null) ? $contrib['roles'] : [];
+    if ($roles === []) {
+        return true; // no role restriction
+    }
+    $user = is_array($context['user'] ?? null) ? $context['user'] : [];
+    $role = trim((string)($user['role'] ?? ''));
+    if ($role === '') {
+        return false; // restricted contribution but no known role
+    }
+    return in_array($role, $roles, true);
+}
+
+/**
  * Build the full contribution registry from enabled modules.
  *
+ * Duplicate-contribution rule (documented): a contribution id is unique per
+ * (host, location). When two enabled modules declare the same id for the same
+ * host+location, the first one wins and the collision is recorded in the
+ * returned `_conflicts` list (severity: advisory). This prevents silent UI
+ * collisions without hard-failing legacy manifests.
+ *
  * @param array<string,array<string,mixed>>|null $modules override discovery
+ * @param array<string,mixed>|null $context tenant_id / user filtering
  * @return array<string,array<int,array<string,mixed>>> keyed "host:location"
  */
-function kernelContributionRegistry(?array $modules = null): array
+function kernelContributionRegistry(?array $modules = null, ?array $context = null): array
 {
     if ($modules === null) {
         $modules = discoverModules();
     }
 
     $registry = [];
+    $seenIds = [];
+    $conflicts = [];
     foreach ($modules as $moduleId => $manifest) {
-        if (empty($manifest['_enabled'])) {
-            continue; // disabled modules must not contribute surfaces
+        if (!kernelContributionModuleAllowed($moduleId, $manifest, $context)) {
+            continue; // disabled/tenant-disabled modules must not contribute
         }
         $contribs = $manifest['admin_contributions'] ?? [];
         if (!is_array($contribs)) {
@@ -355,7 +445,25 @@ function kernelContributionRegistry(?array $modules = null): array
             if ($normalized['host'] === '' || $normalized['location'] === '') {
                 continue;
             }
+            if (!kernelContributionRoleAllowed($normalized, $context)) {
+                continue; // permission/role-gated contribution hidden
+            }
             $key = $normalized['host'] . ':' . $normalized['location'];
+            if ($normalized['id'] !== '') {
+                $idKey = $key . '#' . $normalized['id'];
+                if (isset($seenIds[$idKey])) {
+                    $conflicts[] = [
+                        'id' => $normalized['id'],
+                        'host' => $normalized['host'],
+                        'location' => $normalized['location'],
+                        'module' => $moduleId,
+                        'conflicts_with' => $seenIds[$idKey],
+                        'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory->value,
+                    ];
+                    continue; // first-wins; drop the duplicate
+                }
+                $seenIds[$idKey] = $moduleId;
+            }
             $registry[$key][] = $normalized;
         }
     }
@@ -366,24 +474,44 @@ function kernelContributionRegistry(?array $modules = null): array
     unset($items);
 
     ksort($registry);
+
+    if ($conflicts !== []) {
+        $registry['_conflicts'] = $conflicts;
+    }
+
     return $registry;
+}
+
+/**
+ * Return contribution conflicts recorded by the last registry build.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function kernelContributionConflicts(?array $modules = null): array
+{
+    $registry = kernelContributionRegistry($modules);
+    return $registry['_conflicts'] ?? [];
 }
 
 /**
  * List normalized contributions for a host (optionally filtered by location).
  *
  * @param array<string,array<string,mixed>>|null $modules override discovery
+ * @param array<string,mixed>|null $context tenant_id / user filtering
  * @return array<int,array<string,mixed>>
  */
-function kernelContributionsForHost(string $host, ?string $location = null, ?array $modules = null): array
+function kernelContributionsForHost(string $host, ?string $location = null, ?array $modules = null, ?array $context = null): array
 {
     $host = trim($host);
     if ($host === '') {
         return [];
     }
-    $registry = kernelContributionRegistry($modules);
+    $registry = kernelContributionRegistry($modules, $context);
     $result = [];
     foreach ($registry as $key => $items) {
+        if ($key === '_conflicts' || !str_contains($key, ':')) {
+            continue;
+        }
         [$candidateHost, $candidateLocation] = explode(':', $key, 2);
         if ($candidateHost !== $host) {
             continue;
@@ -402,11 +530,12 @@ function kernelContributionsForHost(string $host, ?string $location = null, ?arr
  * Convenience: contributions for a specific host + location.
  *
  * @param array<string,array<string,mixed>>|null $modules override discovery
+ * @param array<string,mixed>|null $context tenant_id / user filtering
  * @return array<int,array<string,mixed>>
  */
-function kernelContributionsForHostLocation(string $host, string $location, ?array $modules = null): array
+function kernelContributionsForHostLocation(string $host, string $location, ?array $modules = null, ?array $context = null): array
 {
-    return kernelContributionsForHost($host, $location, $modules);
+    return kernelContributionsForHost($host, $location, $modules, $context);
 }
 
 /**
@@ -422,17 +551,158 @@ function kernelHostDeclaresLocation(string $hostModuleId, string $location): boo
 }
 
 /**
+ * Resolve a module's routes file path from its manifest (or an explicit
+ * module path override, used during install before the module is discovered).
+ *
+ * @param array<string,mixed> $manifest
+ * @param string $modulePath explicit module dir (install-time override)
+ */
+function moduleRoutesFilePathForManifest(array $manifest, string $modulePath = ''): string
+{
+    if ($modulePath === '') {
+        $modulePath = trim((string)($manifest['_path'] ?? ''));
+    }
+    if ($modulePath === '') {
+        $moduleId = trim((string)($manifest['id'] ?? ''));
+        $manifestPath = $moduleId !== '' ? moduleManifestPathForId($moduleId) : null;
+        $modulePath = $manifestPath !== null ? dirname($manifestPath) : '';
+    }
+    if ($modulePath === '' || !is_dir($modulePath)) {
+        return '';
+    }
+
+    $routesDecl = $manifest['routes'] ?? true;
+    if (is_string($routesDecl) && $routesDecl !== '') {
+        $routesFile = $modulePath . '/' . ltrim($routesDecl, '/');
+    } elseif ($routesDecl === false) {
+        return '';
+    } else {
+        $routesFile = $modulePath . '/routes.php';
+    }
+    return is_file($routesFile) ? $routesFile : '';
+}
+
+/**
+ * Verify that a module actually registers a contribution route in its GET
+ * route map. Prevents dynamically generated dead links.
+ *
+ * @param string $moduleId contributing module
+ * @param string $route contribution route (absolute path)
+ * @param array<string,mixed>|null $manifest optional manifest with _path
+ * @return bool true when the module owns a GET route matching the path
+ */
+function moduleContributionRouteRegistered(string $moduleId, string $route, ?array $manifest = null): bool
+{
+    $route = trim($route);
+    if ($route === '') {
+        return false;
+    }
+    if ($manifest === null) {
+        $modules = discoverModules();
+        $manifest = $modules[$moduleId] ?? [];
+    }
+    $routesFile = moduleRoutesFilePathForManifest($manifest);
+    if ($routesFile === '') {
+        return false;
+    }
+
+    $routes = require $routesFile;
+    if (!is_array($routes) || !is_array($routes['GET'] ?? null)) {
+        return false;
+    }
+
+    $path = rtrim((string)(parse_url($route, PHP_URL_PATH) ?: $route), '/') ?: '/';
+    foreach (array_keys($routes['GET']) as $pattern) {
+        if (moduleRoutePatternMatchesPath((string)$pattern, $path)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Verify that a module registers a contribution route, with explicit method
+ * handling. Currently only GET-backed nav contributions are supported; returns
+ * the matched method when found.
+ *
+ * @param array<string,mixed>|null $manifest optional manifest with _path
+ * @return string|null matched HTTP method, or null when not registered
+ */
+function moduleContributionRouteMethod(string $moduleId, string $route, ?array $manifest = null): ?string
+{
+    $route = trim($route);
+    if ($route === '') {
+        return null;
+    }
+    if ($manifest === null) {
+        $modules = discoverModules();
+        $manifest = $modules[$moduleId] ?? [];
+    }
+    $routesFile = moduleRoutesFilePathForManifest($manifest);
+    if ($routesFile === '') {
+        return null;
+    }
+
+    $routes = require $routesFile;
+    if (!is_array($routes)) {
+        return null;
+    }
+
+    $path = rtrim((string)(parse_url($route, PHP_URL_PATH) ?: $route), '/') ?: '/';
+    foreach (['GET', 'POST'] as $method) {
+        $map = $routes[$method] ?? null;
+        if (!is_array($map)) {
+            continue;
+        }
+        foreach (array_keys($map) as $pattern) {
+            if (moduleRoutePatternMatchesPath((string)$pattern, $path)) {
+                return $method;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Resolve the current request context for contribution rendering (tenant +
+ * user), used by admin-shell bridges.
+ *
+ * @return array<string,mixed>
+ */
+function kernelContributionRequestContext(): array
+{
+    $context = [];
+    $tenantId = kernelContributionContextTenantId();
+    if ($tenantId !== null) {
+        $context['tenant_id'] = $tenantId;
+    }
+    if (function_exists('app')) {
+        try {
+            $user = app()->user();
+            if (is_array($user) && ($user['role'] ?? '') !== '') {
+                $context['user'] = $user;
+            }
+        } catch (Throwable $e) {
+            // no authenticated user context — role filtering stays permissive
+        }
+    }
+    return $context;
+}
+
+/**
  * Bridge: fold manifest-declared sidebar contributions for host "cms" into the
  * existing `cms.admin.nav_items` hook so the CMS admin shell renders them
  * without template changes. Grouped contributions become collapsible sections
  * (matching the admin.disyl rendering contract); ungrouped become flat items.
+ * Tenant and role filtering from the current request apply automatically.
  *
  * @param array<string,array<string,mixed>>|null $modules override discovery (tests)
  */
 function kernelContributionBridgeCmsNavItems(?array $modules = null): callable
 {
     return static function (array $items) use ($modules): array {
-        $contribs = kernelContributionsForHostLocation('cms', 'sidebar', $modules);
+        $context = kernelContributionRequestContext();
+        $contribs = kernelContributionsForHostLocation('cms', 'sidebar', $modules, $context);
         if ($contribs === []) {
             return $items;
         }
@@ -3133,6 +3403,15 @@ function validateModuleCertification(array $manifest): array
                 $badRoutes[] = 'route/host required';
                 break;
             }
+            // Route ownership: when the module is discoverable, verify the
+            // route is actually registered to prevent dead links.
+            $moduleId = (string)($manifest['id'] ?? '');
+            if ($moduleId !== '' && modulePathForId($moduleId) !== null) {
+                if (!moduleContributionRouteRegistered($moduleId, $route)) {
+                    $badRoutes[] = "unregistered route {$route}";
+                    break;
+                }
+            }
         }
     }
     $ok = $badRoutes === [];
@@ -3141,7 +3420,7 @@ function validateModuleCertification(array $manifest): array
         'passed' => $ok, // advisory — must not break standalone/legacy modules
         'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory->value,
         'detail' => $hasContribs
-            ? ($ok ? count($contribs) . ' contribution(s) declared with routes' : 'Malformed contribution: ' . implode('; ', $badRoutes))
+            ? ($ok ? count($contribs) . ' contribution(s) declared with owned routes' : 'Malformed contribution: ' . implode('; ', $badRoutes))
             : 'No admin contributions declared',
     ];
     if ($ok) $passed++;
@@ -3176,6 +3455,112 @@ function validateModuleCertification(array $manifest): array
 function moduleInstallFailure(string $errorCode, string $error, array $extra = []): array
 {
     return ['ok' => false, 'error_code' => $errorCode, 'error' => $error] + $extra;
+}
+
+/**
+ * Evaluate whether a semver version satisfies a (possibly compound) range.
+ *
+ * Supported operators: exact ("1.2.3"), ">=X", ">X", "<=X", "<X", "=X",
+ * caret ("^1.2" — compatible release), tilde ("~1.2" — patch-level), and
+ * space-separated compound ranges (">=1.0 <2.0").
+ */
+function kernelSemverRangeSatisfies(string $version, string $range): bool
+{
+    $version = trim($version);
+    $range = trim($range);
+    if ($version === '' || $range === '') {
+        return false;
+    }
+    $parts = preg_split('/\s+/', $range);
+    $parts = is_array($parts) ? array_values(array_filter($parts, static fn ($p): bool => $p !== '')) : [];
+    if ($parts === []) {
+        return false;
+    }
+    foreach ($parts as $part) {
+        if (!kernelSemverSingleConstraintSatisfies($version, $part)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Evaluate a single semver constraint against a version.
+ */
+function kernelSemverSingleConstraintSatisfies(string $version, string $constraint): bool
+{
+    $constraint = trim($constraint);
+    if ($constraint === '') {
+        return false;
+    }
+    $vParts = explode('.', $version);
+    $actualMajor = (int)($vParts[0] ?? 0);
+    $actualMinor = (int)($vParts[1] ?? 0);
+    $actualPatch = (int)($vParts[2] ?? 0);
+
+    // Operator-prefixed constraints.
+    if (preg_match('/^(>=|<=|>|<|=)\s*(\d+(?:\.\d+){0,2})/', $constraint, $m)) {
+        return version_compare($version, $m[2], $m[1]);
+    }
+
+    // Caret: ^1.2 → >=1.2.0 <2.0.0; ^0.1 → >=0.1.0 <0.2.0.
+    if (str_starts_with($constraint, '^')) {
+        $min = trim(substr($constraint, 1));
+        if ($min === '') {
+            return false;
+        }
+        $minParts = explode('.', $min);
+        $minMajor = (int)($minParts[0] ?? 0);
+        $minMinor = (int)($minParts[1] ?? 0);
+        if (!version_compare($version, $min, '>=')) {
+            return false;
+        }
+        if ($minMajor === 0) {
+            return $actualMajor === 0 && $actualMinor === $minMinor;
+        }
+        return $actualMajor === $minMajor;
+    }
+
+    // Tilde: ~1.2 → >=1.2.0 <1.3.0; ~1.2.3 → >=1.2.3 <1.3.0.
+    if (str_starts_with($constraint, '~')) {
+        $min = trim(substr($constraint, 1));
+        if ($min === '') {
+            return false;
+        }
+        $minParts = explode('.', $min);
+        $minMajor = (int)($minParts[0] ?? 0);
+        $minMinor = (int)($minParts[1] ?? 0);
+        return version_compare($version, $min, '>=')
+            && $actualMajor === $minMajor
+            && $actualMinor === $minMinor;
+    }
+
+    // Plain exact version (may be 1, 1.2, or 1.2.3).
+    if (preg_match('/^\d+(?:\.\d+){0,2}$/', $constraint)) {
+        return version_compare($version, $constraint, '==');
+    }
+
+    return false;
+}
+
+/**
+ * Resolve the suite version for compatibility evaluation. The suite core
+ * module's declared version is treated as the suite version.
+ *
+ * @param string $suiteId normalized suite id
+ * @param array<string,array<string,mixed>>|null $fleet
+ */
+function kernelSuiteVersionFor(string $suiteId, ?array $fleet = null): ?string
+{
+    if ($fleet === null) {
+        $fleet = discoverModules();
+    }
+    $coreId = moduleSuiteCore($suiteId, $fleet);
+    if ($coreId === null) {
+        return null;
+    }
+    $version = (string)($fleet[$coreId]['version'] ?? '');
+    return $version !== '' ? $version : null;
 }
 
 /**
@@ -3277,6 +3662,71 @@ function validateModuleSuiteContractForInstall(array $manifest, array $fleet): a
         $passed++;
     } else {
         $failures[] = 'profile installs itself';
+    }
+
+    // G5: contribution routes must be owned by the contributing module (GET).
+    // Prevents dynamically generated dead links from surfacing in admin nav.
+    // When the module's routes file is not resolvable (e.g. install-time path
+    // unavailable in a pure in-memory test fleet), the check is skipped.
+    $total++;
+    $unownedRoutes = [];
+    $routesResolvable = moduleRoutesFilePathForManifest($manifest) !== '';
+    foreach ($contribs as $contribution) {
+        if (!is_array($contribution)) {
+            continue;
+        }
+        $route = trim((string)($contribution['route'] ?? ''));
+        if ($route === '') {
+            continue;
+        }
+        if (!moduleContributionRouteRegistered($moduleId, $route, $manifest)) {
+            $unownedRoutes[] = $route;
+        }
+    }
+    $routesOwned = $unownedRoutes === [];
+    if ($routesResolvable) {
+        $checks[] = ['check' => 'G5: Contribution route ownership', 'passed' => $routesOwned, 'detail' => $routesOwned ? 'All contribution routes are registered by the module' : 'Unregistered contribution route(s): ' . implode(', ', array_unique($unownedRoutes))];
+        if ($routesOwned) {
+            $passed++;
+        } else {
+            $failures[] = 'unregistered contribution route(s): ' . implode(', ', array_unique($unownedRoutes));
+        }
+    } else {
+        $checks[] = ['check' => 'G5: Contribution route ownership', 'passed' => true, 'detail' => 'Route file not resolvable — ownership check skipped'];
+        $passed++;
+    }
+
+    // G6: compatibility enforcement — Kernel version and host-suite version
+    // ranges declared in the manifest must be satisfiable by the fleet.
+    $total++;
+    $compatFailures = [];
+    $compatibility = is_array($manifest['compatibility'] ?? null) ? $manifest['compatibility'] : [];
+
+    $kernelRange = is_string($compatibility['kernel'] ?? null) ? trim($compatibility['kernel']) : '';
+    if ($kernelRange !== '') {
+        $currentKernel = \Ikabud\Kernel\App::KERNEL_VERSION;
+        if (!kernelSemverRangeSatisfies($currentKernel, $kernelRange)) {
+            $compatFailures[] = "kernel {$currentKernel} does not satisfy {$kernelRange}";
+        }
+    }
+
+    $suiteRange = is_string($compatibility['suite'] ?? null) ? trim($compatibility['suite']) : '';
+    if ($suiteRange !== '') {
+        $suiteId = moduleSuiteFromManifest($manifest);
+        $suiteVersion = $suiteId !== null ? kernelSuiteVersionFor($suiteId, $fleet) : null;
+        if ($suiteVersion === null) {
+            $compatFailures[] = "suite '{$suiteId}' version unknown — cannot evaluate {$suiteRange}";
+        } elseif (!kernelSemverRangeSatisfies($suiteVersion, $suiteRange)) {
+            $compatFailures[] = "suite {$suiteVersion} does not satisfy {$suiteRange}";
+        }
+    }
+
+    $compatOk = $compatFailures === [];
+    $checks[] = ['check' => 'G6: Compatibility', 'passed' => $compatOk, 'detail' => $compatOk ? 'Declared compatibility ranges satisfied' : 'Compatibility violation(s): ' . implode('; ', $compatFailures)];
+    if ($compatOk) {
+        $passed++;
+    } else {
+        $failures[] = 'compatibility: ' . implode('; ', $compatFailures);
     }
 
     foreach ($checks as &$check) {

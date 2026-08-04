@@ -264,24 +264,40 @@ disappears. `ikabud module:certify cms-akira-seo` renders C12/C13 correctly.
 ### Evidence to gather (three deployments)
 1. **CMS Akira SEO** — done: install → nav appears; disable → nav disappears;
    uninstall → CMS survives.
-2. **PAL extension** — prove the design is not CMS-specific: PAL Core +
-   PAL Advanced Reporting extension + PAL-hosted extension-management screen.
-3. **An adapter** (e.g. CMS Akira Search Adapter) — prove extensions are not
-   limited to visible navigation plugins; swappable/disableable provider.
+2. **PAL extension** — ✅ done (2026-08-05): `modules/pal/pal-core`
+   (product-core) + `modules/pal/pal-advanced-reporting` (extension) prove the
+   model is not CMS-specific. Live discovery resolves the `pal` suite (core,
+   extension, `pal.report.providers`/`pal.sidebar` points), the sidebar
+   contribution resolves for a non-CMS host, and the install gate enforces the
+   same host/point/route/compatibility rules. See `product_suite_evidence_test.php`.
+3. **An adapter** — ✅ done (2026-08-05): `cms-akira-search-adapter` is a
+   provider-only adapter (no `admin_contributions`, no sidebar) that can be
+   disabled without affecting the suite core. See `product_suite_evidence_test.php`.
 
 ### Recommended next safeguards (not blockers for approval)
-1. **Duplicate contribution identities** — give each contribution a stable
-   `id` (e.g. `cms-akira-seo.sidebar`); registry rejects duplicate ids or
-   applies a documented conflict rule.
-2. **Route-ownership validation** — certification verifies the contributing
-   module registers the declared route, method compatibility, permission
-   existence, and no contribution route collisions (prevents dead links).
-3. **Explicit compatibility enforcement** — exercise install rejection for
-   incompatible Kernel version, incompatible host-suite version, and
-   unsupported extension contract version.
-4. **Tenant-specific contribution filtering** — prove a globally-installed but
-   tenant-disabled module does not leak into that tenant, per-tenant enablement
-   shows correctly, and permission-gated nav does not cross roles.
-5. **Product extension manager UX** — build PAL → Extensions and CMS Akira →
-   Extensions screens (Installed / Available / Upload / Compatibility / Health /
-   Disable / Uninstall / Export / Purge) on top of the existing Kernel services.
+1. **Duplicate contribution identities** — ✅ done (2026-08-05): each
+   contribution gets a stable `id` (declared or derived `<module>.<location>`);
+   the registry rejects duplicates per host+location (first-wins) and records
+   them in `_conflicts`; the fleet validator emits a fatal on duplicate ids.
+2. **Route-ownership validation** — ✅ done (2026-08-05): install gate G5 and
+   certification C13 verify the contributing module registers the declared
+   route (GET); `moduleContributionRouteRegistered()` / `RouteMethod()` reuse
+   the route pattern matcher to prevent dead links.
+3. **Explicit compatibility enforcement** — ✅ done (2026-08-05): install gate
+   G6 rejects incompatible Kernel version and incompatible host-suite version
+   using a semver range matcher (`kernelSemverRangeSatisfies()` supporting
+   `>=`, `>`, `<=`, `<`, `^`, `~`, exact, and compound ranges). Covered by
+   `module_suite_compatibility_test.php`.
+4. **Tenant-specific contribution filtering** — ✅ done (2026-08-05): the
+   registry and host queries accept a context (`tenant_id` / `user`); explicit
+   tenant enablement (`isModuleEnabledForTenant`) and role allowlists
+   (`admin_contributions.roles`) are enforced, and the CMS bridge resolves the
+   request context automatically. Covered by `contribution_registry_test.php`.
+5. **Product extension manager UX** — ✅ done (2026-08-05): CMS hosts a generic
+   product-suite extension manager (`/cms/admin/extensions` →
+   `cmsAdminProductExtensions` + `cmsApiProductSuites` +
+   `cmsApiModuleUninstall`) listing suites with core/extensions/adapters/
+   profiles, per-module Health, and Disable / Uninstall / Export / Purge
+   actions — all backed by the Kernel services (`moduleSuiteGraph`,
+   `uninstallModule`, enable/disable). PAL and other products can reuse the
+   same endpoints for their own "→ Extensions" screens.

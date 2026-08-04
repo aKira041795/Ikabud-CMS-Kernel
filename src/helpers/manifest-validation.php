@@ -377,6 +377,15 @@ function validateModuleSuiteContractV1(array $manifest): array
                 if (array_key_exists('permission', $contribution) && (!is_string($contribution['permission']) || trim((string)$contribution['permission']) === '')) {
                     $fatal('suite_admin_contributions_permission_invalid', 'manifest.v2.admin-contributions.permission', "/admin_contributions/{$index}/permission", 'admin_contributions permission must be a non-empty string.', 'Set permission to a capability id such as cms.seo.manage.');
                 }
+                if (array_key_exists('id', $contribution) && (!is_string($contribution['id']) || preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*(\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/', trim((string)$contribution['id'])) !== 1)) {
+                    $fatal('suite_admin_contributions_id_invalid', 'manifest.v2.admin-contributions.id', "/admin_contributions/{$index}/id", 'admin_contributions id must be a dotted identifier (e.g. cms-akira-seo.sidebar).', 'Set a stable dotted id such as "cms-akira-seo.sidebar".');
+                }
+                if (array_key_exists('roles', $contribution)) {
+                    $roles = $contribution['roles'];
+                    if (!is_array($roles) || $roles === [] || array_filter($roles, static fn ($role): bool => !is_string($role) || trim($role) === '') !== []) {
+                        $fatal('suite_admin_contributions_roles_invalid', 'manifest.v2.admin-contributions.roles', "/admin_contributions/{$index}/roles", 'admin_contributions roles must be a non-empty array of role names.', 'Set roles to an array such as ["admin"] or omit to allow all roles.');
+                    }
+                }
             }
         }
     }
@@ -438,6 +447,32 @@ function validateModuleSuiteFleetV1(array $manifests): array
                 array_map('trim', $manifest['extension_points']),
                 static fn ($p): bool => $p !== ''
             ));
+        }
+    }
+
+    // Contribution id uniqueness across the fleet (per host:location).
+    $contributionIds = [];
+    foreach ($manifests as $moduleId => $manifest) {
+        $adminContribs = $manifest['admin_contributions'] ?? null;
+        if (!is_array($adminContribs)) {
+            continue;
+        }
+        foreach ($adminContribs as $index => $contribution) {
+            if (!is_array($contribution)) {
+                continue;
+            }
+            $host = trim((string)($contribution['host'] ?? ''));
+            $location = trim((string)($contribution['location'] ?? ''));
+            $declaredId = trim((string)($contribution['id'] ?? ''));
+            $id = $declaredId !== ''
+                ? $declaredId
+                : $moduleId . '.' . ($location !== '' ? $location : 'surface');
+            $key = $host . ':' . $location . '#' . $id;
+            if (isset($contributionIds[$key])) {
+                $fatal('suite_fleet_duplicate_contribution_id', 'manifest.v2.fleet.contribution-id', "/admin_contributions/{$index}/id", "Contribution id '{$id}' for host '{$host}' location '{$location}' is already declared by module '{$contributionIds[$key]}'.", 'Use a unique dotted contribution id per host and location.');
+                continue;
+            }
+            $contributionIds[$key] = $moduleId;
         }
     }
 

@@ -61,7 +61,7 @@ $ext['admin_contributions'] = [[
     'host' => 'cms',
     'location' => 'sidebar',
     'label' => 'SEO',
-    'route' => '/admin/cms/seo',
+    'route' => '/admin/cms-akira-seo',
     'order' => 60,
 ]];
 $cert = validateModuleCertification($ext);

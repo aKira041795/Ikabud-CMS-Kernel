@@ -33,6 +33,7 @@ return [
         '/cms/admin/permissions'           => 'cms:cmsAdminPermissions',
         '/cms/admin/themes'                => 'cms:cmsAdminThemes',
         '/cms/admin/modules'               => 'cms:cmsAdminModules',
+        '/cms/admin/extensions'            => 'cms:cmsAdminProductExtensions',
         '/cms/admin/weather'               => 'cms:cmsAdminWeather',
 
         // ── Admin API (GET) ──────────────────────────────────────
@@ -236,5 +237,7 @@ return [
         '/api/v1/cms/modules/toggle'                    => 'cms:cmsApiModuleToggle',
         '/api/v1/cms/modules/{module_id}/settings'      => 'cms:cmsApiModuleSettingsSave',
         '/api/v1/cms/modules/{module_id}/delete'        => 'cms:cmsApiModuleDelete',
+        '/api/v1/cms/modules/{module_id}/uninstall'     => 'cms:cmsApiModuleUninstall',
+        '/api/v1/cms/suites'                            => 'cms:cmsApiProductSuites',
     ],
 ];

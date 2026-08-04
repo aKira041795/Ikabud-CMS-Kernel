@@ -1,0 +1,32 @@
+{
+    "id": "pal-core",
+    "name": "PAL Core",
+    "version": "1.0.0",
+    "description": "PAL product core — authoritative host module for the pal suite. Declares the suite's extension points and product identity.",
+    "author": "Ikabud",
+    "suite": "pal",
+    "kind": "product-core",
+    "product": {
+        "id": "pal",
+        "name": "PAL"
+    },
+    "admin_host": "pal-core",
+    "extension_points": [
+        "pal.sidebar",
+        "pal.dashboard.widgets",
+        "pal.case.actions",
+        "pal.evidence.providers",
+        "pal.report.providers",
+        "pal.settings.sections"
+    ],
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": []
+}
