@@ -1,6 +1,27 @@
 # Product Suite And Extension Architecture Plan
 
-Updated: 2026-08-04
+Updated: 2026-08-05
+
+## Review Verdict: Approved (2026-08-05)
+
+Commit `39901426` is approved as the architecture baseline. The design correctly
+adds a **suite graph over the flat loader** with manifests as the authority,
+rather than a deeply nested runtime tree.
+
+Confirmed outcomes:
+- **Logical hierarchy enforced, not decorative.** Fleet validator + install gate
+  reject extensions whose host is absent, contributions aimed at unknown hosts,
+  contributions to undeclared extension points, and self-installing profiles.
+- **Flat-loader compatibility preserved.** `discoverModules()` stays flat;
+  suite-aware queries are a sidecar.
+- **Dynamic CMS administration proven for SEO.** Enable → nav appears;
+  disable → nav disappears; core survives.
+- **Lifecycle and certification implemented.** Disable/uninstall/purge policy
+  enforced before mutation; C12 (suite contract) and C13 (contribution shape)
+  added, with C12 blocking when declared.
+
+Target nav model (confirmed): only the product core owns static core nav;
+**every optional extension contributes its own surfaces dynamically**.
 
 ## Purpose
 Define the next-step architecture for Ikabud so product platforms like CMS Akira, PAL, AISS, ARK, and similar systems are governed as product suites, not only as a flat list of peer modules.
@@ -238,8 +259,29 @@ disappears. `ikabud module:certify cms-akira-seo` renders C12/C13 correctly.
 - Enforce suite boundaries in kernel installer, not in product UIs.
 - Preserve tenant isolation checks at every lifecycle stage.
 
-## Immediate Next Steps
-1. Approve this plan as architecture baseline.
-2. Implement Phase 1 in manifest-validation and manifest guard.
-3. Implement Phase 2 suite graph sidecar in module-manager.
-4. Start POC branch for CMS Akira SEO dynamic contribution flow.
+## Immediate Next Steps (post-approval roadmap)
+
+### Evidence to gather (three deployments)
+1. **CMS Akira SEO** — done: install → nav appears; disable → nav disappears;
+   uninstall → CMS survives.
+2. **PAL extension** — prove the design is not CMS-specific: PAL Core +
+   PAL Advanced Reporting extension + PAL-hosted extension-management screen.
+3. **An adapter** (e.g. CMS Akira Search Adapter) — prove extensions are not
+   limited to visible navigation plugins; swappable/disableable provider.
+
+### Recommended next safeguards (not blockers for approval)
+1. **Duplicate contribution identities** — give each contribution a stable
+   `id` (e.g. `cms-akira-seo.sidebar`); registry rejects duplicate ids or
+   applies a documented conflict rule.
+2. **Route-ownership validation** — certification verifies the contributing
+   module registers the declared route, method compatibility, permission
+   existence, and no contribution route collisions (prevents dead links).
+3. **Explicit compatibility enforcement** — exercise install rejection for
+   incompatible Kernel version, incompatible host-suite version, and
+   unsupported extension contract version.
+4. **Tenant-specific contribution filtering** — prove a globally-installed but
+   tenant-disabled module does not leak into that tenant, per-tenant enablement
+   shows correctly, and permission-gated nav does not cross roles.
+5. **Product extension manager UX** — build PAL → Extensions and CMS Akira →
+   Extensions screens (Installed / Available / Upload / Compatibility / Health /
+   Disable / Uninstall / Export / Purge) on top of the existing Kernel services.
