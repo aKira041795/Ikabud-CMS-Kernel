@@ -72,8 +72,8 @@
             "cms.content.get@1",
             "cms.content.list@1",
             "cms.content.create@1",
-                "cms.content.update@1"
-            ]
+            "cms.content.update@1"
+        ]
     },
     "routes": true,
     "events": [],
