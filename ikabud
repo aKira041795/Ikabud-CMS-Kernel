@@ -3261,9 +3261,12 @@ switch ($command) {
         // Table prefix: daily-ledger → dl_ (underscore-joined initials)
         $tablePrefix = $shortPrefix . '_';
 
-        $modulePath = modulesPath() . '/' . $id;
+        $modulePath = function_exists('moduleInstallTargetDirForId')
+            ? moduleInstallTargetDirForId($id)
+            : modulesPath() . '/' . $id;
         $templatePath = BASE_PATH . '/templates/modules/' . $id;
         $testPath = BASE_PATH . '/tests/' . str_replace('-', '_', $id) . '_module_test.php';
+        $moduleRelativePath = ltrim(str_replace(BASE_PATH . '/', '', $modulePath), '/');
 
         if (is_dir($modulePath)) {
             out(red("  ✗ Module '{$id}' already exists at {$modulePath}"));
@@ -3511,7 +3514,7 @@ SQL;
         <div style="font-size:48px;margin-bottom:12px;">📦</div>
         <div style="font-weight:600;">Module scaffolded successfully</div>
         <div class="text-sm" style="margin-top:4px;">
-            Edit <code>modules/{$id}/handlers.php</code> and
+            Edit <code>{$moduleRelativePath}/handlers.php</code> and
             <code>templates/modules/{$id}/pages/home.disyl</code> to get started.
         </div>
     </div>
@@ -3565,7 +3568,14 @@ echo "\n=== {$label} MODULE TEST ===\n\n";
 
 // ── 1. Manifest ─────────────────────────────────────────────────────
 echo "── Manifest ──\n";
-\$manifestPath = BASE_PATH . '/modules/{$id}/module.json';
+\$modulePathResolved = modulePathForId('{$id}');
+t('module path resolved by module manager', is_string(\$modulePathResolved) && \$modulePathResolved !== '');
+if (!is_string(\$modulePathResolved) || \$modulePathResolved === '') {
+    echo "\nFATAL: module path for {$id} could not be resolved\n";
+    exit(1);
+}
+
+\$manifestPath = \$modulePathResolved . '/module.json';
 t('module.json exists', is_file(\$manifestPath));
 
 \$manifest = json_decode((string)file_get_contents(\$manifestPath), true);
@@ -3586,7 +3596,7 @@ t('Capability declarations valid', !empty(\$capCheck['ok']), (\$capCheck['error'
 
 // ── 4. Routes ───────────────────────────────────────────────────────
 echo "\n── Routes ──\n";
-\$modulePath = BASE_PATH . '/modules/{$id}';
+\$modulePath = \$modulePathResolved;
 \$routesFile = \$modulePath . '/routes.php';
 t('routes.php exists', is_file(\$routesFile));
 \$routes = require \$routesFile;
@@ -3635,7 +3645,7 @@ PHP;
 
 ```bash
 # 1. Edit your schema
-vim modules/{$id}/database/migrations/001_initial.sql
+vim {$moduleRelativePath}/database/migrations/001_initial.sql
 
 # 2. Run migrations
 php ikabud migrate {$id}
@@ -3685,8 +3695,8 @@ MD;
         out('  ' . green('✓') . bold(' Module scaffolded: ') . cyan($id));
         out('');
         out('  Next steps:');
-        out('    1. Edit ' . dim("modules/{$id}/database/migrations/001_initial.sql") . ' (add your tables)');
-        out('    2. Add table names to ' . dim("modules/{$id}/module.json") . ' owns_tables');
+        out('    1. Edit ' . dim("{$moduleRelativePath}/database/migrations/001_initial.sql") . ' (add your tables)');
+        out('    2. Add table names to ' . dim("{$moduleRelativePath}/module.json") . ' owns_tables');
         out('    3. Run  ' . cyan("php ikabud migrate {$id}"));
         out('    4. Run  ' . cyan("php tests/" . $testIdUnder . "_module_test.php") . dim(' (verify scaffold)'));
         out('    5. Visit ' . cyan("/admin/{$id}"));
@@ -5500,7 +5510,7 @@ MD;
         $parts = explode('.', $entityArg, 2);
         $moduleId = $parts[0];
         $entityName = $parts[1];
-        $modPath = BASE_PATH . '/modules/' . $moduleId;
+        $modPath = modulePathForId($moduleId) ?? (modulesPath() . '/' . $moduleId);
         if (!is_dir($modPath)) { out(red("  ✗ Module '{$moduleId}' not found")); exit(1); }
         $migrationDir = $modPath . '/database/migrations';
         $viewDir = $modPath . '/helpers/views';
@@ -5566,7 +5576,9 @@ MD;
         $id = strtolower(preg_replace('/[^a-zA-Z0-9\-]/', '-', $name));
         $id = preg_replace('/-+/', '-', trim($id, '-'));
         $label = ucwords(str_replace('-', ' ', $id));
-        $modulePath = modulesPath() . '/' . $id;
+        $modulePath = function_exists('moduleInstallTargetDirForId')
+            ? moduleInstallTargetDirForId($id)
+            : modulesPath() . '/' . $id;
         if (is_dir($modulePath)) {
             out(red("  ✗ Module '{$id}' already exists"));
             exit(1);

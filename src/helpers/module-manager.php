@@ -11,6 +11,38 @@ function modulesPath(): string
     return BASE_PATH . '/modules';
 }
 
+/**
+ * Resolve filesystem target directory for a module id.
+ *
+ * If a suite container directory already exists (for example `modules/cms-akira`)
+ * and the module id follows `<suite>-<submodule>` naming, place new modules under
+ * that container (`modules/cms-akira/cms-akira-foo`) to keep module roots clean.
+ *
+ * @param string $moduleId
+ * @return string
+ */
+function moduleInstallTargetDirForId(string $moduleId): string
+{
+    $moduleId = trim($moduleId);
+    $base = rtrim(modulesPath(), '/');
+    if ($moduleId === '') {
+        return $base;
+    }
+
+    $parts = array_values(array_filter(explode('-', $moduleId), fn($p) => $p !== ''));
+    if (count($parts) >= 3) {
+        $suite = $parts[0] . '-' . $parts[1];
+        $suiteDir = $base . '/' . $suite;
+        // If no module manifest occupies the suite directory, reserve it as a
+        // namespace container for submodules.
+        if (!is_file($suiteDir . '/module.json')) {
+            return $suiteDir . '/' . $moduleId;
+        }
+    }
+
+    return $base . '/' . $moduleId;
+}
+
 function modulePathForId(string $moduleId): ?string
 {
     $moduleId = trim($moduleId);
@@ -2832,7 +2864,7 @@ function installModuleFromZip(string $zipPath): array
     }
 
     $moduleId = $manifest['id'];
-    $targetDir = modulesPath() . '/' . $moduleId;
+    $targetDir = moduleInstallTargetDirForId($moduleId);
     $targetTemplateDir = BASE_PATH . '/templates/modules/' . $moduleId;
     $removeDirectory = static function (string $path): void {
         if (!is_dir($path)) {
