@@ -235,6 +235,206 @@ function cliRunBaseModuleMigration(MigrationRunner $runner, PDO $baseDb, string 
     }
 }
 
+function cliResolveEntryAuthAlias(string $moduleId): string
+{
+    if ($moduleId === 'ehr-core') {
+        return 'ehr';
+    }
+
+    if (str_starts_with($moduleId, 'cms-akira-profile-')) {
+        return 'cms';
+    }
+
+    return $moduleId;
+}
+
+/**
+ * @return array{required: bool, strict: bool, target_module_id: string, routes_file: string, has_login_page: bool, has_auth_login: bool, logout_paths: string[], invalid_logout_paths: string[], login_page_paths: string[], auth_login_paths: string[], invalid_auth_login_paths: string[]}
+ */
+function cliAuditAuthRouteContract(string $moduleId, array $manifest, array $allModules): array
+{
+    $hasAuthCookie = trim((string)($manifest['auth_cookie'] ?? '')) !== '';
+    $hasAuthOwned = is_array($manifest['auth_owned'] ?? null) && !empty($manifest['auth_owned']);
+    $isEntryModule = !empty($manifest['entry_module']);
+
+    $exposes = (array)(($manifest['capabilities'] ?? [])['exposes'] ?? []);
+    $providesKernelAuth = false;
+    foreach ($exposes as $expose) {
+        $exposedId = is_string($expose) ? $expose : (string)($expose['id'] ?? '');
+        if ($exposedId === 'kernel.auth.authenticate@1') {
+            $providesKernelAuth = true;
+            break;
+        }
+    }
+
+    // Route contract applies to entry modules and modules that actually expose
+    // auth handling. auth_owned data models alone do not imply route ownership.
+    $requiresContract = $isEntryModule || $hasAuthCookie || $providesKernelAuth || ($hasAuthOwned && $providesKernelAuth);
+    if (!$requiresContract) {
+        return [
+            'required' => false,
+            'strict' => false,
+            'target_module_id' => $moduleId,
+            'routes_file' => '',
+            'has_login_page' => false,
+            'has_auth_login' => false,
+            'logout_paths' => [],
+            'invalid_logout_paths' => [],
+            'login_page_paths' => [],
+            'auth_login_paths' => [],
+            'invalid_auth_login_paths' => [],
+        ];
+    }
+
+    $targetModuleId = trim((string)($manifest['entry_login_module'] ?? ''));
+    if ($targetModuleId === '') {
+        $targetModuleId = cliResolveEntryAuthAlias($moduleId);
+    }
+
+    $routeProvider = $allModules[$targetModuleId] ?? $manifest;
+    $modPath = (string)($routeProvider['_path'] ?? '');
+    $routesFile = $modPath !== '' ? $modPath . '/routes.php' : '';
+    $routes = [];
+    if ($routesFile !== '' && is_file($routesFile)) {
+        $loaded = require $routesFile;
+        if (is_array($loaded)) {
+            $routes = $loaded;
+        }
+    }
+
+    $getRoutes = is_array($routes['GET'] ?? null) ? $routes['GET'] : [];
+    $postRoutes = is_array($routes['POST'] ?? null) ? $routes['POST'] : [];
+
+    $loginPagePaths = [
+        '/' . $targetModuleId . '/login',
+        '/login',
+    ];
+    $authLoginPaths = [
+        '/' . $targetModuleId . '/auth/login',
+        '/api/v1/' . $targetModuleId . '/auth/login',
+        '/auth/login',
+        '/api/v1/auth/login',
+    ];
+    $validLogoutPaths = [
+        '/logout',
+        '/' . $targetModuleId . '/logout',
+        '/auth/logout',
+        '/api/v1/auth/logout',
+        '/' . $targetModuleId . '/auth/logout',
+        '/api/v1/' . $targetModuleId . '/auth/logout',
+    ];
+
+    $hasLoginPage = false;
+    foreach ($loginPagePaths as $path) {
+        if (array_key_exists($path, $getRoutes)) {
+            $hasLoginPage = true;
+            break;
+        }
+    }
+
+    $hasAuthLogin = false;
+    foreach ($authLoginPaths as $path) {
+        if (array_key_exists($path, $postRoutes) || array_key_exists($path, $getRoutes)) {
+            $hasAuthLogin = true;
+            break;
+        }
+    }
+
+    $canonicalAuthNamespaces = [
+        '/auth/',
+        '/api/v1/auth/',
+        '/' . $targetModuleId . '/auth/',
+        '/api/v1/' . $targetModuleId . '/auth/',
+    ];
+
+    $authLoginCandidates = [];
+    foreach (array_keys($getRoutes) as $path) {
+        if (!is_string($path) || !str_contains($path, '/auth/') || !str_ends_with($path, '/login')) {
+            continue;
+        }
+        foreach ($canonicalAuthNamespaces as $namespace) {
+            if (str_starts_with($path, $namespace)) {
+                $authLoginCandidates[] = $path;
+                break;
+            }
+        }
+    }
+    foreach (array_keys($postRoutes) as $path) {
+        if (!is_string($path) || !str_contains($path, '/auth/') || !str_ends_with($path, '/login')) {
+            continue;
+        }
+        foreach ($canonicalAuthNamespaces as $namespace) {
+            if (str_starts_with($path, $namespace)) {
+                $authLoginCandidates[] = $path;
+                break;
+            }
+        }
+    }
+    $authLoginCandidates = array_values(array_unique($authLoginCandidates));
+
+    $invalidAuthLoginPaths = [];
+    foreach ($authLoginCandidates as $candidatePath) {
+        if (!in_array($candidatePath, $authLoginPaths, true)) {
+            $invalidAuthLoginPaths[] = $candidatePath;
+        }
+    }
+
+    // Modules may intentionally post login forms to the kernel canonical
+    // endpoint (/auth/login). If a module has a login page route but no
+    // module-local auth/login endpoint, treat kernel auth as satisfied.
+    if (!$hasAuthLogin && $hasLoginPage) {
+        $hasAuthLogin = true;
+    }
+
+    $logoutPaths = [];
+    foreach (array_keys($getRoutes) as $path) {
+        if (!is_string($path)) {
+            continue;
+        }
+        if (
+            $path === '/logout'
+            || $path === '/' . $targetModuleId . '/logout'
+            || str_ends_with($path, '/auth/logout')
+        ) {
+            $logoutPaths[] = $path;
+        }
+    }
+    foreach (array_keys($postRoutes) as $path) {
+        if (!is_string($path)) {
+            continue;
+        }
+        if (
+            $path === '/logout'
+            || $path === '/' . $targetModuleId . '/logout'
+            || str_ends_with($path, '/auth/logout')
+        ) {
+            $logoutPaths[] = $path;
+        }
+    }
+
+    $logoutPaths = array_values(array_unique($logoutPaths));
+    $invalidLogoutPaths = [];
+    foreach ($logoutPaths as $logoutPath) {
+        if (!in_array($logoutPath, $validLogoutPaths, true)) {
+            $invalidLogoutPaths[] = $logoutPath;
+        }
+    }
+
+    return [
+        'required' => true,
+        'strict' => $isEntryModule,
+        'target_module_id' => $targetModuleId,
+        'routes_file' => $routesFile,
+        'has_login_page' => $hasLoginPage,
+        'has_auth_login' => $hasAuthLogin,
+        'logout_paths' => $logoutPaths,
+        'invalid_logout_paths' => $invalidLogoutPaths,
+        'login_page_paths' => $loginPagePaths,
+        'auth_login_paths' => $authLoginPaths,
+        'invalid_auth_login_paths' => $invalidAuthLoginPaths,
+    ];
+}
+
 // ── Styling helpers ──────────────────────────────────────────────────
 
 function out(string $msg): void { echo $msg . "\n"; }
@@ -811,9 +1011,10 @@ switch ($command) {
         out('    ' . green('module:status') . ' <id>        Show detailed module diagnostics');
         out('    ' . green('module:pack') . ' <id> [zip]     Create an installable module zip');
         out('    ' . green('module:uninstall') . ' <id>       Remove module files and disable it');
-        out('    ' . green('module:validate') . ' <id>         Full compliance check (manifest, capabilities, routes, tables, migrations)');
+        out('    ' . green('module:validate') . ' <id>         Full compliance check (manifest, capabilities, auth routes, tables, migrations)');
         out('    ' . green('module:check-boundaries') . '     Validate module boundary rules');
         out('    ' . green('architecture:check') . '         Cross-module table/capability/template audit');
+        out('    ' . dim('  └─ ') . '--strict-auth-routes  Fail on auth route warnings for non-entry auth modules');
         out('    ' . green('doctor') . '                      Environment health check');
         out('    ' . green('module:graph') . ' [id]           Dependency graph + impact analysis');
         out('');
@@ -2920,27 +3121,63 @@ switch ($command) {
         }
         out('');
 
-        // ── 6. Auth / login layout contract ─────────────────────
-        out('  ' . bold('Auth Experience'));
-        $requiresModuleLoginContext = trim((string)($manifest['auth_cookie'] ?? '')) !== ''
-            || is_array($manifest['auth_owned'] ?? null);
-        if (!$requiresModuleLoginContext) {
-            out('    ' . dim('✓ no auth-owned login contract required'));
+        // ── 6. Auth / login route contract ──────────────────────
+        out('  ' . bold('Auth Route Contract'));
+        $authAudit = cliAuditAuthRouteContract($moduleId, $manifest, $mods);
+
+        if (empty($authAudit['required'])) {
+            out('    ' . dim('✓ no auth/entry route contract required'));
         } else {
+            $targetModuleId = (string)($authAudit['target_module_id'] ?? $moduleId);
+            $routesFile = (string)($authAudit['routes_file'] ?? '');
+            out('    ' . dim('route provider: ') . cyan($targetModuleId));
+            if ($routesFile !== '') {
+                out('    ' . dim('routes file: ') . dim(str_replace(BASE_PATH . '/', '', $routesFile)));
+            }
+
+            $hasLoginPage = !empty($authAudit['has_login_page']);
+            out('    ' . ($hasLoginPage ? green('✓') : red('✗')) . ' login page route'
+                . ($hasLoginPage ? '' : ' — expected one of: ' . implode(', ', (array)($authAudit['login_page_paths'] ?? []))));
+            if (!$hasLoginPage) {
+                $validateFails++;
+            }
+
+            $hasAuthLogin = !empty($authAudit['has_auth_login']);
+            out('    ' . ($hasAuthLogin ? green('✓') : red('✗')) . ' auth login endpoint'
+                . ($hasAuthLogin ? '' : ' — expected one of: ' . implode(', ', (array)($authAudit['auth_login_paths'] ?? []))));
+            if (!$hasAuthLogin) {
+                $validateFails++;
+            }
+
+            $invalidAuthLoginPaths = (array)($authAudit['invalid_auth_login_paths'] ?? []);
+            if (empty($invalidAuthLoginPaths)) {
+                out('    ' . green('✓') . ' auth login route naming');
+            } else {
+                out('    ' . red('✗') . ' non-canonical auth login routes: ' . implode(', ', $invalidAuthLoginPaths));
+                out('      ' . yellow('Use canonical paths: /auth/login, /api/v1/auth/login, /<module>/auth/login, /api/v1/<module>/auth/login'));
+                $validateFails++;
+            }
+
+            $invalidLogoutPaths = (array)($authAudit['invalid_logout_paths'] ?? []);
+            if (empty($invalidLogoutPaths)) {
+                out('    ' . green('✓') . ' logout route contract'
+                    . (empty($authAudit['logout_paths']) ? ' — uses kernel canonical /auth/logout' : ''));
+            } else {
+                out('    ' . red('✗') . ' non-canonical logout routes: ' . implode(', ', $invalidLogoutPaths));
+                out('      ' . yellow('Use canonical paths: /auth/logout, /api/v1/auth/logout, /<module>/logout, /<module>/auth/logout, /api/v1/<module>/auth/logout'));
+                $validateFails++;
+            }
+
             $helpersFile = $modPath . '/helpers.php';
             if (is_file($helpersFile)) {
                 @include_once $helpersFile;
             }
 
-            $loginContextFn = preg_replace('/[^a-z0-9]+/i', '_', $moduleId) . 'LoginPageContext';
+            $loginContextFn = preg_replace('/[^a-z0-9]+/i', '_', $targetModuleId) . 'LoginPageContext';
             $loginContextFn = is_string($loginContextFn) ? $loginContextFn : '';
             $hasLoginContext = $loginContextFn !== '' && function_exists($loginContextFn);
-
-            out('    ' . ($hasLoginContext ? green('✓') : red('✗')) . ' module login context ' . cyan($loginContextFn)
-                . ($hasLoginContext ? '' : ' — missing; auth/entry modules must define their own login layout context to avoid falling back to the kernel default skin'));
-            if (!$hasLoginContext) {
-                $validateFails++;
-            }
+            out('    ' . ($hasLoginContext ? green('✓') : yellow('⚠')) . ' module login context ' . cyan($loginContextFn)
+                . ($hasLoginContext ? '' : ' — missing; kernel fallback context will be used'));
         }
         out('');
 
@@ -4194,6 +4431,8 @@ MD;
         out('  ' . bold('Architecture Check') . dim(' — boundary rules + cross-module audit'));
         out('');
 
+        $strictAuthRoutes = hasFlag('--strict-auth-routes');
+
         $failCount = 0;
         $totalChecks = 0;
 
@@ -4456,6 +4695,88 @@ MD;
                 $failCount++;
                 out('    ' . red('✗') . ' ' . $v['file']);
                 out('      ' . yellow("Uses entity source '{$v['source']}' not declared in module's entity_sources"));
+            }
+        }
+
+        // Phase 5: Auth route contract coverage for auth/entry modules
+        out('');
+        out('  ' . bold('Phase 4: Auth route contract'));
+        $authRouteViolations = [];
+        $authRouteWarnings = [];
+        foreach ($mods as $mid => $manifest) {
+            $audit = cliAuditAuthRouteContract($mid, $manifest, $mods);
+            if (empty($audit['required'])) {
+                continue;
+            }
+
+            $missing = [];
+            if (empty($audit['has_login_page'])) {
+                $missing[] = 'login_page';
+            }
+            if (empty($audit['has_auth_login'])) {
+                $missing[] = 'auth_login';
+            }
+            if (!empty($audit['invalid_auth_login_paths'])) {
+                $missing[] = 'auth_login_path';
+            }
+            if (!empty($audit['invalid_logout_paths'])) {
+                $missing[] = 'logout_path';
+            }
+
+            if ($missing === []) {
+                continue;
+            }
+
+            $entryStrict = !empty($audit['strict']);
+            $item = [
+                'module' => $mid,
+                'route_provider' => (string)($audit['target_module_id'] ?? $mid),
+                'missing' => $missing,
+                'login_paths' => (array)($audit['login_page_paths'] ?? []),
+                'auth_paths' => (array)($audit['auth_login_paths'] ?? []),
+                'invalid_auth_login_paths' => (array)($audit['invalid_auth_login_paths'] ?? []),
+                'invalid_logout_paths' => (array)($audit['invalid_logout_paths'] ?? []),
+                'strict' => $entryStrict,
+            ];
+
+            if ($entryStrict) {
+                $authRouteViolations[] = $item;
+            } else {
+                $authRouteWarnings[] = $item;
+            }
+        }
+        $totalChecks++;
+
+        if ($authRouteViolations === [] && $authRouteWarnings === []) {
+            out('    ' . green('✓') . ' Auth/entry modules satisfy route contract');
+        } else {
+            foreach ($authRouteViolations as $v) {
+                $failCount++;
+                out('    ' . red('✗') . ' ' . $v['module'] . ' (provider: ' . $v['route_provider'] . ')');
+                out('      ' . yellow('Missing/invalid: ' . implode(', ', $v['missing'])));
+                if (in_array('login_page', $v['missing'], true)) {
+                    out('      ' . dim('Expected login route: ' . implode(', ', $v['login_paths'])));
+                }
+                if (in_array('auth_login', $v['missing'], true)) {
+                    out('      ' . dim('Expected auth login: ' . implode(', ', $v['auth_paths'])));
+                }
+                if (in_array('auth_login_path', $v['missing'], true)) {
+                    out('      ' . dim('Invalid auth login paths: ' . implode(', ', $v['invalid_auth_login_paths'])));
+                }
+                if (in_array('logout_path', $v['missing'], true)) {
+                    out('      ' . dim('Invalid logout paths: ' . implode(', ', $v['invalid_logout_paths'])));
+                }
+            }
+
+            foreach ($authRouteWarnings as $v) {
+                if ($strictAuthRoutes) {
+                    $failCount++;
+                    out('    ' . red('✗') . ' ' . $v['module'] . ' (provider: ' . $v['route_provider'] . ')');
+                    out('      ' . yellow('Missing/invalid: ' . implode(', ', $v['missing']) . ' (strict auth route mode)'));
+                } else {
+                    out('    ' . yellow('⚠') . ' ' . $v['module'] . ' (provider: ' . $v['route_provider'] . ')');
+                    out('      ' . yellow('Missing/invalid: ' . implode(', ', $v['missing']) . ' (warning for non-entry auth module)'));
+                }
             }
         }
 
