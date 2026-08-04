@@ -42,43 +42,56 @@
     </div>
 
     <div class="card mb-4">
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">From</label>
+                <input type="date" x-model="filter.date_from" class="form-input mt-0 w-full">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">To</label>
+                <input type="date" x-model="filter.date_to" class="form-input mt-0 w-full">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Branch</label>
+                <select x-model="filter.branch_id" @change="reload()" class="form-input mt-0 w-full">
+                    <option value="">All Branches</option>
+                    {foreach branches as b}
+                    <option value="{b.id}">{b.code} - {b.name}</option>
+                    {/foreach}
+                </select>
+            </div>
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
                 <select x-model="filter.status" @change="reload()" class="form-input mt-0 w-full">
                     <option value="">All</option>
-                    <option value="draft">Draft</option>
-                    <option value="posted">Sent / Waiting</option>
-                    <option value="received">Received</option>
-                    <option value="voided">Cancelled</option>
+                    {foreach delivery_status_options as opt}
+                    <option value="{opt.value}">{opt.label}</option>
+                    {/foreach}
                 </select>
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Destination Type</label>
                 <select x-model="filter.destination_type" @change="reload()" class="form-input mt-0 w-full">
                     <option value="">All</option>
-                    <option value="branch">Branch</option>
-                    <option value="selling_account">Selling Account</option>
-                    <option value="own_account">Own Account</option>
-                    <option value="reseller">Reseller</option>
-                    <option value="customer">Customer</option>
-                    <option value="event">Event</option>
-                    <option value="wastage">Wastage</option>
-                    <option value="internal_use">Internal Use</option>
-                    <option value="adjustment">Adjustment</option>
+                    {foreach delivery_destination_type_options as opt}
+                    <option value="{opt.value}">{opt.label}</option>
+                    {/foreach}
                 </select>
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR Review</label>
                 <select x-model="filter.provenance_status" @change="reload()" class="form-input mt-0 w-full">
                     <option value="">All</option>
-                    <option value="paper_dr_pending">Needs Check</option>
-                    <option value="accepted">Verified</option>
-                    <option value="discrepant">Discrepancy</option>
+                    {foreach delivery_provenance_status_options as opt}
+                    <option value="{opt.value}">{opt.label}</option>
+                    {/foreach}
                 </select>
             </div>
             <div class="flex items-end">
-                <button class="btn btn-outline" @click="reload()">Refresh</button>
+                <button class="btn btn-outline w-full" @click="reload()">Apply</button>
+            </div>
+            <div class="flex items-end">
+                <button class="btn btn-outline w-full" @click="clearFilters()">Clear</button>
             </div>
         </div>
     </div>
@@ -123,20 +136,12 @@
                             <td x-text="d.destination_label"></td>
                             <td>
                                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
-                                      :class="{
-                                          'bg-gray-50 text-gray-700 ring-gray-200': d.status === 'draft',
-                                          'bg-emerald-50 text-emerald-700 ring-emerald-200': d.status === 'posted' || d.status === 'received',
-                                          'bg-rose-50 text-rose-700 ring-rose-200': d.status === 'voided'
-                                      }"
-                                      x-text="d.status === 'draft' ? 'Draft' : (d.status === 'posted' ? 'Sent / Waiting' : (d.status === 'received' ? 'Received' : 'Cancelled'))"></span>
+                                      :class="d.status_badge_classes"
+                                      x-text="d.status_label"></span>
                                 <template x-if="d.is_paper_dr_exception == 1">
                                     <span class="ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset"
-                                          :class="{
-                                              'bg-amber-50 text-amber-700 ring-amber-200': d.provenance_status === 'paper_dr_pending',
-                                              'bg-emerald-50 text-emerald-700 ring-emerald-200': d.provenance_status === 'accepted',
-                                              'bg-rose-50 text-rose-700 ring-rose-200': d.provenance_status === 'discrepant'
-                                          }"
-                                          x-text="d.provenance_status === 'paper_dr_pending' ? 'needs check' : (d.provenance_status === 'accepted' ? 'verified' : 'discrepancy')"></span>
+                                          :class="d.provenance_status_badge_classes"
+                                          x-text="d.provenance_status_label"></span>
                                 </template>
                                 <template x-if="receivingHasVariance(d.id)">
                                     <span class="ml-1 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200" title="Receiving variance detected">⚠</span>
@@ -374,7 +379,14 @@ function deliveriesPage() {
     return {
         rows: [],
         loadError: '',
-        filter: { status: '', destination_type: '', provenance_status: '' },
+        filter: {
+            status: '',
+            destination_type: '',
+            provenance_status: '',
+            branch_id: '{delivery_filter_branch_id}',
+            date_from: '{delivery_filter_date_from}',
+            date_to: '{delivery_filter_date_to}'
+        },
         createOpen: false,
         saving: false,
         expandedId: null,
@@ -395,6 +407,9 @@ function deliveriesPage() {
             if (this.filter.status) qs.set('status', this.filter.status);
             if (this.filter.destination_type) qs.set('destination_type', this.filter.destination_type);
             if (this.filter.provenance_status) qs.set('provenance_status', this.filter.provenance_status);
+            if (this.filter.branch_id) qs.set('branch_id', this.filter.branch_id);
+            if (this.filter.date_from) qs.set('date_from', this.filter.date_from);
+            if (this.filter.date_to) qs.set('date_to', this.filter.date_to);
             this.loadError = '';
             fetch('{base_url}/api/v1/deliveries?' + qs.toString(), {
                 credentials: 'same-origin',
@@ -413,6 +428,15 @@ function deliveriesPage() {
                     this.rows = [];
                     this.loadError = 'Failed to load deliveries.';
                 });
+        },
+        clearFilters() {
+            this.filter.status = '';
+            this.filter.destination_type = '';
+            this.filter.provenance_status = '';
+            this.filter.branch_id = '';
+            this.filter.date_from = '';
+            this.filter.date_to = '';
+            this.reload();
         },
         openCreate() {
             this.form = {

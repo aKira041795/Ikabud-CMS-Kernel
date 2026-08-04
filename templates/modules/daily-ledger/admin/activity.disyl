@@ -64,80 +64,67 @@
         {if activities | count == 0}
         <div class="px-4 py-10 text-center text-base text-slate-700">No activity found for selected date range</div>
         {/if}
-        {foreach activities as act}
-        <div class="flex flex-col gap-3 px-5 py-4 border-b border-slate-200 last:border-b-0">
-            <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-semibold ring-1 ring-inset {act.badge_classes}">{act.badge_label}</span>
-                        <div class="text-base font-semibold leading-6 text-slate-900">{act.summary}</div>
-                    </div>
-                    <div class="mt-1 text-sm font-medium text-slate-800">{act.actor_name}</div>
-                </div>
-                <div class="text-right text-sm font-medium text-slate-600">
-                    <div>{act.created_at}</div>
-                    {if act.relative_time}
-                    <div class="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{act.relative_time}</div>
-                    {/if}
-                </div>
-            </div>
-            {if act.detail_items | count > 0}
-            <div class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {foreach act.detail_items as item}
-                <div class="rounded-sm bg-slate-50 px-3 py-2">
-                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.label}</div>
-                    <div class="mt-1 break-words text-sm font-semibold text-slate-900">{item.value}</div>
-                </div>
-                {/foreach}
-            </div>
-            {/if}
-
-            {if act.grouped_items | count > 0}
-            <div class="rounded-sm border border-slate-200 bg-slate-50 px-3 py-3">
-                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Products In Batch</div>
-                <div class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    {foreach act.grouped_items as item}
-                    <div class="flex items-center justify-between gap-3 rounded-sm bg-white px-3 py-2 text-sm text-slate-800">
-                        <span class="font-semibold text-slate-900">{item.product}</span>
-                        <span class="font-semibold text-slate-700">{item.quantity}</span>
-                    </div>
+        {if activities | count > 0}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">When</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Branch</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Actor</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Action</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Details</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Changes</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Source / Record</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white">
+                    {foreach activities as act}
+                    <tr>
+                        <td class="px-4 py-3 align-top text-slate-700">
+                            <div class="font-semibold text-slate-900">{act.created_at}</div>
+                            {if act.relative_time}
+                            <div class="mt-1 text-xs uppercase tracking-wide text-slate-500">{act.relative_time}</div>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 align-top text-slate-800">{if act.branch_name}{act.branch_name}{else}<span class="text-slate-400">All / None</span>{/if}</td>
+                        <td class="px-4 py-3 align-top text-slate-700">
+                            <div class="font-semibold text-slate-900">{act.actor_name}</div>
+                            {if act.actor_source_label}
+                            <div class="mt-1 text-xs text-slate-500">{act.actor_source_label}</div>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 align-top text-slate-700">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset {act.badge_classes}">{act.badge_label}</span>
+                                <span class="font-semibold text-slate-900">{act.summary}</span>
+                            </div>
+                            {if act.entity_type_label}
+                            <div class="mt-1 text-xs text-slate-500">{act.entity_type_label}{if act.entity_id} #{act.entity_id}{/if}</div>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 align-top text-slate-700">
+                            <div>{act.detail_summary}</div>
+                            {if act.grouped_summary != 'None'}
+                            <div class="mt-1 text-xs text-slate-500">Batch: {act.grouped_summary}</div>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 align-top text-slate-700">{act.change_summary}</td>
+                        <td class="px-4 py-3 align-top text-slate-700">
+                            <div>Source: <span class="font-semibold text-slate-900">{act.actor_source_label}</span></div>
+                            {if act.entity_type_label}
+                            <div class="mt-1">Record: <span class="font-semibold text-slate-900">{act.entity_type_label}{if act.entity_id} #{act.entity_id}{/if}</span></div>
+                            {/if}
+                            {if act.is_grouped}
+                            <div class="mt-1 text-xs text-slate-500">Grouped batch entry</div>
+                            {/if}
+                        </td>
+                    </tr>
                     {/foreach}
-                </div>
-            </div>
-            {/if}
-
-            {if act.change_items | count > 0}
-            <div class="rounded-sm border border-slate-200 bg-white px-3 py-3">
-                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Changes</div>
-                <div class="flex flex-col gap-2">
-                    {foreach act.change_items as item}
-                    <div class="text-sm text-slate-800">
-                        <span class="font-semibold text-slate-900">{item.label}:</span>
-                        <span class="text-slate-500">{item.from}</span>
-                        <span class="mx-1 text-slate-400">→</span>
-                        <span class="font-semibold text-slate-900">{item.to}</span>
-                    </div>
-                    {/foreach}
-                </div>
-            </div>
-            {/if}
-
-            <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
-                {if act.branch_name}
-                <span>Branch: <span class="font-semibold text-slate-900">{act.branch_name}</span></span>
-                {/if}
-                {if act.entity_type}
-                <span>Entity: <span class="font-semibold text-slate-900">{act.entity_type}</span></span>
-                {/if}
-                {if act.entity_id}
-                <span>Record ID: <span class="font-semibold text-slate-900">{act.entity_id}</span></span>
-                {/if}
-                {if act.actor_source_label}
-                <span>Source: <span class="font-semibold text-slate-900">{act.actor_source_label}</span></span>
-                {/if}
-            </div>
+                </tbody>
+            </table>
         </div>
-        {/foreach}
+        {/if}
     </div>
 </div>
 {/block}

@@ -22,6 +22,31 @@
     <span class="text-sm text-gray-500">{today}</span>
 </div>
 
+<form class="card mb-6 print-hide" action="{base_url}/admin/dashboard" method="GET">
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+            <div class="form-group">
+                <label class="form-label">From</label>
+                <input type="date" class="form-input" name="date_from" value="{sales_filter_date_from}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">To</label>
+                <input type="date" class="form-input" name="date_to" value="{sales_filter_date_to}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Branch</label>
+                <select class="form-input" name="branch_id">
+                    <option value="">All Branches</option>
+                    {foreach branches as br}
+                    <option value="{br.id}" {if br.id == sales_filter_branch_id}selected{/if}>{br.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Filter Sales</button>
+        </div>
+    </div>
+</form>
+
 <!-- Stats row -->
 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
     <div class="card">
@@ -65,7 +90,13 @@
 
 <!-- Branch sales today -->
 <div class="card mb-4">
-    <div class="card-header">Today's Branch Sales</div>
+    <div class="card-header">
+        <span>Branch Sales Breakdown</span>
+        <span class="text-sm text-muted">{sales_filter_period_label} · {branch_cards | count} branches</span>
+    </div>
+    <div class="card-body px-4 py-3 border-b border-gray-100 bg-slate-50 text-sm text-gray-600">
+        Scope total: <span class="font-semibold text-gray-900">{branch_sales_units}</span> units · PHP {branch_sales_amount | number_format:2}
+    </div>
     <div class="card-body p-0">
         {foreach branch_cards as card}
         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-b-0">
@@ -106,22 +137,30 @@
         {if recent_activity | count == 0}
         <div class="px-4 py-10 text-center text-sm text-gray-500">No activity yet today</div>
         {/if}
-        {foreach recent_activity as act}
-        <div class="px-4 py-3 border-b border-gray-100 last:border-b-0 text-sm">
-            <span class="float-right text-xs text-gray-500">{act.created_at}</span>
-            <span class="font-semibold text-gray-900">{act.actor_name}</span>
-            <span class="text-gray-600">
-                {if act.action == 'field_update'}updated a field{/if}
-                {if act.action == 'close_day'}closed the day{/if}
-                {if act.action == 'reopen_day'}reopened a day{/if}
-                {if act.action == 'create_product'}added a product{/if}
-                {if act.action == 'update_product'}updated a product{/if}
-            </span>
-            {if act.branch_name}
-            <span class="text-xs text-gray-500"> — {act.branch_name}</span>
-            {/if}
+        {if recent_activity | count > 0}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">When</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Actor</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Activity</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Branch</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 bg-white">
+                    {foreach recent_activity as act}
+                    <tr>
+                        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{act.created_at}</td>
+                        <td class="px-4 py-3 font-semibold text-gray-900">{act.actor_name}</td>
+                        <td class="px-4 py-3 text-gray-700">{act.activity_label}</td>
+                        <td class="px-4 py-3 text-gray-600">{if act.branch_name}{act.branch_name}{else}All / None{/if}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
         </div>
-        {/foreach}
+        {/if}
     </div>
 </div>
 {/block}

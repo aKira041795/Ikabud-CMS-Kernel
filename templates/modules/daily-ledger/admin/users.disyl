@@ -235,6 +235,13 @@
     }
 
     function openAddUser() {
+        document.getElementById('add-username').value = '';
+        document.getElementById('add-email').value = '';
+        document.getElementById('add-password').value = '';
+        document.getElementById('add-fullname').value = '';
+        document.getElementById('add-role').value = 'admin';
+        document.getElementById('add-branch').value = '';
+        setSelectedValues(document.getElementById('add-branches'), []);
         document.getElementById('add-modal').classList.add('show');
         document.getElementById('add-username').focus();
         toggleBranchFields(
@@ -293,10 +300,10 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(res) {
-                if (res.ok) { showToast('User deleted'); setTimeout(function() { window.refreshMainContent(); }, 600); }
-                else { showToast(res.error || 'Failed to delete'); }
+                if (res.ok) { showToast('User deleted', 'success'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+                else { showToast(res.error || 'Failed to delete', 'error'); }
             })
-            .catch(function() { showToast('Network error'); });
+            .catch(function() { showToast('Network error', 'error'); });
         });
     });
 
@@ -318,10 +325,10 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(res) {
-                if (res.ok) { showToast('User restored'); setTimeout(function() { window.refreshMainContent(); }, 600); }
-                else { showToast(res.error || 'Failed to restore'); }
+                if (res.ok) { showToast('User restored', 'success'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+                else { showToast(res.error || 'Failed to restore', 'error'); }
             })
-            .catch(function() { showToast('Network error'); });
+            .catch(function() { showToast('Network error', 'error'); });
         });
     });
 
@@ -346,7 +353,7 @@
         var branchId = parseInt(document.getElementById('add-branch').value) || 0;
         var branchIds = selectedValues(document.getElementById('add-branches'));
         if ((role === 'supervisor' || role === 'production_in_charge') && branchIds.length === 0) {
-            showToast('Select at least one branch');
+            showToast('Select at least one branch', 'error');
             return;
         }
         var btn = document.getElementById('add-submit');
@@ -372,10 +379,10 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('User added'); setTimeout(function() { window.refreshMainContent(); }, 600); }
-            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Add User'; }
+            if (res.ok) { showToast('User added', 'success'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+            else { showToast(res.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = 'Add User'; }
         })
-        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Add User'; });
+        .catch(function() { showToast('Network error', 'error'); btn.disabled = false; btn.textContent = 'Add User'; });
     }
 
     function submitEditUser() {
@@ -383,7 +390,7 @@
         var branchId = parseInt(document.getElementById('edit-branch').value) || 0;
         var branchIds = selectedValues(document.getElementById('edit-branches'));
         if ((role === 'supervisor' || role === 'production_in_charge') && branchIds.length === 0) {
-            showToast('Select at least one branch');
+            showToast('Select at least one branch', 'error');
             return;
         }
         var btn = document.getElementById('edit-submit');
@@ -410,10 +417,10 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('User updated'); setTimeout(function() { window.refreshMainContent(); }, 600); }
-            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Save Changes'; }
+            if (res.ok) { showToast('User updated', 'success'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+            else { showToast(res.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = 'Save Changes'; }
         })
-        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Save Changes'; });
+        .catch(function() { showToast('Network error', 'error'); btn.disabled = false; btn.textContent = 'Save Changes'; });
     }
 
     document.querySelectorAll('.modal-overlay').forEach(function(el) {

@@ -7,24 +7,61 @@
         <h2 class="text-lg font-semibold text-gray-900">Stock Adjustments</h2>
         <p class="text-sm text-gray-500">All branch-side stock corrections: charges, pullouts, variance resolutions, spoilage, and other adjustments.</p>
     </div>
-    <div class="flex items-center gap-2">
-        <input type="date" class="form-input w-44" value="{date}" onchange="window.location.href='{base_url}/admin/withdrawals?date='+this.value{if branch_id > 0}+'&branch_id={branch_id}'{/if}{if commissary_id > 0}+'&commissary_id={commissary_id}'{/if}">
-        <select class="form-input w-40" onchange="window.location.href='{base_url}/admin/withdrawals?date={date}&branch_id='+this.value{if commissary_id > 0}+'&commissary_id={commissary_id}'{/if}">
-            <option value="0">All Branches</option>
-            {foreach branches as br}
-            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
-            {/foreach}
-        </select>
-        <select class="form-input w-40" onchange="window.location.href='{base_url}/admin/withdrawals?date={date}{if branch_id > 0}&branch_id={branch_id}{/if}&commissary_id='+this.value">
-            <option value="0">All Commissaries</option>
-            {foreach commissaries as com}
-            <option value="{com.id}" {if com.id == commissary_id}selected{/if}>{com.name}{if com.area} ({com.area}){/if}</option>
-            {/foreach}
-        </select>
+</div>
+
+<form class="card mb-6" action="{base_url}/admin/withdrawals" method="GET">
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end">
+            <div class="form-group">
+                <label class="form-label">From</label>
+                <input type="date" class="form-input" name="date_from" value="{date_from}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">To</label>
+                <input type="date" class="form-input" name="date_to" value="{date_to}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Branch</label>
+                <select class="form-input" name="branch_id">
+                    <option value="0">All Branches</option>
+                    {foreach branches as br}
+                    <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Commissary</label>
+                <select class="form-input" name="commissary_id">
+                    <option value="0">All Commissaries</option>
+                    {foreach commissaries as com}
+                    <option value="{com.id}" {if com.id == commissary_id}selected{/if}>{com.name}{if com.area} ({com.area}){/if}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-input" name="q" value="{search}" placeholder="Product, branch, DR, cashier...">
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" class="btn btn-primary">Apply</button>
+                <a class="btn btn-outline" href="{base_url}/admin/withdrawals">Clear</a>
+            </div>
+        </div>
     </div>
+</form>
+
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rows</div><div class="mt-1 text-3xl font-semibold text-gray-900">{total_rows}</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Qty</div><div class="mt-1 text-3xl font-semibold text-gray-900">{total_quantity}</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Charges / Pullouts</div><div class="mt-1 text-2xl font-semibold text-gray-900">{type_charge_count} / {type_pullout_count}</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Add Stock</div><div class="mt-1 text-3xl font-semibold text-emerald-700">{type_adjustment_add_count}</div></div></div>
 </div>
 
 <div class="card">
+    <div class="card-header">
+        <span>Adjustment Log</span>
+        <span class="text-sm text-muted">{date_from} to {date_to}</span>
+    </div>
     <div class="table-wrap">
         <table>
             <thead>
@@ -42,7 +79,7 @@
             </thead>
             <tbody>
                 {if withdrawals | length == 0}
-                <tr><td colspan="9" class="px-4 py-10 text-center text-sm text-gray-500">No stock adjustments for this date.</td></tr>
+                <tr><td colspan="9" class="px-4 py-10 text-center text-sm text-gray-500">No stock adjustments match the selected filters.</td></tr>
                 {/if}
                 {foreach withdrawals as w}
                 <tr>
@@ -53,13 +90,9 @@
                     <td>{w.product_name}</td>
                     <td class="text-right font-mono">{w.quantity}</td>
                     <td>
-                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset
-                            {if w.withdrawal_type == 'charge'}bg-amber-50 text-amber-700 ring-amber-200{/if}
-                            {if w.withdrawal_type == 'pullout'}bg-rose-50 text-rose-700 ring-rose-200{/if}
-                            {if w.withdrawal_type == 'adjustment_add'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
-                        ">
-                            {if w.withdrawal_type == 'adjustment_add'}add stock{else}{w.withdrawal_type}{/if}
-                            {if w.reason_code} — {w.reason_code}{/if}
+                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset {w.withdrawal_type_badge_classes}">
+                            {w.withdrawal_type_label}
+                            {if w.reason_code_label} — {w.reason_code_label}{/if}
                         </span>
                     </td>
                     <td class="text-sm text-gray-600">{if w.liable_user_name}{w.liable_user_name}{else}—{/if}</td>

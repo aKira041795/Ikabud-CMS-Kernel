@@ -21,6 +21,7 @@
                 "/daily-ledger/admin/products/export",
                 "/daily-ledger/admin/sales",
                 "/daily-ledger/admin/settings",
+                "/daily-ledger/admin/settings/backup-download",
                 "/daily-ledger/admin/usage",
                 "/daily-ledger/admin/users",
                 "/daily-ledger/admin/variances",

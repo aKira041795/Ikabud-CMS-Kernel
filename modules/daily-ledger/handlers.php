@@ -603,6 +603,529 @@ function dlAuditLogHasColumn(string $column): bool
     }
 }
 
+function dlActiveAdminCount(): int
+{
+    try {
+        $stmt = dlCtx()->db()->query(
+            "SELECT COUNT(*) FROM dl_users WHERE role = 'admin' AND deleted_at IS NULL AND is_active = 1"
+        );
+        return (int)($stmt->fetchColumn() ?: 0);
+    } catch (Throwable) {
+        return 0;
+    }
+}
+
+function dl_backupSettings(): array
+{
+    $settings = dlModuleSettings();
+
+    $enabled = dl_settingToBool($settings['backup_before_reset_enabled'] ?? '1');
+    $includeUsers = dl_settingToBool($settings['backup_include_users'] ?? '1');
+    $retentionDays = (int)($settings['backup_retention_days'] ?? 14);
+    if ($retentionDays < 1) {
+        $retentionDays = 1;
+    }
+    if ($retentionDays > 90) {
+        $retentionDays = 90;
+    }
+
+    return [
+        'backup_before_reset_enabled' => $enabled,
+        'backup_include_users' => $includeUsers,
+        'backup_retention_days' => $retentionDays,
+    ];
+}
+
+function dl_resetSecondConfirmPhrase(): string
+{
+    return 'I UNDERSTAND THIS WILL DELETE ALL DAILY LEDGER DATA';
+}
+
+function dl_resetSafeguardSettings(): array
+{
+    $settings = dlModuleSettings();
+    return [
+        'reset_second_phrase_enabled' => dl_settingToBool($settings['reset_second_phrase_enabled'] ?? '1'),
+        'reset_second_phrase' => dl_resetSecondConfirmPhrase(),
+    ];
+}
+
+function dl_backupDirectoryPath(): string
+{
+    return rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : (BASE_PATH . '/storage')), '/\\') . '/backups/daily-ledger';
+}
+
+function dl_ensureBackupDirectory(): string
+{
+    $dir = dl_backupDirectoryPath();
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        throw new RuntimeException('Failed to create backup directory.');
+    }
+
+    $htaccessPath = $dir . '/.htaccess';
+    if (!is_file($htaccessPath)) {
+        @file_put_contents($htaccessPath, "Require all denied\nDeny from all\n");
+        @chmod($htaccessPath, 0644);
+    }
+
+    return $dir;
+}
+
+function dl_cleanupOldBackupFiles(string $dir, int $retentionDays): int
+{
+    $deleted = 0;
+    $threshold = time() - ($retentionDays * 86400);
+    $items = @scandir($dir);
+    if (!is_array($items)) {
+        return 0;
+    }
+
+    foreach ($items as $item) {
+        if (!is_string($item) || $item === '.' || $item === '..') {
+            continue;
+        }
+        if (!preg_match('/^dl-db-backup-[0-9]{8}-[0-9]{6}\.sql$/', $item)) {
+            continue;
+        }
+
+        $path = $dir . '/' . $item;
+        if (!is_file($path)) {
+            continue;
+        }
+
+        $mtime = @filemtime($path);
+        if ($mtime !== false && $mtime < $threshold) {
+            if (@unlink($path)) {
+                $deleted++;
+            }
+        }
+    }
+
+    return $deleted;
+}
+
+function dl_sqlQuote($value): string
+{
+    if ($value === null) {
+        return 'NULL';
+    }
+
+    $string = (string)$value;
+    $string = str_replace(
+        ["\\", "\0", "\n", "\r", "\x1a", "'"],
+        ["\\\\", "\\0", "\\n", "\\r", "\\Z", "\\'"],
+        $string
+    );
+
+    return "'" . $string . "'";
+}
+
+function dl_safeIdentifier(string $name): string
+{
+    $safe = preg_replace('/[^a-z0-9_]+/i', '', $name);
+    if (!is_string($safe) || $safe === '' || $safe !== $name) {
+        throw new InvalidArgumentException('Invalid SQL identifier: ' . $name);
+    }
+
+    return $safe;
+}
+
+function dl_listDailyLedgerTables($db, bool $includeUsers): array
+{
+    $tables = [];
+    $stmt = $db->query("SHOW TABLES LIKE 'dl\\_%'");
+    while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
+        $table = (string)($row[0] ?? '');
+        if ($table === '') {
+            continue;
+        }
+        if (!$includeUsers && $table === 'dl_users') {
+            continue;
+        }
+        $tables[] = $table;
+    }
+
+    sort($tables);
+    return $tables;
+}
+
+function dl_generateDatabaseBackup(array $user, string $reason, ?bool $includeUsers = null): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        throw new RuntimeException('Module context unavailable');
+    }
+
+    $db = $ctx->db();
+    $backupSettings = dl_backupSettings();
+    $includeUsersFlag = $includeUsers !== null ? $includeUsers : $backupSettings['backup_include_users'];
+
+    $tables = dl_listDailyLedgerTables($db, $includeUsersFlag);
+    if ($tables === []) {
+        throw new RuntimeException('No Daily Ledger tables found to back up.');
+    }
+
+    $dir = dl_ensureBackupDirectory();
+    $filename = 'dl-db-backup-' . date('Ymd-His') . '.sql';
+    $target = $dir . '/' . $filename;
+    $tmpTarget = $target . '.tmp';
+
+    $fh = @fopen($tmpTarget, 'wb');
+    if (!is_resource($fh)) {
+        throw new RuntimeException('Failed to open backup file for writing.');
+    }
+
+    try {
+        fwrite($fh, "-- Daily Ledger SQL Backup\n");
+        fwrite($fh, '-- Generated at: ' . date('c') . "\n");
+        fwrite($fh, '-- Reason: ' . $reason . "\n");
+        fwrite($fh, '-- Include users: ' . ($includeUsersFlag ? 'yes' : 'no') . "\n");
+        fwrite($fh, "SET FOREIGN_KEY_CHECKS=0;\n\n");
+
+        $tableSummaries = [];
+        $totalRows = 0;
+
+        foreach ($tables as $table) {
+            $safeTable = dl_safeIdentifier($table);
+            $countStmt = $db->query('SELECT COUNT(*) FROM ' . $safeTable);
+            $rowCount = (int)($countStmt->fetchColumn() ?: 0);
+            $totalRows += $rowCount;
+
+            fwrite($fh, '-- ------------------------------------------------------------' . "\n");
+            fwrite($fh, '-- Table: ' . $safeTable . ' (rows: ' . $rowCount . ')' . "\n");
+            fwrite($fh, '-- Data-only backup (schema must already exist).' . "\n");
+            fwrite($fh, 'DELETE FROM `' . $safeTable . "`;\n");
+
+            if ($rowCount > 0) {
+                $dataStmt = $db->query('SELECT * FROM ' . $safeTable);
+                $batchRows = [];
+                $columnSql = null;
+
+                while ($row = $dataStmt->fetch(PDO::FETCH_ASSOC)) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+
+                    if ($columnSql === null) {
+                        $columns = array_map(static function ($col): string {
+                            return '`' . str_replace('`', '``', (string)$col) . '`';
+                        }, array_keys($row));
+                        $columnSql = implode(', ', $columns);
+                    }
+
+                    $vals = [];
+                    foreach ($row as $v) {
+                        $vals[] = dl_sqlQuote($v);
+                    }
+                    $batchRows[] = '(' . implode(', ', $vals) . ')';
+
+                    if (count($batchRows) >= 100) {
+                        fwrite($fh, 'INSERT INTO `' . $safeTable . '` (' . $columnSql . ") VALUES\n");
+                        fwrite($fh, implode(",\n", $batchRows) . ";\n");
+                        $batchRows = [];
+                    }
+                }
+
+                if ($batchRows !== []) {
+                    fwrite($fh, 'INSERT INTO `' . $safeTable . '` (' . $columnSql . ") VALUES\n");
+                    fwrite($fh, implode(",\n", $batchRows) . ";\n");
+                }
+            }
+
+            fwrite($fh, "\n");
+            $tableSummaries[] = [
+                'table' => $safeTable,
+                'rows' => $rowCount,
+            ];
+        }
+
+        fwrite($fh, "SET FOREIGN_KEY_CHECKS=1;\n");
+        fclose($fh);
+        @chmod($tmpTarget, 0640);
+        if (!@rename($tmpTarget, $target)) {
+            @unlink($tmpTarget);
+            throw new RuntimeException('Failed to finalize backup file.');
+        }
+
+        $deletedOld = dl_cleanupOldBackupFiles($dir, (int)$backupSettings['backup_retention_days']);
+
+        $downloadUrl = dlGetBaseUrl() . '/admin/settings/backup-download?file=' . rawurlencode($filename);
+        $result = [
+            'file_name' => $filename,
+            'file_size_bytes' => (int)@filesize($target),
+            'download_url' => $downloadUrl,
+            'tables' => $tableSummaries,
+            'total_rows' => $totalRows,
+            'include_users' => $includeUsersFlag,
+            'retention_days' => (int)$backupSettings['backup_retention_days'],
+            'deleted_old_backups' => $deletedOld,
+        ];
+
+        dl_auditLog('database_backup_created', null, 'module_settings', 'daily-ledger', null, [
+            'reason' => $reason,
+            'file_name' => $filename,
+            'file_size_bytes' => $result['file_size_bytes'],
+            'total_rows' => $totalRows,
+            'include_users' => $includeUsersFlag,
+            'deleted_old_backups' => $deletedOld,
+            'performed_by_role' => (string)($user['role'] ?? ''),
+            'performed_by_source' => (string)($user['source'] ?? ''),
+        ]);
+
+        return $result;
+    } catch (Throwable $e) {
+        fclose($fh);
+        @unlink($tmpTarget);
+        throw $e;
+    }
+}
+
+function dl_deploymentResetTables($db): array
+{
+    // Full deployment reset wipes all module-owned dl_* tables; preserved admin is restored after purge.
+    return dl_listDailyLedgerTables($db, true);
+}
+
+function dl_preservedAdminRowForReset($db, array $user): array
+{
+    $actorId = (int)($user['id'] ?? 0);
+    $actorUsername = trim((string)($user['username'] ?? ''));
+    $actorEmail = trim((string)($user['email'] ?? ''));
+
+    if (!dl_tableExists($db, 'dl_users')) {
+        throw new RuntimeException('dl_users table not found; cannot preserve admin account.');
+    }
+
+    $row = null;
+    if ($actorId > 0) {
+        $stmt = $db->prepare('SELECT * FROM dl_users WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $actorId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    if ((!is_array($row) || $row === []) && $actorUsername !== '') {
+        $stmt = $db->prepare(
+            "SELECT * FROM dl_users
+             WHERE role = 'admin' AND deleted_at IS NULL AND is_active = 1 AND username = :username
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([':username' => $actorUsername]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    if ((!is_array($row) || $row === []) && $actorEmail !== '') {
+        $stmt = $db->prepare(
+            "SELECT * FROM dl_users
+             WHERE role = 'admin' AND deleted_at IS NULL AND is_active = 1 AND email = :email
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([':email' => $actorEmail]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    if (!is_array($row) || $row === []) {
+        // Fallback for kernel-admin sessions: keep the last known active module admin account.
+        $stmt = $db->query(
+            "SELECT * FROM dl_users
+             WHERE role = 'admin' AND deleted_at IS NULL AND is_active = 1
+             ORDER BY id DESC
+             LIMIT 1"
+        );
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    if (!is_array($row) || $row === []) {
+        throw new RuntimeException('No active admin account found to preserve.');
+    }
+
+    $role = strtolower(trim((string)($row['role'] ?? '')));
+    if ($role !== 'admin') {
+        throw new RuntimeException('Only a Daily Ledger admin account can be preserved by deployment reset.');
+    }
+
+    return $row;
+}
+
+function dl_restorePreservedAdminRowAfterReset($db, array $row): void
+{
+    if (!dl_tableExists($db, 'dl_users')) {
+        return;
+    }
+
+    $colsStmt = $db->query('SHOW COLUMNS FROM dl_users');
+    $columns = $colsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($columns === []) {
+        throw new RuntimeException('Unable to read dl_users columns for account restore.');
+    }
+
+    $insertCols = [];
+    $insertVals = [];
+    $bind = [];
+    $i = 0;
+
+    foreach ($columns as $col) {
+        $field = (string)($col['Field'] ?? '');
+        if ($field === '') {
+            continue;
+        }
+
+        $nullable = strtolower((string)($col['Null'] ?? 'NO')) === 'yes';
+        $value = array_key_exists($field, $row) ? $row[$field] : ($nullable ? null : ($col['Default'] ?? null));
+
+        if ($field === 'role') {
+            $value = 'admin';
+        } elseif ($field === 'is_active') {
+            $value = 1;
+        } elseif ($field === 'deleted_at') {
+            $value = null;
+        } elseif (in_array($field, ['branch_id', 'default_branch_id'], true)) {
+            $value = $nullable ? null : 0;
+        }
+
+        $param = ':c' . $i;
+        $insertCols[] = '`' . str_replace('`', '``', $field) . '`';
+        $insertVals[] = $param;
+        $bind[$param] = $value;
+        $i++;
+    }
+
+    if ($insertCols === []) {
+        throw new RuntimeException('No columns available to restore preserved admin account.');
+    }
+
+    $sql = 'INSERT INTO dl_users (' . implode(', ', $insertCols) . ') VALUES (' . implode(', ', $insertVals) . ')';
+    $ins = $db->prepare($sql);
+    $ins->execute($bind);
+}
+
+function dl_tableExists($db, string $table): bool
+{
+    $safe = preg_replace('/[^a-z0-9_]+/i', '', $table);
+    if ($safe === '' || $safe !== $table) {
+        return false;
+    }
+
+    try {
+        $stmt = $db->query("SHOW TABLES LIKE '" . $safe . "'");
+        return $stmt->fetchColumn() !== false;
+    } catch (Throwable) {
+        return false;
+    }
+}
+
+function dl_deleteAllRowsIfTableExists($db, string $table): int
+{
+    if (!dl_tableExists($db, $table)) {
+        return 0;
+    }
+
+    $safe = preg_replace('/[^a-z0-9_]+/i', '', $table);
+    $stmt = $db->prepare('DELETE FROM ' . $safe);
+    $ok = $stmt->execute();
+    if ($ok !== true) {
+        throw new RuntimeException('Failed deleting table: ' . $safe);
+    }
+
+    return (int)$stmt->rowCount();
+}
+
+function dl_countRowsIfTableExists($db, string $table): int
+{
+    if (!dl_tableExists($db, $table)) {
+        return 0;
+    }
+
+    $safe = preg_replace('/[^a-z0-9_]+/i', '', $table);
+    $stmt = $db->query('SELECT COUNT(*) FROM ' . $safe);
+    return (int)($stmt->fetchColumn() ?: 0);
+}
+
+function dl_runDeploymentDataReset(array $user, bool $dryRun = false): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        throw new RuntimeException('Module context unavailable');
+    }
+
+    $db = $ctx->db();
+    $tables = dl_deploymentResetTables($db);
+    $preservedAdminRow = dl_preservedAdminRowForReset($db, $user);
+    $adminCount = dlActiveAdminCount();
+    if ($adminCount < 1) {
+        throw new RuntimeException('No active admin account found; reset aborted.');
+    }
+
+    $result = [
+        'dry_run' => $dryRun,
+        'preserved_admin_accounts' => 1,
+        'preserved_admin_id' => (int)($preservedAdminRow['id'] ?? 0),
+        'preserved_admin_username' => (string)($preservedAdminRow['username'] ?? ''),
+        'backup' => null,
+        'tables' => [],
+        'total_rows' => 0,
+    ];
+
+    if ($dryRun) {
+        foreach ($tables as $table) {
+            $rows = dl_countRowsIfTableExists($db, $table);
+            $result['tables'][] = ['table' => $table, 'rows' => $rows];
+            $result['total_rows'] += $rows;
+        }
+        return $result;
+    }
+
+    $backupSettings = dl_backupSettings();
+    if ($backupSettings['backup_before_reset_enabled']) {
+        $result['backup'] = dl_generateDatabaseBackup(
+            $user,
+            'before_deployment_reset',
+            (bool)$backupSettings['backup_include_users']
+        );
+    }
+
+    $db->beginTransaction();
+    $fkChecksDisabled = false;
+    try {
+        $db->prepare('SET FOREIGN_KEY_CHECKS=0')->execute();
+        $fkChecksDisabled = true;
+
+        foreach ($tables as $table) {
+            $rows = dl_deleteAllRowsIfTableExists($db, $table);
+            $result['tables'][] = ['table' => $table, 'rows' => $rows];
+            $result['total_rows'] += $rows;
+        }
+
+        dl_restorePreservedAdminRowAfterReset($db, $preservedAdminRow);
+
+        $db->prepare('SET FOREIGN_KEY_CHECKS=1')->execute();
+        $fkChecksDisabled = false;
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($fkChecksDisabled) {
+            try {
+                $db->prepare('SET FOREIGN_KEY_CHECKS=1')->execute();
+            } catch (Throwable) {
+            }
+        }
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    dl_auditLog('deployment_data_reset', null, 'module_settings', 'daily-ledger', null, [
+        'performed_by_role' => (string)($user['role'] ?? ''),
+        'performed_by_source' => (string)($user['source'] ?? ''),
+        'preserved_admin_accounts' => 1,
+        'preserved_admin_id' => (int)($preservedAdminRow['id'] ?? 0),
+        'preserved_admin_username' => (string)($preservedAdminRow['username'] ?? ''),
+        'total_rows' => $result['total_rows'],
+        'tables' => $result['tables'],
+    ]);
+
+    return $result;
+}
+
 function dl_closeOfDaySettings(): array
 {
     static $cache = null;
@@ -4230,6 +4753,8 @@ function handleAdminDashboard(array $params = []): void
     }
 
     $user = dlCurrentUser(['admin', 'supervisor']);
+    $role = (string)($user['role'] ?? '');
+    $input = $ctx->input();
 
     $today    = dl_businessDate();
     $accessibleBranchIds = dl_accessibleBranchIds($user);
@@ -4241,6 +4766,33 @@ function handleAdminDashboard(array $params = []): void
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
     dl_maybeAutoCloseBranches(array_column($branches, 'id'), dl_getActorUserId($user));
+
+    $salesFilterDateFrom = $today;
+    $salesFilterDateTo = $today;
+    if (!empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_from'])) {
+        $salesFilterDateFrom = (string)$input['date_from'];
+    }
+    if (!empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_to'])) {
+        $salesFilterDateTo = (string)$input['date_to'];
+    }
+    if ($salesFilterDateFrom > $salesFilterDateTo) {
+        [$salesFilterDateFrom, $salesFilterDateTo] = [$salesFilterDateTo, $salesFilterDateFrom];
+    }
+
+    $salesFilterBranchId = isset($input['branch_id']) ? (int)$input['branch_id'] : 0;
+    if ($salesFilterBranchId > 0 && !in_array($salesFilterBranchId, $accessibleBranchIds, true) && $role !== 'admin') {
+        $salesFilterBranchId = 0;
+    }
+    $salesFilterPeriodLabel = $salesFilterDateFrom === $salesFilterDateTo
+        ? $salesFilterDateFrom
+        : $salesFilterDateFrom . ' to ' . $salesFilterDateTo;
+
+    $salesScopeBranches = $branches;
+    if ($salesFilterBranchId > 0) {
+        $salesScopeBranches = array_values(array_filter($branches, static function (array $branch) use ($salesFilterBranchId): bool {
+            return (int)($branch['id'] ?? 0) === $salesFilterBranchId;
+        }));
+    }
 
     // Today's sales per branch — computed: sales = beg_bal + addtl - withdraw - bal_end
     $salesStmt = $ctx->db()->prepare(
@@ -4257,11 +4809,29 @@ function handleAdminDashboard(array $params = []): void
     $salesStmt->execute(array_merge([$today], $accessibleBranchIds));
     $todaySales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    $filteredSalesSql =
+        'SELECT dl.branch_id, b.name AS branch_name,
+                SUM(GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end)) AS total_units,
+                SUM(GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end) * dl.price_snapshot) AS total_amount,
+                COUNT(DISTINCT dl.product_id) AS product_count
+         FROM dl_daily_ledger dl
+         INNER JOIN dl_branches b ON b.id = dl.branch_id
+         WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
+    $filteredSalesBind = array_merge([$salesFilterDateFrom, $salesFilterDateTo], $accessibleBranchIds);
+    if ($salesFilterBranchId > 0) {
+        $filteredSalesSql .= ' AND dl.branch_id = ?';
+        $filteredSalesBind[] = $salesFilterBranchId;
+    }
+    $filteredSalesSql .= ' GROUP BY dl.branch_id ORDER BY b.name';
+    $filteredSalesStmt = $ctx->db()->prepare($filteredSalesSql);
+    $filteredSalesStmt->execute($filteredSalesBind);
+    $filteredSalesRows = $filteredSalesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     // Day status per branch — filtered to accessible branches
     $statusStmt = $ctx->db()->prepare(
         "SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = ? AND branch_id IN ({$branchPlaceholders})"
     );
-    $statusStmt->execute(array_merge([$today], $accessibleBranchIds));
+    $statusStmt->execute(array_merge([$salesFilterDateTo], $accessibleBranchIds));
     $dayStatuses = [];
     foreach ($statusStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
         $dayStatuses[(int)$s['branch_id']] = $s['status'];
@@ -4271,37 +4841,103 @@ function handleAdminDashboard(array $params = []): void
     $varStmt = $ctx->db()->query('SELECT COUNT(*) FROM dl_variance_flags WHERE is_reviewed = 0');
     $unreviewedVariances = (int)$varStmt->fetchColumn();
 
-    // Recent encoder activity (last 20)
-    $activityStmt = $ctx->db()->prepare(
-        'SELECT a.action, a.created_at, b.name AS branch_name,
-                a.old_data, a.new_data
-         FROM audit_logs a
-         LEFT JOIN dl_branches b ON b.id = a.branch_id
-         WHERE a.module = \'daily-ledger\'
-         ORDER BY a.created_at DESC LIMIT 20'
-    );
-    $activityStmt->execute();
+    // Recent encoder activity (last 20) — human-readable + branch-scoped for non-admins.
+    $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
+    $hasActorSource = dlAuditLogHasColumn('actor_source');
+    $activitySql = 'SELECT a.action, a.created_at, a.branch_id,
+                           b.name AS branch_name,
+                           ' . ($hasActorSource ? 'a.actor_source' : 'NULL') . ' AS actor_source,
+                           a.actor_user_id,
+                           ' . ($hasActorModuleUserId ? 'a.actor_module_user_id' : 'NULL') . ' AS actor_module_user_id,
+                           ku.full_name AS kernel_actor_name,
+                           ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name
+                    FROM audit_logs a
+                    LEFT JOIN dl_branches b ON b.id = a.branch_id
+                    LEFT JOIN users ku ON ku.id = a.actor_user_id
+                    ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0') . '
+                    WHERE a.module = \'daily-ledger\'';
+    $activityBind = [];
+    if ($role !== 'admin') {
+        $activityBranchPlaceholders = [];
+        foreach (array_values($accessibleBranchIds) as $index => $accessibleBranchId) {
+            $placeholder = ':dash_branch_' . $index;
+            $activityBranchPlaceholders[] = $placeholder;
+            $activityBind[$placeholder] = (int)$accessibleBranchId;
+        }
+        $activitySql .= ' AND (a.branch_id IS NULL OR a.branch_id IN (' . implode(',', $activityBranchPlaceholders) . '))';
+    }
+    $activitySql .= ' ORDER BY a.created_at DESC LIMIT 20';
+    $activityStmt = $ctx->db()->prepare($activitySql);
+    $activityStmt->execute($activityBind);
     $recentActivity = $activityStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $dashboardActionLabels = [
+        'field_update' => 'Updated ledger field',
+        'row_update' => 'Updated ledger row',
+        'close_day' => 'Closed the day',
+        'reopen_day' => 'Reopened the day',
+        'create_product' => 'Added product',
+        'update_product' => 'Updated product',
+        'create_user' => 'Created user',
+        'update_user' => 'Updated user',
+        'delete_user' => 'Deleted user',
+        'restore_user' => 'Restored user',
+        'production_output' => 'Recorded production output',
+        'production_withdrawal' => 'Recorded production withdrawal',
+        'create_delivery' => 'Created delivery',
+        'delivery_posted' => 'Posted delivery',
+        'delivery_voided' => 'Voided delivery',
+        'create_receiving' => 'Created receiving',
+        'receiving_posted' => 'Posted receiving',
+        'receiving_voided' => 'Voided receiving',
+        'review_delivery_provenance' => 'Reviewed paper DR',
+        'variance_status' => 'Updated variance status',
+        'create_commissary_run' => 'Created commissary run',
+        'update_commissary_run' => 'Updated commissary run',
+        'delete_commissary_run' => 'Deleted commissary run',
+        'save_commissary_material' => 'Saved material count',
+    ];
+    foreach ($recentActivity as &$activityRow) {
+        $actorName = trim((string)($activityRow['module_actor_name'] ?? ''));
+        if ($actorName === '') {
+            $actorName = trim((string)($activityRow['kernel_actor_name'] ?? ''));
+        }
+        if ($actorName === '') {
+            $source = strtolower(trim((string)($activityRow['actor_source'] ?? '')));
+            if ($source === 'daily-ledger') {
+                $actorName = 'Daily Ledger';
+            } elseif ($source === 'kernel') {
+                $actorName = 'Kernel User';
+            } else {
+                $actorName = 'System';
+            }
+        }
+        $action = (string)($activityRow['action'] ?? '');
+        $activityRow['actor_name'] = $actorName;
+        $activityRow['activity_label'] = $dashboardActionLabels[$action] ?? ucwords(str_replace('_', ' ', $action));
+    }
+    unset($activityRow);
 
     // Join branches + sales + day-statuses into card data.
     // Pass raw numeric values — let DiSyL handle formatting (currency, number_format).
     $salesByBranch = [];
-    foreach ($todaySales as $ts) {
+    foreach ($filteredSalesRows as $ts) {
         $salesByBranch[(int)$ts['branch_id']] = $ts;
     }
 
-    $totalUnitsToday = 0;
-    $totalAmountToday = 0.0;
+    $scopeUnits = 0;
+    $scopeAmount = 0.0;
     $branchCards = [];
-    foreach ($branches as $br) {
+    foreach ($salesScopeBranches as $br) {
         $bid = (int)$br['id'];
         $ts = $salesByBranch[$bid] ?? null;
         $units  = $ts ? (int)$ts['total_units'] : 0;
         $amount = $ts ? (float)$ts['total_amount'] : 0.0;
         $status = $dayStatuses[$bid] ?? 'none';
-        $totalUnitsToday  += $units;
-        $totalAmountToday += $amount;
+        $scopeUnits  += $units;
+        $scopeAmount += $amount;
         $branchCards[] = [
+            'branch_id' => $bid,
             'name'   => $br['name'],
             'units'  => $units,
             'amount' => $amount,
@@ -4309,11 +4945,7 @@ function handleAdminDashboard(array $params = []): void
         ];
     }
 
-    $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
-    $stmtAll->execute($accessibleBranchIds);
-    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/dashboard.disyl', [
@@ -4326,10 +4958,16 @@ function handleAdminDashboard(array $params = []): void
         'today'                 => $today,
         'branches'              => $branches,
         'branch_cards'          => $branchCards,
+        'sales_filter_date_from' => $salesFilterDateFrom,
+        'sales_filter_date_to'   => $salesFilterDateTo,
+        'sales_filter_branch_id' => $salesFilterBranchId,
+        'sales_filter_period_label' => $salesFilterPeriodLabel,
+        'branch_sales_units'    => $scopeUnits,
+        'branch_sales_amount'   => $scopeAmount,
         'unreviewed_variances'  => $unreviewedVariances,
         'recent_activity'       => $recentActivity,
-        'total_units_today'     => $totalUnitsToday,
-        'total_amount_today'    => $totalAmountToday,
+        'total_units_today'     => array_reduce($todaySales, static fn(int $carry, array $row): int => $carry + (int)($row['total_units'] ?? 0), 0),
+        'total_amount_today'    => array_reduce($todaySales, static fn(float $carry, array $row): float => $carry + (float)($row['total_amount'] ?? 0), 0.0),
         'business_date_label'   => $clockLabel['business_date'],
         'close_of_day_time'     => $clockLabel['close_of_day_time'],
         'auto_close_enabled'    => $clockLabel['auto_close_enabled'],
@@ -4589,6 +5227,28 @@ function handleAdminProductionOutput(array $params = []): void
         $moveStmt = $ctx->db()->prepare($moveSql);
         $moveStmt->execute($bind);
         $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($movementRows as &$movementRow) {
+            $typeMeta = dlProductionMovementTypeMeta((string)($movementRow['movement_type'] ?? ''));
+            $movementRow['movement_type_label'] = $typeMeta['label'];
+            $movementRow['movement_type_badge_classes'] = $typeMeta['badge_classes'];
+            $movementRow['flow_mode_label'] = dlProductionFlowModeLabel((string)($movementRow['flow_mode'] ?? ''));
+            $movementRow['actor_role_label'] = dlHumanizeToken((string)($movementRow['created_by_role'] ?? ''));
+            $movementRow['reason_label'] = trim((string)($movementRow['override_reason'] ?? '')) !== ''
+                ? (string)$movementRow['override_reason']
+                : 'None';
+            $movementRow['branch_label'] = trim((string)($movementRow['destination_name'] ?? ''));
+            $code = trim((string)($movementRow['destination_code'] ?? ''));
+            if ($movementRow['branch_label'] !== '' && $code !== '') {
+                $movementRow['branch_label'] .= ' (' . $code . ')';
+            }
+            $movementRow['area_label'] = trim((string)($movementRow['destination_area'] ?? '')) !== ''
+                ? (string)$movementRow['destination_area']
+                : '—';
+            $movementRow['dr_number_label'] = trim((string)($movementRow['dr_number'] ?? '')) !== ''
+                ? (string)$movementRow['dr_number']
+                : '—';
+        }
+        unset($movementRow);
     }
 
     $role = (string)($user['role'] ?? '');
@@ -4641,6 +5301,8 @@ function handleAdminSettings(array $params = []): void
     $permissions = dl_rolePermissions();
     $closeOfDaySettings = dl_closeOfDaySettings();
     $featureSettings = dl_featureSettings();
+    $backupSettings = dl_backupSettings();
+    $resetSafeguardSettings = dl_resetSafeguardSettings();
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -4668,7 +5330,46 @@ function handleAdminSettings(array $params = []): void
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
         'logo_url' => dlLogoUrl(),
         'favicon_url' => dlFaviconUrl(),
+        'backup_before_reset_enabled' => $backupSettings['backup_before_reset_enabled'],
+        'backup_include_users' => $backupSettings['backup_include_users'],
+        'backup_retention_days' => $backupSettings['backup_retention_days'],
+        'reset_second_phrase_enabled' => $resetSafeguardSettings['reset_second_phrase_enabled'],
+        'reset_second_phrase' => $resetSafeguardSettings['reset_second_phrase'],
     ]);
+}
+
+function handleAdminBackupDownload(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    dlCurrentUser(['admin']);
+
+    $file = trim((string)($_GET['file'] ?? ''));
+    if ($file === '' || !preg_match('/^dl-db-backup-[0-9]{8}-[0-9]{6}\.sql$/', $file)) {
+        http_response_code(400);
+        echo 'Invalid backup file name.';
+        return;
+    }
+
+    $dir = dl_backupDirectoryPath();
+    $path = $dir . '/' . $file;
+    $realDir = realpath($dir);
+    $realPath = realpath($path);
+    if ($realDir === false || $realPath === false || strpos($realPath, $realDir . DIRECTORY_SEPARATOR) !== 0 || !is_file($realPath)) {
+        http_response_code(404);
+        echo 'Backup file not found.';
+        return;
+    }
+
+    header('Content-Type: application/sql; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $file . '"');
+    header('Content-Length: ' . (string)filesize($realPath));
+    readfile($realPath);
 }
 
 function apiUploadBrandingAsset(array $params = []): void
@@ -4745,6 +5446,88 @@ function apiSaveRolePermissions(array $params = []): void
         return in_array($s, ['1', 'true', 'yes', 'on'], true);
     };
 
+    if ($toBool($input['db_backup_generate'] ?? false)) {
+        $includeUsers = array_key_exists('backup_include_users', $input)
+            ? $toBool($input['backup_include_users'])
+            : null;
+        try {
+            $backupResult = dl_generateDatabaseBackup($user, 'manual_settings_backup', $includeUsers);
+        } catch (Throwable $e) {
+            write_log('daily-ledger database backup failed', 'error', [
+                'message' => $e->getMessage(),
+                'actor_role' => (string)($user['role'] ?? ''),
+                'actor_source' => (string)($user['source'] ?? ''),
+            ]);
+            $ctx->json([
+                'ok' => false,
+                'error' => 'Database backup failed: ' . $e->getMessage(),
+            ], 500);
+            return;
+        }
+
+        header('HX-Trigger: ' . json_encode(['showToast' => [
+            'message' => 'Daily Ledger database backup created.',
+            'type' => 'success',
+        ]]));
+        $ctx->json([
+            'ok' => true,
+            'backup' => $backupResult,
+        ]);
+        return;
+    }
+
+    if ($toBool($input['deployment_reset'] ?? false)) {
+        $confirmPhrase = trim((string)($input['deployment_reset_confirm'] ?? ''));
+        if ($confirmPhrase !== 'RESET DAILY LEDGER DATA') {
+            $ctx->json([
+                'ok' => false,
+                'error' => 'Type RESET DAILY LEDGER DATA to continue.',
+            ], 422);
+            return;
+        }
+
+        $dryRun = $toBool($input['deployment_reset_dry_run'] ?? false);
+        $resetSafeguardSettings = dl_resetSafeguardSettings();
+        if (!$dryRun && $resetSafeguardSettings['reset_second_phrase_enabled']) {
+            $secondConfirm = trim((string)($input['deployment_reset_second_confirm'] ?? ''));
+            if ($secondConfirm !== (string)$resetSafeguardSettings['reset_second_phrase']) {
+                $ctx->json([
+                    'ok' => false,
+                    'error' => 'Type the second safeguard phrase exactly before running full reset.',
+                ], 422);
+                return;
+            }
+        }
+
+        try {
+            $resetResult = dl_runDeploymentDataReset($user, $dryRun);
+        } catch (Throwable $e) {
+            write_log('daily-ledger deployment reset failed', 'error', [
+                'message' => $e->getMessage(),
+                'actor_role' => (string)($user['role'] ?? ''),
+                'actor_source' => (string)($user['source'] ?? ''),
+                'dry_run' => $dryRun,
+            ]);
+            $ctx->json([
+                'ok' => false,
+                'error' => 'Deployment reset failed: ' . $e->getMessage(),
+            ], 500);
+            return;
+        }
+
+        header('HX-Trigger: ' . json_encode(['showToast' => [
+            'message' => $dryRun
+                ? 'Reset preview ready. Review row counts before execution.'
+                : 'Full reset completed. Only the currently logged-in admin account was preserved.',
+            'type' => 'success',
+        ]]));
+        $ctx->json([
+            'ok' => true,
+            'deployment_reset' => $resetResult,
+        ]);
+        return;
+    }
+
     $permissions = [
         'admin' => ['ledger.override', 'production.override'],
         'supervisor' => [],
@@ -4770,9 +5553,15 @@ function apiSaveRolePermissions(array $params = []): void
     $operatingTimezone = dl_normalizeTimezone($input['operating_timezone'] ?? config('app.timezone', 'Asia/Manila'));
     $operatingRegion = dl_normalizeRegion($input['operating_region'] ?? '');
     $featureSettings = dl_featureSettings();
+    $backupSettings = dl_backupSettings();
+    $resetSafeguardSettings = dl_resetSafeguardSettings();
     $productionOutputEnabled = $featureSettings['production_output_enabled'];
     $formalDeliveryEnabled = $featureSettings['formal_delivery_workflow_enabled'];
     $priceGroupsEnabled = $featureSettings['price_groups_enabled'];
+    $backupBeforeResetEnabled = $backupSettings['backup_before_reset_enabled'];
+    $backupIncludeUsers = $backupSettings['backup_include_users'];
+    $backupRetentionDays = $backupSettings['backup_retention_days'];
+    $resetSecondPhraseEnabled = $resetSafeguardSettings['reset_second_phrase_enabled'];
 
     if (array_key_exists('production_output_enabled', $input)) {
         if (!$canManageFeatureActivation) {
@@ -4800,6 +5589,26 @@ function apiSaveRolePermissions(array $params = []): void
         }
     }
     unset($ref);
+
+    if (array_key_exists('backup_before_reset_enabled', $input)) {
+        $backupBeforeResetEnabled = $toBool($input['backup_before_reset_enabled']);
+    }
+    if (array_key_exists('backup_include_users', $input)) {
+        $backupIncludeUsers = $toBool($input['backup_include_users']);
+    }
+    if (array_key_exists('backup_retention_days', $input)) {
+        $backupRetentionDays = (int)$input['backup_retention_days'];
+    }
+    if (array_key_exists('reset_second_phrase_enabled', $input)) {
+        $resetSecondPhraseEnabled = $toBool($input['reset_second_phrase_enabled']);
+    }
+    if ($backupRetentionDays < 1 || $backupRetentionDays > 90) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'Backup retention days must be between 1 and 90.',
+        ], 422);
+        return;
+    }
 
     if ($autoCloseEnabled && !dl_isAllowedAutoCloseTime($closeOfDayTime)) {
         $ctx->json([
@@ -4834,6 +5643,10 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled ? '1' : '0',
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled ? '1' : '0',
         'price_groups_enabled' => $priceGroupsEnabled ? '1' : '0',
+        'backup_before_reset_enabled' => $backupBeforeResetEnabled ? '1' : '0',
+        'backup_include_users' => $backupIncludeUsers ? '1' : '0',
+        'backup_retention_days' => (string)$backupRetentionDays,
+        'reset_second_phrase_enabled' => $resetSecondPhraseEnabled ? '1' : '0',
     ];
 
     if (!dlPersistModuleSettings($settingsToSave)) {
@@ -4855,6 +5668,10 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
+        'backup_before_reset_enabled' => $backupBeforeResetEnabled,
+        'backup_include_users' => $backupIncludeUsers,
+        'backup_retention_days' => $backupRetentionDays,
+        'reset_second_phrase_enabled' => $resetSecondPhraseEnabled,
         'is_kernel_admin' => $isKernelAdmin,
         'updated_by_role' => (string)($user['role'] ?? ''),
     ]);
@@ -4867,6 +5684,10 @@ function apiSaveRolePermissions(array $params = []): void
         'favicon_url' => $faviconUrl,
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled,
+        'backup_before_reset_enabled' => $backupBeforeResetEnabled,
+        'backup_include_users' => $backupIncludeUsers,
+        'backup_retention_days' => $backupRetentionDays,
+        'reset_second_phrase_enabled' => $resetSecondPhraseEnabled,
         'close_of_day_time' => $closeOfDayTime,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
@@ -4891,7 +5712,8 @@ function handleAdminVariances(array $params = []): void
 
     $input = $ctx->input();
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
-    $statusFilter = $input['status'] ?? null;
+    $statusFilter = (string)($input['status'] ?? '');
+    $dateFilter = (string)($input['date'] ?? dl_businessDate());
     $search   = trim((string)($input['q'] ?? ''));
     $viewMode = $input['view'] ?? ($isSupervisor ? 'grouped' : 'list');
 
@@ -4914,7 +5736,7 @@ function handleAdminVariances(array $params = []): void
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Build the variance query
-    $sql = 'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name,
+    $sql = 'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
                    COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name
             FROM dl_variance_flags vf
             INNER JOIN dl_products p ON p.id = vf.product_id
@@ -4937,13 +5759,16 @@ function handleAdminVariances(array $params = []): void
         $sql .= ' AND vf.branch_id IN (' . implode(',', $placeholders) . ')';
     }
 
-    if ($statusFilter && in_array($statusFilter, ['unreviewed', 'investigated', 'corrected'], true)) {
+    if ($statusFilter !== '' && in_array($statusFilter, ['unreviewed', 'investigated', 'corrected'], true)) {
         $sql .= ' AND vf.resolution_status = :st';
         $bind[':st'] = $statusFilter;
     }
     if ($search !== '') {
-        $sql .= ' AND (p.name LIKE :q OR b.name LIKE :q2)';
-        $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
+        $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2 OR b.name LIKE :q3 OR b.code LIKE :q4)';
+        $bind[':q'] = "%{$search}%";
+        $bind[':q2'] = "%{$search}%";
+        $bind[':q3'] = "%{$search}%";
+        $bind[':q4'] = "%{$search}%";
     }
 
     $sql .= ' ORDER BY vf.ledger_date DESC, b.name, p.name';
@@ -4975,6 +5800,7 @@ function handleAdminVariances(array $params = []): void
             $branchSummary[$bid] = [
                 'branch_id'   => $bid,
                 'branch_name' => $bname,
+                'branch_code'  => (string)($v['branch_code'] ?? ''),
                 'total'       => 0,
                 'unreviewed'  => 0,
                 'investigated'=> 0,
@@ -5008,6 +5834,7 @@ function handleAdminVariances(array $params = []): void
         'current_page'  => 'variances',
         'base_url'      => dlGetBaseUrl(),
         'dl_token'      => (string)kernelCookie(dlCookieName(), ''),
+        'date'          => $dateFilter,
         'branch_id'     => $branchId,
         'status_filter' => $statusFilter,
         'branches'      => $branches,
@@ -5042,6 +5869,15 @@ function handleAdminActivity(array $params = []): void
     $today = dl_businessDate();
     $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : $today;
     $dateTo   = !empty($input['date_to']) ? (string)$input['date_to'] : $today;
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $dateFrom = $today;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $dateTo = $today;
+    }
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
     $actionFilter = trim((string)($input['action_filter'] ?? ''));
     $search   = trim((string)($input['q'] ?? ''));
@@ -5617,6 +6453,47 @@ function handleAdminActivity(array $params = []): void
         return $entry;
     };
 
+    $summarizeDetailItems = static function (array $items): string {
+        if ($items === []) {
+            return 'None';
+        }
+        $parts = [];
+        foreach (array_slice($items, 0, 4) as $item) {
+            $label = trim((string)($item['label'] ?? ''));
+            $value = trim((string)($item['value'] ?? ''));
+            if ($label === '' || $value === '' || $value === 'None') {
+                continue;
+            }
+            $parts[] = $label . ': ' . $value;
+        }
+        return $parts !== [] ? implode(' | ', $parts) : 'None';
+    };
+
+    $summarizeChangeItems = static function (array $items): string {
+        if ($items === []) {
+            return 'None';
+        }
+        $parts = [];
+        foreach (array_slice($items, 0, 3) as $item) {
+            $label = trim((string)($item['label'] ?? ''));
+            $from = trim((string)($item['from'] ?? ''));
+            $to = trim((string)($item['to'] ?? ''));
+            if ($label === '') {
+                continue;
+            }
+            $parts[] = $label . ': ' . $from . ' -> ' . $to;
+        }
+        return $parts !== [] ? implode(' | ', $parts) : 'None';
+    };
+
+    $humanizeEntityType = static function (string $entityType): string {
+        $text = trim($entityType);
+        if ($text === '') {
+            return 'Activity';
+        }
+        return ucwords(str_replace(['dl_', '_'], ['', ' '], $text));
+    };
+
     $activities = [];
     $productionGroup = null;
     $flushProductionGroup = static function (?array $group) use (&$activities, $buildActivityEntry, $buildDetailItems): void {
@@ -5712,6 +6589,31 @@ function handleAdminActivity(array $params = []): void
         $activities[] = $buildActivityEntry($row, $oldPayload, $newPayload);
     }
     $flushProductionGroup($productionGroup);
+
+    foreach ($activities as &$activity) {
+        $activity['entity_type_label'] = $humanizeEntityType((string)($activity['entity_type'] ?? ''));
+        $activity['detail_summary'] = $summarizeDetailItems(is_array($activity['detail_items'] ?? null) ? $activity['detail_items'] : []);
+        $activity['change_summary'] = $summarizeChangeItems(is_array($activity['change_items'] ?? null) ? $activity['change_items'] : []);
+        $activity['grouped_summary'] = 'None';
+        if (!empty($activity['grouped_items']) && is_array($activity['grouped_items'])) {
+            $parts = [];
+            foreach (array_slice($activity['grouped_items'], 0, 3) as $groupedItem) {
+                $product = trim((string)($groupedItem['product'] ?? ''));
+                $quantity = trim((string)($groupedItem['quantity'] ?? ''));
+                if ($product === '' || $quantity === '') {
+                    continue;
+                }
+                $parts[] = $product . ' x' . $quantity;
+            }
+            if ($parts !== []) {
+                $activity['grouped_summary'] = implode(' | ', $parts);
+                if (count($activity['grouped_items']) > 3) {
+                    $activity['grouped_summary'] .= ' | +' . (count($activity['grouped_items']) - 3) . ' more';
+                }
+            }
+        }
+    }
+    unset($activity);
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -6366,6 +7268,13 @@ function handleAdminUsers(array $params = []): void
     $stmt = $ctx->db()->prepare($sql);
     $stmt->execute($bind);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($users as &$userRow) {
+        $userRow['email'] = (string)($userRow['email'] ?? '');
+        $userRow['branch_names'] = (string)($userRow['branch_names'] ?? '');
+        $userRow['branch_ids_csv'] = (string)($userRow['branch_ids_csv'] ?? '');
+        $userRow['branch_id'] = (int)($userRow['branch_id'] ?? 0);
+    }
+    unset($userRow);
 
     // Per-tab counts for the tab badges (single query over dl_users).
     $countRow = $ctx->db()->query(
@@ -6520,15 +7429,16 @@ function dlUserIdentityConflict(int $excludeUserId, string $username, ?string $e
         'SELECT id
          FROM dl_users
          WHERE id <> :exclude_id
-           AND ((:check_email <> "" AND username = :check_email2)
-             OR (email IS NOT NULL AND email = :check_username))
+                     AND ((:check_username <> "" AND username = :check_username2)
+                         OR (:check_email <> "" AND email IS NOT NULL AND email = :check_email2))
          LIMIT 1'
     );
     $stmt->execute([
         ':exclude_id' => max(0, $excludeUserId),
+                ':check_username' => $username,
+                ':check_username2' => $username,
         ':check_email' => $email ?? '',
         ':check_email2' => $email ?? '',
-        ':check_username' => $username,
     ]);
 
     return $stmt->fetch(PDO::FETCH_ASSOC) ? 'Username or email conflicts with another account.' : null;
@@ -6694,6 +7604,14 @@ function apiDeleteUser(array $params = []): void
     if ($sub === $role . ':' . $userId) {
         $ctx->json(['ok' => false, 'error' => 'You cannot delete your own account'], 403);
         return;
+    }
+
+    if ($role === 'admin') {
+        $adminCount = dlActiveAdminCount();
+        if ($adminCount <= 1) {
+            $ctx->json(['ok' => false, 'error' => 'Cannot delete the last active admin account'], 422);
+            return;
+        }
     }
 
     try {
@@ -8297,9 +9215,31 @@ function handleAdminWithdrawals(): void
     $user = dlCurrentUser(['admin', 'supervisor']);
     $db = $ctx->db();
     $input = $ctx->input();
-    $date = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
+    $today = dl_businessDate();
+    $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : (!empty($input['date']) ? (string)$input['date'] : $today);
+    $dateTo = !empty($input['date_to']) ? (string)$input['date_to'] : (!empty($input['date']) ? (string)$input['date'] : $today);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $dateFrom = $today;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $dateTo = $today;
+    }
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
     $branchId = (int)($input['branch_id'] ?? 0);
     $commissaryId = (int)($input['commissary_id'] ?? 0);
+    $search = trim((string)($input['q'] ?? ''));
+
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) {
+        $accessibleBranchIds = [0];
+    }
+    if ((string)($user['role'] ?? '') !== 'admin' && $branchId > 0 && !in_array($branchId, $accessibleBranchIds, true)) {
+        $branchId = 0;
+    }
+
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
 
     $sql = 'SELECT cw.id, cw.ledger_date, cw.created_at, cw.withdrawal_type, cw.reason_code,
                    cw.quantity, cw.dr_number, cw.liable_user_id,
@@ -8324,31 +9264,71 @@ function handleAdminWithdrawals(): void
               LEFT JOIN dl_branches cb ON cb.id = b.assigned_commissary_id AND cb.is_commissary = 1
               LEFT JOIN dl_users u ON u.id = cw.encoded_by AND cw.encoded_by > 0
               LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
-             WHERE cw.ledger_date = :d';
-    $bind = [':d' => $date];
+             WHERE cw.branch_id IN (' . $branchPlaceholders . ')
+               AND cw.ledger_date BETWEEN :date_from AND :date_to';
+    $bind = [':date_from' => $dateFrom, ':date_to' => $dateTo];
+    $executeBind = array_merge($accessibleBranchIds, $bind);
     if ($branchId > 0) {
         $sql .= ' AND cw.branch_id = :bid';
-        $bind[':bid'] = $branchId;
+        $executeBind[':bid'] = $branchId;
     }
     if ($commissaryId > 0) {
         $sql .= ' AND b.assigned_commissary_id = :cid';
-        $bind[':cid'] = $commissaryId;
+        $executeBind[':cid'] = $commissaryId;
+    }
+    if ($search !== '') {
+        $sql .= ' AND (p.name LIKE :q OR b.name LIKE :q_branch OR COALESCE(cb.name, \'\') LIKE :q_commissary OR COALESCE(lu.full_name, \'\') LIKE :q_liable OR COALESCE(u.full_name, u.username, \'\') LIKE :q_cashier OR COALESCE(cw.reason_code, \'\') LIKE :q_reason OR COALESCE(cw.dr_number, \'\') LIKE :q_dr)';
+        $like = '%' . $search . '%';
+        $executeBind[':q'] = $like;
+        $executeBind[':q_branch'] = $like;
+        $executeBind[':q_commissary'] = $like;
+        $executeBind[':q_liable'] = $like;
+        $executeBind[':q_cashier'] = $like;
+        $executeBind[':q_reason'] = $like;
+        $executeBind[':q_dr'] = $like;
     }
     $sql .= ' ORDER BY cw.created_at DESC LIMIT 500';
     $stmt = $db->prepare($sql);
-    $stmt->execute($bind);
+    $stmt->execute($executeBind);
     $allRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     // Hide rows where cashier couldn't be resolved; format time for display
     $rows = [];
+    $totalQuantity = 0;
+    $typeCounts = [
+        'charge' => 0,
+        'pullout' => 0,
+        'adjustment_add' => 0,
+    ];
     foreach ($allRows as $row) {
         if (($row['cashier_name'] ?? 'Unknown') !== 'Unknown') {
             $row['created_time'] = !empty($row['created_at']) ? date('H:i', strtotime($row['created_at'])) : '';
+            $type = (string)($row['withdrawal_type'] ?? '');
+            $typeMeta = dlWithdrawalTypeMeta($type);
+            $row['withdrawal_type_label'] = $typeMeta['label'];
+            $row['withdrawal_type_badge_classes'] = $typeMeta['badge_classes'];
+            $row['reason_code_label'] = trim((string)($row['reason_code'] ?? '')) !== ''
+                ? dlHumanizeToken((string)$row['reason_code'])
+                : '';
             $rows[] = $row;
+            $totalQuantity += (int)($row['quantity'] ?? 0);
+            if (isset($typeCounts[$type])) {
+                $typeCounts[$type]++;
+            }
         }
     }
 
-    $branches = $db->query('SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $commissaries = $db->query("SELECT id, name, area FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY COALESCE(area, ''), name")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $branchesStmt = $db->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branchesStmt->execute($accessibleBranchIds);
+    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $commissarySql = "SELECT DISTINCT cb.id, cb.name, cb.area
+                        FROM dl_branches cb
+                        INNER JOIN dl_branches b ON b.assigned_commissary_id = cb.id
+                       WHERE cb.is_commissary = 1 AND cb.is_active = 1 AND b.id IN ({$branchPlaceholders})
+                       ORDER BY COALESCE(cb.area, ''), cb.name";
+    $commissaryStmt = $db->prepare($commissarySql);
+    $commissaryStmt->execute($accessibleBranchIds);
+    $commissaries = $commissaryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -8364,6 +9344,14 @@ function handleAdminWithdrawals(): void
         'commissaries' => $commissaries,
         'branch_id' => $branchId,
         'commissary_id' => $commissaryId,
-        'date' => $date,
+        'date' => $dateTo,
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'search' => $search,
+        'total_rows' => count($rows),
+        'total_quantity' => $totalQuantity,
+        'type_charge_count' => $typeCounts['charge'],
+        'type_pullout_count' => $typeCounts['pullout'],
+        'type_adjustment_add_count' => $typeCounts['adjustment_add'],
     ]);
 }

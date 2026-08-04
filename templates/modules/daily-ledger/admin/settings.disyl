@@ -254,6 +254,88 @@
         </div>
     </div>
 </div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Database Backup</span>
+        <span class="text-sm text-muted">Settings-Based Protection</span>
+    </div>
+    <div class="card-body">
+        <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+            <p class="font-semibold">Generate SQL backups from Settings and auto-backup before deployment reset.</p>
+            <p class="mt-2">Backups are stored under <span class="font-mono">storage/backups/daily-ledger</span> and old files are auto-cleaned using retention days.</p>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700 md:col-span-1">
+                <input type="checkbox" id="backup-before-reset-enabled" {if backup_before_reset_enabled}checked{/if}>
+                Auto backup before deployment reset
+            </label>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700 md:col-span-1">
+                <input type="checkbox" id="backup-include-users" {if backup_include_users}checked{/if}>
+                Include user accounts in backup
+            </label>
+            <div class="md:col-span-1">
+                <label class="form-label" for="backup-retention-days">Retention (days)</label>
+                <input type="number" id="backup-retention-days" class="form-input" min="1" max="90" value="{backup_retention_days}">
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline" id="backup-generate-btn" onclick="runManualBackup()">Generate Backup Now</button>
+        </div>
+
+        <div id="backup-result" class="mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"></div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Deployment Reset</span>
+        <span class="text-sm text-muted">Live Server Safety</span>
+    </div>
+    <div class="card-body">
+        <div class="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <p class="font-semibold">Performs full Daily Ledger data reset and preserves only the currently logged-in admin account.</p>
+            <p class="mt-2">This removes sales, branches, users, and all other dl_* records, then restores the active admin account so access is retained.</p>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="md:col-span-2">
+                <label class="form-label" for="deployment-reset-confirm">Confirmation Phrase</label>
+                <input type="text" id="deployment-reset-confirm" class="form-input" placeholder="Type: RESET DAILY LEDGER DATA">
+                <p class="mt-2 text-xs text-gray-500">Required phrase: <span class="font-semibold">RESET DAILY LEDGER DATA</span></p>
+            </div>
+            <div class="flex items-end">
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="deployment-reset-dry-run" checked>
+                    Preview only (dry run)
+                </label>
+            </div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="md:col-span-2">
+                <label class="form-label" for="deployment-reset-second-confirm">Second Safeguard Phrase</label>
+                <input type="text" id="deployment-reset-second-confirm" class="form-input" placeholder="Type second safeguard phrase for full reset">
+                <p class="mt-2 text-xs text-gray-500">Phrase: <span class="font-semibold" id="deployment-reset-second-phrase">{reset_second_phrase}</span></p>
+            </div>
+            <div class="flex items-end">
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="reset-second-phrase-enabled" {if reset_second_phrase_enabled}checked{/if}>
+                    Require second phrase for full reset
+                </label>
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline" id="deployment-reset-preview-btn" onclick="runDeploymentReset(true)">Preview Reset Scope</button>
+            <button type="button" class="btn btn-danger" id="deployment-reset-run-btn" onclick="runDeploymentReset(false)">Reset Operational Data</button>
+        </div>
+
+        <div id="deployment-reset-result" class="mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"></div>
+    </div>
+</div>
 {/block}
 
 {block scripts}
@@ -338,6 +420,180 @@
         document.getElementById('cutoff-badge-preview').textContent = 'Cutoff: ' + val;
     }
 
+    function renderDeploymentResetResult(data) {
+        var box = document.getElementById('deployment-reset-result');
+        if (!box) {
+            return;
+        }
+        var reset = data && data.deployment_reset ? data.deployment_reset : null;
+        if (!reset) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+
+        var rows = Array.isArray(reset.tables) ? reset.tables : [];
+        var html = '';
+        html += '<div class="font-semibold text-slate-900">' + (reset.dry_run ? 'Reset Preview' : 'Reset Completed') + '</div>';
+        html += '<div class="mt-1 text-xs text-slate-600">Preserved admin accounts: ' + String(reset.preserved_admin_accounts || 0) + '</div>';
+        if (reset.preserved_admin_username) {
+            html += '<div class="mt-1 text-xs text-slate-600">Preserved admin username: ' + String(reset.preserved_admin_username) + '</div>';
+        }
+        html += '<div class="mt-1 text-xs text-slate-600">Total rows: ' + String(reset.total_rows || 0) + '</div>';
+        html += '<div class="mt-3 max-h-52 overflow-auto rounded-lg border border-slate-200 bg-white">';
+        html += '<table class="min-w-full text-xs"><thead><tr><th class="px-3 py-2 text-left">Table</th><th class="px-3 py-2 text-right">Rows</th></tr></thead><tbody>';
+        rows.forEach(function(row) {
+            html += '<tr><td class="px-3 py-1.5">' + String(row.table || '') + '</td><td class="px-3 py-1.5 text-right">' + String(row.rows || 0) + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    function renderBackupResult(data) {
+        var box = document.getElementById('backup-result');
+        if (!box) {
+            return;
+        }
+        var backup = data && data.backup ? data.backup : null;
+        if (!backup) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+
+        var html = '';
+        html += '<div class="font-semibold text-slate-900">Backup Ready</div>';
+        html += '<div class="mt-1 text-xs text-slate-600">File: ' + String(backup.file_name || '') + '</div>';
+        html += '<div class="mt-1 text-xs text-slate-600">Size: ' + String(backup.file_size_bytes || 0) + ' bytes</div>';
+        html += '<div class="mt-1 text-xs text-slate-600">Rows: ' + String(backup.total_rows || 0) + '</div>';
+        if (backup.download_url) {
+            html += '<div class="mt-2"><a class="text-blue-600 underline" href="' + String(backup.download_url) + '">Download SQL Backup</a></div>';
+        }
+
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    function runManualBackup() {
+        var btn = document.getElementById('backup-generate-btn');
+        var includeUsers = !!((document.getElementById('backup-include-users') || {}).checked);
+        if (!btn) {
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+
+        fetch('{base_url}/api/v1/admin/settings/permissions', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                db_backup_generate: true,
+                backup_include_users: includeUsers
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                throw new Error(res.error || 'Failed to generate backup');
+            }
+            renderBackupResult(res);
+            showToast('Daily Ledger backup generated.', 'success');
+        })
+        .catch(function(err) {
+            showToast(err.message || 'Failed to generate backup', 'error');
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Generate Backup Now';
+        });
+    }
+
+    function runDeploymentReset(forceDryRun) {
+        var phraseInput = document.getElementById('deployment-reset-confirm');
+        var phraseTwoInput = document.getElementById('deployment-reset-second-confirm');
+        var phraseTwoLabel = document.getElementById('deployment-reset-second-phrase');
+        var phraseTwoEnabled = !!((document.getElementById('reset-second-phrase-enabled') || {}).checked);
+        var phraseTwoExpected = (phraseTwoLabel && phraseTwoLabel.textContent ? phraseTwoLabel.textContent : '').trim();
+        var dryRunCheckbox = document.getElementById('deployment-reset-dry-run');
+        var previewBtn = document.getElementById('deployment-reset-preview-btn');
+        var runBtn = document.getElementById('deployment-reset-run-btn');
+        var phrase = (phraseInput && phraseInput.value ? phraseInput.value : '').trim();
+        var phraseTwo = (phraseTwoInput && phraseTwoInput.value ? phraseTwoInput.value : '').trim();
+
+        if (phrase !== 'RESET DAILY LEDGER DATA') {
+            showToast('Type RESET DAILY LEDGER DATA to continue.', 'error');
+            if (phraseInput) {
+                phraseInput.focus();
+            }
+            return;
+        }
+
+        var isDryRun = forceDryRun ? true : !!(dryRunCheckbox && dryRunCheckbox.checked);
+        if (!isDryRun && phraseTwoEnabled && phraseTwoExpected !== '' && phraseTwo !== phraseTwoExpected) {
+            showToast('Type the second safeguard phrase exactly before full reset.', 'error');
+            if (phraseTwoInput) {
+                phraseTwoInput.focus();
+            }
+            return;
+        }
+
+        if (!isDryRun) {
+            var ok = confirm('Run full Daily Ledger reset now? This removes branches, users, sales, and other module records. Only the currently logged-in admin account will be restored.');
+            if (!ok) {
+                return;
+            }
+        }
+
+        previewBtn.disabled = true;
+        runBtn.disabled = true;
+        previewBtn.textContent = isDryRun ? 'Previewing...' : 'Preview Reset Scope';
+        runBtn.textContent = isDryRun ? 'Reset Operational Data' : 'Resetting...';
+
+        fetch('{base_url}/api/v1/admin/settings/permissions', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                deployment_reset: true,
+                deployment_reset_confirm: phrase,
+                deployment_reset_second_confirm: phraseTwo,
+                deployment_reset_dry_run: isDryRun
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                throw new Error(res.error || 'Failed to run deployment reset');
+            }
+            renderDeploymentResetResult(res);
+            showToast(isDryRun ? 'Reset preview ready.' : 'Operational data reset completed.', 'success');
+            if (!isDryRun) {
+                setTimeout(function() { window.refreshMainContent(); }, 800);
+            }
+        })
+        .catch(function(err) {
+            showToast(err.message || 'Failed to run deployment reset', 'error');
+        })
+        .finally(function() {
+            previewBtn.disabled = false;
+            runBtn.disabled = false;
+            previewBtn.textContent = 'Preview Reset Scope';
+            runBtn.textContent = 'Reset Operational Data';
+        });
+    }
+
     function saveRolePermissions() {
         var btn = document.getElementById('save-perm-btn');
         var autoCloseEnabled = document.getElementById('auto-close-enabled').checked;
@@ -357,11 +613,22 @@
             operating_timezone: document.getElementById('operating-timezone').value,
             auto_close_enabled: autoCloseEnabled,
             close_of_day_time: closeOfDayTime,
+            backup_before_reset_enabled: document.getElementById('backup-before-reset-enabled').checked,
+            backup_include_users: document.getElementById('backup-include-users').checked,
+            backup_retention_days: parseInt(document.getElementById('backup-retention-days').value, 10) || 14,
+            reset_second_phrase_enabled: document.getElementById('reset-second-phrase-enabled').checked,
             supervisor_ledger_override: document.getElementById('perm-supervisor-ledger').checked,
             supervisor_production_override: document.getElementById('perm-supervisor-production').checked,
             prod_ledger_override: document.getElementById('perm-prod-ledger').checked,
             prod_production_override: document.getElementById('perm-prod-production').checked
         };
+
+        if (payload.backup_retention_days < 1 || payload.backup_retention_days > 90) {
+            showToast('Backup retention days must be between 1 and 90.', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Save Settings';
+            return;
+        }
 
         var featureOutputToggle = document.getElementById('feature-production-output');
         if (featureOutputToggle) {

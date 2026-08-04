@@ -29,6 +29,7 @@ return [
         '/daily-ledger/admin/activity'             => 'daily-ledger:handleAdminActivity',
         '/daily-ledger/admin/withdrawals'          => 'daily-ledger:handleAdminWithdrawals',
         '/daily-ledger/admin/settings'             => 'daily-ledger:handleAdminSettings',
+        '/daily-ledger/admin/settings/backup-download' => 'daily-ledger:handleAdminBackupDownload',
         '/daily-ledger/admin/branch-summary'        => 'daily-ledger:handleBranchSummaryRedirect',
 
         // API: product list for branch (used by cashier form)

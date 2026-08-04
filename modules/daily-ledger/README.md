@@ -10,6 +10,8 @@ Digital daily sales report encoding system — mirrors the traditional paper led
 - Variance dashboards
 - Cashier shift management
 - Offline-capable mobile data entry (Android)
+- Live deployment reset (full dl_* data wipe, preserves only current logged-in admin)
+- Settings-based SQL backup (manual + auto-before-reset)
 
 ## Architecture
 
@@ -27,3 +29,5 @@ Digital daily sales report encoding system — mirrors the traditional paper led
 ## Documentation
 
 Project-level docs: [`docs/daily-ledger/`](../../docs/daily-ledger/)
+
+- Live deployment reset runbook: [`docs/daily-ledger/live-deployment-reset.md`](../../docs/daily-ledger/live-deployment-reset.md)

@@ -557,7 +557,7 @@ function apiCreateDelivery(array $params = []): void
     $items      = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
 
     $allowedOrigins = ['commissary','branch','supplier','manual'];
-    $allowedDests   = ['branch','own_account','reseller','customer','event','wastage','internal_use','adjustment'];
+    $allowedDests   = array_values(array_map(static fn(array $row): string => (string)$row['value'], dlDeliveryDestinationTypeOptions()));
     if (!in_array($originType, $allowedOrigins, true) || !in_array($destType, $allowedDests, true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid origin or destination type'], 422);
         return;
@@ -916,7 +916,22 @@ function apiListDeliveries(array $params = []): void
     $status = (string)($_GET['status'] ?? '');
     $destType = (string)($_GET['destination_type'] ?? '');
     $destId   = isset($_GET['destination_id']) ? (int)$_GET['destination_id'] : 0;
+    $branchFilterId = isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0;
+    $dateFrom = trim((string)($_GET['date_from'] ?? ''));
+    $dateTo = trim((string)($_GET['date_to'] ?? ''));
     $provenanceStatus = (string)($_GET['provenance_status'] ?? '');
+
+    if ($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid from date.'], 422);
+        return;
+    }
+    if ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid to date.'], 422);
+        return;
+    }
+    if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
 
     $where = [];
     $bind = [];
@@ -960,8 +975,34 @@ function apiListDeliveries(array $params = []): void
         $where[] = 'd.status = :s';
         $bind[':s'] = $status;
     }
-    if ($destType !== '') { $where[] = 'd.destination_type = :dt'; $bind[':dt'] = $destType; }
+    $allowedDestinationTypes = array_values(array_map(static fn(array $row): string => (string)$row['value'], dlDeliveryDestinationTypeOptions()));
+    if ($destType !== '') {
+        if (!in_array($destType, $allowedDestinationTypes, true)) {
+            $ctx->json(['ok' => false, 'error' => 'Invalid destination type.'], 422);
+            return;
+        }
+        $where[] = 'd.destination_type = :dt';
+        $bind[':dt'] = $destType;
+    }
     if ($destId > 0) { $where[] = 'd.destination_id = :did'; $bind[':did'] = $destId; }
+    if ($branchFilterId > 0) {
+        if ((string)($user['role'] ?? '') !== 'admin' && !in_array($branchFilterId, $accessibleBranchIds, true)) {
+            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+            return;
+        }
+        $where[] = '((d.origin_type IN ("branch", "commissary") AND d.origin_id = :filter_branch_id)
+                     OR (d.destination_type = "branch" AND d.destination_id = :filter_branch_id_destination))';
+        $bind[':filter_branch_id'] = $branchFilterId;
+        $bind[':filter_branch_id_destination'] = $branchFilterId;
+    }
+    if ($dateFrom !== '') {
+        $where[] = 'd.delivery_date >= :date_from';
+        $bind[':date_from'] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $where[] = 'd.delivery_date <= :date_to';
+        $bind[':date_to'] = $dateTo;
+    }
     if (in_array($provenanceStatus, ['paper_dr_pending', 'accepted', 'discrepant'], true)) {
         $where[] = 'd.provenance_status = :ps';
         $bind[':ps'] = $provenanceStatus;
@@ -995,7 +1036,17 @@ function apiListDeliveries(array $params = []): void
     $stmt = $ctx->db()->prepare($sql);
     $bind[':paper_dr_remark'] = dl_paperDrCaptureRemark();
     $stmt->execute($bind);
-    $ctx->json(['ok' => true, 'deliveries' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+    $deliveries = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($deliveries as &$deliveryRow) {
+        $statusMeta = dlDeliveryStatusMeta((string)($deliveryRow['status'] ?? ''));
+        $deliveryRow['status_label'] = $statusMeta['label'];
+        $deliveryRow['status_badge_classes'] = $statusMeta['badge_classes'];
+        $provenanceMeta = dlDeliveryProvenanceStatusMeta((string)($deliveryRow['provenance_status'] ?? ''));
+        $deliveryRow['provenance_status_label'] = $provenanceMeta['label'];
+        $deliveryRow['provenance_status_badge_classes'] = $provenanceMeta['badge_classes'];
+    }
+    unset($deliveryRow);
+    $ctx->json(['ok' => true, 'deliveries' => $deliveries]);
 }
 
 function apiGetDeliveryReceivingDetail(array $params = []): void
@@ -1663,6 +1714,7 @@ function handleAdminDeliveries(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $input = $ctx->input();
 
     $accessibleBranchIds = dl_accessibleBranchIds($user);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
@@ -1674,6 +1726,21 @@ function handleAdminDeliveries(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    $branchFilterId = isset($input['branch_id']) ? (int)$input['branch_id'] : 0;
+    if ($branchFilterId > 0 && !in_array($branchFilterId, $accessibleBranchIds, true) && $role !== 'admin') {
+        $branchFilterId = 0;
+    }
+    $dateFrom = trim((string)($input['date_from'] ?? ''));
+    $dateTo = trim((string)($input['date_to'] ?? ''));
+    if ($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $dateFrom = '';
+    }
+    if ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $dateTo = '';
+    }
+    if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
 
     echo dlRender('modules/daily-ledger/admin/deliveries.disyl', array_merge(dl_layoutFlags(), [
         'page_title'   => 'Transfer Records',
@@ -1684,6 +1751,12 @@ function handleAdminDeliveries(array $params = []): void
         'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
         'branches'     => $branches,
         'products'     => $products,
+        'delivery_status_options' => dlDeliveryStatusOptions(),
+        'delivery_destination_type_options' => dlDeliveryDestinationTypeOptions(),
+        'delivery_provenance_status_options' => dlDeliveryProvenanceStatusOptions(),
+        'delivery_filter_branch_id' => $branchFilterId,
+        'delivery_filter_date_from' => $dateFrom,
+        'delivery_filter_date_to' => $dateTo,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'can_create_delivery_docs' => in_array($role, ['admin', 'supervisor'], true),
         'can_review_delivery_provenance' => in_array($role, ['admin', 'supervisor', 'production_in_charge'], true),

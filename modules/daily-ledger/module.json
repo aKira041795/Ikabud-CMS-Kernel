@@ -191,6 +191,34 @@
       "label": "Enable Channel Price Groups",
       "default": "1",
       "description": "Allow product prices to vary by channel (Regular Branch, Mall, Reseller, Event, etc.). Snapshots are recorded on every delivery and ledger entry."
+    },
+    {
+      "key": "backup_before_reset_enabled",
+      "type": "checkbox",
+      "label": "Auto Backup Before Deployment Reset",
+      "default": "1",
+      "description": "Automatically generate a SQL backup before running deployment reset on operational tables."
+    },
+    {
+      "key": "backup_include_users",
+      "type": "checkbox",
+      "label": "Include User Accounts In Backup",
+      "default": "1",
+      "description": "Include dl_users rows in generated SQL backup files for disaster recovery."
+    },
+    {
+      "key": "backup_retention_days",
+      "type": "number",
+      "label": "Backup Retention Days",
+      "default": "14",
+      "description": "Delete Daily Ledger backup files older than this number of days (1-90)."
+    },
+    {
+      "key": "reset_second_phrase_enabled",
+      "type": "checkbox",
+      "label": "Require Second Phrase For Full Reset",
+      "default": "1",
+      "description": "Require a second confirmation phrase before non-dry-run full reset executes."
     }
   ],
   "auth_cookie": "daily_ledger_token",

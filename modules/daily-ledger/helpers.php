@@ -47,6 +47,101 @@ function dlAppName(): string
     return $name !== '' ? $name : 'Daily Ledger';
 }
 
+function dlHumanizeToken(string $value): string
+{
+    $text = trim($value);
+    if ($text === '') {
+        return '';
+    }
+
+    return ucwords(str_replace(['_', '-'], ' ', $text));
+}
+
+function dlDeliveryDestinationTypeOptions(): array
+{
+    return [
+        ['value' => 'branch', 'label' => 'Branch'],
+        ['value' => 'selling_account', 'label' => 'Selling Account'],
+        ['value' => 'own_account', 'label' => 'Own Account'],
+        ['value' => 'reseller', 'label' => 'Reseller'],
+        ['value' => 'customer', 'label' => 'Customer'],
+        ['value' => 'event', 'label' => 'Event'],
+        ['value' => 'wastage', 'label' => 'Wastage'],
+        ['value' => 'internal_use', 'label' => 'Internal Use'],
+        ['value' => 'adjustment', 'label' => 'Adjustment'],
+    ];
+}
+
+function dlDeliveryStatusOptions(): array
+{
+    return [
+        ['value' => 'draft', 'label' => 'Draft'],
+        ['value' => 'posted', 'label' => 'Sent / Waiting'],
+        ['value' => 'received', 'label' => 'Received'],
+        ['value' => 'voided', 'label' => 'Cancelled'],
+    ];
+}
+
+function dlDeliveryProvenanceStatusOptions(): array
+{
+    return [
+        ['value' => 'paper_dr_pending', 'label' => 'Needs Check'],
+        ['value' => 'accepted', 'label' => 'Verified'],
+        ['value' => 'discrepant', 'label' => 'Discrepancy'],
+    ];
+}
+
+function dlDeliveryStatusMeta(string $status): array
+{
+    return match ($status) {
+        'draft' => ['label' => 'Draft', 'badge_classes' => 'bg-gray-50 text-gray-700 ring-gray-200'],
+        'posted' => ['label' => 'Sent / Waiting', 'badge_classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'received' => ['label' => 'Received', 'badge_classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'voided' => ['label' => 'Cancelled', 'badge_classes' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+        default => ['label' => dlHumanizeToken($status), 'badge_classes' => 'bg-slate-50 text-slate-700 ring-slate-200'],
+    };
+}
+
+function dlDeliveryProvenanceStatusMeta(string $status): array
+{
+    return match ($status) {
+        'paper_dr_pending' => ['label' => 'Needs Check', 'badge_classes' => 'bg-amber-50 text-amber-700 ring-amber-200'],
+        'accepted' => ['label' => 'Verified', 'badge_classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'discrepant' => ['label' => 'Discrepancy', 'badge_classes' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+        default => ['label' => dlHumanizeToken($status), 'badge_classes' => 'bg-slate-50 text-slate-700 ring-slate-200'],
+    };
+}
+
+function dlWithdrawalTypeMeta(string $type): array
+{
+    return match ($type) {
+        'charge' => ['label' => 'Charge', 'badge_classes' => 'bg-amber-50 text-amber-700 ring-amber-200'],
+        'pullout' => ['label' => 'Pullout', 'badge_classes' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+        'adjustment_add' => ['label' => 'Add Stock', 'badge_classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        default => ['label' => dlHumanizeToken($type), 'badge_classes' => 'bg-slate-50 text-slate-700 ring-slate-200'],
+    };
+}
+
+function dlProductionMovementTypeMeta(string $type): array
+{
+    return match ($type) {
+        'output' => ['label' => 'Output', 'badge_classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'reverse' => ['label' => 'Reverse', 'badge_classes' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+        'paper_dr_capture' => ['label' => 'Paper DR', 'badge_classes' => 'bg-amber-50 text-amber-800 ring-amber-300'],
+        default => ['label' => dlHumanizeToken($type), 'badge_classes' => 'bg-slate-50 text-slate-700 ring-slate-200'],
+    };
+}
+
+function dlProductionFlowModeLabel(string $flowMode): string
+{
+    return match ($flowMode) {
+        'production' => 'Production',
+        'commissary' => 'Commissary',
+        'legacy' => 'Legacy',
+        default => dlHumanizeToken($flowMode),
+    };
+}
+
 function dlLoginPageContext(array $overrides = []): array
 {
     $baseUrl = dlGetBaseUrl();
