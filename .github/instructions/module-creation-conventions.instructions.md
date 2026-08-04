@@ -15,6 +15,13 @@ applyTo: "**/*.php **/*.disyl **/module.json"
 - Such modules MUST declare `auth_owned` in `module.json` and MUST be selected in Admin > Tenants for each tenant that should receive that module bundle.
 - If the module is intended to be the default tenant bundle, make that default explicit in the manifest/docs rather than relying on hidden assumptions.
 - If the module is not an auth-owning entry module, keep it dependency-only and do not expect it to appear as a tenant dropdown default.
+
+## Tenant Entry Migration Scope (Mandatory)
+- Tenant migration cleanup must be handled through tenant admin flows (`/api/v1/admin/tenants/create`, `/api/v1/admin/tenants/entry-module`, `/api/v1/admin/tenants/db`) and never require manual SQL from users.
+- Any change to module dependency/planning logic MUST preserve scoped plans for entry modules and MUST NOT pull unrelated module trees.
+- For entry-module tests, verify `tenantProvisionModulePlan(<entry>)` excludes unrelated modules (example: AISS tables must never appear when testing CMS Akira entry).
+- If migration scope drift is detected, repair must target unrelated modules with owned tables only; avoid deleting same-family optional modules.
+- New modules must include a regression assertion in tenant provisioning tests that proves no unrelated modules are introduced by the entry plan.
 ## DiSyL Syntax
 - `{block name}` — NO quotes around block name. `{block "name"}` breaks silently.
 - `{ikb_entity_view name="X" view="Y"}` — config uses `name=` not `source=`.

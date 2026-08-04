@@ -128,6 +128,59 @@ if (!function_exists('kernelExecuteSqlStatements')) {
     }
 }
 
+if (!function_exists('kernelTenantScopedMigrationSync')) {
+    function kernelTenantScopedMigrationSync(int $tenantId, ?string $entryModuleId = null): array
+    {
+        $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : null;
+
+        $repairBefore = tenantRepairMigrationScopeDrift($tenantId, $entryModuleId);
+        if (empty($repairBefore['ok'])) {
+            return [
+                'ok' => false,
+                'stage' => 'repair_before_sync',
+                'error' => (string)($repairBefore['error'] ?? 'Unknown scope-repair error'),
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+            ];
+        }
+
+        $sync = syncTenantMigrationsForTenant($tenantId, $entryModuleId);
+        if (empty($sync['ok'])) {
+            return [
+                'ok' => false,
+                'stage' => 'sync',
+                'error' => (string)($sync['error'] ?? 'Unknown migration sync error'),
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'migration_sync' => $sync,
+                'scope_repair_before' => $repairBefore,
+            ];
+        }
+
+        $repairAfter = tenantRepairMigrationScopeDrift($tenantId, $entryModuleId);
+        if (empty($repairAfter['ok'])) {
+            return [
+                'ok' => false,
+                'stage' => 'repair_after_sync',
+                'error' => (string)($repairAfter['error'] ?? 'Unknown post-sync scope-repair error'),
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'migration_sync' => $sync,
+                'scope_repair_before' => $repairBefore,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId,
+            'migration_sync' => $sync,
+            'scope_repair_before' => $repairBefore,
+            'scope_repair_after' => $repairAfter,
+        ];
+    }
+}
+
 if (!function_exists('kernelHandleApiTenantCreate')) {
     function kernelHandleApiTenantCreate(): void
     {
@@ -211,13 +264,21 @@ if (!function_exists('kernelHandleApiTenantCreate')) {
                 ]);
             }
 
-            $sync = syncTenantMigrationsForTenant($tenantId, $entryModuleId !== '' ? $entryModuleId : null);
+            $sync = kernelTenantScopedMigrationSync($tenantId, $entryModuleId !== '' ? $entryModuleId : null);
             if (empty($sync['ok'])) {
+                write_log('tenant create migration sync failed', 'error', [
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId,
+                    'stage' => (string)($sync['stage'] ?? 'sync'),
+                    'sync_error' => (string)($sync['error'] ?? 'Unknown error'),
+                    'request_id' => request_id(),
+                ]);
                 http_response_code(500);
                 echo json_encode([
                     'ok' => false,
                     'error' => 'db saved but migrations failed to synchronize',
                     'details' => $sync['error'] ?? 'Unknown error',
+                    'stage' => $sync['stage'] ?? 'sync',
                     'tenant_id' => $tenantId,
                 ]);
                 return;
@@ -282,20 +343,38 @@ if (!function_exists('kernelHandleApiTenantEntryModuleSet')) {
                 }
             }
 
-            $sync = syncTenantMigrationsForTenant($tenantId, $entryModuleId);
+            $sync = kernelTenantScopedMigrationSync($tenantId, $entryModuleId);
             if (empty($sync['ok'])) {
+                write_log('tenant entry module migration sync failed', 'error', [
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId,
+                    'stage' => (string)($sync['stage'] ?? 'sync'),
+                    'sync_error' => (string)($sync['error'] ?? 'Unknown error'),
+                    'sync_modules' => $sync['migration_sync']['modules'] ?? [],
+                    'scope_repair_before' => $sync['scope_repair_before'] ?? null,
+                    'request_id' => request_id(),
+                ]);
                 http_response_code(500);
                 echo json_encode([
                     'ok' => false,
                     'error' => 'Tenant entry module updated, but tenant migrations failed to synchronize',
                     'details' => $sync['error'] ?? 'Unknown error',
+                    'stage' => $sync['stage'] ?? 'sync',
                     'tenant_id' => $tenantId,
                 ]);
                 return;
             }
 
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform', 'admin:view:modules']);
-            echo json_encode(['ok' => true, 'tenant_id' => $tenantId, 'entry_module_id' => $entryModuleId, 'migration_sync' => $sync, 'request_id' => request_id()]);
+            echo json_encode([
+                'ok' => true,
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'migration_sync' => $sync['migration_sync'] ?? [],
+                'scope_repair_before' => $sync['scope_repair_before'] ?? null,
+                'scope_repair_after' => $sync['scope_repair_after'] ?? null,
+                'request_id' => request_id(),
+            ]);
         } catch (Throwable $e) {
             write_log('apiTenantEntryModuleSet failed: ' . $e->getMessage(), 'error', [
                 'tenant_id' => $tenantId,
@@ -523,20 +602,34 @@ if (!function_exists('kernelHandleApiTenantDbUpsert')) {
 
             $pdo->commit();
 
-            $sync = syncTenantMigrationsForTenant($tenantId);
+            $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
+            $sync = kernelTenantScopedMigrationSync($tenantId, $entryModuleId !== null ? trim((string)$entryModuleId) : null);
             if (empty($sync['ok'])) {
+                write_log('tenant db upsert migration sync failed', 'error', [
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId,
+                    'stage' => (string)($sync['stage'] ?? 'sync'),
+                    'sync_error' => (string)($sync['error'] ?? 'Unknown error'),
+                    'request_id' => request_id(),
+                ]);
                 http_response_code(500);
                 echo json_encode([
                     'ok' => false,
                     'error' => 'Tenant DB connection saved, but tenant migrations failed to synchronize',
                     'details' => $sync['error'] ?? 'Unknown error',
+                    'stage' => $sync['stage'] ?? 'sync',
                     'tenant_id' => $tenantId,
                 ]);
                 return;
             }
 
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
-            echo json_encode(['ok' => true, 'migration_sync' => $sync]);
+            echo json_encode([
+                'ok' => true,
+                'migration_sync' => $sync['migration_sync'] ?? [],
+                'scope_repair_before' => $sync['scope_repair_before'] ?? null,
+                'scope_repair_after' => $sync['scope_repair_after'] ?? null,
+            ]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

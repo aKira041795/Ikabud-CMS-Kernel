@@ -61,6 +61,38 @@ function tenantSafeKernelMigrationFiles(?string $entryModuleId = null): array
     return $files;
 }
 
+function tenantDatabaseHasTable(PDO $db, string $tableName): bool
+{
+    $tableName = trim($tableName);
+    if ($tableName === '') {
+        return false;
+    }
+
+    try {
+        $stmt = $db->prepare(
+            'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+        );
+        $stmt->execute([':table_name' => $tableName]);
+        return (bool)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function tenantFilterKernelUserArtifacts(array $artifacts, PDO $db, ?string $entryModuleId = null): array
+{
+    $usesKernelUsers = tenantEntryModuleUsesKernelUsers($entryModuleId);
+    $hasUsersTable = tenantDatabaseHasTable($db, 'users');
+
+    // If the tenant entry module is not kernel-users based, or if the tenant DB
+    // does not have a users table yet, skip user-dependent kernel artifacts.
+    if (!$usesKernelUsers || !$hasUsersTable) {
+        unset($artifacts['015_users_token_version.sql'], $artifacts['019_kernel_password_resets.sql']);
+    }
+
+    return $artifacts;
+}
+
 function tenantProvisionEntryBundleModules(?string $entryModuleId): array
 {
     $entryModuleId = trim((string)$entryModuleId);
@@ -157,6 +189,7 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
 
     $selected = [];
     $queue = [];
+    $entryBundleRoots = [];
     foreach (tenantProvisionEntryBundleModules($entryModuleId) as $seedModuleId) {
         $seedModuleId = trim((string)$seedModuleId);
         if ($seedModuleId === '' || !isset($enabled[$seedModuleId]) || isset($selected[$seedModuleId])) {
@@ -164,6 +197,7 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
         }
         $selected[$seedModuleId] = true;
         $queue[] = $seedModuleId;
+        $entryBundleRoots[$seedModuleId] = true;
     }
 
     while (!empty($queue)) {
@@ -223,28 +257,25 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
         $selected['anti-spam'] = true;
     }
 
-    // Reverse-dependency pass: include enabled modules whose `depends` list
-    // references any already-selected module.  This ensures modules that
-    // declare dependence on the entry module (e.g. ecommerce depends on cms)
-    // are provisioned for the tenant instead of being silently skipped.
-    $changed = true;
-    while ($changed) {
-        $changed = false;
-        foreach ($enabled as $moduleId => $candidate) {
-            if (isset($selected[$moduleId])) {
-                continue;
-            }
-            $moduleDeps = $candidate['depends'] ?? [];
-            if (!is_array($moduleDeps)) {
-                continue;
-            }
-            foreach ($moduleDeps as $dep) {
-                $dep = trim((string)$dep);
-                if ($dep !== '' && isset($selected[$dep])) {
-                    $selected[$moduleId] = true;
-                    $changed = true;
-                    break;
-                }
+    // Reverse-dependency pass: only include modules that explicitly depend on
+    // the declared entry-bundle roots, not on every dependency discovered
+    // during closure expansion. This keeps tenant entry selection deterministic
+    // and avoids pulling unrelated module trees.
+    foreach ($enabled as $moduleId => $candidate) {
+        if (isset($selected[$moduleId])) {
+            continue;
+        }
+
+        $moduleDeps = $candidate['depends'] ?? [];
+        if (!is_array($moduleDeps)) {
+            continue;
+        }
+
+        foreach ($moduleDeps as $dep) {
+            $dep = trim((string)$dep);
+            if ($dep !== '' && isset($entryBundleRoots[$dep])) {
+                $selected[$moduleId] = true;
+                break;
             }
         }
     }
@@ -531,7 +562,7 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
 
 function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null, ?string $entryModuleId = null): array
 {
-    $artifacts = tenantSafeKernelMigrationArtifacts($entryModuleId);
+    $artifacts = tenantFilterKernelUserArtifacts(tenantSafeKernelMigrationArtifacts($entryModuleId), $db, $entryModuleId);
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
     $executed = [];
@@ -554,7 +585,8 @@ function tenantRepairKernelRuntimeArtifacts(PDO $db, ?string $entryModuleId = nu
 {
     $executed = [];
 
-    foreach (tenantSafeKernelMigrationArtifacts($entryModuleId) as $artifactName => $fullPath) {
+    $artifacts = tenantFilterKernelUserArtifacts(tenantSafeKernelMigrationArtifacts($entryModuleId), $db, $entryModuleId);
+    foreach ($artifacts as $artifactName => $fullPath) {
         if (tenantApplySqlArtifact($db, '_kernel', $artifactName, $fullPath)) {
             $executed[] = $artifactName;
         }
@@ -589,6 +621,7 @@ function tenantApplySqlArtifact(PDO $db, string $moduleId, string $artifactName,
                 1050,
                 1060,
                 1061,
+                1091,
             ];
             if (!in_array($mysqlCode, $idempotentCodes, true)) {
                 throw $e;
@@ -647,27 +680,10 @@ function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey,
             continue;
         }
 
-        $sql = (string)file_get_contents($fullPath);
-        if (trim($sql) !== '') {
-            try {
-                $db->exec($sql);
-            } catch (\PDOException $e) {
-                $mysqlCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : 0;
-                $idempotentCodes = [
-                    1060, // Duplicate column name
-                    1061, // Duplicate key name
-                    1050, // Table already exists
-                    1091, // Can't DROP index/key
-                ];
-                if (!in_array($mysqlCode, $idempotentCodes, true)) {
-                    throw $e;
-                }
-            }
+        if (tenantApplySqlArtifact($db, $moduleId, $artifactName, $fullPath)) {
+            $applied[$artifactName] = true;
+            $executed[] = $artifactName;
         }
-
-        tenantRecordModuleMigration($db, $moduleId, $artifactName);
-        $applied[$artifactName] = true;
-        $executed[] = $artifactName;
     }
 
     return $executed;
@@ -681,6 +697,183 @@ function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest 
 function tenantSyncModuleSeeds(PDO $db, string $moduleId, ?array $manifest = null, ?array $preloadedApplied = null): array
 {
     return applyModuleSqlArtifacts($db, $moduleId, 'seeds', $manifest, 'seed:', $preloadedApplied);
+}
+
+function tenantExpectedMigrationModules(?string $entryModuleId = null): array
+{
+    $entryModuleId = $entryModuleId !== null ? trim($entryModuleId) : '';
+    $planned = tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null);
+    $expected = ['_kernel' => true];
+    foreach ($planned as $moduleId) {
+        $moduleId = trim((string)$moduleId);
+        if ($moduleId !== '') {
+            $expected[$moduleId] = true;
+        }
+    }
+    return array_keys($expected);
+}
+
+function tenantUnexpectedMigratedModules(PDO $db, ?string $entryModuleId = null): array
+{
+    $expected = tenantExpectedMigrationModules($entryModuleId);
+    $expectedMap = [];
+    foreach ($expected as $moduleId) {
+        $expectedMap[(string)$moduleId] = true;
+    }
+
+    try {
+        $rows = $db->query('SELECT DISTINCT module FROM _migrations')->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $unexpected = [];
+    foreach ($rows as $row) {
+        $moduleId = trim((string)($row['module'] ?? ''));
+        if ($moduleId === '') {
+            continue;
+        }
+        if (!isset($expectedMap[$moduleId])) {
+            $unexpected[$moduleId] = true;
+        }
+    }
+
+    return array_keys($unexpected);
+}
+
+function tenantEntryModuleFamilyPrefix(?string $entryModuleId): string
+{
+    $entryModuleId = trim((string)$entryModuleId);
+    if ($entryModuleId === '') {
+        return '';
+    }
+
+    if (preg_match('/^([a-z0-9]+-[a-z0-9]+)/', $entryModuleId, $matches)) {
+        return (string)$matches[1];
+    }
+
+    return $entryModuleId;
+}
+
+function tenantFilterDriftCleanupModules(array $unexpectedModules, ?string $entryModuleId = null): array
+{
+    if ($unexpectedModules === []) {
+        return [];
+    }
+
+    $allModules = discoverModules();
+    $familyPrefix = tenantEntryModuleFamilyPrefix($entryModuleId);
+    $filtered = [];
+
+    foreach ($unexpectedModules as $moduleId) {
+        $moduleId = trim((string)$moduleId);
+        if ($moduleId === '') {
+            continue;
+        }
+
+        // Do not auto-clean modules in the same product family as the selected entry module.
+        if ($familyPrefix !== '' && str_starts_with($moduleId, $familyPrefix . '-')) {
+            continue;
+        }
+
+        $manifest = $allModules[$moduleId] ?? null;
+        if (!is_array($manifest)) {
+            continue;
+        }
+
+        $ownsTables = $manifest['owns_tables'] ?? [];
+        // Drift cleanup is for physical table pollution only.
+        if (!is_array($ownsTables) || $ownsTables === []) {
+            continue;
+        }
+
+        $filtered[] = $moduleId;
+    }
+
+    return $filtered;
+}
+
+function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId = null): array
+{
+    if ($tenantId <= 0) {
+        return ['ok' => false, 'error' => 'Invalid tenant ID'];
+    }
+
+    $db = app()->dbForTenant($tenantId);
+    if (!$db) {
+        return ['ok' => false, 'error' => 'Tenant DB connection unavailable', 'tenant_id' => $tenantId];
+    }
+
+    $entryModuleId = $entryModuleId !== null ? trim($entryModuleId) : tenantEntryModuleIdForTenant($tenantId);
+    $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : '';
+    $unexpectedModules = tenantUnexpectedMigratedModules($db, $entryModuleId !== '' ? $entryModuleId : null);
+    $unexpectedModules = tenantFilterDriftCleanupModules($unexpectedModules, $entryModuleId !== '' ? $entryModuleId : null);
+    if ($unexpectedModules === []) {
+        return [
+            'ok' => true,
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'changed' => false,
+            'unexpected_modules' => [],
+            'dropped_tables' => [],
+            'deleted_migration_rows' => 0,
+            'deleted_tenant_settings_rows' => 0,
+        ];
+    }
+
+    $allModules = discoverModules();
+    $droppedTables = [];
+
+    try {
+        $db->exec('SET FOREIGN_KEY_CHECKS=0');
+        foreach ($unexpectedModules as $moduleId) {
+            $manifest = $allModules[$moduleId] ?? null;
+            if (!is_array($manifest)) {
+                continue;
+            }
+            $ownsTables = $manifest['owns_tables'] ?? [];
+            if (!is_array($ownsTables)) {
+                continue;
+            }
+            foreach ($ownsTables as $tableName) {
+                $tableName = trim((string)$tableName);
+                if ($tableName === '') {
+                    continue;
+                }
+                if (!tenantDatabaseHasTable($db, $tableName)) {
+                    continue;
+                }
+                $escaped = str_replace('`', '``', $tableName);
+                $db->exec('DROP TABLE IF EXISTS `' . $escaped . '`');
+                $droppedTables[] = $tableName;
+            }
+        }
+    } finally {
+        $db->exec('SET FOREIGN_KEY_CHECKS=1');
+    }
+
+    $placeholders = implode(',', array_fill(0, count($unexpectedModules), '?'));
+    $deleteMigrations = $db->prepare('DELETE FROM _migrations WHERE module IN (' . $placeholders . ')');
+    $deleteMigrations->execute($unexpectedModules);
+    $deletedMigrationRows = (int)$deleteMigrations->rowCount();
+
+    $deletedSettingsRows = 0;
+    if (tenantDatabaseHasTable($db, 'tenant_module_settings')) {
+        $deleteSettings = $db->prepare('DELETE FROM tenant_module_settings WHERE module_id IN (' . $placeholders . ')');
+        $deleteSettings->execute($unexpectedModules);
+        $deletedSettingsRows = (int)$deleteSettings->rowCount();
+    }
+
+    return [
+        'ok' => true,
+        'tenant_id' => $tenantId,
+        'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+        'changed' => true,
+        'unexpected_modules' => $unexpectedModules,
+        'dropped_tables' => $droppedTables,
+        'deleted_migration_rows' => $deletedMigrationRows,
+        'deleted_tenant_settings_rows' => $deletedSettingsRows,
+    ];
 }
 
 function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = null): array

@@ -9,6 +9,10 @@ if (!function_exists('kernelHandlePageLogin')) {
             'ehr-core' => 'ehr',
         ];
 
+        if (str_starts_with($entryModuleId, 'cms-akira-profile-')) {
+            return 'cms';
+        }
+
         return $aliases[$entryModuleId] ?? $entryModuleId;
     }
 

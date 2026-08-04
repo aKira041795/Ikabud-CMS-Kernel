@@ -99,6 +99,10 @@ class TenantEntryRouter
             return '/';
         }
 
+        if (str_starts_with($entry, 'cms-akira-profile-')) {
+            return '/cms/login';
+        }
+
         static $landingCache = [];
         if (isset($landingCache[$entry])) {
             return $landingCache[$entry];

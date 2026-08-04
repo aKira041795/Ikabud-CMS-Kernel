@@ -82,12 +82,16 @@ echo "=== EHR Tenant Provisioning Plan ===\n\n";
 $ehrPlan = tenantProvisionModulePlan('ehr');
 $legacyEhrPlan = tenantProvisionModulePlan('ehr-core');
 $cmsPlan = tenantProvisionModulePlan('cms');
+$cmsAkiraPlan = tenantProvisionModulePlan('cms-akira-profile-standard');
 $entryOptions = listTenantEntryModuleOptions();
 $ehrOption = null;
+$cmsAkiraOption = null;
 foreach ($entryOptions as $option) {
     if ((string)($option['id'] ?? '') === 'ehr') {
         $ehrOption = $option;
-        break;
+    }
+    if ((string)($option['id'] ?? '') === 'cms-akira-profile-standard') {
+        $cmsAkiraOption = $option;
     }
 }
 
@@ -109,7 +113,10 @@ t('legacy ehr-core plan aliases to include ehr auth module', in_array('ehr', $le
 t('ehr plan includes reporting bundle members when seeded', in_array('reporting', tenantProvisionEntryBundleModules('ehr'), true) && in_array('billing-bridge', tenantProvisionEntryBundleModules('ehr'), true), json_encode(tenantProvisionEntryBundleModules('ehr')));
 t('cms plan still includes cms', in_array('cms', $cmsPlan, true), json_encode($cmsPlan));
 t('cms plan does not pull ehr from nav hook declarations', !in_array('ehr', $cmsPlan, true), json_encode($cmsPlan));
+t('cms akira plan includes profile standard', in_array('cms-akira-profile-standard', $cmsAkiraPlan, true), json_encode($cmsAkiraPlan));
+t('cms akira plan stays scoped (no academic-similarity spillover)', !in_array('academic-similarity', $cmsAkiraPlan, true), json_encode($cmsAkiraPlan));
 t('tenant entry option exposes ehr as suite', is_array($ehrOption) && (string)($ehrOption['name'] ?? '') === 'EHR Suite', is_array($ehrOption) ? json_encode($ehrOption) : 'missing');
+t('tenant entry option exposes cms akira standard', is_array($cmsAkiraOption) && (string)($cmsAkiraOption['name'] ?? '') === 'CMS Akira', is_array($cmsAkiraOption) ? json_encode($cmsAkiraOption) : 'missing');
 t('legacy ehr-core entry normalizes to ehr', (normalizeTenantEntryModuleId('ehr-core')['value'] ?? null) === 'ehr', json_encode(normalizeTenantEntryModuleId('ehr-core')));
 
 echo "\n{$pass} passed, {$fail} failed\n";

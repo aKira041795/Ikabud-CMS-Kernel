@@ -1,6 +1,6 @@
 {
     "id": "cms-akira-profile-standard",
-    "name": "Cms Akira Profile Standard",
+    "name": "CMS Akira",
     "version": "1.0.0",
     "description": "Cms Akira Profile Standard module for Ikabud Kernel",
     "author": "Ikabud",
@@ -12,6 +12,7 @@
     ],
     "owns_tables": [],
     "reads_tables": [],
+    "entry_module": true,
     "migrations": [
         "database/migrations/001_initial.sql"
     ],
@@ -23,7 +24,7 @@
     "events": [],
     "nav": [
         {
-            "label": "Cms Akira Profile Standard",
+            "label": "CMS Akira",
             "url": "/admin/cms-akira-profile-standard",
             "icon": "box",
             "roles": [
