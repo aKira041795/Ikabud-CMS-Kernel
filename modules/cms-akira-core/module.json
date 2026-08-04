@@ -52,6 +52,14 @@
                 "description": "CMS Akira optional SEO/AI enrichment for content previews with fallback behavior"
             },
             {
+                "id": "akira.content.compose@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "CMS Akira Phase 5/6 composition context for theme, navigation, workflow, and search providers"
+            },
+            {
                 "id": "akira.providers.status@1",
                 "priority": 50,
                 "modes": [
@@ -66,7 +74,11 @@
             "cms.content.create@1",
             "cms.content.update@1",
             "akira.seo.meta.build@1",
-            "akira.ai.summary.suggest@1"
+            "akira.ai.summary.suggest@1",
+            "akira.theme.resolve@1",
+            "akira.navigation.resolve@1",
+            "akira.workflow.evaluate@1",
+            "akira.search.document.build@1"
         ]
     },
     "routes": true,

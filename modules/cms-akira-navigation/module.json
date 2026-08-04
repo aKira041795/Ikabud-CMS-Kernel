@@ -4,14 +4,28 @@
     "version": "1.0.0",
     "description": "Cms Akira Navigation module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"
     ],
     "capabilities": {
-        "exposes": [],
-        "depends": []
+        "exposes": [
+            {
+                "id": "akira.navigation.resolve@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Resolve Akira navigation context for content pages"
+            }
+        ],
+        "depends": [
+            "akira.content.get@1"
+        ]
     },
     "routes": true,
     "events": [],

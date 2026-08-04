@@ -42,6 +42,36 @@ function casaRender(string $template, array $context = []): string
     return casaCtx()->render($resolved, kernelPrepareRenderContext($resolved, $context));
 }
 
+function cms_akira_search_adapter_capability_handlers(): array
+{
+    return [
+        'akira.search.document.build@1' => 'casa_cap_akira_search_document_build_1',
+    ];
+}
+
+function casa_cap_akira_search_document_build_1(mixed $payload, string $capabilityId = 'akira.search.document.build@1', string $caller = 'unknown'): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $title = trim((string)($payload['title'] ?? ''));
+    $slug = trim((string)($payload['slug'] ?? ''));
+    $text = trim(strip_tags((string)($payload['body'] ?? '')));
+
+    return [
+        'ok' => true,
+        'data' => [
+            'document' => [
+                'title' => $title,
+                'slug' => $slug,
+                'text' => $text,
+            ],
+            'provider' => 'cms-akira-search-adapter',
+        ],
+    ];
+}
+
 // ── Event Listeners ──────────────────────────────────────────────
 // Register inter-module event listeners here. Examples:
 //

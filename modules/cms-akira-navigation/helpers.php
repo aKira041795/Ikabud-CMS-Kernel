@@ -42,6 +42,36 @@ function canRender(string $template, array $context = []): string
     return canCtx()->render($resolved, kernelPrepareRenderContext($resolved, $context));
 }
 
+function cms_akira_navigation_capability_handlers(): array
+{
+    return [
+        'akira.navigation.resolve@1' => 'can_cap_akira_navigation_resolve_1',
+    ];
+}
+
+function can_cap_akira_navigation_resolve_1(mixed $payload, string $capabilityId = 'akira.navigation.resolve@1', string $caller = 'unknown'): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $slug = trim((string)($payload['slug'] ?? ''));
+    $trail = [
+        ['label' => 'Home', 'url' => '/'],
+    ];
+    if ($slug !== '') {
+        $trail[] = ['label' => ucfirst(str_replace('-', ' ', $slug)), 'url' => '/content/' . $slug];
+    }
+
+    return [
+        'ok' => true,
+        'data' => [
+            'breadcrumb' => $trail,
+            'provider' => 'cms-akira-navigation',
+        ],
+    ];
+}
+
 // ── Event Listeners ──────────────────────────────────────────────
 // Register inter-module event listeners here. Examples:
 //

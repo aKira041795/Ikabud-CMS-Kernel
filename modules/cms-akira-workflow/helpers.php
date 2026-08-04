@@ -42,6 +42,41 @@ function cawRender(string $template, array $context = []): string
     return cawCtx()->render($resolved, kernelPrepareRenderContext($resolved, $context));
 }
 
+function cms_akira_workflow_capability_handlers(): array
+{
+    return [
+        'akira.workflow.evaluate@1' => 'caw_cap_akira_workflow_evaluate_1',
+    ];
+}
+
+function caw_cap_akira_workflow_evaluate_1(mixed $payload, string $capabilityId = 'akira.workflow.evaluate@1', string $caller = 'unknown'): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $status = trim((string)($payload['status'] ?? 'draft'));
+    if ($status === '') {
+        $status = 'draft';
+    }
+
+    $next = match ($status) {
+        'draft' => ['review'],
+        'review' => ['published', 'draft'],
+        'published' => [],
+        default => ['draft'],
+    };
+
+    return [
+        'ok' => true,
+        'data' => [
+            'status' => $status,
+            'next' => $next,
+            'provider' => 'cms-akira-workflow',
+        ],
+    ];
+}
+
 // ── Event Listeners ──────────────────────────────────────────────
 // Register inter-module event listeners here. Examples:
 //

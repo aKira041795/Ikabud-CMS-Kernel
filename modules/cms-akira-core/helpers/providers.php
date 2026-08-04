@@ -322,3 +322,112 @@ function cacEditorPrepareContent(array $payload): array
         ],
     ];
 }
+
+function cacThemeResolveForContent(array $payload): array
+{
+    if (cacIsModuleEnabledSafe('cms-akira-theme')) {
+        try {
+            $result = app()->cap()->call('akira.theme.resolve@1', $payload);
+            if (($result['ok'] ?? false) === true) {
+                return [
+                    'mode' => 'provider',
+                    'data' => is_array($result['data'] ?? null) ? $result['data'] : [],
+                ];
+            }
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
+    return [
+        'mode' => 'fallback',
+        'data' => [
+            'theme' => 'akira-default',
+            'layout' => 'content',
+        ],
+    ];
+}
+
+function cacNavigationResolveForContent(array $payload): array
+{
+    if (cacIsModuleEnabledSafe('cms-akira-navigation')) {
+        try {
+            $result = app()->cap()->call('akira.navigation.resolve@1', $payload);
+            if (($result['ok'] ?? false) === true) {
+                return [
+                    'mode' => 'provider',
+                    'data' => is_array($result['data'] ?? null) ? $result['data'] : [],
+                ];
+            }
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
+    return [
+        'mode' => 'fallback',
+        'data' => [
+            'breadcrumb' => [
+                ['label' => 'Home', 'url' => '/'],
+            ],
+        ],
+    ];
+}
+
+function cacWorkflowEvaluateForContent(array $payload): array
+{
+    if (cacIsModuleEnabledSafe('cms-akira-workflow')) {
+        try {
+            $result = app()->cap()->call('akira.workflow.evaluate@1', $payload);
+            if (($result['ok'] ?? false) === true) {
+                return [
+                    'mode' => 'provider',
+                    'data' => is_array($result['data'] ?? null) ? $result['data'] : [],
+                ];
+            }
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
+    $status = trim((string)($payload['status'] ?? 'draft'));
+    if ($status === '') {
+        $status = 'draft';
+    }
+
+    return [
+        'mode' => 'fallback',
+        'data' => [
+            'status' => $status,
+            'next' => $status === 'draft' ? ['review'] : [],
+        ],
+    ];
+}
+
+function cacSearchDocumentBuildForContent(array $payload): array
+{
+    if (cacIsModuleEnabledSafe('cms-akira-search-adapter')) {
+        try {
+            $result = app()->cap()->call('akira.search.document.build@1', $payload);
+            if (($result['ok'] ?? false) === true) {
+                return [
+                    'mode' => 'provider',
+                    'data' => is_array($result['data'] ?? null) ? $result['data'] : [],
+                ];
+            }
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
+    return [
+        'mode' => 'fallback',
+        'data' => [
+            'document' => [
+                'title' => trim((string)($payload['title'] ?? '')),
+                'slug' => trim((string)($payload['slug'] ?? '')),
+                'text' => trim(strip_tags((string)($payload['body'] ?? ''))),
+            ],
+        ],
+    ];
+}

@@ -4,14 +4,28 @@
     "version": "1.0.0",
     "description": "Cms Akira Workflow module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"
     ],
     "capabilities": {
-        "exposes": [],
-        "depends": []
+        "exposes": [
+            {
+                "id": "akira.workflow.evaluate@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Evaluate content workflow status and allowed transitions"
+            }
+        ],
+        "depends": [
+            "akira.content.get@1"
+        ]
     },
     "routes": true,
     "events": [],

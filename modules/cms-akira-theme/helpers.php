@@ -42,6 +42,34 @@ function catRender(string $template, array $context = []): string
     return catCtx()->render($resolved, kernelPrepareRenderContext($resolved, $context));
 }
 
+function cms_akira_theme_capability_handlers(): array
+{
+    return [
+        'akira.theme.resolve@1' => 'cat_cap_akira_theme_resolve_1',
+    ];
+}
+
+function cat_cap_akira_theme_resolve_1(mixed $payload, string $capabilityId = 'akira.theme.resolve@1', string $caller = 'unknown'): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $themeKey = trim((string)($payload['theme'] ?? 'akira-default'));
+    if ($themeKey === '') {
+        $themeKey = 'akira-default';
+    }
+
+    return [
+        'ok' => true,
+        'data' => [
+            'theme' => $themeKey,
+            'layout' => 'content',
+            'provider' => 'cms-akira-theme',
+        ],
+    ];
+}
+
 // ── Event Listeners ──────────────────────────────────────────────
 // Register inter-module event listeners here. Examples:
 //

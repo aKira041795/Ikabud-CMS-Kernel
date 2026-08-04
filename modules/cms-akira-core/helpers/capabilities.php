@@ -10,6 +10,7 @@ function cms_akira_core_capability_handlers(): array
         'akira.content.create@1' => 'cac_cap_akira_content_create_1',
         'akira.content.update@1' => 'cac_cap_akira_content_update_1',
         'akira.content.enrich@1' => 'cac_cap_akira_content_enrich_1',
+        'akira.content.compose@1' => 'cac_cap_akira_content_compose_1',
         'akira.providers.status@1' => 'cac_cap_akira_providers_status_1',
     ];
 }
@@ -137,6 +138,45 @@ function cac_cap_akira_content_enrich_1(mixed $payload, string $capabilityId = '
             'provider_mode' => [
                 'seo' => $seo['mode'] ?? 'fallback',
                 'ai' => $ai['mode'] ?? 'fallback',
+            ],
+        ],
+    ];
+}
+
+function cac_cap_akira_content_compose_1(mixed $payload, string $capabilityId = 'akira.content.compose@1', string $caller = 'unknown'): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $title = trim((string)($payload['title'] ?? ''));
+    if ($title === '') {
+        return ['ok' => false, 'error' => 'title is required'];
+    }
+
+    $seo = cacSeoMetaForContent($payload);
+    $ai = cacAiSummaryForContent($payload);
+    $theme = cacThemeResolveForContent($payload);
+    $navigation = cacNavigationResolveForContent($payload);
+    $workflow = cacWorkflowEvaluateForContent($payload);
+    $search = cacSearchDocumentBuildForContent($payload);
+
+    return [
+        'ok' => true,
+        'data' => [
+            'seo' => $seo['data'] ?? [],
+            'ai' => $ai['data'] ?? [],
+            'theme' => $theme['data'] ?? [],
+            'navigation' => $navigation['data'] ?? [],
+            'workflow' => $workflow['data'] ?? [],
+            'search' => $search['data'] ?? [],
+            'provider_mode' => [
+                'seo' => $seo['mode'] ?? 'fallback',
+                'ai' => $ai['mode'] ?? 'fallback',
+                'theme' => $theme['mode'] ?? 'fallback',
+                'navigation' => $navigation['mode'] ?? 'fallback',
+                'workflow' => $workflow['mode'] ?? 'fallback',
+                'search' => $search['mode'] ?? 'fallback',
             ],
         ],
     ];
