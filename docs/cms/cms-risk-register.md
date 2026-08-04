@@ -23,6 +23,7 @@ Track architecture, migration, operational, security, and tenant risks per roadm
 | R-005 | 8 | P0 | Identity | attribution break during users split | bad id mapping | audit/legal risk | immutable author mapping migration plan | attribution integrity test | Identity WG | Open |
 | R-006 | 0-1 | P1 | Contracts | capability dependency overreach in manifests | broad `depends` declarations | transitive module pull and unsafe rollout | architecture manifest policy checks + remediation | `php ikabud architecture:check` pass | Platform | Mitigated |
 | R-007 | 0-1 | P1 | Auth metadata | missing `auth_owned` key metadata | incomplete manifests | tenant admin push/provision mismatch | enforce id/role columns in architecture checks | architecture check pass + manifest remediation | Platform | Mitigated |
+| R-008 | 1 | P1 | Graceful degradation | core content path breaks when optional modules are disabled | extraction prep without disablement checks | false phase certification | add focused optional-module disablement tests for existing optional modules and preserve core content contracts | `tests/cms_optional_module_disablement_test.php` + clean logs | CMS Architecture | Mitigated (phase-1 baseline) |
 
 ## Phase Gate Checklist
 | Phase | Must-have mitigation complete | Rollback validated | Workbench gate passed | Go/No-go |

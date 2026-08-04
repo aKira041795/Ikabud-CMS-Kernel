@@ -1,0 +1,28 @@
+{
+    "id": "cms-akira-ai",
+    "name": "Cms Akira Ai",
+    "version": "1.0.0",
+    "description": "Cms Akira Ai module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Ai",
+            "url": "/admin/cms-akira-ai",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

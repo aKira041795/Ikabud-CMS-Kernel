@@ -1,0 +1,28 @@
+{
+    "id": "cms-akira-search-adapter",
+    "name": "Cms Akira Search Adapter",
+    "version": "1.0.0",
+    "description": "Cms Akira Search Adapter module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Search Adapter",
+            "url": "/admin/cms-akira-search-adapter",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

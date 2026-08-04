@@ -1,0 +1,28 @@
+{
+    "id": "cms-akira-profile-visual",
+    "name": "Cms Akira Profile Visual",
+    "version": "1.0.0",
+    "description": "Cms Akira Profile Visual module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Profile Visual",
+            "url": "/admin/cms-akira-profile-visual",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

@@ -3586,7 +3586,8 @@ t('Capability declarations valid', !empty(\$capCheck['ok']), (\$capCheck['error'
 
 // ── 4. Routes ───────────────────────────────────────────────────────
 echo "\n── Routes ──\n";
-\$routesFile = $modulePath . '/routes.php';
+\$modulePath = BASE_PATH . '/modules/{$id}';
+\$routesFile = \$modulePath . '/routes.php';
 t('routes.php exists', is_file(\$routesFile));
 \$routes = require \$routesFile;
 t('routes.php returns array', is_array(\$routes));
@@ -3594,7 +3595,7 @@ t('GET routes defined', isset(\$routes['GET']) && is_array(\$routes['GET']));
 
 // ── 5. Helpers load ─────────────────────────────────────────────────
 echo "\n── Helpers ──\n";
-\$helpersFile = $modulePath . '/helpers.php';
+\$helpersFile = \$modulePath . '/helpers.php';
 t('helpers.php exists', is_file(\$helpersFile));
 require_once \$helpersFile;
 t('{$shortPrefix}Ctx function exists', function_exists('{$shortPrefix}Ctx'));

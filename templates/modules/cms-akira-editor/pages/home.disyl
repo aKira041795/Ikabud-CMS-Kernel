@@ -1,0 +1,28 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .cms-akira-editor-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .cms-akira-editor-header h2 { font-size: var(--font-size-h2); font-weight: 700; }
+</style>
+{/block}
+
+{block content}
+<div class="cms-akira-editor-header">
+    <div>
+        <h2>Cms Akira Editor</h2>
+        <span class="text-sm text-muted">Module is ready. Start building!</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding:32px;text-align:center;color:var(--text-muted);">
+        <div style="font-size:48px;margin-bottom:12px;">📦</div>
+        <div style="font-weight:600;">Module scaffolded successfully</div>
+        <div class="text-sm" style="margin-top:4px;">
+            Edit <code>modules/cms-akira-editor/handlers.php</code> and
+            <code>templates/modules/cms-akira-editor/pages/home.disyl</code> to get started.
+        </div>
+    </div>
+</div>
+{/block}

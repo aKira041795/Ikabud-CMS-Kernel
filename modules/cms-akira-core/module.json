@@ -1,0 +1,66 @@
+{
+    "id": "cms-akira-core",
+    "name": "Cms Akira Core",
+    "version": "1.0.0",
+    "description": "Cms Akira Core module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "akira.content.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "CMS Akira content get adapter backed by legacy cms.content.get@1"
+            },
+            {
+                "id": "akira.content.list@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "CMS Akira content list adapter backed by legacy cms.content.list@1"
+            },
+            {
+                "id": "akira.content.create@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "CMS Akira content create adapter backed by legacy cms.content.create@1"
+            },
+            {
+                "id": "akira.content.update@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "CMS Akira content update adapter backed by legacy cms.content.update@1"
+            }
+        ],
+        "depends": [
+            "cms.content.get@1",
+            "cms.content.list@1",
+            "cms.content.create@1",
+            "cms.content.update@1"
+        ]
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Core",
+            "url": "/admin/cms-akira-core",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

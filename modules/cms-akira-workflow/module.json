@@ -1,0 +1,28 @@
+{
+    "id": "cms-akira-workflow",
+    "name": "Cms Akira Workflow",
+    "version": "1.0.0",
+    "description": "Cms Akira Workflow module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Workflow",
+            "url": "/admin/cms-akira-workflow",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

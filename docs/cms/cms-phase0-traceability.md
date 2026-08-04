@@ -41,5 +41,5 @@ Provide a single evidence map connecting roadmap claims to concrete implementati
 
 ## E) Review Gaps (must close before Phase 1 sign-off)
 1. Add explicit payload schema snapshots for all frozen `cms.content.*` contracts.
-2. Add module-level compatibility tests for `theme-studio` and `content-ingestion`.
-3. Add optional-module disablement tests for builder/theme/navigation/AI/workflow concerns.
+2. Add module-level compatibility tests for `theme-studio` and `content-ingestion`. (Closed by `tests/cms_content_consumer_compat_test.php`)
+3. Add optional-module disablement tests for builder/theme/navigation/AI/workflow concerns. (Partially closed by `tests/cms_optional_module_disablement_test.php` for existing optional modules: theme-studio, ai-orchestrator, workflow, tinymce; builder/navigation remain CMS-internal until extraction modules exist.)

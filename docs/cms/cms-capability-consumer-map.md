@@ -15,7 +15,7 @@ Map stable CMS contracts to all providers/consumers so extraction does not break
 | Capability ID | Current provider | Consumer modules | Mode | Payload schema ref | Stability | Notes |
 |---|---|---|---|---|---|---|
 | `cms.content.get@1` | CMS | `theme-studio` + tests | first | `modules/cms/helpers/55-capabilities.php` | Stable | core read contract |
-| `cms.content.list@1` | CMS | tests (baseline consumers) | first | `modules/cms/helpers/55-capabilities.php` | Stable | add explicit module consumers during extraction |
+| `cms.content.list@1` | CMS | `cms` entity-view contracts + tests | first | `modules/cms/helpers/55-capabilities.php` | Stable | entity-view contracts in `modules/cms/helpers/58-entity-views.php` gate list/detail rendering |
 | `cms.content.create@1` | CMS | `content-ingestion` + tests | first | `modules/cms/helpers/55-capabilities.php` | Stable | write path dependency |
 | `cms.content.update@1` | CMS | `content-ingestion` + tests | first | `modules/cms/helpers/55-capabilities.php` | Stable | write/update authority remains core |
 
@@ -37,6 +37,7 @@ Known CMS capability dependencies (manifest):
 | `content-ingestion` | `cms.content.create@1` | Ingestion write flow | Limited | High | Content Ingestion |
 | `content-ingestion` | `cms.content.update@1` | Ingestion update flow | Limited | High | Content Ingestion |
 | `tests/*` | `cms.content.*` | Regression gate | N/A | High (quality gate) | QA/Architecture |
+| `cms` entity-view contracts | `cms.content.list@1` | Public/admin list rendering gate | No | High | CMS Core |
 
 ## Planned Contract Additions
 | Planned capability | Intended provider | Why needed | Earliest phase | Backward compatibility strategy |
@@ -71,11 +72,13 @@ Known CMS capability dependencies (manifest):
 | `cms.content.update@1` | `modules/cms/helpers/55-capabilities.php:22`, `:451` | `content-ingestion` | `tests/stress_architecture_test.php` | Medium (adapter path for extraction phases must be codified) |
 
 ## Phase 1 Contract Freeze Checklist
-- [ ] Freeze payload schema snapshots for `cms.content.get@1`, `cms.content.list@1`, `cms.content.create@1`, `cms.content.update@1`.
-- [ ] Add module-level compatibility tests for `content-ingestion` create/update call paths.
-- [ ] Add module-level compatibility tests for `theme-studio` read path.
-- [ ] Define deprecation and version-bump policy for non-additive contract changes.
+- [x] Freeze payload schema snapshots for `cms.content.get@1`, `cms.content.list@1`, `cms.content.create@1`, `cms.content.update@1`.
+- [x] Add module-level compatibility tests for `content-ingestion` create/update call paths.
+- [x] Add module-level compatibility tests for `theme-studio` read path.
+- [x] Define deprecation and version-bump policy for non-additive contract changes.
 
 Phase 1 baseline artifacts:
 - `docs/cms/cms-contract-freeze-v1.md`
 - `tests/cms_contract_freeze_v1_test.php`
+- `tests/cms_content_consumer_compat_test.php`
+- `tests/cms_optional_module_disablement_test.php`

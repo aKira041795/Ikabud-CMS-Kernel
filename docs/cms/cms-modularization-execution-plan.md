@@ -112,6 +112,29 @@ Implement one phase at a time with hard gates and rollback before advancing.
 ### Gate
 - Workbench certifies all profiles and legacy paths are removable.
 
+## Profile-Level Acceptance (mandatory)
+| Profile | Required modules | Must pass | Degraded allowed | Stop trigger |
+|---|---|---|---|---|
+| Minimal | CMS Core only | Content CRUD + public render + revision integrity | No builder/theme/navigation/AI/workflow admin features | Core content lifecycle broken without optional modules |
+| Standard | CMS Core + theme + navigation + editor | Core + theme customizer + menu rendering + editor sanitize/normalize | AI/workflow advanced packs can be absent | Public route regressions or menu/theme ownership drift |
+| Visual | Standard + builder + media + theme-studio | Standard + builder document read/write + ARK contract validation | AI/workflow can degrade with explicit UX messaging | Builder schema drift without rollback path |
+| Headless | CMS Core + API delivery + publication/query contracts | API parity for content/query/publication + tenant-safe authz | Theme/navigation/builder UI unavailable | API contract regression or tenant leakage |
+
+## Performance and Reliability Controls
+| Control | Budget | Validation gate | Fallback expectation |
+|---|---|---|---|
+| Capability hop overhead | <= 20 ms p95 per optional call boundary | Phase benchmark diff against baseline | Core path continues when optional provider is unavailable |
+| Public render latency | <= 15% p95 regression per phase | Route-level render benchmark suite | Default template + safe content render fallback |
+| Optional module failure blast radius | Single concern only (no cross-domain outage) | Disablement simulation per module | Feature-unavailable response without core write/read loss |
+| Cache safety | Tenant-scoped keys only | tenant isolation cache tests | Cache miss fallback to canonical data source |
+
+## Recommendation Gate (Go / Revise / Stop)
+| Decision | When to choose | Required evidence |
+|---|---|---|
+| Go | Phase gates all pass and rollback rehearsal succeeded | architecture check + focused compatibility tests + log-clean run + rollback transcript |
+| Revise | Non-blocking gaps remain but no data-safety risk | mitigation tasks scheduled with owner/date and no P0 risk open |
+| Stop | P0 risk open, rollback unproven, or tenant leakage observed | incident-class evidence and failed mandatory gate artifacts |
+
 ## Recommended Commit Strategy
 - One phase per PR (preferred).
 - Never combine identity/media extraction with unrelated phases.
@@ -122,3 +145,6 @@ Implement one phase at a time with hard gates and rollback before advancing.
 - Public contract regression without adapter.
 - Non-recoverable migration drift.
 - No proven rollback.
+
+## Akira Bootstrap Reference
+- `docs/cms/cms-akira-capability-namespace-and-adapter-plan.md` defines transition namespace policy (`cms.*` + `akira.*`) and adapter direction for bootstrap and Phase B.

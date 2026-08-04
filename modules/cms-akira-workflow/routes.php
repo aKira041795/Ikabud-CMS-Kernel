@@ -1,0 +1,19 @@
+<?php
+/**
+ * Cms Akira Workflow Module — Routes
+ *
+ * Format: 'METHOD' => [ '/path' => 'module-id:handlerFunction' ]
+ * URL parameters: '/path/{id}' passes $params['id'] to the handler.
+ */
+
+declare(strict_types=1);
+
+return [
+    'GET' => [
+        '/admin/cms-akira-workflow' => 'cms-akira-workflow:pageCmsAkiraWorkflowHome',
+        '/api/v1/cms-akira-workflow/health' => 'cms-akira-workflow:apiCmsAkiraWorkflowHealth',
+    ],
+    'POST' => [
+        // '/api/v1/cms-akira-workflow/example' => 'cms-akira-workflow:apiCmsAkiraWorkflowExample',
+    ],
+];

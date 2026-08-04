@@ -1,0 +1,28 @@
+{
+    "id": "cms-akira-builder",
+    "name": "Cms Akira Builder",
+    "version": "1.0.0",
+    "description": "Cms Akira Builder module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Builder",
+            "url": "/admin/cms-akira-builder",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

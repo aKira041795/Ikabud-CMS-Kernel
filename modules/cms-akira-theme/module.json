@@ -1,0 +1,28 @@
+{
+    "id": "cms-akira-theme",
+    "name": "Cms Akira Theme",
+    "version": "1.0.0",
+    "description": "Cms Akira Theme module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Theme",
+            "url": "/admin/cms-akira-theme",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

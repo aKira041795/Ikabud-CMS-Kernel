@@ -13,6 +13,18 @@ Freeze `cms.content.*@1` contract expectations before extraction work so interna
 - `cms.content.create@1`
 - `cms.content.update@1`
 
+## Phase 1 surface classification
+This classification freezes the expected direction for remaining family contracts while content contracts are actively validated.
+
+| Contract family | Phase 1 status | Core-required vs extension-mediated |
+|---|---|---|
+| `cms.content.*` | Active freeze + test coverage | Core-required |
+| `cms.type.*` | Reserved and must remain stable once introduced | Core-required |
+| `cms.taxonomy.*` | Reserved and must remain stable once introduced | Core-required |
+| `cms.revision.*` | Reserved and must remain stable once introduced | Core-required |
+| `cms.publication.*` | Reserved; transition orchestration may be extension-mediated | Core-required authority + extension-mediated orchestration |
+| `cms.query.*` | Reserved; advanced indexing/search mediation may be extension-mediated | Core-required base query + extension-mediated adapters |
+
 ## Provider mapping evidence
 Source: `modules/cms/helpers/55-capabilities.php`
 

@@ -1,0 +1,28 @@
+{
+    "id": "cms-akira-profile-headless",
+    "name": "Cms Akira Profile Headless",
+    "version": "1.0.0",
+    "description": "Cms Akira Profile Headless module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Cms Akira Profile Headless",
+            "url": "/admin/cms-akira-profile-headless",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

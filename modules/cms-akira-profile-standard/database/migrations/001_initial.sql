@@ -1,0 +1,13 @@
+-- Cms Akira Profile Standard Module — Initial Schema
+-- Created: 2026-08-04
+
+-- Add your tables here. Example:
+-- CREATE TABLE IF NOT EXISTS caps_items (
+--     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--     name VARCHAR(255) NOT NULL,
+--     is_active TINYINT(1) NOT NULL DEFAULT 1,
+--     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--
+-- Then add 'caps_items' to owns_tables in module.json.
