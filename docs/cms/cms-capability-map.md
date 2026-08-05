@@ -85,12 +85,18 @@ The following hook/filter surfaces are implemented in helper code today.
 | `cms.content.templates` | register public content templates |
 | `cms.editor.block_types` | register editor block types |
 | `cms.editor.sidebar_fields` | inject extra sidebar fields |
-| `cms.admin.nav_items` | extend the CMS admin sidebar |
+| `cms.admin.nav_items` | extend the CMS admin sidebar (legacy hook) |
+| `cms.sidebar` + `admin_contributions` | manifest-declared dynamic admin sidebar (host product core declares `extension_points: ["cms.sidebar"]`; extending modules declare `admin_contributions` entries `{host, location, group, label, icon, route, permission, order}`) |
 | `cms.public.head` | inject public `<head>` output |
 | `cms.public.render_content` | transform rendered content HTML |
 | `cms.content.query_args` | alter public list/query behavior |
 
 See `docs/cms/cms-extension-points.md` for signatures and examples.
+
+> **Admin nav migration note:** the legacy `cms.admin.nav_items` hook and the new
+> `cms.sidebar`/`admin_contributions` registry model coexist for incremental
+> migration. New modules should declare contributions in `module.json` rather
+> than registering the hook.
 
 ---
 

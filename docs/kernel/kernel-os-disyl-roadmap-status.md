@@ -1,6 +1,6 @@
 # Kernel OS 6.x — Implementation Status
 
-> **Release: 6.1.0 (intercoherence)** | Assessment: June 26, 2026
+> **Release: 6.1.0 (intercoherence)** | Assessment: June 26, 2026 (updated August 5, 2026)
 > Source roadmap: `kernel_os_disyl_consolidated_roadmap.md`
 > Legend: ✅ Done · 🟡 Partial · 🔴 Not started
 
@@ -37,6 +37,23 @@ VS Code. Builder hardening closes 5 seams. Report approvals are end-to-end.
 | EntityViewResolver | `1.0.0` | `kernel/EntityContext/EntityViewResolver.php` |
 | ServiceProxy | `1.0.0` | `kernel/Capabilities/ServiceProxy.php` |
 | ExpressionEvaluator | `1.0.0` | `kernel/DiSyL/ExpressionEvaluator.php` |
+
+---
+
+## Updates Since 6.1.0 (August 5, 2026)
+
+> Everything below landed on top of the 6.1.0 baseline and does not change the
+> version numbers above. See `docs/releases/release-notes-2026-08-05-cms-akira-product-suite.md`
+> for the full release note.
+
+| Area | What landed |
+|---|---|
+| **CMS Akira suite** | CMS decomposed into the `cms-akira` product suite — 14 submodules (`core`, `seo`, `ai`, `editor`, `theme`, `navigation`, `workflow`, `search-adapter`, `media`, `builder`, `profile-minimal/standard/visual/headless`) under `modules/cms-akira/`. See `modules/cms-akira/README.md`. |
+| **Schema-v2 manifest fields** | New **additive** manifest fields: `suite`, `kind`, `extends`, `extension_points`, `contributes`, `admin_contributions`, `compatibility`, `uninstall`. Legacy (schema-v1) manifests remain valid; `MODULE_MANIFEST_SCHEMA_VERSION` stays `'1'`. |
+| **Product-suite extension architecture (C12/C13)** | Accepted 2026-08-04 in `docs/architecture/product-suite-extension-adr.md`. Suite certification implemented via `validateModuleSuiteContractV1()` in `src/helpers/manifest-validation.php` (invoked from `src/helpers/module-manager.php`); `php ikabud module:certify` runs the checks. |
+| **CMS admin-shell conversion** | Akira suite modules render inside the CMS admin shell. |
+| **Dynamic admin sidebar** | The admin sidebar is driven dynamically from `admin_contributions` — contributions carry `{host, location, group, label, icon, route, permission, order}` and register against declared extension points (e.g. `cms.sidebar`). |
+| **DiSyL JSON function calls** | `{json_encode(...)}` and `{json_decode(...)}` supported at engine level (`kernel/DiSyL/v4/FunctionRegistry.php`); `json_encode` mirrors `JSON_UNESCAPED_SLASHES \| JSON_UNESCAPED_UNICODE`, `json_decode` returns an assoc array with dot-path access via `kernel/DiSyL/ExpressionEvaluator.php`. |
 
 ---
 

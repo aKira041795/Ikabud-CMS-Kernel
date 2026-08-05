@@ -439,6 +439,57 @@ In ~30 minutes you created a module with:
 
 ---
 
+## Declaring a Product Suite
+
+If your module belongs to a product suite (e.g. CMS Akira, PAL), scaffold it
+with the `--suite` flag so the scaffolder places it inside the suite folder and
+writes the suite manifest field:
+
+```bash
+php ikabud make:module cms-akira-analytics --suite=cms-akira
+```
+
+This creates `modules/cms-akira/cms-akira-analytics/` and writes at minimum:
+
+```json
+{
+    "id": "cms-akira-analytics",
+    "suite": "cms-akira"
+}
+```
+
+Declare the full suite contract in `module.json` — these schema-v2 fields are
+**additive and optional** (legacy manifests stay valid). See
+`docs/architecture/product-suite-extension-adr.md` for the full model.
+
+| Field | Meaning |
+|---|---|
+| `suite` | Normalized suite id (e.g. `cms-akira`) |
+| `kind` | `product-core`, `extension`, `adapter`, `profile`, `service`, `integration`, `standalone-application` |
+| `extends` | Host core id this module extends (required for extension/adapter) |
+| `extension_points` | Declared **only on `kind: product-core`** — point ids the host exposes (e.g. `cms.sidebar`) |
+| `contributes` | `[{extension_point, provider}]` consuming a host's declared points |
+| `admin_contributions` | `[{host, location, group, label, icon, route, permission, order}]` — dynamic admin sidebar entries |
+| `compatibility` | `{kernel, suite}` semver ranges |
+| `uninstall` | `{disable_safe, retain_data_by_default, supports_data_export, requires_confirmation_to_drop_data}` |
+
+Rules:
+
+- Only `kind: product-core` declares `extension_points`. Extensions/adapters
+  declare `extends: <core-id>` and consume points via `contributes`.
+- `kind: profile` bundles a coherent install set with `installs: [...]`.
+- Contribution `host`s must be declared extension points of the host — the
+  kernel validates this at install and certification time
+  (`php ikabud module:certify <id>`).
+
+**Composer-first toolchain hardening loop:** when `make:module --suite=...` or a
+subsequent scaffold/composer step fails, do not patch around the failure.
+Capture the error, add a regression test that reproduces it, fix the toolchain
+at the root, and rerun the scaffold. The scaffolder stays the single source of
+truth for new modules.
+
+---
+
 ## CLI Cheat Sheet
 
 | Command | What it does |

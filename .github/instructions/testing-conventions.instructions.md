@@ -4,6 +4,53 @@ applyTo: "**/*Test.php"
 ---
 # Testing Conventions
 
+## Test Lifecycle
+
+Every test run follows the same lifecycle, from a clean log slate to a committed change. The two hard gates are **checking both logs** and **inspecting the JSON results** — never skip them.
+
+1. **Clear both logs** — `storage/logs/app.log` and `storage/logs/error.log`. A stale log makes new errors indistinguishable from old ones.
+2. **Write / extend the test** — pure-logic or `MODE_INTEGRATION` mode. Call `fingerprint()` on every source file under test and `gap()` for documented missing coverage.
+3. **Run it** — `php scripts/run-tests.php tests/<file>.php` (or directly `php tests/<file>.php`).
+4. **Gate — check both logs** for new errors. New entries in `app.log` or `error.log` mean the run is not clean: fix and re-run before inspecting results.
+5. **Inspect `test_results/<suite>.json`** — per-assertion pass/fail, documented gaps, and source fingerprints — plus the aggregated `test_results/manifest.json`.
+6. **State-machine coverage** — if the test exercises status transitions, use the N×N matrix pattern (every from→to combination) rather than ad hoc cases.
+7. **Commit per logical change** — one commit per behavior change, not one giant commit at the end.
+
+```mermaid
+flowchart TD
+    subgraph TIERS[Four-tier taxonomy mapping]
+        UNIT["Unit — pure-logic TestHarness mode<br/>no bootstrap · mocks where needed"]
+        INTEG["Integration — MODE_INTEGRATION<br/>real tenant DB + TestHarness"]
+        SEC["Security — permission / CSRF /<br/>tenant-isolation assertions"]
+        ACC["Acceptance — end-to-end<br/>role workflows + browser specs"]
+    end
+
+    subgraph LAYOUT[Flat tests/ layout]
+        FILES["tests/*_test.php<br/>each file = one suite (a single flat file,<br/>not tier subfolders)"]
+    end
+
+    UNIT --> FILES
+    INTEG --> FILES
+    SEC --> FILES
+    ACC --> FILES
+
+    FILES --> RUN["php scripts/run-tests.php tests/&lt;file&gt;.php"]
+    RUN --> CLEAR["clear app.log + error.log first"]
+    RUN --> GATE{"check BOTH logs<br/>for new errors"}
+    GATE -->|clean| RES["test_results/&lt;suite&gt;.json<br/>+ manifest.json"]
+    GATE -->|new errors| FIX["fix and re-run"]
+    FIX --> RUN
+```
+
+### Mapping the four-tier taxonomy onto the flat layout
+
+The taxonomy in `.github/skills/testing-strategy.md` (unit / integration / security / acceptance) describes *intent*, not directory structure. Ikabud keeps a flat `tests/*_test.php` layout — one file per suite — so map tiers to behavior, not folders:
+
+- **Unit** — pure-logic `TestHarness` mode (no bootstrap). Calculation math, permission rule evaluation, status transition validation.
+- **Integration** — `TestHarness::MODE_INTEGRATION` against the tenant DB. Assert on real database state; use high test tenant IDs and clean up seed data.
+- **Security** — permission, CSRF, and tenant-isolation assertions (cross-tenant access, unauthorized approval, direct URL access, upload validation, modification of approved records).
+- **Acceptance** — end-to-end role workflows: admin create → configure → close; encoder submit → view; supervisor review → approve; plus browser/Playwright specs where UI is involved.
+
 ## Test Style
 - Prefer plain PHP integration-style tests under `tests/` that bootstrap the app directly
 - Avoid mocks where possible — test concrete behavior

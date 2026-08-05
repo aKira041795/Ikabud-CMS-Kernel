@@ -9,6 +9,7 @@
 - CLI tools reference (architecture enforcement, scaffolding, diagnostics): [docs/kernel/cli-tools-reference.md](../docs/kernel/cli-tools-reference.md)
 - Workflow system (state machine + multi-step engine): [docs/kernel/workflow-system.md](../docs/kernel/workflow-system.md)
 - DiSyL async Fibers scheduler: [docs/kernel/disyl-async-fibers-scheduler.md](../docs/kernel/disyl-async-fibers-scheduler.md)
+- DiSyL development loop (canonical workflow for engine-level DiSyL changes): [docs/kernel/disyl-development-workflow.md](../docs/kernel/disyl-development-workflow.md)
 - DiSyL VS Code Extension: [extensions/disyl-lsp/README.md](../extensions/disyl-lsp/README.md)
 - Script block interpolation safety: [docs/kernel/script-block-interpolation.md](../docs/kernel/script-block-interpolation.md)
 - Release notes directory (read the most recent file by date): [docs/releases/](../docs/releases/)
@@ -82,6 +83,8 @@ When creating a module from scratch, use this per-phase iteration loop:
 4. **Checkpoint** — Present results, get sign-off before next phase.
 
 Capabilities must be designed before routes. Declare `capabilities.exposes`/`capabilities.depends` in `module.json` first, then implement handler functions in `helpers.php` via a `*_capability_handlers()` map (see bakeshop/guidance/wms for the pattern).
+
+**Suite modules (product suite + extension model):** If the new module belongs to a product suite (e.g. CMS Akira), read `docs/architecture/product-suite-extension-adr.md` and `modules/cms-akira/README.md` before writing code. Suite module authors must declare `suite`/`kind`/`extends`/`contributes` in `module.json` (plus `extension_points`, `admin_contributions`, `compatibility`, `uninstall` where applicable) and scaffold with `php ikabud make:module <name> --suite=<suite-id>` so the scaffolder places the module inside the suite folder and writes the manifest fields. Only `kind: product-core` modules declare the suite's `extension_points`; extension/adapter modules declare `extends: <core-id>` and consume points via `contributes`; profile modules bundle a coherent install set. These schema-v2 fields are additive — legacy manifests remain valid.
 
 ## Critical workflows (commands)
 - PHP dependencies (repo root): `composer install`
@@ -180,6 +183,8 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 1. **`{math equation="..."}` tag does not exist** — it is referenced in a template but was never implemented. Use DiSyL arithmetic directly: `{(value)|round}` or `{a * b}`. See TD-D1 in `docs/reviews/system-review-2026-07-05.md`.
 2. **Tight pipe/filter binding**: `{a + b | filter}` applies the filter to `b` only, not `a + b`. Always parenthesize: `{(a + b) | filter}`.
 3. **Typed `{set}` syntax (`{set name: string = ...}`) is planned for DiSyL 4.8** and is NOT active in the current 4.7 runtime. Do not use typed assignment syntax in production templates.
+
+> **Resolved (2026-08-05):** `{json_encode(...)}` and `{json_decode(...)}` **function calls** are now supported at the engine level (previously only the `|json` filter existed). `json_encode` mirrors `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`; `json_decode` returns an associative array and supports dot-path access (`json_decode(...).key`). The 3 remaining limitations above stay intact.
 
 > All `{set}` logical operator, ternary-with-filter, `isset()`/`empty()`, and array literal `{['a','b']}` issues that were listed here previously are **fixed as of 2026-06-29 / 2026-07-05** and no longer restrictions.
 

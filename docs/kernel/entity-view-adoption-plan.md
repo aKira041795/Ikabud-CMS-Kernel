@@ -8,6 +8,41 @@
 > **Previous (June 19):** All 8 modules expose `entity.list`/`entity.get` handlers. Ecommerce product handlers rewritten to `cms_content` (type=product); WMS stock handlers fixed to `wms_stocks` (plural). EntityViewResolver result normalisation hardened. Compiled mode default (v4.7+). Parser per-block error recovery shipped.
 > **Objective:** Extend entity-view contracts to all modules so themes can present module data through governed `{ikb_entity_list}` / `{ikb_entity_detail}` without depending on module internals.
 
+## How to Adopt Entity Views for a New Entity Type
+
+This is the step-by-step procedure for adding a governed entity view to a module. It is the operational counterpart to the plan/status below: follow it for every new entity type, then record the result in the adoption tables.
+
+```mermaid
+sequenceDiagram
+    participant T as Template<br/>{ikb_entity_list}
+    participant R as DefaultEntityRenderer::renderList()
+    participant V as EntityViewResolver::resolve()
+    participant C as CapabilityBus::call()
+    participant H as Module handler<br/>(*_capability_handlers map)
+    participant D as DB (handler SQL)
+
+    T->>R: {ikb_entity_list source="entity" view="table"}
+    R->>V: resolve(source, view)
+    V->>C: entity.list.<entity>@1
+    C->>H: invoke capability handler
+    H->>D: SELECT ... (declared columns)
+    D-->>H: rows
+    H-->>C: normalized data
+    C-->>V: data + view contract
+    V-->>R: view config + data
+    R-->>T: HTML (table / card_grid / compact)
+```
+
+1. **Decision gate — which rendering path?** If the view is **single-source display** (one entity type, one query), use an entity view. If the page needs **computed cross-entity metrics, tabs, charts, or multi-field filter forms**, use a composite DiSyL template with handler-fetched aggregate data (see [docs/kernel/entity-context-system.md](entity-context-system.md) for the decision boundary).
+2. **Register the capability pair in `module.json`.** Expose `entity.list.<entity>@1` and `entity.get.<entity>@1` under `capabilities.exposes`. The source name uses the underscore form (e.g. `guidance_case`, not `guidance.case`) so `source="guidance_case.recent"` resolves to `entity.list.guidance_case@1`.
+3. **Implement the handlers in `helpers.php`.** Register them through the module's `*_capability_handlers()` map (e.g. `aw_cap_entity_list_attendance_record_1`), or use the `EntityListQuery::run()` whitelist pattern so the column map stays in sync with the view contract by construction.
+4. **Create the `{ikb_entity_view}` DiSyL contract** in `helpers/views/<entity>.disyl` — declare `fields`, semantic `role="title"` / `role="subtitle"` / `role="image"` annotations, and `actions`. These files are loaded by `TemplateEngine::loadViewConfigs()`.
+5. **Verify the 3-layer rule.** The view contract columns, the handler SQL output, and the compact defaults in `EntityViewResolver` must agree on column names. The runtime field validator logs any mismatch to `storage/logs/app.log`.
+6. **Validate.** `loadViewConfigs()` throws on parse errors with per-file diagnostics; `validateViewContract()` catches duplicate fields, duplicate roles, and action-URL placeholder mismatches at registration time.
+7. **Migrate the template** to `{ikb_entity_list source="<entity>.<qualifier>" view="table|compact|card_grid" /}` (or `{ikb_entity_detail source="<entity>" id="..." view="detail" /}`), run the module tests, and check **both** `storage/logs/app.log` and `storage/logs/error.log`.
+
+> **Design guidance:** entity views handle single-source display only. Computed cross-entity metrics, multi-source aggregation, tabs, charts, and multi-field filter forms belong in the handler/composite-template layer, not in entity view contracts.
+
 ## Final Adoption State
 
 | Module | Entity Views | entity.list | entity.get | View Contracts |

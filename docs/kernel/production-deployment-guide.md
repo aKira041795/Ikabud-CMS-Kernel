@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-**Last updated:** 2026-06-11
+**Last updated:** 2026-08-05
 
 ## Server Requirements
 
@@ -245,6 +245,116 @@ curl -sI http://localhost/login
 | `php ikabud cache:clear --apcu-only` | Clears only the APCu in-memory cache |
 
 > **When to run `cache:clear`:** Always run after deploying code changes. DiSyL compiled templates are cached on disk and in APCu; stale compiled output can survive a graceful FPM restart without a full `apcu_clear_cache()`. The CLI command handles both layers in one step.
+
+## Bluehost / Shared Hosting Deployment
+
+This chapter is the canonical deployment flow for **Bluehost / cPanel shared hosting** (MySQL 5.7 / Compatibility profile). It complements the Quick Deploy section in [Installation Guide](installation.md) with a full end-to-end gate chain for fresh installs **and** upgrades. See [Database Profiles](database-profiles.md) for the MySQL 5.7 constraints that gate Step 1.
+
+### The Deployment Gate Chain
+
+**Entry point:** a codebase ready to ship (fresh install or upgrade).
+**Exit point:** a verified, cache-clean, log-clean live site.
+
+1. **Pre-flight gate — MySQL 5.7 audit.** Run the Compatibility-profile SQL audit before packaging anything:
+
+   ```bash
+   grep -rn "OVER()" modules/ src/ kernel/                          # expect nothing
+   grep -rn "WITH.*AS\s*(" modules/ src/ kernel/ --include="*.php"  # expect nothing (non-CTE like WITH GRANT OPTION is fine)
+   ```
+
+   Also confirm: every migration `CREATE TABLE` ends with `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`, FK column types match referenced columns exactly (signedness + width), and there is no `JSON_TABLE()`, `EXCEPT`, or `INTERSECT`. **Do not proceed until the audit is clean.**
+
+2. **Build the Bluehost archive** (from the repo root, locally):
+
+   ```bash
+   php create-bluehost-archive.php                     # fresh-install ZIP
+   # optional custom filename:
+   php create-bluehost-archive.php my-release.zip
+   ```
+
+   Default output: `application-kernel-os-YYYYMMDD-HHmmss.zip` in the project root. It bundles `kernel/`, `src/`, `config/`, `public/` (including the `lock.php` installer), `modules/`, `templates/`, `database/` + `migrations/` + `control-migrations/`, `vendor/`, `.htaccess`, `.env.example`, the `ikabud` CLI, and `scripts/`. It **excludes** `.env`, `storage/logs/*`, `storage/cache/*`, `storage/backups/*`, `.git/`, `.github/`, `docs/`, `tests/`, `node_modules/`, and the mobile `android/` client.
+
+   **For upgrades** of an already-running Bluehost site, generate the **upgrade kit** instead, which bundles the deployment archive plus importable SQL bundles (primary, control, and tenant DBs) and a `README-UPGRADE.txt`:
+
+   ```bash
+   php create-bluehost-upgrade-package.php              # bluehost-upgrade-kit-YYYYMMDD-HHmmss.zip
+   ```
+
+   > These two scripts previously had **no run instructions anywhere** (roadmap.md only referenced them); they are documented for the first time here. The upgrade kit is the recommended production upgrade path — see [Installation Guide — Bluehost Upgrade Kit](installation.md).
+
+3. **Deploy via cPanel / File Manager.** Upload the archive and extract under `public_html/` (or a subfolder such as `public_html/kernelappos/`). Key points:
+   - The **document root is `public/`** — point the domain at `public_html/<app>/public` (via subdomain doc root or the root `.htaccess` rewrite pattern).
+   - Keep `public/.htaccess` in place (front-controller rewrite). For a subfolder install where the primary domain must stay on `public_html/`, add the root `.htaccess` rewrite + `SetEnv IKABUD_BASE_PATH /` — see [Installation Guide — cPanel Primary Domain Serving A Tenant CMS](installation.md) for the exact block.
+   - For fresh installs, run the web installer at `https://yourdomain.com/lock.php` (enter app + control DB credentials), then **delete `public/lock.php`**. Do **not** use `lock.php` as the upgrade path for an existing production site — use the upgrade kit flow.
+
+4. **Install dependencies + configure `.env`.**
+
+   ```bash
+   composer install --no-dev --optimize-autoloader
+   cp .env.example .env   # then edit production values
+   ```
+
+   `.env` essentials for Bluehost:
+   - `APP_KEY` — random 64-char hex (`php -r "echo bin2hex(random_bytes(32));"`)
+   - `APP_ENV=production`, `APP_DEBUG=false`
+   - `DB_TIMEOUT_SECONDS` / `CONTROL_DB_TIMEOUT_SECONDS` set explicitly (do not inherit a host default)
+   - `*_DB_SSL_ENABLED=true` only after CA/client cert paths exist on disk; keep `*_DB_SSL_VERIFY_SERVER_CERT=true`
+   - Set permissions: `chmod -R 775 storage/` (and `public/`)
+
+5. **Run migrations.** Base/control DB first, then each tenant DB:
+
+   ```bash
+   php ikabud migrate                  # primary app DB (+ migrate:control for the control DB)
+   php ikabud tenant:migrate <tenant_id|tenant_key|domain> [module]   # per tenant DB
+   php ikabud migrate:status           # verify nothing is left pending
+   ```
+
+   See [Migration Workflow](migration-workflow.md) for the tenant-vs-base decision and the "Nothing to migrate" registration gotcha.
+
+6. **Rebuild the builder UI if changed.**
+
+   ```bash
+   cd modules/cms/builder-ui
+   npm ci
+   npm run build
+   cd ../../..
+   ```
+
+   Skip only if the page builder UI did not change in this deploy.
+
+7. **Gate — clear caches + force PHP-FPM restart.** Compiled DiSyL templates are APCu-cached and **survive graceful FPM restarts**, so clear explicitly:
+
+   ```bash
+   php ikabud cache:clear        # DiSyL compiled templates + file cache + APCu
+   ```
+
+   Then **force-stop** PHP-FPM (not graceful) to evict any APCu that survived `cache:clear`: `sudo systemctl restart php8.3-fpm` (or use the hosting panel's PHP version restart). With `opcache.validate_timestamps=0`, this restart also resets OPcache.
+
+8. **Gate — post-deploy verify.**
+   - `curl -sI https://yourdomain.com/login` — expect `200` and expected security headers.
+   - Check **BOTH logs**: `storage/logs/app.log` **and** `storage/logs/error.log` — no new errors after the first real page loads.
+   - Confirm **page cache + CSRF**: POST/CSRF-bearing public paths must be in `PAGE_CACHE_SKIP_PREFIXES` (defined in `src/helpers/page-cache.php`, list in `config/page-cache-prefixes.php`) so a cached GET never serves a stale CSRF token to POST forms. If any CSRF-bearing path is missing, add it and re-clear the cache.
+
+```mermaid
+flowchart TD
+    A[1. Pre-flight gate: MySQL 5.7 audit<br/>no OVER / CTE / JSON_TABLE / EXCEPT / INTERSECT<br/>ENGINE=InnoDB, FK type-match] --> B[2. Build Bluehost archive<br/>php create-bluehost-archive.php<br/>or create-bluehost-upgrade-package.php for upgrades]
+    B --> C[3. Deploy via cPanel / File Manager<br/>public as document root, .htaccess,<br/>IKABUD_BASE_PATH for subfolder installs]
+    C --> D[4. composer install --no-dev --optimize-autoloader<br/>configure .env: APP_KEY, DB_TIMEOUT, SSL]
+    D --> E[5. Migrations<br/>php ikabud migrate + per-tenant tenant:migrate<br/>verify migrate:status]
+    E --> F[6. Rebuild builder UI if changed<br/>npm ci && npm run build]
+    F --> G{7. Gate: php ikabud cache:clear<br/>+ force PHP-FPM restart<br/>to evict APCu}
+    G --> H{8. Gate: post-deploy verify<br/>curl login page, check BOTH logs,<br/>page cache + CSRF on POST paths}
+    H -- fail --> H1[Diagnose: check both logs,<br/>re-run cache:clear / restart]
+    H1 --> G
+    H -- pass --> I[Done — deployment verified]
+```
+
+### Bluehost-specific notes
+
+- **MySQL 5.7 / Compatibility profile is the production baseline.** All SQL must follow the rules in [Database Profiles](database-profiles.md); the pre-flight grep in Step 1 enforces it.
+- **`public/` is the web root.** Never serve from the repo root; the `.htaccess` denies access to `.env`, `bootstrap.php`, `kernel/`, `modules/`, `config/`, `storage/`, `templates/`, and `vendor/`.
+- **APCu survives graceful FPM restarts.** Always pair `php ikabud cache:clear` with a force restart after template/layout changes.
+- **Upgrade path:** use a freshly generated `create-bluehost-upgrade-package.php` kit, import the guarded SQL bundles (app → control → tenant) before uploading code, preserve live `.env`/`storage/`/`public/uploads/`, then follow Steps 3–8. See [Installation Guide — Bluehost Upgrade Kit](installation.md).
 
 ## Monitoring
 

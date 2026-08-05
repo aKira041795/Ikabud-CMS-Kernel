@@ -66,6 +66,7 @@ ikabud/
 │   ├── anti-spam/             # Spam detection
 │   ├── bakeshop/              # Bakery operations workspace
 │   ├── cms/                   # CMS + visual page builder
+│   ├── cms-akira/             # CMS Akira suite — 14 submodules (core + providers + profiles); see modules/cms-akira/README.md
 │   ├── contact-form/          # Form submissions
 │   ├── content-ingestion/     # Content import pipeline
 │   ├── daily-ledger/          # Inventory/financial tracking
@@ -292,6 +293,21 @@ Typed PHP interfaces for swappable adapters:
 | `CapabilityProviderContract` | `kernel/Contracts/CapabilityProviderContract.php` | `getCapabilityId`, `getInputSchema`, `getOutputSchema`, `handle` |
 
 Modules that register structured capabilities should implement `CapabilityProviderContract`. Cache adapters injected into kernel caching layers must implement `CacheContract`.
+
+### 5. Product Suites & Extensions (`module.json` schema-v2 layer)
+
+A manifest-declared **product-suite and extension layer** sits on top of the flat module registry (accepted 2026-08-04 — see [product-suite-extension-adr.md](../architecture/product-suite-extension-adr.md)). It captures product hierarchy, extension ownership, administrative composition, and installation lifecycle without changing the flat runtime loader.
+
+New additive manifest fields: `suite`, `kind`, `extends`, `extension_points`, `contributes`, `admin_contributions`, `compatibility`, `uninstall`.
+
+- `kind` — one of `product-core | extension | adapter | profile | service | integration | standalone-application`
+- `extension_points` — point ids a product core (e.g. `cms-akira-core`) exposes (e.g. `cms.sidebar`)
+- `contributes` — `{extension_point, provider}` declarations from extensions/adapters back to a declared host point
+- `admin_contributions` — `{host, location, group, label, icon, route, permission, order}` declarations that drive the dynamic admin sidebar in the host's admin shell
+- `compatibility` — `{kernel, suite}` semver ranges enforced at install/certification time
+- `uninstall` — disable/data-retention semantics for first-class uninstall
+
+The loader stays flat; hierarchy comes from manifests. Certification adds C12 (suite contract) and C13 (admin contribution shape) checks. Hooks, events, and capabilities above remain the runtime extension mechanisms — the manifest layer explains relationships, capabilities execute behavior, and contributions integrate UI.
 
 ---
 

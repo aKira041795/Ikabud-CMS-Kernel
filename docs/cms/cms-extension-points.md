@@ -118,6 +118,64 @@ Expected item shape:
 ]
 ```
 
+> **Legacy hook.** Kept for backward compatibility with pre-2026-08 modules. New
+> admin surfaces should prefer the manifest-declared contribution model below.
+
+### `cms.sidebar` extension point + `admin_contributions` (dynamic registry)
+
+The `cms.sidebar` extension point is declared by a host product core
+(`kind: product-core`, e.g. `cms-akira-core`) in its `extension_points`. Modules
+that want to appear in the CMS admin sidebar declare an `admin_contributions`
+entry in their own `module.json` instead of registering a hook:
+
+```json
+{
+    "id": "cms-akira-seo",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
+    "contributes": [
+        { "extension_point": "cms.sidebar", "provider": "cms-akira-seo.nav@1" }
+    ],
+    "admin_contributions": [
+        {
+            "host": "cms",
+            "location": "sidebar",
+            "group": "optimization",
+            "label": "SEO",
+            "icon": "search",
+            "route": "/admin/cms-akira-seo",
+            "permission": "cms.seo.manage",
+            "order": 60
+        }
+    ]
+}
+```
+
+Contribution fields:
+
+| Field | Meaning |
+|---|---|
+| `host` | Host module id the contribution targets (e.g. `cms`) |
+| `location` | Surface within the host (e.g. `sidebar`) |
+| `group` | Sidebar group/section the item belongs to |
+| `label` | Display label |
+| `icon` | Icon identifier |
+| `route` | Admin route the item links to |
+| `permission` | Capability/role gate for visibility |
+| `order` | Sort order within the group |
+
+The admin sidebar is rendered **dynamically** from the registry of
+`admin_contributions`. The kernel validates that a contribution's host has
+declared the matching extension point during install/certification — a module
+cannot inject itself into a point the host did not declare.
+
+> **Coexistence (incremental migration):** the legacy `cms.admin.nav_items`
+> hook capability and the new `admin_contributions` registry model coexist.
+> Existing hook-based modules keep working unchanged; new modules should adopt
+> the manifest contribution model, and hook registrations can be migrated
+> incrementally.
+
 ---
 
 ## 4. Public rendering hooks

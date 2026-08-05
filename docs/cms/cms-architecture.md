@@ -12,6 +12,7 @@ The CMS is now a substantial, working module rather than an MVP. Its strongest a
 - theme and customizer support
 - tag-based caching on public responses
 - granular CMS-local permission enforcement
+- decomposed **CMS Akira suite** (core + providers + profiles) with a manifest-driven extension and admin-contribution layer (see [modules/cms-akira/README.md](../../modules/cms-akira/README.md) and the [product-suite extension plan](../architecture/product-suite-extension-architecture-plan.md))
 
 The main risks are no longer “missing CMS architecture”. The main risks are now **consistency, hardening, and contract drift**.
 
@@ -66,6 +67,18 @@ This is a sound layering model and should be preserved.
 | `86-ai-automation.php` | AI content automation admin |
 | `88-entity-capabilities.php` | Entity capability CRUD API |
 | `90-public.php` | Public-facing content rendering |
+
+### Akira suite composition
+
+The CMS now ships as the decomposed **CMS Akira suite** under `modules/cms-akira/` (14 submodules): a `kind: product-core` core (`cms-akira-core`) declaring `extension_points` such as `cms.sidebar`, optional provider modules (seo, ai, editor, theme, navigation, workflow, search-adapter, media, builder) contributing through provider boundaries, and profile bundles (minimal, standard, visual, headless) that declare installation postures. See [modules/cms-akira/README.md](../../modules/cms-akira/README.md) and the [product-suite extension plan](../architecture/product-suite-extension-architecture-plan.md).
+
+### Dynamic admin sidebar
+
+The admin sidebar is no longer a static nav block. It is dynamically driven by module `admin_contributions` declarations (`host`, `location`, `group`, `label`, `icon`, `route`, `permission`, `order`) resolved from manifests at discovery time and rendered into the CMS admin shell.
+
+### CMS admin-shell boundary change
+
+Akira suite modules render inside the **CMS admin shell** (`templates/modules/cms/layouts/admin.disyl`), not the kernel shell. The CMS admin shell is the host surface for suite contributions: suite modules consume the CMS admin layout rather than a kernel-level admin shell. This boundary change is recorded in the product-suite extension plan.
 
 ---
 

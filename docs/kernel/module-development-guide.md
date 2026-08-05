@@ -6,6 +6,98 @@ This guide explains how to build, package, and install modules for the Ikabud Ke
 >
 > **Need to integrate with other modules?** See the [Cross-Module Interaction Playbook](cross-module-playbook.md) — decision tree for events, capabilities, triggers, and hooks.
 
+> **⚠️ Canonical source:** This file is the single source of truth for module development. An older, orphaned `module-developer-guide.md` exists in this folder with **conflicting handler signatures** (e.g. `my_modulePageDashboard(ModuleContext $ctx)` vs the canonical `handleMyPage(array $params = [])`). Follow **this** guide — treat `module-developer-guide.md` as legacy.
+
+---
+
+## The Module Lifecycle
+
+Every module — from a small CMS sub-module to a full product suite — is built through the same **gated, per-phase loop**. You stop for sign-off at the phase-spec proposal (Gate A), after validation (Gate B), and before starting the next phase (Gate C).
+
+Do not skip or reorder phases. Three rules are non-negotiable:
+
+1. **Capabilities are designed first.** Declare `capabilities.exposes` / `capabilities.depends` in `module.json` *before* writing routes or handlers.
+2. **Migration SQL drives everything.** Schema comes before service logic, not after.
+3. **The service unit test is written alongside the service** — never deferred to "later".
+
+```mermaid
+flowchart TD
+    P0["Phase 0 — Research<br/>read 2–3 same-scope modules<br/>consult entity-view-adoption-plan.md"]
+    GA{"Gate A — Propose phase spec<br/>files · table names · capability IDs · migration SQL<br/>get sign-off"}
+    P1["Phase 1 — Capability design<br/>declare capabilities.exposes / depends in module.json FIRST"]
+    P2["Phase 2 — Migration SQL<br/>schema drives everything · idempotent · MySQL 5.7 rules"]
+    P3["Phase 3 — Domain service<br/>ServiceResult pattern"]
+    P4["Phase 4 — Unit test for the service<br/>written alongside, not deferred"]
+    P5["Phase 5 — Handlers + routes<br/>module-id:functionName"]
+    P6["Phase 6 — Template<br/>entity view or composite"]
+    GB{"Gate B — Validate<br/>php -l · run tests · check BOTH logs · architecture:check"}
+    GC{"Gate C — Checkpoint<br/>present results · get sign-off before next phase<br/>update docs per docs-update-triggers skill"}
+
+    P0 --> GA
+    GA -->|sign-off| P1
+    GA -->|changes needed| P0
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6
+    P6 --> GB
+    GB -->|fail| P1
+    GB -->|pass| GC
+    GC -->|approved · more phases| P1
+    GC -->|approved · done| DONE["Module complete"]
+```
+
+### Phase 0 — Research
+
+Study **2–3 existing modules with similar scope** (`module.json`, `routes.php`, `handlers.php`, helpers pattern). If the module will expose list/detail views, consult the [Entity-View Adoption Plan](entity-view-adoption-plan.md) and [the 3-layer rule in the DiSyL quickstart](../disyl/quickstart.md#the-3-layer-rule) before designing capabilities.
+
+### Gate A — Propose phase spec
+
+List the files, key decisions, and migration SQL for the phase. Include **capability IDs** and **table names**. Get sign-off before writing code.
+
+### Phase 1 — Capability design
+
+Declare `capabilities.exposes` / `capabilities.depends` in `module.json` **first**, then implement handler functions in `helpers.php` via a `*_capability_handlers()` map — see `bakeshop`, `guidance`, and `wms` for the established pattern.
+
+### Phase 2 — Migration SQL
+
+Schema drives everything. Write **idempotent** migrations (`IF NOT EXISTS`, `information_schema` guards for `ALTER TABLE`) and follow the Bluehost / MySQL 5.7 compatibility rules (InnoDB, matching FK column types, no window functions or CTEs). See [Database Migrations](#database-migrations).
+
+### Phase 3 — Domain service
+
+Put business logic in a domain service that returns `ServiceResult`. Follow the [service layer patterns](../../.github/skills/service-layer-patterns.md) skill — transaction discipline, event emission, audit logging.
+
+### Phase 4 — Unit test for the service
+
+Write the service unit test **alongside** the service (pure-logic `TestHarness` mode — no bootstrap). Do not defer it. See the [testing conventions](../../.github/instructions/testing-conventions.instructions.md).
+
+### Phase 5 — Handlers + routes
+
+Add handler functions and wire them in `routes.php` with `module-id:functionName` references. Keep the route map declarative; put request logic in handlers/services.
+
+### Phase 6 — Template
+
+Render via entity view (`{ikb_entity_list}` / `{ikb_entity_detail}`) for single-source display, or a composite DiSyL template for dashboards / multi-source pages. See [Entity-View Adoption Plan](entity-view-adoption-plan.md) for the decision boundary.
+
+### Gate B — Validate
+
+Run `php -l` on every touched file, run the module tests, check **both** `storage/logs/app.log` and `storage/logs/error.log`, and run `php ikabud architecture:check`.
+
+### Gate C — Checkpoint
+
+Present the results and get sign-off before starting the next phase. The **final step of the checkpoint is to update docs per the `docs-update-triggers` skill**, so code and documentation stay in sync.
+
+```mermaid
+sequenceDiagram
+    participant Dev as Module developer
+    participant Rev as Reviewer / maintainer
+    Dev->>Rev: Propose phase spec (files, tables, capability IDs, migration SQL)
+    Rev-->>Dev: Sign-off or requested changes
+    loop Each phase (capability, SQL, service, test, handlers, template)
+        Dev->>Dev: Build phase deliverable
+        Dev->>Rev: Present results + validation (php -l, tests, both logs)
+        Rev-->>Dev: Checkpoint — approve or request changes
+    end
+    Rev-->>Dev: Final sign-off
+```
+
 ---
 
 ## Architecture Overview
@@ -267,6 +359,63 @@ Common examples:
 | `url` | string | Route path (e.g. `/my-module/page`). |
 | `icon` | string | Icon name (reserved for future icon support). Use `"separator"` for separators. |
 | `roles` | string[] | Which roles see this link. Values: `"admin"`, `"supervisor"`, `"cashier"`, or `"*"` for all. |
+
+---
+
+## Product Suites & Extensions (schema-v2)
+
+Since 2026-08-04 Ikabud supports an explicit, manifest-declared **product suite and extension model** layered on top of the flat module registry. Physical directory nesting is only for repository clarity — **the manifest is the authority for logical hierarchy**.
+
+- **Product Suite** — a named family of modules (e.g. `cms-akira`, `pal`).
+- **Product Core** — the authoritative module of a suite (`kind: product-core`); declares the suite's `extension_points`.
+- **Extension** — a module that extends a host core (`kind: extension`, `extends: <core-id>`), consuming capabilities and contributing surfaces.
+- **Adapter** — adapts an external provider/backend into a suite contract (`kind: adapter`).
+- **Profile** — an installation bundle (`kind: profile`, `installs: [...]`).
+- **Contribution** — a manifest-declared admin/UI surface registered against a host's `extension_points` and rendered dynamically.
+
+### schema-v2 manifest fields
+
+All fields below are **optional and additive**. `MODULE_MANIFEST_SCHEMA_VERSION` stays `'1'`; manifests that omit them are treated as `kind: standalone-application` (or legacy) and remain valid. When present, they are validated strictly.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `suite` | string | Normalized suite id (e.g. `cms-akira`). |
+| `kind` | string | One of `product-core | extension | adapter | profile | service | integration | standalone-application`. |
+| `extends` | string | Host module id this module extends (required for extension/adapter). |
+| `extension_points` | string[] | List of point ids the host exposes. |
+| `contributes` | array | `[{extension_point, provider}]` declarations. |
+| `admin_contributions` | array | `[{host, location, group, label, icon, route, permission, order}]`. |
+| `compatibility` | object | `{kernel, suite}` semver ranges. |
+| `uninstall` | object | `{disable_safe, retain_data_by_default, supports_data_export, requires_confirmation_to_drop_data}`. |
+
+### Scaffolding a suite member
+
+Use explicit suite declaration so placement is authoritative:
+
+```bash
+php ikabud make:module cms-akira-analytics --suite=cms-akira
+```
+
+This creates `modules/cms-akira/cms-akira-analytics/` and writes the suite membership to `module.json`:
+
+```json
+{
+  "id": "cms-akira-analytics",
+  "suite": "cms-akira"
+}
+```
+
+If `modules/<suite>/module.json` exists, nested suite scaffolding is blocked. Suite folders are namespace-only — they are **not** shared runtime modules; reusable logic must stay module-owned or capability-exposed.
+
+### Certification and install gates
+
+- `validateModuleSuiteContractV1()` validates `kind`, `suite`, `extends`, `extension_points`, `contributes`, `admin_contributions`, `compatibility`, `uninstall`, and profile installs.
+- `validateModuleSuiteFleetV1()` enforces cross-module relationships in the manifest guard: extends target exists, contribution host exists, extension points declared by the host.
+- `validateModuleCertification()` gains **C12** (product suite contract — strict when declared) and **C13** (admin contribution shape — advisory). Run `php ikabud module:certify <module-id>` to render them.
+- Install-time gates (inside `installModuleFromZip()`) reject missing hosts, unknown contribution hosts, undeclared extension points, self-installing profiles, and incompatible kernel/suite versions.
+- Runtime helpers live in `src/helpers/module-manager.php`: `moduleSuiteGraph()`, `moduleSuites()`, `moduleSuiteMembers()`, `moduleSuiteCore()`, `moduleSuiteExtensionPoints()`, `moduleSuiteForModule()`, `moduleSuiteAdminHost()`, `moduleKindForModule()`, `kernelContributionRegistry()`, `kernelContributionsForHost()`, and the CMS nav bridge `kernelContributionBridgeCmsNavItems()`.
+
+**References:** [Product Suite & Extension ADR](../architecture/product-suite-extension-adr.md), [Product Suite & Extension Architecture Plan](../architecture/product-suite-extension-architecture-plan.md), and the live example in [`modules/cms-akira/README.md`](../../modules/cms-akira/README.md).
 
 ---
 

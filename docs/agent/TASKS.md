@@ -12,6 +12,7 @@
 | AGT-004 | Fix explore.agent.md `ctx_shell` reference | ✅ done | P2 | Orchestrator | ~~Agent had [read, search] tools only; ctx_shell removed, lean-ctx tools added~~ |
 | AGT-005 | Add lean-ctx MCP tools to all 6 agent definitions | ✅ done | P0 | Orchestrator | Tools scoped by role: read-only get ctx_read/search/tree, edit-capable also get ctx_patch, Test Writer gets all |
 | AGT-006 | Update AGENTS.md + token-budget.md for MCP tool docs | ✅ done | P1 | Orchestrator | Roster table and Rule 5 updated with lean-ctx tools |
+| AGT-007 | CMS Akira suite decomposition + product-suite/extension model docs alignment | ✅ done | P1 | Documentation Writer | Suite (14 submodules) + schema-v2 fields + dynamic sidebar + DiSyL JSON; release note 2026-08-05 |
 
 ## Completed
 
@@ -22,6 +23,7 @@
 | AGT-005 | Add lean-ctx MCP tools to all 6 agent definitions | 2026-07-07 | Orchestrator |
 | AGT-006 | Update AGENTS.md + token-budget.md for MCP tools | 2026-07-07 | Orchestrator |
 | AGT-003 | Update skills registry in copilot-instructions.md | 2026-07-07 | Orchestrator |
+| AGT-007 | CMS Akira suite + product-suite/extension model docs | 2026-08-05 | Documentation Writer |
 
 ## Acceptance Criteria per Task
 

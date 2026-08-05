@@ -4,7 +4,7 @@ description: Kernel OS — Public Execution Roadmap
 
 # Ikabud Public Execution Roadmap
 
-> **Last updated:** July 2026
+> **Last updated:** August 2026
 > **Release:** Kernel OS 6.1.0 (intercoherence), DiSyL 4.7.0
 > See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the detailed implementation status.
 
@@ -37,6 +37,7 @@ participate in.
 | Capability ACLs (caller allow/deny) | 🟡 | Design phase | Kernel maintainer | Community (MIT) | Q4 2026 |
 | Circuit breaker for capability calls | 🟡 | Design phase | Kernel maintainer | Enterprise (CLA) | Q4 2026 |
 | Schema validation for capability payloads | 🔴 | Not started | TBD | Community (MIT) | Q1 2027 |
+| Product suite + extension model (C12/C13) | ✅ | `docs/architecture/product-suite-extension-adr.md`, `src/helpers/manifest-validation.php` (`validateModuleSuiteContractV1`) | Kernel maintainer | Enterprise (CLA) | Shipped |
 
 ---
 
@@ -69,6 +70,7 @@ participate in.
 | Module | Status | Evidence | Owner | Contribution | Pilot-ready |
 |---|---|---|---|---|---|
 | **CMS** | ✅ Production | 24 docs, visual builder, 13 entity views, Moodle bridge | Kernel maintainer | Enterprise (CLA) | ✅ |
+| **CMS Akira** | ✅ Suite (14 submodules) | `modules/cms-akira/` — decomposed CMS suite (core + seo/ai/editor/theme/navigation/workflow/search-adapter/media/builder + 4 profiles), dynamic `admin_contributions` sidebar; see `docs/architecture/product-suite-extension-adr.md` | Kernel maintainer | Enterprise (CLA) | ✅ |
 | **Daily Ledger** | ✅ Production | Android app, offline sync, 5 user roles, variance tracking | Kernel maintainer | Enterprise (CLA) | ✅ |
 | **Users** | ✅ Production | Accounts, roles, permissions | Kernel maintainer | Community (MIT) | ✅ |
 | **Media** | ✅ Production | File uploads, metadata, library | Kernel maintainer | Community (MIT) | ✅ |

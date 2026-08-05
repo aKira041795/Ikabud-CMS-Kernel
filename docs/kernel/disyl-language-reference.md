@@ -30,6 +30,8 @@
 {variable}
 {user.name}           — nested property access
 {user.getName()}      — function call
+{json_encode(data)}   — JSON-encode (JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+{json_decode(data).key} — JSON-decode to assoc array + dot-path access
 ```
 
 ### Assignment `{set}`
@@ -85,6 +87,38 @@
 ```
 {debug myVar}     — pretty-prints any value with type info
 {debug user}      — arrays as formatted JSON
+```
+
+### JSON Function Calls — `json_encode` / `json_decode` (✅ 2026-08-05)
+
+The DiSyL engine now supports JSON serialization and parsing as **function calls**
+(in addition to the existing `|json` filter). Registered in
+`kernel/DiSyL/v4/FunctionRegistry.php`:
+
+```
+{json_encode(data)}         — JSON-encode to a string
+{json_decode(data)}         — JSON-decode into an associative array
+{json_decode(data).key}     — dot-path access into the decoded array
+```
+
+Behavior:
+
+- **`json_encode`** mirrors `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`, so
+  slashes and non-ASCII characters are not escaped — output stays stable with the
+  `|json` filter.
+- **Use `{json_encode(data)|raw}` in JS/attribute contexts** (Alpine `x-data`,
+  `<script>` blocks, `data-*` attributes) so the JSON string is not HTML-escaped
+  into entities.
+- **`json_decode`** returns an associative array; dot-path access like
+  `{json_decode(payload).user_id}` resolves a nested key directly via
+  `kernel/DiSyL/ExpressionEvaluator.php`.
+
+Example:
+
+```disyl
+{set payload = '{"user_id":42,"role":"admin"}'}
+{json_decode(payload).user_id}        → 42
+{json_encode(payload)|raw}            → {"user_id":42,"role":"admin"}
 ```
 
 ### Entity View Field Reflection — `keyof` (✅ v4.7)

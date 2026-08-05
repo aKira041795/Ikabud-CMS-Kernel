@@ -1,6 +1,6 @@
 # CMS Module — Current State Guide
 
-**Updated:** June 2026  
+**Updated:** August 2026  
 **Module root:** `modules/cms/`
 
 This document is the authoritative current-state guide for the CMS module as it exists today.
@@ -24,6 +24,18 @@ The CMS is a full application module that provides:
 - Theme upload/activation and CMS-only sub-module installation
 
 The CMS is **not** a kernel subsystem. It is a module that extends the platform through declared routes, capabilities, events, hooks, templates, and owned tables.
+
+### 1.1 CMS Akira decomposition
+
+As of August 2026 the CMS has been decomposed into the **CMS Akira suite** (`modules/cms-akira/`, 14 submodules) — a capability-first product family that keeps independently governed modules in one suite while preserving module boundaries. See [modules/cms-akira/README.md](../../modules/cms-akira/README.md).
+
+- **Product core** — `cms-akira-core` (`kind: product-core`) owns content orchestration, the adapter boundary, compose/enrich/runtime status, and the suite's declared `extension_points` (e.g. `cms.sidebar`).
+- **Optional provider modules** — `cms-akira-seo`, `-ai`, `-editor`, `-theme`, `-navigation`, `-workflow`, `-search-adapter`, `-media`, `-builder` — each contributes through a provider boundary with graceful fallback.
+- **Profile modules** — `cms-akira-profile-minimal`, `-standard`, `-visual`, `-headless` — installation bundles that declare a coherent deployment shape.
+
+Akira capabilities use the `akira.*` namespace (`akira.content.*@1`, `akira.type.*@1`, `akira.taxonomy.*@1`, `akira.revision.*@1`, `akira.publication.*@1`, `akira.query.*@1`) while `cms.content.*@1` stays backward compatible during migration — see [cms-akira-capability-namespace-and-adapter-plan.md](cms-akira-capability-namespace-and-adapter-plan.md).
+
+Suite modules render inside the **CMS admin shell** (`templates/modules/cms/layouts/admin.disyl`), and the admin sidebar is dynamically driven by module `admin_contributions` rather than a static nav block.
 
 ---
 

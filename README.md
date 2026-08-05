@@ -46,7 +46,7 @@ Many languages. Many outputs.
 - **Polyglot capability dispatch** — Services in Python, Node, Go, Rust, or any language participate through ServiceProxy.
 - **Module isolation enforced** — `owns_tables`/`reads_tables` contracts prevent cross-module data access.
 - **Capability bus** — Typed, versioned, circuit-breaker-protected contracts between modules.
-- **21 governed DiSyL components** — Build screens by describing intent: `<ikb_entity_list source="orders.recent" view="compact" />`
+- **32 governed DiSyL components** — Build screens by describing intent: `<ikb_entity_list source="orders.recent" view="compact" />`
 - **Entity-view architecture** — Define fields, actions, and views per entity type. 16 registered entity views across modules. Kernel enforces permissions via capability bus.
 - **Visual builder contract composer** — React/Vite builder with governed component palette, source+view pickers, validation.
 - **Mobile backend platform** — JWT auth with Bearer/cookie dual path, CORS for API consumers, rate limiting (DB/APCu), push notification queue (FCM), offline sync engine (entity revisions, cursor-based pull, tombstones, conflict detection), idempotency keys for safe retries.
@@ -58,7 +58,8 @@ Many languages. Many outputs.
 - **Report manager** — Templates, archive, scheduled reports, signature presets, module report packs.
 - **Module certification** — 10-point checklist for all modules. CLI + API.
 - **AI governance** — AI summaries and drafts with kill switch, model allowlist, cost ceilings, and human review requirements.
-- **30 modules** — CMS, ecommerce, bakeshop, guidance, WMS, EHR, daily ledger, ticketing, SMS, AI orchestrator, attendance-wage, and more.
+- **68 module manifests across 37 module folders** — CMS, ecommerce, bakeshop, guidance, WMS, EHR, daily ledger, ticketing, SMS, AI orchestrator, attendance-wage, and more — including the **CMS Akira suite** (`modules/cms-akira/`): 14 submodules (core + providers + profiles) governed as one product family. See [modules/cms-akira/README.md](modules/cms-akira/README.md).
+- **Product-suite extension architecture** — Manifest-declared suites, product cores, extensions, adapters, profiles, and dynamic admin contributions, accepted 2026-08-04 in [product-suite-extension-adr.md](docs/architecture/product-suite-extension-adr.md). Scaffold a suite submodule with `php ikabud make:module <name> --suite=cms-akira`.
 - **ARK — Architectural Rendering Kit** — The visual operating specification of Ikabud. Governs themes, renderers, builders, entity views, design tokens, accessibility, and safety policy. 55 block definitions across 10 domains, 16 layout slots, 27 component variants.
 - **Bluehost shared-hosting compatible** — Runs on MySQL 5.7 via the Compatibility database profile. JWT auth, OPcache-aware, DiSyL linter. See [docs/kernel/database-profiles.md](docs/kernel/database-profiles.md).
 
@@ -82,7 +83,7 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 |---|---|
 | `bootstrap.php` | Application bootstrap — env, constants, global helpers |
 | `kernel/` | Core: App singleton, routing, auth, database, DiSyL engine, capabilities, AI, workflows, 14 services |
-| `modules/` | 30 business modules (CMS, commerce, guidance, WMS, bakeshop, EHR, etc.) |
+| `modules/` | 68 module manifests across 37 module folders (CMS, commerce, guidance, WMS, bakeshop, EHR, etc.), incl. the CMS Akira suite (`cms-akira/`, 14 submodules) |
 | `src/` | Shared kernel helpers (module manager, tenant resolver, certification) |
 | `public/` | Web root — index.php router, assets, builder bundles, installer |
 | `config/` | Environment config, entity presets, vhosts |
@@ -144,8 +145,9 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 
 ```
 php ikabud disyl:lint [path]          Lint DiSyL templates (583 files)
+php ikabud make:module <name>          Scaffold a new module (--suite=cms-akira for suite submodules)
 php ikabud module:certify [module]    Validate module certification
-php ikabud module:certify --all       Certify all 30 modules
+php ikabud module:certify --all       Certify all 68 module manifests (C12/C13 suite certification)
 php ikabud tenant:migrate <id>        Run tenant database migrations
 php ikabud migrate                     Run all pending kernel + module migrations
 php ikabud routes                      List all 1,129 registered routes

@@ -1,7 +1,7 @@
 # CLI Tools Reference
 
 > **CLI:** `php ikabud` (Kernel CLI v6.1.0)
-> **Updated:** June 26, 2026
+> **Updated:** June 26, 2026 (updated August 5, 2026)
 
 The `php ikabud` CLI provides developer tools for architecture enforcement,
 entity inspection, scaffolding, diagnostics, and module management.
@@ -179,13 +179,27 @@ php ikabud make:capability widget.export@1
 
 ---
 
-### `make:module <name>`
+### `make:module <name> [--suite=<suite-id>]`
 
 Scaffolds a new module directory with `module.json`, routes, handlers, and helpers.
 
 ```
 php ikabud make:module my-feature
 ```
+
+**Product suite scaffolding (`--suite`):** places the module inside a suite folder
+and writes the suite manifest fields.
+
+```
+php ikabud make:module cms-akira-analytics --suite=cms-akira
+```
+
+- Creates `modules/cms-akira/cms-akira-analytics/` and writes `"suite": "cms-akira"` to `module.json`.
+- Module id must start with the suite prefix (`cms-akira-`).
+- Nesting under a real module (a suite path that already has `module.json`) is blocked.
+- Suite container folders are namespace-only; the suite folder itself is never a runtime module.
+
+See `docs/kernel/module-quickstart.md#declaring-a-product-suite` for the full suite manifest fields.
 
 ---
 
@@ -210,6 +224,9 @@ php ikabud make:example hello-world
 ---
 
 ## Migration Management
+
+> Full migration workflow (file naming, `module.json` registration, CLI apply,
+> safe ALTER TABLE) is documented in `docs/kernel/migration-workflow.md`.
 
 ### `migrate`
 
@@ -477,6 +494,16 @@ Runs the module certification checklist (10-point compliance check).
 php ikabud module:certify cms
 php ikabud module:certify --all
 ```
+
+**Suite certification (C12/C13):** since 2026-08-05 certification also validates
+the product-suite/extension contract via `validateModuleSuiteContractV1()`
+(`src/helpers/manifest-validation.php`, invoked from
+`src/helpers/module-manager.php`): extends targets exist, contribution hosts are
+declared extension points, suite prefix consistency, and `compatibility` ranges.
+Certifying a suite module (`php ikabud module:certify cms-akira-seo`) confirms
+its schema-v2 fields (`suite`/`kind`/`extends`/`extension_points`/`contributes`/
+`admin_contributions`/`compatibility`/`uninstall`). See
+`docs/architecture/product-suite-extension-adr.md`.
 
 ---
 
