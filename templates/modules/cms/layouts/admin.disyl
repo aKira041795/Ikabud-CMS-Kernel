@@ -313,25 +313,6 @@
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Collections</span>
                 </a>
                 <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Experience</span>
-                </div>
-                <a href="{base_url}/cms/admin/react-builder/create" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'react_builder'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Page Builder</span>
-                </a>
-                <a href="{base_url}/cms/admin/customize" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'customize'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Theme</span>
-                </a>
-                <a href="{base_url}/cms/admin/themes" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'themes'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Theme Library</span>
-                </a>
-                <a href="{base_url}/cms/admin/menus" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'menus'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Navigation</span>
-                </a>
-                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
                     <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">System</span>
                 </div>
                 <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'media'}bg-slate-800 text-white{else}text-slate-300{/if}">
@@ -341,10 +322,6 @@
                 <a href="{base_url}/cms/admin/modules" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'modules'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Modules</span>
-                </a>
-                <a href="{base_url}/cms/admin/ai-automation" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'ai_automation'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.75h4.5m-7.5 4.5h10.5m-12 4.5h13.5m-12 4.5h10.5M12 3.75v16.5"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>AI Automation</span>
                 </a>
                 <a href="{base_url}/cms/admin/redirects" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'redirects'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
@@ -441,23 +418,6 @@
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
                         <span class="ml-3">Collections</span>
                     </a>
-                    <div class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Experience</div>
-                    <a href="{base_url}/cms/admin/react-builder/create" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg>
-                        <span class="ml-3">Page Builder</span>
-                    </a>
-                    <a href="{base_url}/cms/admin/customize" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
-                        <span class="ml-3">Theme</span>
-                    </a>
-                    <a href="{base_url}/cms/admin/themes" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
-                        <span class="ml-3">Theme Library</span>
-                    </a>
-                    <a href="{base_url}/cms/admin/menus" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
-                        <span class="ml-3">Navigation</span>
-                    </a>
                     <div class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">System</div>
                     <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -466,10 +426,6 @@
                     <a href="{base_url}/cms/admin/modules" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                         <span class="ml-3">Modules</span>
-                    </a>
-                    <a href="{base_url}/cms/admin/ai-automation" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.75h4.5m-7.5 4.5h10.5m-12 4.5h13.5m-12 4.5h10.5M12 3.75v16.5"/></svg>
-                        <span class="ml-3">AI Automation</span>
                     </a>
                     <a href="{base_url}/cms/admin/redirects" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>

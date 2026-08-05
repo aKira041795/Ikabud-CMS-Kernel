@@ -10,6 +10,25 @@
     "depends": [
         "cms-akira-core"
     ],
+    "contributes": [
+        {
+            "extension_point": "cms.sidebar",
+            "provider": "cms-akira-workflow.sidebar@1"
+        }
+    ],
+    "admin_contributions": [
+        {
+            "id": "cms-akira-workflow.sidebar",
+            "host": "cms",
+            "location": "sidebar",
+            "group": "optimization",
+            "label": "Workflow",
+            "icon": "workflow",
+            "route": "/admin/cms-akira-workflow",
+            "permission": "cms.workflow.manage",
+            "order": 70
+        }
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

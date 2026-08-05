@@ -10,6 +10,25 @@
     "depends": [
         "cms-akira-core"
     ],
+    "contributes": [
+        {
+            "extension_point": "cms.sidebar",
+            "provider": "cms-akira-builder.sidebar@1"
+        }
+    ],
+    "admin_contributions": [
+        {
+            "id": "cms-akira-builder.sidebar",
+            "host": "cms",
+            "location": "sidebar",
+            "group": "experience",
+            "label": "Page Builder",
+            "icon": "layout",
+            "route": "/admin/cms-akira-builder",
+            "permission": "cms.builder.manage",
+            "order": 20
+        }
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

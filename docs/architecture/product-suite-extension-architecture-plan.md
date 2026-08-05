@@ -171,11 +171,29 @@ Acceptance:
 1. Extension enable/disable automatically adds/removes nav entries.
 2. No dead links from absent modules.
 
-Status: ✅ Implemented. `cmsAdminContext()` already feeds `ext_nav_items` from
+Status: ✅ Implemented. `cmsAdminContext()` feeds `ext_nav_items` from
 `cmsGetExtensionNavItems()`; both desktop and mobile sidebars of admin.disyl
-render `ext_nav_items`, and the kernel bridge now supplies manifest-declared
+render `ext_nav_items`, and the kernel bridge supplies manifest-declared
 contributions through that seam. Disabling a module removes its contributions
 automatically (verified by test).
+
+Full dynamic sidebar migration (2026-08-05): the hardcoded optional sidebar
+links (Page Builder, Theme, Navigation, SEO, Workflow, AI Assistant) were
+removed from `admin.disyl` and replaced with manifest `admin_contributions`
+declared by each cms-akira submodule:
+- cms-akira-builder → Experience group (Page Builder)
+- cms-akira-theme → Experience group (Theme)
+- cms-akira-navigation → Experience group (Navigation)
+- cms-akira-seo → Optimization group (SEO)
+- cms-akira-workflow → Optimization group (Workflow)
+- cms-akira-ai → Assistants group (AI Assistant)
+
+Only constant operational links stay built-in in the shell (Dashboard,
+Content, Content Types, Collections, Media Library, Modules, Routing, Users,
+Permissions, Settings, Import/Export). Both desktop and mobile sidebars render
+the dynamic sections (Experience / Optimization / Assistants) from the same
+`ext_nav_items` source. Verified by render: optional hardcoded links absent,
+dynamic sections present with children, no dead routes.
 
 ## Phase 5: Product extension manager and install gate
 Deliverables:
