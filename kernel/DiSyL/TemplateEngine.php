@@ -37,9 +37,11 @@ namespace Ikabud\Kernel\DiSyL;
 require_once __DIR__ . '/ExpressionEvaluator.php';
 require_once __DIR__ . '/v4/FunctionRegistry.php';
 require_once __DIR__ . '/Component/ComponentRenderer.php';
+require_once __DIR__ . '/Component/MacroProcessor.php';
 
 use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
 use Ikabud\Kernel\DiSyL\Component\ComponentRenderer;
+use Ikabud\Kernel\DiSyL\Component\MacroProcessor;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
 class TemplateEngine
@@ -60,7 +62,7 @@ class TemplateEngine
     /** Auto-convert HTML-style <ikb_> tags to DiSyL {ikb_...} syntax (default off). */
     private bool $autoConvertHtmlTags = false;
     /** @var array<string, array{params: array, body: string}> Registered {macro} definitions */
-    private array $macros = [];
+    private ?MacroProcessor $macroProcessor = null;
     /** @var int Recursion depth for compile() — macros only extracted at depth 0 */
     private int $compileDepth = 0;
     private ?Compiler\TemplateCache $compiledCache = null;
@@ -757,7 +759,7 @@ class TemplateEngine
         // to prevent cross-request state leakage in PHP-FPM.
         $isTopLevel = ($this->compileDepth === 0);
         if ($isTopLevel) {
-            $this->macros = [];
+            $this->macroProcessor()->reset();
         }
         $this->compileDepth++;
 
@@ -811,7 +813,7 @@ class TemplateEngine
         //      content is preserved during layout merging.
         $hasExtends = str_contains($content, '{extends ');
         if ($isTopLevel && $hasExtends && str_contains($content, '{macro ')) {
-            $this->macros = [];
+            $this->macroProcessor()->reset();
             $content = $this->extractMacros($content, merge: false);
         }
 
@@ -848,7 +850,7 @@ class TemplateEngine
         // 2.6. Non-extends macro extraction — standalone templates get a
         //      single clean extraction pass.
         if ($isTopLevel && !$hasExtends && str_contains($content, '{macro ')) {
-            $this->macros = [];
+            $this->macroProcessor()->reset();
             $content = $this->extractMacros($content);
         }
         
@@ -996,7 +998,7 @@ class TemplateEngine
         }
 
         // 10.5. Expand {call name(args)} — substitute macro bodies with resolved args
-        if (!empty($this->macros) && str_contains($content, '{call ')) {
+        if ($this->macroProcessor()->hasMacros() && str_contains($content, '{call ')) {
             $content = $this->expandMacroCalls($content, $context);
         }
         
@@ -1894,194 +1896,44 @@ class TemplateEngine
 
     // ── v4.8: User-defined macros ──────────────────────────────────
 
-    /**
-     * Extract {macro name(params)}...{/macro} definitions from template content.
-     *
-     * Each macro is stored in $this->macros keyed by name. The macro body
-     * is kept as raw template text; {paramName} patterns in the body are
-     * substituted at call time via expandMacroCalls().
-     *
-     * Macro definitions are removed from the template — they produce no
-     * output on their own.
+        /**
+     * Extract {macro} definitions (delegated to MacroProcessor — D8).
      */
     private function extractMacros(string $content, bool $merge = false): string
     {
-        // Reset or preserve existing macros
-        if (!$merge) {
-            $this->macros = [];
-        }
-
-        return preg_replace_callback(
-            '/\{macro\s+(\w+)\s*\(([^)]*)\)\}(.*?)\{\/macro\}/s',
-            function (array $m): string {
-                $name = $m[1];
-                $paramsRaw = trim($m[2]);
-                $body = $m[3];
-
-                // Parse parameter list: "param1, param2 = default"
-                $params = $this->parseMacroParamList($paramsRaw);
-                $this->macros[$name] = ['params' => $params, 'body' => $body];
-
-                // Remove macro definition from output
-                return '';
-            },
-            $content
-        );
+        return $this->macroProcessor()->extractMacros($content, $merge);
     }
 
     /**
-     * Expand {call name(arg1, arg2)} into macro body with parameter substitution.
-     *
-     * Resolves call arguments through the variable context first, then
-     * substitutes {paramName} patterns in the macro body with the resolved
-     * argument values.  Recursively re-processes the expanded body for
-     * nested macros, variables, and control structures.
+     * Expand {call name(args)} (delegated to MacroProcessor — D8).
      */
     private function expandMacroCalls(string $content, array $context): string
     {
-        return preg_replace_callback(
-            '/\{call\s+(\w+)\s*(?:\(([^)]*)\))?\}/',
-            function (array $m) use ($context): string {
-                $name = $m[1];
-                $argsRaw = isset($m[2]) ? trim($m[2]) : '';
+        return $this->macroProcessor()->expandMacroCalls($content, $context);
+    }
 
-                if (!isset($this->macros[$name])) {
-                    $this->logError("DISYL_MACRO_NOT_FOUND: {$name}");
-                    return '';
-                }
-
-                $macro = $this->macros[$name];
-                $body = $macro['body'];
-                $params = $macro['params'];
-
-                // Parse call arguments
-                $callArgs = $this->parseCallArgList($argsRaw, $context);
-
-                // Build substitution map: paramName → resolved value
-                $subs = [];
-                $paramNames = array_keys($params);
-                foreach ($paramNames as $i => $pName) {
-                    $default = $params[$pName]; // null = required
-                    $value = $callArgs[$i] ?? $callArgs[$pName] ?? null;
-                    if ($value === null || $value === '') {
-                        if ($default !== null) {
-                            $value = $default;
-                        } elseif ($value === null) {
-                            $value = ''; // missing required param → empty
-                        }
-                    }
-                    // Resolve any variables in the value
-                    if ($value !== '' && $value !== null) {
-                        $resolved = $this->resolveValue($value, $context);
-                        $value = is_string($resolved) ? $resolved : (string)$value;
-                    }
-                    $subs['{' . $pName . '}'] = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-                }
-
-                // Substitute {paramName} patterns in macro body
-                $expanded = str_replace(array_keys($subs), array_values($subs), $body);
-
-                // Recurse: the expanded body may contain variables, calls, control flow
-                return $this->compile($expanded, $context);
+    /**
+     * Lazily build the MacroProcessor (D8 refactor). The engine's private
+     * compile / resolve helpers are injected as closures so the processor
+     * stays decoupled from TemplateEngine internals.
+     */
+    private function macroProcessor(): MacroProcessor
+    {
+        return $this->macroProcessor ??= new MacroProcessor(
+            function (string $content, array $context): string {
+                return $this->compile($content, $context);
             },
-            $content
+            function ($value, array $context) {
+                return $this->resolveValue($value, $context);
+            },
+            function (string $expr, array $context) {
+                return $this->resolveValueWithFilters($expr, $context);
+            },
+            function (string $message): void {
+                $this->logError($message);
+            }
         );
-    }
-
-    /**
-     * Parse a macro parameter list string into a map of name → default.
-     * Parameters without defaults have null as their value (required).
-     */
-    private function parseMacroParamList(string $raw): array
-    {
-        $params = [];
-        if ($raw === '') {
-            return $params;
-        }
-        $parts = explode(',', $raw);
-        foreach ($parts as $part) {
-            $part = trim($part);
-            if ($part === '') { continue; }
-            if (str_contains($part, '=')) {
-                [$name, $default] = explode('=', $part, 2);
-                $params[trim($name)] = trim($default, " \t\n\r\0\x0B\"'");
-            } else {
-                $params[$part] = null;
-            }
-        }
-        return $params;
-    }
-
-    /**
-     * Parse a call argument list string into an array of resolved values.
-     * Supports: positional args "val1, val2" and named refs.
-     */
-    private function parseCallArgList(string $raw, array $context): array
-    {
-        $args = [];
-        if ($raw === '') {
-            return $args;
-        }
-        // Split on commas, respecting quoted strings
-        $parts = $this->splitMacroCallArgs($raw);
-        foreach ($parts as $part) {
-            $part = trim($part);
-            if ($part === '') { continue; }
-            // Quoted string literal
-            if ((str_starts_with($part, '"') && str_ends_with($part, '"')) ||
-                (str_starts_with($part, "'") && str_ends_with($part, "'"))) {
-                $args[] = substr($part, 1, -1);
-                continue;
-            }
-            // Filter expression (contains |)
-            if (str_contains($part, '|')) {
-                $resolved = $this->resolveValueWithFilters($part, $context);
-                $args[] = is_scalar($resolved) ? (string)$resolved : $part;
-                continue;
-            }
-            // Numeric literal
-            if (is_numeric($part)) {
-                $args[] = $part;
-                continue;
-            }
-            // Variable name or dotted path
-            if (preg_match('/^[a-zA-Z_][\w.]*$/', $part)) {
-                $resolved = $this->resolveValue($part, $context);
-                $args[] = is_scalar($resolved) ? (string)$resolved : $part;
-            } else {
-                $args[] = $part;
-            }
-        }
-        return $args;
-    }
-
-    /**
-     * Split call arguments on commas, respecting quoted strings.
-     */
-    private function splitMacroCallArgs(string $raw): array
-    {
-        $parts = [];
-        $buf = '';
-        $inSingle = false;
-        $inDouble = false;
-        $len = strlen($raw);
-        for ($i = 0; $i < $len; $i++) {
-            $ch = $raw[$i];
-            if ($ch === '\\' && $i + 1 < $len) { $buf .= $ch . $raw[++$i]; continue; }
-            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $buf .= $ch; continue; }
-            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $buf .= $ch; continue; }
-            if ($ch === ',' && !$inSingle && !$inDouble) {
-                $parts[] = $buf;
-                $buf = '';
-                continue;
-            }
-            $buf .= $ch;
-        }
-        if ($buf !== '') { $parts[] = $buf; }
-        return $parts;
-    }
-    
-    /**
+    }/**
      * Token-based control structure processing
      * Handles nested if/elseif/else/for/foreach correctly
      */
