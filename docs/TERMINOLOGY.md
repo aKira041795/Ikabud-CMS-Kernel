@@ -52,6 +52,22 @@ Use these terms consistently:
 | **Tenant** | An isolated organization with its own database, settings, and module entitlements. |
 | **ARK** | Architectural Rendering Kit — the visual operating specification governing themes, renderers, and design tokens. |
 | **Control plane** | The shared database layer for tenant registry, module catalog, and entitlement state. |
+| **Product Suite** | A named family of modules (e.g. `cms-akira`, `pal`) governed as one product identity. |
+| **Product Core** | The authoritative module of a suite (`kind: product-core`); declares the suite's `extension_points`. |
+| **Extension** | A module that extends a host core (`kind: extension`, `extends: <core-id>`), consuming capabilities and contributing surfaces. |
+| **Adapter** | A module that adapts an external provider/backend into a suite contract (`kind: adapter`). |
+| **Profile** | An installation bundle (`kind: profile`, `installs: [...]`) declaring a coherent product configuration. |
+| **Extension Point** | A named surface a host product core exposes (`extension_points`, e.g. `cms.sidebar`) for extensions to consume. |
+| **Contribution** | A manifest-declared integration (`contributes`) registered against a host's declared extension point. |
+| **Admin Contribution** | A manifest-declared admin/UI surface (`admin_contributions`) rendered dynamically in the host's admin shell. |
+
+> **Suite hierarchy:** physical suite folders provide organization and
+> namespace. Runtime hierarchy and authority come from **manifest contracts**
+> (`suite`, `kind`, `extends`, `extension_points`, `contributes`), not from
+> directory nesting. "Module", "extension", "adapter", and "profile" have
+> distinct architectural meanings and must not be used interchangeably. The
+> additive suite fields form the **Suite Extension Contract v1** — they extend
+> Manifest Schema v1; the runtime `MODULE_MANIFEST_SCHEMA_VERSION` stays `1`.
 
 ---
 

@@ -501,7 +501,7 @@ the product-suite/extension contract via `validateModuleSuiteContractV1()`
 `src/helpers/module-manager.php`): extends targets exist, contribution hosts are
 declared extension points, suite prefix consistency, and `compatibility` ranges.
 Certifying a suite module (`php ikabud module:certify cms-akira-seo`) confirms
-its schema-v2 fields (`suite`/`kind`/`extends`/`extension_points`/`contributes`/
+its additive suite fields (`suite`/`kind`/`extends`/`extension_points`/`contributes`/
 `admin_contributions`/`compatibility`/`uninstall`). See
 `docs/architecture/product-suite-extension-adr.md`.
 

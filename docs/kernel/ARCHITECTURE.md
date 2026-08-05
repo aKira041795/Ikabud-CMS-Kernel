@@ -294,7 +294,7 @@ Typed PHP interfaces for swappable adapters:
 
 Modules that register structured capabilities should implement `CapabilityProviderContract`. Cache adapters injected into kernel caching layers must implement `CacheContract`.
 
-### 5. Product Suites & Extensions (`module.json` schema-v2 layer)
+### 5. Product Suites & Extensions (additive suite fields — Suite Extension Contract v1)
 
 A manifest-declared **product-suite and extension layer** sits on top of the flat module registry (accepted 2026-08-04 — see [product-suite-extension-adr.md](../architecture/product-suite-extension-adr.md)). It captures product hierarchy, extension ownership, administrative composition, and installation lifecycle without changing the flat runtime loader.
 

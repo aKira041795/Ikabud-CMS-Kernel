@@ -49,7 +49,7 @@ VS Code. Builder hardening closes 5 seams. Report approvals are end-to-end.
 | Area | What landed |
 |---|---|
 | **CMS Akira suite** | CMS decomposed into the `cms-akira` product suite — 14 submodules (`core`, `seo`, `ai`, `editor`, `theme`, `navigation`, `workflow`, `search-adapter`, `media`, `builder`, `profile-minimal/standard/visual/headless`) under `modules/cms-akira/`. See `modules/cms-akira/README.md`. |
-| **Schema-v2 manifest fields** | New **additive** manifest fields: `suite`, `kind`, `extends`, `extension_points`, `contributes`, `admin_contributions`, `compatibility`, `uninstall`. Legacy (schema-v1) manifests remain valid; `MODULE_MANIFEST_SCHEMA_VERSION` stays `'1'`. |
+| **Additive suite manifest fields** | New **additive** manifest fields: `suite`, `kind`, `extends`, `extension_points`, `contributes`, `admin_contributions`, `compatibility`, `uninstall`. Legacy (schema-v1) manifests remain valid; `MODULE_MANIFEST_SCHEMA_VERSION` stays `'1'`. |
 | **Product-suite extension architecture (C12/C13)** | Accepted 2026-08-04 in `docs/architecture/product-suite-extension-adr.md`. Suite certification implemented via `validateModuleSuiteContractV1()` in `src/helpers/manifest-validation.php` (invoked from `src/helpers/module-manager.php`); `php ikabud module:certify` runs the checks. |
 | **CMS admin-shell conversion** | Akira suite modules render inside the CMS admin shell. |
 | **Dynamic admin sidebar** | The admin sidebar is driven dynamically from `admin_contributions` — contributions carry `{host, location, group, label, icon, route, permission, order}` and register against declared extension points (e.g. `cms.sidebar`). |

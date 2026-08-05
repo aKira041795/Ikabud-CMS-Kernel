@@ -76,7 +76,7 @@ Define the next-step architecture for Ikabud so product platforms like CMS Akira
 - Physical folder hierarchy is for organization.
 - Manifest-declared logical hierarchy is authoritative.
 
-## Manifest Schema V2 (additive)
+## Additive Suite Fields (Suite Extension Contract v1)
 
 Proposed new optional fields:
 - suite
@@ -105,7 +105,7 @@ Example intent:
 ## Phase 0: ADR and compatibility policy
 Deliverables:
 1. ADR for suite graph, module kinds, contribution contract, lifecycle semantics.
-2. Backward-compat policy from current manifests to schema-v2.
+2. Backward-compat policy from current manifests to the additive suite fields.
 
 Acceptance:
 1. No runtime behavior change.
@@ -114,7 +114,7 @@ Acceptance:
 Status: ✅ Implemented (`product-suite-extension-adr.md`). Base schema stays v1;
 v2 fields are additive and optional.
 
-## Phase 1: Manifest schema-v2 support
+## Phase 1: Additive suite-fields support
 Deliverables:
 1. Extend validator in src/helpers/manifest-validation.php.
 2. Add policy checks for extension/profile/core semantics.
@@ -273,7 +273,7 @@ disappears. `ikabud module:certify cms-akira-seo` renders C12/C13 correctly.
 
 ## Risks And Guardrails
 - Avoid breaking existing hook-based extension navigation during migration.
-- Keep schema-v2 additive to avoid bulk module rewrites.
+- Keep the additive suite fields additive to avoid bulk module rewrites.
 - Enforce suite boundaries in kernel installer, not in product UIs.
 - Preserve tenant isolation checks at every lifecycle stage.
 

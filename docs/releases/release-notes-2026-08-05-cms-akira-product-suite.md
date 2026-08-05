@@ -1,7 +1,7 @@
 # CMS Akira — Product Suite & Extension Architecture
 
 > **Released:** August 5, 2026
-> **Theme:** Product-suite decomposition, additive manifest schema-v2, dynamic admin composition, DiSyL JSON function calls.
+> **Theme:** Product-suite decomposition, additive suite fields (Suite Extension Contract v1), dynamic admin composition, DiSyL JSON function calls.
 > **Previous:** [6.1 Intercoherence](release-notes-2026-06-26-kernel-6.1-intercoherence.md)
 
 ---
@@ -22,7 +22,7 @@ DiSyL engine function calls.
 
 ```
 ADR accepted: 2026-08-04 (docs/architecture/product-suite-extension-adr.md)
-Schema-v2 fields: additive, optional (MODULE_MANIFEST_SCHEMA_VERSION stays '1')
+Additive suite fields: optional, additive (MODULE_MANIFEST_SCHEMA_VERSION stays '1')
 Suite certification: C12/C13 via validateModuleSuiteContractV1()
 ```
 
@@ -58,7 +58,7 @@ commands.
 
 ---
 
-## 2. Schema-V2 Manifest Fields (additive)
+## 2. Additive Suite Fields (Suite Extension Contract v1)
 
 New **optional, additive** manifest fields — legacy (schema-v1) manifests remain
 valid and are treated as `kind: standalone-application`:
@@ -169,10 +169,16 @@ calls** (previously only the `|json` filter existed):
   `<script>` blocks, `data-*`) so the JSON string is not HTML-escaped.
 
 ```disyl
-{set payload = '{"user_id":42,"role":"admin"}'}
-{json_decode(payload).user_id}        → 42
+{set payload_json = '{"user_id":42,"role":"admin"}'}
+{json_decode(payload_json).user_id}   → 42
+
+{set payload = data}                  ← data is an array/object in the render context
 {json_encode(payload)|raw}            → {"user_id":42,"role":"admin"}
 ```
+
+> `json_encode` expects a **data structure** (array/object), not a JSON string.
+> Passing the JSON string `payload_json` to `json_encode` would escape it into
+> `"{\"user_id\":42,...}"`. Use separate variables for decode vs. encode.
 
 ---
 

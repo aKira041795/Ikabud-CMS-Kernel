@@ -48,7 +48,11 @@ database/migrations/
 
 Author the SQL so it can run against an existing install safely:
 
-- **Idempotent**: guard columns/tables (`IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` where supported, or pre-check with `INFORMATION_SCHEMA`).
+- **Idempotent**: guard columns/tables. **MySQL 5.7 does not support
+  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`** — perform an
+  `INFORMATION_SCHEMA.COLUMNS` / `INFORMATION_SCHEMA.TABLES` pre-check (or rely
+  on the migration-runner's per-file guard) so a re-run never fails or corrupts
+  an existing install.
 - **MySQL 5.7 / Compatibility profile rules** (production target is Bluehost shared hosting — see [Database Profiles](database-profiles.md)):
   - Every `CREATE TABLE` must end with:
     ```sql
@@ -171,6 +175,22 @@ RENAME TABLE your_module_items_new TO your_module_items;
 ```
 
 > Use the copy-table pattern when changing PK/FK shape or adding a `NOT NULL` column that can't be backfilled in place. Wrap in `SET FOREIGN_KEY_CHECKS = 0` / `= 1` if other modules reference the table.
+
+> **⚠️ Structural rewrites are disruptive — do not run this pattern in
+> production without safeguards.** `DROP TABLE` + `RENAME TABLE` replace the
+> table in place; require all of the following first:
+>
+> - **Verified backup** of the affected table(s) and dependents, tested to restore;
+> - **Staging run** against a copy of the production data before touching production;
+> - **Maintenance mode / write lock** so no writes interleave between `DROP` and `RENAME`;
+> - **Foreign-key dependency review** — other modules/tables that reference this
+>   table must tolerate the window where the table is absent (or be locked too);
+> - **Explicit rollback steps** — keep the old table (rename to `..._old` and
+>   verify before dropping) so a failed rewrite can be reverted.
+>
+> Prefer additive migrations (Option A) whenever the change can be expressed as
+> add column → backfill → make NOT NULL. Use Option B only for true structural
+> rewrites, and treat it as a maintenance-window operation.
 
 ---
 

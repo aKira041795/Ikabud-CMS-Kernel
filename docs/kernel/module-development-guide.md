@@ -362,7 +362,7 @@ Common examples:
 
 ---
 
-## Product Suites & Extensions (schema-v2)
+## Product Suites & Extensions (additive suite fields — Suite Extension Contract v1)
 
 Since 2026-08-04 Ikabud supports an explicit, manifest-declared **product suite and extension model** layered on top of the flat module registry. Physical directory nesting is only for repository clarity — **the manifest is the authority for logical hierarchy**.
 
@@ -373,7 +373,7 @@ Since 2026-08-04 Ikabud supports an explicit, manifest-declared **product suite 
 - **Profile** — an installation bundle (`kind: profile`, `installs: [...]`).
 - **Contribution** — a manifest-declared admin/UI surface registered against a host's `extension_points` and rendered dynamically.
 
-### schema-v2 manifest fields
+### Additive suite fields (Suite Extension Contract v1)
 
 All fields below are **optional and additive**. `MODULE_MANIFEST_SCHEMA_VERSION` stays `'1'`; manifests that omit them are treated as `kind: standalone-application` (or legacy) and remain valid. When present, they are validated strictly.
 

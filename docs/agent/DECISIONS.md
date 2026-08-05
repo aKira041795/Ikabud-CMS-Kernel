@@ -56,7 +56,7 @@
 
 ## 2026-08-04/05 — Product suite and extension architecture (C12/C13)
 
-**Decision**: Adopt a manifest-declared product-suite and extension model on top of the flat module registry: suites (`cms-akira`, ...), product cores (`kind: product-core`) that declare `extension_points`, extensions/adapters that `extends` a core and `contributes` to its points, profile bundles, and `admin_contributions` for dynamic admin surfaces. Implemented via additive schema-v2 manifest fields (`suite`, `kind`, `extends`, `extension_points`, `contributes`, `admin_contributions`, `compatibility`, `uninstall`) and suite certification (C12/C13, `validateModuleSuiteContractV1()`).
+**Decision**: Adopt a manifest-declared product-suite and extension model on top of the flat module registry: suites (`cms-akira`, ...), product cores (`kind: product-core`) that declare `extension_points`, extensions/adapters that `extends` a core and `contributes` to its points, profile bundles, and `admin_contributions` for dynamic admin surfaces. Implemented via additive suite manifest fields — the Suite Extension Contract v1 — (`suite`, `kind`, `extends`, `extension_points`, `contributes`, `admin_contributions`, `compatibility`, `uninstall`) and suite certification (C12/C13, `validateModuleSuiteContractV1()`).
 
 **Rationale**:
 - Flat peer modules cannot express product hierarchy, extension ownership, admin composition, or install context for growing platforms (CMS Akira, PAL, AISS, ARK, EHR, Commerce).

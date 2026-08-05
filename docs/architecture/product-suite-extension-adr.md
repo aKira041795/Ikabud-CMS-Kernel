@@ -43,7 +43,7 @@ hierarchy.
 - **Contribution** — a manifest-declared admin/UI surface registered against a
   host's declared `extension_points` and rendered dynamically.
 
-### Manifest fields (additive, schema-v2 layer)
+### Manifest fields (additive suite fields — Suite Extension Contract v1)
 
 - `suite` — normalized suite id.
 - `kind` — one of `product-core|extension|adapter|profile|service|integration|standalone-application`.
@@ -67,7 +67,7 @@ hierarchy.
   install → enable → register → verify) while the kernel enforces ownership
   and lifecycle contracts.
 
-### Compatibility policy (schema-v1 → schema-v2)
+### Compatibility policy (schema-v1 → additive suite fields)
 
 - `MODULE_MANIFEST_SCHEMA_VERSION` stays `'1'` for backward compatibility.
 - New suite-contract fields are **optional and additive**. Manifests that do

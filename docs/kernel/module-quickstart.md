@@ -458,7 +458,7 @@ This creates `modules/cms-akira/cms-akira-analytics/` and writes at minimum:
 }
 ```
 
-Declare the full suite contract in `module.json` — these schema-v2 fields are
+Declare the full suite contract in `module.json` — these additive suite fields are
 **additive and optional** (legacy manifests stay valid). See
 `docs/architecture/product-suite-extension-adr.md` for the full model.
 

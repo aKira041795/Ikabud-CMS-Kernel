@@ -116,10 +116,16 @@ Behavior:
 Example:
 
 ```disyl
-{set payload = '{"user_id":42,"role":"admin"}'}
-{json_decode(payload).user_id}        → 42
+{set payload_json = '{"user_id":42,"role":"admin"}'}
+{json_decode(payload_json).user_id}   → 42
+
+{set payload = data}                  ← data is an array/object in the render context
 {json_encode(payload)|raw}            → {"user_id":42,"role":"admin"}
 ```
+
+> `json_encode` expects a **data structure** (array/object), not a JSON string.
+> Passing the JSON string `payload_json` to `json_encode` would escape it into
+> `"{\"user_id\":42,...}"`. Use separate variables for decode vs. encode.
 
 ### Entity View Field Reflection — `keyof` (✅ v4.7)
 
