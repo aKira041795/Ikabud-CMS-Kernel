@@ -86,7 +86,7 @@ function cmsSlugify(string $text): string
     $slug = preg_replace('/[^a-z0-9\s\-]/', '', $slug);
     $slug = preg_replace('/[\s\-]+/', '-', $slug);
     $slug = trim($slug, '-');
-    return $slug !== '' ? $slug : ('item-' . substr(uniqid(), -6));
+    return $slug !== '' ? $slug : ('item-' . substr(uniqid('', true), -6));
 }
 
 /**

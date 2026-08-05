@@ -309,7 +309,7 @@ function cmsApiThemeUpload(array $params = []): void
     }
 
     // Extract to temp directory first for validation
-    $extractDir = sys_get_temp_dir() . '/cms_theme_' . uniqid();
+    $extractDir = sys_get_temp_dir() . '/cms_theme_' . uniqid('', true);
     @mkdir($extractDir, 0775, true);
 
     $zip = new \ZipArchive();
@@ -596,7 +596,7 @@ function cmsApiModuleUpload(array $params = []): void
         exit;
     }
 
-    $extractDir = sys_get_temp_dir() . '/cms_module_' . uniqid();
+    $extractDir = sys_get_temp_dir() . '/cms_module_' . uniqid('', true);
     @mkdir($extractDir, 0775, true);
 
     $zip = new \ZipArchive();

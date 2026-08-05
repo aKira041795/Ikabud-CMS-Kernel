@@ -20,7 +20,7 @@ interface CacheContract
     /**
      * Store an item in the cache.
      */
-    public function set(string $key, mixed $value, int $ttl = null): bool;
+    public function set(string $key, mixed $value, ?int $ttl = null): bool;
 
     /**
      * Delete an item from the cache.

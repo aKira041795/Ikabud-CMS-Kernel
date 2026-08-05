@@ -60,7 +60,7 @@ function cmsSavedBlockCreate(array $data): array
         // Ensure unique slug
         $check = $db->prepare("SELECT id FROM cms_saved_blocks WHERE slug = ? LIMIT 1");
         $check->execute([$slug]);
-        if ($check->fetch()) $slug .= '-' . substr(uniqid(), -6);
+        if ($check->fetch()) $slug .= '-' . substr(uniqid('', true), -6);
 
         $db->prepare(
             "INSERT INTO cms_saved_blocks (name, slug, category, description, blocks_json, styles_json, is_global, created_by)

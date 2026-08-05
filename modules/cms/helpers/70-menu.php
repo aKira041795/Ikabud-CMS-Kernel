@@ -138,7 +138,7 @@ function cmsMenuCreate(string $name, string $description = '', ?string $location
         // Ensure unique slug
         $check = $db->prepare("SELECT id FROM cms_menus WHERE slug = ? LIMIT 1");
         $check->execute([$slug]);
-        if ($check->fetch()) $slug .= '-' . substr(uniqid(), -6);
+        if ($check->fetch()) $slug .= '-' . substr(uniqid('', true), -6);
 
         $db->prepare(
             "INSERT INTO cms_menus (name, slug, description, location) VALUES (?, ?, ?, ?)"

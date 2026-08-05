@@ -7372,7 +7372,7 @@ function downloadGuidanceCaseSummaryDocx(array $params = []): void
     }
 
     $tmp = tempnam(sys_get_temp_dir(), 'gm_docx_');
-    $tmpPath = $tmp ? ($tmp . '.docx') : (sys_get_temp_dir() . '/gm_' . uniqid() . '.docx');
+    $tmpPath = $tmp ? ($tmp . '.docx') : (sys_get_temp_dir() . '/gm_' . uniqid('', true) . '.docx');
     if ($tmp && is_file($tmp)) {
         kernelDeletePath($tmp);
     }
@@ -7498,7 +7498,7 @@ function downloadGuidanceAppointmentsDocx(): void
     }
 
     $tmp = tempnam(sys_get_temp_dir(), 'gm_docx_');
-    $tmpPath = $tmp ? ($tmp . '.docx') : (sys_get_temp_dir() . '/gm_' . uniqid() . '.docx');
+    $tmpPath = $tmp ? ($tmp . '.docx') : (sys_get_temp_dir() . '/gm_' . uniqid('', true) . '.docx');
     if ($tmp && is_file($tmp)) {
         kernelDeletePath($tmp);
     }

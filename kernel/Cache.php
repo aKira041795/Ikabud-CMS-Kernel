@@ -49,7 +49,7 @@ class Cache
     /** @var bool Whether routine cache invalidations should be logged */
     private bool $logInvalidations;
     
-    public function __construct(string $cacheDir = null, int $maxCacheSizeMB = 0, bool $logInvalidations = false)
+    public function __construct(?string $cacheDir = null, int $maxCacheSizeMB = 0, bool $logInvalidations = false)
     {
         $this->cacheDir = $cacheDir ?? dirname(__DIR__) . '/storage/cache';
         $this->maxCacheSizeMB = $maxCacheSizeMB;

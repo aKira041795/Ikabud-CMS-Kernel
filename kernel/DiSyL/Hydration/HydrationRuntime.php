@@ -536,7 +536,7 @@ class ProgressiveHydration
      */
     public function immediate(string $component, array $props = []): Island
     {
-        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::IMMEDIATE);
+        $island = new Island(uniqid('island_', true), $component, $props, HydrationStrategy::IMMEDIATE);
         $this->islands[] = $island;
         return $island;
     }
@@ -546,7 +546,7 @@ class ProgressiveHydration
      */
     public function idle(string $component, array $props = []): Island
     {
-        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::IDLE);
+        $island = new Island(uniqid('island_', true), $component, $props, HydrationStrategy::IDLE);
         $this->islands[] = $island;
         return $island;
     }
@@ -556,7 +556,7 @@ class ProgressiveHydration
      */
     public function visible(string $component, array $props = []): Island
     {
-        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::VISIBLE);
+        $island = new Island(uniqid('island_', true), $component, $props, HydrationStrategy::VISIBLE);
         $this->islands[] = $island;
         return $island;
     }
@@ -566,7 +566,7 @@ class ProgressiveHydration
      */
     public function interaction(string $component, array $props = []): Island
     {
-        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::INTERACTION);
+        $island = new Island(uniqid('island_', true), $component, $props, HydrationStrategy::INTERACTION);
         $this->islands[] = $island;
         return $island;
     }
@@ -576,7 +576,7 @@ class ProgressiveHydration
      */
     public function static(string $component, array $props = []): Island
     {
-        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::NEVER);
+        $island = new Island(uniqid('island_', true), $component, $props, HydrationStrategy::NEVER);
         $this->islands[] = $island;
         return $island;
     }
