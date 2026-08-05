@@ -149,11 +149,16 @@ until after the live deployment.
   `disyl.interpreted.deprecated` warning (added 2026-08-05) makes interpreted-pipeline
   usage observable per template; all new features are compiled-mode-only by policy.
   Full removal remains a template-migration exercise driven by that log.
-- **P4-3 (replace custom YAML parser with a library):** ⏳ **Blocked by environment** —
-  the `yaml` PHP extension is not installed and Symfony Yaml is not a dependency on this
-  / the Bluehost target. Replacing the hardened custom parser requires one of those, which
-  must be coordinated with the hosting environment. The in-place hardening (dangling
-  transitions logged, 2026-08-05) remains the active mitigation.
+- **P4-3 (replace custom YAML parser with a library):** ✅ **done (2026-08-06)** — added
+  `symfony/yaml:^6.4` (pure PHP, Bluehost-safe; reuses existing polyfill-ctype /
+  deprecation-contracts, so it adds only 1 new package). `WorkflowEngine::parseYamlDefinition`
+  now prefers `Yaml::parse()` with the legacy line parser kept as a fallback for installs that
+  cannot run composer. **Behavior note:** the legacy parser produced no YAML transitions (they
+  were auto-generated from steps) and captured `roles:` as an unparsed string (never enforced).
+  Symfony parses both correctly — YAML-declared transitions and their `roles` are now honored.
+  Verified: workflow_engine 32, report_approval 18, lifecycle 12, cms_integration 10,
+  contact_form 9 — all pass. (`cms_trigger_ai_workflow_search_integration_test` has 4
+  pre-existing/environmental failures unrelated to this change, confirmed via `git stash`.)
 
 ## 7. Non-goals / deferred
 

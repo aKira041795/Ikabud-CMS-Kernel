@@ -79,8 +79,139 @@ final class WorkflowEngine
 
     /**
      * Parse a workflow YAML string into a structured definition array.
+     *
+     * Prefers the Symfony Yaml library (pure PHP — works on shared hosting such
+     * as Bluehost where the PECL `yaml` extension is unavailable). Falls back
+     * to the legacy line-based parser when the library is not installed (e.g. a
+     * deploy that could not run composer) or when a file is not parseable.
      */
     private function parseYamlDefinition(string $yaml, string $filename): ?array
+    {
+        $def = $this->parseYamlWithLibrary($yaml, $filename);
+        if ($def === null) {
+            $def = $this->parseYamlDefinitionLegacy($yaml, $filename);
+        }
+        return $def;
+    }
+
+    /**
+     * Parse workflow YAML with the Symfony Yaml library and normalize the
+     * generic nested structure into the definition shape the engine expects.
+     * Returns null if the library is unavailable or parsing fails (caller
+     * falls back to the legacy parser).
+     */
+    private function parseYamlWithLibrary(string $yaml, string $filename): ?array
+    {
+        if (!class_exists(\Symfony\Component\Yaml\Yaml::class)) {
+            return null; // library not installed — signal legacy fallback
+        }
+        try {
+            $parsed = \Symfony\Component\Yaml\Yaml::parse($yaml);
+        } catch (\Throwable $e) {
+            write_log("WorkflowEngine: Symfony Yaml parse failed for {$filename}: " . $e->getMessage(), 'warning');
+            return null;
+        }
+        if (!is_array($parsed)) {
+            return null;
+        }
+
+        $def = [
+            'key' => '',
+            'label' => '',
+            'entity_type' => '',
+            'initial_state' => 'pending',
+            'states' => [],
+            'transitions' => [],
+            'steps' => [],
+            'trigger' => null,
+        ];
+
+        foreach (['key', 'label', 'entity_type', 'initial_state'] as $k) {
+            if (isset($parsed[$k]) && is_scalar($parsed[$k])) {
+                $def[$k] = (string)$parsed[$k];
+            }
+        }
+
+        if (isset($parsed['trigger']) && is_array($parsed['trigger'])) {
+            $trigger = [
+                'event' => (string)($parsed['trigger']['event'] ?? ''),
+                'filter' => isset($parsed['trigger']['filter']) && is_array($parsed['trigger']['filter'])
+                    ? $parsed['trigger']['filter']
+                    : null,
+            ];
+            if ($trigger['event'] !== '' || $trigger['filter'] !== null) {
+                $def['trigger'] = $trigger;
+            }
+        }
+
+        if (isset($parsed['states']) && is_array($parsed['states'])) {
+            foreach ($parsed['states'] as $s) {
+                if (!is_array($s) || !isset($s['key'])) {
+                    continue;
+                }
+                $def['states'][] = [
+                    'key' => (string)$s['key'],
+                    'label' => isset($s['label']) ? (string)$s['label'] : ucfirst((string)$s['key']),
+                ];
+            }
+        }
+
+        if (isset($parsed['transitions']) && is_array($parsed['transitions'])) {
+            foreach ($parsed['transitions'] as $t) {
+                if (!is_array($t) || !isset($t['from'], $t['action'], $t['to'])) {
+                    write_log("WorkflowEngine: malformed transition in {$filename}: " . json_encode($t), 'warning');
+                    continue;
+                }
+                $norm = [
+                    'from' => (string)$t['from'],
+                    'action' => (string)$t['action'],
+                    'to' => (string)$t['to'],
+                ];
+                if (isset($t['roles'])) {
+                    // Symfony yields a real array; the legacy parser produced a
+                    // raw string that the runtime treated as empty (roles were
+                    // never enforced). The array form is the intended behavior.
+                    $norm['roles'] = is_array($t['roles'])
+                        ? array_values(array_map('strval', $t['roles']))
+                        : [(string)$t['roles']];
+                }
+                $def['transitions'][] = $norm;
+            }
+        }
+
+        if (isset($parsed['steps']) && is_array($parsed['steps'])) {
+            foreach ($parsed['steps'] as $st) {
+                if (!is_array($st) || !isset($st['key'])) {
+                    continue;
+                }
+                $step = [
+                    'key' => (string)$st['key'],
+                    'capability_id' => (string)($st['capability'] ?? $st['capability_id'] ?? ''),
+                    'args' => isset($st['args']) && is_array($st['args']) ? $st['args'] : [],
+                    'max_attempts' => isset($st['max_attempts']) ? max(1, (int)$st['max_attempts']) : 1,
+                ];
+                if (isset($st['label'])) {
+                    $step['label'] = (string)$st['label'];
+                }
+                $def['steps'][] = $step;
+            }
+        }
+
+        if ($def['key'] === '') {
+            write_log("WorkflowEngine: definition in {$filename} missing 'key'", 'warning');
+            return null;
+        }
+
+        return $def;
+    }
+
+    /**
+     * Legacy line-based workflow YAML parser (fallback). Retained so installs
+     * that cannot run composer (no Symfony Yaml) still load workflow
+     * definitions. Handles a minimal schema — see parseYamlWithLibrary for the
+     * full-featured parser.
+     */
+    private function parseYamlDefinitionLegacy(string $yaml, string $filename): ?array
     {
         // Simple line-based YAML parser for the expected schema.
         // Uses a minimal state machine — not a full YAML parser.

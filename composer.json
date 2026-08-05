@@ -20,7 +20,8 @@
         "php": "^8.2",
         "phpoffice/phpword": "^1.2",
         "phpmailer/phpmailer": "^7.0",
-        "dompdf/dompdf": "^3.1"
+        "dompdf/dompdf": "^3.1",
+        "symfony/yaml": "^6.4"
     },
     "require-dev": {
         "phpstan/phpstan": "^1.0",
