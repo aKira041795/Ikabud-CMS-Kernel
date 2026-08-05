@@ -676,7 +676,7 @@ rendering in compiled mode (was previously broken/fallback-only).
 
 | ID | Finding | Status | Plan |
 |---|---|---|---|
-| D8 | God Object `TemplateEngine` (7,600 lines) | ⏳ **Scheduled** | Split into `TemplateRenderer`, `TemplateCompiler`, `ComponentRenderer`, `MacroProcessor`, `IncludeResolver`, `ExtendsProcessor` — 2-3 week refactor, must not run immediately before a live deployment. Deprecation warning now makes interpreted usage observable |
+| D8 | God Object `TemplateEngine` (7,941 lines) | 🔄 **In progress** | **Increment 1 done (2026-08-06):** `ComponentRenderer` extracted (2,124 lines → `kernel/DiSyL/Component/ComponentRenderer.php`), TemplateEngine reduced to 5,896 lines, all DiSyL suites pass, `entityErrorState` latent bug fixed. Full plan: `docs/kernel/disyl-templateengine-refactor-plan.md`. **Remaining:** MacroProcessor, IncludeResolver, ExtendsProcessor, TemplateRenderer facade |
 | P4-1 | Interpreted pipeline full removal | ⏳ **Scheduled** | Keep as fallback; all new features compiled-mode-only; migrate templates flagged by the deprecation log |
 | P4-3 | Replace custom YAML parser with a library | ⏳ **Scheduled** | Hardened in place (dangling transitions logged); full `yaml_parse_file`/Symfony swap is a separate change |
 
