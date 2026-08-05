@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraSearchAdapterHome(array $params = []): void
 {
-    casaCtx()->requireAnyRole('admin', 'supervisor');
+    $user = cmsRequireCap('settings.manage');
 
-    echo casaRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Search Adapter',
-    ]);
+    echo cmsRender('modules/cms-akira-search-adapter/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-search-adapter', [
+        ['label' => 'CMS Akira Search Adapter', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira Search Adapter',
+    ]));
 }
 
 /**

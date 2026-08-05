@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraProfileHeadlessHome(array $params = []): void
 {
-    caphCtx()->requireAnyRole('admin', 'supervisor');
+    $user = cmsRequireCap('settings.manage');
 
-    echo caphRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Profile Headless',
-    ]);
+    echo cmsRender('modules/cms-akira-profile-headless/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-profile-headless', [
+        ['label' => 'CMS Akira Profile Headless', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira Profile Headless',
+    ]));
 }
 
 /**

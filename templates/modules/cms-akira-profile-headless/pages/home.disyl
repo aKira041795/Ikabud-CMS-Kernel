@@ -1,28 +1,25 @@
-{extends "layouts/app.disyl"}
-
-{block head}
-<style>
-    .cms-akira-profile-headless-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-    .cms-akira-profile-headless-header h2 { font-size: var(--font-size-h2); font-weight: 700; }
-</style>
-{/block}
+{extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<div class="cms-akira-profile-headless-header">
-    <div>
-        <h2>Cms Akira Profile Headless</h2>
-        <span class="text-sm text-muted">Module is ready. Start building!</span>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-body" style="padding:32px;text-align:center;color:var(--text-muted);">
-        <div style="font-size:48px;margin-bottom:12px;">📦</div>
-        <div style="font-weight:600;">Module scaffolded successfully</div>
-        <div class="text-sm" style="margin-top:4px;">
-            Edit <code>modules/cms-akira-profile-headless/handlers.php</code> and
-            <code>templates/modules/cms-akira-profile-headless/pages/home.disyl</code> to get started.
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">CMS Akira Profile Headless</h1>
+            <p class="mt-0.5 text-sm text-slate-500">Headless profile for the CMS Akira suite. Content-first, API-driven surface.</p>
         </div>
+    </div>
+
+    <!-- Status card -->
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8 text-center">
+        <div class="text-5xl mb-3">📦</div>
+        <div class="font-semibold text-slate-800">Module scaffolded successfully</div>
+        <p class="mt-1 text-sm text-slate-500">
+            Build the Profile Headless surface in
+            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">modules/cms-akira-profile-headless/handlers.php</code>
+            and
+            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">templates/modules/cms-akira-profile-headless/pages/home.disyl</code>.
+        </p>
     </div>
 </div>
 {/block}
