@@ -39,6 +39,7 @@ require_once __DIR__ . '/v4/FunctionRegistry.php';
 require_once __DIR__ . '/Component/ComponentRenderer.php';
 require_once __DIR__ . '/Component/MacroProcessor.php';
 require_once __DIR__ . '/Component/IncludeResolver.php';
+require_once __DIR__ . '/Component/ExtendsProcessor.php';
 require_once __DIR__ . '/Cache/SourceCache.php';
 
 use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
@@ -46,6 +47,7 @@ use Ikabud\Kernel\DiSyL\Cache\SourceCache;
 use Ikabud\Kernel\DiSyL\Component\ComponentRenderer;
 use Ikabud\Kernel\DiSyL\Component\MacroProcessor;
 use Ikabud\Kernel\DiSyL\Component\IncludeResolver;
+use Ikabud\Kernel\DiSyL\Component\ExtendsProcessor;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
 class TemplateEngine
@@ -71,6 +73,8 @@ class TemplateEngine
     private ?SourceCache $sourceCache = null;
     /** @var IncludeResolver|null {include} tag processor (D8 refactor) */
     private ?IncludeResolver $includeResolver = null;
+    /** @var ExtendsProcessor|null {extends}/{block}/{debug} processor (D8 refactor) */
+    private ?ExtendsProcessor $extendsProcessor = null;
     /** @var int Recursion depth for compile() — macros only extracted at depth 0 */
     private int $compileDepth = 0;
     private ?Compiler\TemplateCache $compiledCache = null;
@@ -348,9 +352,6 @@ class TemplateEngine
 
     /** Maximum nesting depth for the fast output-cache key path before falling back to serialize() */
     private const OUTPUT_CACHE_KEY_FAST_DEPTH = 8;
-
-    /** Maximum number of ancestor templates allowed in an {extends} chain */
-    private const EXTENDS_CHAIN_MAX = 20;
 
     /**
      * Bump this version whenever the compiled-eligibility rules change
@@ -1642,258 +1643,30 @@ class TemplateEngine
      * from child to root (child wins). Apply all overrides to the root ancestor
      * in a single pass — no recursive merging, avoids nested-block ambiguity.
      */
+    /**
+     * Process {extends} inheritance — delegated to ExtendsProcessor (D8 refactor).
+     */
     private function processExtends(string $content, array $context): string
     {
-        $isHtmx = !empty($context['is_htmx']);
-
-        if (!preg_match('/\{extends\s+"([^"]+)"\s*\}/', $content, $match)) {
-            return $content;
-        }
-
-        if ($isHtmx) {
-            // For HTMX: extract block content without any layout wrapping
-            preg_match_all('/\{block\s+(?:"?(\w+)"?)\}(.*?)\{\/block\}/s', $content, $blocks, PREG_SET_ORDER);
-            $blockContent = '';
-            foreach ($blocks as $block) {
-                $blockContent .= $block[2];
-            }
-            return preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $blockContent ?: $content);
-        }
-
-        // ── Cross-request extends resolution cache ──────────────────────
-        // The extends chain resolution (file reads + regex block merging)
-        // depends only on file contents, not runtime context.  Cache the
-        // merged result keyed by template path, validated against the
-        // mtime of every file in the chain.
-        $extendsCacheKey = null;
-        if ($this->cacheEnabled && $this->currentTemplatePath !== null) {
-            $extendsCacheKey = $this->currentTemplatePath;
-            $cached = $this->getExtendsCache($extendsCacheKey);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
-        // Walk the full inheritance chain from child → root, collecting each template.
-        // $chain[0] is the child; last element is the first ancestor with no {extends}.
-        $chain    = [];
-        $seenPaths = [];
-        $current  = $content;
-        $chainDepth = 0;
-
-        while (preg_match('/\{extends\s+"([^"]+)"\s*\}/', $current, $extMatch)) {
-            if ($chainDepth >= self::EXTENDS_CHAIN_MAX) {
-                $this->logError('Extends chain depth exceeded maximum (' . self::EXTENDS_CHAIN_MAX . ')');
-                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
-                break;
-            }
-
-            $layoutName = $extMatch[1];
-            $layoutPath = $this->resolveTemplatePath($layoutName);
-
-            if (!file_exists($layoutPath)) {
-                // Missing layout: strip directive and treat this as the root
-                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
-                break;
-            }
-
-            $realPath = realpath($layoutPath) ?: $layoutPath;
-            if (isset($seenPaths[$realPath])) {
-                $this->logError("Circular {extends} detected: \"{$layoutName}\"");
-                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
-                break;
-            }
-
-            $seenPaths[$realPath] = true;
-            $chain[] = $current;
-            $layoutContent = $this->readTemplateSource($layoutPath);
-            if ($layoutContent === false) {
-                $this->logError("Failed to read layout: {$layoutName}");
-                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
-                break;
-            }
-            $current = $layoutContent;
-            $chainDepth++;
-        }
-
-        // $current is now the root ancestor. Collect block overrides from the chain
-        // with child definitions winning over parent definitions (first one wins).
-        $allBlocks = [];
-        foreach ($chain as $template) {
-            preg_match_all('/\{block\s+(?:"?(\w+)"?)\}(.*?)\{\/block\}/s', $template, $blocks, PREG_SET_ORDER);
-            foreach ($blocks as $block) {
-                if (!isset($allBlocks[$block[1]])) {
-                    $allBlocks[$block[1]] = $block[2];
-                }
-            }
-        }
-
-        // Apply all collected overrides to the root ancestor in one pass.
-        // Iterate until stable to handle multiple block levels in the ancestor itself.
-        $result   = $current;
-        $maxPasses = 10;
-        for ($pass = 0; $pass < $maxPasses; $pass++) {
-            $new = preg_replace_callback(
-                '/\{block\s+(?:"?(\w+)"?)\}(.*?)\{\/block\}/s',
-                fn($m) => $allBlocks[$m[1]] ?? $m[2],
-                $result
-            );
-            if ($new === $result) {
-                break;
-            }
-            $result = $new;
-        }
-
-        $result = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $result ?? $current);
-
-        // Store in cross-request cache with all file dependencies
-        if ($extendsCacheKey !== null && !empty($seenPaths)) {
-            $deps = [];
-            if (file_exists($extendsCacheKey)) {
-                $deps[$extendsCacheKey] = filemtime($extendsCacheKey);
-            }
-            foreach ($seenPaths as $depPath => $_) {
-                if (file_exists($depPath)) {
-                    $deps[$depPath] = filemtime($depPath);
-                }
-            }
-            $this->setExtendsCache($extendsCacheKey, $result, $deps);
-        }
-
-        return $result;
+        return $this->extendsProcessor()->processExtends($content, $context);
     }
 
     // ── Cross-request extends resolution cache ──────────────────────
 
     /**
-     * Retrieve a cached extends-resolved template.
-     *
-     * The cache key includes the template's mtime so that any source change
-     * naturally produces a new cache entry — no stale cache can be served.
-     * Deps validation is a secondary safeguard for parent template changes.
-     *
-     * Returns null on miss or stale.
-     */
-    private function getExtendsCache(string $templatePath): ?string
-    {
-        // Versioned key: template path + current mtime ensures source changes
-        // produce new cache entries. Old entries are cleaned up by TTL-based GC.
-        $mtime = (int)@filemtime($templatePath);
-        $versionedKey = $templatePath . '|' . $mtime;
-        $cacheFile = $this->extendsCacheDir . '/' . md5($versionedKey) . '.cache';
-        if (!file_exists($cacheFile)) {
-            // Fallback: try the unversioned key (legacy cache files from before versioning)
-            $legacyFile = $this->extendsCacheDir . '/' . md5($templatePath) . '.cache';
-            if (file_exists($legacyFile)) {
-                @unlink($legacyFile); // clean up legacy entry
-            }
-            return null;
-        }
-
-        $raw = @file_get_contents($cacheFile);
-        if ($raw === false) {
-            return null;
-        }
-
-        $entry = @unserialize($raw);
-        if (!is_array($entry) || !isset($entry['content'], $entry['deps']) || !is_array($entry['deps'])) {
-            @unlink($cacheFile);
-            return null;
-        }
-
-        // Validate every dependency mtime
-        foreach ($entry['deps'] as $depPath => $depMtime) {
-            if (!file_exists($depPath) || filemtime($depPath) !== $depMtime) {
-                @unlink($cacheFile);
-                return null;
-            }
-        }
-
-        return $entry['content'];
-    }
-
-    /**
-     * Store an extends-resolved template in the cross-request cache.
-     *
-     * Uses atomic write (tmp + rename) to avoid serving partial content.
-     *
-     * @param array<string,int> $deps  Map of absolute-path → filemtime
-     */
-    private function setExtendsCache(string $templatePath, string $content, array $deps): void
-    {
-        if (empty($deps)) {
-            return;
-        }
-
-        if (!is_dir($this->extendsCacheDir)) {
-            @mkdir($this->extendsCacheDir, 0777, true);
-        }
-
-        // Versioned key: template path + mtime ensures source changes produce
-        // new cache entries. Old entries cleaned by TTL-based GC.
-        $mtime = (int)@filemtime($templatePath);
-        $versionedKey = $templatePath . '|' . ($mtime > 0 ? $mtime : time());
-        $cacheFile = $this->extendsCacheDir . '/' . md5($versionedKey) . '.cache';
-        $tmpFile = $cacheFile . '.' . getmypid() . '.tmp';
-
-        $ok = @file_put_contents($tmpFile, serialize([
-            'content' => $content,
-            'deps'    => $deps,
-        ]));
-
-        if ($ok !== false) {
-            @rename($tmpFile, $cacheFile);
-        } else {
-            @unlink($tmpFile);
-        }
-    }
-    
-    /**
-     * Process standalone blocks
+     * Process standalone blocks — delegated to ExtendsProcessor (D8 refactor).
      */
     private function processBlocks(string $content, array $context): string
     {
-        return preg_replace('/\{block\s+(?:"?\w+"?)\}(.*?)\{\/block\}/s', '$1', $content);
+        return $this->extendsProcessor()->processBlocks($content, $context);
     }
 
     /**
-     * Process {debug expr} — pretty-print any variable value for development.
-     * Renders as a styled <pre> block with type info and formatted output.
+     * Process {debug expr} — delegated to ExtendsProcessor (D8 refactor).
      */
     private function processDebugTags(string $content, array $context): string
     {
-        return preg_replace_callback(
-            '/\{debug\s+([^}]+)\}/',
-            function (array $m) use ($context): string {
-                $expr = trim($m[1]);
-                $value = $this->resolveValue($expr, $context);
-
-                $type = gettype($value);
-                if ($value === null) {
-                    $dump = 'null';
-                } elseif (is_bool($value)) {
-                    $dump = $value ? 'true' : 'false';
-                } elseif (is_array($value)) {
-                    $dump = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                } elseif (is_object($value)) {
-                    $dump = get_class($value) . "\n" . json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                } elseif (is_string($value) && strlen($value) > 500) {
-                    $dump = substr($value, 0, 500) . '... (' . strlen($value) . ' chars)';
-                } else {
-                    $dump = var_export($value, true);
-                }
-
-                $safeExpr = htmlspecialchars($expr, ENT_QUOTES, 'UTF-8');
-                $safeDump = htmlspecialchars($dump, ENT_QUOTES, 'UTF-8');
-                $safeType = htmlspecialchars($type, ENT_QUOTES, 'UTF-8');
-
-                return '<pre class="ikb-debug my-2 p-3 bg-gray-900 text-green-400 text-xs rounded-lg overflow-x-auto font-mono">' . "\n"
-                    . '<span class="text-gray-500">debug</span> <span class="text-yellow-300">' . $safeExpr . '</span> <span class="text-gray-500">:: ' . $safeType . '</span>' . "\n"
-                    . $safeDump . "\n"
-                    . '</pre>';
-            },
-            $content
-        );
+        return $this->extendsProcessor()->processDebugTags($content, $context);
     }
 
     // ── v4.8: User-defined macros ──────────────────────────────────
@@ -4098,6 +3871,39 @@ class TemplateEngine
             },
             function (string $includePath) {
                 return $this->readIncludeSource($includePath);
+            }
+        );
+    }
+
+    /**
+     * Lazily build the ExtendsProcessor (D8 refactor). Engine private helpers
+     * are injected as closures so the processor stays decoupled; layout source
+     * reads flow through the shared SourceCache layer, and the extends cache
+     * directory / current template path remain owned by the engine.
+     */
+    private function extendsProcessor(): ExtendsProcessor
+    {
+        return $this->extendsProcessor ??= new ExtendsProcessor(
+            function (string $template): string {
+                return $this->resolveTemplatePath($template);
+            },
+            function (string $templatePath) {
+                return $this->readTemplateSource($templatePath);
+            },
+            function ($value, array $context) {
+                return $this->resolveValue($value, $context);
+            },
+            function (string $message): void {
+                $this->logError($message);
+            },
+            function (): ?string {
+                return $this->currentTemplatePath;
+            },
+            function (): string {
+                return $this->extendsCacheDir;
+            },
+            function (): bool {
+                return $this->cacheEnabled;
             }
         );
     }
