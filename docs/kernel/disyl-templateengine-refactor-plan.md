@@ -2,8 +2,9 @@
 
 > **Plan date:** August 6, 2026
 > **Target:** `kernel/DiSyL/TemplateEngine.php` (7,941 lines) — God Object decomposition
-> **Status:** 🔄 In progress — **ComponentRenderer extraction ✅ done (2026-08-06)**;
-> MacroProcessor / IncludeResolver / ExtendsProcessor / TemplateRenderer scheduled.
+> **Status:** 🔄 In progress — **ComponentRenderer ✅ + MacroProcessor ✅ (2026-08-06)**;
+> TemplateEngine reduced 7,941 → 5,746 lines (−2,195, ~28%). IncludeResolver /
+> ExtendsProcessor **deferred** (render-core coupling — see §6b). P4-3 environment-blocked.
 > **Guardrail:** This refactor must not run immediately before a live deployment. Each
 > extraction is verified by the full DiSyL regression suite (`disyl_engine_test`,
 > `disyl_parity_test`, `disyl_hardening_coverage_test`, `disyl_compiled_component_fallback_test`,
@@ -126,6 +127,33 @@ bug for the AI component renderers.
 - End-to-end: component render OK (346B); AI-disabled path renders without throw (652B) —
   confirming the `entityErrorState` latent-bug fix
 - `TemplateEngine` reduced 7,941 → 5,896 lines (−2,045)
+
+## 6b. IncludeResolver / ExtendsProcessor — deferred (architectural assessment)
+
+Assessment on 2026-08-06 found the remaining method clusters are **coupled to the
+render core's state**, making mechanical extraction poor risk/reward:
+
+| Cluster | Engine dependencies (beyond logError) | Verdict |
+|---|---|---|
+| IncludeResolver (`processIncludes`, `processNextInclude`, `processIncludeTag`, `parseIncludeParams`, `parseKeyValueParams`, `readIncludeSource`, `readTemplateSource`) | `compile`, `resolveTemplatePath`, `parseInlineObject`, `resolveValueWithFilters`, `hasApcuCache`, `includeStack` (circular detection), `includeSourceCache` + `templateSourceCache` (shared with `render()`), `cacheEnabled`, `cacheMetrics`, `TEMPLATE_SOURCE_CACHE_MAX` | ⏳ Deferred — source-cache state is shared with the top-level `render()` path; a clean split needs a `SourceCache` abstraction, not a method move |
+| ExtendsProcessor (`processExtends`, `getExtendsCache`, `setExtendsCache`, `processBlocks`, `processDebugTags`) | `readTemplateSource`, `resolveTemplatePath`, `resolveValue`, `extendsCacheDir`, `currentTemplatePath`, `cacheEnabled`, `EXTENDS_CHAIN_MAX` | ⏳ Deferred — layout cache + current-template state is render-core state |
+
+**Recommended future work:** introduce a `SourceCache` (template + include source
+reading/caching) abstraction first; then IncludeResolver and ExtendsProcessor can be
+extracted cleanly on top of it. Not a pure method-move, so it is intentionally parked
+until after the live deployment.
+
+## 6c. P4-1 / P4-3 status
+
+- **P4-1 (interpreted pipeline deprecation):** ✅ effective — the production
+  `disyl.interpreted.deprecated` warning (added 2026-08-05) makes interpreted-pipeline
+  usage observable per template; all new features are compiled-mode-only by policy.
+  Full removal remains a template-migration exercise driven by that log.
+- **P4-3 (replace custom YAML parser with a library):** ⏳ **Blocked by environment** —
+  the `yaml` PHP extension is not installed and Symfony Yaml is not a dependency on this
+  / the Bluehost target. Replacing the hardened custom parser requires one of those, which
+  must be coordinated with the hosting environment. The in-place hardening (dangling
+  transitions logged, 2026-08-05) remains the active mitigation.
 
 ## 7. Non-goals / deferred
 
