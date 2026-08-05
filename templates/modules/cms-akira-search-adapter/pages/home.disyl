@@ -1,25 +1,136 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<div class="space-y-6">
+<div x-data="searchAdapterPage()" x-init="init()" class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-xl font-bold text-slate-900">CMS Akira Search Adapter</h1>
-            <p class="mt-0.5 text-sm text-slate-500">Search adapter for the CMS Akira suite. Pluggable search provider boundary.</p>
+            <p class="mt-0.5 text-sm text-slate-500">Turns your site content into clean, searchable documents — so visitors can find what they're looking for.</p>
         </div>
     </div>
 
-    <!-- Status card -->
-    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8 text-center">
-        <div class="text-5xl mb-3">📦</div>
-        <div class="font-semibold text-slate-800">Module scaffolded successfully</div>
-        <p class="mt-1 text-sm text-slate-500">
-            Build the Search Adapter surface in
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">modules/cms-akira-search-adapter/handlers.php</code>
-            and
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">templates/modules/cms-akira-search-adapter/pages/home.disyl</code>.
+    <!-- What this does (plain language) -->
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-2">What this does</h2>
+        <p class="text-sm text-slate-600 leading-relaxed">
+            When you publish or update content, the Search Adapter prepares a tidy, searchable copy of it
+            (title, page address, and body text) that a search service can index. This is what powers
+            "find this content on the site" — it connects CMS Akira content to a search provider.
         </p>
+        <div class="mt-3 flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full {if adapter_status.enabled}bg-emerald-50 text-emerald-700{else}bg-amber-50 text-amber-700{/if}">
+                <span class="w-1.5 h-1.5 rounded-full {if adapter_status.enabled}bg-emerald-500{else}bg-amber-500{/if}"></span>
+                <span x-text="statusLabel()"></span>
+            </span>
+            <span class="text-xs text-slate-400">Capability: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">{adapter_status.capability}</code></span>
+        </div>
     </div>
+
+    <!-- Status grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Provider mode</div>
+            <div class="flex items-center gap-2">
+                <span class="text-lg font-bold {if adapter_status.provider_mode == 'provider'}text-emerald-600{else}text-slate-500{/if}">{if adapter_status.provider_mode == 'provider'}Active{else}Fallback{/if}</span>
+                <span class="text-[11px] text-slate-400" x-text="providerModeNote()"></span>
+            </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Depends on</div>
+            <div class="text-sm text-slate-600">
+                {for d in adapter_status.depends}
+                <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[11px] mr-1">{d}</code>
+                {/for}
+            </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Module</div>
+            <div class="text-sm text-slate-600">cms-akira-search-adapter <span class="text-slate-400">v1.0.0</span></div>
+        </div>
+    </div>
+
+    <!-- Try it tool -->
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-1">Try it — preview a search document</h2>
+        <p class="text-sm text-slate-500 mb-4">Paste a title and some body text below to see exactly what the adapter would hand to a search service.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1.5">Title <span class="text-red-400">*</span></label>
+                    <input type="text" x-model="sample.title" placeholder="e.g. How to make sourdough bread" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1.5">Slug (optional)</label>
+                    <input type="text" x-model="sample.slug" placeholder="e.g. sourdough-bread-guide" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1.5">Body text</label>
+                    <textarea x-model="sample.body" rows="5" placeholder="Paste article or page content here..." class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"></textarea>
+                </div>
+                <button @click="buildDocument()" :disabled="building" class="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-2xl hover:bg-sky-700 transition-colors shadow-sm shadow-sky-600/20 disabled:opacity-50">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <span x-text="building ? 'Building...' : 'Build search document'"></span>
+                </button>
+                <p x-show="error" x-text="error" class="text-sm text-red-600 mt-2"></p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1.5">Result — what the search service receives</label>
+                <pre class="w-full h-full min-h-[220px] text-xs bg-slate-900 text-emerald-300 rounded-2xl p-4 overflow-auto whitespace-pre-wrap font-mono"><span x-show="!result" class="text-slate-500">Run a build to see the document here…</span><span x-text="result ? JSON.stringify(result, null, 2) : ''"></span></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function searchAdapterPage() {
+            return {
+                sample: { title: '', slug: '', body: '' },
+                result: null,
+                error: '',
+                building: false,
+                init() {},
+                statusLabel() {
+                    if ({if adapter_status.enabled}true{else}false{/if}) return 'Active — providing search documents';
+                    return 'Module not enabled';
+                },
+                providerModeNote() {
+                    if ({if adapter_status.provider_mode == 'provider'}true{else}false{/if}) return 'built by this adapter';
+                    return 'using suite fallback';
+                },
+                buildDocument() {
+                    this.error = '';
+                    if (!this.sample.title.trim()) {
+                        this.error = 'Please enter a title.';
+                        return;
+                    }
+                    this.building = true;
+                    this.result = null;
+                    fetch(CMS_BASE + '/api/v1/cms-akira-search-adapter/build-document', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': CMS_CSRF
+                        },
+                        body: JSON.stringify({
+                            title: this.sample.title,
+                            slug: this.sample.slug,
+                            body: this.sample.body,
+                            _token: CMS_CSRF
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.ok) {
+                            this.error = data.error || 'Something went wrong.';
+                        } else {
+                            this.result = data;
+                        }
+                    })
+                    .catch(() => { this.error = 'Could not reach the server. Please try again.'; })
+                    .finally(() => { this.building = false; });
+                }
+            };
+        }
+    </script>
 </div>
 {/block}

@@ -14,6 +14,6 @@ return [
         '/api/v1/cms-akira-search-adapter/health' => 'cms-akira-search-adapter:apiCmsAkiraSearchAdapterHealth',
     ],
     'POST' => [
-        // '/api/v1/cms-akira-search-adapter/example' => 'cms-akira-search-adapter:apiCmsAkiraSearchAdapterExample',
+        '/api/v1/cms-akira-search-adapter/build-document' => 'cms-akira-search-adapter:apiCmsAkiraSearchAdapterBuildDocument',
     ],
 ];
