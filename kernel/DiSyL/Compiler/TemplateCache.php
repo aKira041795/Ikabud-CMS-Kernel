@@ -48,22 +48,32 @@ class TemplateCache
     {
         $className = $this->getClassName($templatePath);
         $cachePath = $this->getCachePath($className);
-        $freshCompiledCode = null;
-        
-        // Developer escape hatch: ?disyl_nocache=1 forces full recompilation
-        $forceRecompile = ($_GET['disyl_nocache'] ?? '') === '1';
+
+        // Developer escape hatch: ?disyl_nocache=1 forces full recompilation.
+        // Gated so it is only honored outside production (or when the engine
+        // was constructed in debug mode) — never an unconditional production
+        // bypass.
+        $forceRecompile = $this->isForceRecompileRequested();
 
         // Check in-memory cache first
         if (isset($this->loaded[$className]) && !$forceRecompile) {
             return $this->loaded[$className];
         }
 
-        // Check if recompilation needed
+        // Check if recompilation needed. A process-level lock serializes
+        // concurrent compilations of the same template so two requests don't
+        // both recompile/write the same class.
         if ($forceRecompile || $this->needsRecompile($templatePath, $cachePath)) {
             if ($forceRecompile) {
                 \write_log("Disyl cache: forced recompile via ?disyl_nocache=1 for '{$templatePath}'", 'info');
             }
-            $freshCompiledCode = $this->compile($templatePath, $className, $cachePath);
+            $this->withCompileLock(function () use ($templatePath, $className, $cachePath) {
+                // Re-check inside the lock: another request may have compiled
+                // it while we waited for the lock.
+                if ($this->needsRecompile($templatePath, $cachePath)) {
+                    $this->compile($templatePath, $className, $cachePath);
+                }
+            });
         }
 
         $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
@@ -72,23 +82,80 @@ class TemplateCache
             $this->loaded[$className] = $template;
             return $template;
         }
-        
-        // Load and instantiate
-        if (file_exists($cachePath) && $freshCompiledCode === null) {
+
+        // Load the compiled class from the cache file. The cache file is
+        // always written by compile()/writeCache() (never eval'd), and its
+        // sentinel is validated before require so a tampered or stale file is
+        // regenerated.
+        if (file_exists($cachePath)) {
+            if (!$this->validateCacheFile($cachePath)) {
+                $this->withCompileLock(function () use ($templatePath, $className, $cachePath) {
+                    if (file_exists($cachePath) && !$this->validateCacheFile($cachePath)) {
+                        $this->compile($templatePath, $className, $cachePath);
+                    }
+                });
+            }
             require_once $cachePath;
         } else {
-            if ($freshCompiledCode === null) {
-                $freshCompiledCode = $this->compile($templatePath, $className, null);
+            // Cache file missing — compile to file, then require. Never eval().
+            $this->withCompileLock(function () use ($templatePath, $className, $cachePath) {
+                if (!file_exists($cachePath)) {
+                    $this->compile($templatePath, $className, $cachePath);
+                }
+            });
+            if (!file_exists($cachePath)) {
+                throw new \RuntimeException("Failed to write compiled template cache for: {$templatePath}");
             }
-            // SECURITY NOTE: eval() is safe here because compiled code
-            // is generated from template source by TemplateCompiler,
-            // not from user input.
-            eval("?>" . $freshCompiledCode);
+            require_once $cachePath;
         }
         $template = new $fullClassName();
         $this->loaded[$className] = $template;
-        
+
         return $template;
+    }
+
+    /**
+     * Whether ?disyl_nocache=1 should force recompilation. Honored only
+     * outside production, or when the engine is in debug mode.
+     */
+    private function isForceRecompileRequested(): bool
+    {
+        $requested = ($_GET['disyl_nocache'] ?? '') === '1';
+        if (!$requested) {
+            return false;
+        }
+        if ($this->debug) {
+            return true;
+        }
+        $env = strtolower((string)($_ENV['APP_ENV'] ?? $_ENV['IKABUD_ENV'] ?? ''));
+        return !in_array($env, ['production', 'prod'], true);
+    }
+
+    /**
+     * Run $fn while holding an exclusive lock on the compile lock file.
+     * Serializes concurrent compilation of the same template.
+     */
+    private function withCompileLock(callable $fn): void
+    {
+        $lockPath = $this->cacheDir . '/compile.lock';
+        $handle = @fopen($lockPath, 'c');
+        if ($handle === false) {
+            $fn(); // lock unavailable — proceed without serialization
+            return;
+        }
+        try {
+            if (flock($handle, LOCK_EX)) {
+                try {
+                    $fn();
+                } finally {
+                    flock($handle, LOCK_UN);
+                }
+            } else {
+                $fn();
+            }
+        } finally {
+            fclose($handle);
+        }
     }
     
     /**
@@ -133,10 +200,10 @@ class TemplateCache
         } else {
             $ast = $this->parser->parse($source, $name);
             $code = $this->compiler->compile($ast, $className);
-            // SECURITY NOTE: eval() is safe here because compiled code
-            // is generated from template source by TemplateCompiler,
-            // not from user input.
-            eval("?>" . $code);
+            if (!$this->writeCache($cachePath, $code) || !file_exists($cachePath)) {
+                throw new \RuntimeException("Failed to write compiled template cache for source: {$name}");
+            }
+            require_once $cachePath;
         }
         $template = new $fullClassName();
         $this->loaded[$className] = $template;

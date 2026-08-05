@@ -496,6 +496,23 @@ class TemplateEngine
             }
         }
         
+        // Interpreted pipeline deprecation notice (production observability).
+        // The interpreted path is legacy — kept as a fallback for
+        // interpreted-only component tags. New templates should use
+        // compiled-mode-eligible syntax. Log each template once so usage is
+        // visible without flooding the log.
+        if (function_exists('write_log')
+            && in_array(strtolower((string)($_ENV['APP_ENV'] ?? $_ENV['IKABUD_ENV'] ?? '')), ['production', 'prod'], true)) {
+            static $interpretedDeprecationLogged = [];
+            if (!isset($interpretedDeprecationLogged[$templatePath])) {
+                $interpretedDeprecationLogged[$templatePath] = true;
+                write_log('disyl.interpreted.deprecated', 'warning', [
+                    'template' => $template,
+                    'reason' => 'template rendered via the legacy interpreted pipeline; migrate to compiled-eligible syntax',
+                ]);
+            }
+        }
+
         $sourceReadStart = microtime(true);
         $content = $this->readTemplateSource($templatePath);
         if ($content === false) {

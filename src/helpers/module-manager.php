@@ -3749,6 +3749,210 @@ function validateModuleSuiteContractForInstall(array $manifest, array $fleet): a
  * Install a module from a zip file.
  * Returns ['ok' => true, 'module_id' => '...'] or ['ok' => false, 'error' => '...']
  */
+/**
+ * Verify an optional Ed25519 package signature (module.sig.json) inside a
+ * module ZIP before extraction.
+ *
+ * A signed package contains a top-level module.sig.json:
+ *   { "alg":"Ed25519", "version":1,
+ *     "files": {"module.json":"<sha256>", "handlers.php":"<sha256>", ...},
+ *     "signature":"<base64url(Ed25519 over canonical {alg,version,files})>" }
+ *
+ * Policy (fully opt-in; legacy unsigned packages remain valid):
+ *   - No signature entry + MODULE_SIGNING_REQUIRED=true   → reject
+ *   - Signature entry + public key configured             → verify strictly
+ *   - Signature entry + no key configured                 → advisory (accept + log)
+ *   - No signature entry + not required                   → accept (legacy)
+ *
+ * Public key: MODULE_SIGNING_PUBLIC_KEY (base64 Ed25519 key) or
+ * MODULE_SIGNING_PUBLIC_KEY_PATH (file containing the base64 key).
+ *
+ * @param \ZipArchive $zip    Open module zip (not yet extracted)
+ * @param string      $prefix Module root prefix inside the zip ('' or '<dir>/')
+ * @return array{ok:bool, error?:string, warning?:string}
+ */
+function moduleVerifyPackageSignature(\ZipArchive $zip, string $prefix): array
+{
+    $sigName = $prefix . 'module.sig.json';
+    $sigIndex = $zip->locateName($sigName);
+    $required = filter_var($_ENV['MODULE_SIGNING_REQUIRED'] ?? 'false', FILTER_VALIDATE_BOOL);
+
+    // Public key configuration
+    $pubKeyB64 = trim((string)($_ENV['MODULE_SIGNING_PUBLIC_KEY'] ?? ''));
+    if ($pubKeyB64 === '') {
+        $pubKeyPath = trim((string)($_ENV['MODULE_SIGNING_PUBLIC_KEY_PATH'] ?? ''));
+        if ($pubKeyPath !== '' && is_file($pubKeyPath)) {
+            $pubKeyB64 = (string)file_get_contents($pubKeyPath);
+        }
+    }
+    $pubKey = '';
+    if ($pubKeyB64 !== '') {
+        $decoded = base64_decode($pubKeyB64, true);
+        $pubKey = is_string($decoded) && $decoded !== '' ? $decoded : trim($pubKeyB64);
+    }
+
+    if ($sigIndex === false) {
+        if ($required && $pubKey !== '') {
+            return ['ok' => false, 'error' => 'Module package is not signed but MODULE_SIGNING_REQUIRED is enabled'];
+        }
+        return ['ok' => true];
+    }
+
+    if (!function_exists('sodium_crypto_sign_verify_detached')) {
+        if ($required) {
+            return ['ok' => false, 'error' => 'Module signature verification requires the sodium extension (bundled with PHP 7.2+)'];
+        }
+        return ['ok' => true, 'warning' => 'Package is signed but the sodium extension is unavailable; signature not verified'];
+    }
+
+    $raw = $zip->getFromIndex($sigIndex);
+    $sig = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($sig)
+        || ($sig['alg'] ?? '') !== 'Ed25519'
+        || !is_array($sig['files'] ?? null)
+        || !is_string($sig['signature'] ?? null)) {
+        if ($required) {
+            return ['ok' => false, 'error' => 'module.sig.json is malformed'];
+        }
+        return ['ok' => true, 'warning' => 'module.sig.json is malformed; signature not verified'];
+    }
+
+    // Rebuild the canonical signed payload (sorted for determinism).
+    $files = $sig['files'];
+    ksort($files);
+    $canonical = json_encode([
+        'alg' => 'Ed25519',
+        'version' => (int)($sig['version'] ?? 1),
+        'files' => $files,
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    $signature = base64_decode(strtr((string)$sig['signature'], '-_', '+/'), true);
+
+    if ($pubKey === '') {
+        // Signed but no key configured — cannot verify. Advisory unless required.
+        if ($required) {
+            return ['ok' => false, 'error' => 'Module is signed but MODULE_SIGNING_PUBLIC_KEY is not configured'];
+        }
+        return ['ok' => true, 'warning' => 'Package is signed but no MODULE_SIGNING_PUBLIC_KEY is configured; signature not verified'];
+    }
+
+    if (!is_string($signature) || $signature === '' || !sodium_crypto_sign_verify_detached($signature, $canonical, $pubKey)) {
+        return ['ok' => false, 'error' => 'Module signature verification failed (bad signature or key mismatch)'];
+    }
+
+    // Full integrity check: every shipped regular file must be listed and hash-match.
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = (string)$zip->getNameIndex($i);
+        $rel = ltrim(substr(str_replace('\\', '/', $name), strlen($prefix)), '/');
+        if ($rel === '' || str_ends_with($rel, '/')) {
+            continue; // directory entry
+        }
+        if ($rel === 'module.sig.json') {
+            continue; // signature file itself is excluded from the hash manifest
+        }
+        if (!isset($files[$rel])) {
+            return ['ok' => false, 'error' => "Module signature does not cover file: {$rel}"];
+        }
+        $content = $zip->getFromIndex($i);
+        if (!is_string($content) || hash('sha256', $content) !== $files[$rel]) {
+            return ['ok' => false, 'error' => "Module file hash mismatch: {$rel}"];
+        }
+    }
+    // Ensure every listed file actually exists in the package.
+    foreach (array_keys($files) as $rel) {
+        if ($zip->locateName($prefix . $rel) === false) {
+            return ['ok' => false, 'error' => "Module signature lists a missing file: {$rel}"];
+        }
+    }
+
+    return ['ok' => true];
+}
+
+/**
+ * Sign a module package ZIP with an Ed25519 private key, adding
+ * module.sig.json (compatible with moduleVerifyPackageSignature).
+ *
+ * @param string $zipPath        Path to the module zip (rewritten in place)
+ * @param string $privateKeyB64  Base64-encoded Ed25519 secret key
+ * @return array{ok:bool, error?:string, files_signed?:int}
+ */
+function moduleSignPackageForPath(string $zipPath, string $privateKeyB64): array
+{
+    if (!function_exists('sodium_crypto_sign_detached')) {
+        return ['ok' => false, 'error' => 'Signing requires the sodium extension (bundled with PHP 7.2+)'];
+    }
+    $priv = base64_decode($privateKeyB64, true);
+    if (!is_string($priv) || strlen($priv) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
+        return ['ok' => false, 'error' => 'Invalid Ed25519 private key (expected ' . SODIUM_CRYPTO_SIGN_SECRETKEYBYTES . '-byte base64)'];
+    }
+    if (!class_exists('ZipArchive')) {
+        return ['ok' => false, 'error' => 'PHP zip extension is required'];
+    }
+
+    $zip = new \ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        return ['ok' => false, 'error' => 'Cannot open zip file'];
+    }
+
+    $prefix = '';
+    if ($zip->locateName('module.json') === false) {
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $n = (string)$zip->getNameIndex($i);
+            if (preg_match('#^([^/]+)/module\.json$#', $n, $m)) {
+                $prefix = $m[1] . '/';
+                break;
+            }
+        }
+    }
+    if ($zip->locateName($prefix . 'module.json') === false) {
+        $zip->close();
+        return ['ok' => false, 'error' => 'Zip does not contain module.json'];
+    }
+
+    $files = [];
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = (string)$zip->getNameIndex($i);
+        $rel = ltrim(substr(str_replace('\\', '/', $name), strlen($prefix)), '/');
+        if ($rel === '' || str_ends_with($rel, '/')) {
+            continue;
+        }
+        if ($rel === 'module.sig.json') {
+            continue;
+        }
+        $content = $zip->getFromIndex($i);
+        if (!is_string($content)) {
+            continue;
+        }
+        $files[$rel] = hash('sha256', $content);
+    }
+    ksort($files);
+
+    $payload = json_encode([
+        'alg' => 'Ed25519',
+        'version' => 1,
+        'files' => $files,
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $signature = sodium_crypto_sign_detached($payload, $priv);
+
+    $sigJson = json_encode([
+        'alg' => 'Ed25519',
+        'version' => 1,
+        'files' => $files,
+        'signature' => rtrim(strtr(base64_encode($signature), '+/', '-_'), '='),
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    $existing = $zip->locateName($prefix . 'module.sig.json');
+    if ($existing !== false) {
+        $zip->deleteIndex($existing);
+    }
+    $zip->addFromString($prefix . 'module.sig.json', $sigJson);
+    if (!$zip->close()) {
+        return ['ok' => false, 'error' => 'Failed to write signed package'];
+    }
+
+    return ['ok' => true, 'files_signed' => count($files)];
+}
+
 function installModuleFromZip(string $zipPath): array
 {
     if (!is_file($zipPath)) {
@@ -3953,6 +4157,24 @@ function installModuleFromZip(string $zipPath): array
     }
 
     $moduleId = $manifest['id'];
+
+    // ── Optional package signature verification (Ed25519) ───────────
+    // Only activates when the package ships module.sig.json and/or
+    // MODULE_SIGNING_REQUIRED / MODULE_SIGNING_PUBLIC_KEY are configured.
+    $signatureCheck = moduleVerifyPackageSignature($zip, $prefix);
+    if (!empty($signatureCheck['error'])) {
+        $zip->close();
+        return moduleInstallFailure('module_signature_verification_failed', $signatureCheck['error']);
+    }
+    if (!empty($signatureCheck['warning'])) {
+        if (function_exists('write_log')) {
+            write_log('module install signature advisory: ' . $signatureCheck['warning'], 'warning', [
+                'module_id' => $moduleId,
+                'request_id' => function_exists('request_id') ? request_id() : null,
+            ]);
+        }
+    }
+
     $suiteId = moduleSuiteFromManifest($manifest);
     if ($suiteId !== null && !str_starts_with($moduleId . '-', $suiteId . '-')) {
         $zip->close();

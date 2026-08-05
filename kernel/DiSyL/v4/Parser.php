@@ -35,6 +35,23 @@ final class Parser
     private int $pos;
     private int $len;
 
+    /**
+     * Maximum control-structure/expression nesting depth. Guards against
+     * stack overflow from malicious or accidental deeply-nested templates
+     * (e.g. 1000+ nested {if} blocks or ((((...)))) expression chains).
+     */
+    private const MAX_PARSE_DEPTH = 256;
+
+    /**
+     * Maximum template source size in bytes. Templates larger than this are
+     * rejected before parsing to prevent memory exhaustion from a crafted or
+     * runaway template file.
+     */
+    private const MAX_SOURCE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+    /** Current recursion depth (block + expression nesting combined). */
+    private int $depth = 0;
+
     /** Filters that suppress auto-escaping */
     private const ESCAPE_FILTERS = [
         'raw', 'esc_html', 'esc_attr', 'esc_url', 'esc_js',
@@ -45,10 +62,22 @@ final class Parser
 
     public function parse(string $source, string $name = 'Anonymous'): DocumentNode
     {
+        if (strlen($source) > self::MAX_SOURCE_BYTES) {
+            throw new \RuntimeException(
+                sprintf(
+                    'DiSyL template source exceeds maximum size (%d bytes): %s (%d bytes)',
+                    self::MAX_SOURCE_BYTES,
+                    $name,
+                    strlen($source)
+                )
+            );
+        }
+
         $this->source = $source;
         $this->name = $name;
         $this->pos = 0;
         $this->len = strlen($source);
+        $this->depth = 0;
 
         $children = $this->parseChildren([]);
         return new DocumentNode([], $children);
@@ -67,6 +96,22 @@ final class Parser
      * @return AbstractNode[]
      */
     private function parseChildren(array $stopPatterns): array
+    {
+        if (++$this->depth > self::MAX_PARSE_DEPTH) {
+            $this->depth--;
+            throw new \RuntimeException(
+                sprintf('DiSyL template nesting exceeds max parse depth (%d) in %s', self::MAX_PARSE_DEPTH, $this->name)
+            );
+        }
+
+        try {
+            return $this->parseChildrenInner($stopPatterns);
+        } finally {
+            $this->depth--;
+        }
+    }
+
+    private function parseChildrenInner(array $stopPatterns): array
     {
         $children = [];
 
@@ -1199,7 +1244,30 @@ final class Parser
         if ($expr === '') {
             return new LiteralNode([], null);
         }
-        return $this->parseOrExpr($expr);
+
+        // Postfix ++ / -- : resolve before binary-op splitting so `i++` is not
+        // mis-parsed as `i + '+'` (critical for C-style {for} increments used
+        // by the compiled pipeline's loop guard).
+        if (str_ends_with($expr, '++') || str_ends_with($expr, '--')) {
+            $op = str_ends_with($expr, '++') ? 'postinc' : 'postdec';
+            $base = trim(substr($expr, 0, -2));
+            if (preg_match('/^[a-zA-Z_][\w.]*$/', $base)) {
+                return new UnaryOpNode([], $op, $this->buildDotPath($base));
+            }
+        }
+
+        if (++$this->depth > self::MAX_PARSE_DEPTH) {
+            $this->depth--;
+            throw new \RuntimeException(
+                sprintf('DiSyL expression nesting exceeds max parse depth (%d) in %s', self::MAX_PARSE_DEPTH, $this->name)
+            );
+        }
+
+        try {
+            return $this->parseOrExpr($expr);
+        } finally {
+            $this->depth--;
+        }
     }
 
     private function parseOrExpr(string $expr): AbstractNode
@@ -1639,7 +1707,7 @@ final class Parser
             $ch = $this->source[$this->pos];
 
             if ($ch === '\\' && ($inSingle || $inDouble)) {
-                $this->pos += 2;
+                $this->pos = min($this->pos + 2, $this->len);
                 continue;
             }
             if ($ch === "'" && !$inDouble) {

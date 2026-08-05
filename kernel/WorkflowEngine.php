@@ -161,6 +161,11 @@ final class WorkflowEngine
             // Transitions section
             if ($inTransitions) {
                 if (preg_match('/^\s*-\s*from:\s*(\S+)\s*$/', $trimmed, $m)) {
+                    if ($currentTransition !== null) {
+                        // A new transition item started before the previous one
+                        // completed — the previous item is malformed.
+                        write_log("WorkflowEngine: malformed transition in {$filename} (missing to/action): " . json_encode($currentTransition), 'warning');
+                    }
                     $currentTransition = ['from' => $m[1]];
                 } elseif ($currentTransition !== null && preg_match('/^\s{4,}(\w+):\s*(.*)$/', $trimmed, $m)) {
                     $currentTransition[$m[1]] = trim($m[2]);
@@ -204,6 +209,12 @@ final class WorkflowEngine
         // Flush last step
         if ($currentStep !== null) {
             $def['steps'][] = $currentStep;
+        }
+
+        // A dangling transition item never completed (missing action/to) —
+        // log it instead of silently dropping it.
+        if ($currentTransition !== null) {
+            write_log("WorkflowEngine: incomplete transition in {$filename}: " . json_encode($currentTransition), 'warning');
         }
 
         // Validate required fields

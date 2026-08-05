@@ -271,6 +271,54 @@ class TenantResolver
         return ['memory_cleared' => $memoryCleared, 'apcu_cleared' => $apcuCleared];
     }
 
+    /**
+     * Check whether a tenant ID is currently active in the control plane.
+     * Returns true if active, false if the tenant is known but missing or
+     * suspended, and null if the control DB is unavailable (cannot verify).
+     *
+     * Used to prevent stale/deactivated tenant contexts from being resolved
+     * via the session or header strategies.
+     */
+    public static function tenantIsActive(int $tenantId): ?bool
+    {
+        if ($tenantId <= 0) {
+            return false;
+        }
+        try {
+            $pdo = app()->controlDb();
+            $stmt = $pdo->prepare('SELECT status FROM kernel_tenants WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $tenantId]);
+            $status = $stmt->fetch(\PDO::FETCH_COLUMN);
+            if ($status === false) {
+                return false; // tenant does not exist
+            }
+            return strtolower((string)$status) === 'active';
+        } catch (\Throwable $e) {
+            return null; // cannot verify — availability over strictness
+        }
+    }
+
+    /**
+     * Resolve a tenant ID from a tenant_key (used by the subdomain strategy).
+     * Only active tenants are returned.
+     */
+    public static function lookupTenantIdByKey(string $key): ?int
+    {
+        $key = strtolower(trim($key));
+        if ($key === '') {
+            return null;
+        }
+        try {
+            $pdo = app()->controlDb();
+            $stmt = $pdo->prepare('SELECT id FROM kernel_tenants WHERE tenant_key = :k AND status = \'active\' LIMIT 1');
+            $stmt->execute([':k' => $key]);
+            $id = $stmt->fetch(\PDO::FETCH_COLUMN);
+            return $id !== false ? (int) $id : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     // ── Internal ─────────────────────────────────────────────────────
 
     private function doResolve(?array $user): ?int
@@ -292,7 +340,12 @@ class TenantResolver
                     && ($user['role'] ?? '') === 'superadmin'
                     && ($user['source'] ?? '') === 'kernel';
                 if ($isSuperadmin) {
-                    return (int) $_SERVER[$headerKey];
+                    $headerTenantId = (int) $_SERVER[$headerKey];
+                    // Validate the header value points at a real, active tenant
+                    // (fail-open only when the control DB is unavailable).
+                    if (self::tenantIsActive($headerTenantId) !== false) {
+                        return $headerTenantId;
+                    }
                 }
             }
         }
@@ -320,18 +373,38 @@ class TenantResolver
 
         // Strategy 5: Subdomain
         if ($this->strategy === 'subdomain' || $this->strategy === 'auto') {
-            $host = $_SERVER['HTTP_HOST'] ?? '';
-            // Extract first subdomain segment: "shop1.bakeshop.com" → "shop1"
-            $parts = explode('.', $host);
-            if (count($parts) >= 3) {
-                // The subdomain must map to a tenant_id — this requires a lookup table
-                // For now, return null (implementors override doResolve or use a hook)
+            $host = self::normalizeHost((string)($_SERVER['HTTP_HOST'] ?? ''));
+            if ($host !== '') {
+                // 5a. Try the full host via the control-plane domain mapping
+                //     first (covers canonical_domain records like
+                //     "shop1.bakeshop.com").
+                $row = self::lookupControlHostRecord($host);
+                if (is_array($row) && isset($row['tenant_id'])) {
+                    return (int) $row['tenant_id'];
+                }
+                // 5b. Fall back: treat the first subdomain segment as a
+                //     tenant_key ("shop1.bakeshop.com" → "shop1"). Only
+                //     active tenants are accepted.
+                $parts = explode('.', $host);
+                if (count($parts) >= 3) {
+                    $tenantId = self::lookupTenantIdByKey($parts[0]);
+                    if ($tenantId !== null) {
+                        return $tenantId;
+                    }
+                }
             }
         }
 
-        // Strategy 6: Session
+        // Strategy 6: Session — validate the stored tenant is still active so
+        // a deactivated/suspended tenant can no longer be resolved from the
+        // session. Fail-open (accept) only when the control DB is unavailable.
         if (isset($_SESSION['tenant_id'])) {
-            return (int) $_SESSION['tenant_id'];
+            $sessionTenantId = (int) $_SESSION['tenant_id'];
+            if (self::tenantIsActive($sessionTenantId) !== false) {
+                return $sessionTenantId;
+            }
+            // Known to be missing or suspended — do not trust the session.
+            unset($_SESSION['tenant_id']);
         }
 
         // Strategy 7: Config default

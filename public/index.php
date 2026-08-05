@@ -503,6 +503,31 @@ if (!empty($dispatchContext['handled'])) {
     exit;
 }
 
+// ── Automatic CSRF enforcement (safety net) ─────────────────────
+// Guarantees state-changing (POST/PUT/PATCH/DELETE) requests that carry a
+// session also carry a valid CSRF token, even if a handler forgets to call
+// CsrfManager::enforce() explicitly. This closes the "handlers must remember"
+// gap flagged in the production-readiness review.
+//
+// Opt-outs:
+//   - Stateless/API requests (JWT-authenticated; /api/ paths including
+//     payment-gateway webhooks) — no session, no CSRF token.
+//   - Routes that declare 'stateless' or 'csrf_exempt' in route metadata
+//     (kernelRouteMeta) — required for external callbacks that cannot
+//     include a token.
+//   - Global kill-switch: CSRF_AUTO_ENFORCE=false.
+$csrfAutoEnforce = filter_var($_ENV['CSRF_AUTO_ENFORCE'] ?? 'true', FILTER_VALIDATE_BOOL);
+if ($csrfAutoEnforce
+    && !$isApiRequest
+    && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)
+    && session_status() === PHP_SESSION_ACTIVE) {
+    $csrfRouteKey = $method . ':' . $uri;
+    $csrfMeta = (function_exists('kernelRouteMeta') ? kernelRouteMeta() : [])[$csrfRouteKey] ?? [];
+    if (empty($csrfMeta['stateless']) && empty($csrfMeta['csrf_exempt'])) {
+        \Ikabud\Kernel\Http\CsrfManager::enforce();
+    }
+}
+
 $routePatterns = array_keys($routes[$method] ?? []);
 usort($routePatterns, 'compareRoutePatternsForMatching');
 

@@ -31,6 +31,12 @@ require_once __DIR__ . '/CapabilitySet.php';
  */
 final class Sandbox
 {
+    /** Maximum audit log size before rotation (bytes). */
+    private const MAX_AUDIT_BYTES = 10 * 1024 * 1024; // 10 MB
+
+    /** Retention window for rotated audit logs (days). */
+    private const AUDIT_RETENTION_DAYS = 7;
+
     /** @var list<CapabilitySet> */
     private array $stack;
 
@@ -63,7 +69,7 @@ final class Sandbox
         $this->auditRoot = $auditRoot
             ?? (defined('STORAGE_PATH') ? STORAGE_PATH : __DIR__ . '/../../../storage')
                 . '/cache/disyl-sandbox';
-        if (!is_dir($this->auditRoot)) @mkdir($this->auditRoot, 0775, true);
+        if (!is_dir($this->auditRoot)) @mkdir($this->auditRoot, 0750, true);
     }
 
     public function setStrict(bool $strict): void { $this->strict = $strict; }
@@ -178,6 +184,7 @@ final class Sandbox
             'at'      => time(),
         ];
         $f = $this->auditRoot . '/violations.json';
+        $this->rotateAuditLogIfNeeded($f);
         $rows = [];
         if (is_file($f)) {
             $raw = @file_get_contents($f);
@@ -186,6 +193,43 @@ final class Sandbox
         }
         $rows[] = $row;
         @file_put_contents($f, json_encode($rows), LOCK_EX);
+    }
+
+    /**
+     * Rotate the violations audit log when it exceeds the size cap.
+     * Moves violations.json → violations-YYYYMMDD.json (replacing the file if
+     * the same-day rotated file already exists), then prunes logs older than
+     * the retention window so disk usage stays bounded.
+     */
+    private function rotateAuditLogIfNeeded(string $f): void
+    {
+        if (!is_file($f)) return;
+        if (filesize($f) < self::MAX_AUDIT_BYTES) return;
+
+        $rotated = $this->auditRoot . '/violations-' . date('Ymd') . '.json';
+        if (is_file($rotated)) {
+            @unlink($f); // same-day rotation already exists — drop current buffer
+        } else {
+            @rename($f, $rotated);
+        }
+        $this->pruneOldAuditLogs();
+    }
+
+    /**
+     * Remove rotated audit logs older than the retention window.
+     */
+    private function pruneOldAuditLogs(): void
+    {
+        $cutoff = strtotime('-' . self::AUDIT_RETENTION_DAYS . ' days');
+        if ($cutoff === false) return;
+        foreach (glob($this->auditRoot . '/violations-*.json') ?: [] as $file) {
+            if (preg_match('/violations-(\d{8})\.json$/', $file, $m)) {
+                $ts = strtotime($m[1]);
+                if ($ts !== false && $ts < $cutoff) {
+                    @unlink($file);
+                }
+            }
+        }
     }
 
     /**

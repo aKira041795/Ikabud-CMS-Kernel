@@ -18,6 +18,22 @@ final class SecurityHeaders
         '.css', '.js', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
         '.woff', '.woff2', '.ttf', '.eot', '.ico', '.map', '.json'
     ];
+
+    /**
+     * External origins permitted to serve images. Narrowed from a blanket
+     * `https:` so a content-injection vector cannot beacon to arbitrary hosts.
+     * Extend this list deliberately if CMS content must load images from
+     * additional origins (e.g. an external CDN/media host).
+     */
+    private const IMG_SRC_ORIGINS = [
+        'https://cdn.tailwindcss.com',
+        'https://unpkg.com',
+        'https://cdn.jsdelivr.net',
+        'https://cdnjs.cloudflare.com',
+        'https://maps.googleapis.com',
+        'https://maps.gstatic.com',
+        'https://fonts.gstatic.com',
+    ];
     
     /** @var string|null Current request URI */
     private ?string $requestUri;
@@ -137,7 +153,7 @@ final class SecurityHeaders
             'script-src ' . implode(' ', $scriptSrc),
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://fonts.googleapis.com",
             "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
-            "img-src 'self' data: blob: https:",
+            "img-src 'self' data: blob: " . implode(' ', self::IMG_SRC_ORIGINS),
             "connect-src 'self' https://unpkg.com https://maps.googleapis.com",
             "frame-ancestors 'self'",
             "base-uri 'self'",

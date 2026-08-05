@@ -73,8 +73,19 @@ final class FunctionRegistry
         self::$functions = [
             // Sequence
             'range' => static function (mixed $start, mixed $end, mixed $step = 1): array {
-                $step = (int)($step ?: 1);
-                return range((int)$start, (int)$end, $step);
+                $start = (int)$start;
+                $end   = (int)$end;
+                $step  = (int)($step ?: 1);
+                if ($step === 0) {
+                    $step = 1;
+                }
+                // Cap the element count to prevent memory exhaustion (DiSyL hardening):
+                // a crafted template must not allocate a billion-element array.
+                $span = (int)(abs($end - $start) / abs($step)) + 1;
+                if ($span > 100000) {
+                    $end = $start + (100000 - 1) * (int)(abs($step) === $step ? $step : -$step);
+                }
+                return range($start, $end, $step);
             },
 
             // Math
@@ -93,7 +104,7 @@ final class FunctionRegistry
             'str_pad'    => static fn(mixed $v, mixed $len, mixed $pad = ' ', mixed $type = STR_PAD_RIGHT): string
                 => str_pad((string)$v, (int)$len, (string)$pad, (int)$type),
             'str_repeat' => static fn(mixed $v, mixed $n): string
-                => str_repeat((string)$v, max(0, (int)$n)),
+                => str_repeat((string)$v, min(max(0, (int)$n), 10000)),
             'str_replace' => static fn(mixed $search, mixed $replace, mixed $subject): string
                 => str_replace((string)$search, (string)$replace, (string)$subject),
             'strtolower' => static fn(mixed $v): string => strtolower((string)$v),

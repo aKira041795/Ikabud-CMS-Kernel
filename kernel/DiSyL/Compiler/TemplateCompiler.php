@@ -38,7 +38,15 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 11;
+    public const COMPILER_VERSION = 12;
+
+    /**
+     * Maximum iterations for unbounded loops ({while} and C-style {for}).
+     * Prevents CPU/memory exhaustion from an infinite or runaway loop in a
+     * crafted or buggy template. Bounded loops (foreach/each) are naturally
+     * limited by their iterable.
+     */
+    public const MAX_LOOP_ITERATIONS = 100000;
 
     private int $indentLevel = 0;
     private string $indent = '    ';
@@ -407,8 +415,10 @@ PHP;
         // Compile increment: handle postinc/postdec by using ctx->set
         $increment = $this->compileCForIncrement($incNode);
 
-        $code = $this->line("for ({$init}; \$this->isTruthy({$condition}); {$increment}) {");
+        $code = $this->line("\$__iter = 0;");
+        $code .= $this->line("for ({$init}; \$this->isTruthy({$condition}); {$increment}) {");
         $this->indentLevel++;
+        $code .= $this->line("if (++\$__iter > " . self::MAX_LOOP_ITERATIONS . ") { throw new \\RuntimeException('DiSyL loop exceeded max iterations (" . self::MAX_LOOP_ITERATIONS . ")'); }");
 
         if ($node->getBody()) {
             $code .= $this->compileDocument($node->getBody());
@@ -479,8 +489,10 @@ PHP;
     {
         $condition = $this->compileExpressionValue($node->getAttribute('condition'));
 
-        $code = $this->line("while (\$this->isTruthy({$condition})) {");
+        $code = $this->line("\$__iter = 0;");
+        $code .= $this->line("while (\$this->isTruthy({$condition})) {");
         $this->indentLevel++;
+        $code .= $this->line("if (++\$__iter > " . self::MAX_LOOP_ITERATIONS . ") { throw new \\RuntimeException('DiSyL while-loop exceeded max iterations (" . self::MAX_LOOP_ITERATIONS . ")'); }");
 
         if ($node->getBody()) {
             $code .= $this->compileDocument($node->getBody());
