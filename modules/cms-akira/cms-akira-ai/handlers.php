@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraAiHome(array $params = []): void
 {
-    caaCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
+    $user = cmsRequireCap('settings.manage');
 
-    echo caaRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Ai',
-    ]);
+    echo cmsRender('modules/cms-akira-ai/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-ai', [
+        ['label' => 'CMS Akira AI Assistant', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira AI Assistant',
+    ]));
 }
 
 /**

@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraSeoHome(array $params = []): void
 {
-    casCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
+    $user = cmsRequireCap('settings.manage');
 
-    echo casRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Seo',
-    ]);
+    echo cmsRender('modules/cms-akira-seo/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-seo', [
+        ['label' => 'CMS Akira SEO', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira SEO',
+    ]));
 }
 
 /**

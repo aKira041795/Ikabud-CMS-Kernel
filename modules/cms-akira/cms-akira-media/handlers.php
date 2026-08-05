@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraMediaHome(array $params = []): void
 {
-    camCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
+    $user = cmsRequireCap('settings.manage');
 
-    echo camRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Media',
-    ]);
+    echo cmsRender('modules/cms-akira-media/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-media', [
+        ['label' => 'CMS Akira Media', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira Media',
+    ]));
 }
 
 /**

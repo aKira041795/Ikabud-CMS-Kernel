@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraWorkflowHome(array $params = []): void
 {
-    cawCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
+    $user = cmsRequireCap('settings.manage');
 
-    echo cawRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Workflow',
-    ]);
+    echo cmsRender('modules/cms-akira-workflow/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-workflow', [
+        ['label' => 'CMS Akira Workflow', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira Workflow',
+    ]));
 }
 
 /**

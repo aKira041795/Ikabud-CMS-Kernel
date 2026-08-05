@@ -6,6 +6,9 @@
     "author": "Ikabud",
     "suite": "cms-akira",
     "kind": "product-core",
+    "depends": [
+        "cms"
+    ],
     "product": {
         "id": "cms-akira",
         "name": "CMS Akira"

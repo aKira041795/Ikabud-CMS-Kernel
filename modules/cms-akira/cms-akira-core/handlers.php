@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraCoreHome(array $params = []): void
 {
-    cacCtx()->requireAnyRole('admin', 'supervisor');
+    $user = cmsRequireCap('settings.manage');
 
-    echo cacRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Core',
-    ]);
+    echo cmsRender('modules/cms-akira-core/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-core', [
+        ['label' => 'CMS Akira Core', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira Core',
+    ]));
 }
 
 /**

@@ -15,11 +15,13 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraNavigationHome(array $params = []): void
 {
-    canCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
+    $user = cmsRequireCap('settings.manage');
 
-    echo canRender('pages/home.disyl', [
-        'page_title' => 'Cms Akira Navigation',
-    ]);
+    echo cmsRender('modules/cms-akira-navigation/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-navigation', [
+        ['label' => 'CMS Akira Navigation', 'url' => ''],
+    ]), [
+        'page_title' => 'CMS Akira Navigation',
+    ]));
 }
 
 /**
