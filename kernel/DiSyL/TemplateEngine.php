@@ -38,8 +38,10 @@ require_once __DIR__ . '/ExpressionEvaluator.php';
 require_once __DIR__ . '/v4/FunctionRegistry.php';
 require_once __DIR__ . '/Component/ComponentRenderer.php';
 require_once __DIR__ . '/Component/MacroProcessor.php';
+require_once __DIR__ . '/Cache/SourceCache.php';
 
 use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
+use Ikabud\Kernel\DiSyL\Cache\SourceCache;
 use Ikabud\Kernel\DiSyL\Component\ComponentRenderer;
 use Ikabud\Kernel\DiSyL\Component\MacroProcessor;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
@@ -63,6 +65,8 @@ class TemplateEngine
     private bool $autoConvertHtmlTags = false;
     /** @var array<string, array{params: array, body: string}> Registered {macro} definitions */
     private ?MacroProcessor $macroProcessor = null;
+    /** @var SourceCache|null Lazy source-reading/caching layer (D8 refactor) */
+    private ?SourceCache $sourceCache = null;
     /** @var int Recursion depth for compile() — macros only extracted at depth 0 */
     private int $compileDepth = 0;
     private ?Compiler\TemplateCache $compiledCache = null;
@@ -332,17 +336,11 @@ class TemplateEngine
     /** @var array{file:string, errors:array}[]|null Last loadViewConfigs result with per-file errors */
     private static ?array $lastLoadErrors = null;
 
-    /** @var array<string, string> Per-request template source cache */
-    private array $templateSourceCache = [];
-
     /** @var array<string, bool> Per-request cache of compiled-mode eligibility */
     private array $compiledEligibilityCache = [];
 
     /** Maximum number of entries in the in-memory output cache */
     private const OUTPUT_CACHE_MAX = 200;
-
-    /** Maximum number of template source entries cached per request */
-    private const TEMPLATE_SOURCE_CACHE_MAX = 100;
 
     /** Maximum nesting depth for the fast output-cache key path before falling back to serialize() */
     private const OUTPUT_CACHE_KEY_FAST_DEPTH = 8;
@@ -4035,9 +4033,6 @@ class TemplateEngine
     /** @var array Include stack for circular-include detection (keyed by real path) */
     private array $includeStack = [];
 
-    /** @var array<string, string> Cached template file contents keyed by resolved path */
-    private array $includeSourceCache = [];
-
     /** @var int Current component nesting depth (tracks compile()-within-compile() via component children) */
     private int $componentDepth = 0;
 
@@ -4360,87 +4355,30 @@ class TemplateEngine
 
     private function readIncludeSource(string $includePath): string|false
     {
-        if ($this->cacheEnabled && isset($this->includeSourceCache[$includePath])) {
-            self::$cacheMetrics['source_hits']++;
-            return $this->includeSourceCache[$includePath];
-        }
-
-        if ($this->cacheEnabled && $this->hasApcuCache()) {
-            $mtime = (int)@filemtime($includePath);
-            $apcuKey = 'disyl:source:' . md5($includePath . '|' . $mtime);
-            $cached = apcu_fetch($apcuKey, $ok);
-            if ($ok && is_string($cached)) {
-                self::$cacheMetrics['source_hits']++;
-                $this->includeSourceCache[$includePath] = $cached;
-                return $cached;
-            }
-        }
-
-        $includeContent = file_get_contents($includePath);
-        if ($includeContent === false) {
-            return false;
-        }
-        self::$cacheMetrics['source_misses']++;
-
-        if ($this->cacheEnabled) {
-            if (count($this->includeSourceCache) >= self::TEMPLATE_SOURCE_CACHE_MAX) {
-                reset($this->includeSourceCache);
-                unset($this->includeSourceCache[key($this->includeSourceCache)]);
-            }
-            $this->includeSourceCache[$includePath] = $includeContent;
-            if ($this->hasApcuCache()) {
-                $mtime = (int)@filemtime($includePath);
-                $apcuKey = 'disyl:source:' . md5($includePath . '|' . $mtime);
-                apcu_store($apcuKey, $includeContent, 300);
-            }
-        }
-
-        return $includeContent;
+        return $this->sourceCache()->readInclude($includePath);
     }
 
     private function readTemplateSource(string $templatePath): string|false
     {
-        if ($templatePath === '' || !is_file($templatePath) || !is_readable($templatePath)) {
-            return false;
-        }
+        return $this->sourceCache()->readTemplate($templatePath);
+    }
 
-        if ($this->cacheEnabled && isset($this->templateSourceCache[$templatePath])) {
-            self::$cacheMetrics['source_hits']++;
-            return $this->templateSourceCache[$templatePath];
-        }
-
-        if ($this->cacheEnabled && $this->hasApcuCache()) {
-            $mtime = (int)@filemtime($templatePath);
-            $apcuKey = 'disyl:source:' . md5($templatePath . '|' . $mtime);
-            $cached = apcu_fetch($apcuKey, $ok);
-            if ($ok && is_string($cached)) {
-                self::$cacheMetrics['source_hits']++;
-                $this->templateSourceCache[$templatePath] = $cached;
-                return $cached;
+    /**
+     * Lazily build the shared SourceCache layer (D8 refactor). Cache-metric
+     * counters keep incrementing the TemplateEngine aggregate static; APCu
+     * availability is delegated to hasApcuCache().
+     */
+    private function sourceCache(): SourceCache
+    {
+        return $this->sourceCache ??= new SourceCache(
+            $this->cacheEnabled,
+            function (string $metric): void {
+                self::$cacheMetrics[$metric] = (self::$cacheMetrics[$metric] ?? 0) + 1;
+            },
+            function (): bool {
+                return $this->hasApcuCache();
             }
-        }
-
-        self::$cacheMetrics['source_misses']++;
-
-        $content = file_get_contents($templatePath);
-        if ($content === false) {
-            return false;
-        }
-
-        if ($this->cacheEnabled) {
-            if (count($this->templateSourceCache) >= self::TEMPLATE_SOURCE_CACHE_MAX) {
-                reset($this->templateSourceCache);
-                unset($this->templateSourceCache[key($this->templateSourceCache)]);
-            }
-            $this->templateSourceCache[$templatePath] = $content;
-            if ($this->hasApcuCache()) {
-                $mtime = (int)@filemtime($templatePath);
-                $apcuKey = 'disyl:source:' . md5($templatePath . '|' . $mtime);
-                apcu_store($apcuKey, $content, 300);
-            }
-        }
-
-        return $content;
+        );
     }
 
     private function isCompiledEligibleTemplate(string $templatePath): bool
