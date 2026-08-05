@@ -15,7 +15,7 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraBuilderHome(array $params = []): void
 {
-    cabCtx()->requireAnyRole('admin', 'supervisor');
+    cabCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
 
     echo cabRender('pages/home.disyl', [
         'page_title' => 'Cms Akira Builder',

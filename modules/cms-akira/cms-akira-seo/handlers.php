@@ -15,7 +15,7 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraSeoHome(array $params = []): void
 {
-    casCtx()->requireAnyRole('admin', 'supervisor');
+    casCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
 
     echo casRender('pages/home.disyl', [
         'page_title' => 'Cms Akira Seo',

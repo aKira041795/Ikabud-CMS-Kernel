@@ -15,7 +15,7 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraEditorHome(array $params = []): void
 {
-    caeCtx()->requireAnyRole('admin', 'supervisor');
+    caeCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
 
     echo caeRender('pages/home.disyl', [
         'page_title' => 'Cms Akira Editor',

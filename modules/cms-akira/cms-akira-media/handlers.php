@@ -15,7 +15,7 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraMediaHome(array $params = []): void
 {
-    camCtx()->requireAnyRole('admin', 'supervisor');
+    camCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
 
     echo camRender('pages/home.disyl', [
         'page_title' => 'Cms Akira Media',

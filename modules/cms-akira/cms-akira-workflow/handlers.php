@@ -15,7 +15,7 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraWorkflowHome(array $params = []): void
 {
-    cawCtx()->requireAnyRole('admin', 'supervisor');
+    cawCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
 
     echo cawRender('pages/home.disyl', [
         'page_title' => 'Cms Akira Workflow',

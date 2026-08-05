@@ -15,7 +15,7 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraThemeHome(array $params = []): void
 {
-    catCtx()->requireAnyRole('admin', 'supervisor');
+    catCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
 
     echo catRender('pages/home.disyl', [
         'page_title' => 'Cms Akira Theme',

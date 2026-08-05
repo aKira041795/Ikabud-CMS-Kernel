@@ -15,7 +15,7 @@ require_once __DIR__ . '/helpers.php';
  */
 function pageCmsAkiraNavigationHome(array $params = []): void
 {
-    canCtx()->requireAnyRole('admin', 'supervisor');
+    canCtx()->requireAnyRole('admin', 'supervisor', 'administrator');
 
     echo canRender('pages/home.disyl', [
         'page_title' => 'Cms Akira Navigation',
