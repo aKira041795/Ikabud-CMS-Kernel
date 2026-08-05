@@ -553,6 +553,62 @@ check(
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+section('5b. Built-in Function Calls');
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+check(
+    'json_encode function (escaped by default)',
+    '{&quot;a&quot;:1}',
+    $engine->renderString('{json_encode(data)}', ['data' => ['a' => 1]])
+);
+
+check(
+    'json_encode function with |raw',
+    '{"a":1}',
+    $engine->renderString('{json_encode(data)|raw}', ['data' => ['a' => 1]])
+);
+
+check(
+    'json_encode function with array literal arg',
+    '["x","y"]',
+    $engine->renderString('{json_encode(["x","y"])|raw}', [])
+);
+
+check(
+    'json_encode function in Alpine attribute',
+    '<div x-data="{ids: [&quot;1&quot;,&quot;2&quot;]}">',
+    $engine->renderString('<div x-data="{ids: {json_encode(ids)}}">', ['ids' => ['1', '2']])
+);
+
+check(
+    'json_encode with associative array arg',
+    '{"greeting":"hello"}',
+    $engine->renderString('{json_encode(["greeting" => "hello"])|raw}', [])
+);
+
+check(
+    'json_decode function followed by |json filter',
+    '{"a":1}',
+    $engine->renderString('{json_decode(j)|json}', ['j' => '{"a":1}'])
+);
+
+// Compiled path — must route through FunctionRegistry identically.
+$compiledJsonEngine = new TemplateEngine($tmpDir, '/tmp/disyl_test_cache', true);
+file_put_contents($tmpDir . '/jsonfn.disyl', '{json_encode(data)|raw}');
+check(
+    'json_encode function (compiled mode)',
+    '{"a":1}',
+    $compiledJsonEngine->render('jsonfn.disyl', ['data' => ['a' => 1]])
+);
+file_put_contents($tmpDir . '/jsonfn2.disyl', '{json_encode(["x","y"])|raw}');
+check(
+    'json_encode function with array literal (compiled mode)',
+    '["x","y"]',
+    $compiledJsonEngine->render('jsonfn2.disyl', [])
+);
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 section('6. Conditions — Basic');
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

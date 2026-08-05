@@ -120,6 +120,12 @@ final class FunctionRegistry
             // String equality — used extensively in WMS templates for <option selected> logic:
             //   {eq($_GET['type'] ?? '', 'receipt') ? 'selected' : ''}
             'eq' => static fn(mixed $a, mixed $b): bool => $a == $b,
+
+            // JSON serialization / parsing — used by templates that embed data in
+            // Alpine attributes or JS, e.g. {json_encode(data) | raw}. Mirrors the
+            // existing |json filter flags so output is stable across both forms.
+            'json_encode' => static fn(mixed $v): string => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'json_decode' => static fn(mixed $v): mixed => json_decode((string)$v, true),
         ];
     }
 }

@@ -32,7 +32,7 @@ applyTo: "**/*.php **/*.disyl"
 | Control: assignment | `{set var = expr}` | `{set total = price * qty}` |
 | Template inheritance | `{extends 'parent'}` `{block name}` `{/block}` | — |
 | Macros | `{macro name(args)}` `{call name(args)}` | — |
-| Whilisted functions | `range`, `abs`, `round`, `floor`, `ceil`, `min`, `max`, `count`, `length`, `str_pad`, `str_repeat`, `str_replace`, `strtolower`, `strtoupper`, `trim`, `ltrim`, `rtrim`, `substr`, `strlen`, `number_format`, `isset`, `empty`, `is_array`, `eq` | — |
+| Whilisted functions | `range`, `abs`, `round`, `floor`, `ceil`, `min`, `max`, `count`, `length`, `str_pad`, `str_repeat`, `str_replace`, `strtolower`, `strtoupper`, `trim`, `ltrim`, `rtrim`, `substr`, `strlen`, `number_format`, `isset`, `empty`, `is_array`, `eq`, `json_encode`, `json_decode` | — |
 
 ## PHP syntax NOT supported (gaps)
 
@@ -57,6 +57,7 @@ applyTo: "**/*.php **/*.disyl"
 |---|---|---|
 | `{math equation="..."}` helper | `templates/modules/cms/admin/weather.disyl` | **NEVER IMPLEMENTED** — `{math}` was put into templates but has no parser rule, no component registration, and no evaluator. Renders as empty string or broken output. Use DiSyL expressions directly: `{(current.temperature_c)|round}` instead. |
 | `eq()` custom helper | `modules/wms/templates/pages/movements.disyl:7` | **NOW REGISTERED** — `eq()` was never in `FunctionRegistry` (always returned null, so `selected` was never applied). Added to `FunctionRegistry::init()` as `eq(a, b) => a == b`. Fixes `<option selected>` in WMS filter dropdowns. |
+| `json_encode()` / `json_decode()` function calls | `templates/modules/cms-akira-search-adapter/pages/home.disyl` | **NOW REGISTERED (2026-08-05)** — `json_encode`/`json_decode` were not in `FunctionRegistry`, so `{json_encode(data)}` compiled to empty and broke Alpine `x-for` attributes (logged `[strict] Undefined variable`). Added both to `FunctionRegistry::init()` (`json_encode` mirrors the `|json` filter flags: `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`). Also fixed function-call argument resolution in `ExpressionEvaluator` to use `resolveValueWithFilters()` so args can be quoted strings, nested calls, or filter chains. Use `{json_encode(data)|raw}` when emitting into JS/attribute context. |
 
 ### Missing PHP operators
 

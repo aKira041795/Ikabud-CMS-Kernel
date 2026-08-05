@@ -148,9 +148,12 @@ class ExpressionEvaluator
                         $arg = trim($arg);
                         if (is_numeric($arg)) {
                             $resolved[] = str_contains($arg, '.') ? (float)$arg : (int)$arg;
+                        } elseif (preg_match('/^["\'](.*)["\']$/', $arg, $qm)) {
+                            $resolved[] = $qm[1];
                         } else {
-                            $arith = $this->evaluateArithmetic($arg, $context);
-                            $resolved[] = $arith !== null ? $arith : $this->resolveValue($arg, $context);
+                            // resolveValueWithFilters handles nested function calls,
+                            // filter chains, and dot-path access (e.g. json_decode(...).key)
+                            $resolved[] = $this->resolveValueWithFilters($arg, $context);
                         }
                     }
                     $this->currentExpression = $prevExpr;
