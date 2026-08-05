@@ -676,9 +676,9 @@ rendering in compiled mode (was previously broken/fallback-only).
 
 | ID | Finding | Status | Plan |
 |---|---|---|---|
-| D8 | God Object `TemplateEngine` (7,941 lines) | 🔄 **In progress** | **Increment 1 done (2026-08-06):** `ComponentRenderer` extracted (2,124 lines → `kernel/DiSyL/Component/ComponentRenderer.php`), TemplateEngine reduced to 5,896 lines, all DiSyL suites pass, `entityErrorState` latent bug fixed. Full plan: `docs/kernel/disyl-templateengine-refactor-plan.md`. **Remaining:** MacroProcessor, IncludeResolver, ExtendsProcessor, TemplateRenderer facade |
+| D8 | God Object `TemplateEngine` (7,941 lines) | ✅ **Done (2026-08-06)** | **All five extractions complete:** `ComponentRenderer` (2,124 lines) → `Component/ComponentRenderer.php`; `MacroProcessor` (240) → `Component/MacroProcessor.php`; `SourceCache` (129) → `Cache/SourceCache.php`; `IncludeResolver` (361) → `Component/IncludeResolver.php`; `ExtendsProcessor` (308) → `Component/ExtendsProcessor.php`. TemplateEngine reduced 7,941 → 5,213 lines (−34%). The deferred Include/Extends item was unblocked by introducing the `SourceCache` abstraction first (as the plan prescribed), then extracting both clusters on top of it. Full plan: `docs/kernel/disyl-templateengine-refactor-plan.md`. **Remaining (optional):** `TemplateRenderer` facade split + interpreted-evaluator carve-out. |
 | P4-1 | Interpreted pipeline full removal | ⏳ **Scheduled** | Keep as fallback; all new features compiled-mode-only; migrate templates flagged by the deprecation log |
-| P4-3 | Replace custom YAML parser with a library | ⏳ **Scheduled** | Hardened in place (dangling transitions logged); full `yaml_parse_file`/Symfony swap is a separate change |
+| P4-3 | Replace custom YAML parser with a library | ✅ **Done (2026-08-06)** | Symfony `Yaml::parse()` now primary in `WorkflowEngine::parseYamlDefinition` (legacy line parser kept as fallback). YAML-declared transitions + their `roles` are now honored (legacy parser never produced transitions / left roles unparsed). `symfony/yaml:^6.4` is pure PHP — Bluehost-safe. |
 
 ### Updated risk posture after remediation
 
@@ -693,5 +693,6 @@ rendering in compiled mode (was previously broken/fallback-only).
 
 > **Next review:** After the follow-up regression test run completes, re-verify
 > D1-D7 and K1-K7 against the DiSyL + kernel test suites, then close out the
-> scheduled architectural items (D8, P4-1, P4-3).
+> remaining scheduled architectural item (P4-1 — interpreted-pipeline removal;
+> D8 and P4-3 are done as of 2026-08-06).
 > **Signed:** Automated code review + remediation — August 5, 2026

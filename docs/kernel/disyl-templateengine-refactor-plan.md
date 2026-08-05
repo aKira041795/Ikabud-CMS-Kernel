@@ -2,9 +2,11 @@
 
 > **Plan date:** August 6, 2026
 > **Target:** `kernel/DiSyL/TemplateEngine.php` (7,941 lines) — God Object decomposition
-> **Status:** 🔄 In progress — **ComponentRenderer ✅ + MacroProcessor ✅ (2026-08-06)**;
-> TemplateEngine reduced 7,941 → 5,746 lines (−2,195, ~28%). IncludeResolver /
-> ExtendsProcessor **deferred** (render-core coupling — see §6b). P4-3 environment-blocked.
+> **Status:** ✅ **Core decomposition complete (2026-08-06)** — `ComponentRenderer` ✅ +
+> `MacroProcessor` ✅ + `SourceCache` ✅ + `IncludeResolver` ✅ + `ExtendsProcessor` ✅;
+> TemplateEngine reduced 7,941 → 5,213 lines (−2,728, ~34%). The previously-deferred
+> IncludeResolver / ExtendsProcessor item is **done** (see §6b) via the `SourceCache`
+> abstraction the plan prescribed. P4-3 environment-blocked → resolved with Symfony Yaml.
 > **Guardrail:** This refactor must not run immediately before a live deployment. Each
 > extraction is verified by the full DiSyL regression suite (`disyl_engine_test`,
 > `disyl_parity_test`, `disyl_hardening_coverage_test`, `disyl_compiled_component_fallback_test`,
@@ -41,11 +43,13 @@ clean clusters above are extracted.
 
 1. **ComponentRenderer** ✅ — cleanest boundary (only 4 engine touchpoints), largest single
    reduction, fixes the `entityErrorState` latent bug.
-2. **MacroProcessor** — small, self-contained; depends on expression helpers via closures.
-3. **IncludeResolver** — depends on path resolution + readTemplateSource.
-4. **ExtendsProcessor** — depends on include resolution + cache dir.
-5. **TemplateRenderer** — top-level facade split; only after the above so the facade is thin.
-6. **Interpreted evaluator** (optional/last) — highest risk; may remain as a documented
+2. **MacroProcessor** ✅ — small, self-contained; depends on expression helpers via closures.
+3. **SourceCache** ✅ — source-reading/caching abstraction introduced first (2026-08-06) so
+   the include/extends clusters could be extracted without carrying render-core cache state.
+4. **IncludeResolver** ✅ — depends on path resolution + SourceCache-backed readIncludeSource.
+5. **ExtendsProcessor** ✅ — depends on include resolution + cache dir.
+6. **TemplateRenderer** — top-level facade split; only after the above so the facade is thin.
+7. **Interpreted evaluator** (optional/last) — highest risk; may remain as a documented
    "render core" within TemplateEngine.
 
 ## 4. ComponentRenderer extraction — design
@@ -128,20 +132,24 @@ bug for the AI component renderers.
   confirming the `entityErrorState` latent-bug fix
 - `TemplateEngine` reduced 7,941 → 5,896 lines (−2,045)
 
-## 6b. IncludeResolver / ExtendsProcessor — deferred (architectural assessment)
+## 6b. IncludeResolver / ExtendsProcessor — ✅ done (2026-08-06)
 
-Assessment on 2026-08-06 found the remaining method clusters are **coupled to the
-render core's state**, making mechanical extraction poor risk/reward:
+The 2026-08-06 assessment found these clusters coupled to the render core's source-cache
+state, and prescribed a `SourceCache` abstraction before extraction. That path was
+followed exactly and completed the same day:
 
-| Cluster | Engine dependencies (beyond logError) | Verdict |
+| Step | Commit | Outcome |
 |---|---|---|
-| IncludeResolver (`processIncludes`, `processNextInclude`, `processIncludeTag`, `parseIncludeParams`, `parseKeyValueParams`, `readIncludeSource`, `readTemplateSource`) | `compile`, `resolveTemplatePath`, `parseInlineObject`, `resolveValueWithFilters`, `hasApcuCache`, `includeStack` (circular detection), `includeSourceCache` + `templateSourceCache` (shared with `render()`), `cacheEnabled`, `cacheMetrics`, `TEMPLATE_SOURCE_CACHE_MAX` | ⏳ Deferred — source-cache state is shared with the top-level `render()` path; a clean split needs a `SourceCache` abstraction, not a method move |
-| ExtendsProcessor (`processExtends`, `getExtendsCache`, `setExtendsCache`, `processBlocks`, `processDebugTags`) | `readTemplateSource`, `resolveTemplatePath`, `resolveValue`, `extendsCacheDir`, `currentTemplatePath`, `cacheEnabled`, `EXTENDS_CHAIN_MAX` | ⏳ Deferred — layout cache + current-template state is render-core state |
+| `SourceCache` abstraction | `d8ffff15` | `kernel/DiSyL/Cache/SourceCache.php` — owns template/include source reading + caching (in-memory per-request + APCu cross-request, 100-entry cap, 300s TTL). Metric counters still feed `TemplateEngine::$cacheMetrics` via an injected closure. `templateSourceCache` / `includeSourceCache` properties and `TEMPLATE_SOURCE_CACHE_MAX` removed from the engine. |
+| `IncludeResolver` extraction | `826b8b65` | `kernel/DiSyL/Component/IncludeResolver.php` — `processIncludes`, `processNextInclude`, `processIncludeTag`, `parseIncludeParams`, `parseKeyValueParams`. Decoupled via closures (compile, resolveTemplatePath, parseInlineObject, resolveValueWithFilters, logError, readIncludeSource). Now owns `includeStack` for circular detection (was render-core state). Dead `$scan`/`$depth` remnants in old `processNextInclude` removed during extraction. |
+| `ExtendsProcessor` extraction | `d55afe19` | `kernel/DiSyL/Component/ExtendsProcessor.php` — `processExtends`, `getExtendsCache`, `setExtendsCache`, `processBlocks`, `processDebugTags`. Decoupled via closures (resolveTemplatePath, readTemplateSource, resolveValue, logError, current-template-path / extends-cache-dir / cache-enabled getters). Owns `EXTENDS_CHAIN_MAX` + `MAX_BLOCK_MERGE_PASSES`; the versioned mtime-validated cross-request cache and atomic writes moved with it. `extendsCacheDir` stays on the engine (shared with the compiled eligibility cache) and is injected. |
 
-**Recommended future work:** introduce a `SourceCache` (template + include source
-reading/caching) abstraction first; then IncludeResolver and ExtendsProcessor can be
-extracted cleanly on top of it. Not a pure method-move, so it is intentionally parked
-until after the live deployment.
+The engine keeps thin `processIncludes` / `processExtends` / `processBlocks` /
+`processDebugTags` delegates; all call sites (render, component bodies) are unchanged.
+Verified: engine 282, parity 97, v4 36, parser 61, loop 6, sandbox 28, hardening 44,
+compiler 55, async 23, fed_ai 17, template_cache 5, v43_cache_exp 20, extends_block 10,
+circular_include 9, compiled_component_fallback 3 — all pass; smoke render OK.
+`TemplateEngine` reduced to 5,213 lines.
 
 ## 6c. P4-1 / P4-3 status
 
