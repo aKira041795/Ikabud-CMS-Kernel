@@ -13,12 +13,7 @@
 </div>
 
 <form class="card mb-6" action="{base_url}/admin/activity" method="GET"
-      hx-get="{base_url}/admin/activity"
-      hx-target="#main-content"
-      hx-select="#main-content > *"
-      hx-swap="innerHTML"
-      hx-push-url="true"
-      hx-include="this">
+      onsubmit="return window.dlLoadForm(this)">
     <div class="card-body">
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
     <div class="form-group">

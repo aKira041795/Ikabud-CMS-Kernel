@@ -151,24 +151,84 @@
         });
 
         /**
-         * Unified AJAX refresh: re-fetches the current page via HTMX and
-         * swaps only the #main-content region. No full page reload.
+         * Deterministic in-place page load: fetch a URL (full page), extract
+         * #main-content via DOMParser, and swap it into the live #main-content.
+         * Re-runs inline scripts and rebinds htmx. On failure (login redirect,
+         * server error, or empty response) it navigates to the URL so the view
+         * always recovers.
+         *
+         * This is the single mechanism for in-place GET navigation. It replaces
+         * both htmx.ajax({select}) and hx-select for full-page responses: the
+         * bundled htmx version silently produces a BLANK region when hx-select
+         * is applied to a full HTML document, even when #main-content exists.
+         *
+         * Uses the same Bearer auth as the save API calls so authentication
+         * cannot differ between a POST that saved and the GET that refreshes.
          */
-        window.refreshMainContent = function() {
-            try {
-                var req = htmx.ajax('GET', window.location.href, {
-                    target: '#main-content',
-                    swap: 'innerHTML',
-                    select: '#main-content > *'
-                });
-                // If the AJAX refresh fails (network/500/etc.), fall back to a
-                // full reload so the view never stays stuck/blank.
-                if (req && typeof req.catch === 'function') {
-                    req.catch(function() { window.location.reload(); });
-                }
-            } catch (e) {
-                window.location.reload();
+        window.dlLoadUrl = function(url, usePush) {
+            var headers = {
+                'Accept': 'text/html',
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+            var token = window.DL_TOKEN || '';
+            if (token) {
+                headers['Authorization'] = 'Bearer ' + token;
             }
+
+            fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: headers
+            })
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.text();
+            })
+            .then(function(html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var fresh = doc.getElementById('main-content');
+                var target = document.getElementById('main-content');
+                if (!fresh || !target || !fresh.innerHTML.trim()) {
+                    throw new Error('empty content');
+                }
+                target.innerHTML = fresh.innerHTML;
+                // Re-run inline scripts that were swapped in
+                target.querySelectorAll('script:not([src])').forEach(function(s) {
+                    var ns = document.createElement('script');
+                    ns.textContent = s.textContent;
+                    s.parentNode.replaceChild(ns, s);
+                });
+                // Re-bind hx-* attributes in the new content
+                if (typeof htmx !== 'undefined') {
+                    htmx.process(target);
+                }
+                // Keep the URL in sync (back/forward + shareable filters)
+                if (window.history) {
+                    if (usePush && window.history.pushState) {
+                        window.history.pushState({}, '', url);
+                    } else if (window.history.replaceState) {
+                        window.history.replaceState({}, '', url);
+                    }
+                }
+            })
+            .catch(function() {
+                // In-place load could not complete — navigate so the view recovers.
+                window.location.href = url;
+            });
+        };
+
+        // Serialize a GET filter form and load it in place (no full reload).
+        window.dlLoadForm = function(form) {
+            var params = new URLSearchParams(new FormData(form)).toString();
+            var url = form.action;
+            url += (url.indexOf('?') >= 0 ? '&' : '?') + params;
+            window.dlLoadUrl(url, true);
+            return false;
+        };
+
+        // Unified refresh: re-fetch the current page and swap #main-content.
+        window.refreshMainContent = function() {
+            window.dlLoadUrl(window.location.href, false);
         };
     </script>
     {block head}{/block}

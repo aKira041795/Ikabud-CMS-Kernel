@@ -10,12 +10,7 @@
 </div>
 
 <form class="card mb-4" method="GET" action="{base_url}/admin/commissary"
-      hx-get="{base_url}/admin/commissary"
-      hx-target="#main-content"
-      hx-select="#main-content > *"
-      hx-swap="innerHTML"
-      hx-push-url="true"
-      hx-include="this">
+      onsubmit="return window.dlLoadForm(this)">
     <div class="card-body">
         <div class="grid grid-cols-1 gap-3 md:grid-cols-4 items-end">
             <div class="form-group mb-0">

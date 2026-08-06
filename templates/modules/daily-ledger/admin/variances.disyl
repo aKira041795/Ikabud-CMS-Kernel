@@ -236,12 +236,7 @@
                 </button>
             </div>
             <form class="flex gap-2" action="{base_url}/admin/variances" method="GET"
-      hx-get="{base_url}/admin/variances"
-      hx-target="#main-content"
-      hx-select="#main-content > *"
-      hx-swap="innerHTML"
-      hx-push-url="true"
-      hx-include="this">
+      onsubmit="return window.dlLoadForm(this)">
                 <input type="hidden" name="view" :value="view">
                 <input type="hidden" name="status" value="{status_filter}">
                 {if branch_id}<input type="hidden" name="branch_id" value="{branch_id}">{/if}
@@ -257,32 +252,28 @@
     <!-- Stat cards -->
     <div class="variance-stat-grid">
         <a href="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--unreviewed {if status_filter == 'unreviewed'}variance-stat--active{/if}">
             <div class="variance-stat-label">Unreviewed</div>
             <div class="variance-stat-value">{stats_unreviewed}</div>
             <div class="variance-stat-sub">{if stats_unreviewed > 0}Needs attention{/if}{if stats_unreviewed == 0}All clear{/if}</div>
         </a>
         <a href="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--investigated {if status_filter == 'investigated'}variance-stat--active{/if}">
             <div class="variance-stat-label">Investigated</div>
             <div class="variance-stat-value">{stats_investigated}</div>
             <div class="variance-stat-sub">Under review</div>
         </a>
         <a href="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--corrected {if status_filter == 'corrected'}variance-stat--active{/if}">
             <div class="variance-stat-label">Corrected</div>
             <div class="variance-stat-value">{stats_corrected}</div>
             <div class="variance-stat-sub">Resolved</div>
         </a>
         <a href="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--total {if status_filter == '' || status_filter == null}variance-stat--active{/if}">
             <div class="variance-stat-label">Total Flags</div>
             <div class="variance-stat-value">{stats_total}</div>
@@ -294,26 +285,22 @@
     <div class="variance-filter-bar">
         <span class="text-xs font-semibold text-gray-500 mr-1">Quick filter:</span>
         <a href="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == '' || status_filter == null}variance-filter-pill--active{/if}">
             All <span class="variance-filter-pill-count">{stats_total}</span>
         </a>
         <a href="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == 'unreviewed'}variance-filter-pill--active{/if}">
             Unreviewed <span class="variance-filter-pill-count">{stats_unreviewed}</span>
         </a>
         <a href="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == 'investigated'}variance-filter-pill--active{/if}">
             Investigated <span class="variance-filter-pill-count">{stats_investigated}</span>
         </a>
         <a href="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-get="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == 'corrected'}variance-filter-pill--active{/if}">
             Corrected <span class="variance-filter-pill-count">{stats_corrected}</span>
         </a>
@@ -321,12 +308,7 @@
         <span class="mx-2 text-gray-300">|</span>
 
         <select class="form-input w-auto mt-0 text-xs py-1 px-2" name="branch_id"
-                hx-get="{base_url}/admin/variances"
-                hx-target="#main-content"
-                hx-select="#main-content > *"
-                hx-swap="innerHTML"
-                hx-push-url="true"
-                hx-include="[name='view'], [name='status'], [name='q']">
+                onchange="window.dlLoadBranchFilter(this.value)">
             <option value="">All Branches</option>
             {foreach branches as br}
             <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
@@ -334,8 +316,8 @@
         </select>
 
         {if branch_id || status_filter || search != ''}
-        <a href="?view={view_mode}" hx-get="?view={view_mode}"
-           hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true"
+        <a href="?view={view_mode}"
+           onclick="return window.dlLoadUrl(this.href, true)"
            class="text-xs text-indigo-600 hover:underline ml-1">Clear all</a>
         {/if}
     </div>
@@ -534,6 +516,18 @@
 <script>
     var BASE = '{base_url}';
     var initialView = '{view_mode}' || 'list';
+
+    // Reload the variances page in place with the chosen branch filter, keeping
+    // the current view/status/search params.
+    window.dlLoadBranchFilter = function(branchId) {
+        var params = new URLSearchParams(window.location.search);
+        if (branchId) {
+            params.set('branch_id', String(branchId));
+        } else {
+            params.delete('branch_id');
+        }
+        window.dlLoadUrl(window.location.pathname + '?' + params.toString(), true);
+    };
 
     function varianceDashboard() {
         return {

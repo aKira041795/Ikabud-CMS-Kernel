@@ -25,29 +25,17 @@
 
         {if is_cashier}
         <input type="date" class="form-input mt-0 w-auto min-w-40" id="ledger-date" value="{ledger_date}" max="{today}"
-               hx-get="{base_url}/ledger"
-               hx-target="#main-content"
-             hx-select="#main-content > *"
-               hx-swap="innerHTML"
-               hx-include="this"
-               name="date">
+               name="date"
+               onchange="window.dlReloadLedger()">
         {else}
         <select class="form-input mt-0 w-auto min-w-44" id="branch-select" name="branch_id"
-                hx-get="{base_url}/ledger"
-                hx-target="#main-content"
-            hx-select="#main-content > *"
-                hx-swap="innerHTML"
-                hx-include="[name='date']">
+                onchange="window.dlReloadLedger()">
             {foreach branches as br}
             <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
             {/foreach}
         </select>
         <input type="date" class="form-input mt-0 w-auto min-w-40" id="ledger-date" value="{ledger_date}" max="{today}" name="date"
-               hx-get="{base_url}/ledger"
-               hx-target="#main-content"
-             hx-select="#main-content > *"
-               hx-swap="innerHTML"
-               hx-include="[name='branch_id']">
+               onchange="window.dlReloadLedger()">
         {/if}
 
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset
@@ -197,6 +185,16 @@
     };
     window.openWithdrawalModal = function() {
         window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
+    };
+
+    // Reload the ledger page in place with the current date/branch selection.
+    window.dlReloadLedger = function() {
+        var dateEl = document.getElementById('ledger-date');
+        var branchEl = document.getElementById('branch-select');
+        var date = dateEl ? dateEl.value : '';
+        var branch = branchEl ? branchEl.value : '';
+        var url = BASE + '/ledger?date=' + encodeURIComponent(date) + '&branch_id=' + encodeURIComponent(branch);
+        window.dlLoadUrl(url, false);
     };
 
     // Offline buffer: localStorage write-ahead log scoped to the active actor, tenant, branch, and business date.

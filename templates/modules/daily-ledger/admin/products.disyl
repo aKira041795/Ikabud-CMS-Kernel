@@ -64,12 +64,7 @@
     </div>
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <form class="flex gap-2" action="{base_url}/admin/products" method="GET"
-      hx-get="{base_url}/admin/products"
-      hx-target="#main-content"
-      hx-select="#main-content > *"
-      hx-swap="innerHTML"
-      hx-push-url="true"
-      hx-include="this">
+      onsubmit="return window.dlLoadForm(this)">
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or SKU...">
             <button type="submit" class="btn btn-outline">Search</button>
         </form>

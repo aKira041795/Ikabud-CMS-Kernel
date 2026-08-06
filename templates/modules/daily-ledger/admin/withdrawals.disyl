@@ -10,12 +10,7 @@
 </div>
 
 <form class="card mb-6" action="{base_url}/admin/withdrawals" method="GET"
-      hx-get="{base_url}/admin/withdrawals"
-      hx-target="#main-content"
-      hx-select="#main-content > *"
-      hx-swap="innerHTML"
-      hx-push-url="true"
-      hx-include="this">
+      onsubmit="return window.dlLoadForm(this)">
     <div class="card-body">
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end">
             <div class="form-group">
@@ -51,8 +46,7 @@
             <div class="flex items-end gap-2">
                 <button type="submit" class="btn btn-primary">Apply</button>
                 <a class="btn btn-outline" href="{base_url}/admin/withdrawals"
-                   hx-get="{base_url}/admin/withdrawals"
-                   hx-target="#main-content" hx-select="#main-content > *" hx-swap="innerHTML" hx-push-url="true">Clear</a>
+                   onclick="return window.dlLoadUrl(this.href, true)">Clear</a>
             </div>
         </div>
     </div>

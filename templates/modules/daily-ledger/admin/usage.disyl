@@ -11,12 +11,7 @@
     </div>
     <div class="flex items-center gap-2">
         <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/usage"
-      hx-get="{base_url}/admin/usage"
-      hx-target="#main-content"
-      hx-select="#main-content > *"
-      hx-swap="innerHTML"
-      hx-push-url="true"
-      hx-include="this">
+      onsubmit="return window.dlLoadForm(this)">
             <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.requestSubmit()">
             <select class="form-input" name="branch_id" onchange="this.form.requestSubmit()">
                 <option value="0">All Branches</option>
