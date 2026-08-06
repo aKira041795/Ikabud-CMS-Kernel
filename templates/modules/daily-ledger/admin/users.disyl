@@ -267,41 +267,50 @@
     }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    // Listen for role changes in both modals
-    document.getElementById('add-role').addEventListener('change', function() {
-        toggleBranchFields(this, document.getElementById('add-branch-group'), document.getElementById('add-branches-group'));
-    });
-    document.getElementById('edit-role').addEventListener('change', function() {
-        if (EDIT_ORIGINAL_ROLE && this.value !== EDIT_ORIGINAL_ROLE) {
-            var newRole = this.value;
-            this.value = EDIT_ORIGINAL_ROLE;
-            toggleBranchFields(this, document.getElementById('edit-branch-group'), document.getElementById('edit-branches-group'));
-            showToast('Role changes create a new account instead. Create a new ' + newRole + ' user with the desired username/name/password/state, then deactivate the old account.');
+    // Listen for role changes in both modals (delegated so they survive the
+    // in-place #main-content refresh).
+    document.addEventListener('change', function(e) {
+        var target = e.target;
+        if (target && target.id === 'add-role') {
+            toggleBranchFields(target, document.getElementById('add-branch-group'), document.getElementById('add-branches-group'));
             return;
         }
-        toggleBranchFields(this, document.getElementById('edit-branch-group'), document.getElementById('edit-branches-group'));
+        if (target && target.id === 'edit-role') {
+            if (EDIT_ORIGINAL_ROLE && target.value !== EDIT_ORIGINAL_ROLE) {
+                var newRole = target.value;
+                target.value = EDIT_ORIGINAL_ROLE;
+                toggleBranchFields(target, document.getElementById('edit-branch-group'), document.getElementById('edit-branches-group'));
+                showToast('Role changes create a new account instead. Create a new ' + newRole + ' user with the desired username/name/password/state, then deactivate the old account.');
+                return;
+            }
+            toggleBranchFields(target, document.getElementById('edit-branch-group'), document.getElementById('edit-branches-group'));
+        }
     });
 
-    document.querySelectorAll('.edit-user-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
+    // Delegated bindings so Edit/Delete/Restore keep working after the in-place
+    // #main-content refresh (direct querySelectorAll bindings are lost when the
+    // table rows are replaced by refreshMainContent()).
+    document.addEventListener('click', function(e) {
+        var editBtn = e.target.closest ? e.target.closest('.edit-user-btn') : null;
+        if (editBtn) {
             openEditUser(
-                parseInt(this.dataset.id, 10),
-                this.dataset.email || '',
-                this.dataset.fullname,
-                this.dataset.role,
-                parseInt(this.dataset.active, 10),
-                parseInt(this.dataset.branchId, 10) || 0,
-                this.dataset.branchIdsCsv || '',
-                this.dataset.sellingAccountIdsCsv || ''
+                parseInt(editBtn.dataset.id, 10),
+                editBtn.dataset.email || '',
+                editBtn.dataset.fullname,
+                editBtn.dataset.role,
+                parseInt(editBtn.dataset.active, 10),
+                parseInt(editBtn.dataset.branchId, 10) || 0,
+                editBtn.dataset.branchIdsCsv || '',
+                editBtn.dataset.sellingAccountIdsCsv || ''
             );
-        });
-    });
+            return;
+        }
 
-    document.querySelectorAll('.delete-user-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var id = parseInt(this.dataset.id, 10);
-            var role = this.dataset.role;
-            var name = this.dataset.fullname;
+        var deleteBtn = e.target.closest ? e.target.closest('.delete-user-btn') : null;
+        if (deleteBtn) {
+            var id = parseInt(deleteBtn.dataset.id, 10);
+            var role = deleteBtn.dataset.role;
+            var name = deleteBtn.dataset.fullname;
             if (!confirm('Delete user "' + name + '"? Their account will be hidden from the active list. All historical sales, ledger entries, and audit records are preserved. You can restore from the Deleted tab.')) return;
             fetch(BASE + '/api/v1/admin/dl-users/delete', {
                 method: 'POST',
@@ -319,15 +328,15 @@
                 else { showToast(res.error || 'Failed to delete', 'error'); }
             })
             .catch(function() { showToast('Network error', 'error'); });
-        });
-    });
+            return;
+        }
 
-    document.querySelectorAll('.restore-user-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var id = parseInt(this.dataset.id, 10);
-            var role = this.dataset.role;
-            var name = this.dataset.fullname;
-            if (!confirm('Restore user "' + name + '"? The account will be restored as inactive; re-activate it from the Inactive tab when ready.')) return;
+        var restoreBtn = e.target.closest ? e.target.closest('.restore-user-btn') : null;
+        if (restoreBtn) {
+            var id2 = parseInt(restoreBtn.dataset.id, 10);
+            var role2 = restoreBtn.dataset.role;
+            var name2 = restoreBtn.dataset.fullname;
+            if (!confirm('Restore user "' + name2 + '"? The account will be restored as inactive; re-activate it from the Inactive tab when ready.')) return;
             fetch(BASE + '/api/v1/admin/dl-users/restore', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -336,7 +345,7 @@
                     'X-CSRF-Token': (window.DL_CSRF || ''),
                     'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
                 },
-                body: JSON.stringify({ user_id: id, role: role })
+                body: JSON.stringify({ user_id: id2, role: role2 })
             })
             .then(function(r) { return r.json(); })
             .then(function(res) {
@@ -344,7 +353,7 @@
                 else { showToast(res.error || 'Failed to restore', 'error'); }
             })
             .catch(function() { showToast('Network error', 'error'); });
-        });
+        }
     });
 
     function openEditUser(id, email, fullName, role, active, branchId, branchIdsCsv, sellingAccountIdsCsv) {
@@ -394,7 +403,11 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('User added', 'success'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+            if (res.ok) {
+                closeModal('add-modal');
+                showToast('User added', 'success');
+                setTimeout(function() { window.refreshMainContent(); }, 600);
+            }
             else { showToast(res.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = 'Add User'; }
         })
         .catch(function() { showToast('Network error', 'error'); btn.disabled = false; btn.textContent = 'Add User'; });
@@ -432,14 +445,22 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('User updated', 'success'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+            if (res.ok) {
+                closeModal('edit-modal');
+                showToast('User updated', 'success');
+                setTimeout(function() { window.refreshMainContent(); }, 600);
+            }
             else { showToast(res.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = 'Save Changes'; }
         })
         .catch(function() { showToast('Network error', 'error'); btn.disabled = false; btn.textContent = 'Save Changes'; });
     }
 
-    document.querySelectorAll('.modal-overlay').forEach(function(el) {
-        el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('show'); });
+    // Clicking the overlay background closes the modal (delegated so it survives
+    // the in-place #main-content refresh).
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
+            e.target.classList.remove('show');
+        }
     });
 </script>
 {/block}

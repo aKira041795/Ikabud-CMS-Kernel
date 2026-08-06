@@ -322,6 +322,7 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res.ok) {
+                closeModal('add-modal');
                 showToast('Product added (SKU: ' + res.sku + ')');
                 setTimeout(function() { window.refreshMainContent(); }, 600);
             } else {
@@ -354,6 +355,7 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res.ok) {
+                closeModal('edit-modal');
                 showToast('Product updated');
                 setTimeout(function() { window.refreshMainContent(); }, 600);
             } else {
@@ -385,6 +387,7 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res.ok) {
+                closeModal('import-modal');
                 showToast(res.message || 'Import successful');
                 setTimeout(function() { window.refreshMainContent(); }, 800);
             } else {
@@ -395,9 +398,12 @@
         .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = originalText; });
     }
 
-    // Close modal on overlay click
-    document.querySelectorAll('.modal-overlay').forEach(function(el) {
-        el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('show'); });
+    // Clicking the overlay background closes the modal (delegated so it survives
+    // the in-place #main-content refresh).
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
+            e.target.classList.remove('show');
+        }
     });
 </script>
 {/block}

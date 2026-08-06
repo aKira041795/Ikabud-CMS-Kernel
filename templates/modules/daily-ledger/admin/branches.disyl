@@ -362,7 +362,11 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('Branch added'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+            if (res.ok) {
+                closeModal('add-modal');
+                showToast('Branch added');
+                setTimeout(function() { window.refreshMainContent(); }, 600);
+            }
             else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Add Branch'; }
         })
         .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Add Branch'; });
@@ -390,14 +394,22 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('Branch updated'); setTimeout(function() { window.refreshMainContent(); }, 600); }
+            if (res.ok) {
+                closeModal('edit-modal');
+                showToast('Branch updated');
+                setTimeout(function() { window.refreshMainContent(); }, 600);
+            }
             else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Save Changes'; }
         })
         .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Save Changes'; });
     }
 
-    document.querySelectorAll('.modal-overlay').forEach(function(el) {
-        el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('show'); });
+    // Clicking the overlay background closes the modal (delegated so it survives
+    // the in-place #main-content refresh).
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
+            e.target.classList.remove('show');
+        }
     });
 </script>
 {/block}
