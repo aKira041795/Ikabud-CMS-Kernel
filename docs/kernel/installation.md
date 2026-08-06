@@ -24,7 +24,7 @@
 
 1. **Create MySQL database** — cPanel → MySQL Databases → Create database + user → Grant ALL privileges
 2. **Upload archive** — Upload `application-kernel-os.zip` to `public_html/` → Extract
-3. **Run installer** — Visit `https://yourdomain.com/lock.php` → Enter app DB credentials and admin account. If multi-tenant mode is enabled, also enter the control-plane DB settings.
+3. **Run installer** — Visit `https://yourdomain.com/lock.php` → a 4-step wizard guides you through: (1) requirements check, (2) database name/user/password/host (control-plane / multi-tenant settings live under **Advanced options**), (3) site address (domain) + admin username/password/email, (4) install. If multi-tenant mode is enabled, also enter the control-plane DB settings under Advanced options.
 4. **Secure** — Delete `public/lock.php` after verifying the application works
 
 ### cPanel Primary Domain Serving A Tenant CMS
@@ -222,21 +222,32 @@ sudo systemctl restart apache2
 
 ### 6. Run Installer
 
-Navigate to `https://yourdomain.com/lock.php` in your browser. The installer will:
+Navigate to `https://yourdomain.com/lock.php` in your browser. The installer is a WordPress-style 4-step wizard:
+
+1. **Requirements** — checks PHP version, required extensions, and writable `storage/` / `public/`.
+2. **Database** — enter the database name, username, password, and host. Click **Test Connection** to verify. The installer creates the database automatically when the account has permission. Control-plane / multi-tenant settings are under **Advanced options**.
+3. **Site & Admin** — set the **Site Address (domain)** users will visit the site at (pre-filled with the detected host; this becomes `APP_URL`), plus the admin username, password, and email.
+4. **Install** — review your selections and click **Install Ikabud**.
+
+During install the installer will:
 
 - Connect to the application database and apply `database/migrations/001_full_schema.sql`
 - Bootstrap the kernel and apply pending kernel + module migrations
 - Apply control-plane migrations to `CONTROL_DB_*` when multi-tenant mode is enabled
 - Create the initial admin user
-- Write or refresh `.env` and generate the `.installed` marker file
+- Write or refresh `.env` (using the entered site address as `APP_URL`) and generate the `.installed` marker file
 
 If you are reinstalling, the installer backs up the previous `.env` to `storage/backups/env-YYYYmmdd-HHMMSS.bak` before replacing it.
+
+> **Site address / domain:** Enter the canonical public URL (e.g. `https://yourdomain.com`), or a subpath for subfolder installs (e.g. `https://yourdomain.com/kernelappos`). It is written to `APP_URL` and drives generated links, cookies, and redirects. Leave it as detected when the request host is correct.
 
 ### 7. Post-Install Security
 
 - Delete `public/lock.php`
 - Verify `.env` is not web-accessible (the `.htaccess` blocks it by default)
 - Confirm `storage/logs/` is not web-accessible
+
+Once installed, `lock.php` returns **HTTP 403 "System already installed"** until `storage/.installed` is removed, so it is safe to leave in place temporarily.
 
 ---
 

@@ -14,7 +14,8 @@ declare(strict_types=1);
 // ── Guard: already installed ────────────────────────────────────────────
 $installLock = __DIR__ . '/../storage/.installed';
 if (is_file($installLock) && !is_link($installLock)) {
-    http_response_code(200);
+    // Always return 403 while installed — even with ?force=1 (warn-only, no reinstall).
+    http_response_code(403);
     header('Content-Type: text/html; charset=utf-8');
     ?>
 <!DOCTYPE html>
@@ -22,27 +23,31 @@ if (is_file($installLock) && !is_link($installLock)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Ikabud — Already Installed</title>
+    <title>Ikabud — System already installed</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         *{box-sizing:border-box;margin:0;padding:0}
         body{font-family:'Inter',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-        .card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08);padding:32px;max-width:420px;width:100%;text-align:center}
+        .card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08);padding:32px;max-width:440px;width:100%;text-align:center}
         h1{font-size:20px;font-weight:700;color:#1a202c;margin-bottom:8px}
         h1 span{color:#2563eb}
         p{color:#718096;font-size:14px;margin-bottom:20px}
         .btn{display:inline-block;padding:10px 24px;background:#2563eb;color:#fff;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;margin:4px}
         .btn-ghost{background:#f1f5f9;color:#374151}
         .small{font-size:11px;color:#a0aec0;margin-top:16px}
+        .warn{font-size:12px;color:#d97706;margin:14px auto 0;padding:10px 12px;background:#fffbeb;border-radius:6px;border:1px solid #fef3c7;text-align:left}
     </style>
 </head>
 <body>
 <div class="card">
     <h1><span>Ikabud</span> Kernel APP OS</h1>
-    <p>The application is already installed and running.</p>
+    <p>System already installed. The installer is locked for security.</p>
     <a class="btn" href="/">Open App &rarr;</a>
     <a class="btn btn-ghost" href="/login">Login</a>
     <p class="small">To reinstall, remove <code>storage/.installed</code> first.</p>
+    <?php if (isset($_GET['force']) && $_GET['force'] === '1'): ?>
+        <div class="warn"><strong>Note:</strong> <code>?force=1</code> does not allow reinstall. Delete <code>storage/.installed</code> and the <code>.env</code> to reset.</div>
+    <?php endif; ?>
 </div>
 </body>
 </html>
@@ -55,6 +60,16 @@ $success = false;
 $envPath = __DIR__ . '/../.env';
 $templateEnv = installerReadExistingEnv(__DIR__ . '/../.env.example');
 $existingEnv = installerReadExistingEnv($envPath);
+
+// Detected install address — used as the default "Site Address" and APP_URL fallback.
+$installScheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$installHost = installerSanitizeHost((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+$installScriptDir = dirname($_SERVER['SCRIPT_NAME']);
+$installBasePath = rtrim(dirname($installScriptDir), '/');
+if ($installBasePath === '.' || $installBasePath === '/' || $installBasePath === '') {
+    $installBasePath = '';
+}
+$detectedAppUrl = "{$installScheme}://{$installHost}{$installBasePath}";
 
 /**
  * Remove control characters/newlines that can break .env structure.
@@ -78,6 +93,92 @@ function installerSanitizeHost(string $host): string
         return 'localhost';
     }
     return $host;
+}
+
+/**
+ * Normalize user-entered site address into a canonical absolute URL.
+ * Accepts "example.com", "https://example.com", "example.com:8080",
+ * or "https://example.com/subpath". Returns '' when invalid.
+ */
+function installerNormalizeSiteUrl(string $input, string $defaultScheme, string $defaultBasePath): string
+{
+    $input = installerEnvSanitizeValue($input);
+    if ($input === '') {
+        return '';
+    }
+
+    // Prefix a scheme when the user typed a bare host/domain.
+    if (preg_match('#^[a-zA-Z][a-zA-Z0-9+.\-]*://#', $input) !== 1) {
+        $input = $defaultScheme . '://' . $input;
+    }
+
+    $parts = parse_url($input);
+    if ($parts === false || empty($parts['host'])) {
+        return '';
+    }
+
+    $host = (string) $parts['host'];
+    // Hostname or bracketed IPv6 only — no spaces, slashes, or control chars.
+    if (preg_match('/^[A-Za-z0-9.\-]+$/', $host) !== 1
+        && preg_match('/^\[[0-9A-Fa-f:.]+\]$/', $host) !== 1) {
+        return '';
+    }
+
+    $scheme = strtolower((string) ($parts['scheme'] ?? $defaultScheme));
+    if (!in_array($scheme, ['http', 'https'], true)) {
+        $scheme = $defaultScheme;
+    }
+
+    $port = '';
+    if (isset($parts['port']) && is_int($parts['port'])) {
+        $port = ':' . max(1, min(65535, $parts['port']));
+    }
+
+    $path = '';
+    if (isset($parts['path']) && is_string($parts['path']) && $parts['path'] !== '' && $parts['path'] !== '/') {
+        $path = '/' . trim($parts['path'], '/');
+    }
+
+    return $scheme . '://' . $host . $port . $path;
+}
+
+/**
+ * Requirements preflight shown on the wizard's first step.
+ *
+ * @return array<int, array{ok: bool, label: string, detail: string}>
+ */
+function installerRequirementsPreflight(): array
+{
+    $checks = [];
+
+    $checks[] = [
+        'ok'     => version_compare(PHP_VERSION, '8.2.0', '>='),
+        'label'  => 'PHP ' . PHP_VERSION . ' (8.2+ required)',
+        'detail' => version_compare(PHP_VERSION, '8.2.0', '>=') ? 'OK' : 'Upgrade PHP to 8.2 or newer',
+    ];
+
+    foreach (['pdo_mysql', 'mbstring', 'json', 'openssl', 'session'] as $ext) {
+        $ok = extension_loaded($ext);
+        $checks[] = [
+            'ok'     => $ok,
+            'label'  => $ext . ' extension',
+            'detail' => $ok ? 'loaded' : 'missing — install/enable ' . $ext,
+        ];
+    }
+
+    foreach (['storage/' => __DIR__ . '/../storage', 'public/' => __DIR__] as $label => $dir) {
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $ok = is_dir($dir) && is_writable($dir);
+        $checks[] = [
+            'ok'     => $ok,
+            'label'  => $label . ' writable',
+            'detail' => $ok ? 'writable' : 'not writable — check permissions',
+        ];
+    }
+
+    return $checks;
 }
 
 /**
@@ -394,6 +495,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
         ? $controlDbEncKeyInput
         : (string) ($existingEnv['CONTROL_DB_ENC_KEY'] ?? ($templateEnv['CONTROL_DB_ENC_KEY'] ?? ''));
 
+    // Site address (domain). Defaults to the detected request host when left blank.
+    $siteUrlInput = installerEnvSanitizeValue((string) ($_POST['site_url'] ?? ''));
+    $siteUrl = '';
+    if ($siteUrlInput !== '') {
+        $siteUrl = installerNormalizeSiteUrl($siteUrlInput, $installScheme, $installBasePath);
+        if ($siteUrl === '') {
+            $errors[] = 'Site address must be a valid domain (e.g. https://example.com).';
+        }
+    }
+
     if ($dbName === '')                $errors[] = 'Database name is required.';
     if ($dbUser === '')                $errors[] = 'Database username is required.';
     if ($adminUsername === '')          $errors[] = 'Admin username is required.';
@@ -457,14 +568,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
                 }
             }
 
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = installerSanitizeHost((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
-            $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
-            $basePath = rtrim(dirname($scriptDir), '/');
-            if ($basePath === '.' || $basePath === '/' || $basePath === '') {
-                $basePath = '';
-            }
-            $appUrl = installerEnvSanitizeValue("{$scheme}://{$host}{$basePath}");
+            $appUrl = $siteUrl !== ''
+                ? installerEnvSanitizeValue($siteUrl)
+                : installerEnvSanitizeValue($detectedAppUrl);
             $jwtSecret = bin2hex(random_bytes(32));
 
             $managedEnv = [
@@ -591,30 +697,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ikabud Kernel APP OS — Installer</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>document.documentElement.classList.add('js');</script>
     <style>
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         body{font-family:'Inter',system-ui,sans-serif;background:#f0f2f5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-        .card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08);width:100%;max-width:440px;padding:32px}
+        .card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08);width:100%;max-width:520px;padding:28px 32px}
         h1{font-size:20px;font-weight:700;color:#1a202c}
         h1 span{color:#2563eb}
-        .sub{font-size:13px;color:#718096;margin-top:2px;margin-bottom:24px}
+        .sub{font-size:13px;color:#718096;margin-top:2px;margin-bottom:20px}
+
+        /* Wizard progress */
+        .wiz-progress{display:flex;gap:6px;margin-bottom:4px}
+        .wiz-progress .seg{flex:1;height:6px;border-radius:3px;background:#e2e8f0;transition:background .2s}
+        .wiz-progress .seg.active{background:#2563eb}
+        .wiz-labels{display:flex;gap:6px;margin-bottom:20px;font-size:10px;color:#9ca3af;text-align:center}
+        .wiz-labels span{flex:1}
+        .wiz-labels span.on{color:#2563eb;font-weight:600}
+
+        /* Steps: hidden only when JS is active */
+        .js .wizard-step{display:none}
+        .js .wizard-step.active{display:block}
+        .step-title{font-size:16px;font-weight:700;color:#1a202c;margin-bottom:4px}
+        .step-hint{font-size:12px;color:#718096;margin-bottom:16px}
+
         .form-group{margin-bottom:14px}
         .form-label{display:block;font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px}
-        .form-input{width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit}
+        .form-input{width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;background:#fff}
         .form-input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px #dbeafe}
         .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
         hr{border:none;border-top:1px solid #e2e8f0;margin:18px 0}
         .btn{width:100%;padding:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
         .btn:hover{background:#1d4ed8}
+        .btn:disabled{opacity:.6;cursor:not-allowed}
+        .btn-secondary{background:#f1f5f9;color:#374151}
+        .btn-secondary:hover{background:#e2e8f0}
+        .btn-row{display:flex;gap:10px;margin-top:20px}
+        .btn-row .btn{flex:1}
         .alert{padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:16px}
         .alert-error{background:#fee2e2;color:#dc2626;border:1px solid #fecaca}
         .alert-success{background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0}
         .alert ul{margin:0;padding-left:18px}
         .warn{font-size:11px;color:#d97706;margin-top:12px;padding:8px 10px;background:#fffbeb;border-radius:6px;border:1px solid #fef3c7}
+        .a-wrap{margin:8px 0}
+        .adv-toggle{background:none;border:none;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;padding:4px 0}
+        .adv-panel{display:none;margin-top:10px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px}
+        .adv-panel.open{display:block}
+        .check-list{list-style:none;margin:0 0 6px}
+        .check-list li{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#4a5568;padding:4px 0}
+        .check-list .ico{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 18px;margin-top:1px}
+        .ico.ok{background:#dcfce7;color:#16a34a}
+        .ico.fail{background:#fee2e2;color:#dc2626}
+        .meter{height:6px;background:#e2e8f0;border-radius:3px;margin-top:6px;overflow:hidden}
+        .meter > div{height:100%;width:0;border-radius:3px;transition:width .2s, background .2s}
+        .meter-label{font-size:11px;margin-top:4px;color:#9ca3af}
+        #db-test-result{display:none;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px}
+        #db-test-result.ok{display:block;background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0}
+        #db-test-result.err{display:block;background:#fee2e2;color:#dc2626;border:1px solid #fecaca}
+        .pwd-wrap{position:relative}
+        .pwd-wrap .eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px}
+        .pw-hint{font-size:11px;margin-top:4px}
+        .badge{display:inline-block;background:#e0f2fe;color:#0369a1;font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}
         a.open{display:inline-block;padding:10px 24px;background:#2563eb;color:#fff;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;margin-top:12px}
+        small.muted{color:#718096;font-size:12px}
+        .summary-box{font-size:13px;color:#4a5568;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:4px}
+        .summary-box div{margin-top:6px}
+        .summary-box div:first-child{margin-top:0}
     </style>
 </head>
-<body>
+<body data-errors="<?= $errors ? '1' : '0' ?>">
 <div class="card">
     <h1><span>Ikabud</span> Kernel APP OS</h1>
     <p class="sub">Application Kernel — Installer</p>
@@ -629,7 +779,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
         <br>
         <a class="open" href="/login">Go to Login &rarr;</a>
         <br><br>
-        <small style="color:#718096;font-size:12px">
+        <small class="muted">
             <a href="/" style="color:#2563eb">Open App</a>
             &middot;
             <a href="/superadmin/settings" style="color:#2563eb">Superadmin Settings</a>
@@ -637,6 +787,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
     <?php else: ?>
         <?php if ($errors): ?>
             <div class="alert alert-error">
+                <strong>Please fix the following:</strong>
                 <ul>
                     <?php foreach ($errors as $error): ?>
                         <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></li>
@@ -645,111 +796,196 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
             </div>
         <?php endif; ?>
 
-        <form method="post" autocomplete="off">
+        <form method="post" autocomplete="off" id="install-form">
             <input type="hidden" name="step" value="install">
 
-            <div class="form-group">
-                <label class="form-label">Database Host</label>
-                <div class="row">
-                    <input name="db_host" class="form-input" placeholder="localhost" value="<?= htmlspecialchars($_POST['db_host'] ?? ($existingEnv['DB_HOST'] ?? 'localhost'), ENT_QUOTES, 'UTF-8') ?>">
-                    <input name="db_port" class="form-input" placeholder="3306" value="<?= htmlspecialchars($_POST['db_port'] ?? ($existingEnv['DB_PORT'] ?? '3306'), ENT_QUOTES, 'UTF-8') ?>">
+            <div class="wiz-progress" id="wiz-progress">
+                <div class="seg" data-step="1"></div>
+                <div class="seg" data-step="2"></div>
+                <div class="seg" data-step="3"></div>
+                <div class="seg" data-step="4"></div>
+            </div>
+            <div class="wiz-labels">
+                <span data-step="1">Requirements</span>
+                <span data-step="2">Database</span>
+                <span data-step="3">Site &amp; Admin</span>
+                <span data-step="4">Install</span>
+            </div>
+
+            <!-- Step 1: Welcome & requirements -->
+            <section class="wizard-step" data-step="1">
+                <div class="step-title">Welcome</div>
+                <div class="step-hint">Ikabud will create its database, configure the site, and set up your administrator account. First, let&rsquo;s verify this server meets the requirements.</div>
+                <ul class="check-list">
+                    <?php foreach (installerRequirementsPreflight() as $check): ?>
+                        <li>
+                            <span class="ico <?= $check['ok'] ? 'ok' : 'fail' ?>"><?= $check['ok'] ? '&#10003;' : '&#10007;' ?></span>
+                            <span><?= htmlspecialchars($check['label'], ENT_QUOTES, 'UTF-8') ?> <small style="color:#9ca3af">&mdash; <?= htmlspecialchars($check['detail'], ENT_QUOTES, 'UTF-8') ?></small></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <div class="btn-row">
+                    <button type="button" class="btn" onclick="wizGo(2)">Continue &rarr;</button>
                 </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Database Name</label>
-                <input name="db_name" class="form-input" placeholder="ikabud" value="<?= htmlspecialchars($_POST['db_name'] ?? ($existingEnv['DB_DATABASE'] ?? 'ikabud'), ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Database Username</label>
-                <input name="db_user" class="form-input" value="<?= htmlspecialchars($_POST['db_user'] ?? ($existingEnv['DB_USERNAME'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Database Password</label>
-                <input type="password" name="db_pass" class="form-input" id="db_pass">
-            </div>
-            <div id="db-test-result" style="display:none;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px"></div>
-            <button type="button" class="btn" id="btn-test-db" style="background:#0891b2;margin-bottom:10px" onclick="installerTestDb()">Test Connection</button>
+            </section>
 
-            <hr>
-
-            <div class="form-group">
-                <label class="form-label" for="app_multi_tenant_enabled">Multi-Tenant Mode</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#4a5568">
-                    <input
-                        id="app_multi_tenant_enabled"
-                        type="checkbox"
-                        name="app_multi_tenant_enabled"
-                        value="1"
-                        <?= !empty($_POST['app_multi_tenant_enabled']) || (empty($_POST) && !empty($existingEnv['APP_MULTI_TENANT_ENABLED'])) ? 'checked' : '' ?>
-                    >
-                    Enable separate control-plane database settings
-                </label>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Control DB Host</label>
-                <div class="row">
-                    <input name="control_db_host" class="form-input" placeholder="localhost" value="<?= htmlspecialchars($_POST['control_db_host'] ?? ($existingEnv['CONTROL_DB_HOST'] ?? ($existingEnv['DB_HOST'] ?? 'localhost')), ENT_QUOTES, 'UTF-8') ?>">
-                    <input name="control_db_port" class="form-input" placeholder="3306" value="<?= htmlspecialchars($_POST['control_db_port'] ?? ($existingEnv['CONTROL_DB_PORT'] ?? ($existingEnv['DB_PORT'] ?? '3306')), ENT_QUOTES, 'UTF-8') ?>">
+            <!-- Step 2: Database -->
+            <section class="wizard-step" data-step="2">
+                <div class="step-title">Database</div>
+                <div class="step-hint">Ikabud stores its data in a MySQL database. The installer will create the database automatically if it doesn&rsquo;t already exist.</div>
+                <div class="form-group">
+                    <label class="form-label">Database Name</label>
+                    <input name="db_name" class="form-input" placeholder="ikabud" value="<?= htmlspecialchars($_POST['db_name'] ?? ($existingEnv['DB_DATABASE'] ?? 'ikabud'), ENT_QUOTES, 'UTF-8') ?>">
                 </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Control DB Name</label>
-                <input name="control_db_name" class="form-input" placeholder="control_db" value="<?= htmlspecialchars($_POST['control_db_name'] ?? ($existingEnv['CONTROL_DB_DATABASE'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Control DB Username</label>
-                <input name="control_db_user" class="form-input" value="<?= htmlspecialchars($_POST['control_db_user'] ?? ($existingEnv['CONTROL_DB_USERNAME'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Control DB Password</label>
-                <input type="password" name="control_db_pass" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Control DB Encryption Key</label>
-                <input name="control_db_enc_key" class="form-input" placeholder="Required for encrypted tenant DB passwords">
-            </div>
-            <div class="warn">
-                Leave control DB password and encryption key blank to reuse the current `.env` values during reinstall.
-            </div>
-
-            <hr>
-
-            <div class="form-group">
-                <label class="form-label">Admin Username <span style="color:#9ca3af;font-weight:400">(min 3 chars, letters/numbers/_)</span></label>
-                <input name="admin_username" class="form-input" placeholder="e.g. admin" autocomplete="username" value="<?= htmlspecialchars($_POST['admin_username'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Admin Email</label>
-                <input type="email" name="admin_email" class="form-input" autocomplete="email" value="<?= htmlspecialchars($_POST['admin_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Admin Full Name</label>
-                <input name="admin_name" class="form-input" placeholder="e.g. Jane Smith" autocomplete="name" value="<?= htmlspecialchars($_POST['admin_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Admin Password <span style="color:#9ca3af;font-weight:400">(min 8 chars)</span></label>
-                <div style="position:relative">
-                    <input type="password" name="admin_pass" id="admin_pass" class="form-input" autocomplete="new-password" style="padding-right:40px">
-                    <button type="button" onclick="ikTogglePw('admin_pass','eye1')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px" title="Show/hide password" id="eye1">👁️</button>
+                <div class="form-group">
+                    <label class="form-label">Database Username</label>
+                    <input name="db_user" class="form-input" value="<?= htmlspecialchars($_POST['db_user'] ?? ($existingEnv['DB_USERNAME'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
                 </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Confirm Password</label>
-                <div style="position:relative">
-                    <input type="password" name="admin_pass_confirm" id="admin_pass_confirm" class="form-input" autocomplete="new-password" style="padding-right:40px">
-                    <button type="button" onclick="ikTogglePw('admin_pass_confirm','eye2')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px" title="Show/hide password" id="eye2">👁️</button>
+                <div class="form-group">
+                    <label class="form-label">Database Password</label>
+                    <input type="password" name="db_pass" class="form-input" id="db_pass">
                 </div>
-                <div id="pw-match-hint" style="font-size:11px;margin-top:4px"></div>
-            </div>
+                <div class="form-group">
+                    <label class="form-label">Database Host</label>
+                    <div class="row">
+                        <input name="db_host" class="form-input" placeholder="localhost" value="<?= htmlspecialchars($_POST['db_host'] ?? ($existingEnv['DB_HOST'] ?? 'localhost'), ENT_QUOTES, 'UTF-8') ?>">
+                        <input name="db_port" class="form-input" placeholder="3306" value="<?= htmlspecialchars($_POST['db_port'] ?? ($existingEnv['DB_PORT'] ?? '3306'), ENT_QUOTES, 'UTF-8') ?>">
+                    </div>
+                </div>
+                <div id="db-test-result"></div>
+                <button type="button" class="btn" id="btn-test-db" style="background:#0891b2;margin-bottom:10px" onclick="installerTestDb()">Test Connection</button>
 
-            <button type="submit" class="btn">Install</button>
-            <div class="warn">
-                <strong>Bluehost / cPanel:</strong> Use <code>localhost</code> as DB host. Create the database via cPanel first if CREATE DATABASE fails.
-            </div>
+                <div class="a-wrap">
+                    <button type="button" class="adv-toggle" onclick="ikToggleAdv(this)">Advanced options &darr;</button>
+                    <div class="adv-panel">
+                        <div class="form-group">
+                            <label class="form-label" for="app_multi_tenant_enabled">Multi-Tenant Mode</label>
+                            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#4a5568">
+                                <input
+                                    id="app_multi_tenant_enabled"
+                                    type="checkbox"
+                                    name="app_multi_tenant_enabled"
+                                    value="1"
+                                    <?= !empty($_POST['app_multi_tenant_enabled']) || (empty($_POST) && !empty($existingEnv['APP_MULTI_TENANT_ENABLED'])) ? 'checked' : '' ?>
+                                >
+                                Enable separate control-plane database settings
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Control DB Host</label>
+                            <div class="row">
+                                <input name="control_db_host" class="form-input" placeholder="localhost" value="<?= htmlspecialchars($_POST['control_db_host'] ?? ($existingEnv['CONTROL_DB_HOST'] ?? ($existingEnv['DB_HOST'] ?? 'localhost')), ENT_QUOTES, 'UTF-8') ?>">
+                                <input name="control_db_port" class="form-input" placeholder="3306" value="<?= htmlspecialchars($_POST['control_db_port'] ?? ($existingEnv['CONTROL_DB_PORT'] ?? ($existingEnv['DB_PORT'] ?? '3306')), ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Control DB Name</label>
+                            <input name="control_db_name" class="form-input" placeholder="control_db" value="<?= htmlspecialchars($_POST['control_db_name'] ?? ($existingEnv['CONTROL_DB_DATABASE'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Control DB Username</label>
+                            <input name="control_db_user" class="form-input" value="<?= htmlspecialchars($_POST['control_db_user'] ?? ($existingEnv['CONTROL_DB_USERNAME'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Control DB Password</label>
+                            <input type="password" name="control_db_pass" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Control DB Encryption Key</label>
+                            <input name="control_db_enc_key" class="form-input" placeholder="Required for encrypted tenant DB passwords">
+                        </div>
+                        <div class="warn">
+                            Leave control DB password and encryption key blank to reuse the current `.env` values during reinstall.
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button type="button" class="btn btn-secondary" onclick="wizGo(1)">&larr; Back</button>
+                    <button type="button" class="btn" onclick="wizGo(3)">Continue &rarr;</button>
+                </div>
+            </section>
+
+            <!-- Step 3: Site & Admin -->
+            <section class="wizard-step" data-step="3">
+                <div class="step-title">Site &amp; Administrator</div>
+                <div class="step-hint">Set the address users will visit this site at, then create your administrator login.</div>
+                <div class="form-group">
+                    <label class="form-label">Site Address (Domain)</label>
+                    <input name="site_url" class="form-input" placeholder="https://example.com" value="<?= htmlspecialchars($_POST['site_url'] ?? $detectedAppUrl, ENT_QUOTES, 'UTF-8') ?>">
+                    <small class="muted">Detected: <?= htmlspecialchars($detectedAppUrl, ENT_QUOTES, 'UTF-8') ?></small>
+                </div>
+                <hr>
+                <div class="form-group">
+                    <label class="form-label">Admin Username <span style="color:#9ca3af;font-weight:400">(min 3 chars, letters/numbers/_)</span></label>
+                    <input name="admin_username" class="form-input" placeholder="e.g. admin" autocomplete="username" value="<?= htmlspecialchars($_POST['admin_username'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Admin Email</label>
+                    <input type="email" name="admin_email" class="form-input" autocomplete="email" value="<?= htmlspecialchars($_POST['admin_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Admin Password <span style="color:#9ca3af;font-weight:400">(min 8 chars)</span></label>
+                    <div class="pwd-wrap">
+                        <input type="password" name="admin_pass" id="admin_pass" class="form-input" autocomplete="new-password" style="padding-right:40px">
+                        <button type="button" class="eye" onclick="ikTogglePw('admin_pass','eye1')" title="Show/hide password" id="eye1">👁️</button>
+                    </div>
+                    <div class="meter"><div id="strength-bar"></div></div>
+                    <div class="meter-label" id="strength-label">Password strength</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm Password</label>
+                    <div class="pwd-wrap">
+                        <input type="password" name="admin_pass_confirm" id="admin_pass_confirm" class="form-input" autocomplete="new-password" style="padding-right:40px">
+                        <button type="button" class="eye" onclick="ikTogglePw('admin_pass_confirm','eye2')" title="Show/hide password" id="eye2">👁️</button>
+                    </div>
+                    <div class="pw-hint" id="pw-match-hint"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Admin Full Name <span class="badge">optional</span></label>
+                    <input name="admin_name" class="form-input" placeholder="e.g. Jane Smith" autocomplete="name" value="<?= htmlspecialchars($_POST['admin_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="btn-row">
+                    <button type="button" class="btn btn-secondary" onclick="wizGo(2)">&larr; Back</button>
+                    <button type="button" class="btn" onclick="wizGo(4)">Continue &rarr;</button>
+                </div>
+            </section>
+
+            <!-- Step 4: Install -->
+            <section class="wizard-step" data-step="4">
+                <div class="step-title">Ready to Install</div>
+                <div class="step-hint">Review your selections and click Install. This usually takes under a minute.</div>
+                <div class="summary-box">
+                    <div><strong>Site Address:</strong> <span id="sum-site"></span></div>
+                    <div><strong>Database:</strong> <span id="sum-db"></span></div>
+                    <div><strong>Admin:</strong> <span id="sum-admin"></span></div>
+                </div>
+                <div class="warn">
+                    <strong>Bluehost / cPanel:</strong> Use <code>localhost</code> as DB host. The installer creates the database automatically when the account has permission.
+                </div>
+                <div class="btn-row">
+                    <button type="button" class="btn btn-secondary" onclick="wizGo(3)">&larr; Back</button>
+                    <button type="submit" class="btn" id="btn-install">Install Ikabud</button>
+                </div>
+            </section>
         </form>
     <?php endif; ?>
 </div>
 <script>
+function wizGo(step) {
+    step = parseInt(step, 10) || 1;
+    document.querySelectorAll('.wizard-step').forEach(function (s) {
+        s.classList.toggle('active', parseInt(s.getAttribute('data-step'), 10) === step);
+    });
+    document.querySelectorAll('.wiz-progress .seg, .wiz-labels span').forEach(function (el) {
+        var n = parseInt(el.getAttribute('data-step'), 10);
+        el.classList.toggle('active', n <= step);
+        if (el.tagName === 'SPAN') {
+            el.classList.toggle('on', n <= step);
+        }
+    });
+    if (step === 4) ikRefreshSummary();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 function ikTogglePw(inputId, btnId) {
     var el = document.getElementById(inputId);
     var btn = document.getElementById(btnId);
@@ -762,23 +998,72 @@ function ikTogglePw(inputId, btnId) {
         if (btn) btn.style.opacity = '0.5';
     }
 }
+function ikToggleAdv(btn) {
+    var panel = btn.nextElementSibling;
+    if (!panel) return;
+    var open = panel.classList.toggle('open');
+    btn.textContent = open ? 'Advanced options \u25b2' : 'Advanced options \u25bc';
+}
+function ikRefreshSummary() {
+    var f = document.getElementById('install-form');
+    if (!f) return;
+    function v(n) {
+        var el = f.querySelector('[name="' + n + '"]');
+        return el ? el.value.trim() : '';
+    }
+    var site = v('site_url') || '<detected>';
+    var db = (v('db_name') || '?') + ' @ ' + (v('db_host') || 'localhost')
+        + (v('db_user') ? ' as ' + v('db_user') : '');
+    var admin = v('admin_username') || '?';
+    var e1 = document.getElementById('sum-site');
+    var e2 = document.getElementById('sum-db');
+    var e3 = document.getElementById('sum-admin');
+    if (e1) e1.textContent = site;
+    if (e2) e2.textContent = db;
+    if (e3) e3.textContent = admin;
+}
+function ikStrength(pw) {
+    if (!pw) return 0;
+    var s = 0;
+    if (pw.length >= 8) s++;
+    if (pw.length >= 12) s++;
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+    if (/\d/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    return Math.min(4, s);
+}
+function ikRenderStrength() {
+    var p = document.getElementById('admin_pass');
+    var bar = document.getElementById('strength-bar');
+    var lab = document.getElementById('strength-label');
+    if (!p || !bar || !lab) return;
+    var s = ikStrength(p.value);
+    var colors = ['#e2e8f0', '#dc2626', '#f59e0b', '#84cc16', '#16a34a'];
+    var labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+    bar.style.width = (s * 25) + '%';
+    bar.style.background = colors[s];
+    lab.textContent = 'Password strength: ' + (labels[s] || '');
+}
 (function () {
     var p = document.getElementById('admin_pass');
     var c = document.getElementById('admin_pass_confirm');
     var hint = document.getElementById('pw-match-hint');
-    if (!p || !c || !hint) return;
-    function check() {
-        if (c.value === '') { hint.textContent = ''; return; }
-        if (p.value === c.value) {
-            hint.style.color = '#16a34a';
-            hint.textContent = '\u2713 Passwords match';
-        } else {
-            hint.style.color = '#dc2626';
-            hint.textContent = '\u2717 Passwords do not match';
+    if (p && c && hint) {
+        function check() {
+            if (c.value === '') { hint.textContent = ''; return; }
+            if (p.value === c.value) {
+                hint.style.color = '#16a34a';
+                hint.textContent = '\u2713 Passwords match';
+            } else {
+                hint.style.color = '#dc2626';
+                hint.textContent = '\u2717 Passwords do not match';
+            }
         }
+        p.addEventListener('input', check);
+        c.addEventListener('input', check);
+        p.addEventListener('input', ikRenderStrength);
+        ikRenderStrength();
     }
-    p.addEventListener('input', check);
-    c.addEventListener('input', check);
 })();
 function installerTestDb() {
     var btn = document.getElementById('btn-test-db');
@@ -786,36 +1071,47 @@ function installerTestDb() {
     if (!btn || !res) return;
     btn.disabled = true;
     btn.textContent = 'Testing\u2026';
-    res.style.display = 'none';
+    res.className = '';
+    res.textContent = '';
     var form = btn.closest('form');
     var data = new FormData();
     data.append('step', 'test_db');
-    data.append('db_host', (form.querySelector('[name=db_host]') || {value:''}).value);
-    data.append('db_port', (form.querySelector('[name=db_port]') || {value:'3306'}).value);
-    data.append('db_name', (form.querySelector('[name=db_name]') || {value:''}).value);
-    data.append('db_user', (form.querySelector('[name=db_user]') || {value:''}).value);
-    data.append('db_pass', (document.getElementById('db_pass') || {value:''}).value);
-    fetch(location.pathname, {method: 'POST', body: data})
-        .then(function(r) { return r.json(); })
-        .then(function(j) {
-            res.style.display = 'block';
+    data.append('db_host', (form.querySelector('[name=db_host]') || { value: '' }).value);
+    data.append('db_port', (form.querySelector('[name=db_port]') || { value: '3306' }).value);
+    data.append('db_name', (form.querySelector('[name=db_name]') || { value: '' }).value);
+    data.append('db_user', (form.querySelector('[name=db_user]') || { value: '' }).value);
+    data.append('db_pass', (document.getElementById('db_pass') || { value: '' }).value);
+    fetch(location.pathname, { method: 'POST', body: data })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
             if (j.ok) {
-                res.style.cssText = 'display:block;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px;background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0';
+                res.className = 'ok';
                 res.textContent = '\u2713 ' + (j.message || 'Connection successful');
             } else {
-                res.style.cssText = 'display:block;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca';
+                res.className = 'err';
                 res.textContent = '\u2717 ' + (j.error || 'Connection failed');
             }
         })
-        .catch(function(err) {
-            res.style.cssText = 'display:block;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca';
+        .catch(function (err) {
+            res.className = 'err';
             res.textContent = '\u2717 Request failed: ' + err.message;
         })
-        .finally(function() {
+        .finally(function () {
             btn.disabled = false;
             btn.textContent = 'Test Connection';
         });
 }
+(function () {
+    // Server-side errors present? Show every step so the user can review.
+    var hasErrors = document.body.getAttribute('data-errors') === '1';
+    if (hasErrors) {
+        document.querySelectorAll('.wizard-step').forEach(function (s) { s.classList.add('active'); });
+        var prog = document.getElementById('wiz-progress');
+        if (prog) prog.style.display = 'none';
+    } else {
+        wizGo(1);
+    }
+})();
 </script>
 </body>
 </html>
