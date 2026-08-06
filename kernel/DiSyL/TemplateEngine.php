@@ -41,6 +41,7 @@ require_once __DIR__ . '/Component/MacroProcessor.php';
 require_once __DIR__ . '/Component/IncludeResolver.php';
 require_once __DIR__ . '/Component/ExtendsProcessor.php';
 require_once __DIR__ . '/Cache/SourceCache.php';
+require_once __DIR__ . '/Renderer/TemplateRenderer.php';
 
 use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
 use Ikabud\Kernel\DiSyL\Cache\SourceCache;
@@ -48,6 +49,7 @@ use Ikabud\Kernel\DiSyL\Component\ComponentRenderer;
 use Ikabud\Kernel\DiSyL\Component\MacroProcessor;
 use Ikabud\Kernel\DiSyL\Component\IncludeResolver;
 use Ikabud\Kernel\DiSyL\Component\ExtendsProcessor;
+use Ikabud\Kernel\DiSyL\Renderer\TemplateRenderer;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
 class TemplateEngine
@@ -75,6 +77,8 @@ class TemplateEngine
     private ?IncludeResolver $includeResolver = null;
     /** @var ExtendsProcessor|null {extends}/{block}/{debug} processor (D8 refactor) */
     private ?ExtendsProcessor $extendsProcessor = null;
+    /** @var TemplateRenderer|null Output-cache/metrics/fingerprint machinery (D8 refactor) */
+    private ?TemplateRenderer $templateRenderer = null;
     /** @var int Recursion depth for compile() — macros only extracted at depth 0 */
     private int $compileDepth = 0;
     private ?Compiler\TemplateCache $compiledCache = null;
@@ -338,20 +342,11 @@ class TemplateEngine
         return $count;
     }
     
-    /** @var array In-memory cache of compiled output per request */
-    private array $outputCache = [];
-
     /** @var array{file:string, errors:array}[]|null Last loadViewConfigs result with per-file errors */
     private static ?array $lastLoadErrors = null;
 
     /** @var array<string, bool> Per-request cache of compiled-mode eligibility */
     private array $compiledEligibilityCache = [];
-
-    /** Maximum number of entries in the in-memory output cache */
-    private const OUTPUT_CACHE_MAX = 200;
-
-    /** Maximum nesting depth for the fast output-cache key path before falling back to serialize() */
-    private const OUTPUT_CACHE_KEY_FAST_DEPTH = 8;
 
     /**
      * Bump this version whenever the compiled-eligibility rules change
@@ -363,27 +358,6 @@ class TemplateEngine
 
     /** Maximum output size in bytes (5 MB default — prevents runaway templates) */
     private const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
-
-    /** Shared APCu rendered-output cache TTL (seconds). 0 = disabled. */
-    private int $sharedOutputCacheTtl = 0;
-
-    /** Whether the cache authority warning has already been emitted this process. */
-    private static bool $cacheAuthorityWarningEmitted = false;
-
-    /** @var array<string,int> Aggregate cache metrics for the current FPM worker */
-    private static array $cacheMetrics = [
-        'output_hits' => 0,
-        'output_misses' => 0,
-        'source_hits' => 0,
-        'source_misses' => 0,
-        'compiles' => 0,
-    ];
-
-    /** @var int Render calls since last metrics log */
-    private static int $rendersSinceMetricsLog = 0;
-
-    /** Emit cache metrics log every N renders */
-    private const CACHE_METRICS_LOG_INTERVAL = 100;
     
     public function render(string $template, array $context = []): string
     {
@@ -403,12 +377,12 @@ class TemplateEngine
 
         $context = array_merge($this->globals, $context);
         $sharedCacheKey = null;
-        if ($this->sharedOutputCacheTtl > 0 && $this->cacheEnabled && $this->hasApcuCache()) {
-            $sharedCacheKey = $this->buildSharedOutputCacheKey($templatePath, $context);
+        if ($this->templateRenderer()->sharedOutputCacheTtl() > 0 && $this->cacheEnabled && $this->hasApcuCache()) {
+            $sharedCacheKey = $this->templateRenderer()->buildSharedOutputCacheKey($templatePath, $context);
             $shared = apcu_fetch($sharedCacheKey, $sharedHit);
             if ($sharedHit && is_string($shared)) {
-                self::$cacheMetrics['output_hits']++;
-                $this->logCacheMetricsPeriodic();
+                TemplateRenderer::incrementMetric('output_hits');
+                $this->templateRenderer()->logCacheMetricsPeriodic();
                 if (function_exists('log_timing')) {
                     log_timing('disyl.render.breakdown', microtime(true) - 0.0001, [
                         'template' => $template,
@@ -418,7 +392,7 @@ class TemplateEngine
                 }
                 return $shared;
             }
-            self::$cacheMetrics['output_misses']++;
+            TemplateRenderer::incrementMetric('output_misses');
         }
 
         // Compiled-mode fast path: use pre-compiled PHP class when available.
@@ -485,7 +459,7 @@ class TemplateEngine
                     throw new \RuntimeException("Template output exceeds maximum allowed size");
                 }
                 if ($sharedCacheKey !== null) {
-                    apcu_store($sharedCacheKey, $result, $this->sharedOutputCacheTtl);
+                    apcu_store($sharedCacheKey, $result, $this->templateRenderer()->sharedOutputCacheTtl());
                 }
                 return $result;
             } catch (\RuntimeException $e) {
@@ -535,10 +509,10 @@ class TemplateEngine
         
         // In-memory cache for repeated renders within same request (e.g., HTMX partials)
         if ($this->cacheEnabled) {
-            $memKey = $this->buildOutputCacheKey($templatePath, $context);
-            if (isset($this->outputCache[$memKey])) {
+            $memKey = $this->templateRenderer()->buildOutputCacheKey($templatePath, $context);
+            if ($this->templateRenderer()->hasOutputCacheKey($memKey)) {
                 $this->currentTemplatePath = $prevTemplatePath;
-                return $this->outputCache[$memKey];
+                return $this->templateRenderer()->outputCacheGet($memKey);
             }
             
             $result = $this->compile($content, $context);
@@ -560,15 +534,11 @@ class TemplateEngine
             }
 
             // Evict oldest entry when cache is full to bound memory growth
-            if (count($this->outputCache) >= self::OUTPUT_CACHE_MAX) {
-                reset($this->outputCache);
-                unset($this->outputCache[key($this->outputCache)]);
-            }
-            $this->outputCache[$memKey] = $result;
+            $this->templateRenderer()->outputCacheSet($memKey, $result);
             if ($sharedCacheKey !== null) {
-                apcu_store($sharedCacheKey, $result, $this->sharedOutputCacheTtl);
+                apcu_store($sharedCacheKey, $result, $this->templateRenderer()->sharedOutputCacheTtl());
             }
-            $this->logCacheMetricsPeriodic();
+            $this->templateRenderer()->logCacheMetricsPeriodic();
             return $result;
         }
         
@@ -582,32 +552,21 @@ class TemplateEngine
         }
 
         if ($sharedCacheKey !== null) {
-            apcu_store($sharedCacheKey, $result, $this->sharedOutputCacheTtl);
+            apcu_store($sharedCacheKey, $result, $this->templateRenderer()->sharedOutputCacheTtl());
         }
 
-        $this->logCacheMetricsPeriodic();
+        $this->templateRenderer()->logCacheMetricsPeriodic();
         return $result;
     }
 
     private function buildOutputCacheKey(string $templatePath, array $context): string
     {
-        $fastFingerprint = $this->tryBuildFastContextFingerprint($context);
-        if ($fastFingerprint !== null) {
-            return $templatePath . '|' . $fastFingerprint;
-        }
-
-        try {
-            return $templatePath . '|' . md5(serialize($context));
-        } catch (\Throwable $e) {
-            // Non-serializable context payloads (e.g. closures) should not explode render path.
-            return $templatePath . '|uncacheable|' . md5(spl_object_hash($this) . '|' . (string)microtime(true));
-        }
+        return $this->templateRenderer()->buildOutputCacheKey($templatePath, $context);
     }
 
     private function buildSharedOutputCacheKey(string $templatePath, array $context): string
     {
-        $mtime = (int)@filemtime($templatePath);
-        return 'disyl:render:' . md5($templatePath . '|' . $mtime . '|' . $this->buildOutputCacheKey($templatePath, $context));
+        return $this->templateRenderer()->buildSharedOutputCacheKey($templatePath, $context);
     }
 
     private function hasApcuCache(): bool
@@ -615,130 +574,31 @@ class TemplateEngine
         return extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled();
     }
 
+    /** Set the shared (APCu) output-cache TTL (delegates to TemplateRenderer). */
     public function setSharedOutputCacheTtl(int $seconds): void
     {
-        $this->sharedOutputCacheTtl = max(0, $seconds);
-        if ($this->sharedOutputCacheTtl > 0 && !self::$cacheAuthorityWarningEmitted) {
-            self::$cacheAuthorityWarningEmitted = true;
-            if (function_exists('write_log')) {
-                write_log('disyl.cache.authority_warning', 'warning', [
-                    'shared_output_ttl' => $this->sharedOutputCacheTtl,
-                    'message' => 'Shared output cache is active. Ensure it does not overlap with handler-level page caches to avoid stale content.',
-                ]);
-            }
-        }
+        $this->templateRenderer()->setSharedOutputCacheTtl($seconds);
     }
 
-    /** Return aggregate cache hit/miss counters for the current FPM worker. */
+    /** Return aggregate cache hit/miss counters for the current FPM worker (delegates to TemplateRenderer). */
     public static function getCacheMetrics(): array
     {
-        return self::$cacheMetrics;
+        return TemplateRenderer::getCacheMetrics();
     }
 
-    /** Reset aggregate cache counters. */
+    /** Reset aggregate cache counters (delegates to TemplateRenderer). */
     public static function resetCacheMetrics(): void
     {
-        self::$cacheMetrics = array_map(fn() => 0, self::$cacheMetrics);
-        self::$rendersSinceMetricsLog = 0;
-        self::$cacheAuthorityWarningEmitted = false;
+        TemplateRenderer::resetCacheMetrics();
     }
 
-    /** Emit a periodic cache metrics log entry. */
-    private function logCacheMetricsPeriodic(): void
+    /**
+     * Lazily build the shared TemplateRenderer (D8 refactor). The class is
+     * self-contained (output cache + metrics + fingerprint) — no engine deps.
+     */
+    private function templateRenderer(): TemplateRenderer
     {
-        if (++self::$rendersSinceMetricsLog < self::CACHE_METRICS_LOG_INTERVAL) {
-            return;
-        }
-        self::$rendersSinceMetricsLog = 0;
-        if (function_exists('write_log')) {
-            $m = self::$cacheMetrics;
-            $totalOutput = $m['output_hits'] + $m['output_misses'];
-            $totalSource = $m['source_hits'] + $m['source_misses'];
-            write_log('disyl.cache.metrics', 'info', [
-                'output_hit_pct' => $totalOutput > 0 ? round($m['output_hits'] / $totalOutput * 100, 1) : null,
-                'source_hit_pct' => $totalSource > 0 ? round($m['source_hits'] / $totalSource * 100, 1) : null,
-                'compiles' => $m['compiles'],
-                'output_hits' => $m['output_hits'],
-                'output_misses' => $m['output_misses'],
-                'source_hits' => $m['source_hits'],
-                'source_misses' => $m['source_misses'],
-            ]);
-        }
-    }
-
-    private function tryBuildFastContextFingerprint(array $context): ?string
-    {
-        $hash = hash_init('md5');
-        if (!$this->hashContextValue($hash, $context, 0)) {
-            return null;
-        }
-
-        return hash_final($hash);
-    }
-
-    private function hashContextValue($hash, mixed $value, int $depth): bool
-    {
-        if ($depth > self::OUTPUT_CACHE_KEY_FAST_DEPTH) {
-            return false;
-        }
-
-        if ($value === null || is_scalar($value)) {
-            hash_update($hash, serialize($value));
-            return true;
-        }
-
-        if (is_array($value)) {
-            hash_update($hash, 'a' . count($value) . '{');
-            foreach ($value as $key => $item) {
-                if (!$this->hashContextValue($hash, $key, $depth + 1)) {
-                    return false;
-                }
-                if (!$this->hashContextValue($hash, $item, $depth + 1)) {
-                    return false;
-                }
-            }
-            hash_update($hash, '}');
-            return true;
-        }
-
-        if ($value instanceof \DateTimeInterface) {
-            hash_update($hash, 'dt:' . get_class($value) . ':' . $value->format(\DateTimeInterface::ATOM));
-            return true;
-        }
-
-        if ($value instanceof \JsonSerializable) {
-            hash_update($hash, 'js:' . get_class($value) . '{');
-            $ok = $this->hashContextValue($hash, $value->jsonSerialize(), $depth + 1);
-            hash_update($hash, '}');
-            return $ok;
-        }
-
-        if ($value instanceof \Stringable) {
-            hash_update($hash, 'st:' . get_class($value) . ':' . (string)$value);
-            return true;
-        }
-
-        if ($value instanceof \UnitEnum) {
-            hash_update($hash, 'en:' . get_class($value) . ':' . $value->name);
-            return true;
-        }
-
-        if ($value instanceof \Closure || is_resource($value)) {
-            return false;
-        }
-
-        if (is_object($value)) {
-            try {
-                $serialized = serialize($value);
-            } catch (\Throwable $e) {
-                return false;
-            }
-
-            hash_update($hash, 'ob:' . $serialized);
-            return true;
-        }
-
-        return false;
+        return $this->templateRenderer ??= new TemplateRenderer();
     }
     
     public function renderString(string $content, array $context = []): string
@@ -753,7 +613,7 @@ class TemplateEngine
      */
     private function compile(string $content, array $context): string
     {
-        self::$cacheMetrics['compiles']++;
+        TemplateRenderer::incrementMetric('compiles');
         $compileStartedAt = microtime(true);
         $phases = [];
 
@@ -3838,7 +3698,7 @@ class TemplateEngine
         return $this->sourceCache ??= new SourceCache(
             $this->cacheEnabled,
             function (string $metric): void {
-                self::$cacheMetrics[$metric] = (self::$cacheMetrics[$metric] ?? 0) + 1;
+                TemplateRenderer::incrementMetric($metric);
             },
             function (): bool {
                 return $this->hasApcuCache();

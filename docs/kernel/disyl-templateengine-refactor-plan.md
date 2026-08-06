@@ -3,8 +3,9 @@
 > **Plan date:** August 6, 2026
 > **Target:** `kernel/DiSyL/TemplateEngine.php` (7,941 lines) — God Object decomposition
 > **Status:** ✅ **Core decomposition complete (2026-08-06)** — `ComponentRenderer` ✅ +
-> `MacroProcessor` ✅ + `SourceCache` ✅ + `IncludeResolver` ✅ + `ExtendsProcessor` ✅;
-> TemplateEngine reduced 7,941 → 5,213 lines (−2,728, ~34%). The previously-deferred
+> `MacroProcessor` ✅ + `SourceCache` ✅ + `IncludeResolver` ✅ + `ExtendsProcessor` ✅ +
+> `TemplateRenderer` ✅ *(partial — output-cache/metrics/fingerprint cluster; see §6d)*;
+> TemplateEngine reduced 7,941 → 5,073 lines (−2,868, ~36%). The previously-deferred
 > IncludeResolver / ExtendsProcessor item is **done** (see §6b) via the `SourceCache`
 > abstraction the plan prescribed. P4-3 environment-blocked → resolved with Symfony Yaml.
 > **Guardrail:** This refactor must not run immediately before a live deployment. Each
@@ -48,7 +49,9 @@ clean clusters above are extracted.
    the include/extends clusters could be extracted without carrying render-core cache state.
 4. **IncludeResolver** ✅ — depends on path resolution + SourceCache-backed readIncludeSource.
 5. **ExtendsProcessor** ✅ — depends on include resolution + cache dir.
-6. **TemplateRenderer** — top-level facade split; only after the above so the facade is thin.
+6. **TemplateRenderer** 🔄 *(partial)* — output-cache/metrics/fingerprint cluster extracted
+   (see §6d); the top-level `render()`/`renderString()` orchestration + interpreted evaluator
+   remain in the engine as the documented "render core" (deliberately last / highest risk).
 7. **Interpreted evaluator** (optional/last) — highest risk; may remain as a documented
    "render core" within TemplateEngine.
 
@@ -167,7 +170,38 @@ circular_include 9, compiled_component_fallback 3 — all pass; smoke render OK.
   Verified: workflow_engine 32, report_approval 18, lifecycle 12, cms_integration 10,
   contact_form 9 — all pass. (`cms_trigger_ai_workflow_search_integration_test` has 4
   pre-existing/environmental failures unrelated to this change, confirmed via `git stash`.)
+## 6d. TemplateRenderer — partial extraction (2026-08-06)
 
+The full `render()`/`renderString()` move is coupled to the `compile()` evaluator and the
+compiled-mode machinery (the "render core" the plan keeps in the engine). The **genuinely
+self-contained** part of the TemplateRenderer row — the output-cache + metrics +
+fast-fingerprint + shared-TTL cluster — was extracted cleanly instead:
+
+| Moved to `kernel/DiSyL/Renderer/TemplateRenderer.php` (248 lines, zero engine deps) |
+|---|
+| `buildOutputCacheKey`, `buildSharedOutputCacheKey` |
+| `tryBuildFastContextFingerprint`, `hashContextValue` |
+| `logCacheMetricsPeriodic` + `CACHE_METRICS_LOG_INTERVAL` |
+| statics `$cacheMetrics` / `$rendersSinceMetricsLog` / `$cacheAuthorityWarningEmitted` |
+| `$outputCache` (now via `outputCacheGet` / `outputCacheSet` / `hasOutputCacheKey`) |
+| `$sharedOutputCacheTtl` (now via `sharedOutputCacheTtl()` / `setSharedOutputCacheTtl`) |
+| `getCacheMetrics` / `resetCacheMetrics` / `incrementMetric` (statics) |
+| consts `OUTPUT_CACHE_MAX`, `OUTPUT_CACHE_KEY_FAST_DEPTH` |
+
+`TemplateEngine` keeps thin delegates (`setSharedOutputCacheTtl`, `getCacheMetrics`,
+`resetCacheMetrics` — public API preserved) and routes `render()`'s cache/metrics/ttl calls
+through `$this->templateRenderer()`. `compile()` and the SourceCache metric closure now
+increment via `TemplateRenderer::incrementMetric()`, so the aggregate counters stay unified.
+`hasApcuCache()` remains on the engine (shared with the SourceCache factory).
+
+Verified: engine 282, parity 97, v4 36, parser 61, compiler 55, sandbox 28, hardening 44,
+loop 6, async 23, fed_ai 17, cache_exp 20, extends_block 10, circular_include 9,
+template_cache 5, hydration 22 — all pass; file-based render smoke `[Hello Ikabud! big]`
+with `compiles=1` after two renders (second hit in-memory cache — identical to prior
+behavior); error.log clean. `TemplateEngine` reduced to 5,073 lines.
+
+**Remaining for full TemplateRenderer:** move `render()`/`renderString()` orchestration —
+only after (or together with) the interpreted-evaluator cluster, per §3 item 7.
 ## 7. Non-goals / deferred
 
 - Removing the interpreted pipeline entirely (P4-1) — keep as fallback; migration is driven

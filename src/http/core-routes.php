@@ -216,6 +216,38 @@ if (!function_exists('kernelRouteMeta')) {
                 'stateless' => true,
                 'version' => 'v1',
             ],
+            // ── Module login endpoints (CSRF-exempt) ──────
+            // Pre-auth JSON/HTML login POSTs cannot carry a session CSRF token
+            // (the session may not exist yet, and login CSRF is a separate
+            // concern). These are exempted from the automatic CSRF enforcement
+            // safety net in public/index.php; login handlers enforce their own
+            // module auth. Mirrors the stateless treatment of
+            // POST:/api/v1/auth/login above.
+            'POST:/daily-ledger/auth/login' => [
+                'format' => 'json',
+                'auth' => false,
+                'csrf_exempt' => true,
+            ],
+            'POST:/bakeshop/auth/login' => [
+                'format' => 'json',
+                'auth' => false,
+                'csrf_exempt' => true,
+            ],
+            'POST:/dc-cafe/auth/login' => [
+                'format' => 'json',
+                'auth' => false,
+                'csrf_exempt' => true,
+            ],
+            'POST:/inventory-scanner/auth/login' => [
+                'format' => 'json',
+                'auth' => false,
+                'csrf_exempt' => true,
+            ],
+            'POST:/wms/auth/login' => [
+                'format' => 'json',
+                'auth' => false,
+                'csrf_exempt' => true,
+            ],
         ];
     }
 }
