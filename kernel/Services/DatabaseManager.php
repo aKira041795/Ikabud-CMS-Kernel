@@ -138,8 +138,8 @@ class DatabaseManager
 
         // Always use buffered queries to prevent "2014 Cannot execute queries" errors
         // when EventBus listeners or capability handlers leave result sets unconsumed.
-        if (defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY')) {
-            $options[PDO::MYSQL_ATTR_USE_BUFFERED_QUERY] = true;
+        if (PdoMysql::available('ATTR_USE_BUFFERED_QUERY')) {
+            $options[PdoMysql::attr('ATTR_USE_BUFFERED_QUERY')] = true;
         }
 
         $timeoutSeconds = $this->connectionTimeoutSeconds($dbConfig);
@@ -147,23 +147,23 @@ class DatabaseManager
             $options[PDO::ATTR_TIMEOUT] = $timeoutSeconds;
         }
 
-        if (($dbConfig['driver'] ?? 'mysql') === 'mysql' && defined('PDO::MYSQL_ATTR_INIT_COMMAND')) {
-            $options[constant('PDO::MYSQL_ATTR_INIT_COMMAND')] = "SET NAMES '" . $charset . "' COLLATE '" . $collation . "'";
+        if (($dbConfig['driver'] ?? 'mysql') === 'mysql' && PdoMysql::available('ATTR_INIT_COMMAND')) {
+            $options[PdoMysql::attr('ATTR_INIT_COMMAND')] = "SET NAMES '" . $charset . "' COLLATE '" . $collation . "'";
         }
 
         $ssl = $this->connectionSslConfig($dbConfig);
         if (($dbConfig['driver'] ?? 'mysql') === 'mysql' && $ssl['enabled']) {
-            if ($ssl['ca'] !== '' && defined('PDO::MYSQL_ATTR_SSL_CA')) {
-                $options[constant('PDO::MYSQL_ATTR_SSL_CA')] = $ssl['ca'];
+            if ($ssl['ca'] !== '' && PdoMysql::available('ATTR_SSL_CA')) {
+                $options[PdoMysql::attr('ATTR_SSL_CA')] = $ssl['ca'];
             }
-            if ($ssl['cert'] !== '' && defined('PDO::MYSQL_ATTR_SSL_CERT')) {
-                $options[constant('PDO::MYSQL_ATTR_SSL_CERT')] = $ssl['cert'];
+            if ($ssl['cert'] !== '' && PdoMysql::available('ATTR_SSL_CERT')) {
+                $options[PdoMysql::attr('ATTR_SSL_CERT')] = $ssl['cert'];
             }
-            if ($ssl['key'] !== '' && defined('PDO::MYSQL_ATTR_SSL_KEY')) {
-                $options[constant('PDO::MYSQL_ATTR_SSL_KEY')] = $ssl['key'];
+            if ($ssl['key'] !== '' && PdoMysql::available('ATTR_SSL_KEY')) {
+                $options[PdoMysql::attr('ATTR_SSL_KEY')] = $ssl['key'];
             }
-            if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
-                $options[constant('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')] = $ssl['verify_server_cert'];
+            if (PdoMysql::available('ATTR_SSL_VERIFY_SERVER_CERT')) {
+                $options[PdoMysql::attr('ATTR_SSL_VERIFY_SERVER_CERT')] = $ssl['verify_server_cert'];
             }
         }
 
