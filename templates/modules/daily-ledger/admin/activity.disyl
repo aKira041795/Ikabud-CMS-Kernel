@@ -90,6 +90,9 @@
                         <td class="px-4 py-3 align-top text-slate-800">{if act.branch_name}{act.branch_name}{else}<span class="text-slate-400">All / None</span>{/if}</td>
                         <td class="px-4 py-3 align-top text-slate-700">
                             <div class="font-semibold text-slate-900">{act.actor_name}</div>
+                            {if act.actor_identity_label && act.actor_identity_label != act.actor_name}
+                            <div class="mt-1 text-xs text-slate-500">{act.actor_identity_label}</div>
+                            {/if}
                             {if act.actor_source_label}
                             <div class="mt-1 text-xs text-slate-500">{act.actor_source_label}</div>
                             {/if}
@@ -111,10 +114,11 @@
                         </td>
                         <td class="px-4 py-3 align-top text-slate-700">{act.change_summary}</td>
                         <td class="px-4 py-3 align-top text-slate-700">
-                            <div>Source: <span class="font-semibold text-slate-900">{act.actor_source_label}</span></div>
-                            {if act.entity_type_label}
-                            <div class="mt-1">Record: <span class="font-semibold text-slate-900">{act.entity_type_label}{if act.entity_id} #{act.entity_id}{/if}</span></div>
-                            {/if}
+                            <div>
+                                Source: <span class="font-semibold text-slate-900">{act.actor_source_label}</span>
+                                {if act.actor_identity_label}<span class="text-slate-500"> · {act.actor_identity_label}</span>{/if}
+                            </div>
+                            <div class="mt-1">Record: <span class="font-semibold text-slate-900">{act.record_label}</span></div>
                             {if act.is_grouped}
                             <div class="mt-1 text-xs text-slate-500">Grouped batch entry</div>
                             {/if}

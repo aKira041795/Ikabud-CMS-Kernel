@@ -5928,6 +5928,100 @@ function handleAdminActivity(array $params = []): void
         $branchLookup[(int)$branchRow['id']] = (string)$branchRow['name'];
     }
 
+    $moduleUserLookup = [];
+    foreach ($ctx->db()->query('SELECT id, full_name, username, email FROM dl_users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $moduleUserRow) {
+        $moduleUserLookup[(int)$moduleUserRow['id']] = [
+            'full_name' => (string)($moduleUserRow['full_name'] ?? ''),
+            'username' => (string)($moduleUserRow['username'] ?? ''),
+            'email' => (string)($moduleUserRow['email'] ?? ''),
+        ];
+    }
+
+    $kernelUserLookup = [];
+    foreach ($ctx->db()->query('SELECT id, full_name, username, email FROM users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $kernelUserRow) {
+        $kernelUserLookup[(int)$kernelUserRow['id']] = [
+            'full_name' => (string)($kernelUserRow['full_name'] ?? ''),
+            'username' => (string)($kernelUserRow['username'] ?? ''),
+            'email' => (string)($kernelUserRow['email'] ?? ''),
+        ];
+    }
+
+    $formatUserLabel = static function (array $userRow, int $userId): string {
+        $fullName = trim((string)($userRow['full_name'] ?? ''));
+        $username = trim((string)($userRow['username'] ?? ''));
+        $email = trim((string)($userRow['email'] ?? ''));
+        if ($fullName !== '') {
+            return $username !== ''
+                ? $fullName . ' (@' . $username . ', User #' . $userId . ')'
+                : $fullName . ' (User #' . $userId . ')';
+        }
+        if ($username !== '') {
+            return '@' . $username . ' (User #' . $userId . ')';
+        }
+        if ($email !== '') {
+            return $email . ' (User #' . $userId . ')';
+        }
+        return 'User #' . $userId;
+    };
+
+    $resolveUserById = static function (int $userId, string $preferredSource = 'daily-ledger') use ($moduleUserLookup, $kernelUserLookup, $formatUserLabel): string {
+        if ($userId <= 0) {
+            return '';
+        }
+
+        $source = strtolower(trim($preferredSource));
+        if ($source === 'kernel') {
+            if (isset($kernelUserLookup[$userId])) {
+                return $formatUserLabel($kernelUserLookup[$userId], $userId);
+            }
+            if (isset($moduleUserLookup[$userId])) {
+                return $formatUserLabel($moduleUserLookup[$userId], $userId);
+            }
+            return 'Kernel User #' . $userId;
+        }
+
+        if (isset($moduleUserLookup[$userId])) {
+            return $formatUserLabel($moduleUserLookup[$userId], $userId);
+        }
+        if (isset($kernelUserLookup[$userId])) {
+            return $formatUserLabel($kernelUserLookup[$userId], $userId);
+        }
+        return 'User #' . $userId;
+    };
+
+    $resolveUserFromPayload = static function (array $newPayload, array $oldPayload): string {
+        $sourcePayload = $newPayload !== [] ? $newPayload : $oldPayload;
+        if ($sourcePayload === []) {
+            return '';
+        }
+
+        $fullName = trim((string)($sourcePayload['full_name'] ?? $sourcePayload['name'] ?? ''));
+        $username = trim((string)($sourcePayload['username'] ?? ''));
+        $email = trim((string)($sourcePayload['email'] ?? ''));
+        $id = 0;
+        if (isset($sourcePayload['id']) && is_numeric($sourcePayload['id'])) {
+            $id = (int)$sourcePayload['id'];
+        } elseif (isset($sourcePayload['user_id']) && is_numeric($sourcePayload['user_id'])) {
+            $id = (int)$sourcePayload['user_id'];
+        }
+
+        $suffix = $id > 0 ? ' (User #' . $id . ')' : '';
+        if ($fullName !== '') {
+            if ($username !== '') {
+                return $fullName . ' (@' . $username . ')' . $suffix;
+            }
+            return $fullName . $suffix;
+        }
+        if ($username !== '') {
+            return '@' . $username . $suffix;
+        }
+        if ($email !== '') {
+            return $email . $suffix;
+        }
+
+        return $id > 0 ? 'User #' . $id : '';
+    };
+
     $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
     $hasActorSource = dlAuditLogHasColumn('actor_source');
 
@@ -6404,7 +6498,7 @@ function handleAdminActivity(array $params = []): void
         return '';
     };
 
-    $buildActivityEntry = static function (array $row, array $oldPayload, array $newPayload, array $overrides = []) use ($actionMeta, $pickTarget, $buildDetailItems, $buildChangeItems, $formatRelativeTime): array {
+    $buildActivityEntry = static function (array $row, array $oldPayload, array $newPayload, array $overrides = []) use ($actionMeta, $pickTarget, $buildDetailItems, $buildChangeItems, $formatRelativeTime, $resolveUserById, $resolveUserFromPayload): array {
         $meta = $actionMeta((string)$row['action'], $row['entity_type'] ?? null);
         $target = $pickTarget($newPayload, $oldPayload);
         $summary = $meta['summary'];
@@ -6412,18 +6506,41 @@ function handleAdminActivity(array $params = []): void
             $summary .= ' - ' . $target;
         }
 
+        $actorSource = strtolower(trim((string)($row['actor_source'] ?? '')));
+        $actorModuleUserId = (int)($row['actor_module_user_id'] ?? 0);
+        $actorKernelUserId = (int)($row['actor_user_id'] ?? 0);
+        $actorIdentity = '';
+        if ($actorModuleUserId > 0) {
+            $actorIdentity = $resolveUserById($actorModuleUserId, 'daily-ledger');
+        } elseif ($actorKernelUserId > 0) {
+            $actorIdentity = $resolveUserById($actorKernelUserId, $actorSource !== '' ? $actorSource : 'kernel');
+        }
+
         $actorName = trim((string)($row['module_actor_name'] ?? ''));
         if ($actorName === '') {
             $actorName = trim((string)($row['kernel_actor_name'] ?? ''));
         }
+        if ($actorName === '' && $actorIdentity !== '') {
+            $actorName = $actorIdentity;
+        }
         if ($actorName === '') {
-            $source = strtolower(trim((string)($row['actor_source'] ?? '')));
-            if ($source === 'daily-ledger') {
+            if ($actorSource === 'daily-ledger') {
                 $actorName = 'Daily Ledger';
-            } elseif ($source === 'kernel') {
+            } elseif ($actorSource === 'kernel') {
                 $actorName = 'Kernel User';
             } else {
                 $actorName = 'System';
+            }
+        }
+
+        $entityType = strtolower(trim((string)($row['entity_type'] ?? '')));
+        $entityId = (int)($row['entity_id'] ?? 0);
+        $isUserEntity = $entityType !== '' && (str_contains($entityType, 'user') || in_array($entityType, ['users', 'user', 'dl_users'], true));
+        $recordLabel = '';
+        if ($isUserEntity) {
+            $recordLabel = $resolveUserFromPayload($newPayload, $oldPayload);
+            if ($recordLabel === '' && $entityId > 0) {
+                $recordLabel = $resolveUserById($entityId, 'daily-ledger');
             }
         }
 
@@ -6431,12 +6548,14 @@ function handleAdminActivity(array $params = []): void
         $entry = [
             'action' => (string)$row['action'],
             'actor_name' => $actorName,
+            'actor_identity_label' => $actorIdentity,
             'actor_source_label' => ucwords(str_replace('-', ' ', (string)($row['actor_source'] ?? 'system'))),
             'created_at' => (string)$row['created_at'],
             'relative_time' => $formatRelativeTime((string)$row['created_at']),
             'branch_name' => (string)($row['branch_name'] ?? ''),
             'entity_type' => (string)($row['entity_type'] ?? ''),
             'entity_id' => (string)($row['entity_id'] ?? ''),
+            'record_label' => $recordLabel,
             'summary' => $summary,
             'badge_label' => $meta['badge_label'],
             'badge_classes' => $meta['badge_classes'],
@@ -6594,6 +6713,14 @@ function handleAdminActivity(array $params = []): void
         $activity['entity_type_label'] = $humanizeEntityType((string)($activity['entity_type'] ?? ''));
         $activity['detail_summary'] = $summarizeDetailItems(is_array($activity['detail_items'] ?? null) ? $activity['detail_items'] : []);
         $activity['change_summary'] = $summarizeChangeItems(is_array($activity['change_items'] ?? null) ? $activity['change_items'] : []);
+        $resolvedRecordLabel = trim((string)($activity['record_label'] ?? ''));
+        if ($resolvedRecordLabel === '') {
+            $resolvedRecordLabel = (string)$activity['entity_type_label'];
+            if (!empty($activity['entity_id'])) {
+                $resolvedRecordLabel .= ' #' . (string)$activity['entity_id'];
+            }
+        }
+        $activity['record_label'] = $resolvedRecordLabel;
         $activity['grouped_summary'] = 'None';
         if (!empty($activity['grouped_items']) && is_array($activity['grouped_items'])) {
             $parts = [];
