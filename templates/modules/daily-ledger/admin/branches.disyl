@@ -63,7 +63,13 @@
         <p class="text-sm text-gray-500">Manage branches and activation status.</p>
     </div>
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <form class="flex gap-2" action="{base_url}/admin/branches" method="GET">
+        <form class="flex gap-2" action="{base_url}/admin/branches" method="GET"
+      hx-get="{base_url}/admin/branches"
+      hx-target="#main-content"
+      hx-select="#main-content > *"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-include="this">
             {if selected_price_group_id > 0}<input type="hidden" name="price_group_id" value="{selected_price_group_id}">{/if}
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or code...">
             <button type="submit" class="btn btn-outline">Search</button>

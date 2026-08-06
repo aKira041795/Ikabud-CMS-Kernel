@@ -177,7 +177,13 @@
 </div>
 {/if}
 
-<form class="card mb-6" action="{base_url}/admin/production" method="GET">
+<form class="card mb-6" action="{base_url}/admin/production" method="GET"
+      hx-get="{base_url}/admin/production"
+      hx-target="#main-content"
+      hx-select="#main-content > *"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-include="this">
     <div class="card-body">
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 items-end">
             <div class="form-group mb-0">

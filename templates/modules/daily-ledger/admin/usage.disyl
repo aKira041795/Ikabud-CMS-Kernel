@@ -10,9 +10,15 @@
         <p class="text-sm text-gray-500">Track ingredient consumption and production run inputs per date. Dispatch finished goods via Production Output.</p>
     </div>
     <div class="flex items-center gap-2">
-        <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/usage">
-            <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.submit()">
-            <select class="form-input" name="branch_id" onchange="this.form.submit()">
+        <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/usage"
+      hx-get="{base_url}/admin/usage"
+      hx-target="#main-content"
+      hx-select="#main-content > *"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-include="this">
+            <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.requestSubmit()">
+            <select class="form-input" name="branch_id" onchange="this.form.requestSubmit()">
                 <option value="0">All Branches</option>
                 {foreach branches as br}
                 <option value="{br.id}" {if br.id == global_branch_id}selected{/if}>{br.name}</option>

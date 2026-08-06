@@ -110,7 +110,13 @@
         </div>
     </div>
     <div class="flex items-center gap-2">
-        <form class="flex gap-2" action="{base_url}/admin/branch-summary" method="GET">
+        <form class="flex gap-2" action="{base_url}/admin/branch-summary" method="GET"
+      hx-get="{base_url}/admin/branch-summary"
+      hx-target="#main-content"
+      hx-select="#main-content > *"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-include="this">
             <input type="date" class="form-input w-full sm:w-44" name="date" value="{date}">
             <button type="submit" class="btn btn-outline">View</button>
         </form>

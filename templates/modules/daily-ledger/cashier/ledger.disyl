@@ -370,7 +370,8 @@
         var row = document.querySelector('tr[data-product-id="' + productId + '"]');
         if (!row) return 0;
         var beg = parseInt(row.querySelector('[data-field="beg_bal"]').value) || 0;
-        var add = parseInt(row.querySelector('[data-field="addtl"]').value) || 0;
+        var addEl = row.querySelector('[data-field="addtl"]');
+        var add = parseInt(addEl ? (addEl.value !== undefined ? addEl.value : addEl.textContent) : 0) || 0;
         var wdrEl = row.querySelector('[data-field="withdraw"]');
         var wdr = parseInt(wdrEl ? (wdrEl.value !== undefined ? wdrEl.value : wdrEl.textContent) : 0) || 0;
         var end = parseInt(row.querySelector('[data-field="bal_end"]').value) || 0;
@@ -620,7 +621,8 @@
             var rowNum = (row.querySelector('.row-num') || {}).textContent || '';
             var product = (row.querySelector('.product-name') || {}).textContent || '';
             var beg = (row.querySelector('[data-field="beg_bal"]') || {}).value || '0';
-            var addtl = (row.querySelector('[data-field="addtl"]') || {}).value || '0';
+            var addtlEl = row.querySelector('[data-field="addtl"]') || {};
+            var addtl = (addtlEl.value !== undefined ? addtlEl.value : addtlEl.textContent) || '0';
             var withdrawEl = row.querySelector('[data-field="withdraw"]') || {};
             var withdraw = (withdrawEl.value !== undefined ? withdrawEl.value : withdrawEl.textContent) || '0';
             var balEnd = (row.querySelector('[data-field="bal_end"]') || {}).value || '0';

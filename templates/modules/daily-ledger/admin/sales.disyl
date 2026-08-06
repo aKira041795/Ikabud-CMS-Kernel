@@ -54,7 +54,13 @@
     </div>
 </div>
 
-<form class="card mb-6 print-hide" action="{base_url}/admin/sales" method="GET">
+<form class="card mb-6 print-hide" action="{base_url}/admin/sales" method="GET"
+      hx-get="{base_url}/admin/sales"
+      hx-target="#main-content"
+      hx-select="#main-content > *"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-include="this">
     <div class="card-body">
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
     <div class="form-group">
