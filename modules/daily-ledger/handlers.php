@@ -6006,6 +6006,33 @@ function handleAdminActivity(array $params = []): void
         return 'User #' . $userId;
     };
 
+    // Resolve just the actor's username for the Actor column (@handle).
+    $resolveActorUsername = static function (int $moduleUserId, int $kernelUserId, string $actorSource) use ($moduleUserLookup, $kernelUserLookup): string {
+        $pick = static function (array $lookup, int $id): string {
+            if ($id <= 0 || !isset($lookup[$id])) {
+                return '';
+            }
+            return trim((string)($lookup[$id]['username'] ?? ''));
+        };
+
+        if ($moduleUserId > 0) {
+            $u = $pick($moduleUserLookup, $moduleUserId);
+            if ($u !== '') {
+                return $u;
+            }
+        }
+
+        if ($kernelUserId > 0) {
+            $u = $pick($kernelUserLookup, $kernelUserId);
+            if ($u === '') {
+                $u = $pick($moduleUserLookup, $kernelUserId);
+            }
+            return $u;
+        }
+
+        return '';
+    };
+
     $resolveUserFromPayload = static function (array $newPayload, array $oldPayload): string {
         $sourcePayload = $newPayload !== [] ? $newPayload : $oldPayload;
         if ($sourcePayload === []) {
@@ -6515,7 +6542,42 @@ function handleAdminActivity(array $params = []): void
         return '';
     };
 
-    $buildActivityEntry = static function (array $row, array $oldPayload, array $newPayload, array $overrides = []) use ($actionMeta, $pickTarget, $buildDetailItems, $buildChangeItems, $formatRelativeTime, $resolveUserById, $resolveUserFromPayload): array {
+    // Build a human-readable label for the edited record (Source / Record column):
+    // users resolve to username/full name, other entities to their identifying
+    // data (DR number, product/material name, branch name, etc.).
+    $resolveRecordLabel = static function (string $entityType, int $entityId, array $newPayload, array $oldPayload) use ($formatValue, $resolveUserById, $resolveUserFromPayload): string {
+        $lowerEntity = strtolower(trim($entityType));
+        $isUserEntity = $lowerEntity !== '' && (str_contains($lowerEntity, 'user') || in_array($lowerEntity, ['users', 'user', 'dl_users'], true));
+        if ($isUserEntity) {
+            $userLabel = $resolveUserFromPayload($newPayload, $oldPayload);
+            if ($userLabel !== '') {
+                return $userLabel;
+            }
+            if ($entityId > 0) {
+                return $resolveUserById($entityId, 'daily-ledger');
+            }
+        }
+
+        $sourcePayload = $newPayload !== [] ? $newPayload : $oldPayload;
+        foreach (['dr_number', 'name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id'] as $key) {
+            if (!array_key_exists($key, $sourcePayload)) {
+                continue;
+            }
+            $formatted = $formatValue($key, $sourcePayload[$key]);
+            if ($formatted !== '' && $formatted !== 'None') {
+                return $formatted;
+            }
+        }
+
+        if ($entityId > 0) {
+            $label = $lowerEntity !== '' ? ucwords(str_replace(['dl_', '_'], ['', ' '], $lowerEntity)) : 'Record';
+            return $label . ' #' . $entityId;
+        }
+
+        return '';
+    };
+
+    $buildActivityEntry = static function (array $row, array $oldPayload, array $newPayload, array $overrides = []) use ($actionMeta, $pickTarget, $buildDetailItems, $buildChangeItems, $formatRelativeTime, $resolveActorUsername, $resolveRecordLabel): array {
         $meta = $actionMeta((string)$row['action'], $row['entity_type'] ?? null);
         $target = $pickTarget($newPayload, $oldPayload);
         $summary = $meta['summary'];
@@ -6532,6 +6594,7 @@ function handleAdminActivity(array $params = []): void
         } elseif ($actorKernelUserId > 0) {
             $actorIdentity = $resolveUserById($actorKernelUserId, $actorSource !== '' ? $actorSource : 'kernel');
         }
+        $actorUsername = $resolveActorUsername($actorModuleUserId, $actorKernelUserId, $actorSource);
 
         $actorName = trim((string)($row['module_actor_name'] ?? ''));
         if ($actorName === '') {
@@ -6550,21 +6613,13 @@ function handleAdminActivity(array $params = []): void
             }
         }
 
-        $entityType = strtolower(trim((string)($row['entity_type'] ?? '')));
-        $entityId = (int)($row['entity_id'] ?? 0);
-        $isUserEntity = $entityType !== '' && (str_contains($entityType, 'user') || in_array($entityType, ['users', 'user', 'dl_users'], true));
-        $recordLabel = '';
-        if ($isUserEntity) {
-            $recordLabel = $resolveUserFromPayload($newPayload, $oldPayload);
-            if ($recordLabel === '' && $entityId > 0) {
-                $recordLabel = $resolveUserById($entityId, 'daily-ledger');
-            }
-        }
+        $recordLabel = $resolveRecordLabel((string)($row['entity_type'] ?? ''), (int)($row['entity_id'] ?? 0), $newPayload, $oldPayload);
 
         $detailSource = $newPayload !== [] ? $newPayload : $oldPayload;
         $entry = [
             'action' => (string)$row['action'],
             'actor_name' => $actorName,
+            'actor_username' => $actorUsername,
             'actor_identity_label' => $actorIdentity,
             'actor_source_label' => ucwords(str_replace('-', ' ', (string)($row['actor_source'] ?? 'system'))),
             'created_at' => (string)$row['created_at'],
