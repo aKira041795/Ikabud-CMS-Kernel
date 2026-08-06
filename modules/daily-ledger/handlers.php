@@ -2496,9 +2496,16 @@ function dailyLedgerAuthLogin(): void
     $u = $auth['user'];
     $role = (string)($u['role'] ?? '');
     $sub = (string)($u['sub'] ?? '');
+    // The auth provider may not populate a numeric `id` (it sets sub as
+    // "role:id"). The kernel audit records actor_module_user_id from payload id,
+    // so a 0 here makes every activity entry anonymous. Derive it from sub.
+    $payloadId = (int)($u['id'] ?? 0);
+    if ($payloadId <= 0 && $sub !== '' && preg_match('/:(\d+)$/', $sub, $idMatch)) {
+        $payloadId = (int)$idMatch[1];
+    }
     $payload = [
         'sub' => $sub !== '' ? $sub : ($role . ':0'),
-        'id' => (int)($u['id'] ?? 0),
+        'id' => $payloadId,
         'username' => (string)($u['username'] ?? $username),
         'name' => (string)($u['full_name'] ?? $username),
         'role' => $role,
@@ -6577,12 +6584,17 @@ function handleAdminActivity(array $params = []): void
         return '';
     };
 
-    $buildActivityEntry = static function (array $row, array $oldPayload, array $newPayload, array $overrides = []) use ($actionMeta, $pickTarget, $buildDetailItems, $buildChangeItems, $formatRelativeTime, $resolveActorUsername, $resolveRecordLabel): array {
+    $buildActivityEntry = static function (array $row, array $oldPayload, array $newPayload, array $overrides = []) use ($actionMeta, $pickTarget, $buildDetailItems, $buildChangeItems, $formatRelativeTime, $resolveActorUsername, $resolveRecordLabel, $resolveUserById): array {
         $meta = $actionMeta((string)$row['action'], $row['entity_type'] ?? null);
         $target = $pickTarget($newPayload, $oldPayload);
+        $recordLabel = $resolveRecordLabel((string)($row['entity_type'] ?? ''), (int)($row['entity_id'] ?? 0), $newPayload, $oldPayload);
         $summary = $meta['summary'];
         if ($target !== '') {
             $summary .= ' - ' . $target;
+        } elseif ($recordLabel !== '') {
+            // Fall back to the resolved record (user name, DR number, product,
+            // etc.) so the action is never a generic "Updated user #N".
+            $summary .= ' - ' . $recordLabel;
         }
 
         $actorSource = strtolower(trim((string)($row['actor_source'] ?? '')));
@@ -6612,8 +6624,6 @@ function handleAdminActivity(array $params = []): void
                 $actorName = 'System';
             }
         }
-
-        $recordLabel = $resolveRecordLabel((string)($row['entity_type'] ?? ''), (int)($row['entity_id'] ?? 0), $newPayload, $oldPayload);
 
         $detailSource = $newPayload !== [] ? $newPayload : $oldPayload;
         $entry = [
@@ -7611,7 +7621,9 @@ function apiCreateUser(array $params = []): void
         }
 
         dl_auditLog('create_user', null, 'user', (string)$newUserId, null, [
+            'id' => $newUserId,
             'username' => $username,
+            'full_name' => $fullName,
             'email' => $email !== '' ? $email : null,
             'role' => $role,
             'branch_id' => $role === 'cashier' ? $branchId : null,
@@ -7703,7 +7715,7 @@ function apiUpdateUser(array $params = []): void
             return;
         }
 
-        $st = $ctx->db()->prepare('SELECT role, deleted_at FROM dl_users WHERE id = :id LIMIT 1');
+        $st = $ctx->db()->prepare('SELECT role, deleted_at, username, full_name, email, is_active FROM dl_users WHERE id = :id LIMIT 1');
         $st->execute([':id' => $editId]);
         $existing = $st->fetch(PDO::FETCH_ASSOC);
 
@@ -7786,9 +7798,20 @@ function apiUpdateUser(array $params = []): void
             }
         }
 
-        dl_auditLog('update_user', null, 'user', (string)$editId, null, [
+        dl_auditLog('update_user', null, 'user', (string)$editId, [
+            'id' => $editId,
+            'username' => (string)($existing['username'] ?? ''),
+            'full_name' => (string)($existing['full_name'] ?? ''),
+            'email' => $existing['email'] ?? null,
+            'role' => (string)($existing['role'] ?? ''),
+            'is_active' => (int)($existing['is_active'] ?? 0),
+        ], [
+            'id' => $editId,
+            'username' => (string)($existing['username'] ?? ''),
+            'full_name' => $fullName,
             'email' => $email !== '' ? $email : null,
             'role' => $role,
+            'is_active' => $isActive,
             'branch_id' => $role === 'cashier' ? $branchId : null,
             'branch_ids' => in_array($role, ['supervisor', 'production_in_charge'], true) ? $branchIds : null,
         ]);
@@ -7852,7 +7875,15 @@ function apiDeleteUser(array $params = []): void
             return;
         }
 
-        dl_auditLog('delete_user', null, 'user', (string)$userId, null, ['role' => $role]);
+        $userInfoStmt = $ctx->db()->prepare('SELECT username, full_name FROM dl_users WHERE id = :id LIMIT 1');
+        $userInfoStmt->execute([':id' => $userId]);
+        $userInfo = $userInfoStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        dl_auditLog('delete_user', null, 'user', (string)$userId, null, [
+            'id' => $userId,
+            'username' => (string)($userInfo['username'] ?? ''),
+            'full_name' => (string)($userInfo['full_name'] ?? ''),
+            'role' => $role,
+        ]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'User deleted', 'type' => 'success']]));
         $ctx->json(['ok' => true]);
     } catch (\Throwable $e) {
@@ -7895,7 +7926,15 @@ function apiRestoreUser(array $params = []): void
             return;
         }
 
-        dl_auditLog('restore_user', null, 'user', (string)$userId, null, ['role' => $role]);
+        $userInfoStmt = $ctx->db()->prepare('SELECT username, full_name FROM dl_users WHERE id = :id LIMIT 1');
+        $userInfoStmt->execute([':id' => $userId]);
+        $userInfo = $userInfoStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        dl_auditLog('restore_user', null, 'user', (string)$userId, null, [
+            'id' => $userId,
+            'username' => (string)($userInfo['username'] ?? ''),
+            'full_name' => (string)($userInfo['full_name'] ?? ''),
+            'role' => $role,
+        ]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'User restored (inactive)', 'type' => 'success']]));
         $ctx->json(['ok' => true]);
     } catch (\Throwable $e) {
