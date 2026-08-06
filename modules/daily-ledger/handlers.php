@@ -582,23 +582,36 @@ function dlNormalizeSettingValue(mixed $value): mixed
 
 function dlAuditLogHasColumn(string $column): bool
 {
+    return dlTableHasColumn('audit_logs', $column);
+}
+
+/**
+ * Generic column-existence check that is safe on shared-host (Bluehost)
+ * databases where optional migration columns may be missing. Selecting a
+ * column that does not exist throws SQLSTATE[42S22] and 500s the request,
+ * so optional columns must be gated behind this check.
+ */
+function dlTableHasColumn(string $table, string $column): bool
+{
     static $cache = [];
-    if (array_key_exists($column, $cache)) {
-        return $cache[$column];
+    $cacheKey = $table . '.' . $column;
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
     }
 
+    $safeTable = preg_replace('/[^a-z0-9_]+/i', '', $table);
     $safeColumn = preg_replace('/[^a-z0-9_]+/i', '', $column);
-    if ($safeColumn === '') {
-        $cache[$column] = false;
+    if ($safeTable === '' || $safeColumn === '') {
+        $cache[$cacheKey] = false;
         return false;
     }
 
     try {
-        $stmt = dlCtx()->db()->query("SHOW COLUMNS FROM audit_logs LIKE '" . $safeColumn . "'");
-        $cache[$column] = $stmt->fetchColumn() !== false;
-        return $cache[$column];
+        $stmt = dlCtx()->db()->query("SHOW COLUMNS FROM {$safeTable} LIKE '" . $safeColumn . "'");
+        $cache[$cacheKey] = $stmt->fetchColumn() !== false;
+        return $cache[$cacheKey];
     } catch (Throwable) {
-        $cache[$column] = false;
+        $cache[$cacheKey] = false;
         return false;
     }
 }
@@ -913,7 +926,7 @@ function dl_preservedAdminRowForReset($db, array $user): array
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    if ((!is_array($row) || $row === []) && $actorEmail !== '') {
+    if ((!is_array($row) || $row === []) && $actorEmail !== '' && dlTableHasColumn('dl_users', 'email')) {
         $stmt = $db->prepare(
             "SELECT * FROM dl_users
              WHERE role = 'admin' AND deleted_at IS NULL AND is_active = 1 AND email = :email
@@ -5928,21 +5941,25 @@ function handleAdminActivity(array $params = []): void
         $branchLookup[(int)$branchRow['id']] = (string)$branchRow['name'];
     }
 
+    // NOTE: Only select stable columns (id, full_name, username). The optional
+    // `email` column exists only on newer migrations (dl_users:035, users:020)
+    // and is NOT present on older/shared-host databases — selecting it there
+    // throws SQLSTATE[42S22]. Labels degrade gracefully without email.
     $moduleUserLookup = [];
-    foreach ($ctx->db()->query('SELECT id, full_name, username, email FROM dl_users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $moduleUserRow) {
+    foreach ($ctx->db()->query('SELECT id, full_name, username FROM dl_users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $moduleUserRow) {
         $moduleUserLookup[(int)$moduleUserRow['id']] = [
             'full_name' => (string)($moduleUserRow['full_name'] ?? ''),
             'username' => (string)($moduleUserRow['username'] ?? ''),
-            'email' => (string)($moduleUserRow['email'] ?? ''),
+            'email' => '',
         ];
     }
 
     $kernelUserLookup = [];
-    foreach ($ctx->db()->query('SELECT id, full_name, username, email FROM users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $kernelUserRow) {
+    foreach ($ctx->db()->query('SELECT id, full_name, username FROM users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $kernelUserRow) {
         $kernelUserLookup[(int)$kernelUserRow['id']] = [
             'full_name' => (string)($kernelUserRow['full_name'] ?? ''),
             'username' => (string)($kernelUserRow['username'] ?? ''),
-            'email' => (string)($kernelUserRow['email'] ?? ''),
+            'email' => '',
         ];
     }
 
@@ -7369,7 +7386,9 @@ function handleAdminUsers(array $params = []): void
         default => ' AND u.deleted_at IS NULL AND u.is_active = 1',
     };
 
-    $sql = "SELECT u.id, u.username, u.email, u.full_name, u.role,
+    $usersHaveEmail = dlTableHasColumn('dl_users', 'email');
+    $userEmailSelect = $usersHaveEmail ? 'u.email, ' : '';
+    $sql = "SELECT u.id, u.username, {$userEmailSelect}u.full_name, u.role,
                    u.is_active, u.deleted_at,
                    CASE WHEN u.role = 'cashier'
                         THEN (SELECT MIN(ub.branch_id) FROM dl_user_branches ub WHERE ub.user_id = u.id)
@@ -7385,9 +7404,12 @@ function handleAdminUsers(array $params = []): void
             WHERE 1=1" . $statusSql;
     $bind = [];
     if ($search !== '') {
-        $sql .= ' AND (u.username LIKE :q OR u.email LIKE :q2 OR u.full_name LIKE :q3 OR u.role LIKE :q4)';
+        $emailSearch = $usersHaveEmail ? ' OR u.email LIKE :q2' : '';
+        $sql .= ' AND (u.username LIKE :q' . $emailSearch . ' OR u.full_name LIKE :q3 OR u.role LIKE :q4)';
         $bind[':q'] = "%{$search}%";
-        $bind[':q2'] = "%{$search}%";
+        if ($usersHaveEmail) {
+            $bind[':q2'] = "%{$search}%";
+        }
         $bind[':q3'] = "%{$search}%";
         $bind[':q4'] = "%{$search}%";
     }
@@ -7506,10 +7528,19 @@ function apiCreateUser(array $params = []): void
     try {
         $hash = password_hash($password, PASSWORD_BCRYPT);
 
+        // Optional `email` column may be missing on shared-host DBs that have
+        // not run migration 035. Only write it when the column exists.
+        $usersHaveEmail = dlTableHasColumn('dl_users', 'email');
+        $emailColumn = $usersHaveEmail ? ', email' : '';
+        $emailPlaceholder = $usersHaveEmail ? ', :e' : '';
+        $createBind = [':u' => $username, ':p' => $hash, ':n' => $fullName, ':r' => $role];
+        if ($usersHaveEmail) {
+            $createBind[':e'] = $email !== '' ? $email : null;
+        }
         $ctx->db()->prepare(
-            'INSERT INTO dl_users (username, email, password_hash, full_name, role, is_active)
-             VALUES (:u, :e, :p, :n, :r, 1)'
-        )->execute([':u' => $username, ':e' => ($email !== '' ? $email : null), ':p' => $hash, ':n' => $fullName, ':r' => $role]);
+            'INSERT INTO dl_users (username' . $emailColumn . ', password_hash, full_name, role, is_active)
+             VALUES (:u' . $emailPlaceholder . ', :p, :n, :r, 1)'
+        )->execute($createBind);
         $newUserId = (int)$ctx->db()->lastInsertId();
 
         if ($role === 'cashier') {
@@ -7552,21 +7583,28 @@ function dlUserIdentityConflict(int $excludeUserId, string $username, ?string $e
         return 'Module context unavailable';
     }
 
+    $usersHaveEmail = dlTableHasColumn('dl_users', 'email');
+    $emailClause = $usersHaveEmail
+        ? ' OR (:check_email <> "" AND email IS NOT NULL AND email = :check_email2)'
+        : '';
     $stmt = $ctx->db()->prepare(
         'SELECT id
          FROM dl_users
          WHERE id <> :exclude_id
-                     AND ((:check_username <> "" AND username = :check_username2)
-                         OR (:check_email <> "" AND email IS NOT NULL AND email = :check_email2))
+                     AND ((:check_username <> "" AND username = :check_username2)'
+                     . $emailClause . ')
          LIMIT 1'
     );
-    $stmt->execute([
+    $params = [
         ':exclude_id' => max(0, $excludeUserId),
-                ':check_username' => $username,
-                ':check_username2' => $username,
-        ':check_email' => $email ?? '',
-        ':check_email2' => $email ?? '',
-    ]);
+        ':check_username' => $username,
+        ':check_username2' => $username,
+    ];
+    if ($usersHaveEmail) {
+        $params[':check_email'] = $email ?? '';
+        $params[':check_email2'] = $email ?? '';
+    }
+    $stmt->execute($params);
 
     return $stmt->fetch(PDO::FETCH_ASSOC) ? 'Username or email conflicts with another account.' : null;
 }
@@ -7663,8 +7701,15 @@ function apiUpdateUser(array $params = []): void
             return;
         }
 
-        $sql = 'UPDATE dl_users SET full_name = :name, email = :email, is_active = :active';
-        $bind = [':name' => $fullName, ':email' => ($email !== '' ? $email : null), ':active' => $isActive, ':id' => $editId];
+        // Optional `email` column may be missing on shared-host DBs that have
+        // not run migration 035. Only write it when the column exists.
+        $usersHaveEmail = dlTableHasColumn('dl_users', 'email');
+        $sql = 'UPDATE dl_users SET full_name = :name, is_active = :active';
+        $bind = [':name' => $fullName, ':active' => $isActive, ':id' => $editId];
+        if ($usersHaveEmail) {
+            $sql .= ', email = :email';
+            $bind[':email'] = $email !== '' ? $email : null;
+        }
         if ($password !== '') {
             $sql .= ', password_hash = :pass';
             $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
