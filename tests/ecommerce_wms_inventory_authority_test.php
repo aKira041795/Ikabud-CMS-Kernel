@@ -11,6 +11,26 @@ require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/ecommerce/helpers.php';
 require_once __DIR__ . '/../modules/wms/helpers.php';
 
+// Under Activation-Before-Participation, ecommerce and wms are installed but
+// not in the cms entry chain's always-active set — they must be explicitly
+// activated for the bridge under test to participate. Restore prior state on
+// shutdown so no tenant settings are left mutated.
+$tenantId = (int)(moduleTenantSettingsTenantId() ?? app()->tenant()->current() ?? 0);
+$activationRestore = [];
+if ($tenantId > 0) {
+    foreach (['ecommerce', 'wms'] as $actModuleId) {
+        if (!moduleIsActive($actModuleId)) {
+            enableModuleForTenant($actModuleId, $tenantId);
+            $activationRestore[] = $actModuleId;
+        }
+    }
+    register_shutdown_function(static function () use ($activationRestore, $tenantId): void {
+        foreach ($activationRestore as $actModuleId) {
+            disableModuleForTenant($actModuleId, $tenantId);
+        }
+    });
+}
+
 $pass = 0;
 $fail = 0;
 $errors = [];

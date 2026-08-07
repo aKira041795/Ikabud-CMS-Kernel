@@ -62,6 +62,27 @@ function registerHandlers(string $provider, array $handlers): void
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 
+// Under Activation-Before-Participation, the standard profile installs only
+// cover core/editor/theme/navigation/media/seo. The workflow and search
+// adapters are suite EXTENSIONS outside that install set, so they must be
+// explicitly activated before the gated capability bus will dispatch them.
+// Restore prior state on shutdown so no tenant settings are left mutated.
+$probeTenantId = (int)(moduleTenantSettingsTenantId() ?: 0);
+$activationRestore = [];
+if ($probeTenantId > 0) {
+    foreach (['cms-akira-workflow', 'cms-akira-search-adapter'] as $actModuleId) {
+        if (!moduleIsActive($actModuleId)) {
+            enableModuleForTenant($actModuleId, $probeTenantId);
+            $activationRestore[] = $actModuleId;
+        }
+    }
+    register_shutdown_function(static function () use ($activationRestore, $probeTenantId): void {
+        foreach ($activationRestore as $actModuleId) {
+            disableModuleForTenant($actModuleId, $probeTenantId);
+        }
+    });
+}
+
 registerHandlers('cms', cms_capability_handlers());
 registerHandlers('cms-akira-core', cms_akira_core_capability_handlers());
 registerHandlers('cms-akira-theme', cms_akira_theme_capability_handlers());

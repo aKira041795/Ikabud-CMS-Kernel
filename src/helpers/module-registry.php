@@ -427,6 +427,115 @@ function moduleRegistryDefaultEnabledState(string $moduleId, ?int $tenantId = nu
 }
 
 /**
+ * Compute the NARROW "always-active" set for a tenant — the modules that
+ * participate by default without explicit tenant activation.
+ *
+ * Activation Before Participation: presence/saved-settings must NOT grant
+ * participation. Only the entry module's hard dependency spine participates
+ * by default:
+ *   - the entry module itself;
+ *   - a profile's declared `installs` bundle (when the entry is a profile);
+ *   - the transitive module-level `depends` closure;
+ *   - providers of the capabilities the entry chain hard-requires
+ *     (`capabilities.depends`).
+ *
+ * Unlike moduleRegistryRuntimeDefaultModulesForTenant() (used for code
+ * loading / isModuleEnabled), this set deliberately EXCLUDES saved-settings
+ * signals, installed-submodule signals, catalog entitlements, allow-caller
+ * matches, and hook-name matches — those make a module load, not active.
+ *
+ * @param int $tenantId
+ * @return array<string,bool> map of module id => true
+ */
+function moduleRegistryAlwaysActiveForTenant(int $tenantId): array
+{
+    static $cache = [];
+    if (isset($cache[$tenantId]) && is_array($cache[$tenantId])) {
+        return $cache[$tenantId];
+    }
+
+    $allModules = moduleRegistryRawModuleManifests();
+    if ($tenantId <= 0 || $allModules === []) {
+        $cache[$tenantId] = [];
+        return $cache[$tenantId];
+    }
+
+    $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
+    if ($entryModuleId === null || $entryModuleId === '' || !isset($allModules[$entryModuleId])) {
+        $cache[$tenantId] = [];
+        return $cache[$tenantId];
+    }
+
+    $exposesByCapability = [];
+    foreach ($allModules as $moduleId => $manifest) {
+        $exposes = $manifest['capabilities']['exposes'] ?? [];
+        if (!is_array($exposes)) { continue; }
+        foreach ($exposes as $expose) {
+            if (!is_array($expose)) { continue; }
+            $capabilityId = trim((string)($expose['id'] ?? ''));
+            if ($capabilityId === '') { continue; }
+            if (!isset($exposesByCapability[$capabilityId])) { $exposesByCapability[$capabilityId] = []; }
+            $exposesByCapability[$capabilityId][] = $moduleId;
+        }
+    }
+
+    $selected = [];
+    $queue = [$entryModuleId];
+
+    // A profile's `installs` bundle participates by default.
+    $entryManifest = $allModules[$entryModuleId] ?? [];
+    if (!empty($entryManifest['kind']) && $entryManifest['kind'] === 'profile') {
+        $installs = $entryManifest['installs'] ?? [];
+        if (is_array($installs)) {
+            foreach ($installs as $installedId) {
+                $installedId = trim((string)$installedId);
+                if ($installedId !== '' && isset($allModules[$installedId]) && !isset($selected[$installedId])) {
+                    $selected[$installedId] = true;
+                    $queue[] = $installedId;
+                }
+            }
+        }
+    }
+
+    while ($queue !== []) {
+        $current = array_shift($queue);
+        if (!is_string($current) || !isset($allModules[$current])) { continue; }
+        if (!isset($selected[$current])) {
+            $selected[$current] = true;
+        }
+
+        $manifest = $allModules[$current];
+
+        // Hard module-level depends.
+        foreach (($manifest['depends'] ?? []) as $depModuleId) {
+            $depModuleId = trim((string)$depModuleId);
+            if ($depModuleId !== '' && isset($allModules[$depModuleId]) && !isset($selected[$depModuleId])) {
+                $selected[$depModuleId] = true;
+                $queue[] = $depModuleId;
+            }
+        }
+
+        // Capability depends → provider modules the chain hard-requires.
+        $capRefs = $manifest['capabilities']['depends'] ?? [];
+        if (!is_array($capRefs)) { $capRefs = []; }
+        foreach ($capRefs as $capRef) {
+            $capabilityId = is_array($capRef) ? (string)($capRef['id'] ?? '') : (string)$capRef;
+            $capabilityId = trim($capabilityId);
+            if ($capabilityId === '') { continue; }
+            foreach ($exposesByCapability[$capabilityId] ?? [] as $providerModuleId) {
+                if (!isset($selected[$providerModuleId])) {
+                    $selected[$providerModuleId] = true;
+                    $queue[] = $providerModuleId;
+                }
+            }
+        }
+    }
+
+    $cache[$tenantId] = $selected;
+    return $selected;
+}
+
+/**
  * Activation Before Participation — the kernel invariant that gates
  * capability dispatch, hook participation, route accessibility, and
  * UI-contribution rendering behind explicit tenant activation.
@@ -479,9 +588,14 @@ function moduleIsActive(string $moduleId, ?int $tenantId = null): bool
         return false;
     }
 
-    // Entry module and its dependency closure are always active.
-    $defaults = moduleRegistryRuntimeDefaultModulesForTenant($tenantId);
-    if (!empty($defaults[$moduleId])) {
+    // Entry module and its hard dependency closure are always active.
+    // Note: this deliberately uses the NARROW always-active set (entry
+    // spine + profile installs + hard depends) — NOT
+    // moduleRegistryRuntimeDefaultModulesForTenant(), which also pulls in
+    // modules via saved-settings / catalog / hook signals. Those signals
+    // make a module load, but they do not grant activation.
+    $alwaysActive = moduleRegistryAlwaysActiveForTenant($tenantId);
+    if (!empty($alwaysActive[$moduleId])) {
         return true;
     }
 

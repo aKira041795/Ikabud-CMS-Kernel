@@ -111,7 +111,7 @@ A non-core module that is discovered and installed but NOT explicitly activated 
 | State | Meaning | `moduleIsActive()` | `isModuleEnabled()` |
 |---|---|---|---|
 | **Discovered** | Kernel knows the module exists on disk | `false` | `true` (by default) |
-| **Active** | Tenant admin has explicitly activated the module (`_module_enabled: true` in tenant settings), OR the module is in the entry module's runtime dependency closure | `true` | `true` |
+| **Active** | Tenant admin has explicitly activated the module (`_module_enabled: true` in tenant settings), OR the module is in the entry module's narrow always-active closure (see below) | `true` | `true` |
 | **Inactive** | Module is installed and enabled but NOT explicitly activated | `false` | `true` |
 | **Disabled** | Module is disabled (`_module_enabled: false` or globally disabled) | `false` | `false` |
 
@@ -182,10 +182,20 @@ Combined rule:
 
 Defined in `src/helpers/module-registry.php`. Returns `true` when:
 - The module is the tenant's entry module, or
-- The module is in the entry module's runtime dependency closure (always-active), or
+- The module is in the entry module's **narrow always-active closure**, or
 - The tenant admin has explicitly saved `_module_enabled: true` in tenant settings.
 
 Returns `false` otherwise — the module is installed but inactive.
+
+#### The narrow always-active closure (`moduleRegistryAlwaysActiveForTenant`)
+
+The always-active set is deliberately **narrow** — it is the entry module's *hard dependency spine*, not the broad code-loading default set. It includes only:
+1. The entry module itself.
+2. A profile entry's declared `installs` bundle.
+3. The transitive module-level `depends` closure (forward only).
+4. Providers of the capabilities the entry chain hard-requires (`capabilities.depends`).
+
+It **explicitly excludes** the signals that drive `isModuleEnabled()` / code loading — saved tenant settings, installed-submodule signals, catalog entitlements, allow-caller matches, and hook-name matches. Those make a module *load*; they do not grant *activation*. This is what makes "presence is not activation" real: a module that appears in a tenant's settings or catalog is still **inactive** until the tenant admin explicitly activates it or it sits on the entry's hard dependency spine.
 
 ---
 
