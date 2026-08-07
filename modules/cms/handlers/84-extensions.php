@@ -130,9 +130,16 @@ function _cmsDiscoverCatalogModules(?int $tenantId = null): array
     $registered = $tenantId !== null && $tenantId > 0
         ? _cmsGetRegisteredSubModulesForTenant($tenantId)
         : _cmsGetRegisteredSubModules();
+    $coreSet = _cmsRequiredAlwaysActiveModules();
 
     $result = [];
     foreach ($allModules as $moduleId => $manifest) {
+        // Required entry-chain modules are already installed & active by
+        // definition — they are not optional addons and must not be offered
+        // as "Install" cards.
+        if (isset($coreSet[$moduleId])) {
+            continue;
+        }
         if (in_array($moduleId, $registered, true)) {
             continue;
         }
@@ -977,6 +984,16 @@ function cmsApiModuleToggle(array $params = []): void
         exit;
     }
 
+    // Required always-active modules are the entry chain's hard dependency
+    // spine — they must stay active and cannot be deactivated here.
+    $coreSet = _cmsRequiredAlwaysActiveModules();
+    if (isset($coreSet[$moduleId])) {
+        _cmsAuditInstaller('module.toggle', 'module', $moduleId, 'failed', 'Blocked toggle attempt for required core module.');
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Module "' . $moduleId . '" is a required core module and must stay active.']);
+        exit;
+    }
+
     if ($enable) {
         enableModule($moduleId);
         _cmsInvokeModuleSetup($moduleId, 'enable');
@@ -1009,6 +1026,15 @@ function cmsApiModuleDelete(array $params = []): void
         _cmsAuditInstaller('module.delete', 'module', 'unknown', 'failed', 'Missing module_id.');
         http_response_code(400);
         echo json_encode(['ok' => false, 'error' => 'Missing module_id.']);
+        exit;
+    }
+
+    // Required always-active modules cannot be deleted from the CMS.
+    $coreSet = _cmsRequiredAlwaysActiveModules();
+    if (isset($coreSet[$moduleId])) {
+        _cmsAuditInstaller('module.delete', 'module', $moduleId, 'failed', 'Blocked delete attempt for required core module.');
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Module "' . $moduleId . '" is a required core module and cannot be deleted from the CMS.']);
         exit;
     }
 
@@ -1352,21 +1378,58 @@ function _cmsSyncThemePublicAssets(string $slug, string $themeDir): void
 }
 
 /**
- * Discover CMS-installed sub-modules only (from the CMS registry).
+ * Resolve the set of modules that are REQUIRED (always-active) for the
+ * current tenant — the entry module's hard dependency spine. These are the
+ * primary modules that must stay active; they are not optional addons and
+ * cannot be installed or deactivated from the CMS UI.
+ *
+ * Returns an empty set in single-tenant/legacy mode where there is no
+ * distinct "required" set beyond enabled modules.
+ *
+ * @return array<string,true>
+ */
+function _cmsRequiredAlwaysActiveModules(): array
+{
+    if (
+        !function_exists('moduleTenantSettingsModeEnabled') || !moduleTenantSettingsModeEnabled()
+        || !function_exists('moduleTenantSettingsTenantId')
+        || !function_exists('moduleRegistryAlwaysActiveForTenant')
+    ) {
+        return [];
+    }
+    $tenantId = moduleTenantSettingsTenantId();
+    if ($tenantId === null || $tenantId <= 0) {
+        return [];
+    }
+    return moduleRegistryAlwaysActiveForTenant((int)$tenantId);
+}
+
+/**
+ * Discover CMS-installed sub-modules (from the CMS registry) plus the
+ * required always-active entry-chain modules.
  * Kernel/application modules are excluded — they are managed at the OS level.
+ * Required core modules are surfaced so the admin can see they are mandatory
+ * and active, and so they are never offered as installable addons.
  */
 function _cmsDiscoverSubModules(): array
 {
-    $registered = _cmsGetRegisteredSubModules();
-    if (empty($registered)) {
+    $all = discoverModules();
+    if (empty($all)) {
         return [];
     }
 
-    $all = discoverModules();
+    $registered = _cmsGetRegisteredSubModules();
+    $coreSet = _cmsRequiredAlwaysActiveModules();
+    $ids = array_values(array_unique(array_merge($registered, array_keys($coreSet))));
+    if (empty($ids)) {
+        return [];
+    }
+
     $result = [];
-    foreach ($registered as $id) {
+    foreach ($ids as $id) {
         if (!isset($all[$id])) continue; // Module dir was removed externally
         $m = $all[$id];
+        $isCore = isset($coreSet[$id]);
         $catalogEntry = moduleCatalogEntry($id);
             // Merge saved settings with defaults from module.json
         $settingsFields   = is_array($m['settings_fields'] ?? null) ? $m['settings_fields'] : [];
@@ -1381,8 +1444,8 @@ function _cmsDiscoverSubModules(): array
         $currentSettings  = array_merge($defaultValues, is_array($savedSettings) ? $savedSettings : []);
 
         $enabled = !empty($m['_enabled']);
-        $active  = function_exists('moduleIsActive') ? moduleIsActive($id) : $enabled;
-        $actState = $active ? 'active' : ($enabled ? 'inactive' : 'disabled');
+        $active  = $isCore ? true : (function_exists('moduleIsActive') ? moduleIsActive($id) : $enabled);
+        $actState = $isCore ? 'active' : ($active ? 'active' : ($enabled ? 'inactive' : 'disabled'));
 
         $result[] = [
             'id'              => $id,
@@ -1393,7 +1456,7 @@ function _cmsDiscoverSubModules(): array
             'enabled'         => $enabled,
             'active'          => $active,
             'activation_state' => $actState,
-            'is_core'         => false,
+            'is_core'         => $isCore,
             'has_routes'      => is_file(($m['_path'] ?? '') . '/routes.php'),
             'has_handlers'    => is_file(($m['_path'] ?? '') . '/handlers.php'),
             'capabilities_count' => count($m['capabilities']['exposes'] ?? []),

@@ -202,10 +202,10 @@
                         <!-- Status -->
                         <td class="px-5 py-4 text-center">
                             <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full"
-                                :class="mod.activation_state === 'active' ? 'bg-green-100 text-green-700' : (mod.activation_state === 'inactive' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')">
+                                :class="mod.is_core ? 'bg-indigo-100 text-indigo-700' : (mod.activation_state === 'active' ? 'bg-green-100 text-green-700' : (mod.activation_state === 'inactive' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'))">
                                 <span class="w-1.5 h-1.5 rounded-full"
-                                    :class="mod.activation_state === 'active' ? 'bg-green-500' : (mod.activation_state === 'inactive' ? 'bg-amber-500' : 'bg-gray-400')"></span>
-                                <span x-text="mod.activation_state === 'active' ? 'Active' : (mod.activation_state === 'inactive' ? 'Inactive' : 'Disabled')"></span>
+                                    :class="mod.is_core ? 'bg-indigo-500' : (mod.activation_state === 'active' ? 'bg-green-500' : (mod.activation_state === 'inactive' ? 'bg-amber-500' : 'bg-gray-400'))"></span>
+                                <span x-text="mod.is_core ? 'Required' : (mod.activation_state === 'active' ? 'Active' : (mod.activation_state === 'inactive' ? 'Inactive' : 'Disabled'))"></span>
                             </span>
                         </td>
                         <!-- Actions -->
@@ -221,13 +221,21 @@
                                         Configure
                                     </button>
                                 </template>
-                                <!-- Activate / Deactivate / Enable -->
-                                <button @click="toggleModule(mod)" :disabled="toggling === mod.id" class="px-3 py-1.5 text-xs font-medium rounded-2xl transition-colors"
-                                    :class="mod.activation_state === 'active' ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-green-700 bg-green-50 hover:bg-green-100'"
-                                    x-text="mod.activation_state === 'active' ? 'Deactivate' : (mod.activation_state === 'inactive' ? 'Activate' : 'Enable')">
-                                </button>
+                                <!-- Required core modules: always active, cannot be deactivated -->
+                                <template x-if="mod.is_core">
+                                    <span class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+                                        Required
+                                    </span>
+                                </template>
+                                <!-- Activate / Deactivate / Enable (hidden for required core modules) -->
+                                <template x-if="!mod.is_core">
+                                    <button @click="toggleModule(mod)" :disabled="toggling === mod.id" class="px-3 py-1.5 text-xs font-medium rounded-2xl transition-colors"
+                                        :class="mod.activation_state === 'active' ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-green-700 bg-green-50 hover:bg-green-100'"
+                                        x-text="mod.activation_state === 'active' ? 'Deactivate' : (mod.activation_state === 'inactive' ? 'Activate' : 'Enable')">
+                                    </button>
+                                </template>
                                 <!-- Delete (only disabled modules) -->
-                                <template x-if="!mod.enabled">
+                                <template x-if="!mod.enabled && !mod.is_core">
                                     <button @click="deleteModule(mod)" class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-2xl hover:bg-red-100 transition-colors">
                                         Delete
                                     </button>

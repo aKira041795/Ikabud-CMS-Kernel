@@ -176,7 +176,7 @@ Combined rule:
 | **Capability Bus** | `applyPolicy()` filters out providers from inactive modules. A call to an inactive provider is logged and skipped — if no active providers remain, the call fails. |
 | **Hook bridge** | `cms.admin.nav_items` listeners must check `moduleIsActive()` before injecting nav items. |
 | **CMS sidebar** | `kernelContributionBridgeCmsNavItems()` folds only active modules' `admin_contributions`. |
-| **CMS Modules UI** | `/cms/admin/modules` shows Active/Inactive/Disabled status and Activate/Deactivate operations. |
+| **CMS Modules UI** | `/cms/admin/modules` shows Active/Inactive/Disabled status and Activate/Deactivate operations. **Required core modules** (the entry module's always-active spine) are shown with a `Required` badge and cannot be installed, deactivated, or deleted from the CMS UI — they are surfaced so the admin sees they are mandatory, and excluded from the "Available Modules" installer (only genuine optional addons are installable). |
 
 ### `moduleIsActive(string $moduleId, ?int $tenantId = null): bool`
 
