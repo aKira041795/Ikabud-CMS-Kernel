@@ -76,6 +76,113 @@ function getFlagValue(string $prefix): ?string
     return null;
 }
 
+/**
+ * Split a comma-separated CLI flag value into trimmed, non-empty values.
+ *
+ * @return string[]
+ */
+function cliSplitList(?string $raw): array
+{
+    $raw = trim((string)$raw);
+    if ($raw === '') {
+        return [];
+    }
+    return array_values(array_filter(array_map('trim', explode(',', $raw)), fn($v) => $v !== ''));
+}
+
+/**
+ * Parse a repeatable provider-scoped flag:
+ *   --integration="wms:wms.stock.reserve,wms.stock.release;cms:cms.content.read"
+ *   --integration-features="wms:warehouse_inventory,stock_reservation;cms:seo"
+ * Returns map: providerModuleId => string[] values.
+ *
+ * @return array<string,string[]>
+ */
+function cliParseProviderList(?string $raw): array
+{
+    $out = [];
+    foreach (explode(';', trim((string)$raw)) as $segment) {
+        $segment = trim($segment);
+        if ($segment === '') {
+            continue;
+        }
+        if (str_contains($segment, ':')) {
+            [$provider, $values] = array_pad(explode(':', $segment, 2), 2, '');
+        } else {
+            $provider = $segment;
+            $values = '';
+        }
+        $provider = trim($provider);
+        if ($provider === '') {
+            continue;
+        }
+        $out[$provider] = cliSplitList($values);
+    }
+    return $out;
+}
+
+/**
+ * Resolve which discovered modules expose a capability id, matching on the
+ * version-stripped base id. Returns map: providerModuleId => exposedCapId[].
+ * Kernel providers are excluded (they are exempt from the integration gate).
+ *
+ * @return array<string,string[]>
+ */
+function cliResolveCapability(string $capId, array $capProviders): array
+{
+    $resolved = [];
+    $base = str_contains($capId, '@') ? explode('@', $capId, 2)[0] : $capId;
+    foreach ($capProviders as $exposedCap => $providers) {
+        $exposedBase = str_contains($exposedCap, '@') ? explode('@', $exposedCap, 2)[0] : $exposedCap;
+        if ($exposedBase !== $base) {
+            continue;
+        }
+        foreach ($providers as $providerId) {
+            if ($providerId === 'kernel') {
+                continue;
+            }
+            $resolved[$providerId][] = $exposedCap;
+        }
+    }
+    return $resolved;
+}
+
+/**
+ * Resolve which discovered modules expose each capability id.
+ * Returns map: capabilityId => providerModuleId[].
+ *
+ * @return array<string,string[]>
+ */
+function cliCapabilityProviderMap(?array $modules = null): array
+{
+    if ($modules === null) {
+        $modules = function_exists('discoverModules') ? discoverModules() : [];
+    }
+    $map = [];
+    foreach ($modules as $moduleId => $manifest) {
+        foreach ((array)($manifest['capabilities']['exposes'] ?? []) as $cap) {
+            $capId = is_string($cap) ? $cap : ($cap['id'] ?? '');
+            if ($capId === '') {
+                continue;
+            }
+            $map[$capId][] = $moduleId;
+        }
+    }
+    return $map;
+}
+
+/**
+ * Read one line from STDIN (interactive interview helper).
+ */
+function cliReadLine(string $prompt = ''): string
+{
+    if ($prompt !== '') {
+        fwrite(STDOUT, $prompt);
+    }
+    $line = fgets(STDIN);
+    return $line === false ? '' : trim($line);
+}
+
 function cliResolveTenantId(string $selector): ?int
 {
     $selector = trim($selector);
@@ -973,7 +1080,7 @@ switch ($command) {
         out('  ' . bold('Usage:') . ' php ikabud <command> [arguments]');
         out('');
         out('  ' . bold('Scaffolding'));
-        out('    ' . green('make:module') . ' <name>          Create a new PHP module skeleton');
+        out('    ' . green('make:module') . ' <name>          Create a PHP module skeleton (integration-aware)');
         out('    ' . green('make:entity') . ' <module.entity>  Scaffold entity source, views, templates, tests');
         out('    ' . green('make:capability') . ' <id>         Scaffold a capability handler');
         out('    ' . green('make:service-module') . ' <name>  Create a new polyglot service module');
@@ -3481,13 +3588,36 @@ switch ($command) {
         if ($name === '') {
             out(red('  ✗ Module name required.'));
             out('  Usage: php ikabud make:module <name> [--suite=<suite-id>]');
+            out('         [--depends=<module-a,module-b>] [--uses=<cap-a,cap-b>]');
+            out('         [--integration="provider:cap1,cap2;..."] [--integration-features="provider:feat1,feat2;..."]');
+            out('         [--integration-required=<provider>] [--interactive]');
+            out('');
             out('  Example: php ikabud make:module hr');
+            out('  Example: php ikabud make:module shop --depends=cms --uses=wms.stock.reserve,wms.stock.release');
+            out('           --integration="wms:wms.stock.reserve,wms.stock.release"');
+            out('           --integration-features="wms:warehouse_inventory,stock_reservation"');
+            out('');
+            out('  Declares the Integration Contract (Declaration Before Integration): which existing');
+            out('  modules the new module deliberately integrates with, which capabilities it uses,');
+            out('  and what features the relationship adds.');
             exit(1);
         }
         if ($suiteRaw !== null && $suiteId === null) {
             out(red("  ✗ Invalid suite id '{$suiteRaw}'. Use lowercase kebab-case (e.g. cms-akira)."));
             exit(1);
         }
+
+        // ── Declaration Before Integration: capability/integration flags ──
+        // A created module declares which existing modules it deliberately
+        // integrates with, which capabilities it uses from them, and what
+        // features that relationship adds. Cross-module capability calls are
+        // architectural decisions, not implementation conveniences.
+        $dependsList          = cliSplitList(getFlagValue('--depends='));
+        $usesList             = cliSplitList(getFlagValue('--uses='));
+        $explicitIntegrations = cliParseProviderList(getFlagValue('--integration='));
+        $integrationFeatures  = cliParseProviderList(getFlagValue('--integration-features='));
+        $requiredIntegrations = cliSplitList(getFlagValue('--integration-required='));
+        $interactive          = hasFlag('--interactive');
 
         // Normalize: lowercase, hyphens
         $id = strtolower(preg_replace('/[^a-zA-Z0-9\-]/', '-', $name));
@@ -3545,6 +3675,153 @@ switch ($command) {
             out('  ' . green('✓') . ' mkdir ' . dim(str_replace(BASE_PATH . '/', '', $dir)));
         }
 
+        // ── Capability providers available for integration ──────────────
+        $allMods = function_exists('discoverModules') ? discoverModules() : [];
+        $capProviders = cliCapabilityProviderMap($allMods);
+
+        // Resolve --uses into capabilities.depends (versioned, as exposed) plus
+        // best-effort per-provider integrations. Unversioned ids are matched to
+        // the actual exposed capability (e.g. wms.stock.reserve → wms.stock.reserve@1).
+        $dependsCaps = [];
+        $usesByProvider = [];
+        foreach ($usesList as $capId) {
+            $resolved = cliResolveCapability($capId, $capProviders);
+            if ($resolved === []) {
+                // No discoverable provider (kernel-exposed or not-yet-existing).
+                // Still record the dependency so the call is declared.
+                $dependsCaps[] = $capId;
+                continue;
+            }
+            foreach ($resolved as $providerId => $exposedCaps) {
+                foreach ($exposedCaps as $exposedCap) {
+                    $dependsCaps[] = $exposedCap;
+                    $usesByProvider[$providerId][] = $exposedCap;
+                }
+            }
+        }
+
+        // Explicit per-provider integration uses: --integration="provider:cap1,cap2;..."
+        // These scope the contract exactly and also feed capabilities.depends.
+        foreach ($explicitIntegrations as $providerId => $caps) {
+            foreach ($caps as $capId) {
+                $resolved = cliResolveCapability($capId, $capProviders);
+                if (isset($resolved[$providerId])) {
+                    foreach ($resolved[$providerId] as $exposedCap) {
+                        $usesByProvider[$providerId][] = $exposedCap;
+                        $dependsCaps[] = $exposedCap;
+                    }
+                } else {
+                    $usesByProvider[$providerId][] = $capId;
+                    $dependsCaps[] = $capId;
+                }
+            }
+        }
+        $dependsCaps = array_values(array_unique($dependsCaps));
+        foreach ($usesByProvider as $providerId => $caps) {
+            $usesByProvider[$providerId] = array_values(array_unique($caps));
+        }
+
+        // Interactive interview — only when explicitly requested AND stdin is a TTY,
+        // so scripts/CI (stdin not a TTY) never block.
+        if ($interactive && function_exists('stream_isatty') && stream_isatty(STDIN)) {
+            out('');
+            out('  ' . bold('Integration Contract') . dim(' (Declaration Before Integration)'));
+            out('  ' . dim('Which existing modules expose capabilities that ' . $id . ' will use?'));
+            out('  ' . dim('Leave blank to skip. Enter module ids separated by commas.'));
+            out('');
+            foreach ($allMods as $mid => $m) {
+                $exposed = [];
+                foreach ((array)($m['capabilities']['exposes'] ?? []) as $c) {
+                    $cid = is_string($c) ? $c : ($c['id'] ?? '');
+                    if ($cid !== '') $exposed[] = $cid;
+                }
+                if ($exposed === []) continue;
+                out('    ' . cyan($mid) . '  ' . dim('→ ' . implode(', ', array_slice($exposed, 0, 6)) . (count($exposed) > 6 ? ' …' : '')));
+            }
+            out('');
+            $pick = cliReadLine('  Provider module id(s) to integrate with: ');
+            foreach (cliSplitList($pick) as $providerId) {
+                if (!isset($allMods[$providerId])) {
+                    out('    ' . yellow("✗ Unknown module '{$providerId}' — skipped."));
+                    continue;
+                }
+                $exposed = [];
+                foreach ((array)($allMods[$providerId]['capabilities']['exposes'] ?? []) as $c) {
+                    $cid = is_string($c) ? $c : ($c['id'] ?? '');
+                    if ($cid !== '') $exposed[] = $cid;
+                }
+                $capPick = cliReadLine("    Capabilities to use from {$providerId} (blank = all): ");
+                $caps = $capPick === '' ? $exposed : cliSplitList($capPick);
+                $featPick = cliReadLine('    Features this integration adds (comma list): ');
+                $reqPick = strtolower(cliReadLine('    Required integration? (y/N): '));
+                foreach ($caps as $capId) {
+                    $resolved = cliResolveCapability($capId, $capProviders);
+                    if (isset($resolved[$providerId])) {
+                        foreach ($resolved[$providerId] as $exposedCap) {
+                            $usesByProvider[$providerId][] = $exposedCap;
+                            $dependsCaps[] = $exposedCap;
+                        }
+                    } else {
+                        $usesByProvider[$providerId][] = $capId;
+                        $dependsCaps[] = $capId;
+                    }
+                }
+                $usesByProvider[$providerId] = array_values(array_unique($usesByProvider[$providerId] ?? []));
+                $dependsCaps = array_values(array_unique($dependsCaps));
+                if (cliSplitList($featPick) !== []) {
+                    $integrationFeatures[$providerId] = cliSplitList($featPick);
+                }
+                if ($reqPick === 'y' || $reqPick === 'yes') {
+                    $requiredIntegrations[] = $providerId;
+                }
+            }
+        }
+
+        // Build the integrations contract: caller → provider, directional.
+        // The strict manifest guard requires every capability dependency to be
+        // a versioned capability-id (module.action@1). Normalize any unversioned
+        // declaration to @1 (best-effort default) and surface it as an advisory.
+        $defaultedCaps = [];
+        $normalizeVersioned = static function (string $capId) use (&$defaultedCaps): string {
+            $capId = trim($capId);
+            if (str_contains($capId, '@')) {
+                return $capId;
+            }
+            $defaultedCaps[] = $capId;
+            return $capId . '@1';
+        };
+        $dependsCaps = array_values(array_unique(array_map($normalizeVersioned, $dependsCaps)));
+        foreach ($usesByProvider as $providerId => $caps) {
+            $usesByProvider[$providerId] = array_values(array_unique(array_map($normalizeVersioned, $caps)));
+        }
+        if ($defaultedCaps !== []) {
+            out('');
+            out('  ' . yellow('Note: capability ids without a discoverable provider were versioned as @1 (best-effort):'));
+            out('    ' . implode(', ', array_values(array_unique($defaultedCaps))));
+            out('  ' . dim('Verify the provider exposes these capabilities at @1 before calling them.'));
+        }
+
+        $integrations = [];
+        foreach ($usesByProvider as $providerId => $caps) {
+            $integrations[$providerId] = [
+                'type' => in_array($providerId, $requiredIntegrations, true) ? 'required' : 'optional',
+                'uses' => array_values(array_unique($caps)),
+            ];
+            if (!empty($integrationFeatures[$providerId])) {
+                $integrations[$providerId]['adds_features'] = $integrationFeatures[$providerId];
+            }
+        }
+        // A declared feature set without --uses still forms a valid contract
+        // (uses may be omitted; the validator only requires uses when present).
+        foreach ($integrationFeatures as $providerId => $features) {
+            if (!isset($integrations[$providerId]) && isset($allMods[$providerId])) {
+                $integrations[$providerId] = [
+                    'type' => in_array($providerId, $requiredIntegrations, true) ? 'required' : 'optional',
+                    'adds_features' => $features,
+                ];
+            }
+        }
+
         // ── module.json ──────────────────────────────────────────
         $manifest = [
             'id' => $id,
@@ -3552,6 +3829,7 @@ switch ($command) {
             'version' => '1.0.0',
             'description' => "{$label} module for Ikabud Kernel",
             'author' => 'Ikabud',
+            'depends' => $dependsList,
             'owns_tables' => [],
             'reads_tables' => [],
             'migrations' => [
@@ -3559,8 +3837,9 @@ switch ($command) {
             ],
             'capabilities' => [
                 'exposes' => [],
-                'depends' => [],
+                'depends' => $dependsCaps,
             ],
+            'integrations' => $integrations,
             'routes' => true,
             'events' => [],
             'nav' => [
@@ -3580,6 +3859,25 @@ switch ($command) {
             json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
         );
         out('  ' . green('✓') . ' create module.json');
+
+        // ── Integration summary (Declaration Before Integration) ────────
+        if ($integrations !== []) {
+            out('');
+            out('  ' . bold('Integration contract') . dim(' — what ' . $id . ' deliberately gains:'));
+            foreach ($integrations as $providerId => $contract) {
+                $type = ($contract['type'] ?? 'optional') === 'required' ? 'required' : 'optional';
+                $uses = implode(', ', (array)($contract['uses'] ?? []));
+                $feats = implode(', ', (array)($contract['adds_features'] ?? []));
+                out('  ' . green('✓') . ' ' . cyan($id) . ' → uses → ' . cyan($providerId) . dim(" ({$type})"));
+                if ($uses !== '') {
+                    out('      caps: ' . $uses);
+                }
+                if ($feats !== '') {
+                    out('      adds: ' . $feats);
+                }
+            }
+            out('  ' . dim('Enabled only when both modules are active AND the integration contract is honored.'));
+        }
 
         // ── routes.php ───────────────────────────────────────────
         $routesContent = <<<PHP

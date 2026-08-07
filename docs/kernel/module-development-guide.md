@@ -169,6 +169,32 @@ Combined rule:
 > **Activation Before Participation. Declaration Before Integration.**
 > A module must be active before it can participate in the runtime. An active module may interact with another module only through an explicitly declared and enabled integration contract. Capability discovery alone never grants integration authority.
 
+#### Scaffolding declares the integration contract up front
+
+`make:module` is integration-aware: when a module is created it must identify **which existing modules add to its capabilities** and declare the relationship. This bakes "Declaration Before Integration" into the creation flow instead of leaving it as an afterthought.
+
+```bash
+php ikabud make:module shop \
+  --depends=cms \
+  --uses=wms.stock.reserve,wms.stock.release \
+  --integration="wms:wms.fulfillment.create" \
+  --integration-features="wms:warehouse_inventory,stock_reservation,fulfillment" \
+  --integration-required=wms
+```
+
+| Flag | Meaning |
+|---|---|
+| `--depends=<a,b>` | Module-level hard `depends` (the module cannot boot without these). |
+| `--uses=<cap,...>` | Capabilities the module will call. Added to `capabilities.depends` and, when a provider module is discoverable, to that provider's integration `uses` (auto-resolved to the exposed versioned id, e.g. `wms.stock.reserve` → `wms.stock.reserve@1`). |
+| `--integration="provider:cap1,cap2;..."` | Explicit per-provider integration `uses` (no resolution needed); also feeds `capabilities.depends`. |
+| `--integration-features="provider:feat1,feat2;..."` | `adds_features` — the business answer to "what does connecting these modules actually do?". |
+| `--integration-required=<provider>` | Marks those integrations `type: required` (vs the default `optional`). |
+| `--interactive` | Guided interview on a TTY: lists capability-exposing modules, then collects providers, uses, features, and required/optional per provider. |
+
+Unversioned capability ids with no discoverable provider are normalized to `@1` (best-effort) with an advisory, so the generated manifest always passes the strict guard (`scripts/guard-module-manifests.php --strict`). The scaffold prints the resulting directional graph, e.g. `shop → uses → wms (required)` with its `caps` and `adds`.
+
+This keeps capability availability, dependency, and integration as three distinct declarations, matching the runtime governance: an integration is only *operational* once both modules are active **and** the caller's integration contract covers the capability (see `integrationIsDeclared()`).
+
 ### Enforcement points
 
 | Layer | Enforces |
@@ -505,6 +531,8 @@ This creates `modules/cms-akira/cms-akira-analytics/` and writes the suite membe
 ```
 
 If `modules/<suite>/module.json` exists, nested suite scaffolding is blocked. Suite folders are namespace-only — they are **not** shared runtime modules; reusable logic must stay module-owned or capability-exposed.
+
+**Install/scaffold path rule:** a module is placed under `modules/<suite>/<id>/` only when `--suite` is passed explicitly **or** an existing suite namespace folder (`modules/<suite>/` without a `module.json`) matches the id prefix. Arbitrary hyphenated ids that are not suite members (e.g. `cli-test-tmp`, `golden-module-<hex>`) are always installed flat at `modules/<id>/` — the scaffolder never invents a suite folder for them.
 
 ### Certification and install gates
 

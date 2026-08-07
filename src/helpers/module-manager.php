@@ -69,9 +69,11 @@ function moduleInstallTargetDirForId(string $moduleId, ?string $explicitSuiteId 
     if (count($parts) >= 3) {
         $suite = $parts[0] . '-' . $parts[1];
         $suiteDir = $base . '/' . $suite;
-        // If no module manifest occupies the suite directory, reserve it as a
-        // namespace container for submodules.
-        if (!is_file($suiteDir . '/module.json')) {
+        // Nest under an existing suite namespace container only. Do NOT invent
+        // a suite folder for arbitrary hyphenated ids (e.g. cli-test-tmp,
+        // golden-module-<hex>) — that would break flat module creation and
+        // install for modules that are not members of a product suite.
+        if (is_dir($suiteDir) && !is_file($suiteDir . '/module.json')) {
             return $suiteDir . '/' . $moduleId;
         }
     }
