@@ -12,15 +12,31 @@ require_once __DIR__ . '/helpers.php';
 
 /**
  * GET /admin/cms-akira-theme — Main admin page
+ *
+ * Real theme overview: active theme, installed themes, and direct links to the
+ * canonical theme customizer (/cms/admin/customize) and theme library
+ * (/cms/admin/themes) owned by the CMS module. CMS remains the canonical owner
+ * of theme authority until the Phase 6 ownership handoff; this module provides
+ * the akira.theme.resolve@1 provider contract on top of it.
  */
 function pageCmsAkiraThemeHome(array $params = []): void
 {
     $user = cmsRequireCap('settings.manage');
 
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $activeTheme = function_exists('cmsActiveTheme') ? cmsActiveTheme() : null;
+    $themes = function_exists('cmsAvailableThemes') ? cmsAvailableThemes() : [];
+    $diagnostics = function_exists('cmsThemeRuntimeDiagnostics') ? cmsThemeRuntimeDiagnostics() : [];
+
     echo cmsRender('modules/cms-akira-theme/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-theme', [
         ['label' => 'CMS Akira Theme', 'url' => ''],
     ]), [
-        'page_title' => 'CMS Akira Theme',
+        'page_title'        => 'CMS Akira Theme',
+        'active_theme'      => $activeTheme,
+        'themes'            => $themes,
+        'diagnostics'       => $diagnostics,
+        'customizer_url'    => $baseUrl . '/cms/admin/customize',
+        'theme_library_url' => $baseUrl . '/cms/admin/themes',
     ]));
 }
 

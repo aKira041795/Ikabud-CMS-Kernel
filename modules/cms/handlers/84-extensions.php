@@ -21,6 +21,7 @@ function cmsAdminThemes(array $params = []): void
         ['label' => 'Themes', 'url' => ''],
     ]), [
         'page_title'       => 'Themes',
+        'themes'           => $themes,
         'themes_json'      => json_encode($themes),
         'active_theme'     => $active,
         'theme_runtime_diagnostics' => $runtimeDiagnostics,

@@ -10,16 +10,36 @@
         </div>
     </div>
 
-    <!-- Status card -->
-    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8 text-center">
-        <div class="text-5xl mb-3">📦</div>
-        <div class="font-semibold text-slate-800">Module scaffolded successfully</div>
-        <p class="mt-1 text-sm text-slate-500">
-            Build the Profile Standard surface in
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">modules/cms-akira-profile-standard/handlers.php</code>
-            and
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">templates/modules/cms-akira-profile-standard/pages/home.disyl</code>.
+    <!-- Profile card -->
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8">
+        <h2 class="text-base font-bold text-slate-900 mb-3">Installation profile</h2>
+        <p class="text-sm text-slate-600 leading-relaxed">
+            This is a <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">kind: profile</code> module — an installation
+            bundle. It declares which Akira modules form a coherent standard content configuration and delegates entry auth
+            to the CMS module. It has no admin surface of its own; enable or disable the bundled modules from the Module Manager.
         </p>
+        <div class="mt-4">
+            <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Bundles</div>
+            <div class="flex flex-wrap gap-2">
+                <span class="text-[11px] font-medium bg-slate-100 text-slate-600 rounded-full px-3 py-1"><code>cms-akira-core</code></span>
+                <span class="text-[11px] font-medium bg-slate-100 text-slate-600 rounded-full px-3 py-1"><code>cms-akira-editor</code></span>
+                <span class="text-[11px] font-medium bg-slate-100 text-slate-600 rounded-full px-3 py-1"><code>cms-akira-theme</code></span>
+                <span class="text-[11px] font-medium bg-slate-100 text-slate-600 rounded-full px-3 py-1"><code>cms-akira-navigation</code></span>
+                <span class="text-[11px] font-medium bg-slate-100 text-slate-600 rounded-full px-3 py-1"><code>cms-akira-media</code></span>
+                <span class="text-[11px] font-medium bg-slate-100 text-slate-600 rounded-full px-3 py-1"><code>cms-akira-seo</code></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage card -->
+    <div class="rounded-[24px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <div class="font-semibold text-slate-900">Module Manager</div>
+                <p class="text-sm text-slate-500">Control which modules are enabled for this deployment.</p>
+            </div>
+            <a href="{base_url}/cms/admin/modules" class="shrink-0 text-sm font-medium text-sky-600 hover:text-sky-800 no-underline">Open Modules →</a>
+        </div>
     </div>
 </div>
 {/block}

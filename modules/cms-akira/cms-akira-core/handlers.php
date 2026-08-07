@@ -12,15 +12,37 @@ require_once __DIR__ . '/helpers.php';
 
 /**
  * GET /admin/cms-akira-core — Main admin page
+ *
+ * Provider-boundary runtime status: which Akira providers are enabled, what
+ * contract each exposes, and whether requests resolve in provider or fallback
+ * mode. This is the live evidence surface for the Phase 2 provider-boundary
+ * gating (graceful degradation across the suite).
  */
 function pageCmsAkiraCoreHome(array $params = []): void
 {
     $user = cmsRequireCap('settings.manage');
 
+    $providers = function_exists('cacProviderRuntimeStatus') ? cacProviderRuntimeStatus() : [];
+
+    $enabled = 0;
+    $fallback = 0;
+    foreach ($providers as $p) {
+        if (!empty($p['enabled'])) {
+            $enabled++;
+        }
+        if (($p['mode'] ?? '') === 'fallback') {
+            $fallback++;
+        }
+    }
+
     echo cmsRender('modules/cms-akira-core/pages/home.disyl', array_merge(cmsAdminContext($user, 'cms-akira-core', [
         ['label' => 'CMS Akira Core', 'url' => ''],
     ]), [
-        'page_title' => 'CMS Akira Core',
+        'page_title'          => 'CMS Akira Core',
+        'providers'           => $providers,
+        'provider_total'      => count($providers),
+        'provider_enabled'    => $enabled,
+        'provider_fallback'   => $fallback,
     ]));
 }
 

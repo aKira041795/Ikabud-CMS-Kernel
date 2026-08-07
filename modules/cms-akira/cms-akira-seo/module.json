@@ -10,28 +10,6 @@
     "depends": [
         "cms-akira-core"
     ],
-    "contributes": [
-        {
-            "extension_point": "cms.sidebar",
-            "provider": "cms-akira-seo.nav@1"
-        },
-        {
-            "extension_point": "cms.settings.sections",
-            "provider": "cms-akira-seo.settings@1"
-        }
-    ],
-    "admin_contributions": [
-        {
-            "host": "cms",
-            "location": "sidebar",
-            "group": "optimization",
-            "label": "SEO",
-            "icon": "search",
-            "route": "/admin/cms-akira-seo",
-            "permission": "cms.seo.manage",
-            "order": 60
-        }
-    ],
     "compatibility": {
         "kernel": ">=6.0.0",
         "suite": ">=1.0.0"
@@ -63,15 +41,5 @@
         ]
     },
     "routes": true,
-    "events": [],
-    "nav": [
-        {
-            "label": "Cms Akira Seo",
-            "url": "/admin/cms-akira-seo",
-            "icon": "box",
-            "roles": [
-                "admin"
-            ]
-        }
-    ]
+    "events": []
 }

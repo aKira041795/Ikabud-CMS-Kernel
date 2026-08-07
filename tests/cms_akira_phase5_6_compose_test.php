@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+$_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'akiracms.test';
+$_SERVER['REQUEST_URI'] = $_SERVER['REQUEST_URI'] ?? '/';
+
 require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms-akira/cms-akira-core/helpers.php';

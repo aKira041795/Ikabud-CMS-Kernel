@@ -10,16 +10,28 @@
         </div>
     </div>
 
-    <!-- Status card -->
-    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8 text-center">
-        <div class="text-5xl mb-3">📦</div>
-        <div class="font-semibold text-slate-800">Module scaffolded successfully</div>
-        <p class="mt-1 text-sm text-slate-500">
-            Build the Builder surface in
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">modules/cms-akira-builder/handlers.php</code>
-            and
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">templates/modules/cms-akira-builder/pages/home.disyl</code>.
+    <!-- Contract card -->
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8">
+        <h2 class="text-base font-bold text-slate-900 mb-3">What this module provides</h2>
+        <p class="text-sm text-slate-600 leading-relaxed">
+            Builder integration surface for the CMS Akira suite. The visual page builder (React/Vite), its governed
+            component palette, and builder document storage and rendering remain owned by the CMS module.
         </p>
+        <div class="mt-4 flex flex-wrap gap-2">
+            <span class="text-[11px] font-medium bg-slate-100 text-slate-600 rounded-full px-3 py-1">Owns: <code>cms.builder.*@1</code> (CMS)</span>
+            <span class="text-[11px] font-medium bg-emerald-50 text-emerald-700 rounded-full px-3 py-1">Content renders without the builder</span>
+        </div>
+    </div>
+
+    <!-- Manage card -->
+    <div class="rounded-[24px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <div class="font-semibold text-slate-900">Visual Page Builder</div>
+                <p class="text-sm text-slate-500">Design pages visually with the CMS page builder.</p>
+            </div>
+            <a href="{base_url}/cms/admin/react-builder/create" class="shrink-0 text-sm font-medium text-sky-600 hover:text-sky-800 no-underline">Open Page Builder →</a>
+        </div>
     </div>
 </div>
 {/block}

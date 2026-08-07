@@ -6,20 +6,81 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-xl font-bold text-slate-900">CMS Akira Theme</h1>
-            <p class="mt-0.5 text-sm text-slate-500">Theme extension for the CMS Akira suite. Manage themes and presentation.</p>
+            <p class="mt-0.5 text-sm text-slate-500">Theme provider for the CMS Akira suite. Active theme, customizer, and installed themes.</p>
         </div>
     </div>
 
-    <!-- Status card -->
-    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8 text-center">
-        <div class="text-5xl mb-3">📦</div>
-        <div class="font-semibold text-slate-800">Module scaffolded successfully</div>
-        <p class="mt-1 text-sm text-slate-500">
-            Build the Theme surface in
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">modules/cms-akira-theme/handlers.php</code>
-            and
-            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">templates/modules/cms-akira-theme/pages/home.disyl</code>.
-        </p>
+    <!-- Quick actions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="{customizer_url}" class="rounded-[24px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6 hover:border-sky-300 hover:shadow-sky-100 transition-all no-underline">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center text-xl">🎨</div>
+                <div>
+                    <div class="font-semibold text-slate-900">Theme Customizer</div>
+                    <p class="text-sm text-slate-500">Edit header, footer, colors, layout, and custom code for the active theme.</p>
+                </div>
+            </div>
+        </a>
+        <a href="{theme_library_url}" class="rounded-[24px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6 hover:border-emerald-300 hover:shadow-emerald-100 transition-all no-underline">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl">📦</div>
+                <div>
+                    <div class="font-semibold text-slate-900">Theme Library</div>
+                    <p class="text-sm text-slate-500">Upload, install, activate, or delete themes.</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Active theme -->
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8">
+        <h2 class="text-base font-bold text-slate-900 mb-4">Active Theme</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+                <div class="text-xs uppercase tracking-wider text-slate-400">Active</div>
+                <div class="text-lg font-bold text-slate-900">{if diagnostics.active_theme_name}{diagnostics.active_theme_name}{else}Default{/if}</div>
+                <div class="text-sm text-slate-500">{if diagnostics.active_theme && diagnostics.active_theme != 'default'}{diagnostics.active_theme}{else}Built-in native theme{/if}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase tracking-wider text-slate-400">Source</div>
+                <div class="text-sm font-semibold text-slate-700">{if diagnostics.active_theme_source}{diagnostics.active_theme_source}{else}—{/if}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase tracking-wider text-slate-400">Customizer scope</div>
+                <div class="text-sm font-semibold text-slate-700">{if diagnostics.active_customizer_scope}{diagnostics.active_customizer_scope}{else}—{/if}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase tracking-wider text-slate-400">Presentation</div>
+                <div class="text-sm font-semibold text-slate-700">{if diagnostics.public_presentation_mode}{diagnostics.public_presentation_mode}{else}—{/if}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Installed themes -->
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-slate-900">Installed Themes</h2>
+            <a href="{theme_library_url}" class="text-sm font-medium text-sky-600 hover:text-sky-800 no-underline">Open Theme Library →</a>
+        </div>
+        {if themes}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {foreach themes as theme}
+            <div class="rounded-2xl border border-slate-200 p-5 {if theme.slug == active_theme}bg-sky-50 border-sky-300{else}bg-white{/if}">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="font-semibold text-slate-900">{theme.name}</div>
+                    {if theme.slug == active_theme}
+                    <span class="text-[10px] font-semibold uppercase tracking-wide bg-sky-600 text-white rounded-full px-2 py-0.5">Active</span>
+                    {/if}
+                </div>
+                <div class="mt-1 text-xs text-slate-500">{theme.slug}{if theme.version} · v{theme.version}{/if}</div>
+                {if theme.description}<p class="mt-2 text-sm text-slate-600">{theme.description}</p>{/if}
+                <div class="mt-3 text-xs text-slate-400">{theme.override_count} template override(s)</div>
+            </div>
+            {/foreach}
+        </div>
+        {else}
+        <p class="text-sm text-slate-500">No custom themes installed. The built-in native theme is active.</p>
+        {/if}
     </div>
 </div>
 {/block}

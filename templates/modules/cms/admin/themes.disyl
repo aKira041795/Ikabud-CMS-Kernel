@@ -151,9 +151,9 @@
 <script>
 function cmsThemeManager() {
     return {
-        themes: JSON.parse('{themes_json|raw}'),
+        themes: {themes | json},
         activeTheme: '{active_theme}',
-        runtimeDiagnostics: JSON.parse('{theme_runtime_diagnostics_json|raw}'),
+        runtimeDiagnostics: {theme_runtime_diagnostics | json},
         showUpload: false,
         uploading: false,
         activating: false,

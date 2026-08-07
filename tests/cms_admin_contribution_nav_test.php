@@ -79,19 +79,33 @@ if (is_string($layoutSource)) {
     $assert(substr_count($layoutSource, '{foreach ext_nav_items') >= 2, 'admin.disyl renders ext_nav_items in desktop AND mobile sidebars', (string)substr_count($layoutSource, '{foreach ext_nav_items'));
 }
 
-// ── POC live check: the real cms-akira-seo manifest contribution flows ──
-// through the bridge when the module is enabled. Guards against the bridge
-// being a test-only illusion.
-$pocEnabled = isset(discoverModules()['cms-akira-seo']) && !empty(discoverModules()['cms-akira-seo']['_enabled']);
-if ($pocEnabled) {
-    $contribs = kernelContributionsForHostLocation('cms', 'sidebar');
-    $labels = array_column($contribs, 'label');
-    $assert(in_array('SEO', $labels, true), 'live cms-akira-seo contribution appears in registry when enabled');
-    $navLive = $hooks->filter('cms.admin.nav_items', []);
-    $navLabels = array_column($navLive, 'label');
-    $assert(in_array('Optimization', $navLabels, true), 'live SEO contribution folded into cms.admin.nav_items as Optimization section');
+// ── POC live check: enabled provider modules must not leak placeholder nav ──
+// The CMS sidebar links to the real legacy surfaces (customizer, theme library,
+// menus, builder, AI automation) instead of placeholder pages, so a provider
+// module without a real admin surface must NOT inject a dead contribution.
+$seoEnabled = isset(discoverModules()['cms-akira-seo']) && !empty(discoverModules()['cms-akira-seo']['_enabled']);
+$contribs = kernelContributionsForHostLocation('cms', 'sidebar');
+$labels = array_column($contribs, 'label');
+$routes = array_values(array_filter(array_column($contribs, 'route'), static fn ($r) => is_string($r)));
+
+if ($seoEnabled) {
+    $assert(!in_array('SEO', $labels, true), 'enabled provider module without a real surface does not inject a placeholder sidebar link');
 } else {
     $assert(true, 'POC module not enabled in this environment — live assertion skipped');
+}
+
+$placeholderRoutes = array_values(array_filter($routes, static fn (string $r): bool => str_starts_with($r, '/admin/cms-akira-')));
+$assert($placeholderRoutes === [], 'no sidebar contribution points at a placeholder /admin/cms-akira-* page');
+
+// The dynamic bridge still folds a declared contribution (proven by the fake
+// module above). The static shell restores direct links to the real optional
+// surfaces so theme customizer + theme library stay reachable.
+$layoutSource2 = @file_get_contents(dirname(__DIR__) . '/templates/modules/cms/layouts/admin.disyl');
+if (is_string($layoutSource2)) {
+    $assert(str_contains($layoutSource2, '{base_url}/cms/admin/customize'), 'admin.disyl links Theme → /cms/admin/customize');
+    $assert(str_contains($layoutSource2, '{base_url}/cms/admin/themes'), 'admin.disyl links Theme Library → /cms/admin/themes');
+    $assert(str_contains($layoutSource2, '{base_url}/cms/admin/menus'), 'admin.disyl links Navigation → /cms/admin/menus');
+    $assert(str_contains($layoutSource2, '{base_url}/cms/admin/ai-automation'), 'admin.disyl links AI Automation → /cms/admin/ai-automation');
 }
 
 echo "\n{$passed} passed, {$failed} failed\n";

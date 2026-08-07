@@ -10,25 +10,6 @@
     "depends": [
         "cms-akira-core"
     ],
-    "contributes": [
-        {
-            "extension_point": "cms.sidebar",
-            "provider": "cms-akira-navigation.sidebar@1"
-        }
-    ],
-    "admin_contributions": [
-        {
-            "id": "cms-akira-navigation.sidebar",
-            "host": "cms",
-            "location": "sidebar",
-            "group": "experience",
-            "label": "Navigation",
-            "icon": "navigation",
-            "route": "/admin/cms-akira-navigation",
-            "permission": "cms.navigation.manage",
-            "order": 40
-        }
-    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [
@@ -50,15 +31,5 @@
         ]
     },
     "routes": true,
-    "events": [],
-    "nav": [
-        {
-            "label": "Cms Akira Navigation",
-            "url": "/admin/cms-akira-navigation",
-            "icon": "box",
-            "roles": [
-                "admin"
-            ]
-        }
-    ]
+    "events": []
 }
