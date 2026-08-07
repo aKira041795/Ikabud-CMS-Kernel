@@ -35,7 +35,7 @@ As of August 2026 the CMS has been decomposed into the **CMS Akira suite** (`mod
 
 Akira capabilities use the `akira.*` namespace (`akira.content.*@1`, `akira.type.*@1`, `akira.taxonomy.*@1`, `akira.revision.*@1`, `akira.publication.*@1`, `akira.query.*@1`) while `cms.content.*@1` stays backward compatible during migration — see [cms-akira-capability-namespace-and-adapter-plan.md](cms-akira-capability-namespace-and-adapter-plan.md).
 
-Suite modules render inside the **CMS admin shell** (`templates/modules/cms/layouts/admin.disyl`), and the admin sidebar is dynamically driven by module `admin_contributions` rather than a static nav block.
+Suite modules render inside the **CMS admin shell** (`templates/modules/cms/layouts/admin.disyl`). The sidebar keeps constant operational links (Dashboard, Content, Experience — Page Builder / Theme / Theme Library / Navigation / AI Automation — System, Admin) built into the layout, and folds manifest-declared `admin_contributions` (`host: cms`, `location: sidebar`) into `ext_nav_items` for extension surfaces. Provider modules with no real admin surface yet (e.g. Akira SEO, AI, Workflow) do **not** declare sidebar contributions, so the shell never links to placeholder pages.
 
 ---
 

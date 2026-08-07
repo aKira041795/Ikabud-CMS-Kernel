@@ -94,6 +94,8 @@ and writes this to `module.json`:
 - Reusable logic must stay module-owned or capability-exposed.
 - Do not use suite folders to bypass manifest dependency contracts.
 - If `modules/<suite>/module.json` exists, nested suite scaffolding is blocked.
+- **Do not declare `admin_contributions` for a module whose admin page is still the scaffold placeholder.** The CMS sidebar only gets a contribution when the module has a real admin surface. Provider modules without one (SEO, AI, Workflow, etc.) operate purely through capability contracts and must not inject dead nav.
+- Theme authority stays with the CMS module (customizer at `/cms/admin/customize`, theme library at `/cms/admin/themes`) until the Phase 6 ownership handoff. `cms-akira-theme` currently exposes `akira.theme.resolve@1` on top of it.
 
 ## Validation Commands
 
