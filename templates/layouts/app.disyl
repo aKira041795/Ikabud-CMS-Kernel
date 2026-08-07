@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{page_title} — {gui.app_name}</title>
+    <title>{page_title} — {gui.app_name|default:'Ikabud'}</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/head-support.js"></script>
     <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
@@ -306,7 +306,7 @@
                     <line x1="3" y1="18" x2="21" y2="18"></line>
                 </svg>
             </button>
-            <div class="logo"><span>{gui.app_name_accent}</span> {gui.app_name_rest}</div>
+            <div class="logo"><span>{gui.app_name_accent|default:'Ikabud'}</span> {gui.app_name_rest|default:''}</div>
         </div>
         <div class="spacer"></div>
         {if user}

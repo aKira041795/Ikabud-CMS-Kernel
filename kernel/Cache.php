@@ -1109,19 +1109,23 @@ class Cache
                 : null;
             $presets = [];
             if ($presetsDir && is_dir($presetsDir)) {
-                $presetFiles = glob($presetsDir . '/*.php');
+                $presetFiles = glob($presetsDir . '/*.json');
                 if (is_array($presetFiles)) {
                     foreach ($presetFiles as $pf) {
-                        $presetData = include $pf;
-                        if (is_array($presetData)) {
-                            $presets[basename($pf, '.php')] = $presetData;
+                        $raw = @file_get_contents($pf);
+                        if ($raw === false) {
+                            continue;
+                        }
+                        $presetData = json_decode($raw, true);
+                        if (is_array($presetData) && !empty($presetData['id'])) {
+                            $presets[(string)$presetData['id']] = $presetData;
                         }
                     }
                 }
             }
-            if (!empty($presets)) {
-                apcu_store($presetKey, $presets, 3600);
-            }
+            // Always cache the result (even when empty) so the presets are not
+            // re-read and re-logged on every request.
+            apcu_store($presetKey, $presets, 3600);
             if (function_exists('write_log')) {
                 \write_log('kernel_state_cache: entity_presets rebuilt', 'info');
             }
@@ -1141,5 +1145,6 @@ class Cache
         apcu_delete('kernel.module_registry_' . self::KERNEL_STATE_VERSION);
         apcu_delete('kernel.capability_map_' . self::KERNEL_STATE_VERSION);
         apcu_delete('kernel.entity_presets_' . self::KERNEL_STATE_VERSION);
+        apcu_delete('kernel.discovered_modules_scan_v1');
     }
 }

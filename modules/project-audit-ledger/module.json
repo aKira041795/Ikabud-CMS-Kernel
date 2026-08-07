@@ -82,6 +82,7 @@
         "pal_receivable_payments"
     ],
     "reads_tables": [
+        "kernel_tenants",
         "audit_logs",
         "attendance_groups",
         "attendance_group_members",

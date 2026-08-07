@@ -95,6 +95,16 @@ final class IncludeResolver
             }
 
             // Find the opening quote after {include "
+            // Only the quoted-name form "{include "name" ...}" is handled here.
+            // Other forms (e.g. "{include parent() with {...}}", "{include $var}")
+            // are resolved by block inheritance / dynamic include mechanisms;
+            // scanning for a distant quote would bleed into unrelated HTML such
+            // as class="..." and produce a spurious "Include not found".
+            if (($content[$brace + 9] ?? '') !== '"') {
+                $pos = $brace + 1;
+                continue;
+            }
+
             $q1 = strpos($content, '"', $brace + 9);
             if ($q1 === false || $q1 >= $len) {
                 $pos = $brace + 1;

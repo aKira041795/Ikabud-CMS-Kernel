@@ -22,7 +22,7 @@
     {/if}
 
     {if builder_enabled}
-    <div class="{builder_page_settings.container_class}">
+    <div class="{builder_page_settings.container_class|default:''}">
         {post_html | raw}
     </div>
     {else}
@@ -90,7 +90,7 @@
                 <div class="cms-entity-layout native-product-layout">
                     <div class="cms-entity-main native-stack">
                         {if builder_enabled}
-                        <div class="cms-entity-body {builder_page_settings.container_class}">
+                        <div class="cms-entity-body {builder_page_settings.container_class|default:''}">
                             {post_html | raw}
                         </div>
                         {else}
@@ -127,7 +127,7 @@
                 </div>
                 {else}
                     {if builder_enabled}
-                    <div class="cms-entity-body {builder_page_settings.container_class}">
+                    <div class="cms-entity-body {builder_page_settings.container_class|default:''}">
                         {post_html | raw}
                     </div>
                     {else}
@@ -144,7 +144,7 @@
                 {/if}
             {elseif entity_presentation.summary_after_body}
                 {if builder_enabled}
-                <div class="cms-entity-body {builder_page_settings.container_class}">
+                <div class="cms-entity-body {builder_page_settings.container_class|default:''}">
                     {post_html | raw}
                 </div>
                 {else}
@@ -198,7 +198,7 @@
                 {/if}
 
                 {if builder_enabled}
-                <div class="cms-entity-body {builder_page_settings.container_class}">
+                <div class="cms-entity-body {builder_page_settings.container_class|default:''}">
                     {post_html | raw}
                 </div>
                 {else}
@@ -215,7 +215,7 @@
             {/if}
         {else}
             {if builder_enabled}
-            <div class="cms-entity-body {builder_page_settings.container_class}">
+            <div class="cms-entity-body {builder_page_settings.container_class|default:''}">
                 {post_html | raw}
             </div>
             {else}

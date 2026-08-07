@@ -1341,6 +1341,67 @@ function discoverModules(): array
         return $GLOBALS['_kernel_discovered_modules'];
     }
 
+    // Cross-request cache of the expensive recursive scan + manifest
+    // validation (~700ms across 60+ modules). Only the scan/validation
+    // result is cached; the per-call enabled state and ReadContractRegistry
+    // registrations below are applied fresh on every request so module
+    // enable/disable and table-ownership stay correct.
+    $cacheKey = 'kernel.discovered_modules_scan_v1';
+    $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
+    $result = null;
+    if ($apcuEnabled) {
+        $cached = apcu_fetch($cacheKey, $success);
+        if ($success && is_array($cached)) {
+            $result = $cached;
+        }
+    }
+
+    if ($result === null) {
+        $result = discoverModulesScanAll();
+        if ($apcuEnabled) {
+            // Short TTL (matches page-cache convention) so module.json edits
+            // are picked up quickly during development while avoiding the
+            // per-request recursive scan + validation across all modules.
+            apcu_store($cacheKey, $result, 300);
+        }
+    }
+
+    // Per-call state: enabled flag + table-ownership registration (fresh every request)
+    foreach ($result as $moduleId => $manifest) {
+        $manifest['_enabled'] = isModuleEnabled($moduleId);
+        $result[$moduleId] = $manifest;
+
+        // Register table ownership for ReadContractRegistry
+        $owns = is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [];
+        $coOwns = is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [];
+        foreach (array_merge($owns, $coOwns) as $tableName) {
+            if (is_string($tableName) && trim($tableName) !== '') {
+                $registry = \Ikabud\Kernel\Contracts\ReadContractRegistry::getInstance();
+                $normalizedTable = trim($tableName);
+                $registry->registerTableOwner($normalizedTable, $moduleId);
+                if ($normalizedTable === 'wms_stock') {
+                    $registry->registerTableOwner('wms_stocks', $moduleId);
+                }
+            }
+        }
+    }
+
+    $GLOBALS['_kernel_discovered_modules'] = $result;
+    if (function_exists('kernelRegisterModuleReadContracts')) {
+        kernelRegisterModuleReadContracts($result);
+    }
+    return $result;
+}
+
+/**
+ * Recursive scan of modules/ for module.json manifests with schema
+ * validation. Returns manifests keyed by module id with `_path` set.
+ * Does NOT apply per-request state (enabled flag, contract registries) —
+ * discoverModules() applies those on every call so cache staleness can
+ * never leak enable/disable or ownership changes.
+ */
+function discoverModulesScanAll(): array
+{
     $dir = modulesPath();
     if (!is_dir($dir)) {
         return [];
@@ -1424,28 +1485,9 @@ function discoverModules(): array
         }
 
         $manifest['_path'] = dirname($manifestPath);
-        $manifest['_enabled'] = isModuleEnabled($moduleId);
         $result[$moduleId] = $manifest;
-
-        // Register table ownership for ReadContractRegistry
-        $owns = is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [];
-        $coOwns = is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [];
-        foreach (array_merge($owns, $coOwns) as $tableName) {
-            if (is_string($tableName) && trim($tableName) !== '') {
-                $registry = \Ikabud\Kernel\Contracts\ReadContractRegistry::getInstance();
-                $normalizedTable = trim($tableName);
-                $registry->registerTableOwner($normalizedTable, $moduleId);
-                if ($normalizedTable === 'wms_stock') {
-                    $registry->registerTableOwner('wms_stocks', $moduleId);
-                }
-            }
-        }
     }
 
-    $GLOBALS['_kernel_discovered_modules'] = $result;
-    if (function_exists('kernelRegisterModuleReadContracts')) {
-        kernelRegisterModuleReadContracts($result);
-    }
     return $result;
 }
 

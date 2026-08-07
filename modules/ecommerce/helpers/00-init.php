@@ -44,7 +44,7 @@ function ecCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 function ecTableExists(string $table): bool
 {
     static $cache = [];
-    $tid = app()->tenant()->current();
+    $tid = (string)(app()->tenant()->current() ?? '');
     if (!isset($cache[$tid])) {
         $cache[$tid] = [];
     }
@@ -614,7 +614,7 @@ function ecSettingsResetCache(): void
 function ecMaybeInstallPages(): void
 {
     static $done = [];
-    $tid = app()->tenant()->current();
+    $tid = (string)(app()->tenant()->current() ?? '');
     if (!empty($done[$tid])) {
         return;
     }
