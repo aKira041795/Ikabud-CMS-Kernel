@@ -343,6 +343,44 @@ final class CapabilityBus implements CapabilityBusContract
                 }
             }
 
+            // ── Activation Before Participation ────────────────────────
+            // The kernel invariant: a provider module that has not been
+            // explicitly activated for the current tenant MUST NOT serve
+            // capability calls.  Kernel providers are always active.
+            // See moduleIsActive() in src/helpers/module-registry.php.
+            if ($pid !== 'kernel' && function_exists('moduleIsActive') && !moduleIsActive($pid)) {
+                if (function_exists('write_log')) {
+                    write_log("Capability provider '{$pid}' skipped — module not active for tenant", 'warning', [
+                        'capability_id' => $capabilityId,
+                        'provider' => $pid,
+                        'caller_module' => $callerModule,
+                    ]);
+                }
+                continue;
+            }
+
+            // ── Declaration Before Integration ──────────────────────
+            // A provider may require that callers explicitly declare an
+            // integration contract (module.json `integrations` block)
+            // before it serves the capability.  This prevents modules
+            // from discovering and calling any exposed capability as an
+            // implementation convenience.  Require integration is
+            // declared in the capability's expose entry:
+            //   { "id": "...", "require_integration": true }
+            if (!empty($p['meta']['require_integration'])) {
+                $callerModuleId = $callerModule !== '' ? $callerModule : 'kernel';
+                if (function_exists('integrationIsDeclared') && !integrationIsDeclared($callerModuleId, $pid, $capabilityId)) {
+                    if (function_exists('write_log')) {
+                        write_log("Capability provider '{$pid}' skipped — caller '{$callerModuleId}' has no declared integration for '{$capabilityId}'", 'warning', [
+                            'capability_id' => $capabilityId,
+                            'provider' => $pid,
+                            'caller_module' => $callerModuleId,
+                        ]);
+                    }
+                    continue;
+                }
+            }
+
             if (isset($deny[$pid])) {
                 continue;
             }

@@ -426,6 +426,84 @@ function moduleRegistryDefaultEnabledState(string $moduleId, ?int $tenantId = nu
     return !empty($defaults[$moduleId]);
 }
 
+/**
+ * Activation Before Participation — the kernel invariant that gates
+ * capability dispatch, hook participation, route accessibility, and
+ * UI-contribution rendering behind explicit tenant activation.
+ *
+ * A module is "active" (operational) for a tenant when:
+ *   - It is the entry module or in the entry module's runtime dependency
+ *     closure (always-active — cannot be deactivated without breaking the
+ *     entry module).
+ *   - The tenant admin has explicitly activated it (saved _module_enabled:
+ *     true in tenant module settings).
+ *
+ * A module that is discovered, installed, and enabled but NOT in the
+ * runtime defaults and NOT explicitly activated is "installed but inactive"
+ * — its helpers and capabilities are loaded, but it MUST NOT participate
+ * in the host application's UI, hooks, or operational surfaces.
+ *
+ * Deactivation writes _module_enabled: false — data is retained.
+ *
+ * @param string $moduleId
+ * @param int|null $tenantId explicit tenant id (superadmin use)
+ * @return bool true when the module is operational for the tenant
+ */
+function moduleIsActive(string $moduleId, ?int $tenantId = null): bool
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '') {
+        return false;
+    }
+
+    // The module must be enabled at all. A disabled module's helpers are not
+    // loaded and its capabilities are not registered.
+    if (!isModuleEnabled($moduleId)) {
+        return false;
+    }
+
+    // Single-tenant / no tenant-context: all enabled modules are active
+    // (backward-compatible default for development and legacy setups).
+    if ($tenantId === null) {
+        if (!moduleTenantSettingsModeEnabled()) {
+            return true;
+        }
+        $tenantId = moduleTenantSettingsTenantId();
+        if ($tenantId === null || $tenantId <= 0) {
+            return true;
+        }
+    }
+
+    $allModules = moduleRegistryRawModuleManifests();
+    if (!isset($allModules[$moduleId])) {
+        return false;
+    }
+
+    // Entry module and its dependency closure are always active.
+    $defaults = moduleRegistryRuntimeDefaultModulesForTenant($tenantId);
+    if (!empty($defaults[$moduleId])) {
+        return true;
+    }
+
+    // Check explicit tenant-level activation.
+    // The _module_enabled key is set by enableModule() / disableModule() or
+    // the CMS Modules page Activate / Deactivate operations.
+    if ($tenantId !== null && $tenantId > 0) {
+        $tenantSettings = readTenantModuleSettingsForTenant($moduleId, $tenantId);
+    } else {
+        $tenantSettings = readTenantModuleSettings($moduleId);
+    }
+
+    if (array_key_exists('_module_enabled', $tenantSettings)) {
+        return (bool) $tenantSettings['_module_enabled'];
+    }
+
+    // No explicit activation → installed but inactive.
+    // (This is the critical difference from isModuleEnabled, which defaults
+    // to true via moduleRegistryDefaultEnabledState.)
+    return false;
+}
+
 function isModuleEnabled(string $moduleId): bool
 {
     // In multi-tenant mode, check per-tenant override first.

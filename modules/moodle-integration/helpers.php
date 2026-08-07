@@ -1914,6 +1914,10 @@ function moodleIntegrationAdminPageContext(array $user, string $pageTitle, array
 
 if (function_exists('app') && method_exists(app(), 'hooks')) {
     app()->hooks()->on('cms.admin.nav_items', static function (array $items): array {
+        if (function_exists('moduleIsActive') && !moduleIsActive('moodle-integration')) {
+            return $items;
+        }
+
         $items[] = [
             'label' => 'Moodle',
             'url' => moodleIntegrationPath('/admin/moodle-integration'),

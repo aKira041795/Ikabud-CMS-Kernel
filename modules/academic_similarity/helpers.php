@@ -805,6 +805,10 @@ function ac_sim_cap_assessment_bundle_1(mixed $payload, string $capabilityId = '
 // ── CMS Admin Nav Injection ──────────────────────────────────────
 
 app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
+    if (function_exists('moduleIsActive') && !moduleIsActive('academic-similarity')) {
+        return $items;
+    }
+
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
     $items[] = [

@@ -750,6 +750,10 @@ function ecInstallPages(): void
 // ── CMS Admin Nav Injection ──────────────────────────────────────────
 
 app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
+    if (function_exists('moduleIsActive') && !moduleIsActive('ecommerce')) {
+        return $items;
+    }
+
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
     $items[] = [

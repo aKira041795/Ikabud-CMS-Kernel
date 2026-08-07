@@ -1380,13 +1380,19 @@ function _cmsDiscoverSubModules(): array
         }
         $currentSettings  = array_merge($defaultValues, is_array($savedSettings) ? $savedSettings : []);
 
+        $enabled = !empty($m['_enabled']);
+        $active  = function_exists('moduleIsActive') ? moduleIsActive($id) : $enabled;
+        $actState = $active ? 'active' : ($enabled ? 'inactive' : 'disabled');
+
         $result[] = [
             'id'              => $id,
             'name'            => $m['name'] ?? ucfirst($id),
             'version'         => $m['version'] ?? '—',
             'author'          => $m['author'] ?? '',
             'description'     => $m['description'] ?? '',
-            'enabled'         => !empty($m['_enabled']),
+            'enabled'         => $enabled,
+            'active'          => $active,
+            'activation_state' => $actState,
             'is_core'         => false,
             'has_routes'      => is_file(($m['_path'] ?? '') . '/routes.php'),
             'has_handlers'    => is_file(($m['_path'] ?? '') . '/handlers.php'),

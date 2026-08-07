@@ -404,6 +404,10 @@ kernelRegisterRenderContextContract('contact-form.admin.submission-detail', [
 ]);
 
 app()->hooks()->on('cms.admin.nav_items', static function (array $items): array {
+    if (function_exists('moduleIsActive') && !moduleIsActive('contact-form')) {
+        return $items;
+    }
+
     $items[] = [
         'label' => 'Contact Forms',
         'section' => true,

@@ -390,6 +390,40 @@ function validateModuleSuiteContractV1(array $manifest): array
         }
     }
 
+    // ── integrations ────────────────────────────────────────────────────
+    // Declaration Before Integration: a module may declare which provider
+    // modules and capabilities it integrates with.  This is an additive,
+    // optional manifest field (Suite Extension Contract v1).
+    if (array_key_exists('integrations', $manifest)) {
+        $integrations = $manifest['integrations'];
+        if (!is_array($integrations)) {
+            $fatal('manifest_integrations_invalid', 'manifest.integrations', '/integrations', 'integrations must be an object mapping provider module ids to integration contracts.', 'Declare integrations as { "<provider>": { "type": ..., "uses": [...] } }.');
+        } else {
+            foreach ($integrations as $providerModuleId => $contract) {
+                if (!is_string($providerModuleId) || $providerModuleId === '') {
+                    $fatal('manifest_integrations_provider_invalid', 'manifest.integrations.provider', "/integrations", 'integration provider keys must be non-empty module ids.', 'Use a valid module id as the integration key.');
+                    continue;
+                }
+                if (!is_array($contract)) {
+                    $fatal('manifest_integrations_contract_invalid', 'manifest.integrations.contract', "/integrations/{$providerModuleId}", 'Each integration entry must be an object with at minimum a "uses" array.', 'Declare { "type": "optional", "uses": [...] }.');
+                    continue;
+                }
+                $uses = $contract['uses'] ?? null;
+                if ($uses !== null && (!is_array($uses) || $uses === [])) {
+                    $fatal('manifest_integrations_uses_invalid', 'manifest.integrations.uses', "/integrations/{$providerModuleId}/uses", 'integration uses must be a non-empty array of capability ids.', 'Declare the capability ids this module uses from the provider.');
+                }
+                $type = $contract['type'] ?? 'optional';
+                if (!is_string($type) || !in_array(strtolower(trim($type)), ['optional', 'required'], true)) {
+                    $fatal('manifest_integrations_type_invalid', 'manifest.integrations.type', "/integrations/{$providerModuleId}/type", "integration type must be 'optional' or 'required'.", "Set type to 'optional' (default) or 'required'.");
+                }
+                $addsFeatures = $contract['adds_features'] ?? null;
+                if ($addsFeatures !== null && (!is_array($addsFeatures) || $addsFeatures === [])) {
+                    $fatal('manifest_integrations_features_invalid', 'manifest.integrations.features', "/integrations/{$providerModuleId}/adds_features", 'adds_features must be a non-empty array of feature labels.', 'Describe what features the integration adds.');
+                }
+            }
+        }
+    }
+
     // ── compatibility ────────────────────────────────────────────────────
     if (array_key_exists('compatibility', $manifest)) {
         $compatibility = $manifest['compatibility'];

@@ -306,6 +306,10 @@ if (!function_exists('wordpressImporterResolveAuthorId')) {
 // ─────────────────────────────────────────────────────────────────────────
 
 app()->hooks()->on('cms.admin.nav_items', static function (array $items): array {
+    if (function_exists('moduleIsActive') && !moduleIsActive('content-ingestion')) {
+        return $items;
+    }
+
     $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     $enabled  = !empty($settings['bridge_enabled']);
     $baseUrl  = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');

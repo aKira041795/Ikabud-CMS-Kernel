@@ -100,6 +100,95 @@ sequenceDiagram
 
 ---
 
+## Activation Before Participation — Kernel Invariant
+
+> **Presence is not activation. Installation is not activation. Capability registration is not permission to surface UI.**
+
+A non-core module that is discovered and installed but NOT explicitly activated for the current tenant MUST NOT participate in the host application's runtime surface. This invariant is enforced at the kernel boundary — the Capability Bus, hook dispatch, route resolution, and UI-contribution rendering all consult `moduleIsActive()` before allowing a module to participate.
+
+### The lifecycle states
+
+| State | Meaning | `moduleIsActive()` | `isModuleEnabled()` |
+|---|---|---|---|
+| **Discovered** | Kernel knows the module exists on disk | `false` | `true` (by default) |
+| **Active** | Tenant admin has explicitly activated the module (`_module_enabled: true` in tenant settings), OR the module is in the entry module's runtime dependency closure | `true` | `true` |
+| **Inactive** | Module is installed and enabled but NOT explicitly activated | `false` | `true` |
+| **Disabled** | Module is disabled (`_module_enabled: false` or globally disabled) | `false` | `false` |
+
+### The rule
+
+```
+Module discovered → available to kernel registry
+Module installed → schema/assets/config available
+Module ACTIVATED → capabilities serve calls, hooks participate, routes accessible, UI contributions visible
+```
+
+Deactivation reverses participation without destroying data (`_module_enabled: false`). The module remains installed and retains its database/configuration.
+
+### Declaration Before Integration
+
+> **Cross-module capability calls are architectural decisions, not implementation conveniences.**
+
+A module that is active may interact with another module only through an explicitly declared and enabled integration contract. Capability discovery alone never grants integration authority.
+
+The integration contract is declared in `module.json`:
+
+```json
+{
+  "integrations": {
+    "wms": {
+      "type": "optional",
+      "uses": [
+        "wms.stock.reserve@1",
+        "wms.stock.release@1"
+      ],
+      "adds_features": [
+        "warehouse_inventory",
+        "stock_reservation"
+      ]
+    }
+  }
+}
+```
+
+A provider capability may carry `require_integration: true` in its expose entry:
+
+```json
+{
+  "capabilities": {
+    "exposes": [
+      { "id": "wms.stock.reserve@1", "require_integration": true }
+    ]
+  }
+}
+```
+
+When set, the Capability Bus rejects calls from callers that have not declared an integration for that capability from that provider. Modules that do not set `require_integration` remain backward compatible.
+
+Combined rule:
+> **Activation Before Participation. Declaration Before Integration.**
+> A module must be active before it can participate in the runtime. An active module may interact with another module only through an explicitly declared and enabled integration contract. Capability discovery alone never grants integration authority.
+
+### Enforcement points
+
+| Layer | Enforces |
+|---|---|
+| **Capability Bus** | `applyPolicy()` filters out providers from inactive modules. A call to an inactive provider is logged and skipped — if no active providers remain, the call fails. |
+| **Hook bridge** | `cms.admin.nav_items` listeners must check `moduleIsActive()` before injecting nav items. |
+| **CMS sidebar** | `kernelContributionBridgeCmsNavItems()` folds only active modules' `admin_contributions`. |
+| **CMS Modules UI** | `/cms/admin/modules` shows Active/Inactive/Disabled status and Activate/Deactivate operations. |
+
+### `moduleIsActive(string $moduleId, ?int $tenantId = null): bool`
+
+Defined in `src/helpers/module-registry.php`. Returns `true` when:
+- The module is the tenant's entry module, or
+- The module is in the entry module's runtime dependency closure (always-active), or
+- The tenant admin has explicitly saved `_module_enabled: true` in tenant settings.
+
+Returns `false` otherwise — the module is installed but inactive.
+
+---
+
 ## Architecture Overview
 
 ```

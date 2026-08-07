@@ -539,6 +539,97 @@ function kernelContributionsForHostLocation(string $host, string $location, ?arr
 }
 
 /**
+ * Integration Contract Registry — "Declaration Before Integration."
+ *
+ * Builds a lookup map of every module's declared integrations from all
+ * module.json manifests.  Only modules that explicitly declare an
+ * `integrations` block participate.
+ *
+ * Return shape (static-cached per request):
+ *   [
+ *     'map' => [ callerModuleId => [ providerModuleId => [ capId, ... ], ... ] ],
+ *     'features' => [ callerModuleId => [ providerModuleId => string[], ... ] ],
+ *   ]
+ *
+ * @param array<string,array<string,mixed>>|null $modules override discovery
+ * @return array<string,mixed>
+ */
+function kernelModuleIntegrationMap(?array $modules = null): array
+{
+    static $cache = null;
+    if ($modules === null && is_array($cache)) {
+        return $cache;
+    }
+    if ($modules === null) {
+        $modules = discoverModules();
+    }
+
+    $map = [];
+    $features = [];
+    foreach ($modules as $moduleId => $manifest) {
+        $integrations = $manifest['integrations'] ?? null;
+        if (!is_array($integrations)) { continue; }
+
+        $callerMap = [];
+        $callerFeatures = [];
+        foreach ($integrations as $providerModuleId => $contract) {
+            if (!is_string($providerModuleId) || $providerModuleId === '' || !is_array($contract)) { continue; }
+
+            $uses = $contract['uses'] ?? [];
+            if (!is_array($uses)) { $uses = []; }
+            $uses = array_values(array_filter($uses, static fn ($u) => is_string($u) && $u !== ''));
+
+            $addsFeatures = $contract['adds_features'] ?? [];
+            if (!is_array($addsFeatures)) { $addsFeatures = []; }
+            $addsFeatures = array_values(array_filter($addsFeatures, static fn ($f) => is_string($f) && $f !== ''));
+
+            $type = strtolower(trim((string)($contract['type'] ?? 'optional')));
+            if ($type === '') { $type = 'optional'; }
+
+            $callerMap[$providerModuleId] = array_merge($uses, ['__type' => $type]);
+            if ($addsFeatures !== []) { $callerFeatures[$providerModuleId] = $addsFeatures; }
+        }
+        if ($callerMap !== []) {
+            $map[$moduleId] = $callerMap;
+            if ($callerFeatures !== []) { $features[$moduleId] = $callerFeatures; }
+        }
+    }
+
+    $cache = ['map' => $map, 'features' => $features];
+    return $cache;
+}
+
+/**
+ * Check whether a caller module has a declared integration allowing it to call
+ * a specific capability from a specific provider module.
+ *
+ * @return bool
+ */
+function integrationIsDeclared(string $callerModuleId, string $providerModuleId, string $capabilityId): bool
+{
+    $callerModuleId = trim($callerModuleId);
+    $providerModuleId = trim($providerModuleId);
+    $capabilityId = trim($capabilityId);
+    if ($callerModuleId === '' || $providerModuleId === '' || $capabilityId === '') { return false; }
+
+    $registry = kernelModuleIntegrationMap();
+    $callerIntegrations = $registry['map'][$callerModuleId] ?? null;
+    if (!is_array($callerIntegrations)) { return false; }
+
+    $uses = $callerIntegrations[$providerModuleId] ?? null;
+    if (!is_array($uses)) { return false; }
+
+    foreach ($uses as $declared) {
+        if ($declared === '__type') { continue; }
+        if ($declared === $capabilityId) { return true; }
+        $baseDeclared = str_contains((string)$declared, '@') ? explode('@', (string)$declared, 2)[0] : $declared;
+        $baseRequested = str_contains($capabilityId, '@') ? explode('@', $capabilityId, 2)[0] : $capabilityId;
+        if ($baseDeclared === $baseRequested) { return true; }
+    }
+    return false;
+}
+
+/**
  * Check whether an enabled host module declares a given contribution location.
  * Used by install gates and Workbench checks.
  */

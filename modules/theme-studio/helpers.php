@@ -2006,6 +2006,10 @@ function themeStudioResolveBlockDefinitionTargetPath(string $themeSlug, string $
 // ── CMS Admin Sidebar Registration ──
 // Registers Theme Studio nav items in the CMS admin sidebar via hook.
 app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
+    if (function_exists('moduleIsActive') && !moduleIsActive('theme-studio')) {
+        return $items;
+    }
+
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
     $items[] = [

@@ -201,9 +201,11 @@
                         </td>
                         <!-- Status -->
                         <td class="px-5 py-4 text-center">
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full" :class="mod.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'">
-                                <span class="w-1.5 h-1.5 rounded-full" :class="mod.enabled ? 'bg-green-500' : 'bg-gray-400'"></span>
-                                <span x-text="mod.enabled ? 'Enabled' : 'Disabled'"></span>
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full"
+                                :class="mod.activation_state === 'active' ? 'bg-green-100 text-green-700' : (mod.activation_state === 'inactive' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')">
+                                <span class="w-1.5 h-1.5 rounded-full"
+                                    :class="mod.activation_state === 'active' ? 'bg-green-500' : (mod.activation_state === 'inactive' ? 'bg-amber-500' : 'bg-gray-400')"></span>
+                                <span x-text="mod.activation_state === 'active' ? 'Active' : (mod.activation_state === 'inactive' ? 'Inactive' : 'Disabled')"></span>
                             </span>
                         </td>
                         <!-- Actions -->
@@ -219,8 +221,10 @@
                                         Configure
                                     </button>
                                 </template>
-                                <!-- Toggle Enable/Disable -->
-                                <button @click="toggleModule(mod)" :disabled="toggling === mod.id" class="px-3 py-1.5 text-xs font-medium rounded-2xl transition-colors" :class="mod.enabled ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-green-700 bg-green-50 hover:bg-green-100'" x-text="mod.enabled ? 'Disable' : 'Enable'">
+                                <!-- Activate / Deactivate / Enable -->
+                                <button @click="toggleModule(mod)" :disabled="toggling === mod.id" class="px-3 py-1.5 text-xs font-medium rounded-2xl transition-colors"
+                                    :class="mod.activation_state === 'active' ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-green-700 bg-green-50 hover:bg-green-100'"
+                                    x-text="mod.activation_state === 'active' ? 'Deactivate' : (mod.activation_state === 'inactive' ? 'Activate' : 'Enable')">
                                 </button>
                                 <!-- Delete (only disabled modules) -->
                                 <template x-if="!mod.enabled">
@@ -536,17 +540,24 @@ function cmsModuleManager() {
         },
 
         async toggleModule(mod) {
-            if (mod.enabled && !confirm('Disable module "' + mod.name + '"? Its routes and features will become unavailable.')) return;
+            let actionLabel;
+            if (mod.activation_state === 'active') actionLabel = 'Deactivate';
+            else if (mod.activation_state === 'inactive') actionLabel = 'Activate';
+            else actionLabel = 'Enable';
+            if (!confirm(actionLabel + ' module "' + mod.name + '"? ' + (mod.activation_state === 'active' ? 'It will become inactive for this tenant but data is retained.' : (mod.activation_state === 'inactive' ? 'It will participate in this application.' : 'Its routes and features will become available.')))) return;
             this.toggling = mod.id;
             try {
                 const fd = new FormData();
                 fd.append('module_id', mod.id);
-                fd.append('enable', mod.enabled ? '' : '1');
+                // Send the intended state: Activate/Enable → enabled=1, Deactivate → disabled.
+                fd.append('enable', mod.activation_state === 'active' ? '0' : '1');
                 fd.append('_token', CMS_CSRF);
                 const res = await fetch(CMS_BASE + '/api/v1/cms/modules/toggle', { method: 'POST', body: fd });
                 const data = await res.json();
                 if (data.ok) {
                     mod.enabled = data.enabled;
+                    if (!mod.enabled) { mod.active = false; mod.activation_state = 'disabled'; }
+                    else { mod.active = true; mod.activation_state = 'active'; }
                     if (!mod.enabled) this.openConfig = null;
                 } else {
                     alert(data.error || 'Toggle failed.');
