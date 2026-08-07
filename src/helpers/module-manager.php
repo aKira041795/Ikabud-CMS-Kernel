@@ -1076,7 +1076,15 @@ function readTenantModuleSettings(string $moduleId): array
         return $GLOBALS[$cacheKey][$moduleId] ?? [];
     }
 
-    // Single-module fallback (rarely used after preload is in place)
+    // Single-module fallback (rarely used after preload is in place).
+    // Lazily preload ALL settings for this tenant in a single query on first
+    // use, so per-module calls (e.g. isModuleEnabled() during module discovery,
+    // which runs before the request-level preload in index.php) don't each hit
+    // the DB. Bluehost-safe: preload uses one prepared SELECT.
+    if (function_exists('preloadAllTenantModuleSettings')) {
+        preloadAllTenantModuleSettings();
+        return $GLOBALS[$cacheKey][$moduleId] ?? [];
+    }
     return _readTenantModuleSettingsSingle($moduleId, $tenantId);
 }
 

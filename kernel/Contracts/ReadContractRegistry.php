@@ -32,6 +32,12 @@ final class ReadContractRegistry
     private static ?ReadContractRegistry $instance = null;
 
     /**
+     * Per-process cache of the resolved DB schema name, so the snapshot cache
+     * key is DB-scoped without re-running SELECT DATABASE() per table.
+     */
+    private static ?string $schemaName = null;
+
+    /**
      * @var array<string, array<string, array{
      *     reader: string,
      *     table: string,
@@ -293,17 +299,47 @@ final class ReadContractRegistry
     /**
      * Snapshot the column list of a table.
      *
+     * Column definitions are cached in APCu (keyed by schema + table) because
+     * registerReadContract() and checkDrift() both re-read every read-contract
+     * table on every request — ~146 SHOW COLUMNS queries per request across
+     * 68 modules. Schemas only change on migration, so caching is safe.
+     *
+     * Gracefully falls back to a live SHOW COLUMNS when APCu is unavailable
+     * (e.g. some shared-hosting configs such as Bluehost disable it), so this
+     * is purely an optimization with no behavior change.
+     *
      * @return array<int, array>|null Column definitions, or null if table doesn't exist
      */
     private function snapshotColumns(\PDO $db, string $tableName): ?array
     {
         try {
+            $dbName = self::$schemaName;
+            if ($dbName === null) {
+                $dbName = (string)$db->query('SELECT DATABASE()')->fetchColumn();
+                self::$schemaName = $dbName;
+            }
+            $cacheKey = 'ikabud:read_contract_cols_v1:' . $dbName . ':' . strtolower($tableName);
+
+            if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
+                $cached = apcu_fetch($cacheKey, $hit);
+                if ($hit && is_array($cached) && array_key_exists('cols', $cached)) {
+                    return $cached['cols'];
+                }
+            }
+
             $stmt = $db->query("SHOW COLUMNS FROM `{$tableName}`");
             if ($stmt === false) {
                 return null;
             }
             $cols = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-            return is_array($cols) ? $cols : null;
+            $result = is_array($cols) ? $cols : null;
+
+            // Cache successful snapshots only; missing tables are re-probed so
+            // a later migration that creates the table is picked up promptly.
+            if ($result !== null && function_exists('apcu_store') && ini_get('apc.enabled')) {
+                apcu_store($cacheKey, ['cols' => $result], 3600);
+            }
+            return $result;
         } catch (\Throwable $e) {
             return null;
         }

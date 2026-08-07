@@ -6,12 +6,36 @@ declare(strict_types=1);
 
 function readModuleRegistry(): array
 {
+    // Per-request cache: the registry only changes on module enable/disable.
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    // Cross-request APCu cache. Bluehost-safe: gracefully falls back to the
+    // disk file when APCu is unavailable. Invalidated on write so module
+    // enable/disable changes are picked up immediately.
+    $apcuKey = 'ikabud:module_registry_v1';
+    if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
+        $reg = apcu_fetch($apcuKey, $hit);
+        if ($hit && is_array($reg)) {
+            $cached = $reg;
+            return $reg;
+        }
+    }
+
     $path = moduleRegistryPath();
     if (!is_file($path)) {
         return [];
     }
     $data = json_decode((string) file_get_contents($path), true);
-    return is_array($data) ? $data : [];
+    $registry = is_array($data) ? $data : [];
+
+    if (function_exists('apcu_store') && ini_get('apc.enabled')) {
+        apcu_store($apcuKey, $registry, 3600);
+    }
+    $cached = $registry;
+    return $registry;
 }
 
 function writeModuleRegistry(array $registry): void
@@ -22,6 +46,11 @@ function writeModuleRegistry(array $registry): void
         @mkdir($dir, 0775, true);
     }
     file_put_contents($path, json_encode($registry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+
+    // Invalidate the cached registry so module enable/disable takes effect immediately.
+    if (function_exists('apcu_delete')) {
+        apcu_delete('ikabud:module_registry_v1');
+    }
 }
 
 /**
