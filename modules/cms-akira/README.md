@@ -41,6 +41,27 @@ modules/cms-akira/
 - `cms-akira-builder`: Visual/builder integration surface.
 - `cms-akira-profile-*`: Install/enable bundles for runtime posture.
 
+## Provider Adapters (Phase B)
+
+Provider capabilities are **true adapters** over the canonical owners — they
+delegate, they do not re-implement:
+
+| Provider | Delegates to |
+|---|---|
+| `akira.theme.resolve@1` | CMS theme authority (`cmsThemeRuntimeDiagnostics`, active theme, customizer scope, assets) |
+| `akira.navigation.resolve@1` | CMS menus/locations (`cmsGetMenus`, `cmsGetMenuItemsTree`, `cmsGetMenuLocations`) |
+| `akira.seo.meta.build@1` | CMS SEO head builder (`cmsResolveSeoTitle`, `cmsDefaultSeoHeadHtml`, `cmsStructuredDataJsonLd`) |
+| `editor.normalize/sanitize@1` | CMS editor contracts (`cmsEditorNormalizeHtml`, `cmsEditorSanitizeHtml` → `tinymce.html.*`) |
+| `editor.assets@1` | CMS TinyMCE resolver (`cmsTinyMceAssets` → `tinymce.assets.get@1`) |
+| `akira.media.resolve@1` | CMS media resolution (`cmsResolveUploadUrl`, `cms_media` read) |
+| `akira.workflow.evaluate@1` | Kernel workflow (`workflow.state.get@1` under the CMS module context) |
+| `akira.search.document.build@1` | Search indexer document contract (`searchStrip`, optional `search.index.upsert@1`) |
+
+Each adapter returns `resolved_from` (`cms` / `kernel` / `search`) and keeps a
+minimal derived fallback so the provider boundary degrades gracefully when the
+canonical source is unavailable. Ownership of the underlying data stays with
+the canonical module until the Phase 6+ handoffs.
+
 ## Standalone Modules
 
 Any CMS Akira module that owns users/auth is a standalone tenant-entry module, not a shared library module.

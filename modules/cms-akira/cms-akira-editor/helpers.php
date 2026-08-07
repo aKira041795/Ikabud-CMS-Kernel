@@ -59,12 +59,15 @@ function cae_cap_editor_render_1(mixed $payload, string $capabilityId = 'editor.
         return ['ok' => false, 'error' => 'payload must be an object'];
     }
 
+    // Canonical render: the CMS stores and renders editor content as HTML.
+    // The rendered HTML is the content itself (no artificial wrapper).
     $content = (string)($payload['content'] ?? '');
     return [
         'ok' => true,
         'data' => [
-            'html' => '<div class="akira-editor-content">' . $content . '</div>',
+            'html' => $content,
             'provider' => 'cms-akira-editor',
+            'resolved_from' => 'cms',
         ],
     ];
 }
@@ -76,6 +79,26 @@ function cae_cap_editor_normalize_1(mixed $payload, string $capabilityId = 'edit
     }
 
     $content = (string)($payload['content'] ?? '');
+    $context = (string)($payload['context'] ?? 'cms.content');
+
+    // Delegate to the canonical CMS editor contract (modules/cms), which routes
+    // through tinymce.html.normalize@1 with a safe fallback.
+    if (function_exists('cmsEditorNormalizeHtml')) {
+        try {
+            $normalized = cmsEditorNormalizeHtml($content, $context);
+            return [
+                'ok' => true,
+                'data' => [
+                    'content' => $normalized,
+                    'provider' => 'cms-akira-editor',
+                    'resolved_from' => 'cms',
+                ],
+            ];
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
     $normalized = str_replace(["\r\n", "\r"], "\n", $content);
     $normalized = preg_replace("/\n{3,}/", "\n\n", $normalized) ?? $normalized;
 
@@ -84,6 +107,7 @@ function cae_cap_editor_normalize_1(mixed $payload, string $capabilityId = 'edit
         'data' => [
             'content' => trim($normalized),
             'provider' => 'cms-akira-editor',
+            'resolved_from' => 'fallback',
         ],
     ];
 }
@@ -95,6 +119,26 @@ function cae_cap_editor_sanitize_1(mixed $payload, string $capabilityId = 'edito
     }
 
     $content = (string)($payload['content'] ?? '');
+    $context = (string)($payload['context'] ?? 'cms.content');
+
+    // Delegate to the canonical CMS editor contract (modules/cms), which routes
+    // through tinymce.html.sanitize@1 with a safe tag-allowlist fallback.
+    if (function_exists('cmsEditorSanitizeHtml')) {
+        try {
+            $sanitized = cmsEditorSanitizeHtml($content, $context);
+            return [
+                'ok' => true,
+                'data' => [
+                    'content' => $sanitized,
+                    'provider' => 'cms-akira-editor',
+                    'resolved_from' => 'cms',
+                ],
+            ];
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
     $sanitized = preg_replace('~<script\b[^>]*>.*?</script>~isu', '', $content) ?? $content;
     $sanitized = preg_replace('~<style\b[^>]*>.*?</style>~isu', '', $sanitized) ?? $sanitized;
 
@@ -103,6 +147,7 @@ function cae_cap_editor_sanitize_1(mixed $payload, string $capabilityId = 'edito
         'data' => [
             'content' => $sanitized,
             'provider' => 'cms-akira-editor',
+            'resolved_from' => 'fallback',
         ],
     ];
 }
@@ -127,18 +172,47 @@ function cae_cap_editor_validate_1(mixed $payload, string $capabilityId = 'edito
         'data' => [
             'valid' => true,
             'provider' => 'cms-akira-editor',
+            'resolved_from' => 'cms',
         ],
     ];
 }
 
 function cae_cap_editor_assets_1(mixed $payload, string $capabilityId = 'editor.assets@1', string $caller = 'unknown'): array
 {
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $context = (string)($payload['context'] ?? 'cms.content');
+    $profile = (string)($payload['profile'] ?? 'default');
+
+    // Delegate to the canonical editor asset resolver (modules/cms), which
+    // routes through tinymce.assets.get@1 — the real TinyMCE build.
+    if (function_exists('cmsTinyMceAssets')) {
+        try {
+            $assets = cmsTinyMceAssets($context, $profile);
+            if (is_array($assets)) {
+                $assets['js'] = $assets['js_urls'] ?? [];
+                $assets['css'] = $assets['css_urls'] ?? [];
+                $assets['provider'] = 'cms-akira-editor';
+                $assets['resolved_from'] = 'cms';
+                return ['ok' => true, 'data' => $assets];
+            }
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
     return [
         'ok' => true,
         'data' => [
+            'version' => null,
             'js' => [],
             'css' => [],
+            'js_urls' => [],
+            'css_urls' => [],
             'provider' => 'cms-akira-editor',
+            'resolved_from' => 'fallback',
         ],
     ];
 }

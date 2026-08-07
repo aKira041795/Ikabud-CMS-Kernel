@@ -63,11 +63,48 @@ function can_cap_akira_navigation_resolve_1(mixed $payload, string $capabilityId
         $trail[] = ['label' => ucfirst(str_replace('-', ' ', $slug)), 'url' => '/content/' . $slug];
     }
 
+    // Delegate to the canonical CMS navigation/menu authority (modules/cms):
+    // real menus, menu locations, and the menu item trees.
+    if (function_exists('cmsGetMenus') && function_exists('cmsGetMenuLocations')) {
+        try {
+            $menus = cmsGetMenus();
+            $locations = cmsGetMenuLocations();
+            $menuTree = [];
+            if (function_exists('cmsGetMenuItemsTree') && is_array($menus)) {
+                foreach ($menus as $menu) {
+                    $menuId = (int)($menu['id'] ?? 0);
+                    $menuTree[] = [
+                        'id' => $menuId,
+                        'name' => (string)($menu['name'] ?? ''),
+                        'location' => (string)($menu['location'] ?? ''),
+                        'item_count' => (int)($menu['item_count'] ?? 0),
+                        'items' => $menuId > 0 ? cmsGetMenuItemsTree($menuId) : [],
+                    ];
+                }
+            }
+
+            return [
+                'ok' => true,
+                'data' => [
+                    'breadcrumb' => $trail,
+                    'menus' => $menus,
+                    'menu_locations' => $locations,
+                    'menu_tree' => $menuTree,
+                    'provider' => 'cms-akira-navigation',
+                    'resolved_from' => 'cms',
+                ],
+            ];
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
     return [
         'ok' => true,
         'data' => [
             'breadcrumb' => $trail,
             'provider' => 'cms-akira-navigation',
+            'resolved_from' => 'fallback',
         ],
     ];
 }

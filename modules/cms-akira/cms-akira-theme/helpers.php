@@ -55,6 +55,37 @@ function cat_cap_akira_theme_resolve_1(mixed $payload, string $capabilityId = 'a
         return ['ok' => false, 'error' => 'payload must be an object'];
     }
 
+    // Delegate to the canonical CMS theme authority (modules/cms). CMS remains
+    // the owner of theme storage, activation, and the customizer until the
+    // Phase 6 ownership handoff; this provider surfaces the resolved context
+    // (real active theme, presentation mode, customizer scope, assets).
+    if (function_exists('cmsThemeRuntimeDiagnostics')) {
+        try {
+            $diag = cmsThemeRuntimeDiagnostics();
+            $active = trim((string)($diag['active_theme'] ?? ''));
+            $activeName = trim((string)($diag['active_theme_name'] ?? ''));
+            $themeKey = ($active !== '' && $active !== 'default') ? $active : 'akira-default';
+
+            return [
+                'ok' => true,
+                'data' => [
+                    'theme' => $themeKey,
+                    'layout' => (string)($diag['public_presentation_mode'] ?? 'content'),
+                    'active_theme' => $active !== '' ? $active : 'default',
+                    'active_theme_name' => $activeName !== '' ? $activeName : 'Default',
+                    'active_theme_source' => (string)($diag['active_theme_source'] ?? 'site'),
+                    'customizer_scope' => (string)($diag['active_customizer_scope'] ?? 'native'),
+                    'presentation_mode' => (string)($diag['public_presentation_mode'] ?? 'traditional'),
+                    'theme_style_url' => (string)($diag['theme_style_url'] ?? ''),
+                    'provider' => 'cms-akira-theme',
+                    'resolved_from' => 'cms',
+                ],
+            ];
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
     $themeKey = trim((string)($payload['theme'] ?? 'akira-default'));
     if ($themeKey === '') {
         $themeKey = 'akira-default';
@@ -66,6 +97,7 @@ function cat_cap_akira_theme_resolve_1(mixed $payload, string $capabilityId = 'a
             'theme' => $themeKey,
             'layout' => 'content',
             'provider' => 'cms-akira-theme',
+            'resolved_from' => 'fallback',
         ],
     ];
 }

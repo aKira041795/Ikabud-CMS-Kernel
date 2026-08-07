@@ -60,6 +60,57 @@ function caw_cap_akira_workflow_evaluate_1(mixed $payload, string $capabilityId 
         $status = 'draft';
     }
 
+    $entityId = (string)($payload['id'] ?? $payload['entity_id'] ?? '');
+
+    // Delegate to the kernel workflow authority (workflow.state.get@1) when a
+    // real CMS content entity id is available. This provider is the boundary
+    // for the CMS content workflow, so it invokes the contract under the
+    // canonical CMS caller identity (matching cmsApiContentWorkflowState).
+    //
+    // The call runs under the CMS module context: the kernel workflow
+    // definition for cms.content is seeded/owned by the CMS module, and the
+    // module-scoped DB routing (KernelPDO::setActiveModule) makes it invisible
+    // while the cms-akira-workflow provider context is active.
+    if ($entityId !== '') {
+        try {
+            $pushedCtx = function_exists('modulePushContext') ? modulePushContext('cms') : null;
+            try {
+                $res = app()->cap()->call('workflow.state.get@1', [
+                    'workflow_key' => 'cms.content',
+                    'module' => 'cms',
+                    'entity_type' => 'cms_content',
+                    'entity_id' => $entityId,
+                ], ['caller_module' => 'cms']);
+            } finally {
+                if ($pushedCtx !== null && function_exists('modulePopContext')) {
+                    modulePopContext();
+                }
+            }
+
+            $wf = is_array($res['workflow'] ?? null) ? $res['workflow'] : null;
+            if (is_array($wf)) {
+                $actions = is_array($wf['allowed_actions'] ?? null) ? $wf['allowed_actions'] : [];
+                $next = array_values(array_filter(array_map(
+                    static fn ($a) => is_array($a) ? (string)($a['action'] ?? '') : '',
+                    $actions
+                ), static fn ($s) => $s !== ''));
+
+                return [
+                    'ok' => true,
+                    'data' => [
+                        'status' => (string)($wf['state'] ?? $status),
+                        'next' => $next,
+                        'workflow' => $wf,
+                        'provider' => 'cms-akira-workflow',
+                        'resolved_from' => 'kernel',
+                    ],
+                ];
+            }
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
     $next = match ($status) {
         'draft' => ['review'],
         'review' => ['published', 'draft'],
@@ -73,6 +124,7 @@ function caw_cap_akira_workflow_evaluate_1(mixed $payload, string $capabilityId 
             'status' => $status,
             'next' => $next,
             'provider' => 'cms-akira-workflow',
+            'resolved_from' => 'fallback',
         ],
     ];
 }

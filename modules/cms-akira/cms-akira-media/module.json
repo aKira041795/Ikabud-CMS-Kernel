@@ -11,7 +11,9 @@
         "cms-akira-core"
     ],
     "owns_tables": [],
-    "reads_tables": [],
+    "reads_tables": [
+        "cms_media"
+    ],
     "migrations": [
         "database/migrations/001_initial.sql"
     ],

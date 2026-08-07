@@ -57,17 +57,75 @@ function casa_cap_akira_search_document_build_1(mixed $payload, string $capabili
 
     $title = trim((string)($payload['title'] ?? ''));
     $slug = trim((string)($payload['slug'] ?? ''));
-    $text = trim(strip_tags((string)($payload['body'] ?? '')));
+    $body = (string)($payload['body'] ?? '');
+    $excerpt = trim((string)($payload['excerpt'] ?? ''));
+    $type = (string)($payload['entity_type'] ?? ($payload['type'] ?? 'post'));
+    $entityId = (string)($payload['entity_id'] ?? ($payload['id'] ?? ''));
+
+    // Canonical document shape mirrors the search indexer contract
+    // (modules/search: searchStrip + searchIndexUpsert).
+    $text = $body;
+    if (function_exists('searchStrip')) {
+        try {
+            $text = searchStrip($body);
+            if ($excerpt === '') {
+                $excerpt = searchStrip($body);
+                if ($excerpt !== '') {
+                    $excerpt = substr($excerpt, 0, 200);
+                }
+            } else {
+                $excerpt = searchStrip($excerpt);
+            }
+        } catch (Throwable $e) {
+            $text = trim(strip_tags($body));
+        }
+    } else {
+        $text = trim(strip_tags($body));
+        if ($excerpt === '') {
+            $excerpt = mb_substr($text, 0, 200);
+        }
+    }
+
+    $doc = [
+        'title' => $title,
+        'slug' => $slug,
+        'text' => $text,
+        'excerpt' => $excerpt,
+        'search_text' => $text,
+        'entity_type' => $type,
+        'entity_id' => $entityId,
+        'json_metadata' => [
+            'slug' => $slug,
+            'type' => $type,
+        ],
+    ];
+
+    // Best-effort index when requested and the search indexer is available.
+    $indexed = false;
+    if (!empty($payload['index'])) {
+        try {
+            $res = app()->cap()->call('search.index.upsert@1', [
+                'module' => 'cms',
+                'entity_type' => $type,
+                'entity_id' => $entityId,
+                'title' => $title,
+                'excerpt' => $excerpt,
+                'search_text' => $text,
+                'json_metadata' => $doc['json_metadata'],
+            ], ['caller_module' => 'cms-akira-search-adapter']);
+            $indexed = !empty($res['ok']);
+        } catch (Throwable $e) {
+            $indexed = false;
+        }
+    }
 
     return [
         'ok' => true,
         'data' => [
-            'document' => [
-                'title' => $title,
-                'slug' => $slug,
-                'text' => $text,
-            ],
+            'document' => $doc,
+            'indexed' => $indexed,
             'provider' => 'cms-akira-search-adapter',
+            'resolved_from' => function_exists('searchStrip') ? 'search' : 'fallback',
         ],
     ];
 }

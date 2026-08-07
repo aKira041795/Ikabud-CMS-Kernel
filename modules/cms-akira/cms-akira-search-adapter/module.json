@@ -27,7 +27,8 @@
             }
         ],
         "depends": [
-            "akira.content.get@1"
+            "akira.content.get@1",
+            "search.index.upsert@1"
         ]
     },
     "routes": true,
