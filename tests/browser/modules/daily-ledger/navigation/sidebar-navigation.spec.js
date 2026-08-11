@@ -281,6 +281,8 @@ test.describe('Daily Ledger — Sidebar Navigation', () => {
             integrity.gap('Cashier nav: only Ledger link visible — needs cashier session');
             integrity.gap('Supervisor nav: Dashboard, Sales, Variances, Activity visible — needs supervisor session');
             integrity.gap('Production-in-charge nav: Production Output, Commissary, Deliveries visible — needs PIC session');
+            integrity.gap('Auditor nav: Overview, Dashboard, Sales, Variances, Activity visible — needs auditor session');
+            integrity.gap('Viewer nav: only Overview link visible — needs viewer session');
         });
 
         test('entity list rendering gaps', async ({ integrity }) => {

@@ -200,8 +200,20 @@ dlPersistModuleSettings(['formal_delivery_workflow_enabled' => '1']);
 dlModuleSettings(true);
 $formalNow = dl_isFormalDeliveryEnabled();
 
+// ─── Pin role_permissions to the documented defaults for this test (restored at the end) ──
+// The supervisor closed-day gate asserts deny-by-default, so the test must not
+// depend on whatever the tenant admin configured (e.g. supervisor overrides).
+$prevRolePermissionsRaw = dlModuleSettings(true)['role_permissions'] ?? null;
+dlPersistModuleSettings(['role_permissions' => dl_defaultRolePermissions()]);
+dlModuleSettings(true);
+dl_rolePermissions(true);
+
 $h->section('Fixture — formal delivery enabled');
 $h->test('formal delivery flag enabled for test', $formalNow === true);
+
+$h->section('Fixture — role permissions pinned to defaults');
+$h->test('supervisor overrides reset for test', dl_roleHasPermission('supervisor', 'production.override') === false);
+$h->test('admin overrides intact for test', dl_roleHasPermission('admin', 'production.override') === true);
 
 $adminUser = ['role' => 'admin', 'source' => 'daily-ledger', 'sub' => 'admin:1', 'id' => 1];
 $picNoAccess = ['role' => 'production_in_charge', 'source' => 'daily-ledger', 'sub' => 'production_in_charge:999999', 'id' => 999999];
@@ -620,6 +632,15 @@ try {
     dlModuleSettings(true);
 } catch (\Throwable $e) {
     $h->gap('restore formal delivery setting: ' . $e->getMessage());
+}
+
+try {
+    $restoreRolePerms = is_array($prevRolePermissionsRaw) ? $prevRolePermissionsRaw : dl_defaultRolePermissions();
+    dlPersistModuleSettings(['role_permissions' => $restoreRolePerms]);
+    dlModuleSettings(true);
+    dl_rolePermissions(true);
+} catch (\Throwable $e) {
+    $h->gap('restore role_permissions setting: ' . $e->getMessage());
 }
 
 $h->section('Cleanup verification');

@@ -48,6 +48,14 @@ $cashierUser = ['role' => 'cashier', 'source' => 'daily-ledger', 'sub' => 'cashi
 $cashierBranches = dl_accessibleBranchIds($cashierUser);
 $h->test('cashier accessible branches is array', is_array($cashierBranches));
 
+// Auditor/Viewer: all branches (same policy as admin)
+$auditorUser = ['role' => 'auditor', 'source' => 'daily-ledger', 'sub' => 'auditor:1'];
+$auditorBranches = dl_accessibleBranchIds($auditorUser);
+$h->test('auditor accessible branches is array', is_array($auditorBranches));
+$viewerUser = ['role' => 'viewer', 'source' => 'daily-ledger', 'sub' => 'viewer:1'];
+$viewerBranches = dl_accessibleBranchIds($viewerUser);
+$h->test('viewer accessible branches is array', is_array($viewerBranches));
+
 // ─── dl_getActorUserId — sub parsing ────────────────────────────
 $h->section('dl_getActorUserId — sub parsing');
 
@@ -77,6 +85,10 @@ $h->test('admin has production.override', in_array('production.override', $defau
 $h->test('supervisor has no overrides', ($defaults['supervisor'] ?? []) === []);
 $h->test('cashier has no overrides', ($defaults['cashier'] ?? []) === []);
 $h->test('production_in_charge has no overrides', ($defaults['production_in_charge'] ?? []) === []);
+$h->test('auditor has no overrides', ($defaults['auditor'] ?? []) === []);
+$h->test('viewer has no overrides', ($defaults['viewer'] ?? []) === []);
+$h->test('auditor role exists in defaults', array_key_exists('auditor', $defaults));
+$h->test('viewer role exists in defaults', array_key_exists('viewer', $defaults));
 
 // ─── dl_roleHasPermission — permission checks ───────────────────
 $h->section('dl_roleHasPermission — permission checks');
@@ -86,6 +98,10 @@ $h->test('admin has production.override', dl_roleHasPermission('admin', 'product
 $h->test('supervisor does not have ledger.override by default', dl_roleHasPermission('supervisor', 'ledger.override') === false);
 $h->test('cashier does not have ledger.override', dl_roleHasPermission('cashier', 'ledger.override') === false);
 $h->test('production_in_charge does not have ledger.override', dl_roleHasPermission('production_in_charge', 'ledger.override') === false);
+$h->test('auditor does not have ledger.override', dl_roleHasPermission('auditor', 'ledger.override') === false);
+$h->test('auditor does not have production.override', dl_roleHasPermission('auditor', 'production.override') === false);
+$h->test('viewer does not have ledger.override', dl_roleHasPermission('viewer', 'ledger.override') === false);
+$h->test('viewer does not have production.override', dl_roleHasPermission('viewer', 'production.override') === false);
 $h->test('unknown role returns false', dl_roleHasPermission('nonexistent', 'ledger.override') === false);
 $h->test('unknown permission returns false', dl_roleHasPermission('admin', 'nonexistent') === false);
 
@@ -166,6 +182,11 @@ foreach ($postRoutes as $path => $handler) {
 }
 
 $h->test('At least 4 delivery/receiving POST routes exist', count($deliveryApiPaths) >= 4);
+
+// Read-only business overview route must exist for viewer/auditor roles
+$h->test('Business overview GET route exists', isset($getRoutes['/daily-ledger/admin/overview']));
+$h->test('Overview handler wired', ($getRoutes['/daily-ledger/admin/overview'] ?? '') === 'daily-ledger:handleAdminOverview');
+$h->test('handleAdminOverview exists', function_exists('handleAdminOverview'));
 
 // Cashier-specific routes should exist
 $cashierDispatchExists = false;

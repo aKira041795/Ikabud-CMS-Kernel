@@ -252,6 +252,8 @@ function dl_defaultRolePermissions(): array
         'supervisor' => [],
         'production_in_charge' => [],
         'cashier' => [],
+        'auditor' => [],
+        'viewer' => [],
     ];
 }
 
@@ -315,10 +317,10 @@ function dlPersistModuleSettings(array $settings): bool
     return true;
 }
 
-function dl_rolePermissions(): array
+function dl_rolePermissions(bool $refresh = false): array
 {
     static $cache = null;
-    if ($cache !== null) {
+    if (!$refresh && $cache !== null) {
         return $cache;
     }
 
@@ -1320,7 +1322,7 @@ function dl_accessibleBranchIds(array $user): array
     }
 
     $role = (string)($user['role'] ?? '');
-    if ($role === 'admin') {
+    if (in_array($role, ['admin', 'auditor', 'viewer'], true)) {
         $stmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1 ORDER BY id');
         return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
     }
@@ -2305,6 +2307,10 @@ function dlAuthenticatedHomeRedirect(): ?string
 
     if ($role === 'production_in_charge') {
         return '/daily-ledger/admin/production-output';
+    }
+
+    if ($role === 'viewer') {
+        return '/daily-ledger/admin/overview';
     }
 
     return '/daily-ledger/admin/dashboard';
@@ -4772,7 +4778,7 @@ function handleAdminDashboard(array $params = []): void
         return;
     }
 
-    $user = dlCurrentUser(['admin', 'supervisor']);
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor']);
     $role = (string)($user['role'] ?? '');
     $input = $ctx->input();
 
@@ -4996,6 +5002,139 @@ function handleAdminDashboard(array $params = []): void
     ]);
 }
 
+function handleAdminOverview(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    // Read-only business overview: sales data + top saleable products.
+    // Accessible to admins, supervisors, auditors, and viewers (business owners).
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
+    $role = (string)($user['role'] ?? '');
+    $input = $ctx->input();
+
+    $today = dl_businessDate();
+    $dateFrom = !empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_from'])
+        ? (string)$input['date_from'] : $today;
+    $dateTo = !empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_to'])
+        ? (string)$input['date_to'] : $today;
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
+    $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : 0;
+
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) {
+        $accessibleBranchIds = [0];
+    }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches->execute($accessibleBranchIds);
+    $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Top saleable products (ranked by units sold, then amount) for the period.
+    $topProductsSql =
+        'SELECT p.id, p.name, p.sku, p.product_category,
+                SUM(' . dl_ledgerSalesQuantitySql('dl') . ') AS units,
+                SUM(' . dl_ledgerSalesAmountSql('dl') . ') AS amount,
+                COUNT(DISTINCT dl.branch_id) AS branch_count
+         FROM dl_daily_ledger dl
+         INNER JOIN dl_products p ON p.id = dl.product_id
+         WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
+    $topProductsBind = array_merge([$dateFrom, $dateTo], $accessibleBranchIds);
+    if ($branchId > 0) {
+        $topProductsSql .= ' AND dl.branch_id = ?';
+        $topProductsBind[] = $branchId;
+    }
+    $topProductsSql .= ' GROUP BY p.id, p.name, p.sku, p.product_category
+         ORDER BY units DESC, amount DESC
+         LIMIT 10';
+    $topStmt = $ctx->db()->prepare($topProductsSql);
+    $topStmt->execute($topProductsBind);
+    $topProducts = $topStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Sales per branch for the period.
+    $salesSql =
+        'SELECT dl.branch_id, b.name AS branch_name,
+                SUM(' . dl_ledgerSalesQuantitySql('dl') . ') AS total_units,
+                SUM(' . dl_ledgerSalesAmountSql('dl') . ') AS total_amount,
+                COUNT(DISTINCT dl.product_id) AS product_count
+         FROM dl_daily_ledger dl
+         INNER JOIN dl_branches b ON b.id = dl.branch_id
+         WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
+    $salesBind = array_merge([$dateFrom, $dateTo], $accessibleBranchIds);
+    if ($branchId > 0) {
+        $salesSql .= ' AND dl.branch_id = ?';
+        $salesBind[] = $branchId;
+    }
+    $salesSql .= ' GROUP BY dl.branch_id ORDER BY b.name';
+    $salesStmt = $ctx->db()->prepare($salesSql);
+    $salesStmt->execute($salesBind);
+    $branchSales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Day status per branch for the end date.
+    $statusStmt = $ctx->db()->prepare("SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = ? AND branch_id IN ({$branchPlaceholders})");
+    $statusStmt->execute(array_merge([$dateTo], $accessibleBranchIds));
+    $dayStatuses = [];
+    foreach ($statusStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
+        $dayStatuses[(int)$s['branch_id']] = $s['status'];
+    }
+
+    $branchSalesMap = [];
+    foreach ($branchSales as $row) {
+        $branchSalesMap[(int)$row['branch_id']] = $row;
+    }
+
+    $grandUnits = 0;
+    $grandAmount = 0.0;
+    $cards = [];
+    foreach ($branches as $br) {
+        $bid = (int)$br['id'];
+        $s = $branchSalesMap[$bid] ?? null;
+        $units = $s ? (int)$s['total_units'] : 0;
+        $amount = $s ? (float)$s['total_amount'] : 0.0;
+        $grandUnits += $units;
+        $grandAmount += $amount;
+        $cards[] = [
+            'branch_id' => $bid,
+            'name' => $br['name'],
+            'units' => $units,
+            'amount' => $amount,
+            'status' => $dayStatuses[$bid] ?? 'none',
+        ];
+    }
+
+    $periodLabel = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
+    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    $clockLabel = dl_operatingClockLabel();
+    echo dlRender('modules/daily-ledger/admin/overview.disyl', [
+        'page_title' => 'Business Overview',
+        'user_name' => $userName,
+        'user_role' => $role,
+        'current_page' => 'overview',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'branch_id' => $branchId,
+        'branches' => $branches,
+        'branch_cards' => $cards,
+        'top_products' => $topProducts,
+        'grand_units' => $grandUnits,
+        'grand_amount' => $grandAmount,
+        'period_label' => $periodLabel,
+        'business_date_label' => $clockLabel['business_date'],
+        'close_of_day_time' => $clockLabel['close_of_day_time'],
+        'auto_close_enabled' => $clockLabel['auto_close_enabled'],
+        'operating_timezone' => $clockLabel['operating_timezone'],
+        'operating_region' => $clockLabel['operating_region'],
+    ]);
+}
+
 function handleAdminSales(array $params = []): void
 {
     $ctx = module();
@@ -5005,7 +5144,7 @@ function handleAdminSales(array $params = []): void
         return;
     }
 
-    $user = dlRequireAuth(['admin', 'supervisor']);
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
 
     $input = $ctx->input();
     $today = dl_businessDate();
@@ -5553,6 +5692,8 @@ function apiSaveRolePermissions(array $params = []): void
         'supervisor' => [],
         'production_in_charge' => [],
         'cashier' => [],
+        'auditor' => [],
+        'viewer' => [],
     ];
 
     if ($toBool($input['supervisor_ledger_override'] ?? false)) {
@@ -5726,7 +5867,7 @@ function handleAdminVariances(array $params = []): void
         return;
     }
 
-    $user = dlCurrentUser(['admin', 'supervisor']);
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor']);
     $role = (string)($user['role'] ?? '');
     $isSupervisor = ($role === 'supervisor');
 
@@ -5883,7 +6024,7 @@ function handleAdminActivity(array $params = []): void
         return;
     }
 
-    $user = dlCurrentUser(['admin', 'supervisor']);
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor']);
 
     $input = $ctx->input();
     $today = dl_businessDate();
@@ -7554,7 +7695,7 @@ function apiCreateUser(array $params = []): void
         return;
     }
 
-    if (!in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
+    if (!in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge', 'auditor', 'viewer'], true)) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid role', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid role'], 422);
         return;
@@ -7713,7 +7854,7 @@ function apiUpdateUser(array $params = []): void
     }
 
     try {
-        if (!in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
+        if (!in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge', 'auditor', 'viewer'], true)) {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid role', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'Invalid role'], 422);
             return;

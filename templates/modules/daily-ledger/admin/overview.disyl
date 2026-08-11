@@ -1,0 +1,151 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Business Overview</h2>
+        <p class="text-sm text-gray-500">Sales data and top saleable products. Read-only.</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
+            · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>
+            · Region: <span class="font-medium text-gray-700">{operating_region}</span>
+        </p>
+    </div>
+    <span class="text-sm text-gray-500">{period_label}</span>
+</div>
+
+<form class="card mb-6 print-hide" action="{base_url}/admin/overview" method="GET"
+      onsubmit="return window.dlLoadForm(this)">
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+            <div class="form-group">
+                <label class="form-label">From</label>
+                <input type="date" class="form-input" name="date_from" value="{date_from}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">To</label>
+                <input type="date" class="form-input" name="date_to" value="{date_to}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Branch</label>
+                <select class="form-input" name="branch_id">
+                    <option value="">All Branches</option>
+                    {foreach branches as br}
+                    <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Filter Sales</button>
+        </div>
+    </div>
+</form>
+
+<!-- Stats row -->
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branches</div>
+            <div class="mt-1 text-3xl font-semibold text-gray-900">{branches | count}</div>
+            <div class="mt-1 text-sm text-gray-500">Active branches in scope</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Units Sold</div>
+            <div class="mt-1 text-3xl font-semibold text-indigo-600">
+                {grand_units}
+                <span class="text-sm font-medium text-gray-500">units</span>
+            </div>
+            <div class="mt-1 text-sm text-gray-500">{period_label}</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Gross Sales</div>
+            <div class="mt-1 text-3xl font-semibold text-emerald-600">PHP {grand_amount | number_format:2}</div>
+            <div class="mt-1 text-sm text-gray-500">across {branch_cards | count} branches</div>
+        </div>
+    </div>
+</div>
+
+<!-- Branch sales breakdown -->
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Sales by Branch</span>
+        <span class="text-sm text-muted">{period_label}</span>
+    </div>
+    <div class="card-body p-0">
+        {if branch_cards | count == 0}
+        <div class="px-4 py-6 text-sm text-gray-500">No active branches.</div>
+        {/if}
+        {foreach branch_cards as card}
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-b-0">
+            <div>
+                <div class="text-sm font-semibold text-gray-900">{card.name}</div>
+                <div class="text-xs text-gray-500">
+                    {if card.units > 0}{card.units} units sold{/if}
+                    {if card.units == 0}No data yet{/if}
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-sm font-semibold text-gray-900">{if card.amount > 0}PHP {card.amount | number_format:2}{/if}{if card.amount == 0}—{/if}</div>
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset mt-1
+                    {if card.status == 'open'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+                    {if card.status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+                    {if card.status == 'none'}bg-gray-50 text-gray-500 ring-gray-200{/if}">
+                    {if card.status == 'open'}Open{/if}
+                    {if card.status == 'closed'}Closed{/if}
+                    {if card.status == 'none'}No status{/if}
+                </span>
+            </div>
+        </div>
+        {/foreach}
+    </div>
+</div>
+
+<!-- Top saleable products -->
+<div class="card">
+    <div class="card-header">
+        <span>Top Saleable Products</span>
+        <span class="text-sm text-muted">{period_label} · ranked by units sold</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th class="text-right">Units Sold</th>
+                    <th class="text-right">Sales Amount</th>
+                    <th class="text-center">Branches</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if top_products | count == 0}
+                <tr>
+                    <td colspan="7" class="text-center text-sm text-gray-500 py-6">No sales recorded for this period.</td>
+                </tr>
+                {/if}
+                {foreach top_products as idx => tp}
+                <tr>
+                    <td class="text-sm text-gray-500">{idx + 1}</td>
+                    <td class="text-sm font-semibold text-gray-900">{tp.name}</td>
+                    <td class="text-sm text-gray-500">{tp.sku}</td>
+                    <td class="text-sm text-gray-500">{tp.product_category}</td>
+                    <td class="text-sm text-right font-semibold text-gray-900">{tp.units}</td>
+                    <td class="text-sm text-right text-gray-900">PHP {tp.amount | number_format:2}</td>
+                    <td class="text-sm text-center text-gray-500">{tp.branch_count}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}

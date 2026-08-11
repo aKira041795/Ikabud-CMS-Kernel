@@ -58,8 +58,10 @@
                             {if u.role == 'cashier'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
                             {if u.role == 'supervisor'}bg-amber-50 text-amber-700 ring-amber-200{/if}
                             {if u.role == 'production_in_charge'}bg-indigo-50 text-indigo-700 ring-indigo-200{/if}
+                            {if u.role == 'auditor'}bg-sky-50 text-sky-700 ring-sky-200{/if}
+                            {if u.role == 'viewer'}bg-violet-50 text-violet-700 ring-violet-200{/if}
                         ">
-                            {if u.role == 'production_in_charge'}Production in-charge{else}{u.role}{/if}
+                            {if u.role == 'production_in_charge'}Production in-charge{elseif u.role == 'auditor'}Auditor{elseif u.role == 'viewer'}Viewer{else}{u.role}{/if}
                         </span>
                     </td>
                     <td class="text-sm text-muted">
@@ -69,6 +71,8 @@
                         {if u.role == 'supervisor'}{if u.branch_names}{u.branch_names}{else}<span class="text-gray-400">No branches</span>{/if}{/if}
                         {if u.role == 'production_in_charge'}{if u.branch_names}{u.branch_names}{else}<span class="text-gray-400">No branches</span>{/if}{/if}
                         {if u.role == 'admin'}<span class="text-gray-400">All branches</span>{/if}
+                        {if u.role == 'auditor'}<span class="text-gray-400">All branches</span>{/if}
+                        {if u.role == 'viewer'}<span class="text-gray-400">All branches</span>{/if}
 
                     </td>
                     <td>
@@ -128,6 +132,8 @@
                 <option value="supervisor">Supervisor</option>
                 <option value="production_in_charge">Production in-charge</option>
                 <option value="cashier">Cashier</option>
+                <option value="auditor">Auditor</option>
+                <option value="viewer">Viewer</option>
             </select>
         </div>
         <div class="form-group" id="add-branch-group">
@@ -175,6 +181,8 @@
                 <option value="supervisor">Supervisor</option>
                 <option value="production_in_charge">Production in-charge</option>
                 <option value="cashier">Cashier</option>
+                <option value="auditor">Auditor</option>
+                <option value="viewer">Viewer</option>
             </select>
         </div>
         <div class="form-group" id="edit-branch-group">

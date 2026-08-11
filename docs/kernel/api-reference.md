@@ -1075,6 +1075,15 @@ Default policy:
 - supervisor: denied
 - production_in_charge: denied
 - cashier: denied
+- auditor: denied (read-only role — no override capabilities)
+- viewer: denied (read-only role for business owners — no override capabilities)
+
+Read-only roles:
+- `auditor` — read-only access to Overview, Dashboard, Sales, Variances, and Activity; sees all branches.
+- `viewer` — business-owner read-only access to the Business Overview page (sales data + top saleable products); sees all branches.
+- Both are created via user management with the `auditor`/`viewer` roles and have no write/override permissions.
+- production_in_charge: denied
+- cashier: denied
 
 Close-of-day behavior:
 - business-date calculations use the configured Daily Ledger operating timezone

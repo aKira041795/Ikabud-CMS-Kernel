@@ -14,6 +14,7 @@ return [
         '/daily-ledger/ledger'                     => 'daily-ledger:handleCashierLedger',
         '/daily-ledger/ledger/rows'                => 'daily-ledger:handleCashierRows',
         '/daily-ledger/admin/dashboard'            => 'daily-ledger:handleAdminDashboard',
+        '/daily-ledger/admin/overview'             => 'daily-ledger:handleAdminOverview',
         '/daily-ledger/admin/usage'                => 'daily-ledger:handleAdminUsage',
         '/daily-ledger/admin/production-output'    => 'daily-ledger:handleAdminProductionOutput',
         '/daily-ledger/admin/commissary'           => 'daily-ledger:handleAdminCommissary',
