@@ -51,6 +51,10 @@
     "dl_branch_product_supply_rules",
     "dl_delivery_variance_flags",
     "dl_commissary_product_ledger",
+    "dl_selling_accounts",
+    "dl_selling_account_ledger",
+    "dl_selling_account_day_status",
+    "dl_user_selling_accounts",
     "dl_password_resets"
   ],
   "co_owns_tables": [
