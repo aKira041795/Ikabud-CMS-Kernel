@@ -631,7 +631,11 @@ app()->hooks()->on('kernel.home_url', function (?string $url, string $role, ?arr
         return '/daily-ledger/admin/production-output';
     }
 
-    if (in_array($role, ['admin', 'supervisor'], true)) {
+    if ($role === 'viewer') {
+        return '/daily-ledger/admin/overview';
+    }
+
+    if (in_array($role, ['admin', 'supervisor', 'auditor'], true)) {
         return '/daily-ledger/admin/dashboard';
     }
 
@@ -673,7 +677,7 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
 
     $id = (int)($row['id'] ?? 0);
     $role = (string)($row['role'] ?? '');
-    if ($id <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
+    if ($id <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge', 'auditor', 'viewer'], true)) {
         return null;
     }
 

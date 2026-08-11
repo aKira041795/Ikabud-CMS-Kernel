@@ -63,6 +63,8 @@ $h->test('sub "admin:5" → 5', dl_getActorUserId(['sub' => 'admin:5']) === 5);
 $h->test('sub "cashier:12" → 12', dl_getActorUserId(['sub' => 'cashier:12']) === 12);
 $h->test('sub "supervisor:0" → 0', dl_getActorUserId(['sub' => 'supervisor:0']) === 0);
 $h->test('sub "production_in_charge:42" → 42', dl_getActorUserId(['sub' => 'production_in_charge:42']) === 42);
+$h->test('sub "viewer:5" → 5', dl_getActorUserId(['sub' => 'viewer:5']) === 5);
+$h->test('sub "auditor:7" → 7', dl_getActorUserId(['sub' => 'auditor:7']) === 7);
 $h->test('sub empty → 0', dl_getActorUserId(['sub' => '']) === 0);
 $h->test('sub missing → 0', dl_getActorUserId([]) === 0);
 $h->test('sub numeric "123" → 123', dl_getActorUserId(['sub' => '123']) === 123);

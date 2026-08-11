@@ -104,7 +104,8 @@
     "database/migrations/037_add_wastage_to_commissary_product_ledger.sql",
     "database/migrations/038_add_user_selling_accounts.sql",
     "database/migrations/039_cleanup_selling_account_enums.sql",
-    "database/migrations/040_add_liable_user_to_withdrawals.sql"
+    "database/migrations/040_add_liable_user_to_withdrawals.sql",
+    "database/migrations/041_add_auditor_viewer_roles.sql"
   ],
   "capabilities": {
     "exposes": [

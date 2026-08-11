@@ -1304,7 +1304,7 @@ function dl_getActorUserId(array $user): int
     }
 
     $sub = (string)($user['sub'] ?? '');
-    if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier|production_in_charge):(\d+)$/', $sub, $m)) {
+    if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier|production_in_charge|auditor|viewer):(\d+)$/', $sub, $m)) {
         return (int)$m[1];
     }
     if (is_numeric($sub)) {
@@ -2524,6 +2524,8 @@ function dailyLedgerAuthLogin(): void
         $redirect = '/daily-ledger/ledger';
     } elseif ($role === 'production_in_charge') {
         $redirect = '/daily-ledger/admin/production-output';
+    } elseif ($role === 'viewer') {
+        $redirect = '/daily-ledger/admin/overview';
     } else {
         $redirect = '/daily-ledger/admin/dashboard';
     }
