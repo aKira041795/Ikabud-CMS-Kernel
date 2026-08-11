@@ -39,7 +39,11 @@
                     <input type="text" id="commissary-baker" class="form-input" placeholder="Baker Initials or Name" value="{global_baker_name}" onblur="updateAllRunsMetadata()">
                 </div>
                 <div>
-                    {if formal_delivery_enabled}
+                    {if formal_delivery_enabled && same_location_release.eligible}
+                    <label class="form-label text-xs">Delivery Receipt # <span class="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">Internal release (same location)</span></label>
+                    <input type="text" id="commissary-dr-number" class="form-input font-semibold" placeholder="Not required — leave blank" value="" onblur="updateAllRunsMetadata()">
+                    <p class="mt-1 text-xs text-emerald-700">Saved yield posts to this branch's storefront <span class="font-semibold">Addt'l</span> column. DR not required for this co-located commissary.</p>
+                    {elseif formal_delivery_enabled}
                     <label class="form-label text-xs">Delivery Receipt # <span class="text-rose-500">*</span><span class="ml-1 text-gray-400 font-normal">(required when dispatching to branch)</span></label>
                     <input type="text" id="commissary-dr-number" class="form-input font-semibold" placeholder="e.g. DR-2026-001" value="{global_dr_number}" onblur="updateAllRunsMetadata()">
                     {else}
@@ -55,6 +59,9 @@
                             <option value="{b.id}" {if b.id == global_branch_id}selected{/if}>{b.name}</option>
                         {/foreach}
                     </select>
+                    {if formal_delivery_enabled && same_location_release.eligible}
+                    <p class="mt-1 text-xs text-gray-500">This branch is both commissary and storefront — production releases internally to its own ledger (no Delivery Receipt needed).</p>
+                    {/if}
                 </div>
             </div>
         </div>
@@ -268,8 +275,18 @@
         var drNumber = ((document.getElementById('commissary-dr-number') || {}).value || '').trim();
         var formalDeliveryEnabled = {if formal_delivery_enabled}true{else}false{/if};
 
+        // Server-derived same-location eligibility for THIS product on the selected
+        // branch. DR stays required for every product that is not eligible.
+        var sameLocationEligible = false;
+        try {
+            if (window.DL_SAME_LOCATION && window.DL_SAME_LOCATION.products) {
+                sameLocationEligible = window.DL_SAME_LOCATION.products[String(pid)] === true;
+            }
+        } catch (e) { sameLocationEligible = false; }
+
         // Warn if DR# is missing and branch is selected and formal delivery is on
-        if (formalDeliveryEnabled && destBranchId > 0 && drNumber === '') {
+        // and the product/branch is NOT eligible for a same-location internal release.
+        if (formalDeliveryEnabled && destBranchId > 0 && drNumber === '' && !sameLocationEligible) {
             var drInput = document.getElementById('commissary-dr-number');
             if (drInput) {
                 drInput.classList.add('border-rose-500', 'ring-1', 'ring-rose-400');
@@ -278,6 +295,19 @@
             }
             if (statusEl) { statusEl.textContent = '⚠ DR# required'; statusEl.className = 'text-xs text-rose-500 font-bold'; }
             return;
+        }
+
+        // When the selected branch is an eligible co-located commissary, the DR
+        // field is not required and may contain a stale warning style.
+        if (sameLocationEligible) {
+            var drInputEl = document.getElementById('commissary-dr-number');
+            if (drInputEl) {
+                drInputEl.classList.remove('border-rose-500', 'ring-1', 'ring-rose-400');
+                drInputEl.removeAttribute('placeholder', 'DR # required — enter before saving');
+                if (drInputEl.value === '') {
+                    drInputEl.setAttribute('placeholder', 'Not required — leave blank');
+                }
+            }
         }
 
         row.classList.add('opacity-60');
@@ -385,6 +415,8 @@
     }
 
     var outputByBranch = {output_by_branch | json | raw};
+    var sameLocationRelease = {same_location_release | json | raw};
+    window.DL_SAME_LOCATION = sameLocationRelease || { products: {} };
 
     function applyOutputPrefill(branchId, scope) {
         branchId = parseInt(branchId) || 0;

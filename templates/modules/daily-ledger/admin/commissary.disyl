@@ -352,9 +352,10 @@
                 <select id="dispatch-dest-branch-id" class="form-input">
                     <option value="">-- Select Branch --</option>
                     {foreach branches as br}
-                    <option value="{br.id}">{br.name}</option>
+                    <option value="{br.id}"{if br.is_commissary} data-is-commissary="1"{/if}>{br.name}{if br.is_commissary} (commissary){/if}</option>
                     {/foreach}
                 </select>
+                <p class="mt-1 text-xs text-gray-500">Do not dispatch from a commissary to itself. Co-located branches use the Usage page for an <span class="font-semibold">Internal release (same location)</span>.</p>
             </div>
             <div class="form-group mb-0">
                 <label class="form-label">DR Number</label>
@@ -472,6 +473,14 @@
 
         if (items.length === 0) {
             showToast('Enter at least one product quantity to dispatch', 'error');
+            return;
+        }
+
+        // Reject source-equals-destination formal dispatch — co-located
+        // commissary/storefront production must use the Internal release path.
+        var selfDispatch = items.some(function(it) { return it.commissary_branch_id === destBranchId; });
+        if (selfDispatch) {
+            showToast('A branch cannot formally dispatch to itself. Use the Commissary Usage page for an Internal release (same location) instead.', 'error');
             return;
         }
 

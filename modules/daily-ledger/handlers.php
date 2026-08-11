@@ -7038,10 +7038,13 @@ function apiCreateProduct(array $params = []): void
         $branches = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [];
         if ($branches !== []) {
             $values = [];
-            $params = [':pid' => $productId];
+            $params = [];
             foreach ($branches as $index => $br) {
-                $values[] = "(:bid_{$index}, :pid)";
+                // Unique named placeholders per row: PDO native prepared
+                // statements cannot reuse a named marker more than once.
+                $values[] = "(:bid_{$index}, :pid_{$index})";
                 $params[":bid_{$index}"] = (int)$br['id'];
+                $params[":pid_{$index}"] = $productId;
             }
             $ctx->db()->prepare(
                 'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES ' . implode(', ', $values)
@@ -7067,6 +7070,7 @@ function apiCreateProduct(array $params = []): void
             'output_unit_label' => $outputUnitLabel,
         ]);
     } catch (\Throwable $e) {
+        write_log('apiCreateProduct error: ' . $e->getMessage(), 'error', ['trace' => substr((string)$e->getTraceAsString(), 0, 800)]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to create product', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Failed to create product'], 500);
     }
@@ -8480,6 +8484,20 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
         }
     }
 
+    // Same-location internal-release eligibility for the selected destination
+    // branch (presentation-only metadata). The server re-validates every save.
+    // Batch-resolved so the product grid render does not issue N×3 queries.
+    $sameLocationRelease = ['branch_id' => 0, 'branch' => null, 'eligible' => false, 'products' => []];
+    if ($selectedBranchId > 0) {
+        $activeProductIds = [];
+        foreach ($products as $p) {
+            if (!empty($p['is_active'])) {
+                $activeProductIds[] = (int)$p['id'];
+            }
+        }
+        $sameLocationRelease = dl_buildSameLocationEligibilityMap($db, $selectedBranchId, $activeProductIds);
+    }
+
     return [
         'date' => $rawDate,
         'products' => $products,
@@ -8493,6 +8511,12 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
         'output_by_branch' => $outputByBranch,
         'paper_capture_product_map' => $paperCaptureMap,
         'paper_capture_dr_number' => $paperDrNumber,
+        'same_location_release' => $sameLocationRelease,
+        // The Usage page needs the formal-delivery flag to render the correct
+        // DR label (required vs internal-release). dlRender injects
+        // layout-level feature flags, but not this raw flag.
+        'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
+        'feature_formal_delivery' => dl_isFormalDeliveryEnabled(),
     ];
 }
 
@@ -8551,7 +8575,7 @@ function handleAdminCommissary(): void
     // Branches: when commissary selected, show only branches assigned to it OR with DR data from it
     if ($selectedCommissaryId > 0) {
         $branchesStmt = $db->prepare(
-            "SELECT DISTINCT b.id, b.name
+            "SELECT DISTINCT b.id, b.name, b.is_commissary
                FROM dl_branches b
                LEFT JOIN dl_deliveries d ON d.destination_id = b.id
                  AND d.destination_type = 'branch'
@@ -8566,7 +8590,7 @@ function handleAdminCommissary(): void
         $branchesStmt->execute([':cid' => $selectedCommissaryId, ':cid2' => $selectedCommissaryId, ':date' => $rawDate]);
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } else {
-        $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+        $branchesStmt = $db->query("SELECT id, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
     $availableBranchIds = array_map('intval', array_column($branches, 'id'));
@@ -8831,18 +8855,28 @@ function handleAdminCommissary(): void
     ]);
 }
 
-function apiSaveProductionRun(): void
+/**
+ * Save a production run (commissary usage row).
+ *
+ * Extracted from apiSaveProductionRun() so the full transactional behavior can
+ * be exercised directly in integration tests. Handles:
+ *   - create / update / delete of dl_production_runs
+ *   - the commissary → production-movement bridge (non-formal mode)
+ *   - same-location internal releases when formal delivery is enabled (DR-less
+ *     self-managed commissary/storefront output)
+ *   - formal cross-location delivery synchronization when formal mode is on
+ *
+ * Returns a structured result; throws RuntimeException for controlled
+ * validation failures and any other Throwable is a database error.
+ */
+function dl_saveProductionRun(array $user, array $input): array
 {
     $ctx = module();
     if (!$ctx) {
-        http_response_code(500);
-        return;
+        throw new \RuntimeException('Module context unavailable');
     }
-
-    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $db = $ctx->db();
 
-    $input = $ctx->input();
     $date          = (string)($input['date'] ?? '');
     $productId     = (int)($input['product_id'] ?? 0);
     $bakerName     = trim((string)($input['baker_name'] ?? ''));
@@ -8864,15 +8898,10 @@ function apiSaveProductionRun(): void
         $drNumber = substr($drNumber, 0, 120);
     }
 
-    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $productId <= 0) {
-        $ctx->json(['ok' => false, 'error' => 'Missing or invalid date or product'], 400);
-        return;
-    }
-
     $actorId = dl_getActorUserId($user);
 
+    $db->beginTransaction();
     try {
-        $db->beginTransaction();
 
         if ($destBranchId > 0) {
             $stmt = $db->prepare(
@@ -8896,8 +8925,43 @@ function apiSaveProductionRun(): void
         $previousDrNumber = $existing ? trim((string)($existing['dr_number'] ?? '')) : '';
         $formalDeliveryEnabled = dl_isFormalDeliveryEnabled();
 
-        if ($formalDeliveryEnabled && $destBranchId > 0 && $yieldQty > 0 && $drNumber === '') {
+        // ─── Same-location internal-release eligibility ──────────────────────
+        // Derived ONLY from authoritative branch + product-supply configuration
+        // (never from a browser-supplied boolean, name, or address). A DR may be
+        // omitted only when the destination is an active commissary that produces
+        // the product locally (self-managed / self-referencing / local override).
+        $sameLocationDecision = null;
+        if ($destBranchId > 0 && $productId > 0) {
+            $sameLocationDecision = dl_resolveSameLocationEligibility($destBranchId, $productId);
+        }
+        $isSameLocationEligible = $sameLocationDecision !== null
+            && !empty($sameLocationDecision['same_location']);
+        $isSameLocationRelease = $formalDeliveryEnabled
+            && $destBranchId > 0
+            && $yieldQty > 0
+            && $isSameLocationEligible;
+
+        // Same-location releases must respect the same branch-authorization,
+        // active-branch, and closed-day gates as production output. They must
+        // never create a formal delivery from a branch to itself.
+        if ($formalDeliveryEnabled && $destBranchId > 0 && $isSameLocationEligible) {
+            $role = (string)($user['role'] ?? '');
+            $allowedBranchIds = dl_accessibleBranchIds($user);
+            if (!in_array($destBranchId, $allowedBranchIds, true)) {
+                throw new RuntimeException('Destination branch is not allowed for this user.');
+            }
+            dl_maybeAutoCloseBranchDay($destBranchId, $actorId);
+            $dayStatus = dl_getDayStatus($destBranchId, $date);
+            if ($dayStatus === 'closed' && !dl_roleHasPermission($role, 'production.override')) {
+                throw new RuntimeException('Day is closed for this branch.');
+            }
+        }
+
+        if ($formalDeliveryEnabled && $destBranchId > 0 && $yieldQty > 0 && $drNumber === '' && !$isSameLocationEligible) {
             throw new RuntimeException('Delivery Receipt number is required for branch-directed commissary output.');
+        }
+        if ($formalDeliveryEnabled && $destBranchId > 0 && $yieldQty > 0 && $isSameLocationEligible && $drNumber !== '') {
+            throw new RuntimeException('This branch is a co-located commissary — use Internal release (same location) and leave the DR blank instead of creating a delivery to itself.');
         }
 
         if ($bakerName === '' && $yieldQty <= 0 && $inputQty <= 0) {
@@ -8960,6 +9024,61 @@ function apiSaveProductionRun(): void
         $newBridgeId   = null;
         $role          = (string)($user['role'] ?? '');
 
+        // The ledger bridge (production movement + storefront addtl) is used when
+        // formal delivery is disabled OR when this save is an eligible same-location
+        // internal release (which must never route through dl_deliveries).
+        $useLedgerBridge = !$formalDeliveryEnabled || $isSameLocationRelease;
+
+        // Local closure: undo a prior bridge movement. Internal releases also
+        // reverse the commissary produced/dispatched ledger so the same pieces are
+        // not left available for a second dispatch.
+        $reverseBridge = function (int $refBridgeId, array $prior, bool $priorInternal, string $overrideReason) use ($db, $productId, $actorId, $role): void {
+            dl_applyLedgerDelta((int)$prior['branch'], $productId, (string)$prior['date'], -((int)$prior['qty']), $actorId, 'addtl');
+            if ($priorInternal) {
+                dl_applyCommissaryProductLedgerDelta($db, (int)$prior['branch'], $productId, (string)$prior['date'], -((int)$prior['qty']), -((int)$prior['qty']), $actorId);
+            }
+            $revUuid = dl_generateMovementUuid();
+            $db->prepare(
+                "INSERT INTO dl_production_movements
+                    (movement_uuid, movement_type, flow_mode,
+                     destination_branch_id, product_id, ledger_date, quantity, dr_number,
+                     override_reason, reference_movement_id, source_payload,
+                     created_by_id, created_by_role)
+                 VALUES
+                    (:uuid, 'reverse', 'commissary',
+                     :bid, :pid, :ldate, :qty, :dr,
+                     :reason, :refid, :payload,
+                     :uid, :role)"
+            )->execute([
+                ':uuid'    => $revUuid,
+                ':bid'     => (int)$prior['branch'],
+                ':pid'     => $productId,
+                ':ldate'   => (string)$prior['date'],
+                ':qty'     => (int)$prior['qty'],
+                ':dr'      => $priorInternal ? null : (($prior['dr'] ?? '') !== '' ? (string)$prior['dr'] : null),
+                ':reason'  => $overrideReason,
+                ':refid'   => $refBridgeId,
+                ':payload' => json_encode([
+                    'commissary_bridge' => true,
+                    'auto_reverse' => true,
+                    'same_location_internal_release' => $priorInternal,
+                    'dr_number' => $priorInternal ? null : (($prior['dr'] ?? '') !== '' ? (string)$prior['dr'] : null),
+                ], JSON_UNESCAPED_SLASHES),
+                ':uid'     => $actorId > 0 ? $actorId : null,
+                ':role'    => $role !== '' ? $role : 'unknown',
+            ]);
+            dl_auditLog('reverse_commissary_run', (int)$prior['branch'] ?: null, 'dl_production_movements', (string)$revUuid, null, [
+                'source_branch_id' => (int)$prior['branch'],
+                'product_id' => $productId,
+                'ledger_date' => (string)$prior['date'],
+                'old_quantity' => (int)$prior['qty'],
+                'new_quantity' => 0,
+                'same_location_internal_release' => $priorInternal,
+                'reference_movement_id' => $refBridgeId,
+                'dr_number' => $priorInternal ? null : (($prior['dr'] ?? '') !== '' ? (string)$prior['dr'] : null),
+            ]);
+        };
+
         if ($priorBridgeId !== null) {
             // Was the prior bridge movement already manually reversed?
             $revChk = $db->prepare(
@@ -8970,52 +9089,45 @@ function apiSaveProductionRun(): void
 
             if (!$alreadyReversed) {
                 $priorMoveStmt = $db->prepare(
-                    'SELECT destination_branch_id, quantity, ledger_date, dr_number FROM dl_production_movements WHERE id = :id LIMIT 1'
+                    'SELECT destination_branch_id, quantity, ledger_date, dr_number, source_payload FROM dl_production_movements WHERE id = :id LIMIT 1'
                 );
                 $priorMoveStmt->execute([':id' => $priorBridgeId]);
                 $priorMove = $priorMoveStmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($priorMove) {
-                    $priorBranch = (int)$priorMove['destination_branch_id'];
-                    $priorQty    = (int)$priorMove['quantity'];
-                    $priorDate   = (string)$priorMove['ledger_date'];
-                    $priorDrNumber = trim((string)($priorMove['dr_number'] ?? ''));
+                    $priorPayload = json_decode((string)($priorMove['source_payload'] ?? '{}'), true);
+                    $priorInternal = !empty($priorPayload['same_location_internal_release']);
+                    $prior = [
+                        'branch' => (int)$priorMove['destination_branch_id'],
+                        'qty'    => (int)$priorMove['quantity'],
+                        'date'   => (string)$priorMove['ledger_date'],
+                        'dr'     => trim((string)($priorMove['dr_number'] ?? '')),
+                    ];
 
                     $sameQuantities = !$isRunDeleted
-                        && $priorBranch === $destBranchId
-                        && $priorQty    === $yieldQty
-                        && $priorDate   === $date
+                        && $prior['branch'] === $destBranchId
+                        && $prior['qty']    === $yieldQty
+                        && $prior['date']   === $date
                         && $destBranchId > 0
                         && $yieldQty    > 0;
 
-                    if ($formalDeliveryEnabled) {
-                        dl_applyLedgerDelta($priorBranch, $productId, $priorDate, -$priorQty, $actorId, 'addtl');
-
-                        $revUuid = dl_generateMovementUuid();
-                        $db->prepare(
-                            "INSERT INTO dl_production_movements
-                                (movement_uuid, movement_type, flow_mode,
-                                 destination_branch_id, product_id, ledger_date, quantity, dr_number,
-                                 override_reason, reference_movement_id, source_payload,
-                                 created_by_id, created_by_role)
-                             VALUES
-                                (:uuid, 'reverse', 'commissary',
-                                 :bid, :pid, :ldate, :qty, :dr,
-                                 'commissary-formal-delivery', :refid, :payload,
-                                 :uid, :role)"
-                        )->execute([
-                            ':uuid'    => $revUuid,
-                            ':bid'     => $priorBranch,
-                            ':pid'     => $productId,
-                            ':ldate'   => $priorDate,
-                            ':qty'     => $priorQty,
-                            ':dr'      => $priorDrNumber !== '' ? $priorDrNumber : null,
-                            ':refid'   => $priorBridgeId,
-                            ':payload' => json_encode(['commissary_bridge' => true, 'auto_reverse' => true, 'formal_delivery_enabled' => true], JSON_UNESCAPED_SLASHES),
-                            ':uid'     => $actorId > 0 ? $actorId : null,
-                            ':role'    => $role !== '' ? $role : 'unknown',
-                        ]);
-                    } elseif ($sameQuantities && $priorDrNumber !== $drNumber) {
+                    if ($formalDeliveryEnabled && !$isSameLocationRelease) {
+                        // Current save is a formal cross-location output. Undo
+                        // whatever the prior bridge created (a legacy non-formal
+                        // bridge or a prior same-location internal release) before
+                        // the formal delivery is (re)synchronized below.
+                        $reverseBridge($priorBridgeId, $prior, $priorInternal, $priorInternal ? 'commissary-internal-release-reverse' : 'commissary-formal-delivery');
+                        $newBridgeId = null;
+                    } elseif ($isSameLocationRelease) {
+                        // Current save is a same-location internal release.
+                        if ($sameQuantities && $priorInternal && $prior['dr'] === '') {
+                            // Identical to the previous internal release — idempotent no-op.
+                            $newBridgeId = $priorBridgeId;
+                        } else {
+                            $reverseBridge($priorBridgeId, $prior, $priorInternal, $priorInternal ? 'commissary-internal-release-reverse' : 'commissary-bridge-update');
+                            $newBridgeId = null;
+                        }
+                    } elseif ($sameQuantities && $prior['dr'] !== $drNumber) {
                         $db->prepare(
                             'UPDATE dl_production_movements SET dr_number = :dr, source_payload = :payload WHERE id = :id'
                         )->execute([
@@ -9025,34 +9137,8 @@ function apiSaveProductionRun(): void
                         ]);
                         $newBridgeId = $priorBridgeId;
                     } elseif (!$sameQuantities) {
-                        // Undo the prior ledger delta
-                        dl_applyLedgerDelta($priorBranch, $productId, $priorDate, -$priorQty, $actorId, 'addtl');
-
-                        // Insert a reverse movement record for the audit trail
-                        $revUuid = dl_generateMovementUuid();
-                        $db->prepare(
-                            "INSERT INTO dl_production_movements
-                                (movement_uuid, movement_type, flow_mode,
-                                 destination_branch_id, product_id, ledger_date, quantity, dr_number,
-                                 override_reason, reference_movement_id, source_payload,
-                                 created_by_id, created_by_role)
-                             VALUES
-                                (:uuid, 'reverse', 'commissary',
-                                 :bid, :pid, :ldate, :qty, :dr,
-                                 'commissary-bridge-update', :refid, :payload,
-                                 :uid, :role)"
-                        )->execute([
-                            ':uuid'    => $revUuid,
-                            ':bid'     => $priorBranch,
-                            ':pid'     => $productId,
-                            ':ldate'   => $priorDate,
-                            ':qty'     => $priorQty,
-                            ':dr'      => $priorDrNumber !== '' ? $priorDrNumber : null,
-                            ':refid'   => $priorBridgeId,
-                            ':payload' => json_encode(['commissary_bridge' => true, 'auto_reverse' => true, 'dr_number' => $priorDrNumber !== '' ? $priorDrNumber : null], JSON_UNESCAPED_SLASHES),
-                            ':uid'     => $actorId > 0 ? $actorId : null,
-                            ':role'    => $role !== '' ? $role : 'unknown',
-                        ]);
+                        $reverseBridge($priorBridgeId, $prior, false, 'commissary-bridge-update');
+                        $newBridgeId = null;
                     } else {
                         // Identical values — keep the existing bridge movement
                         $newBridgeId = $priorBridgeId;
@@ -9062,11 +9148,21 @@ function apiSaveProductionRun(): void
             // If already manually reversed: fall through and re-bridge below if applicable
         }
 
-        // Create a new bridge movement when the run has a destination + yield
-        if (!$formalDeliveryEnabled && $newBridgeId === null && !$isRunDeleted && $destBranchId > 0 && $yieldQty > 0) {
-            dl_applyLedgerDelta($destBranchId, $productId, $date, $yieldQty, $actorId, 'addtl');
+        // Create a new bridge movement when the run has a destination + yield.
+        // Applies for non-formal mode AND same-location internal releases.
+        if ($useLedgerBridge && $newBridgeId === null && !$isRunDeleted && $destBranchId > 0 && $yieldQty > 0) {
+            $ledgerState = dl_applyLedgerDelta($destBranchId, $productId, $date, $yieldQty, $actorId, 'addtl');
+
+            if ($isSameLocationRelease) {
+                // Record produced + dispatched so the same pieces are not left
+                // available for a second dispatch from the commissary.
+                dl_applyCommissaryProductLedgerDelta($db, $destBranchId, $productId, $date, $yieldQty, $yieldQty, $actorId);
+            }
 
             $newMoveUuid = dl_generateMovementUuid();
+            $newPayload = $isSameLocationRelease
+                ? json_encode(['commissary_bridge' => true, 'same_location_internal_release' => true, 'dr_number' => null, 'source_branch_id' => $destBranchId], JSON_UNESCAPED_SLASHES)
+                : json_encode(['commissary_bridge' => true, 'dr_number' => $drNumber !== '' ? $drNumber : null], JSON_UNESCAPED_SLASHES);
             $db->prepare(
                 "INSERT INTO dl_production_movements
                     (movement_uuid, movement_type, flow_mode,
@@ -9082,8 +9178,8 @@ function apiSaveProductionRun(): void
                 ':pid'     => $productId,
                 ':ldate'   => $date,
                 ':qty'     => $yieldQty,
-                ':dr'      => $drNumber !== '' ? $drNumber : null,
-                ':payload' => json_encode(['commissary_bridge' => true, 'dr_number' => $drNumber !== '' ? $drNumber : null], JSON_UNESCAPED_SLASHES),
+                ':dr'      => $isSameLocationRelease ? null : ($drNumber !== '' ? $drNumber : null),
+                ':payload' => $newPayload,
                 ':uid'     => $actorId > 0 ? $actorId : null,
                 ':role'    => $role !== '' ? $role : 'unknown',
             ]);
@@ -9096,14 +9192,18 @@ function apiSaveProductionRun(): void
             if ($previousDestBranchId > 0 && $previousDrNumber !== '') {
                 $syncKeys[] = $previousDestBranchId . '|' . $date . '|' . $previousDrNumber;
             }
-            if (!$isRunDeleted && $destBranchId > 0 && $drNumber !== '') {
+            if (!$isRunDeleted && $destBranchId > 0 && $drNumber !== '' && !$isSameLocationRelease) {
                 $syncKeys[] = $destBranchId . '|' . $date . '|' . $drNumber;
             }
             foreach (array_values(array_unique($syncKeys)) as $syncKey) {
                 [$syncBranchId, $syncDate, $syncDrNumber] = explode('|', $syncKey, 3);
                 dl_syncAutoCommissaryDeliveryFromRuns($db, $syncDate, (int)$syncBranchId, $syncDrNumber, $actorId);
             }
-            $newBridgeId = null;
+            // Same-location internal releases keep their bridge movement (never a
+            // self-delivery); formal cross-location output never keeps a bridge.
+            if (!$isSameLocationRelease) {
+                $newBridgeId = null;
+            }
         }
 
         if ($runId > 0 && !$isRunDeleted) {
@@ -9113,31 +9213,84 @@ function apiSaveProductionRun(): void
 
         $db->commit();
 
-        $auditAction = $isRunDeleted ? 'delete_commissary_run' : ($existing ? 'update_commissary_run' : 'create_commissary_run');
-        dl_auditLog($auditAction, $destBranchId > 0 ? $destBranchId : null, 'dl_production_runs', "{$date}-{$productId}-" . ($destBranchId > 0 ? $destBranchId : 'commissary'), null, [
-            'date'        => $date,
-            'product_id'  => $productId,
-            'baker_name'  => $bakerName,
-            'input_qty'   => $inputQty,
-            'input_type'  => $inputType,
-            'yield_qty'   => $yieldQty,
-            'dr_number'   => $drNumber,
-            'dest_branch' => $destBranchId,
-        ]);
+        // Post-commit audit is best-effort: a failure here must never turn an
+        // already-committed save into a 500 response (false failure). The
+        // transaction is already durable; only observability is lost.
+        $resultingAddtl = null;
+        try {
+            // Resulting storefront addtl for the affected branch/date (audit evidence).
+            $auditAddtlBranch = $destBranchId > 0 ? $destBranchId : ($previousDestBranchId > 0 ? $previousDestBranchId : 0);
+            if ($auditAddtlBranch > 0 && $productId > 0 && $date !== '') {
+                $lStmt = $db->prepare('SELECT addtl FROM dl_daily_ledger WHERE branch_id = :b AND product_id = :p AND ledger_date = :d LIMIT 1');
+                $lStmt->execute([':b' => $auditAddtlBranch, ':p' => $productId, ':d' => $date]);
+                $lVal = $lStmt->fetchColumn();
+                $resultingAddtl = $lVal === false ? null : (int)$lVal;
+            }
 
-        $ctx->json(['ok' => true]);
+            $auditAction = $isRunDeleted ? 'delete_commissary_run' : ($existing ? 'update_commissary_run' : 'create_commissary_run');
+            dl_auditLog($auditAction, $destBranchId > 0 ? $destBranchId : null, 'dl_production_runs', "{$date}-{$productId}-" . ($destBranchId > 0 ? $destBranchId : 'commissary'), null, [
+                'date'        => $date,
+                'product_id'  => $productId,
+                'baker_name'  => $bakerName,
+                'input_qty'   => $inputQty,
+                'input_type'  => $inputType,
+                'yield_qty'   => $yieldQty,
+                'dr_number'   => $drNumber,
+                'dest_branch' => $destBranchId,
+                'source_branch_id' => $sameLocationDecision !== null ? ($sameLocationDecision['source_branch_id'] ?? null) : null,
+                'same_location_internal_release' => $isSameLocationRelease,
+                'movement_id' => $isRunDeleted ? null : $newBridgeId,
+                'resulting_addtl' => $resultingAddtl,
+            ]);
+        } catch (Throwable $e) {
+            write_log('apiSaveProductionRun post-commit audit error: ' . $e->getMessage(), 'warning');
+        }
+
+        return [
+            'ok' => true,
+            'run_id' => $runId,
+            'movement_id' => $isRunDeleted ? null : $newBridgeId,
+            'same_location_internal_release' => $isSameLocationRelease,
+            'resulting_addtl' => $resultingAddtl,
+        ];
 
     } catch (Throwable $e) {
         if ($db->inTransaction()) {
             $db->rollBack();
         }
+        throw $e;
+    }
+}
+
+function apiSaveProductionRun(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $input = $ctx->input();
+
+    $date = (string)($input['date'] ?? '');
+    $productId = (int)($input['product_id'] ?? 0);
+    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $productId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing or invalid date or product'], 400);
+        return;
+    }
+
+    try {
+        dl_saveProductionRun($user, $input);
+        $ctx->json(['ok' => true]);
+    } catch (RuntimeException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    } catch (Throwable $e) {
         write_log("apiSaveProductionRun error: " . $e->getMessage(), 'error');
-        if ($e instanceof RuntimeException) {
-            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
-            return;
-        }
         $ctx->json(['ok' => false, 'error' => 'Database error executing transaction'], 500);
-    }}
+    }
+}
 
 function apiCommissaryDispatch(): void
 {

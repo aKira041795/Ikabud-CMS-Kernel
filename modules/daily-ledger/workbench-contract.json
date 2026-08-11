@@ -1630,6 +1630,12 @@
             "severity": "major",
             "scope": "data",
             "description": "Sales reporting and summaries derive sales from beg_bal, addtl, withdraw, and bal_end. Historical stored sales values are non-authoritative and must not change reporting semantics."
+        },
+        {
+            "id": "same-location-internal-release",
+            "severity": "critical",
+            "scope": "data",
+            "description": "When formal delivery is enabled, a DR may only be omitted for a server-verified same-location internal release: the destination must be an active commissary configured as local/self-managed production for the product, must not resolve to a distinct supplying commissary, and must be authorized for the actor with the day open. The internal release increments the storefront addtl exactly once, records commissary produced/dispatched, links a dl_production_movements output via commissary_movement_id, stores dr_number = NULL with same_location_internal_release provenance, and never creates a delivery, receiving, or self-delivery. Cross-location output with an empty DR must always be rejected."
         }
     ],
     "scenarios": [
@@ -1681,13 +1687,16 @@
         "php": [
             "tests/daily-ledger/daily_ledger_manifest_test.php",
             "tests/daily-ledger/daily_ledger_routes_test.php",
-            "tests/daily-ledger/daily_ledger_handlers_test.php"
+            "tests/daily-ledger/daily_ledger_handlers_test.php",
+            "tests/daily-ledger/daily_ledger_authz_test.php",
+            "tests/daily-ledger/daily_ledger_same_location_release_test.php"
         ],
         "browser": [
             "tests/browser/modules/daily-ledger/auth/login.spec.js",
             "tests/browser/modules/daily-ledger/navigation/sidebar-navigation.spec.js",
             "tests/browser/modules/daily-ledger/daily-ledger-contract-verification.spec.js",
-            "tests/browser/modules/daily-ledger/ledger/pending-save-scope.spec.js"
+            "tests/browser/modules/daily-ledger/ledger/pending-save-scope.spec.js",
+            "tests/browser/modules/daily-ledger/commissary/same-location-release.spec.js"
         ]
     },
     "compatibility": {

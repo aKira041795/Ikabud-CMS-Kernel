@@ -64,6 +64,187 @@ function dl_resolveProductSupplySource(int $branchId, int $productId): array
     return ['source' => $source, 'source_id' => $assigned, 'origin' => 'branch_default', 'mode' => $mode];
 }
 
+/**
+ * Canonical same-location internal-release eligibility resolver.
+ *
+ * A branch is eligible to release its own production into its own storefront
+ * ledger WITHOUT a Delivery Receipt (internal release) when ALL of the
+ * following are server-verified (never browser-supplied):
+ *
+ *   1. The destination branch exists and is active (is_active = 1).
+ *   2. The destination branch is a commissary (is_commissary = 1) — i.e. the
+ *      branch both produces and retails on the same location.
+ *   3. The product's supply source resolves to local production for that
+ *      branch (branch default self_managed, or a per-product local_production
+ *      override), and does NOT resolve to a distinct supplying commissary.
+ *      A self-referencing assigned commissary (assigned_commissary_id == self)
+ *      and "no assignment" are both accepted canonical configurations.
+ *
+ * Returns a structured decision:
+ *   - same_location      : bool  — true when the DR may be omitted.
+ *   - source_branch_id   : ?int  — the producing commissary branch (the branch
+ *                                  itself for same-location releases).
+ *   - reason             : ?string — rejection reason when not eligible.
+ *   - branch             : ?array — raw branch row (presentation metadata).
+ *   - supply             : ?array — resolved supply decision.
+ */
+function dl_resolveSameLocationEligibility(int $destinationBranchId, int $productId): array
+{
+    $decision = [
+        'same_location'    => false,
+        'source_branch_id' => null,
+        'reason'           => null,
+        'branch'           => null,
+        'supply'           => null,
+    ];
+
+    if ($destinationBranchId <= 0 || $productId <= 0) {
+        $decision['reason'] = 'missing_destination_or_product';
+        return $decision;
+    }
+
+    $ctx = module();
+    if (!$ctx) {
+        $decision['reason'] = 'module_context_unavailable';
+        return $decision;
+    }
+
+    $stmt = $ctx->db()->prepare(
+        'SELECT id, name, is_active, is_commissary, default_supply_mode, assigned_commissary_id
+           FROM dl_branches
+          WHERE id = :id
+          LIMIT 1'
+    );
+    $stmt->execute([':id' => $destinationBranchId]);
+    $branch = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    if (!$branch) {
+        $decision['reason'] = 'branch_not_found';
+        return $decision;
+    }
+    $decision['branch'] = $branch;
+
+    if ((int)($branch['is_active'] ?? 0) !== 1) {
+        $decision['reason'] = 'branch_inactive';
+        return $decision;
+    }
+    if ((int)($branch['is_commissary'] ?? 0) !== 1) {
+        $decision['reason'] = 'not_commissary';
+        return $decision;
+    }
+
+    $supply = dl_resolveProductSupplySource($destinationBranchId, $productId);
+    $decision['supply'] = $supply;
+
+    $source = (string)($supply['source'] ?? '');
+    $sourceId = isset($supply['source_id']) && $supply['source_id'] !== null
+        ? (int)$supply['source_id']
+        : null;
+
+    if ($source === 'local_production') {
+        // Self-managed. Accept "no assignment" or a self-referencing assignment.
+        if ($sourceId !== null && $sourceId !== $destinationBranchId) {
+            $decision['reason'] = 'distinct_supplying_commissary';
+            return $decision;
+        }
+        $decision['same_location'] = true;
+        $decision['source_branch_id'] = $destinationBranchId;
+        return $decision;
+    }
+
+    if ($source === 'commissary' && $sourceId !== null && $sourceId === $destinationBranchId) {
+        // Self-referencing assigned commissary (co-located config).
+        $decision['same_location'] = true;
+        $decision['source_branch_id'] = $destinationBranchId;
+        return $decision;
+    }
+
+    $decision['reason'] = $source === 'commissary' ? 'supplied_by_distinct_commissary' : 'supplied_externally';
+    return $decision;
+}
+
+/**
+ * Batch same-location eligibility map for one branch across many products.
+ *
+ * Produces the same decisions as dl_resolveSameLocationEligibility() per
+ * product, but loads the branch row + all per-product supply rules ONCE so the
+ * Usage page does not issue N×3 queries when rendering the product grid.
+ *
+ * Returns ['branch_id', 'branch' => ?array, 'eligible' => bool, 'products' => [pid => bool]].
+ */
+function dl_buildSameLocationEligibilityMap(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, array $productIds): array
+{
+    $map = ['branch_id' => $branchId, 'branch' => null, 'eligible' => false, 'products' => []];
+    $productIds = array_values(array_unique(array_filter(array_map('intval', $productIds), static fn($id): bool => $id > 0)));
+    if ($branchId <= 0 || $productIds === []) {
+        return $map;
+    }
+
+    $bStmt = $db->prepare(
+        'SELECT id, name, is_active, is_commissary, default_supply_mode, assigned_commissary_id
+           FROM dl_branches WHERE id = :id LIMIT 1'
+    );
+    $bStmt->execute([':id' => $branchId]);
+    $branch = $bStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$branch || (int)($branch['is_active'] ?? 0) !== 1 || (int)($branch['is_commissary'] ?? 0) !== 1) {
+        foreach ($productIds as $pid) {
+            $map['products'][$pid] = false;
+        }
+        return $map;
+    }
+    $map['branch'] = [
+        'id' => (int)$branch['id'],
+        'name' => (string)$branch['name'],
+        'is_active' => true,
+        'is_commissary' => true,
+        'default_supply_mode' => (string)($branch['default_supply_mode'] ?? ''),
+    ];
+
+    // Load all active per-product supply rules for the branch in one query.
+    $rules = [];
+    $pPlaceholders = implode(',', array_fill(0, count($productIds), '?'));
+    $rStmt = $db->prepare(
+        "SELECT product_id, supply_source_type, source_id
+           FROM dl_branch_product_supply_rules
+          WHERE branch_id = ? AND product_id IN ({$pPlaceholders}) AND is_active = 1"
+    );
+    $rStmt->execute(array_merge([$branchId], $productIds));
+    foreach ($rStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $rules[(int)$row['product_id']] = [
+            'source' => (string)$row['supply_source_type'],
+            'source_id' => $row['source_id'] !== null ? (int)$row['source_id'] : null,
+        ];
+    }
+
+    $mode = (string)($branch['default_supply_mode'] ?? '');
+    $assigned = $branch['assigned_commissary_id'] !== null ? (int)$branch['assigned_commissary_id'] : null;
+    $defaultSource = match ($mode) {
+        'commissary_supplied' => 'commissary',
+        'self_managed'        => 'local_production',
+        'hybrid'              => 'commissary',
+        default               => 'manual',
+    };
+
+    foreach ($productIds as $pid) {
+        $rule = $rules[$pid] ?? null;
+        $source = $rule ? $rule['source'] : $defaultSource;
+        $sourceId = $rule ? $rule['source_id'] : $assigned;
+
+        $ok = false;
+        if ($source === 'local_production') {
+            $ok = ($sourceId === null || $sourceId === $branchId);
+        } elseif ($source === 'commissary' && $sourceId !== null && $sourceId === $branchId) {
+            $ok = true;
+        }
+        $map['products'][$pid] = $ok;
+        if ($ok) {
+            $map['eligible'] = true;
+        }
+    }
+
+    return $map;
+}
+
 // ─── Phase B: Delivery + Receiving handlers ───────────────────────────────
 
 function dl_deliveryBranchAuthorized(array $user, string $type, ?int $branchId): bool

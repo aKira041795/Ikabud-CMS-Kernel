@@ -203,6 +203,22 @@ $h->test('dl_normalizeDeliveryItems preserves count', count($normalized) === 2);
 $h->test('dl_normalizeDeliveryItems casts product_id to int', $normalized[0]['product_id'] === 1);
 $h->test('dl_normalizeDeliveryItems casts quantity to int', $normalized[0]['quantity'] === 10);
 
+// ─── Same-Location Internal Release (contract surface) ─────────
+$h->section('Same-Location Internal Release');
+
+// Contract: the canonical eligibility resolver + extractable save helper exist.
+$h->test('dl_resolveSameLocationEligibility exists', function_exists('dl_resolveSameLocationEligibility'));
+$h->test('dl_saveProductionRun exists (testable helper)', function_exists('dl_saveProductionRun'));
+$h->test('apiSaveProductionRun exists (HTTP wrapper)', function_exists('apiSaveProductionRun'));
+
+// The decision shape is stable: same_location bool, source_branch_id, reason.
+$shape = dl_resolveSameLocationEligibility(0, 0);
+$h->test('eligibility returns an array', is_array($shape));
+$h->test('eligibility has same_location key', array_key_exists('same_location', $shape));
+$h->test('eligibility has source_branch_id key', array_key_exists('source_branch_id', $shape));
+$h->test('eligibility has reason key', array_key_exists('reason', $shape));
+$h->test('eligibility missing dest → same_location false', ($shape['same_location'] ?? null) === false);
+
 // ─── CSV Helpers (pure logic) ───────────────────────────────────
 $h->section('CSV Helpers');
 
