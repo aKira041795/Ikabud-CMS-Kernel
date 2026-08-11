@@ -8000,6 +8000,69 @@ function handleProductsCsvExport(): void
     dlCsvResponse('products-' . date('Y-m-d-His') . '.csv', $headers, $rows);
 }
 
+/**
+ * Parse + normalize a single product CSV row (keys already header-normalized).
+ *
+ * Returns a flat field map ready for the insert/update statements, or throws
+ * RuntimeException when a required cell is missing/malformed. The import loop
+ * catches that and skips the row (counted), so one bad cell never aborts the
+ * whole upload or leaves partial rows committed.
+ */
+function dl_normalizeProductCsvRow(array $normalizedRow): array
+{
+    $name = trim((string)($normalizedRow['name'] ?? ''));
+    $price = dlCsvNullableFloat($normalizedRow['price'] ?? null);
+    if ($name === '' || $price === null || $price < 0) {
+        throw new \RuntimeException('Missing or invalid product name/price.');
+    }
+
+    $sku = trim((string)($normalizedRow['sku'] ?? ''));
+    $sortOrder = dlCsvNullableInt($normalizedRow['sort_order'] ?? null) ?? 0;
+    $isActive = isset($normalizedRow['active']) && in_array(strtolower(trim((string)$normalizedRow['active'])), ['0', 'false', 'no']) ? 0 : 1;
+    $category = 'bread';
+    if (isset($normalizedRow['category'])) {
+        $val = strtolower(trim((string)$normalizedRow['category']));
+        if (in_array($val, ['bread', 'cake', 'other'], true)) {
+            $category = $val;
+        }
+    }
+
+    $oppbSource = $normalizedRow['output_pieces_per_batch'] ?? ($normalizedRow['output_pieces'] ?? null);
+    $oulSource = $normalizedRow['output_unit_label'] ?? ($normalizedRow['output_unit'] ?? 'pcs');
+    $batchKiloSource = $normalizedRow['batch_kilo_qty'] ?? ($normalizedRow['batch_input_qty'] ?? ($normalizedRow['kilo_per_batch'] ?? null));
+    $batchEggSource = $normalizedRow['batch_egg_qty'] ?? ($normalizedRow['eggs_per_batch'] ?? ($normalizedRow['egg_per_batch'] ?? null));
+
+    $oppb = dl_normalizePiecesPerBatch(dlCsvNullableInt($oppbSource) ?? 0);
+    $oul = dl_normalizeOutputUnitLabel($oulSource ?? 'pcs');
+    $batchInputQty = dlCsvNullableFloat($batchKiloSource);
+    if ($batchInputQty !== null) {
+        $batchInputQty = round($batchInputQty, 3);
+        if ($batchInputQty <= 0) {
+            $batchInputQty = null;
+        }
+    }
+    $batchEggQty = dlCsvNullableFloat($batchEggSource);
+    if ($batchEggQty !== null) {
+        $batchEggQty = round($batchEggQty, 3);
+        if ($batchEggQty <= 0) {
+            $batchEggQty = null;
+        }
+    }
+
+    return [
+        'name' => $name,
+        'price' => $price,
+        'sku' => $sku,
+        'sort_order' => $sortOrder,
+        'is_active' => $isActive,
+        'category' => $category,
+        'oppb' => $oppb,
+        'oul' => $oul,
+        'batch_input_qty' => $batchInputQty,
+        'batch_egg_qty' => $batchEggQty,
+    ];
+}
+
 function apiProductsImportCsv(): void
 {
     $ctx = module();
@@ -8056,50 +8119,25 @@ function apiProductsImportCsv(): void
         $skipped = 0;
         
         foreach ($rows as $rowIndex => $row) {
+            // A malformed cell must skip only its own row (counted in $skipped),
+            // never abort the whole import and leave partial rows committed.
+            try {
             $normalizedRow = [];
             foreach ($row as $k => $v) {
                 $normalizedRow[dlCsvNormalizeHeader((string)$k)] = $v;
             }
             
-            $name = trim((string)($normalizedRow['name'] ?? ''));
-            $price = dlCsvNullableFloat($normalizedRow['price'] ?? null);
-            if ($name === '' || $price === null || $price < 0) {
-                $skipped++;
-                continue;
-            }
-            
-            $sku = trim((string)($normalizedRow['sku'] ?? ''));
-            $sortOrder = dlCsvNullableInt($normalizedRow['sort_order'] ?? null) ?? 0;
-            $isActive = isset($normalizedRow['active']) && in_array(strtolower(trim((string)$normalizedRow['active'])), ['0', 'false', 'no']) ? 0 : 1;
-            $category = 'bread';
-            if (isset($normalizedRow['category'])) {
-                $val = strtolower(trim((string)$normalizedRow['category']));
-                if (in_array($val, ['bread', 'cake', 'other'], true)) {
-                    $category = $val;
-                }
-            }
-
-            $oppbSource = $normalizedRow['output_pieces_per_batch'] ?? ($normalizedRow['output_pieces'] ?? null);
-            $oulSource = $normalizedRow['output_unit_label'] ?? ($normalizedRow['output_unit'] ?? 'pcs');
-            $batchKiloSource = $normalizedRow['batch_kilo_qty'] ?? ($normalizedRow['batch_input_qty'] ?? ($normalizedRow['kilo_per_batch'] ?? null));
-            $batchEggSource = $normalizedRow['batch_egg_qty'] ?? ($normalizedRow['eggs_per_batch'] ?? ($normalizedRow['egg_per_batch'] ?? null));
-
-            $oppb = dl_normalizePiecesPerBatch(dlCsvNullableInt($oppbSource) ?? 0);
-            $oul = dl_normalizeOutputUnitLabel($oulSource ?? 'pcs');
-            $batchInputQty = dlCsvNullableFloat($batchKiloSource);
-            if ($batchInputQty !== null) {
-                $batchInputQty = round($batchInputQty, 3);
-                if ($batchInputQty <= 0) {
-                    $batchInputQty = null;
-                }
-            }
-            $batchEggQty = dlCsvNullableFloat($batchEggSource);
-            if ($batchEggQty !== null) {
-                $batchEggQty = round($batchEggQty, 3);
-                if ($batchEggQty <= 0) {
-                    $batchEggQty = null;
-                }
-            }
+            $parsed = dl_normalizeProductCsvRow($normalizedRow);
+            $name = $parsed['name'];
+            $price = $parsed['price'];
+            $sku = $parsed['sku'];
+            $sortOrder = $parsed['sort_order'];
+            $isActive = $parsed['is_active'];
+            $category = $parsed['category'];
+            $oppb = $parsed['oppb'];
+            $oul = $parsed['oul'];
+            $batchInputQty = $parsed['batch_input_qty'];
+            $batchEggQty = $parsed['batch_egg_qty'];
             
             if ($sku !== '') {
                 $stmt = $ctx->db()->prepare('SELECT id, current_price FROM dl_products WHERE sku = :sku');
@@ -8212,6 +8250,10 @@ function apiProductsImportCsv(): void
                 'batch_egg_qty' => $batchEggQty,
             ]);
             $created++;
+            } catch (\Throwable $e) {
+                $skipped++;
+                write_log('dl products import row skipped (row ' . ($rowIndex + 2) . '): ' . $e->getMessage(), 'warning', ['module' => 'daily-ledger']);
+            }
         }
         
         $msg = "Imported: $created created, $updated updated, $skipped skipped.";

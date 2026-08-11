@@ -100,16 +100,16 @@
                     <td class="text-xs text-gray-600 uppercase tracking-wider">{p.product_category}</td>
                     <td class="text-right font-semibold text-gray-900">PHP {p.current_price}</td>
                     <td class="text-sm text-gray-600">
-                        {if p.output_pieces_per_batch > 0}
+                        {if (p.output_pieces_per_batch | default:0) > 0}
                         {p.output_pieces_per_batch} {p.output_unit_label} / batch
-                        {if p.batch_input_qty > 0}
+                        {if (p.batch_input_qty | default:0) > 0}
                         <span class="text-gray-400 text-xs"> ({p.batch_input_qty} kg kilo/batch)</span>
                         {/if}
-                        {if p.batch_egg_qty > 0}
+                        {if (p.batch_egg_qty | default:0) > 0}
                         <span class="text-gray-400 text-xs"> ({p.batch_egg_qty} eggs/batch)</span>
                         {/if}
                         {/if}
-                        {if p.output_pieces_per_batch <= 0}
+                        {if (p.output_pieces_per_batch | default:0) <= 0}
                         <span class="text-gray-400">Not set</span>
                         {/if}
                     </td>

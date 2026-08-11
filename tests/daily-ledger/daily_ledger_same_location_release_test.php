@@ -585,6 +585,33 @@ $ledgerAdj = dl_t_ledgerRow($db, $bSelf, $p1, $testDate);
 $h->test('derived sales recomputed after adjustment', (int)($ledgerAdj['sales'] ?? -1) === (int)($ledgerAdj['beg_bal'] ?? 0) + (int)($ledgerAdj['addtl'] ?? 0) - (int)($ledgerAdj['withdraw'] ?? 0) - (int)($ledgerAdj['bal_end'] ?? 0));
 $h->test('adjustment does not create a delivery', dl_t_countRows($db, 'dl_deliveries', 'destination_id = ? AND delivery_date = ? AND dr_number = ?', [$bSelf, $testDate, 'ADJ']) === 0);
 
+// ─── Section 11: CSV product import — malformed rows are skipped, not fatal ──
+$h->section('CSV product import — malformed row resilience');
+
+// The import loop wraps dl_normalizeProductCsvRow() in a per-row try/catch so a
+// malformed cell skips only its own row (counted) instead of aborting the whole
+// upload and leaving partial rows committed. The helper itself is the unit we
+// can exercise without an HTTP request (App::json() exits the process).
+$okParsed = dl_normalizeProductCsvRow(['name' => 'CSV Bread', 'price' => '120.50', 'sku' => 'X-1', 'category' => 'bread', 'batch_egg_qty' => '12', 'batch_input_qty' => '1.5', 'output_pieces_per_batch' => '100']);
+$h->test('valid row parses name', ($okParsed['name'] ?? '') === 'CSV Bread');
+$h->test('valid row parses price', ($okParsed['price'] ?? null) === 120.5);
+$h->test('valid row parses batch_egg_qty', ($okParsed['batch_egg_qty'] ?? null) === 12.0);
+$h->test('valid row parses batch_input_qty', ($okParsed['batch_input_qty'] ?? null) === 1.5);
+$h->test('valid row parses oppb', ($okParsed['oppb'] ?? null) === 100);
+$h->test('valid row defaults category to bread', ($okParsed['category'] ?? '') === 'bread');
+
+$threwPrice = null;
+try { dl_normalizeProductCsvRow(['name' => 'Bad', 'price' => 'oops']); } catch (\RuntimeException $e) { $threwPrice = $e->getMessage(); }
+$h->test('non-numeric price throws (row gets skipped)', $threwPrice !== null && str_contains($threwPrice, 'numeric'));
+
+$threwEggs = null;
+try { dl_normalizeProductCsvRow(['name' => 'Bad', 'price' => '10', 'batch_egg_qty' => 'abc']); } catch (\RuntimeException $e) { $threwEggs = $e->getMessage(); }
+$h->test('non-numeric batch cell throws (row gets skipped)', $threwEggs !== null && str_contains($threwEggs, 'numeric'));
+
+$threwName = null;
+try { dl_normalizeProductCsvRow(['name' => '', 'price' => '10']); } catch (\RuntimeException $e) { $threwName = $e->getMessage(); }
+$h->test('empty name throws (row gets skipped)', $threwName !== null && str_contains($threwName, 'name/price'));
+
 // ─── Cleanup + restore ──────────────────────────────────────────────────
 dl_t_cleanup($db, $seedBranchIds, $seedProductIds, $seedRuleIds);
 
