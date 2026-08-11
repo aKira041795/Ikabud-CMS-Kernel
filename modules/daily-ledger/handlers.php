@@ -6006,6 +6006,7 @@ function handleAdminVariances(array $params = []): void
         'view_mode'     => $viewMode,
         'is_supervisor' => $isSupervisor,
         'supervisor_branch_ids' => $supervisorBranchIds,
+        'can_manage_variances' => in_array($role, ['admin', 'supervisor'], true),
         // Aggregate stats
         'stats_total'        => $statsTotal,
         'stats_unreviewed'   => $statsUnreviewed,
@@ -7991,7 +7992,7 @@ function apiDeleteUser(array $params = []): void
     $userId = (int)($input['user_id'] ?? 0);
     $role   = (string)($input['role'] ?? '');
 
-    if ($userId <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
+    if ($userId <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge', 'auditor', 'viewer'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
         return;
     }
@@ -8057,7 +8058,7 @@ function apiRestoreUser(array $params = []): void
     $userId = (int)($input['user_id'] ?? 0);
     $role   = (string)($input['role'] ?? '');
 
-    if ($userId <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
+    if ($userId <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge', 'auditor', 'viewer'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
         return;
     }

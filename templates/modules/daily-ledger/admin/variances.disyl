@@ -323,6 +323,7 @@
     </div>
 
     <!-- Bulk action bar -->
+    {if can_manage_variances}
     <div class="variance-bulk-bar" :class="{ 'variance-bulk-bar--visible': selectedIds.length > 0 }">
         <span x-text="selectedIds.length + ' selected'"></span>
         <button class="btn btn-sm btn-outline" @click="bulkUpdateStatus('investigated')">
@@ -333,6 +334,7 @@
         </button>
         <button class="btn btn-sm btn-outline" @click="selectedIds = []">Clear selection</button>
     </div>
+    {/if}
 
     {if variances | length == 0}
     <div class="card">
@@ -387,7 +389,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th class="w-8"><input type="checkbox" @change="toggleBranch($event, '{bg.branch_id}')"></th>
+                            {if can_manage_variances}<th class="w-8"><input type="checkbox" @change="toggleBranch($event, '{bg.branch_id}')"></th>{/if}
                             <th>Date</th>
                             <th>Flag</th>
                             <th>Product</th>
@@ -401,7 +403,7 @@
                     <tbody>
                         {foreach bg.items as v}
                         <tr>
-                            <td><input type="checkbox" value="{v.id}" x-model="selectedIds"></td>
+                            {if can_manage_variances}<td><input type="checkbox" value="{v.id}" x-model="selectedIds"></td>{/if}
                             <td class="text-sm">
                                 <div>{v.ledger_date}</div>
                                 <div class="text-xs text-gray-400">Flag #{v.id}</div>
@@ -419,6 +421,7 @@
                                 </span>
                             </td>
                             <td>
+                                {if can_manage_variances}
                                 <select class="form-input mt-0 w-auto text-xs py-0.5 px-1.5"
                                         data-id="{v.id}"
                                         onchange="updateVarianceStatus(this)"
@@ -427,6 +430,16 @@
                                     <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
                                     <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
                                 </select>
+                                {else}
+                                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
+                                    {if v.resolution_status == 'unreviewed'}bg-amber-50 text-amber-700 ring-amber-200{/if}
+                                    {if v.resolution_status == 'investigated'}bg-sky-50 text-sky-700 ring-sky-200{/if}
+                                    {if v.resolution_status == 'corrected'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}">
+                                    {if v.resolution_status == 'unreviewed'}Unreviewed{/if}
+                                    {if v.resolution_status == 'investigated'}Investigated{/if}
+                                    {if v.resolution_status == 'corrected'}Corrected{/if}
+                                </span>
+                                {/if}
                             </td>
                             <td class="text-xs text-gray-500">
                                 <div>{v.reviewer_name}</div>
@@ -452,7 +465,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th class="w-8"><input type="checkbox" @change="toggleAll($event)"></th>
+                            {if can_manage_variances}<th class="w-8"><input type="checkbox" @change="toggleAll($event)"></th>{/if}
                             <th>Date</th>
                             <th>Branch</th>
                             <th>Flag</th>
@@ -468,7 +481,7 @@
                     <tbody>
                         {foreach variances as v}
                         <tr>
-                            <td><input type="checkbox" value="{v.id}" x-model="selectedIds"></td>
+                            {if can_manage_variances}<td><input type="checkbox" value="{v.id}" x-model="selectedIds"></td>{/if}
                             <td class="text-sm">
                                 <div>{v.ledger_date}</div>
                                 <div class="text-xs text-gray-400">Flag #{v.id}</div>
@@ -490,6 +503,7 @@
                                 </span>
                             </td>
                             <td>
+                                {if can_manage_variances}
                                 <select class="form-input mt-0 w-auto text-xs py-0.5 px-1.5"
                                         data-id="{v.id}"
                                         onchange="updateVarianceStatus(this)"
@@ -498,6 +512,16 @@
                                     <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
                                     <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
                                 </select>
+                                {else}
+                                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
+                                    {if v.resolution_status == 'unreviewed'}bg-amber-50 text-amber-700 ring-amber-200{/if}
+                                    {if v.resolution_status == 'investigated'}bg-sky-50 text-sky-700 ring-sky-200{/if}
+                                    {if v.resolution_status == 'corrected'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}">
+                                    {if v.resolution_status == 'unreviewed'}Unreviewed{/if}
+                                    {if v.resolution_status == 'investigated'}Investigated{/if}
+                                    {if v.resolution_status == 'corrected'}Corrected{/if}
+                                </span>
+                                {/if}
                             </td>
                             <td class="text-sm text-muted">{v.reviewer_name}</td>
                             <td class="text-xs text-gray-500">{if v.reviewed_at}{v.reviewed_at}{else}—{/if}</td>
