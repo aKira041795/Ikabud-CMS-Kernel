@@ -76,6 +76,7 @@ $actions = dl_allPermissionActions();
 $h->test('returns array', is_array($actions));
 $h->test('contains ledger.override', in_array('ledger.override', $actions, true));
 $h->test('contains production.override', in_array('production.override', $actions, true));
+$h->test('contains delivery.edit', in_array('delivery.edit', $actions, true));
 
 // ─── dl_defaultRolePermissions — role defaults ──────────────────
 $h->section('dl_defaultRolePermissions — role defaults');
@@ -84,11 +85,16 @@ $defaults = dl_defaultRolePermissions();
 $h->test('returns array', is_array($defaults));
 $h->test('admin has ledger.override', in_array('ledger.override', $defaults['admin'] ?? [], true));
 $h->test('admin has production.override', in_array('production.override', $defaults['admin'] ?? [], true));
-$h->test('supervisor has no overrides', ($defaults['supervisor'] ?? []) === []);
-$h->test('cashier has no overrides', ($defaults['cashier'] ?? []) === []);
+$h->test('supervisor has no ledger/production overrides', count(array_intersect(['ledger.override', 'production.override'], $defaults['supervisor'] ?? [])) === 0);
+$h->test('cashier has no ledger/production overrides', count(array_intersect(['ledger.override', 'production.override'], $defaults['cashier'] ?? [])) === 0);
 $h->test('production_in_charge has no overrides', ($defaults['production_in_charge'] ?? []) === []);
 $h->test('auditor has no overrides', ($defaults['auditor'] ?? []) === []);
 $h->test('viewer has no overrides', ($defaults['viewer'] ?? []) === []);
+$h->test('cashier default POS grant is sell-only', ($defaults['cashier'] ?? []) === ['pos.sell']);
+$h->test('supervisor default includes pos.fallback', in_array('pos.fallback', $defaults['supervisor'] ?? [], true));
+$h->test('admin default includes delivery.edit', in_array('delivery.edit', $defaults['admin'] ?? [], true));
+$h->test('supervisor default includes delivery.edit', in_array('delivery.edit', $defaults['supervisor'] ?? [], true));
+$h->test('cashier default has no delivery.edit', !in_array('delivery.edit', $defaults['cashier'] ?? [], true));
 $h->test('auditor role exists in defaults', array_key_exists('auditor', $defaults));
 $h->test('viewer role exists in defaults', array_key_exists('viewer', $defaults));
 

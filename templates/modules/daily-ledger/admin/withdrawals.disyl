@@ -96,6 +96,9 @@
                             {w.withdrawal_type_label}
                             {if w.reason_code_label} — {w.reason_code_label}{/if}
                         </span>
+                        {if w.custom_reason}
+                        <div class="mt-1 text-xs text-gray-600">“{w.custom_reason}”</div>
+                        {/if}
                     </td>
                     <td class="text-sm text-gray-600">{if w.liable_user_name}{w.liable_user_name}{else}—{/if}</td>
                     <td class="text-sm text-gray-600">{w.cashier_name|default:'—'}</td>

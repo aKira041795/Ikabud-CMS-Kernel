@@ -267,6 +267,15 @@
                 </a>
                 {/if}
 
+                {if feature_pos && (user_role == 'cashier' || user_role == 'supervisor' || user_role == 'admin')}
+                <a href="{base_url}/pos"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'pos'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Point of Sale">
+                    <i class="fas fa-cash-register w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>POS</span>
+                </a>
+                {/if}
+
                 {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor' || user_role == 'viewer'}
                 <a href="{base_url}/admin/overview"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'overview'}bg-white/10 ring-1 ring-white/10{/if}"
@@ -290,6 +299,15 @@
                     <i class="fas fa-chart-bar w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
                 </a>
+
+                {if feature_pos}
+                <a href="{base_url}/admin/pos-sales"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'pos_sales'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="POS Sales">
+                    <i class="fas fa-receipt w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>POS Sales</span>
+                </a>
+                {/if}
 
                 <a href="{base_url}/admin/variances"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'variances'}bg-white/10 ring-1 ring-white/10{/if}"

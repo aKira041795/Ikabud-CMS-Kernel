@@ -66,6 +66,20 @@ return [
 
         // Phase F: branch consolidated summary
         '/daily-ledger/api/v1/admin/branch-summary' => 'daily-ledger:apiBranchConsolidatedSummary',
+
+        // POS: cashier screen + receipt + admin reporting
+        '/daily-ledger/pos'                          => 'daily-ledger:handleCashierPos',
+        '/daily-ledger/pos/receipt'                  => 'daily-ledger:handlePosReceipt',
+        '/daily-ledger/admin/pos-sales'              => 'daily-ledger:handleAdminPosSales',
+        '/daily-ledger/admin/pos-sales/export'       => 'daily-ledger:handleAdminPosSalesExport',
+
+        // POS: APIs
+        '/daily-ledger/api/v1/pos/state'             => 'daily-ledger:apiPosState',
+        '/daily-ledger/api/v1/pos/sales'             => 'daily-ledger:apiPosSalesList',
+        '/daily-ledger/api/v1/pos/sales/detail'      => 'daily-ledger:apiPosSaleDetail',
+
+        // Cashier: current items of a paper-DR delivery (edit-by-DR prefetch)
+        '/daily-ledger/api/v1/cashier/ledger/delivery-detail' => 'daily-ledger:apiGetDeliveryByDrForEdit',
     ],
     'POST' => [
         // Module-owned login (namespaced)
@@ -89,6 +103,8 @@ return [
         '/daily-ledger/api/v1/cashier/ledger/receive-delivery' => 'daily-ledger:apiReceiveDelivery',
         // Cashier: capture and receive a missing delivery from paper DR
         '/daily-ledger/api/v1/cashier/ledger/receive-paper-dr' => 'daily-ledger:apiReceivePaperDelivery',
+        // Cashier: edit an existing stock delivery by DR (missed items, qty correction)
+        '/daily-ledger/api/v1/cashier/ledger/delivery-edit' => 'daily-ledger:apiEditDeliveryByDr',
 
         // Admin: reopen day
         '/daily-ledger/api/v1/admin/reopen-day'          => 'daily-ledger:apiReopenDay',
@@ -132,6 +148,7 @@ return [
         '/daily-ledger/api/v1/deliveries/post'            => 'daily-ledger:apiPostDelivery',
         '/daily-ledger/api/v1/deliveries/review-provenance' => 'daily-ledger:apiReviewDeliveryProvenance',
         '/daily-ledger/api/v1/deliveries/void'            => 'daily-ledger:apiVoidDelivery',
+        '/daily-ledger/api/v1/admin/deliveries/change-destination' => 'daily-ledger:apiChangeDeliveryDestination',
 
         // Phase B: branch receivings
         '/daily-ledger/api/v1/receivings/create'          => 'daily-ledger:apiCreateReceiving',
@@ -143,6 +160,15 @@ return [
         '/daily-ledger/api/v1/admin/price-groups/update'  => 'daily-ledger:apiPriceGroupUpdate',
         '/daily-ledger/api/v1/admin/price-groups/assign-branch' => 'daily-ledger:apiPriceGroupAssignBranch',
         '/daily-ledger/api/v1/admin/product-prices'       => 'daily-ledger:apiProductPriceUpsert',
+
+        // POS: mode selection, cart, checkout, lifecycle, fallback
+        '/daily-ledger/api/v1/pos/mode/select'       => 'daily-ledger:apiPosSelectMode',
+        '/daily-ledger/api/v1/pos/cart/save'         => 'daily-ledger:apiPosSaveCart',
+        '/daily-ledger/api/v1/pos/cart/abandon'      => 'daily-ledger:apiPosAbandonCart',
+        '/daily-ledger/api/v1/pos/checkout'          => 'daily-ledger:apiPosCheckout',
+        '/daily-ledger/api/v1/pos/sales/void'        => 'daily-ledger:apiPosVoidSale',
+        '/daily-ledger/api/v1/pos/sales/refund'      => 'daily-ledger:apiPosRefundSale',
+        '/daily-ledger/api/v1/pos/fallback'          => 'daily-ledger:apiPosFallbackCheckpoint',
 
     ],
 ];

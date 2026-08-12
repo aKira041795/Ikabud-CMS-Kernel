@@ -49,6 +49,12 @@
                         </div>
                     </div>
 
+                    <div class="mb-4" x-show="header.reason_code === 'other'">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Custom Reason <span class="text-rose-500">*</span></label>
+                        <input type="text" x-model="header.custom_reason" maxlength="255" class="form-input mt-0 w-full" placeholder="Describe the reason for this adjustment">
+                        <p class="mt-1 text-xs text-gray-500">Required when Reason Code is "Other". Shown in the Adjustment Log.</p>
+                    </div>
+
                     <div class="mb-4" x-show="header.withdrawal_type === 'adjustment_add'">
                         <label class="block text-xs font-medium text-gray-700 mb-1">Charge to <span class="text-rose-500">*</span></label>
                         <select x-model="header.liable_user_id" class="form-input mt-0 w-full">
@@ -129,13 +135,13 @@ function withdrawalModal() {
         isOpen: false,
         saving: false,
         errorMsg: '',
-        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '' },
+        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' },
         lines: [],
         products: [],
 
         openModal() {
             this.errorMsg = '';
-            this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '' };
+            this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' };
             this.lines = [{ product_id: '', quantity: '' }];
             this.loadProducts();
             this.isOpen = true;
@@ -169,6 +175,10 @@ function withdrawalModal() {
                 this.errorMsg = 'Reason code is required.';
                 return false;
             }
+            if (this.header.reason_code === 'other' && (!this.header.custom_reason || String(this.header.custom_reason).trim() === '')) {
+                this.errorMsg = 'A custom reason is required when Reason is Other.';
+                return false;
+            }
             if (this.header.withdrawal_type === 'adjustment_add' && (!this.header.liable_user_id || String(this.header.liable_user_id).trim() === '')) {
                 this.errorMsg = 'Charge to (liable person) is required for Add Stock adjustments.';
                 return false;
@@ -191,6 +201,7 @@ function withdrawalModal() {
                 header: {
                     withdrawal_type: this.header.withdrawal_type,
                     reason_code: this.header.reason_code || 'manual_adjustment',
+                    custom_reason: this.header.reason_code === 'other' ? (this.header.custom_reason || '').trim() : '',
                     liable_user_id: this.header.withdrawal_type === 'adjustment_add' ? parseInt(this.header.liable_user_id) || null : null
                 },
                 lines: validLines.map(function(l) {

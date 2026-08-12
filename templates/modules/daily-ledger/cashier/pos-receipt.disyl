@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{page_title}</title>
+<style>
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #111; margin: 0; padding: 1rem; }
+    .receipt { max-width: 320px; margin: 0 auto; }
+    .center { text-align: center; }
+    .line { display: flex; justify-content: space-between; font-size: .85rem; padding: .1rem 0; }
+    .rule { border-top: 1px dashed #444; margin: .5rem 0; }
+    .total { font-weight: 700; font-size: 1rem; }
+    .badge { display: inline-block; border: 1px solid #444; border-radius: 4px; padding: 0 .4rem; font-size: .7rem; }
+    .actions { text-align: center; margin: 1rem 0; }
+    .actions button, .actions a { font-size: .9rem; padding: .4rem 1rem; }
+    @media print { .actions { display: none; } }
+</style>
+</head>
+<body>
+<div class="receipt" data-wb-component="pos-receipt">
+    <div class="center">
+        <strong>{sale.branch_name}</strong><br>
+        <span>{app_name}</span><br>
+        <span>Receipt {sale.receipt_no}</span><br>
+        <span>{sale.ledger_date} · {sale.completed_at}</span><br>
+        <span>Cashier: {sale.cashier_name}</span>
+    </div>
+    <div class="center" style="margin-top:.4rem">
+        {if sale.sale_kind == 'refund'}
+        <span class="badge">REFUND</span>
+        {/if}
+        {if sale.status == 'voided'}
+        <span class="badge">VOIDED</span>
+        {/if}
+    </div>
+    <div class="rule"></div>
+    {foreach sale.items as item}
+    <div class="line"><span>{item.name} × {item.quantity}</span><span>{item.line_total | number_format:2}</span></div>
+    {/foreach}
+    <div class="rule"></div>
+    <div class="line"><span>Subtotal</span><span>{sale.subtotal | number_format:2}</span></div>
+    {if sale.discount > 0}
+    <div class="line"><span>Discount</span><span>-{sale.discount | number_format:2}</span></div>
+    {/if}
+    {if sale.tax > 0}
+    <div class="line"><span>Tax</span><span>{sale.tax | number_format:2}</span></div>
+    {/if}
+    <div class="line total"><span>Total</span><span>PHP {sale.total | number_format:2}</span></div>
+    <div class="rule"></div>
+    {foreach sale.payments as payment}
+    <div class="line"><span>{payment.method}</span><span>{payment.tendered | number_format:2}</span></div>
+    {if payment.change > 0}
+    <div class="line"><span>Change</span><span>{payment.change | number_format:2}</span></div>
+    {/if}
+    {/foreach}
+    <div class="rule"></div>
+    <div class="center" style="font-size:.75rem">{sale.sale_uuid}</div>
+</div>
+<div class="actions">
+    <button type="button" onclick="window.print()">Print</button>
+    <a href="{base_url}/pos">Back to POS</a>
+</div>
+</body>
+</html>

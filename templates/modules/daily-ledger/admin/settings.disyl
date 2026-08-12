@@ -180,6 +180,25 @@
                 {/if}
             </div>
 
+            <div>
+                <p class="text-sm text-gray-700 font-medium">Point of Sale (POS)</p>
+                <p class="mt-1 text-sm text-gray-500">Itemized cashier POS transactions with receipts. When OFF, only the manual stock ledger is available.</p>
+            </div>
+            <div>
+                {if can_manage_feature_activation}
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="feature-pos" {if pos_enabled}checked{/if}>
+                    Enable POS
+                </label>
+                <p class="mt-2 text-sm text-gray-500">Enabling POS makes it available to cashiers granted the pos.sell permission.</p>
+                {/if}
+                {if !can_manage_feature_activation}
+                <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if pos_enabled}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !pos_enabled}bg-gray-100 text-gray-700 ring-gray-300{/if}">
+                    POS is {if pos_enabled}Enabled{/if}{if !pos_enabled}Disabled{/if}
+                </div>
+                {/if}
+            </div>
+
         </div>
     </div>
 </div>
@@ -197,11 +216,18 @@
                         <th>Role</th>
                         <th>Ledger Override</th>
                         <th>Production Override</th>
+                        <th>Edit Stock Delivery by DR</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td class="font-medium">Admin</td>
+                        <td>
+                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" checked disabled>
+                                Always allowed
+                            </label>
+                        </td>
                         <td>
                             <label class="inline-flex items-center gap-2 text-sm text-gray-700">
                                 <input type="checkbox" checked disabled>
@@ -229,6 +255,27 @@
                                 Allow production reverse/override
                             </label>
                         </td>
+                        <td>
+                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" id="perm-supervisor-delivery-edit" {if perm_supervisor_delivery_edit}checked{/if}>
+                                Allow editing stock deliveries by DR (missed items, qty correction)
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="font-medium">Cashier</td>
+                        <td>
+                            <span class="text-xs text-gray-400">Not applicable</span>
+                        </td>
+                        <td>
+                            <span class="text-xs text-gray-400">Not applicable</span>
+                        </td>
+                        <td>
+                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" id="perm-cashier-delivery-edit" {if perm_cashier_delivery_edit}checked{/if}>
+                                Allow editing stock deliveries by DR (missed items, qty correction)
+                            </label>
+                        </td>
                     </tr>
                     <tr>
                         <td class="font-medium">Production in-charge</td>
@@ -243,6 +290,9 @@
                                 <input type="checkbox" id="perm-prod-production" {if perm_prod_production_override}checked{/if}>
                                 Allow production reverse/override
                             </label>
+                        </td>
+                        <td>
+                            <span class="text-xs text-gray-400">Not applicable</span>
                         </td>
                     </tr>
                 </tbody>
@@ -619,6 +669,8 @@
             reset_second_phrase_enabled: document.getElementById('reset-second-phrase-enabled').checked,
             supervisor_ledger_override: document.getElementById('perm-supervisor-ledger').checked,
             supervisor_production_override: document.getElementById('perm-supervisor-production').checked,
+            supervisor_delivery_edit: document.getElementById('perm-supervisor-delivery-edit').checked,
+            cashier_delivery_edit: document.getElementById('perm-cashier-delivery-edit').checked,
             prod_ledger_override: document.getElementById('perm-prod-ledger').checked,
             prod_production_override: document.getElementById('perm-prod-production').checked
         };
@@ -641,6 +693,10 @@
         var featurePriceGroups = document.getElementById('feature-price-groups');
         if (featurePriceGroups) {
             payload.price_groups_enabled = featurePriceGroups.checked;
+        }
+        var featurePos = document.getElementById('feature-pos');
+        if (featurePos) {
+            payload.pos_enabled = featurePos.checked;
         }
 
         var appNameInput = document.getElementById('app-name');

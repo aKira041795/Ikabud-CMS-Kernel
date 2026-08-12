@@ -19,6 +19,7 @@ ob_end_clean();
 
 $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/handlers-deliveries.php');
+$h->fingerprint('modules/daily-ledger/handlers-pos.php');
 $h->fingerprint('modules/daily-ledger/helpers.php');
 
 $base = $h->basePath();
@@ -119,6 +120,11 @@ $h->test('dl_allPermissionActions returns array', is_array($actions));
 $h->test('dl_allPermissionActions not empty', !empty($actions));
 $h->test('dl_allPermissionActions contains ledger.override', in_array('ledger.override', $actions, true));
 $h->test('dl_allPermissionActions contains production.override', in_array('production.override', $actions, true));
+$h->test('dl_allPermissionActions contains pos.sell', in_array('pos.sell', $actions, true));
+$h->test('dl_allPermissionActions contains pos.void', in_array('pos.void', $actions, true));
+$h->test('dl_allPermissionActions contains pos.refund', in_array('pos.refund', $actions, true));
+$h->test('dl_allPermissionActions contains pos.fallback', in_array('pos.fallback', $actions, true));
+$h->test('dl_allPermissionActions contains pos.report', in_array('pos.report', $actions, true));
 
 $defaultPerms = dl_defaultRolePermissions();
 $h->test('dl_defaultRolePermissions returns array', is_array($defaultPerms));
@@ -137,6 +143,42 @@ $h->test('dl_isKernelAdmin false for empty array', dl_isKernelAdmin([]) === fals
 $h->test('dl_canManageFeatureActivation true for kernel admin', dl_canManageFeatureActivation(['role' => 'superadmin', 'source' => 'kernel']) === true);
 $h->test('dl_canManageFeatureActivation true for admin', dl_canManageFeatureActivation(['role' => 'admin', 'source' => 'daily-ledger']) === true);
 $h->test('dl_canManageFeatureActivation false for cashier', dl_canManageFeatureActivation(['role' => 'cashier', 'source' => 'daily-ledger']) === false);
+
+// ─── POS Helpers Available (loaded via handlers-pos.php) ───────
+$h->section('POS Helpers Available');
+
+$h->test('dl_isPosEnabled available', function_exists('dl_isPosEnabled'));
+$h->test('dl_pos_salesSummary available', function_exists('dl_pos_salesSummary'));
+$h->test('dl_pos_dayClosePrecheck available', function_exists('dl_pos_dayClosePrecheck'));
+$h->test('dl_pos_selectMode available', function_exists('dl_pos_selectMode'));
+$h->test('dl_pos_checkout available', function_exists('dl_pos_checkout'));
+$h->test('feature settings expose pos_enabled flag', array_key_exists('pos_enabled', dl_featureSettings()));
+$h->test('apiEditDeliveryByDr available', function_exists('apiEditDeliveryByDr'));
+$h->test('apiGetDeliveryByDrForEdit available', function_exists('apiGetDeliveryByDrForEdit'));
+$h->test('dl_canEditDeliveryByDr available', function_exists('dl_canEditDeliveryByDr'));
+$h->test('dl_correctDeliveryByDr available', function_exists('dl_correctDeliveryByDr'));
+$h->test('apiChangeDeliveryDestination available', function_exists('apiChangeDeliveryDestination'));
+$h->test('dl_moveDeliveryToBranch available', function_exists('dl_moveDeliveryToBranch'));
+
+$handlersSource = (string) file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$h->test('custom_reason persisted in withdrawal insert', str_contains($handlersSource, 'custom_reason'));
+$h->test('custom reason required when reason is other', str_contains($handlersSource, 'A custom reason is required when reason is Other.'));
+$h->test('apiSaveRolePermissions persists pos_enabled', str_contains($handlersSource, "'pos_enabled' => \$posEnabled ? '1' : '0'"));
+
+// Regression (developer review): dl_rolePermissions() REPLACES a role's stored
+// permissions on save, so apiSaveRolePermissions must seed each role with its
+// default POS grants or an unrelated settings save silently strips POS access.
+$h->test('settings save seeds admin with POS grants', (bool)preg_match("/'admin' => \[[^]]*'pos\.sell'[^]]*'pos\.report'[^]]*'delivery\.edit'/", $handlersSource));
+$h->test('settings save seeds supervisor with POS grants', (bool)preg_match("/'supervisor' => \[[^]]*'pos\.sell'[^]]*'pos\.report'[^]]*\]/", $handlersSource));
+$h->test('settings save seeds cashier with pos.sell', str_contains($handlersSource, "'cashier' => ['pos.sell']"));
+
+$deliveriesSource = (string) file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
+// Regression: dl_delivery_items has no updated_at column — the edit update must not reference it.
+$h->test('delivery-item edit update avoids updated_at', !str_contains($deliveriesSource, 'dl_delivery_items SET quantity = :qty, updated_at'));
+// Move service requires authority over both branches (excludes single-branch cashiers).
+$h->test('move service enforces dual-branch access', str_contains($deliveriesSource, 'You must be authorized for both the wrong and the correct branch.'));
+// Move service is admin/supervisor gated at the handler.
+$h->test('move endpoint gated to admin/supervisor', str_contains($deliveriesSource, "dlCurrentUser(['admin', 'supervisor'])"));
 
 // ─── Time Validation (pure logic) ───────────────────────────────
 $h->section('Time Validation');

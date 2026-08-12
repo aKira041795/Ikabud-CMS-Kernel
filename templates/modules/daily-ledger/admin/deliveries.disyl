@@ -170,6 +170,9 @@
                                     <button class="btn btn-sm btn-outline" @click="toggleReceiving(d.id)"
                                             x-text="expandedId === d.id ? 'Hide' : 'View Receipt'"></button>
                                 </template>
+                                <template x-if="d.status === 'received' && {if can_change_destination}true{else}false{/if}">
+                                    <button class="btn btn-sm btn-outline" @click="openMoveModal(d)" title="Delivery was received at the wrong branch — repoint it to the correct branch">Move to Correct Branch</button>
+                                </template>
                             </td>
                         </tr>
                         <tr x-show="expandedId === d.id" class="bg-gray-50">
@@ -370,6 +373,48 @@
             </div>
         </div>
     </div>
+
+<!-- Move Delivery to Correct Branch Modal (inside Alpine root so its bindings resolve) -->
+{if can_change_destination}
+<div x-show="moveOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="move-modal-title">
+    <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" @click="moveOpen = false"></div>
+        <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-md sm:p-6">
+            <div>
+                <h3 class="text-lg font-semibold leading-6 text-gray-900" id="move-modal-title">Move Delivery to Correct Branch</h3>
+                <p class="text-sm text-gray-500 mb-4">
+                    The delivery was received at the wrong branch. Its received stock will be reversed
+                    on the wrong branch and re-applied on the correct branch, and the receiving will be
+                    re-created there. The wrong receiving is kept as voided history.
+                </p>
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 mb-4">
+                    Delivery #<span x-text="moveDelivery ? moveDelivery.id : ''"></span>
+                    · DR <span class="font-mono" x-text="moveDelivery ? (moveDelivery.dr_number || '—') : ''"></span>
+                    · currently received at <span class="font-semibold" x-text="moveDelivery ? moveDelivery.destination_label : ''"></span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Correct destination branch *</label>
+                    <select class="form-input" x-model="moveTarget">
+                        <option value="">-- Select the correct branch --</option>
+                        <template x-for="b in moveBranches" :key="b.id">
+                            <option :value="b.id" x-text="b.name + (b.code ? ' (' + b.code + ')' : '')"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reason for correction *</label>
+                    <textarea class="form-input" rows="2" x-model="moveReason" placeholder="e.g. Goods were delivered to the wrong branch — moving to the correct receiving branch."></textarea>
+                </div>
+                <p x-show="moveError" x-text="moveError" class="text-sm text-rose-600 mb-2"></p>
+            </div>
+            <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse border-t border-gray-200 pt-4">
+                <button class="btn btn-primary" @click="moveSubmit()" :disabled="moveSaving" x-text="moveSaving ? 'Moving…' : 'Move Delivery'"></button>
+                <button class="btn btn-outline mr-2" @click="moveOpen = false" :disabled="moveSaving">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+{/if}
 </div>
 {/block}
 
@@ -391,6 +436,13 @@ function deliveriesPage() {
         saving: false,
         expandedId: null,
         receivingCache: {},
+        moveOpen: false,
+        moveSaving: false,
+        moveError: '',
+        moveDelivery: null,
+        moveTarget: '',
+        moveReason: '',
+        moveBranches: [],
         form: {
             origin_type: 'commissary',
             origin_id: '',
@@ -601,8 +653,57 @@ function deliveriesPage() {
             var cache = this.receivingCache[id];
             if (!cache || !cache.items) return false;
             return cache.items.some(function(it) { return it.variance !== 0; });
+        },
+        openMoveModal(d) {
+            this.moveDelivery = d;
+            this.moveTarget = '';
+            this.moveReason = '';
+            this.moveError = '';
+            this.moveBranches = (window.DL_MOVE_BRANCHES || [])
+                .filter(b => String(b.id) !== String(d.destination_id));
+            this.moveOpen = true;
+        },
+        moveSubmit() {
+            if (!this.moveDelivery) { return; }
+            if (!this.moveTarget) { this.moveError = 'Select the correct destination branch.'; return; }
+            if (!String(this.moveReason || '').trim()) { this.moveError = 'A reason is required.'; return; }
+            this.moveSaving = true;
+            this.moveError = '';
+            fetch('{base_url}/api/v1/admin/deliveries/change-destination', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify({
+                    delivery_id: this.moveDelivery.id,
+                    target_branch_id: parseInt(this.moveTarget, 10),
+                    reason: String(this.moveReason || '').trim()
+                })
+            })
+                .then(r => r.json())
+                .then(j => {
+                    this.moveSaving = false;
+                    if (!j.ok) {
+                        this.moveError = j.error || 'Failed to move the delivery.';
+                        return;
+                    }
+                    showToast('Delivery moved to the correct branch', 'success');
+                    this.moveOpen = false;
+                    this.reload();
+                })
+                .catch(() => {
+                    this.moveSaving = false;
+                    this.moveError = 'Network error while moving the delivery.';
+                });
         }
     };
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    try { window.DL_MOVE_BRANCHES = JSON.parse('{branches_json | escape:"js"}'); } catch (e) { window.DL_MOVE_BRANCHES = []; }
+});
 </script>
 {/block}

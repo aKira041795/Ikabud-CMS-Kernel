@@ -1,0 +1,176 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block content}
+<div class="mb-6">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">POS Sales</h2>
+            <p class="text-sm text-gray-500">Itemized POS receipts, voids, and refunds. Manual stock-derived sales are on the Sales report.</p>
+        </div>
+        <a class="btn btn-outline" href="{base_url}/admin/pos-sales/export?branch_id={filter_branch_id}&date_from={filter_date_from}&date_to={filter_date_to}&status={filter_status}&tender={filter_tender}">Export CSV</a>
+    </div>
+</div>
+
+{if !pos_enabled}
+<div class="card"><div class="card-body">
+    <p class="text-sm text-gray-700 font-medium">POS is not enabled for this deployment.</p>
+    <p class="text-sm text-gray-500 mt-1">Enable it under Settings → Enable Point of Sale (POS).</p>
+</div></div>
+{else}
+<form class="card mb-6 print-hide" action="{base_url}/admin/pos-sales" method="GET" onsubmit="return window.dlLoadForm(this)">
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end">
+            <div class="form-group">
+                <label class="form-label">Branch</label>
+                <select class="form-input" name="branch_id">
+                    <option value="">All Branches</option>
+                    {foreach branches as br}
+                    <option value="{br.id}" {if br.id == filter_branch_id}selected{/if}>{br.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">From</label>
+                <input type="date" class="form-input" name="date_from" value="{filter_date_from}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">To</label>
+                <input type="date" class="form-input" name="date_to" value="{filter_date_to}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-input" name="status">
+                    <option value="">All</option>
+                    <option value="completed" {if filter_status == 'completed'}selected{/if}>Completed</option>
+                    <option value="voided" {if filter_status == 'voided'}selected{/if}>Voided</option>
+                    <option value="partially_refunded" {if filter_status == 'partially_refunded'}selected{/if}>Partially refunded</option>
+                    <option value="refunded" {if filter_status == 'refunded'}selected{/if}>Refunded</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Tender</label>
+                <input type="text" class="form-input" name="tender" value="{filter_tender}" placeholder="cash">
+            </div>
+            <button type="submit" class="btn btn-primary">Filter</button>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header">
+        <span>Receipts</span>
+        <span class="text-sm text-muted">{sales | count} rows</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Receipt</th>
+                    <th>Date</th>
+                    <th>Branch</th>
+                    <th>Cashier</th>
+                    <th>Kind</th>
+                    <th>Status</th>
+                    <th>Tenders</th>
+                    <th class="text-right">Total</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {foreach sales as sale}
+                <tr>
+                    <td class="font-mono text-xs">{sale.receipt_no}</td>
+                    <td>{sale.ledger_date}</td>
+                    <td>{sale.branch_name}</td>
+                    <td>{sale.cashier_name}</td>
+                    <td>{sale.sale_kind}</td>
+                    <td>
+                        {if sale.status == 'completed'}
+                        <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">completed</span>
+                        {elseif sale.status == 'voided'}
+                        <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">voided</span>
+                        {else}
+                        <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">{sale.status}</span>
+                        {/if}
+                    </td>
+                    <td class="text-xs">{sale.tenders}</td>
+                    <td class="text-right font-semibold">PHP {sale.total | number_format:2}</td>
+                    <td class="text-right">
+                        <a class="text-indigo-600 text-xs font-semibold" href="{base_url}/pos/receipt?sale_id={sale.id}" target="_blank" rel="noopener">Receipt</a>
+                        {if can_void && sale.status == 'completed' && sale.sale_kind == 'sale'}
+                        <button type="button" class="text-red-600 text-xs font-semibold ml-2" data-action="void" data-sale-id="{sale.id}">Void</button>
+                        {/if}
+                        {if can_refund && (sale.status == 'completed' || sale.status == 'partially_refunded') && sale.sale_kind == 'sale'}
+                        <button type="button" class="text-amber-700 text-xs font-semibold ml-2" data-action="refund" data-sale-id="{sale.id}">Refund</button>
+                        {/if}
+                    </td>
+                </tr>
+                {forelse}
+                <tr><td colspan="9" class="text-center text-gray-500 py-6">No POS receipts match the filters.</td></tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/if}
+{/block}
+
+{block scripts}
+{if pos_enabled}
+<script>
+(function () {
+    function headers() {
+        return {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': (window.DL_CSRF || ''),
+            'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+        };
+    }
+    function post(url, body) {
+        return fetch(url, { method: 'POST', headers: headers(), credentials: 'same-origin', body: JSON.stringify(body) })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); });
+    }
+    document.querySelectorAll('button[data-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var action = btn.getAttribute('data-action');
+            var saleId = parseInt(btn.getAttribute('data-sale-id'), 10) || 0;
+            if (!saleId) { return; }
+            var reason = window.prompt(action === 'void' ? 'Void reason (required):' : 'Refund reason (required):');
+            if (!reason || !reason.trim()) { return; }
+            btn.disabled = true;
+            var url = action === 'void'
+                ? window.DL_BASE + '/api/v1/pos/sales/void'
+                : window.DL_BASE + '/api/v1/pos/sales/refund';
+            var body = { sale_id: saleId, reason: reason.trim() };
+            if (action === 'refund') {
+                // Full refund of every line; partial refunds use the receipt detail flow.
+                fetch(window.DL_BASE + '/api/v1/pos/sales/detail?sale_id=' + saleId, { headers: headers(), credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (detail) {
+                        if (!detail.ok) { throw new Error(detail.error || 'Could not load sale'); }
+                        body.lines = (detail.sale.items || []).map(function (i) { return { product_id: i.product_id, quantity: i.quantity }; });
+                        body.client_operation_key = 'refund-' + saleId + '-' + Date.now();
+                        return post(url, body);
+                    })
+                    .then(function (res) {
+                        btn.disabled = false;
+                        if (!res.ok || !res.body.ok) { window.showToast((res.body && res.body.error) || 'Refund failed', 'error'); return; }
+                        window.showToast('Refund recorded', 'success');
+                        window.refreshMainContent();
+                    })
+                    .catch(function (e) { btn.disabled = false; window.showToast(e.message || 'Refund failed', 'error'); });
+                return;
+            }
+            post(url, body).then(function (res) {
+                btn.disabled = false;
+                if (!res.ok || !res.body.ok) { window.showToast((res.body && res.body.error) || 'Void failed', 'error'); return; }
+                window.showToast('Sale voided', 'success');
+                window.refreshMainContent();
+            }).catch(function () { btn.disabled = false; window.showToast('Request failed', 'error'); });
+        });
+    });
+})();
+</script>
+{/if}
+{/block}

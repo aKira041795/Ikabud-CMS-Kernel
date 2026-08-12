@@ -544,6 +544,7 @@ function dlNormalizeCashierLedgerRenderContext(array $context, string $template,
         'formal_delivery_enabled' => false,
         'commissary_branch_id' => null,
         'commissary_branch_name' => null,
+        'can_edit_delivery' => false,
     ], ['page_title', 'user_name', 'user_role', 'current_page', 'base_url', 'branch_id', 'branch_name', 'ledger_date', 'today', 'day_status', 'branches', 'is_cashier'], $missingKeys, $typeMismatches);
 }
 
@@ -592,6 +593,59 @@ kernelRegisterRenderContextContract('daily-ledger.cashier.rows', [
     'template' => 'modules/daily-ledger/cashier/partials/ledger-rows.disyl',
     'priority' => 20,
     'normalize' => 'dlNormalizeCashierRowsRenderContext',
+    'log_event' => 'daily-ledger.render_context.contract_mismatch',
+]);
+
+function dlNormalizeCashierPosRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'Point of Sale',
+        'user_name' => '',
+        'user_role' => '',
+        'current_page' => 'pos',
+        'base_url' => '',
+        'dl_token' => '',
+        'csrf_token' => '',
+        'branch_id' => 0,
+        'branch_name' => '',
+        'ledger_date' => '',
+        'day_status' => 'open',
+        'pos_enabled' => false,
+        'can_sell' => false,
+        'can_void' => false,
+        'can_refund' => false,
+        'can_fallback' => false,
+        'sales_mode' => 'manual',
+        'mode_decided' => false,
+        'mode_version' => 0,
+        'summary' => null,
+    ], ['page_title', 'user_name', 'user_role', 'current_page', 'base_url', 'branch_id', 'ledger_date', 'day_status'], $missingKeys, $typeMismatches);
+}
+
+function dlNormalizePosReceiptRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'Receipt',
+        'user_name' => '',
+        'user_role' => '',
+        'current_page' => 'pos',
+        'base_url' => '',
+        'dl_token' => '',
+        'sale' => [],
+    ], ['page_title', 'sale'], $missingKeys, $typeMismatches);
+}
+
+kernelRegisterRenderContextContract('daily-ledger.cashier.pos', [
+    'template' => 'modules/daily-ledger/cashier/pos.disyl',
+    'priority' => 20,
+    'normalize' => 'dlNormalizeCashierPosRenderContext',
+    'log_event' => 'daily-ledger.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('daily-ledger.cashier.pos_receipt', [
+    'template' => 'modules/daily-ledger/cashier/pos-receipt.disyl',
+    'priority' => 20,
+    'normalize' => 'dlNormalizePosReceiptRenderContext',
     'log_event' => 'daily-ledger.render_context.contract_mismatch',
 ]);
 

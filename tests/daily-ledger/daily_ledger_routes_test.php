@@ -82,6 +82,7 @@ $hasProductionApiPost = false;
 $hasDeliveryApiPost = false;
 $hasReceivingApiPost = false;
 $hasCommissaryApiPost = false;
+$hasPosApiPost = false;
 
 foreach ($postPaths as $path) {
     if (str_starts_with($path, '/daily-ledger/auth/')) $hasAuthPost = true;
@@ -91,6 +92,7 @@ foreach ($postPaths as $path) {
     if (str_starts_with($path, '/daily-ledger/api/v1/deliveries')) $hasDeliveryApiPost = true;
     if (str_starts_with($path, '/daily-ledger/api/v1/receivings')) $hasReceivingApiPost = true;
     if (str_starts_with($path, '/daily-ledger/api/v1/commissary')) $hasCommissaryApiPost = true;
+    if (str_starts_with($path, '/daily-ledger/api/v1/pos/')) $hasPosApiPost = true;
 }
 
 $h->test('Auth POST (login, refresh)', $hasAuthPost);
@@ -100,6 +102,10 @@ $h->test('Production API POST', $hasProductionApiPost);
 $h->test('Delivery API POST', $hasDeliveryApiPost);
 $h->test('Receiving API POST', $hasReceivingApiPost);
 $h->test('Commissary API POST', $hasCommissaryApiPost);
+$h->test('POS API POST', $hasPosApiPost);
+$h->test('Delivery-edit POST route present', isset($postRoutes['/daily-ledger/api/v1/cashier/ledger/delivery-edit']));
+$h->test('Delivery-detail GET route present', isset($getRoutes['/daily-ledger/api/v1/cashier/ledger/delivery-detail']));
+$h->test('Change-destination POST route present', isset($postRoutes['/daily-ledger/api/v1/admin/deliveries/change-destination']));
 
 // ─── Handler Function Mapping ───────────────────────────────────
 $h->section('Handler Function Mapping');

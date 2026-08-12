@@ -15,6 +15,8 @@
                 "/daily-ledger/admin/commissary",
                 "/daily-ledger/admin/dashboard",
                 "/daily-ledger/admin/deliveries",
+                "/daily-ledger/admin/pos-sales",
+                "/daily-ledger/admin/pos-sales/export",
                 "/daily-ledger/admin/price-groups",
                 "/daily-ledger/admin/production-output",
                 "/daily-ledger/admin/products",
@@ -37,6 +39,9 @@
                 "/daily-ledger/api/v1/deliveries",
                 "/daily-ledger/api/v1/deliveries/receiving-detail",
                 "/daily-ledger/api/v1/me",
+                "/daily-ledger/api/v1/pos/sales",
+                "/daily-ledger/api/v1/pos/sales/detail",
+                "/daily-ledger/api/v1/pos/state",
                 "/daily-ledger/api/v1/price-groups",
                 "/daily-ledger/api/v1/product-prices",
                 "/daily-ledger/api/v1/production/destinations",
@@ -48,12 +53,16 @@
                 "/daily-ledger/ledger/rows",
                 "/daily-ledger/login",
                 "/daily-ledger/logout",
-                "/daily-ledger/reset-password"
+                "/daily-ledger/pos",
+                "/daily-ledger/pos/receipt",
+                "/daily-ledger/reset-password",
+                "/daily-ledger/api/v1/cashier/ledger/delivery-detail"
             ],
             "POST": [
                 "/daily-ledger/api/v1/admin/branch-supply-rules",
                 "/daily-ledger/api/v1/admin/branches",
                 "/daily-ledger/api/v1/admin/branches/update",
+                "/daily-ledger/api/v1/admin/deliveries/change-destination",
                 "/daily-ledger/api/v1/admin/dl-users",
                 "/daily-ledger/api/v1/admin/dl-users/delete",
                 "/daily-ledger/api/v1/admin/dl-users/restore",
@@ -72,6 +81,7 @@
                 "/daily-ledger/api/v1/auth/forgot-password",
                 "/daily-ledger/api/v1/auth/reset-password",
                 "/daily-ledger/api/v1/cashier/ledger/close-day",
+                "/daily-ledger/api/v1/cashier/ledger/delivery-edit",
                 "/daily-ledger/api/v1/cashier/ledger/dispatch",
                 "/daily-ledger/api/v1/cashier/ledger/receive-delivery",
                 "/daily-ledger/api/v1/cashier/ledger/receive-paper-dr",
@@ -85,6 +95,13 @@
                 "/daily-ledger/api/v1/deliveries/post",
                 "/daily-ledger/api/v1/deliveries/review-provenance",
                 "/daily-ledger/api/v1/deliveries/void",
+                "/daily-ledger/api/v1/pos/cart/abandon",
+                "/daily-ledger/api/v1/pos/cart/save",
+                "/daily-ledger/api/v1/pos/checkout",
+                "/daily-ledger/api/v1/pos/fallback",
+                "/daily-ledger/api/v1/pos/mode/select",
+                "/daily-ledger/api/v1/pos/sales/refund",
+                "/daily-ledger/api/v1/pos/sales/void",
                 "/daily-ledger/api/v1/production/output",
                 "/daily-ledger/api/v1/production/reverse",
                 "/daily-ledger/api/v1/production/sync-batch",
@@ -130,7 +147,14 @@
             "dl_branch_product_supply_rules",
             "dl_delivery_variance_flags",
             "dl_commissary_product_ledger",
-            "dl_password_resets"
+            "dl_password_resets",
+            "dl_sales_day_modes",
+            "dl_pos_sales",
+            "dl_pos_sale_items",
+            "dl_pos_payments",
+            "dl_pos_sale_events",
+            "dl_pos_fallback_checkpoints",
+            "dl_pos_fallback_checkpoint_items"
         ],
         "capabilities": [
             "entity.get.daily_ledger_entry@1",
@@ -434,6 +458,48 @@
                 "admin"
             ],
             "required_components": []
+        },
+        {
+            "id": "page-daily-ledger-pos",
+            "family": "module-page",
+            "route": "/daily-ledger/pos",
+            "roles": [
+                "cashier",
+                "supervisor",
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "pos-workspace",
+                "pos-receipt-panel"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-pos-receipt",
+            "family": "module-page",
+            "route": "/daily-ledger/pos/receipt",
+            "roles": [
+                "cashier",
+                "supervisor",
+                "admin"
+            ],
+            "required_components": [
+                "pos-receipt"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-pos-sales",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/pos-sales",
+            "roles": [
+                "admin",
+                "supervisor"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "data-table"
+            ]
         }
     ],
     "workflows": [],
@@ -1598,6 +1664,249 @@
                     "category": "http"
                 }
             ]
+        },
+        {
+            "id": "action-daily-ledger-pos-mode-select",
+            "route": "/daily-ledger/api/v1/pos/mode/select",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-pos-cart-save",
+            "route": "/daily-ledger/api/v1/pos/cart/save",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-pos-cart-abandon",
+            "route": "/daily-ledger/api/v1/pos/cart/abandon",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-pos-checkout",
+            "route": "/daily-ledger/api/v1/pos/checkout",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-pos-sale-void",
+            "route": "/daily-ledger/api/v1/pos/sales/void",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-pos-sale-refund",
+            "route": "/daily-ledger/api/v1/pos/sales/refund",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-pos-fallback",
+            "route": "/daily-ledger/api/v1/pos/fallback",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-cashier-delivery-edit",
+            "route": "/daily-ledger/api/v1/cashier/ledger/delivery-edit",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-admin-deliveries-change-destination",
+            "route": "/daily-ledger/api/v1/admin/deliveries/change-destination",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
         }
     ],
     "invariants": [
@@ -1636,6 +1945,24 @@
             "severity": "critical",
             "scope": "data",
             "description": "When formal delivery is enabled, a DR may only be omitted for a server-verified same-location internal release: the destination must be an active commissary configured as local/self-managed production for the product, must not resolve to a distinct supplying commissary, and must be authorized for the actor with the day open. The internal release increments the storefront addtl exactly once, records commissary produced/dispatched, links a dl_production_movements output via commissary_movement_id, stores dr_number = NULL with same_location_internal_release provenance, and never creates a delivery, receiving, or self-delivery. Cross-location output with an empty DR must always be rejected."
+        },
+        {
+            "id": "pos-no-double-count",
+            "severity": "critical",
+            "scope": "data",
+            "description": "POS and stock-derived sales are never summed for the same time segment; summaries expose sales_source, POS total, calculated total, and variance."
+        },
+        {
+            "id": "pos-immutable-receipts",
+            "severity": "critical",
+            "scope": "data",
+            "description": "Completed POS sale lines and payments are append-only; corrections use linked void/refund documents with actor, role, and reason."
+        },
+        {
+            "id": "pos-ledger-fields-untouched",
+            "severity": "critical",
+            "scope": "data",
+            "description": "POS never writes beg_bal, addtl, withdraw, bal_end, or dl_daily_ledger.sales."
         }
     ],
     "scenarios": [
@@ -1643,6 +1970,22 @@
             "id": "navigation-smoke",
             "description": "Owned pages resolve for declared actors and tenants",
             "actions": []
+        },
+        {
+            "id": "scenario-pos-day-lifecycle",
+            "description": "Cashier selects POS mode, completes a cash sale, retries the same idempotency key without double-charging, supervisor voids with reason, day closes with reconciliation.",
+            "actions": [
+                "action-daily-ledger-pos-mode-select",
+                "action-daily-ledger-pos-checkout",
+                "action-daily-ledger-pos-sale-void"
+            ]
+        },
+        {
+            "id": "scenario-pos-fallback-checkpoint",
+            "description": "Supervisor records a complete physical checkpoint mid-day; mode switches to fallback and later POS checkout is rejected.",
+            "actions": [
+                "action-daily-ledger-pos-fallback"
+            ]
         }
     ],
     "environments": {
@@ -1689,14 +2032,17 @@
             "tests/daily-ledger/daily_ledger_routes_test.php",
             "tests/daily-ledger/daily_ledger_handlers_test.php",
             "tests/daily-ledger/daily_ledger_authz_test.php",
-            "tests/daily-ledger/daily_ledger_same_location_release_test.php"
+            "tests/daily-ledger/daily_ledger_same_location_release_test.php",
+            "tests/daily-ledger/daily_ledger_pos_test.php"
         ],
         "browser": [
             "tests/browser/modules/daily-ledger/auth/login.spec.js",
             "tests/browser/modules/daily-ledger/navigation/sidebar-navigation.spec.js",
             "tests/browser/modules/daily-ledger/daily-ledger-contract-verification.spec.js",
             "tests/browser/modules/daily-ledger/ledger/pending-save-scope.spec.js",
-            "tests/browser/modules/daily-ledger/commissary/same-location-release.spec.js"
+            "tests/browser/modules/daily-ledger/commissary/same-location-release.spec.js",
+            "tests/browser/modules/daily-ledger/pos/pos-manual-mode.spec.js",
+            "tests/browser/modules/daily-ledger/pos/pos-checkout.spec.js"
         ]
     },
     "compatibility": {

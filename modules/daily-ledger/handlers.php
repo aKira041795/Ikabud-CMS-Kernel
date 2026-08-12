@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/helpers/entity-views.php';
 require_once __DIR__ . '/handlers-deliveries.php';
+require_once __DIR__ . '/handlers-pos.php';
 
 // Load DiSyL entity view configs
 if (is_dir(__DIR__ . '/helpers/views')) {
@@ -242,16 +243,22 @@ function dl_allPermissionActions(): array
     return [
         'ledger.override',
         'production.override',
+        'pos.sell',
+        'pos.void',
+        'pos.refund',
+        'pos.fallback',
+        'pos.report',
+        'delivery.edit',
     ];
 }
 
 function dl_defaultRolePermissions(): array
 {
     return [
-        'admin' => ['ledger.override', 'production.override'],
-        'supervisor' => [],
+        'admin' => ['ledger.override', 'production.override', 'pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit'],
+        'supervisor' => ['pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit'],
         'production_in_charge' => [],
-        'cashier' => [],
+        'cashier' => ['pos.sell'],
         'auditor' => [],
         'viewer' => [],
     ];
@@ -386,6 +393,7 @@ function dl_featureSettings(): array
         'production_output_enabled' => dl_settingToBool($settings['production_output_enabled'] ?? false),
         'formal_delivery_workflow_enabled' => dl_settingToBool($settings['formal_delivery_workflow_enabled'] ?? false),
         'price_groups_enabled' => dl_settingToBool($settings['price_groups_enabled'] ?? true),
+        'pos_enabled' => dl_settingToBool($settings['pos_enabled'] ?? false),
     ];
 }
 
@@ -2854,6 +2862,10 @@ function handleCashierLedger(array $params = []): void
           ORDER BY role = 'production_in_charge' DESC, name ASC"
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // POS context: feature flag, cashier sell access, and the branch-day sales mode.
+    $posEnabled = dl_isPosEnabled();
+    $posMode = ($branchId && $posEnabled) ? dl_pos_dayMode($ctx->db(), $branchId, $ledgerDate) : ['mode' => 'manual', 'row' => null, 'decided' => false];
+
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -2872,6 +2884,14 @@ function handleCashierLedger(array $params = []): void
         'is_cashier'  => ($role === 'cashier'),
         'reference_only' => $referenceOnly,
         'can_ledger_override' => $canLedgerOverride,
+        'pos_enabled' => $posEnabled,
+        'can_pos_sell' => $posEnabled && dl_pos_userCan($user, 'pos.sell'),
+        'can_edit_delivery' => (function () use ($user) {
+            $r = (string)($user['role'] ?? '');
+            return in_array($r, ['supervisor', 'admin'], true) || dl_roleHasPermission($r, 'delivery.edit');
+        })(),
+        'sales_mode' => (string)$posMode['mode'],
+        'sales_mode_decided' => (bool)$posMode['decided'],
         'business_date_label' => $clockLabel['business_date'],
         'close_of_day_time' => $clockLabel['close_of_day_time'],
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
@@ -3091,6 +3111,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
     $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
+    $customReason = isset($header['custom_reason']) ? trim((string)$header['custom_reason']) : '';
     $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
     $allowedReasons = ['spoilage','staff_meal','sampling','testing','promo','donation','damage','manual_adjustment','other'];
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
@@ -3099,6 +3120,17 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
     if (in_array($type, ['charge','pullout','adjustment_add'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
+    }
+    if ($reasonCode === 'other' && $customReason === '') {
+        $ctx->json(['ok' => false, 'error' => 'A custom reason is required when reason is Other.'], 422);
+        return;
+    }
+    if ($customReason !== '' && mb_strlen($customReason) > 255) {
+        $ctx->json(['ok' => false, 'error' => 'Custom reason must be 255 characters or fewer.'], 422);
+        return;
+    }
+    if ($reasonCode !== 'other') {
+        $customReason = '';
     }
     // adjustment_add requires a liable user
     if ($type === 'adjustment_add' && $liableUserId === null) {
@@ -3137,8 +3169,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $ctx->db()->beginTransaction();
     try {
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, dr_number, target_branch_id, quantity, encoded_by, liable_user_id)
-             VALUES (:bid, :pid, :d, :typ, :rc, :dr, :tbid, :qty, :uid, :luid)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id)
+             VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
@@ -3180,6 +3212,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 ':d' => $date,
                 ':typ' => $type,
                 ':rc' => $reasonCode,
+                ':crc' => $customReason !== '' ? $customReason : null,
                 ':dr' => $drNumber,
                 ':tbid' => $targetBranchId,
                 ':qty' => $qty,
@@ -4697,12 +4730,22 @@ function apiCloseDay(array $params = []): void
     }
 
     try {
+        // POS days have extra close requirements (open carts, variance ack).
+        $posBlock = dl_pos_dayClosePrecheck($ctx->db(), $branchId, $date, $input);
+        if (is_array($posBlock)) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => (string)$posBlock['error'], 'type' => 'error']]));
+            $ctx->json($posBlock, 422);
+            return;
+        }
+
         $stmt = $ctx->db()->prepare(
             'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_by, closed_at)
              VALUES (:bid, :d, \'closed\', :uid, CURRENT_TIMESTAMP)
              ON DUPLICATE KEY UPDATE status = \'closed\', closed_by = :uid2, closed_at = CURRENT_TIMESTAMP'
         );
         $stmt->execute([':bid' => $branchId, ':d' => $date, ':uid' => $userId, ':uid2' => $userId]);
+
+        dl_pos_markModeClosed($ctx->db(), $branchId, $date, $userId);
 
         dl_auditLog('close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", null, ['status' => 'closed']);
 
@@ -5248,6 +5291,36 @@ function handleAdminSales(array $params = []): void
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $clockLabel = dl_operatingClockLabel();
+
+    // POS reconciliation: per-branch sales mode + POS-vs-calculated summary
+    // for the filtered range. Never additive — labels the official source.
+    $posEnabled = dl_isPosEnabled();
+    $posBranchModes = [];
+    $posReconciliation = null;
+    if ($posEnabled && $dateFrom === $dateTo) {
+        foreach ($branches as $b) {
+            $bid = (int)($b['id'] ?? 0);
+            if ($bid > 0) {
+                $posMode = dl_pos_dayMode($ctx->db(), $bid, $dateFrom);
+                $posBranchModes[$bid] = $posMode['mode'];
+            }
+        }
+        if ($branchId > 0) {
+            $posReconciliation = dl_pos_salesSummary($ctx->db(), $branchId, $dateFrom);
+        }
+    }
+
+    // The table below always shows stock-derived rows; when a single branch-day
+    // reconciliation exists, label the OFFICIAL source (which may be POS/fallback).
+    $salesSourceLabel = 'Stock-derived (manual ledger)';
+    if (is_array($posReconciliation)) {
+        $salesSourceLabel = match ($posReconciliation['sales_source'] ?? '') {
+            'pos' => 'POS (completed sales, net of refunds)',
+            'fallback' => 'POS before checkpoint + stock-derived after',
+            default => 'Stock-derived (manual ledger)',
+        };
+    }
+
     echo dlRender('modules/daily-ledger/admin/sales.disyl', [
         'page_title'   => 'Sales Summary',
         'user_name'    => $userName,
@@ -5263,6 +5336,10 @@ function handleAdminSales(array $params = []): void
         'grand_units'  => $grandUnits,
         'grand_amount' => $grandAmount,
         'search'       => $search,
+        'pos_enabled'  => $posEnabled,
+        'pos_branch_modes' => $posBranchModes,
+        'pos_reconciliation' => $posReconciliation,
+        'sales_source_label' => $salesSourceLabel,
         'business_date_label' => $clockLabel['business_date'],
         'close_of_day_time' => $clockLabel['close_of_day_time'],
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
@@ -5476,6 +5553,8 @@ function handleAdminSettings(array $params = []): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'perm_supervisor_ledger_override' => in_array('ledger.override', $permissions['supervisor'] ?? [], true),
         'perm_supervisor_production_override' => in_array('production.override', $permissions['supervisor'] ?? [], true),
+        'perm_supervisor_delivery_edit' => in_array('delivery.edit', $permissions['supervisor'] ?? [], true),
+        'perm_cashier_delivery_edit' => in_array('delivery.edit', $permissions['cashier'] ?? [], true),
         'perm_prod_ledger_override' => in_array('ledger.override', $permissions['production_in_charge'] ?? [], true),
         'perm_prod_production_override' => in_array('production.override', $permissions['production_in_charge'] ?? [], true),
         'auto_close_enabled' => $closeOfDaySettings['auto_close_enabled'],
@@ -5488,6 +5567,7 @@ function handleAdminSettings(array $params = []): void
         'production_output_enabled' => $featureSettings['production_output_enabled'],
         'formal_delivery_workflow_enabled' => $featureSettings['formal_delivery_workflow_enabled'],
         'price_groups_enabled' => $featureSettings['price_groups_enabled'],
+        'pos_enabled' => $featureSettings['pos_enabled'],
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
         'logo_url' => dlLogoUrl(),
         'favicon_url' => dlFaviconUrl(),
@@ -5689,11 +5769,17 @@ function apiSaveRolePermissions(array $params = []): void
         return;
     }
 
+    // Seed each role with its default grants so an unrelated settings save never
+    // silently strips permissions. dl_rolePermissions() REPLACES a role's stored
+    // permissions (it does not merge), so any grant omitted here (e.g. the POS
+    // permissions, which have no settings checkboxes) is lost on save. POS grants
+    // mirror dl_defaultRolePermissions(); delivery.edit for supervisor/cashier is
+    // still controlled by the checkboxes below.
     $permissions = [
-        'admin' => ['ledger.override', 'production.override'],
-        'supervisor' => [],
+        'admin' => ['ledger.override', 'production.override', 'pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit'],
+        'supervisor' => ['pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report'],
         'production_in_charge' => [],
-        'cashier' => [],
+        'cashier' => ['pos.sell'],
         'auditor' => [],
         'viewer' => [],
     ];
@@ -5703,6 +5789,12 @@ function apiSaveRolePermissions(array $params = []): void
     }
     if ($toBool($input['supervisor_production_override'] ?? false)) {
         $permissions['supervisor'][] = 'production.override';
+    }
+    if ($toBool($input['supervisor_delivery_edit'] ?? false)) {
+        $permissions['supervisor'][] = 'delivery.edit';
+    }
+    if ($toBool($input['cashier_delivery_edit'] ?? false)) {
+        $permissions['cashier'][] = 'delivery.edit';
     }
     if ($toBool($input['prod_ledger_override'] ?? false)) {
         $permissions['production_in_charge'][] = 'ledger.override';
@@ -5721,6 +5813,7 @@ function apiSaveRolePermissions(array $params = []): void
     $productionOutputEnabled = $featureSettings['production_output_enabled'];
     $formalDeliveryEnabled = $featureSettings['formal_delivery_workflow_enabled'];
     $priceGroupsEnabled = $featureSettings['price_groups_enabled'];
+    $posEnabled = $featureSettings['pos_enabled'];
     $backupBeforeResetEnabled = $backupSettings['backup_before_reset_enabled'];
     $backupIncludeUsers = $backupSettings['backup_include_users'];
     $backupRetentionDays = $backupSettings['backup_retention_days'];
@@ -5739,6 +5832,7 @@ function apiSaveRolePermissions(array $params = []): void
     foreach ([
         'formal_delivery_workflow_enabled' => &$formalDeliveryEnabled,
         'price_groups_enabled' => &$priceGroupsEnabled,
+        'pos_enabled' => &$posEnabled,
     ] as $key => &$ref) {
         if (array_key_exists($key, $input)) {
             if (!$canManageFeatureActivation) {
@@ -5806,6 +5900,7 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled ? '1' : '0',
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled ? '1' : '0',
         'price_groups_enabled' => $priceGroupsEnabled ? '1' : '0',
+        'pos_enabled' => $posEnabled ? '1' : '0',
         'backup_before_reset_enabled' => $backupBeforeResetEnabled ? '1' : '0',
         'backup_include_users' => $backupIncludeUsers ? '1' : '0',
         'backup_retention_days' => (string)$backupRetentionDays,
@@ -5831,6 +5926,7 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
+        'pos_enabled' => $posEnabled,
         'backup_before_reset_enabled' => $backupBeforeResetEnabled,
         'backup_include_users' => $backupIncludeUsers,
         'backup_retention_days' => $backupRetentionDays,
@@ -5857,6 +5953,7 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
+        'pos_enabled' => $posEnabled,
     ]);
 }
 
@@ -9847,7 +9944,7 @@ function handleAdminWithdrawals(): void
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
 
     $sql = 'SELECT cw.id, cw.ledger_date, cw.created_at, cw.withdrawal_type, cw.reason_code,
-                   cw.quantity, cw.dr_number, cw.liable_user_id,
+                   cw.custom_reason, cw.quantity, cw.dr_number, cw.liable_user_id,
                    p.name AS product_name,
                    b.name AS branch_name,
                    b.area AS branch_area,
@@ -9882,7 +9979,7 @@ function handleAdminWithdrawals(): void
         $executeBind[':cid'] = $commissaryId;
     }
     if ($search !== '') {
-        $sql .= ' AND (p.name LIKE :q OR b.name LIKE :q_branch OR COALESCE(cb.name, \'\') LIKE :q_commissary OR COALESCE(lu.full_name, \'\') LIKE :q_liable OR COALESCE(u.full_name, u.username, \'\') LIKE :q_cashier OR COALESCE(cw.reason_code, \'\') LIKE :q_reason OR COALESCE(cw.dr_number, \'\') LIKE :q_dr)';
+        $sql .= ' AND (p.name LIKE :q OR b.name LIKE :q_branch OR COALESCE(cb.name, \'\') LIKE :q_commissary OR COALESCE(lu.full_name, \'\') LIKE :q_liable OR COALESCE(u.full_name, u.username, \'\') LIKE :q_cashier OR COALESCE(cw.reason_code, \'\') LIKE :q_reason OR COALESCE(cw.custom_reason, \'\') LIKE :q_custom_reason OR COALESCE(cw.dr_number, \'\') LIKE :q_dr)';
         $like = '%' . $search . '%';
         $executeBind[':q'] = $like;
         $executeBind[':q_branch'] = $like;
@@ -9890,6 +9987,7 @@ function handleAdminWithdrawals(): void
         $executeBind[':q_liable'] = $like;
         $executeBind[':q_cashier'] = $like;
         $executeBind[':q_reason'] = $like;
+        $executeBind[':q_custom_reason'] = $like;
         $executeBind[':q_dr'] = $like;
     }
     $sql .= ' ORDER BY cw.created_at DESC LIMIT 500';
@@ -9914,6 +10012,7 @@ function handleAdminWithdrawals(): void
             $row['reason_code_label'] = trim((string)($row['reason_code'] ?? '')) !== ''
                 ? dlHumanizeToken((string)$row['reason_code'])
                 : '';
+            $row['custom_reason'] = trim((string)($row['custom_reason'] ?? ''));
             $rows[] = $row;
             $totalQuantity += (int)($row['quantity'] ?? 0);
             if (isset($typeCounts[$type])) {

@@ -105,6 +105,8 @@ $h->test('favicon_url declared', in_array('favicon_url', $settingKeys, true));
 $h->test('production_output_enabled declared', in_array('production_output_enabled', $settingKeys, true));
 $h->test('formal_delivery_workflow_enabled declared', in_array('formal_delivery_workflow_enabled', $settingKeys, true));
 $h->test('price_groups_enabled declared', in_array('price_groups_enabled', $settingKeys, true));
+$h->test('pos_enabled declared', in_array('pos_enabled', $settingKeys, true));
+$h->test('pos_allowed_tenders declared', in_array('pos_allowed_tenders', $settingKeys, true));
 $h->test('at least 6 settings declared', count($settings) >= 6);
 
 // ─── Navigation ─────────────────────────────────────────────────
@@ -127,6 +129,8 @@ $h->test('Variances nav present', in_array('/daily-ledger/admin/variances', $nav
 $h->test('Production Output nav present', in_array('/daily-ledger/admin/production-output', $navUrls, true));
 $h->test('Commissary nav present', in_array('/daily-ledger/admin/commissary', $navUrls, true));
 $h->test('Deliveries nav present', in_array('/daily-ledger/admin/deliveries', $navUrls, true));
+$h->test('POS nav present', in_array('/daily-ledger/pos', $navUrls, true));
+$h->test('POS Sales nav present', in_array('/daily-ledger/admin/pos-sales', $navUrls, true));
 $h->test('at least 10 nav items declared', count($navUrls) >= 10);
 
 // ─── Migrations ─────────────────────────────────────────────────
@@ -135,6 +139,7 @@ $h->section('Migrations');
 $migrations = $manifest['migrations'] ?? [];
 $h->test('migrations declared', is_array($migrations) && !empty($migrations));
 $h->test('at least 35 migrations', count($migrations) >= 35);
+$h->test('migration 043 registered', in_array('database/migrations/043_add_adjustment_custom_reason.sql', $migrations, true));
 
 $migrationOk = true;
 foreach ($migrations as $m) {
@@ -154,6 +159,7 @@ $h->section('File Existence');
 $h->test('routes.php exists', is_file($base . '/modules/daily-ledger/routes.php'));
 $h->test('handlers.php exists', is_file($base . '/modules/daily-ledger/handlers.php'));
 $h->test('handlers-deliveries.php exists', is_file($base . '/modules/daily-ledger/handlers-deliveries.php'));
+$h->test('handlers-pos.php exists', is_file($base . '/modules/daily-ledger/handlers-pos.php'));
 $h->test('helpers.php exists', is_file($base . '/modules/daily-ledger/helpers.php'));
 $h->test('helpers/entity-views.php exists', is_file($base . '/modules/daily-ledger/helpers/entity-views.php'));
 $h->test('helpers/views/daily_ledger_entry.disyl exists', is_file($base . '/modules/daily-ledger/helpers/views/daily_ledger_entry.disyl'));

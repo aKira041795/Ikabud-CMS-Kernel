@@ -47,6 +47,19 @@
         <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Reference only</span>
         {/if}
 
+        {if pos_enabled}
+        {if sales_mode == 'pos'}
+        <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-300">Mode: POS</span>
+        {elseif sales_mode == 'fallback'}
+        <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">Mode: Fallback</span>
+        {else}
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Mode: Manual</span>
+        {/if}
+        {if can_pos_sell}
+        <a href="{base_url}/pos" class="btn btn-outline">POS</a>
+        {/if}
+        {/if}
+
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
         <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
     </div>
@@ -114,6 +127,21 @@
             {/if}
         </div>
     </div>
+    {if can_edit_delivery}
+    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
+        <div class="text-sm font-semibold text-sky-900">Correct Delivery by DR</div>
+        <p class="mt-1 text-xs leading-5 text-sky-800">Fix a paper-DR stock delivery — add missed items or correct quantities. Requires the edit-by-DR permission.</p>
+        <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-sky-900 ring-1 ring-inset ring-sky-200">Best for: correcting a delivery captured from a paper DR.</div>
+        <div class="mt-4">
+            {if day_status == 'open' && !reference_only}
+            <button type="button" class="btn btn-outline w-full justify-center" onclick="openEditDeliveryModal()">Open Correct Delivery by DR</button>
+            {/if}
+            {if day_status != 'open' || reference_only}
+            <div class="rounded-lg border border-sky-200 bg-white/70 px-3 py-2 text-xs text-sky-900">Unavailable while this day is closed or in reference-only mode.</div>
+            {/if}
+        </div>
+    </div>
+    {/if}
 </div>
 
 <div class="card">
@@ -157,6 +185,7 @@
 {include "modules/daily-ledger/cashier/modal_patch.disyl"}
 {include "modules/daily-ledger/cashier/dispatch_modal.disyl"}
 {include "modules/daily-ledger/cashier/receive_modal.disyl"}
+{include "modules/daily-ledger/cashier/edit_delivery_modal.disyl"}
 {/block}
 
 {block scripts}
@@ -185,6 +214,9 @@
     };
     window.openWithdrawalModal = function() {
         window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
+    };
+    window.openEditDeliveryModal = function() {
+        window.dispatchEvent(new CustomEvent('open-edit-delivery-modal', { detail: {} }));
     };
 
     // Reload the ledger page in place with the current date/branch selection.
@@ -530,8 +562,15 @@
     function closeDay() {
         if (!confirm('Close this day? Cashiers will no longer be able to edit.')) return;
         var btn = document.getElementById('close-day-btn');
+        closeDayWith(btn, false);
+    }
+
+    function closeDayWith(btn, acknowledgeVariance) {
         btn.disabled = true;
         btn.textContent = 'Closing...';
+
+        var payload = { date: LEDGER_DATE, branch_id: BRANCH_ID };
+        if (acknowledgeVariance) { payload.acknowledge_variance = true; }
 
         fetch(BASE + '/api/v1/cashier/ledger/close-day', {
             method: 'POST',
@@ -541,18 +580,28 @@
                 'X-CSRF-Token': (window.DL_CSRF || ''),
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
-            body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
+            body: JSON.stringify(payload)
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res.ok) {
                 showToast('Day closed successfully');
                 setTimeout(function() { window.refreshMainContent(); }, 800);
-            } else {
-                btn.disabled = false;
-                btn.textContent = 'Close Day';
-                showToast(res.error || 'Failed to close day');
+                return;
             }
+            // POS days with a material variance require an explicit, audited
+            // acknowledgment before the day can close.
+            if (!acknowledgeVariance && res.code === 'POS_VARIANCE_ACK_REQUIRED') {
+                var v = res.summary || {};
+                var amt = v.variance_amount != null ? Number(v.variance_amount).toFixed(2) : '?';
+                if (confirm('POS and stock-derived sales differ by PHP ' + amt + '. Acknowledge the variance to close the day?')) {
+                    closeDayWith(btn, true);
+                    return;
+                }
+            }
+            btn.disabled = false;
+            btn.textContent = 'Close Day';
+            showToast(res.error || 'Failed to close day');
         })
         .catch(function() {
             btn.disabled = false;

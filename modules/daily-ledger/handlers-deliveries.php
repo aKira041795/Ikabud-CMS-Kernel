@@ -1590,6 +1590,601 @@ function apiListReceivings(array $params = []): void
     $ctx->json(['ok' => true, 'receivings' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
 }
 
+// ─── Move a delivery to the correct destination branch ──────────────────
+
+/**
+ * Move a posted stock delivery (and its receiving) to the correct branch.
+ *
+ * Stable, auditable correction for the "DR was received at the wrong branch"
+ * case: the wrong branch's `addtl` is reversed, the wrong receiving is voided
+ * (kept as append-only history), the delivery's destination is updated, and a
+ * fresh receiving is created on the correct branch (applying its `addtl`).
+ * Derived sales are recomputed on both branches. Admin/supervisor only —
+ * the caller must be authorized for BOTH branches.
+ *
+ * $args: delivery_id, target_branch_id, reason, role, actor_id, business_date,
+ *        has_override, accessible (int[] branch ids).
+ * Returns ['ok'=>bool,'status'=>int,'error'=>?string,'delivery_id'=>?int,
+ *          'receiving_id'=>?int,'moved_addtl'=>bool].
+ */
+function dl_moveDeliveryToBranch($db, array $args): array
+{
+    $deliveryId = (int)($args['delivery_id'] ?? 0);
+    $targetBranchId = (int)($args['target_branch_id'] ?? 0);
+    $reason = trim((string)($args['reason'] ?? ''));
+    $role = (string)($args['role'] ?? '');
+    $actorId = (int)($args['actor_id'] ?? 0);
+    $businessDate = (string)($args['business_date'] ?? date('Y-m-d'));
+    $hasOverride = (bool)($args['has_override'] ?? false);
+    $accessible = is_array($args['accessible'] ?? null) ? array_map('intval', $args['accessible']) : [];
+
+    if ($deliveryId <= 0 || $targetBranchId <= 0 || $reason === '') {
+        return ['ok' => false, 'status' => 422, 'error' => 'delivery_id, target_branch_id and reason are required.'];
+    }
+
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare(
+            'SELECT * FROM dl_deliveries
+              WHERE id = :id AND status <> "voided"
+              LIMIT 1 FOR UPDATE'
+        );
+        $stmt->execute([':id' => $deliveryId]);
+        $delivery = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($delivery)) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 404, 'error' => 'Delivery not found.'];
+        }
+        if ((string)$delivery['status'] !== 'posted') {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 409, 'error' => 'Only posted deliveries can be moved.'];
+        }
+        if ((string)$delivery['destination_type'] !== 'branch' || (int)$delivery['destination_id'] <= 0) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 422, 'error' => 'Only deliveries to a branch can be moved.'];
+        }
+        $wrongBranchId = (int)$delivery['destination_id'];
+        if ($targetBranchId === $wrongBranchId) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 422, 'error' => 'The delivery already points to that branch.'];
+        }
+        // Authority over both branches is required (admins: all; supervisors: assigned).
+        if (!in_array($wrongBranchId, $accessible, true) || !in_array($targetBranchId, $accessible, true)) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 403, 'error' => 'You must be authorized for both the wrong and the correct branch.'];
+        }
+        // Target must be an active branch.
+        $targetStmt = $db->prepare('SELECT id FROM dl_branches WHERE id = :id AND is_active = 1 LIMIT 1');
+        $targetStmt->execute([':id' => $targetBranchId]);
+        if ((int)$targetStmt->fetchColumn() <= 0) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 422, 'error' => 'Target branch is not active.'];
+        }
+
+        // Active receiving on the wrong branch (if any).
+        $rcvStmt = $db->prepare(
+            'SELECT * FROM dl_branch_receivings
+              WHERE delivery_id = :did AND status <> "voided" ORDER BY id DESC LIMIT 1'
+        );
+        $rcvStmt->execute([':did' => $deliveryId]);
+        $activeReceiving = $rcvStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $receiveDate = is_array($activeReceiving)
+            ? (string)$activeReceiving['received_ledger_date']
+            : (string)$delivery['delivery_date'];
+
+        // Day checks: both branches' relevant days must be open unless override.
+        if (dl_getDayStatus($wrongBranchId, $receiveDate) === 'closed' && !$hasOverride) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 409, 'error' => 'The wrong branch day is closed.'];
+        }
+        if (dl_getDayStatus($targetBranchId, $receiveDate) === 'closed' && !$hasOverride) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 409, 'error' => 'The target branch day is closed.'];
+        }
+
+        $movedAddtl = false;
+        if (is_array($activeReceiving)) {
+            // Reverse the wrong branch's received stock.
+            $rcvItemsStmt = $db->prepare('SELECT product_id, quantity_received FROM dl_branch_receiving_items WHERE receiving_id = :rid');
+            $rcvItemsStmt->execute([':rid' => (int)$activeReceiving['id']]);
+            foreach ($rcvItemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $it) {
+                $qty = (int)$it['quantity_received'];
+                if ($qty > 0) {
+                    dl_applyLedgerDelta($wrongBranchId, (int)$it['product_id'], $receiveDate, -$qty, $actorId, 'addtl');
+                    dl_recomputeSales($wrongBranchId, (int)$it['product_id'], $receiveDate, max(0, $actorId));
+                }
+            }
+            // Void the wrong receiving (append-only history; status flip only).
+            $db->prepare(
+                'UPDATE dl_branch_receivings SET status = "voided", voided_by = :u, voided_at = NOW() WHERE id = :rid AND status <> "voided"'
+            )->execute([':u' => $actorId > 0 ? $actorId : null, ':rid' => (int)$activeReceiving['id']]);
+            $movedAddtl = true;
+        }
+
+        // Repoint the delivery to the correct branch.
+        $db->prepare(
+            'UPDATE dl_deliveries SET destination_id = :tbid, updated_at = CURRENT_TIMESTAMP WHERE id = :id'
+        )->execute([':tbid' => $targetBranchId, ':id' => $deliveryId]);
+
+        // Create the receiving on the correct branch (applies addtl + variance flags).
+        $newReceivingId = 0;
+        if ($movedAddtl) {
+            $newReceivingId = dl_acceptFormalDelivery($db, $targetBranchId, $deliveryId, $actorId, $receiveDate, null);
+        }
+
+        dl_auditLog('delivery_destination_changed', $wrongBranchId, 'dl_deliveries', (string)$deliveryId, [
+            'destination_type' => 'branch',
+            'destination_id' => $wrongBranchId,
+        ], null, $reason);
+        dl_auditLog('delivery_destination_changed', $targetBranchId, 'dl_deliveries', (string)$deliveryId, null, [
+            'destination_type' => 'branch',
+            'destination_id' => $targetBranchId,
+            'wrong_branch_id' => $wrongBranchId,
+            'receiving_id' => $newReceivingId ?: null,
+        ], $reason);
+
+        $db->commit();
+        return [
+            'ok' => true,
+            'status' => 200,
+            'error' => null,
+            'delivery_id' => $deliveryId,
+            'receiving_id' => $newReceivingId ?: null,
+            'moved_addtl' => $movedAddtl,
+            'wrong_branch_id' => $wrongBranchId,
+            'target_branch_id' => $targetBranchId,
+        ];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) { $db->rollBack(); }
+        write_log('daily-ledger delivery move failed: ' . $e->getMessage(), 'error', ['delivery_id' => $deliveryId]);
+        return ['ok' => false, 'status' => 400, 'error' => $e->getMessage()];
+    }
+}
+
+/**
+ * POST /daily-ledger/api/v1/admin/deliveries/change-destination
+ *
+ * Admin/supervisor only: correct a delivery received at the wrong branch.
+ * The actor must be authorized for both the wrong and the correct branch
+ * (which structurally excludes single-branch cashiers). Reason required.
+ */
+function apiChangeDeliveryDestination(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor']);
+    $role = (string)($user['role'] ?? '');
+
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $deliveryId = (int)($input['delivery_id'] ?? 0);
+    $targetBranchId = (int)($input['target_branch_id'] ?? 0);
+    $reason = trim((string)($input['reason'] ?? ''));
+    if ($deliveryId <= 0 || $targetBranchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'delivery_id and target_branch_id are required.'], 422);
+        return;
+    }
+    if ($reason === '') {
+        $ctx->json(['ok' => false, 'error' => 'A reason is required.'], 422);
+        return;
+    }
+    if (mb_strlen($reason) > 255) {
+        $ctx->json(['ok' => false, 'error' => 'Reason must be 255 characters or fewer.'], 422);
+        return;
+    }
+
+    $result = dl_moveDeliveryToBranch($ctx->db(), [
+        'delivery_id' => $deliveryId,
+        'target_branch_id' => $targetBranchId,
+        'reason' => $reason,
+        'role' => $role,
+        'actor_id' => dl_getActorUserId($user),
+        'business_date' => dl_businessDate(),
+        'has_override' => dl_roleHasPermission($role, 'ledger.override'),
+        'accessible' => dl_accessibleBranchIds($user),
+    ]);
+
+    if (!$result['ok']) {
+        $ctx->json(['ok' => false, 'error' => $result['error']], (int)$result['status']);
+        return;
+    }
+    $ctx->json([
+        'ok' => true,
+        'delivery_id' => (int)$result['delivery_id'],
+        'receiving_id' => $result['receiving_id'] ? (int)$result['receiving_id'] : null,
+        'wrong_branch_id' => (int)$result['wrong_branch_id'],
+        'target_branch_id' => (int)$result['target_branch_id'],
+        'moved_addtl' => (bool)$result['moved_addtl'],
+    ]);
+}
+
+// ─── Edit stock delivery by DR (cashier correction) ─────────────────────
+
+/**
+ * Permission gate for editing stock deliveries by DR. Supervisors and admins
+ * are always allowed; cashiers require the `delivery.edit` grant configured in
+ * Admin Settings → Override Permissions.
+ */
+function dl_canEditDeliveryByDr(array $user): bool
+{
+    $role = (string)($user['role'] ?? '');
+    if (in_array($role, ['supervisor', 'admin'], true)) {
+        return true;
+    }
+    return dl_roleHasPermission($role, 'delivery.edit');
+}
+
+/**
+ * Correct a paper-DR stock delivery (missed items, qty correction).
+ *
+ * Pure transactional service — no HTTP. Adjusts delivery items, the active
+ * receiving's items, and the origin `withdraw` / destination `addtl` ledger
+ * deltas together, then recomputes derived sales. Caller supplies the
+ * authorization/date context; the service re-checks the domain rules
+ * (posted delivery, open day, cashier same-day).
+ *
+ * $args: branch_id, dr_number, reason, desired (pid => qty), role,
+ *        actor_id, business_date, has_override.
+ * Returns ['ok'=>bool,'status'=>int,'error'=>?string,'delivery_id'=>?int,
+ *          'item_count'=>int,'updated'=>int,'removed'=>int].
+ */
+function dl_correctDeliveryByDr($db, array $args): array
+{
+    $branchId = (int)($args['branch_id'] ?? 0);
+    $drNumber = trim((string)($args['dr_number'] ?? ''));
+    $reason = trim((string)($args['reason'] ?? ''));
+    $desired = is_array($args['desired'] ?? null) ? $args['desired'] : [];
+    $role = (string)($args['role'] ?? '');
+    $actorId = (int)($args['actor_id'] ?? 0);
+    $businessDate = (string)($args['business_date'] ?? date('Y-m-d'));
+    $hasOverride = (bool)($args['has_override'] ?? false);
+
+    if ($branchId <= 0 || $drNumber === '' || $reason === '') {
+        return ['ok' => false, 'status' => 422, 'error' => 'branch_id, dr_number and reason are required.'];
+    }
+    if ($desired === []) {
+        return ['ok' => false, 'status' => 422, 'error' => 'At least one valid product is required.'];
+    }
+
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare(
+            'SELECT * FROM dl_deliveries
+              WHERE destination_type = "branch" AND destination_id = :bid AND dr_number = :dr
+                AND status <> "voided"
+              ORDER BY id DESC LIMIT 1 FOR UPDATE'
+        );
+        $stmt->execute([':bid' => $branchId, ':dr' => $drNumber]);
+        $delivery = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($delivery)) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 404, 'error' => 'No stock delivery found for this DR number.'];
+        }
+        if ((string)$delivery['status'] !== 'posted') {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 409, 'error' => 'Only posted deliveries can be edited.'];
+        }
+        $deliveryDate = (string)$delivery['delivery_date'];
+        if ($role === 'cashier' && $deliveryDate !== $businessDate) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 403, 'error' => 'Reference only — cashiers can only edit today\'s delivery.'];
+        }
+
+        $rcvStmt = $db->prepare(
+            'SELECT * FROM dl_branch_receivings
+              WHERE delivery_id = :did AND status <> "voided" ORDER BY id DESC LIMIT 1'
+        );
+        $rcvStmt->execute([':did' => (int)$delivery['id']]);
+        $activeReceiving = $rcvStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $receiveDate = is_array($activeReceiving)
+            ? (string)$activeReceiving['received_ledger_date']
+            : $deliveryDate;
+        if (dl_getDayStatus($branchId, $receiveDate) === 'closed' && !$hasOverride) {
+            $db->rollBack();
+            return ['ok' => false, 'status' => 409, 'error' => 'Day is closed for this delivery.'];
+        }
+
+        $itemsStmt = $db->prepare('SELECT * FROM dl_delivery_items WHERE delivery_id = :did');
+        $itemsStmt->execute([':did' => (int)$delivery['id']]);
+        $existingItems = [];
+        foreach ($itemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $existingItems[(int)$row['product_id']] = $row;
+        }
+
+        $existingReceived = [];
+        if (is_array($activeReceiving)) {
+            $rcvItemsStmt = $db->prepare('SELECT * FROM dl_branch_receiving_items WHERE receiving_id = :rid');
+            $rcvItemsStmt->execute([':rid' => (int)$activeReceiving['id']]);
+            foreach ($rcvItemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $existingReceived[(int)$row['product_id']] = $row;
+            }
+        }
+
+        $priceGroupId = dl_defaultPriceGroupId();
+        $originBranchId = ((string)$delivery['origin_type'] === 'branch' && (int)$delivery['origin_id'] > 0)
+            ? (int)$delivery['origin_id'] : 0;
+
+        $insItem = $db->prepare(
+            'INSERT INTO dl_delivery_items
+                (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+             VALUES (:did, :pid, :qty, "pcs", NULL, :price, :pg, :remarks)'
+        );
+        $updItem = $db->prepare(
+            'UPDATE dl_delivery_items SET quantity = :qty WHERE id = :id'
+        );
+        $delItem = $db->prepare('DELETE FROM dl_delivery_items WHERE id = :id');
+
+        $rcvUpdItem = null;
+        $rcvDelItem = null;
+        $rcvInsItem = null;
+        if (is_array($activeReceiving)) {
+            $rcvUpdItem = $db->prepare(
+                'UPDATE dl_branch_receiving_items SET quantity_received = :qty WHERE id = :id'
+            );
+            $rcvDelItem = $db->prepare('DELETE FROM dl_branch_receiving_items WHERE id = :id');
+            $rcvInsItem = $db->prepare(
+                'INSERT INTO dl_branch_receiving_items
+                    (receiving_id, delivery_item_id, product_id, quantity_received, unit, unit_cost_snapshot, selling_price_snapshot, remarks)
+                 VALUES (:rid, :diid, :pid, :qty, "pcs", NULL, :price, :remarks)'
+            );
+        }
+
+        $updated = [];
+        $removed = [];
+        foreach ($desired as $pid => $qty) {
+            $pid = (int)$pid;
+            $qty = max(0, (int)$qty);
+            $oldQty = (int)($existingItems[$pid]['quantity'] ?? 0);
+            $delta = $qty - $oldQty;
+
+            if ($qty > 0) {
+                if (isset($existingItems[$pid])) {
+                    $updItem->execute([':qty' => $qty, ':id' => (int)$existingItems[$pid]['id']]);
+                    $deliveryItemId = (int)$existingItems[$pid]['id'];
+                } else {
+                    $insItem->execute([
+                        ':did' => (int)$delivery['id'], ':pid' => $pid, ':qty' => $qty,
+                        ':price' => dl_resolveProductPrice($pid, $priceGroupId, $deliveryDate),
+                        ':pg' => $priceGroupId, ':remarks' => 'edited-by-dr',
+                    ]);
+                    $deliveryItemId = (int)$db->lastInsertId();
+                }
+                if (is_array($activeReceiving)) {
+                    if (isset($existingReceived[$pid])) {
+                        $rcvUpdItem->execute([':qty' => $qty, ':id' => (int)$existingReceived[$pid]['id']]);
+                    } else {
+                        $rcvInsItem->execute([
+                            ':rid' => (int)$activeReceiving['id'], ':diid' => $deliveryItemId, ':pid' => $pid,
+                            ':qty' => $qty, ':price' => dl_resolveProductPrice($pid, $priceGroupId, $receiveDate),
+                            ':remarks' => 'edited-by-dr',
+                        ]);
+                    }
+                }
+            } else {
+                if (isset($existingItems[$pid])) {
+                    $delItem->execute([':id' => (int)$existingItems[$pid]['id']]);
+                }
+                if (isset($existingReceived[$pid])) {
+                    $rcvDelItem->execute([':id' => (int)$existingReceived[$pid]['id']]);
+                }
+            }
+
+            if ($delta !== 0) {
+                if ($originBranchId > 0) {
+                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw');
+                }
+                if (is_array($activeReceiving)) {
+                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, $delta, $actorId, 'addtl');
+                }
+                $updated[$pid] = ['old' => $oldQty, 'new' => $qty];
+            }
+        }
+
+        // Remove delivery items that were dropped entirely from the corrected list.
+        foreach (array_keys($existingItems) as $pid) {
+            $pid = (int)$pid;
+            if (array_key_exists($pid, $desired)) {
+                continue;
+            }
+            $oldQty = (int)$existingItems[$pid]['quantity'];
+            $delItem->execute([':id' => (int)$existingItems[$pid]['id']]);
+            if (isset($existingReceived[$pid])) {
+                $rcvDelItem->execute([':id' => (int)$existingReceived[$pid]['id']]);
+            }
+            $removed[$pid] = $oldQty;
+            if ($oldQty !== 0) {
+                if ($originBranchId > 0) {
+                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, -$oldQty, $actorId, 'withdraw');
+                }
+                if (is_array($activeReceiving)) {
+                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, -$oldQty, $actorId, 'addtl');
+                }
+            }
+        }
+
+        foreach ($updated as $pid => $_) {
+            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId)); }
+            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId)); }
+        }
+        foreach ($removed as $pid => $_) {
+            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId)); }
+            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId)); }
+        }
+
+        dl_auditLog('edit_delivery_by_dr', $branchId, 'dl_deliveries', (string)$delivery['id'], null, [
+            'dr_number' => $drNumber,
+            'origin_branch_id' => $originBranchId ?: null,
+            'updated' => $updated,
+            'removed' => $removed,
+            'edited_by_role' => $role,
+        ], $reason);
+
+        $db->commit();
+        return [
+            'ok' => true,
+            'status' => 200,
+            'error' => null,
+            'delivery_id' => (int)$delivery['id'],
+            'item_count' => count($desired),
+            'updated' => count($updated),
+            'removed' => count($removed),
+        ];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) { $db->rollBack(); }
+        write_log('daily-ledger delivery edit by DR failed: ' . $e->getMessage(), 'error', ['dr_number' => $drNumber]);
+        return ['ok' => false, 'status' => 400, 'error' => $e->getMessage()];
+    }
+}
+
+/** GET /daily-ledger/api/v1/cashier/ledger/delivery-detail — current items of a DR delivery. */
+function apiGetDeliveryByDrForEdit(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    if (!dl_canEditDeliveryByDr($user)) {
+        $ctx->json(['ok' => false, 'error' => 'You are not authorized to edit stock deliveries by DR.'], 403);
+        return;
+    }
+    $authResult = dl_authorizeBranch($user, $_GET);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)$authResult['branch_id'];
+    $drNumber = trim((string)($_GET['dr_number'] ?? ''));
+    if ($branchId <= 0 || $drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'branch and dr_number are required.'], 422);
+        return;
+    }
+
+    $stmt = $ctx->db()->prepare(
+        'SELECT d.id, d.dr_number, d.delivery_date, d.origin_type, d.origin_id, d.status
+           FROM dl_deliveries d
+          WHERE d.destination_type = "branch" AND d.destination_id = :bid AND d.dr_number = :dr
+            AND d.status <> "voided"
+          ORDER BY d.id DESC LIMIT 1'
+    );
+    $stmt->execute([':bid' => $branchId, ':dr' => $drNumber]);
+    $delivery = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($delivery)) {
+        $ctx->json(['ok' => false, 'error' => 'No stock delivery found for this DR number.'], 404);
+        return;
+    }
+
+    $itemsStmt = $ctx->db()->prepare(
+        'SELECT di.product_id, p.name AS product_name, p.sku, di.quantity
+           FROM dl_delivery_items di
+           INNER JOIN dl_products p ON p.id = di.product_id
+          WHERE di.delivery_id = :did
+          ORDER BY p.name'
+    );
+    $itemsStmt->execute([':did' => (int)$delivery['id']]);
+    $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($items as &$item) {
+        $item['product_id'] = (int)$item['product_id'];
+        $item['quantity'] = (int)$item['quantity'];
+    }
+    unset($item);
+
+    $ctx->json(['ok' => true, 'delivery' => $delivery, 'items' => $items]);
+}
+
+/**
+ * POST /daily-ledger/api/v1/cashier/ledger/delivery-edit
+ *
+ * Corrects a paper-DR stock delivery (missed items, qty correction).
+ * Transactionally adjusts delivery items, the active receiving's items, and
+ * the origin `withdraw` / destination `addtl` ledger deltas, then recomputes
+ * derived sales. Cashiers may only correct the current business date; the day
+ * must be open unless the actor holds ledger.override. A reason is required.
+ */
+function apiEditDeliveryByDr(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    $role = (string)($user['role'] ?? '');
+    if (!dl_canEditDeliveryByDr($user)) {
+        $ctx->json(['ok' => false, 'error' => 'You are not authorized to edit stock deliveries by DR.'], 403);
+        return;
+    }
+
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)$authResult['branch_id'];
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'No branch assigned.'], 422);
+        return;
+    }
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
+    $reason = trim((string)($input['reason'] ?? ''));
+    $rawItems = is_array($input['items'] ?? null) ? $input['items'] : [];
+    if ($drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'DR number is required.'], 422);
+        return;
+    }
+    if ($reason === '') {
+        $ctx->json(['ok' => false, 'error' => 'A correction reason is required.'], 422);
+        return;
+    }
+    if (mb_strlen($reason) > 255) {
+        $ctx->json(['ok' => false, 'error' => 'Reason must be 255 characters or fewer.'], 422);
+        return;
+    }
+    if ($rawItems === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one item is required.'], 422);
+        return;
+    }
+
+    $actorId = dl_getActorUserId($user);
+    $businessDate = dl_businessDate();
+
+    // Merge duplicate product lines; quantities may be 0 to remove a line.
+    $desired = [];
+    foreach ($rawItems as $i) {
+        if (!is_array($i)) { continue; }
+        $pid = (int)($i['product_id'] ?? 0);
+        $qty = (int)($i['quantity'] ?? 0);
+        if ($pid <= 0) { continue; }
+        if ($qty < 0) {
+            $ctx->json(['ok' => false, 'error' => 'Item quantities cannot be negative.'], 422);
+            return;
+        }
+        $desired[$pid] = ($desired[$pid] ?? 0) + $qty;
+    }
+    if ($desired === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one valid product is required.'], 422);
+        return;
+    }
+
+    $result = dl_correctDeliveryByDr($ctx->db(), [
+        'branch_id' => $branchId,
+        'dr_number' => $drNumber,
+        'reason' => $reason,
+        'desired' => $desired,
+        'role' => $role,
+        'actor_id' => $actorId,
+        'business_date' => $businessDate,
+        'has_override' => dl_roleHasPermission($role, 'ledger.override'),
+    ]);
+
+    if (!$result['ok']) {
+        $ctx->json(['ok' => false, 'error' => $result['error']], (int)$result['status']);
+        return;
+    }
+    $ctx->json([
+        'ok' => true,
+        'delivery_id' => (int)$result['delivery_id'],
+        'item_count' => (int)$result['item_count'],
+        'updated' => (int)$result['updated'],
+        'removed' => (int)$result['removed'],
+    ]);
+}
+
 // ─── Phase A: Branch product supply rules ────────────────────────────────
 
 function apiBranchProductSupplyRuleUpsert(array $params = []): void
@@ -1887,6 +2482,7 @@ function dl_layoutFlags(): array
     return [
         'feature_formal_delivery'   => dl_settingToBool($s['formal_delivery_workflow_enabled'] ?? false),
         'feature_price_groups'      => dl_settingToBool($s['price_groups_enabled'] ?? true),
+        'feature_pos'               => dl_settingToBool($s['pos_enabled'] ?? false),
     ];
 }
 
@@ -1942,6 +2538,10 @@ function handleAdminDeliveries(array $params = []): void
         'can_create_delivery_docs' => in_array($role, ['admin', 'supervisor'], true),
         'can_review_delivery_provenance' => in_array($role, ['admin', 'supervisor', 'production_in_charge'], true),
         'can_mark_delivery_discrepant' => in_array($role, ['admin', 'supervisor'], true),
+        'can_change_destination' => in_array($role, ['admin', 'supervisor'], true),
+        'branches_json' => json_encode(array_map(static function (array $b): array {
+            return ['id' => (int)$b['id'], 'name' => (string)$b['name'], 'code' => (string)($b['code'] ?? '')];
+        }, $branches), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
     ]));
 }
 

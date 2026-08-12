@@ -55,7 +55,14 @@
     "dl_selling_account_ledger",
     "dl_selling_account_day_status",
     "dl_user_selling_accounts",
-    "dl_password_resets"
+    "dl_password_resets",
+    "dl_sales_day_modes",
+    "dl_pos_sales",
+    "dl_pos_sale_items",
+    "dl_pos_payments",
+    "dl_pos_sale_events",
+    "dl_pos_fallback_checkpoints",
+    "dl_pos_fallback_checkpoint_items"
   ],
   "co_owns_tables": [
     "audit_logs"
@@ -105,7 +112,9 @@
     "database/migrations/038_add_user_selling_accounts.sql",
     "database/migrations/039_cleanup_selling_account_enums.sql",
     "database/migrations/040_add_liable_user_to_withdrawals.sql",
-    "database/migrations/041_add_auditor_viewer_roles.sql"
+    "database/migrations/041_add_auditor_viewer_roles.sql",
+    "database/migrations/042_pos_sales_and_day_modes.sql",
+    "database/migrations/043_add_adjustment_custom_reason.sql"
   ],
   "capabilities": {
     "exposes": [
@@ -221,6 +230,20 @@
       "description": "Delete Daily Ledger backup files older than this number of days (1-90)."
     },
     {
+      "key": "pos_enabled",
+      "type": "checkbox",
+      "label": "Enable Point of Sale (POS)",
+      "default": "0",
+      "description": "Allow authorized cashiers to record itemized POS sales. When off, only the manual stock ledger is available."
+    },
+    {
+      "key": "pos_allowed_tenders",
+      "type": "text",
+      "label": "POS Allowed Tenders",
+      "default": "cash",
+      "description": "Comma-separated tender methods accepted at POS checkout (e.g. cash,gcash,card)."
+    },
+    {
       "key": "reset_second_phrase_enabled",
       "type": "checkbox",
       "label": "Require Second Phrase For Full Reset",
@@ -234,6 +257,15 @@
       "label": "Ledger",
       "url": "/daily-ledger/ledger",
       "icon": "clipboard",
+      "roles": [
+        "cashier",
+        "supervisor"
+      ]
+    },
+    {
+      "label": "POS",
+      "url": "/daily-ledger/pos",
+      "icon": "cash-register",
       "roles": [
         "cashier",
         "supervisor"
@@ -292,6 +324,15 @@
       "url": "/daily-ledger/admin/sales",
       "icon": "bar-chart",
       "roles": [
+        "supervisor"
+      ]
+    },
+    {
+      "label": "POS Sales",
+      "url": "/daily-ledger/admin/pos-sales",
+      "icon": "receipt",
+      "roles": [
+        "admin",
         "supervisor"
       ]
     },

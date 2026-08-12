@@ -1,0 +1,429 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+<style>
+    .pos-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 1024px) { .pos-grid { grid-template-columns: 2fr 1fr; } }
+    .pos-product-btn { min-height: 4rem; }
+    .pos-cart-table input[type="number"] { width: 4rem; }
+    .pos-badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: .15rem .6rem; font-size: .72rem; font-weight: 600; }
+</style>
+{/block}
+
+{block content}
+<div class="mb-6">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Point of Sale</h2>
+            <p class="text-sm text-gray-500">{branch_name} · Business date {ledger_date}</p>
+        </div>
+        <div class="flex items-center gap-2">
+            {if sales_mode == 'pos'}
+            <span class="pos-badge bg-emerald-100 text-emerald-800">Mode: POS</span>
+            {elseif sales_mode == 'fallback'}
+            <span class="pos-badge bg-amber-100 text-amber-800">Mode: Fallback (POS → Manual)</span>
+            {else}
+            <span class="pos-badge bg-slate-100 text-slate-700">Mode: Manual</span>
+            {/if}
+            {if day_status == 'closed'}
+            <span class="pos-badge bg-red-100 text-red-800">Day closed</span>
+            {/if}
+            <a class="btn btn-outline" href="{base_url}/ledger">Manual Ledger</a>
+        </div>
+    </div>
+</div>
+
+{if !pos_enabled}
+<div class="card"><div class="card-body">
+    <p class="text-sm text-gray-700 font-medium">POS is not enabled for this deployment.</p>
+    <p class="text-sm text-gray-500 mt-1">The manual stock ledger remains available.</p>
+    <a class="btn btn-primary mt-3" href="{base_url}/ledger">Open Manual Ledger</a>
+</div></div>
+{elseif !can_sell}
+<div class="card"><div class="card-body">
+    <p class="text-sm text-gray-700 font-medium">You are not authorized to use POS.</p>
+    <p class="text-sm text-gray-500 mt-1">Ask a supervisor or admin to grant the pos.sell permission.</p>
+    <a class="btn btn-primary mt-3" href="{base_url}/ledger">Open Manual Ledger</a>
+</div></div>
+{elseif day_status == 'closed'}
+<div class="card"><div class="card-body">
+    <p class="text-sm text-gray-700 font-medium">This business date is closed.</p>
+    <p class="text-sm text-gray-500 mt-1">POS is read-only for closed days. An authorized user may reopen the day from the ledger.</p>
+</div></div>
+{else}
+<div id="pos-app" data-branch-id="{branch_id}" data-ledger-date="{ledger_date}" data-mode="{sales_mode}" data-mode-decided="{mode_decided ? '1' : ''}" data-mode-version="{mode_version}">
+
+    <!-- Mode selection (only before any activity) -->
+    <div id="pos-mode-panel" class="card mb-4 hidden">
+        <div class="card-body">
+            <p class="text-sm font-semibold text-gray-900 mb-1">Choose how sales are recorded today</p>
+            <p class="text-xs text-gray-500 mb-3">
+                POS records itemized paid receipts. Manual derives sales from stock counts.
+                The choice locks once activity is recorded.
+            </p>
+            <div class="flex gap-2 flex-wrap">
+                <button type="button" id="pos-select-pos" class="btn btn-primary">Use POS</button>
+                <button type="button" id="pos-select-manual" class="btn btn-outline">Use Manual Ledger</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fallback banner -->
+    <div id="pos-fallback-panel" class="card mb-4 hidden">
+        <div class="card-body">
+            <p class="text-sm font-semibold text-amber-800">This day switched from POS to Manual via a supervisor checkpoint.</p>
+            <p class="text-xs text-gray-500 mt-1">POS checkout is disabled. Record remaining sales in the manual ledger.</p>
+            <a class="btn btn-outline mt-3" href="{base_url}/ledger">Open Manual Ledger</a>
+        </div>
+    </div>
+
+    <!-- POS workspace -->
+    <div id="pos-workspace" class="hidden">
+        <div class="pos-grid">
+            <div class="card">
+                <div class="card-header">
+                    <span>Products</span>
+                    <input type="search" id="pos-search" class="form-input" style="max-width:14rem" placeholder="Search products…" aria-label="Search products">
+                </div>
+                <div class="card-body">
+                    <div id="pos-loading" class="text-sm text-gray-500">Loading products…</div>
+                    <div id="pos-error" class="text-sm text-red-700 hidden"></div>
+                    <div id="pos-empty" class="text-sm text-gray-500 hidden">No active products are assigned to this branch.</div>
+                    <div id="pos-products" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>Cart</span></div>
+                <div class="card-body">
+                    <table class="pos-cart-table w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-xs text-gray-500">
+                                <th>Item</th><th class="text-right">Qty</th><th class="text-right">Total</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="pos-cart-body">
+                            <tr id="pos-cart-empty"><td colspan="4" class="text-center text-gray-500 py-4">Cart is empty</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="border-t border-gray-200 mt-3 pt-3 text-sm">
+                        <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span id="pos-subtotal">PHP 0.00</span></div>
+                        <div class="flex justify-between font-semibold text-gray-900 mt-1"><span>Total</span><span id="pos-total">PHP 0.00</span></div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="form-label" for="pos-tender">Tender</label>
+                        <select id="pos-tender" class="form-input"></select>
+                        <label class="form-label mt-2" for="pos-tendered">Amount tendered</label>
+                        <input type="number" id="pos-tendered" class="form-input" min="0" step="0.01" placeholder="0.00">
+                        <div class="flex justify-between text-sm mt-2"><span class="text-gray-500">Change</span><span id="pos-change">PHP 0.00</span></div>
+                    </div>
+                    <button type="button" id="pos-charge" class="btn btn-primary w-full mt-4" disabled>Charge</button>
+                    <button type="button" id="pos-clear" class="btn btn-outline w-full mt-2">Clear cart</button>
+                    <p class="text-xs text-gray-500 mt-2">A success response means the sale is saved. There is no offline POS queue.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success receipt -->
+        <div id="pos-receipt-panel" class="card mt-4 hidden">
+            <div class="card-body">
+                <p class="text-sm font-semibold text-emerald-800">Sale recorded: <span id="pos-receipt-no"></span></p>
+                <p class="text-sm text-gray-600 mt-1">Total <span id="pos-receipt-total"></span> · Change <span id="pos-receipt-change"></span></p>
+                <div class="flex gap-2 mt-3">
+                    <a id="pos-receipt-link" class="btn btn-outline" href="#" target="_blank" rel="noopener">Print receipt</a>
+                    <button type="button" id="pos-new-sale" class="btn btn-primary">New sale</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- POS vs calculated reconciliation badge -->
+        {if summary}
+        <div class="card mt-4"><div class="card-body">
+            <div class="flex items-center gap-4 flex-wrap text-sm">
+                <span><span class="text-gray-500">POS net:</span> <strong>PHP {summary.pos_amount | number_format:2}</strong></span>
+                <span><span class="text-gray-500">Stock-calculated:</span> <strong>PHP {summary.calculated_amount | number_format:2}</strong></span>
+                <span><span class="text-gray-500">Variance:</span> <strong>PHP {summary.variance_amount | number_format:2}</strong></span>
+                <span class="text-xs text-gray-400">Reconciliation only — totals are never added together.</span>
+            </div>
+        </div></div>
+        {/if}
+    </div>
+</div>
+{/if}
+{/block}
+
+{block scripts}
+{if pos_enabled && can_sell && day_status != 'closed'}
+<script>
+(function () {
+    var root = document.getElementById('pos-app');
+    if (!root) { return; }
+    var BRANCH_ID = parseInt(root.getAttribute('data-branch-id'), 10) || 0;
+    var LEDGER_DATE = root.getAttribute('data-ledger-date') || '';
+    var mode = root.getAttribute('data-mode') || 'manual';
+    var modeDecided = root.getAttribute('data-mode-decided') === '1';
+    var modeVersion = parseInt(root.getAttribute('data-mode-version'), 10) || 0;
+
+    var state = {
+        products: [],
+        cart: {}, // product_id -> {product_id, name, unit_price, quantity}
+        tenders: ['cash'],
+        checkoutPending: false,
+        cartKey: 'cart-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + Date.now()
+    };
+
+    function headers() {
+        return {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': (window.DL_CSRF || ''),
+            'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+        };
+    }
+    function money(n) { return 'PHP ' + (Number(n) || 0).toFixed(2); }
+    function show(el, on) { el.classList.toggle('hidden', !on); }
+
+    var els = {
+        modePanel: document.getElementById('pos-mode-panel'),
+        fallbackPanel: document.getElementById('pos-fallback-panel'),
+        workspace: document.getElementById('pos-workspace'),
+        loading: document.getElementById('pos-loading'),
+        error: document.getElementById('pos-error'),
+        empty: document.getElementById('pos-empty'),
+        products: document.getElementById('pos-products'),
+        cartBody: document.getElementById('pos-cart-body'),
+        cartEmpty: document.getElementById('pos-cart-empty'),
+        subtotal: document.getElementById('pos-subtotal'),
+        total: document.getElementById('pos-total'),
+        tender: document.getElementById('pos-tender'),
+        tendered: document.getElementById('pos-tendered'),
+        change: document.getElementById('pos-change'),
+        charge: document.getElementById('pos-charge'),
+        receiptPanel: document.getElementById('pos-receipt-panel'),
+        receiptNo: document.getElementById('pos-receipt-no'),
+        receiptTotal: document.getElementById('pos-receipt-total'),
+        receiptChange: document.getElementById('pos-receipt-change'),
+        receiptLink: document.getElementById('pos-receipt-link')
+    };
+
+    function renderModePanels() {
+        if (mode === 'fallback') {
+            show(els.fallbackPanel, true);
+            show(els.workspace, false);
+            show(els.modePanel, false);
+            return;
+        }
+        if (!modeDecided) {
+            show(els.modePanel, true);
+            show(els.workspace, false);
+            return;
+        }
+        if (mode === 'pos') {
+            show(els.modePanel, false);
+            show(els.workspace, true);
+            return;
+        }
+        // manual mode: POS workspace stays hidden; ledger is the workspace.
+        show(els.modePanel, false);
+        show(els.workspace, false);
+    }
+
+    function renderProducts(filter) {
+        var q = (filter || '').toLowerCase();
+        els.products.innerHTML = '';
+        var visible = 0;
+        state.products.forEach(function (p) {
+            if (q && p.name.toLowerCase().indexOf(q) === -1 && (p.sku || '').toLowerCase().indexOf(q) === -1) { return; }
+            visible++;
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline pos-product-btn flex flex-col items-start';
+            btn.innerHTML = '<span class="font-semibold"></span><span class="text-xs text-gray-500"></span>';
+            btn.children[0].textContent = p.name;
+            btn.children[1].textContent = money(p.unit_price);
+            btn.addEventListener('click', function () { addToCart(p); });
+            els.products.appendChild(btn);
+        });
+        show(els.empty, visible === 0);
+    }
+
+    function cartLines() {
+        return Object.keys(state.cart).map(function (pid) { return state.cart[pid]; });
+    }
+
+    function cartTotal() {
+        return cartLines().reduce(function (sum, l) { return sum + l.unit_price * l.quantity; }, 0);
+    }
+
+    function renderCart() {
+        var lines = cartLines();
+        els.cartBody.querySelectorAll('tr[data-pid]').forEach(function (tr) { tr.remove(); });
+        show(els.cartEmpty, lines.length === 0);
+        lines.forEach(function (l) {
+            var tr = document.createElement('tr');
+            tr.setAttribute('data-pid', l.product_id);
+            tr.innerHTML = '<td></td>'
+                + '<td class="text-right"><button type="button" class="btn btn-outline px-2" data-act="dec">−</button> '
+                + '<span class="mx-1"></span> '
+                + '<button type="button" class="btn btn-outline px-2" data-act="inc">+</button></td>'
+                + '<td class="text-right"></td>'
+                + '<td class="text-right"><button type="button" class="text-red-600 text-xs" data-act="rm">Remove</button></td>';
+            tr.children[0].textContent = l.name;
+            tr.children[1].querySelector('span').textContent = String(l.quantity);
+            tr.children[2].textContent = money(l.unit_price * l.quantity);
+            tr.querySelectorAll('button').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    var act = b.getAttribute('data-act');
+                    if (act === 'inc') { l.quantity++; }
+                    if (act === 'dec') { l.quantity = Math.max(0, l.quantity - 1); }
+                    if (act === 'rm') { l.quantity = 0; }
+                    if (l.quantity === 0) { delete state.cart[l.product_id]; }
+                    renderCart();
+                });
+            });
+            els.cartBody.appendChild(tr);
+        });
+        var total = cartTotal();
+        els.subtotal.textContent = money(total);
+        els.total.textContent = money(total);
+        var tendered = parseFloat(els.tendered.value || '0') || 0;
+        els.change.textContent = money(Math.max(0, tendered - total));
+        els.charge.disabled = lines.length === 0 || state.checkoutPending;
+    }
+
+    function addToCart(p) {
+        var line = state.cart[p.product_id];
+        if (line) { line.quantity++; }
+        else { state.cart[p.product_id] = { product_id: p.product_id, name: p.name, unit_price: p.unit_price, quantity: 1 }; }
+        renderCart();
+    }
+
+    function loadState() {
+        show(els.loading, true);
+        show(els.error, false);
+        fetch(window.DL_BASE + '/api/v1/pos/state?branch_id=' + BRANCH_ID, { headers: headers(), credentials: 'same-origin' })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+            .then(function (res) {
+                show(els.loading, false);
+                if (!res.ok || !res.body.ok) {
+                    els.error.textContent = (res.body && res.body.error) || 'Could not load POS state.';
+                    show(els.error, true);
+                    return;
+                }
+                state.products = res.body.products || [];
+                state.tenders = res.body.allowed_tenders || ['cash'];
+                mode = res.body.mode;
+                modeDecided = !!res.body.mode_decided;
+                modeVersion = res.body.mode_version || 0;
+                els.tender.innerHTML = '';
+                state.tenders.forEach(function (t) {
+                    var opt = document.createElement('option');
+                    opt.value = t;
+                    opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+                    els.tender.appendChild(opt);
+                });
+                if (res.body.draft_cart && res.body.draft_cart.items) {
+                    res.body.draft_cart.items.forEach(function (item) {
+                        state.cart[item.product_id] = {
+                            product_id: item.product_id, name: item.name,
+                            unit_price: item.unit_price, quantity: item.quantity
+                        };
+                    });
+                }
+                renderModePanels();
+                renderProducts('');
+                renderCart();
+            })
+            .catch(function () {
+                show(els.loading, false);
+                els.error.textContent = 'Network error. POS requires connectivity to record sales.';
+                show(els.error, true);
+            });
+    }
+
+    function selectMode(selected) {
+        fetch(window.DL_BASE + '/api/v1/pos/mode/select', {
+            method: 'POST', headers: headers(), credentials: 'same-origin',
+            body: JSON.stringify({ branch_id: BRANCH_ID, mode: selected, expected_version: modeVersion })
+        })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+            .then(function (res) {
+                if (!res.ok || !res.body.ok) {
+                    window.showToast((res.body && res.body.error) || 'Mode could not be set', 'error');
+                    return;
+                }
+                if (selected === 'manual') { window.location.href = window.DL_BASE + '/ledger'; return; }
+                mode = res.body.mode;
+                modeDecided = true;
+                modeVersion = res.body.mode_version || modeVersion;
+                renderModePanels();
+            })
+            .catch(function () { window.showToast('Network error', 'error'); });
+    }
+
+    function checkout() {
+        if (state.checkoutPending) { return; }
+        var lines = cartLines().map(function (l) {
+            return { product_id: l.product_id, quantity: l.quantity, unit_price: l.unit_price };
+        });
+        if (lines.length === 0) { return; }
+        var tendered = parseFloat(els.tendered.value || '0') || 0;
+        state.checkoutPending = true;
+        els.charge.disabled = true;
+        els.charge.textContent = 'Processing…';
+        fetch(window.DL_BASE + '/api/v1/pos/checkout', {
+            method: 'POST', headers: headers(), credentials: 'same-origin',
+            body: JSON.stringify({
+                branch_id: BRANCH_ID,
+                client_operation_key: state.cartKey,
+                expected_version: modeVersion,
+                lines: lines,
+                payments: [{ method: els.tender.value || 'cash', tendered_cents: Math.round(tendered * 100) }]
+            })
+        })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+            .then(function (res) {
+                state.checkoutPending = false;
+                els.charge.textContent = 'Charge';
+                if (!res.ok || !res.body.ok) {
+                    window.showToast((res.body && res.body.error) || 'Checkout failed', 'error');
+                    if (res.body && res.body.code === 'STALE_PRICE') { loadState(); }
+                    renderCart();
+                    return;
+                }
+                var receipt = res.body.receipt;
+                state.cart = {};
+                state.cartKey = 'cart-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + Date.now();
+                renderCart();
+                els.receiptNo.textContent = receipt.receipt_no;
+                els.receiptTotal.textContent = money(receipt.total);
+                var change = (receipt.payments || []).reduce(function (s, p) { return s + (Number(p.change) || 0); }, 0);
+                els.receiptChange.textContent = money(change);
+                els.receiptLink.href = window.DL_BASE + '/pos/receipt?sale_id=' + receipt.sale_id;
+                show(els.receiptPanel, true);
+                window.showToast('Sale ' + receipt.receipt_no + ' recorded', 'success');
+            })
+            .catch(function () {
+                state.checkoutPending = false;
+                els.charge.textContent = 'Charge';
+                window.showToast('Network error — the sale was NOT confirmed. Verify before retrying.', 'error');
+                renderCart();
+            });
+    }
+
+    var selPos = document.getElementById('pos-select-pos');
+    var selManual = document.getElementById('pos-select-manual');
+    if (selPos) { selPos.addEventListener('click', function () { selectMode('pos'); }); }
+    if (selManual) { selManual.addEventListener('click', function () { selectMode('manual'); }); }
+    document.getElementById('pos-search').addEventListener('input', function (e) { renderProducts(e.target.value); });
+    els.tendered.addEventListener('input', renderCart);
+    els.charge.addEventListener('click', checkout);
+    document.getElementById('pos-clear').addEventListener('click', function () { state.cart = {}; renderCart(); });
+    var newSaleBtn = document.getElementById('pos-new-sale');
+    if (newSaleBtn) { newSaleBtn.addEventListener('click', function () { show(els.receiptPanel, false); loadState(); }); }
+
+    loadState();
+})();
+</script>
+{/if}
+{/block}
