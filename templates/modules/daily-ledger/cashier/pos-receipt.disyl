@@ -24,7 +24,10 @@
         <span>{app_name}</span><br>
         <span>Receipt {sale.receipt_no}</span><br>
         <span>{sale.ledger_date} · {sale.completed_at}</span><br>
-        <span>Cashier: {sale.cashier_name}</span>
+        <span>Cashier: {sale.cashier_name}</span><br>
+        {if sale.shift == 'AM' || sale.shift == 'PM'}
+        <span>Shift: {sale.shift}</span>
+        {/if}
     </div>
     <div class="center" style="margin-top:.4rem">
         {if sale.sale_kind == 'refund'}

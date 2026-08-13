@@ -1584,6 +1584,7 @@ function dl_pos_receiptPayload(array $sale): array
         'branch_name' => (string)($sale['branch_name'] ?? ''),
         'ledger_date' => (string)$sale['ledger_date'],
         'cashier_name' => (string)($sale['cashier_name'] ?? ''),
+        'shift' => (string)($sale['shift'] ?? ''),
         'subtotal' => dl_pos_centsToFloat((int)$sale['subtotal_cents']),
         'discount' => dl_pos_centsToFloat((int)$sale['discount_cents']),
         'tax' => dl_pos_centsToFloat((int)$sale['tax_cents']),

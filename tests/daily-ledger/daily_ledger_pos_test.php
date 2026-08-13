@@ -394,5 +394,6 @@ $h->test('fallback snapshot sums addtl/withdraw across shifts', str_contains($po
 $h->test('POS page resolves shift via helper', (bool)preg_match('/function handleCashierPos[\s\S]*?dl_resolveLedgerShift\(\$user, \$input\)/', $posSource));
 $h->test('POS page passes shift_locked to template', str_contains($posSource, "'shift_locked' => \$shiftBound,"));
 $h->test('POS CSV export includes shift column', str_contains($posSource, "'Cashier', 'Shift', 'Kind'"));
+$h->test('receipt payload exposes shift', str_contains($posSource, "'shift' => (string)(\$sale['shift'] ?? ''),"));
 
 $h->done();
