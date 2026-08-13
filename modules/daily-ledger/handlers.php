@@ -1286,6 +1286,21 @@ function dl_getDayStatus(int $branchId, string $date): string
     return $row ? (string)$row['status'] : 'open';
 }
 
+/**
+ * Which cashier shift is active right now, resolved in the operating timezone.
+ * AM before the shift boundary (14:00), PM at/after. Used as the default shift
+ * on the cashier ledger so a PM-hour cashier lands on the PM shift (and sees
+ * the AM ending handed off as her beginning) without manually toggling.
+ * The explicit AM/PM toggle always overrides.
+ */
+function dl_currentShift(?\DateTimeImmutable $now = null): string
+{
+    $settings = dl_closeOfDaySettings();
+    $timezone = new \DateTimeZone($settings['operating_timezone']);
+    $now = $now ? $now->setTimezone($timezone) : new \DateTimeImmutable('now', $timezone);
+    return (int)$now->format('G') < 14 ? 'AM' : 'PM';
+}
+
 function dl_generateSku(): string
 {
     $ctx = module();
@@ -2774,7 +2789,7 @@ function handleCashierLedger(array $params = []): void
     $branchId   = $authResult['branch_id'];
     $today      = dl_businessDate();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
-    $shift      = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shift      = (($input['shift'] ?? dl_currentShift()) === 'PM') ? 'PM' : 'AM';
     $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
@@ -2932,7 +2947,7 @@ function handleCashierRows(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
-    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shift = (($input['shift'] ?? dl_currentShift()) === 'PM') ? 'PM' : 'AM';
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
 
     if ($branchId) {
@@ -2994,7 +3009,7 @@ function apiGetLedgerRows(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
-    $shift = ((!empty($_GET['shift']) ? (string)$_GET['shift'] : ($input['shift'] ?? 'AM')) === 'PM') ? 'PM' : 'AM';
+    $shift = ((!empty($_GET['shift']) ? (string)$_GET['shift'] : ($input['shift'] ?? dl_currentShift())) === 'PM') ? 'PM' : 'AM';
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
