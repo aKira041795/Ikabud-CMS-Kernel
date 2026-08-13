@@ -126,6 +126,7 @@
             <thead>
                 <tr>
                     <th>Date</th>
+                    <th>Shift</th>
                     <th>Branch</th>
                     <th>Product</th>
                     <th>SKU</th>
@@ -140,11 +141,12 @@
             </thead>
             <tbody>
                 {if sales_rows | count == 0}
-                <tr><td colspan="11" class="px-4 py-10 text-center text-sm text-gray-500">No data for selected range</td></tr>
+                <tr><td colspan="12" class="px-4 py-10 text-center text-sm text-gray-500">No data for selected range</td></tr>
                 {/if}
                 {foreach sales_rows as row}
                 <tr>
                     <td>{row.ledger_date}</td>
+                    <td>{if row.shift == 'PM'}PM{else}AM{/if}</td>
                     <td>{row.branch_name}</td>
                     <td>{row.product_name}</td>
                     <td class="text-muted text-sm">{row.sku}</td>
@@ -159,7 +161,7 @@
                 {/foreach}
                 {if sales_rows | count > 0}
                 <tr>
-                    <td colspan="8" class="text-right font-semibold bg-gray-50 border-t border-gray-200">Grand Total:</td>
+                    <td colspan="9" class="text-right font-semibold bg-gray-50 border-t border-gray-200">Grand Total:</td>
                     <td class="text-right">{grand_units}</td>
                     <td></td>
                     <td class="text-right font-semibold text-emerald-700">PHP {grand_amount | number_format}</td>

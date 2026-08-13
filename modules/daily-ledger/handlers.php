@@ -1489,11 +1489,12 @@ function dl_ledgerSalesAmountSql(string $alias = 'dl', string $priceColumn = 'pr
     return dl_ledgerSalesQuantitySql($safeAlias) . " * COALESCE({$safeAlias}.{$safePriceColumn},0)";
 }
 
-function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, int $delta, int $actorId, string $column = 'addtl'): array
+function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, int $delta, int $actorId, string $column = 'addtl', string $shift = 'AM'): array
 {
     if (!in_array($column, ['addtl', 'withdraw'], true)) {
         throw new \RuntimeException('Invalid ledger column: ' . $column);
     }
+    $shift = ($shift === 'PM') ? 'PM' : 'AM';
 
     $ctx = module();
     if (!$ctx) {
@@ -1501,9 +1502,9 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
     }
 
     $select = $ctx->db()->prepare(
-        'SELECT id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d LIMIT 1 FOR UPDATE'
+        'SELECT id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1 FOR UPDATE'
     );
-    $select->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    $select->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $ledgerDate, ':shift' => $shift]);
     $row = $select->fetch(PDO::FETCH_ASSOC) ?: null;
 
     $price = dl_resolveBranchProductPrice($branchId, $productId, $ledgerDate);
@@ -1515,20 +1516,21 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
         $addtlVal = $column === 'addtl' ? $delta : 0;
         $withdrawVal = $column === 'withdraw' ? $delta : 0;
         $ins = $ctx->db()->prepare(
-            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
-             VALUES (:bid, :pid, :d, :price, 0, :addtl, :withdraw, 0, :uid, :uid2)'
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :shift, :price, 0, :addtl, :withdraw, 0, :uid, :uid2)'
         );
         $ins->execute([
             ':bid' => $branchId,
             ':pid' => $productId,
             ':d' => $ledgerDate,
+            ':shift' => $shift,
             ':price' => $price,
             ':addtl' => $addtlVal,
             ':withdraw' => $withdrawVal,
             ':uid' => $actorId > 0 ? $actorId : null,
             ':uid2' => $actorId > 0 ? $actorId : null,
         ]);
-        dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId));
+        dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId), $shift);
         return [$column => $delta];
     }
 
@@ -1550,7 +1552,7 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
         ':id' => (int)$row['id'],
     ]);
 
-    dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId));
+    dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId), $shift);
     return [$column => $newVal];
 }
 
@@ -2093,17 +2095,18 @@ function dl_upsertCommissaryOutputDeliveryItem(
     return $deliveryId;
 }
 
-function dl_recomputeSales(int $branchId, int $productId, string $date, int $userId): void
+function dl_recomputeSales(int $branchId, int $productId, string $date, int $userId, string $shift = 'AM'): void
 {
     try {
         $ctx = module();
         if (!$ctx) return;
+        $shift = ($shift === 'PM') ? 'PM' : 'AM';
 
         $stmt = $ctx->db()->prepare(
             'SELECT beg_bal, addtl, withdraw, bal_end FROM dl_daily_ledger
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
         );
-        $stmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
+        $stmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return;
 
@@ -2111,8 +2114,8 @@ function dl_recomputeSales(int $branchId, int $productId, string $date, int $use
 
         $ctx->db()->prepare(
             'UPDATE dl_daily_ledger SET sales = :sales, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
-        )->execute([':sales' => $sales, ':uid' => $userId, ':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
+        )->execute([':sales' => $sales, ':uid' => $userId, ':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
     } catch (\Throwable $e) {
         // Non-fatal
     }
@@ -2123,11 +2126,12 @@ function dl_computeVarianceSilently(int $branchId, int $productId, string $date,
     $ctx = module();
     if (!$ctx) return;
 
-    // Find previous day's bal_end for same branch+product
+    // Find previous day's bal_end for same branch+product. With shift-period
+    // ledgers the day's ending physical count is the PM row (fallback AM).
     $stmt = $ctx->db()->prepare(
         'SELECT bal_end FROM dl_daily_ledger
          WHERE branch_id = :bid AND product_id = :pid AND ledger_date < :d
-         ORDER BY ledger_date DESC LIMIT 1'
+         ORDER BY ledger_date DESC, CASE shift WHEN \'PM\' THEN 1 ELSE 0 END DESC LIMIT 1'
     );
     $stmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
     $prev = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -2770,6 +2774,7 @@ function handleCashierLedger(array $params = []): void
     $branchId   = $authResult['branch_id'];
     $today      = dl_businessDate();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
+    $shift      = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
@@ -2878,6 +2883,7 @@ function handleCashierLedger(array $params = []): void
         'branch_id'   => $branchId,
         'branch_name' => $branchName,
         'ledger_date' => $ledgerDate,
+        'shift'       => $shift,
         'today'       => $today,
         'day_status'  => $dayStatus,
         'branches'    => $branches,
@@ -2926,6 +2932,7 @@ function handleCashierRows(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
+    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
 
     if ($branchId) {
@@ -2947,17 +2954,18 @@ function handleCashierRows(array $params = []): void
                 GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot
            FROM dl_products p
            INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
-           LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d
+           LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
           WHERE p.is_active = 1
           ORDER BY p.sort_order, p.name'
     );
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     echo dlRender('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
         'rows'        => $rows,
         'branch_id'   => $branchId,
         'ledger_date' => $ledgerDate,
+        'shift'       => $shift,
         'day_status'  => $dayStatus,
         'reference_only' => $referenceOnly,
     ]);
@@ -2984,6 +2992,7 @@ function apiGetLedgerRows(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
+    $shift = ((!empty($_GET['shift']) ? (string)$_GET['shift'] : ($input['shift'] ?? 'AM')) === 'PM') ? 'PM' : 'AM';
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
@@ -3003,15 +3012,16 @@ function apiGetLedgerRows(array $params = []): void
                 GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales
          FROM dl_products p
          INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
-         LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d
+         LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
          WHERE p.is_active = 1
          ORDER BY p.sort_order, p.name'
     );
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift]);
     $ctx->json([
         'ok' => true,
         'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
         'day_status' => $dayStatus,
+        'shift' => $shift,
     ]);
 }
 
@@ -3095,6 +3105,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
         return;
     }
     $date = $input['date'] ?? date('Y-m-d');
+    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $header = (array)($input['header'] ?? []);
     $lines = (array)($input['lines'] ?? []);
 
@@ -3177,7 +3188,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
              WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND withdrawal_type <> :excludeType'
         );
         $stmtCheck = $ctx->db()->prepare(
-            'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
+            'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
         // adjustment_add increases addtl (branch gets stock back); charge/pullout increase withdraw
         $isAddtl = ($type === 'adjustment_add');
@@ -3185,20 +3196,20 @@ function apiSaveCashierWithdrawals(array $params = []): void
             // addtl accumulates from multiple sources — use increment, not replace
             $stmtUpd = $ctx->db()->prepare(
                 'UPDATE dl_daily_ledger SET addtl = addtl + :qty, updated_by = :uid
-                 WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+                 WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
             );
             $stmtInit = $ctx->db()->prepare(
-                'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, addtl, encoded_by, updated_by)
-                 VALUES (:bid, :pid, :d, :prc, :qty, :uid_enc, :uid_upd)'
+                'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, addtl, encoded_by, updated_by)
+                 VALUES (:bid, :pid, :d, :shift, :prc, :qty, :uid_enc, :uid_upd)'
             );
         } else {
             $stmtUpd = $ctx->db()->prepare(
                 'UPDATE dl_daily_ledger SET withdraw = :wdr, updated_by = :uid
-                 WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+                 WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
             );
             $stmtInit = $ctx->db()->prepare(
-                'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, withdraw, encoded_by, updated_by)
-                 VALUES (:bid, :pid, :d, :prc, :wdr, :uid_enc, :uid_upd)'
+                'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, withdraw, encoded_by, updated_by)
+                 VALUES (:bid, :pid, :d, :shift, :prc, :wdr, :uid_enc, :uid_upd)'
             );
         }
 
@@ -3222,7 +3233,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
 
             if ($isAddtl) {
                 // adjustment_add: increment addtl by qty (adds stock back to branch)
-                $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+                $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
                 if ($stmtCheck->fetch()) {
                     $stmtUpd->execute([
                         ':qty' => $qty,
@@ -3230,6 +3241,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':bid' => $branchId,
                         ':pid' => $pid,
                         ':d' => $date,
+                        ':shift' => $shift,
                     ]);
                 } else {
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
@@ -3237,6 +3249,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':bid' => $branchId,
                         ':pid' => $pid,
                         ':d' => $date,
+                        ':shift' => $shift,
                         ':prc' => $price,
                         ':qty' => $qty,
                         ':uid_enc' => $userId,
@@ -3249,7 +3262,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':excludeType' => 'adjustment_add']);
                 $newTotal = (int)$stmtSum->fetchColumn();
 
-                $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+                $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
                 if ($stmtCheck->fetch()) {
                     $stmtUpd->execute([
                         ':wdr' => $newTotal,
@@ -3257,6 +3270,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':bid' => $branchId,
                         ':pid' => $pid,
                         ':d' => $date,
+                        ':shift' => $shift,
                     ]);
                 } else {
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
@@ -3264,6 +3278,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':bid' => $branchId,
                         ':pid' => $pid,
                         ':d' => $date,
+                        ':shift' => $shift,
                         ':prc' => $price,
                         ':wdr' => $newTotal,
                         ':uid_enc' => $userId,
@@ -3340,7 +3355,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
 
                     // Auto-receive for commissary
                     $returnReceivingId = dl_acceptFormalDelivery(
-                        $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null
+                        $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null, $shift
                     );
                 }
 
@@ -3412,6 +3427,7 @@ function apiCreateCashierDispatch(array $params = []): void
         return;
     }
     $originBranchId = $authResult['branch_id'];
+    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $drNumber = trim((string)($input['dr_number'] ?? ''));
     $destType = (string)($input['destination_type'] ?? 'branch');
@@ -3523,7 +3539,7 @@ function apiCreateCashierDispatch(array $params = []): void
                 ':price_group_id' => $priceGroupId,
                 ':remarks' => $item['remarks'],
             ]);
-            dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
+            dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $shift);
         }
 
         $ctx->db()->commit();
@@ -3671,6 +3687,7 @@ function apiReceiveDelivery(array $params = []): void
         return;
     }
     $branchId = $authResult['branch_id'];
+    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $ids = array_values(array_filter(array_map('intval', (array)($input['withdrawal_ids'] ?? []))));
     $deliveryIds = array_values(array_filter(array_map('intval', (array)($input['delivery_ids'] ?? []))));
 
@@ -3692,7 +3709,7 @@ function apiReceiveDelivery(array $params = []): void
                 $partialQtys = isset($partialQtysMap[$deliveryId])
                     ? array_map('intval', (array)$partialQtysMap[$deliveryId])
                     : null;
-                $rcvId = dl_acceptFormalDelivery($ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $partialQtys);
+                $rcvId = dl_acceptFormalDelivery($ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $partialQtys, $shift);
                 if ($rcvId > 0) {
                     $receivedCount++;
                 }
@@ -3808,6 +3825,7 @@ function apiReceivePaperDelivery(array $params = []): void
         return;
     }
     $destinationBranchId = $authResult['branch_id'];
+    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $originType = (string)($input['origin_type'] ?? 'commissary');
     $originId = isset($input['origin_id']) && $input['origin_id'] !== '' ? (int)$input['origin_id'] : null;
     $drNumber = trim((string)($input['dr_number'] ?? ''));
@@ -3929,7 +3947,7 @@ function apiReceivePaperDelivery(array $params = []): void
                     ':remarks' => $item['remarks'],
                 ]);
                 if ($originType === 'branch' && $originId !== null) {
-                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
+                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $shift);
                 }
             }
 
@@ -3947,7 +3965,7 @@ function apiReceivePaperDelivery(array $params = []): void
             )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
         }
 
-        $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null);
+        $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null, $shift);
         $ctx->db()->commit();
         $ctx->json(['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId]);
     } catch (\Throwable $e) {
@@ -3980,6 +3998,7 @@ function apiSaveLedgerField(array $params = []): void
     $field     = (string)($input['field'] ?? '');
     $value     = (int)($input['value'] ?? 0);
     $date      = (string)($input['date'] ?? dl_businessDate());
+    $shift     = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $userId    = dl_getActorUserId($user);
     if ($userId <= 0) {
         write_log('daily-ledger save auth required', 'error', [
@@ -4075,20 +4094,21 @@ function apiSaveLedgerField(array $params = []): void
 
         $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
         $oldStmt = $ctx->db()->prepare(
-            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d LIMIT 1 FOR UPDATE"
+            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1 FOR UPDATE"
         );
-        $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
+        $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
         $oldVal = $oldStmt->fetchColumn();
 
         $stmt = $ctx->db()->prepare(
-            "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, {$column}, encoded_by, updated_by)
-             VALUES (:bid, :pid, :d, :price, :val, :uid, :uid2)
+            "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, {$column}, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :shift, :price, :val, :uid, :uid2)
              ON DUPLICATE KEY UPDATE {$column} = :val2, updated_by = :uid3, updated_at = CURRENT_TIMESTAMP"
         );
         $stmt->execute([
             ':bid'   => $branchId,
             ':pid'   => $productId,
             ':d'     => $date,
+            ':shift' => $shift,
             ':price' => $currentPrice,
             ':val'   => $value,
             ':uid'   => $userId,
@@ -4104,7 +4124,7 @@ function apiSaveLedgerField(array $params = []): void
 
         // Auto-recompute sales = beg_bal + addtl - withdraw - bal_end (server-side)
         if ($field !== 'sales') {
-            dl_recomputeSales($branchId, $productId, $date, $userId);
+            dl_recomputeSales($branchId, $productId, $date, $userId, $shift);
         }
 
         // Audit log (silent)
@@ -4112,7 +4132,7 @@ function apiSaveLedgerField(array $params = []): void
             'field_update',
             $branchId,
             'dl_daily_ledger',
-            "{$branchId}-{$productId}-{$date}",
+            "{$branchId}-{$productId}-{$date}-{$shift}",
             [$field => $oldVal !== false ? (int)$oldVal : null],
             [$field => $value]
         );
@@ -4158,6 +4178,7 @@ function apiSaveLedgerBatch(array $params = []): void
 
     $input = $ctx->input();
     $date = (string)($input['date'] ?? dl_businessDate());
+    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
     $rows = $input['rows'] ?? null;
     $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
 
@@ -4270,12 +4291,12 @@ function apiSaveLedgerBatch(array $params = []): void
             }
 
         $selectOld = $ctx->db()->prepare(
-            'SELECT beg_bal, addtl, withdraw, bal_end FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
+            'SELECT beg_bal, addtl, withdraw, bal_end FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
 
         $upsert = $ctx->db()->prepare(
-            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
-             VALUES (:bid, :pid, :d, :price, :beg, :addtl, :withdraw, :end, :uid, :uid2)
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :shift, :price, :beg, :addtl, :withdraw, :end, :uid, :uid2)
              ON DUPLICATE KEY UPDATE
                 beg_bal = VALUES(beg_bal),
                 addtl = VALUES(addtl),
@@ -4288,7 +4309,7 @@ function apiSaveLedgerBatch(array $params = []): void
         foreach ($normalized as $r) {
             $pid = (int)$r['product_id'];
 
-            $selectOld->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+            $selectOld->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
             $old = $selectOld->fetch(PDO::FETCH_ASSOC) ?: null;
 
             $currentPrice = dl_resolveBranchProductPrice($branchId, $pid, $date);
@@ -4332,6 +4353,7 @@ function apiSaveLedgerBatch(array $params = []): void
                 ':bid'      => $branchId,
                 ':pid'      => $pid,
                 ':d'        => $date,
+                ':shift'    => $shift,
                 ':price'    => $currentPrice,
                 ':beg'      => (int)$r['beg_bal'],
                 ':addtl'    => $addtlVal,
@@ -4347,14 +4369,14 @@ function apiSaveLedgerBatch(array $params = []): void
             }
 
             // Always recompute sales from invariant
-            dl_recomputeSales($branchId, $pid, $date, $userId);
+            dl_recomputeSales($branchId, $pid, $date, $userId, $shift);
 
             // Audit as a single event per product row
             dl_auditLog(
                 'row_update',
                 $branchId,
                 'dl_daily_ledger',
-                "{$branchId}-{$pid}-{$date}",
+                "{$branchId}-{$pid}-{$date}-{$shift}",
                 $old,
                 [
                     'beg_bal'  => (int)$r['beg_bal'],
@@ -4376,11 +4398,11 @@ function apiSaveLedgerBatch(array $params = []): void
                     GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales
              FROM dl_products p
              INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
-             LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d
+             LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
              WHERE p.is_active = 1
              ORDER BY p.sort_order, p.name'
         );
-        $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
+        $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
         $response = [
@@ -5245,7 +5267,7 @@ function handleAdminSales(array $params = []): void
     // Sales data with computed sales and amount (admin can see these)
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $amountExpr = dl_ledgerSalesAmountSql('dl');
-    $sql = 'SELECT dl.ledger_date, p.name AS product_name, p.sku, b.name AS branch_name,
+    $sql = 'SELECT dl.ledger_date, dl.shift, p.name AS product_name, p.sku, b.name AS branch_name,
                    dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end,
                    ' . $salesExpr . ' AS sales,
                    dl.price_snapshot,
@@ -9502,9 +9524,10 @@ function dl_saveProductionRun(array $user, array $input): array
         $resultingAddtl = null;
         try {
             // Resulting storefront addtl for the affected branch/date (audit evidence).
+            // Aggregate across shift-period rows (day-level addtl = AM + PM).
             $auditAddtlBranch = $destBranchId > 0 ? $destBranchId : ($previousDestBranchId > 0 ? $previousDestBranchId : 0);
             if ($auditAddtlBranch > 0 && $productId > 0 && $date !== '') {
-                $lStmt = $db->prepare('SELECT addtl FROM dl_daily_ledger WHERE branch_id = :b AND product_id = :p AND ledger_date = :d LIMIT 1');
+                $lStmt = $db->prepare('SELECT COALESCE(SUM(addtl), 0) FROM dl_daily_ledger WHERE branch_id = :b AND product_id = :p AND ledger_date = :d');
                 $lStmt->execute([':b' => $auditAddtlBranch, ':p' => $productId, ':d' => $date]);
                 $lVal = $lStmt->fetchColumn();
                 $resultingAddtl = $lVal === false ? null : (int)$lVal;

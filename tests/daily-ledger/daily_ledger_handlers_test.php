@@ -172,6 +172,14 @@ $h->test('settings save seeds admin with POS grants', (bool)preg_match("/'admin'
 $h->test('settings save seeds supervisor with POS grants', (bool)preg_match("/'supervisor' => \[[^]]*'pos\.sell'[^]]*'pos\.report'[^]]*\]/", $handlersSource));
 $h->test('settings save seeds cashier with pos.sell', str_contains($handlersSource, "'cashier' => ['pos.sell']"));
 
+// Shift-period ledger: all ledger writes must be shift-scoped (default AM) so
+// AM/PM cashiers encode independent rows on the same branch-day.
+$h->test('applyLedgerDelta is shift-aware', str_contains($handlersSource, "function dl_applyLedgerDelta(int \$branchId, int \$productId, string \$ledgerDate, int \$delta, int \$actorId, string \$column = 'addtl', string \$shift = 'AM')"));
+$h->test('recomputeSales is shift-aware', str_contains($handlersSource, 'function dl_recomputeSales(int $branchId, int $productId, string $date, int $userId, string $shift = \'AM\')'));
+$h->test('field save scopes by shift', str_contains($handlersSource, "AND ledger_date = :d AND shift = :shift LIMIT 1 FOR UPDATE"));
+$h->test('batch save scopes by shift', str_contains($handlersSource, 'AND ledger_date = :d AND shift = :shift FOR UPDATE'));
+$h->test('withdrawals scopes ledger by shift', str_contains($handlersSource, "AND ledger_date = :d AND shift = :shift FOR UPDATE"));
+
 $deliveriesSource = (string) file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
 // Regression: dl_delivery_items has no updated_at column — the edit update must not reference it.
 $h->test('delivery-item edit update avoids updated_at', !str_contains($deliveriesSource, 'dl_delivery_items SET quantity = :qty, updated_at'));

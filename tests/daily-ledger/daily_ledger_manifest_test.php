@@ -140,6 +140,20 @@ $migrations = $manifest['migrations'] ?? [];
 $h->test('migrations declared', is_array($migrations) && !empty($migrations));
 $h->test('at least 35 migrations', count($migrations) >= 35);
 $h->test('migration 043 registered', in_array('database/migrations/043_add_adjustment_custom_reason.sql', $migrations, true));
+$h->test('migration 044 registered', in_array('database/migrations/044_add_ledger_shift.sql', $migrations, true));
+$h->test('migration 044 file exists', is_file($base . '/modules/daily-ledger/database/migrations/044_add_ledger_shift.sql'));
+$h->test('migration 045 registered', in_array('database/migrations/045_rebuild_ledger_shift_key.sql', $migrations, true));
+$h->test('migration 045 file exists', is_file($base . '/modules/daily-ledger/database/migrations/045_rebuild_ledger_shift_key.sql'));
+
+$m044 = is_file($base . '/modules/daily-ledger/database/migrations/044_add_ledger_shift.sql')
+    ? (string)file_get_contents($base . '/modules/daily-ledger/database/migrations/044_add_ledger_shift.sql') : '';
+$h->test('migration 044 adds shift ENUM', str_contains($m044, "ADD COLUMN shift ENUM('AM','PM')"));
+
+$m045 = is_file($base . '/modules/daily-ledger/database/migrations/045_rebuild_ledger_shift_key.sql')
+    ? (string)file_get_contents($base . '/modules/daily-ledger/database/migrations/045_rebuild_ledger_shift_key.sql') : '';
+$h->test('migration 045 rebuilds unique key with shift', str_contains($m045, '(branch_id, product_id, ledger_date, shift)'));
+$h->test('migration 045 handles legacy key name', str_contains($m045, 'uq_ledger_entry') && str_contains($m045, 'uq_dl_ledger_entry'));
+$h->test('migration 045 uses single-statement SQL (no procedures)', !preg_match('/CREATE\s+PROCEDURE/i', $m045));
 
 $migrationOk = true;
 foreach ($migrations as $m) {

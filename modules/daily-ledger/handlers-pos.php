@@ -1344,13 +1344,19 @@ function dl_pos_fallbackManualSegment($db, int $branchId, string $date): array
     $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $ledgerStmt = $db->prepare(
-        'SELECT product_id, addtl, withdraw, bal_end, price_snapshot
+        'SELECT product_id, shift, addtl, withdraw, bal_end, price_snapshot
            FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d'
     );
     $ledgerStmt->execute([':b' => $branchId, ':d' => $date]);
+    // Aggregate shift-period rows per product: addtl/withdraw sum across shifts;
+    // the day's ending physical count is the PM row's bal_end (PM overwrites AM).
     $ledger = [];
     foreach ($ledgerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-        $ledger[(int)$row['product_id']] = $row;
+        $pid = (int)$row['product_id'];
+        $ledger[$pid]['addtl'] = ($ledger[$pid]['addtl'] ?? 0) + (int)$row['addtl'];
+        $ledger[$pid]['withdraw'] = ($ledger[$pid]['withdraw'] ?? 0) + (int)$row['withdraw'];
+        $ledger[$pid]['bal_end'] = (int)$row['bal_end'];
+        $ledger[$pid]['price_snapshot'] = (float)($row['price_snapshot'] ?? 0);
     }
 
     $totalQty = 0;

@@ -612,8 +612,9 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
     return $deliveryId;
 }
 
-function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, int $deliveryId, int $userId, string $receiveDate, ?array $partialQtys = null): int
+function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, int $deliveryId, int $userId, string $receiveDate, ?array $partialQtys = null, string $shift = 'AM'): int
 {
+    $shift = ($shift === 'PM') ? 'PM' : 'AM';
     $headStmt = $db->prepare(
         'SELECT *
            FROM dl_deliveries
@@ -702,7 +703,7 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
             ':remarks' => $item['remarks'],
         ]);
         if ($quantity > 0) {
-            dl_applyLedgerDelta($branchId, $pid, $receiveDate, $quantity, $userId, 'addtl');
+            dl_applyLedgerDelta($branchId, $pid, $receiveDate, $quantity, $userId, 'addtl', $shift);
         }
     }
 
@@ -1837,6 +1838,7 @@ function dl_correctDeliveryByDr($db, array $args): array
     $actorId = (int)($args['actor_id'] ?? 0);
     $businessDate = (string)($args['business_date'] ?? date('Y-m-d'));
     $hasOverride = (bool)($args['has_override'] ?? false);
+    $shift = (($args['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
 
     if ($branchId <= 0 || $drNumber === '' || $reason === '') {
         return ['ok' => false, 'status' => 422, 'error' => 'branch_id, dr_number and reason are required.'];
@@ -1970,10 +1972,10 @@ function dl_correctDeliveryByDr($db, array $args): array
 
             if ($delta !== 0) {
                 if ($originBranchId > 0) {
-                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw');
+                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw', $shift);
                 }
                 if (is_array($activeReceiving)) {
-                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, $delta, $actorId, 'addtl');
+                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, $delta, $actorId, 'addtl', $shift);
                 }
                 $updated[$pid] = ['old' => $oldQty, 'new' => $qty];
             }
@@ -1993,26 +1995,27 @@ function dl_correctDeliveryByDr($db, array $args): array
             $removed[$pid] = $oldQty;
             if ($oldQty !== 0) {
                 if ($originBranchId > 0) {
-                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, -$oldQty, $actorId, 'withdraw');
+                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, -$oldQty, $actorId, 'withdraw', $shift);
                 }
                 if (is_array($activeReceiving)) {
-                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, -$oldQty, $actorId, 'addtl');
+                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, -$oldQty, $actorId, 'addtl', $shift);
                 }
             }
         }
 
         foreach ($updated as $pid => $_) {
-            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId)); }
-            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId)); }
+            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId), $shift); }
+            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId), $shift); }
         }
         foreach ($removed as $pid => $_) {
-            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId)); }
-            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId)); }
+            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId), $shift); }
+            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId), $shift); }
         }
 
         dl_auditLog('edit_delivery_by_dr', $branchId, 'dl_deliveries', (string)$delivery['id'], null, [
             'dr_number' => $drNumber,
             'origin_branch_id' => $originBranchId ?: null,
+            'shift' => $shift,
             'updated' => $updated,
             'removed' => $removed,
             'edited_by_role' => $role,
@@ -2142,6 +2145,7 @@ function apiEditDeliveryByDr(array $params = []): void
 
     $actorId = dl_getActorUserId($user);
     $businessDate = dl_businessDate();
+    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
 
     // Merge duplicate product lines; quantities may be 0 to remove a line.
     $desired = [];
@@ -2170,6 +2174,7 @@ function apiEditDeliveryByDr(array $params = []): void
         'actor_id' => $actorId,
         'business_date' => $businessDate,
         'has_override' => dl_roleHasPermission($role, 'ledger.override'),
+        'shift' => $shift,
     ]);
 
     if (!$result['ok']) {

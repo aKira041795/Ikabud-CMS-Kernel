@@ -47,6 +47,11 @@
         <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Reference only</span>
         {/if}
 
+        <div class="inline-flex items-center rounded-full bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-300" role="group" aria-label="Shift">
+            <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=AM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'AM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">AM</a>
+            <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=PM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'PM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">PM</a>
+        </div>
+
         {if pos_enabled}
         {if sales_mode == 'pos'}
         <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-300">Mode: POS</span>
@@ -159,7 +164,7 @@
                 </tr>
             </thead>
             <tbody id="ledger-body"
-                   hx-get="{base_url}/ledger/rows?date={ledger_date}&branch_id={branch_id}"
+                   hx-get="{base_url}/ledger/rows?date={ledger_date}&branch_id={branch_id}&shift={shift}"
                    hx-trigger="load"
                    hx-swap="innerHTML">
                 <tr><td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">Loading...</td></tr>
@@ -193,6 +198,7 @@
     var BASE = '{base_url}';
     var BRANCH_ID = '{branch_id}';
     var LEDGER_DATE = '{ledger_date}';
+    var SHIFT = '{shift}';
     var DAY_STATUS = '{day_status}';
     var FORMAL_DELIVERY_ENABLED = {if formal_delivery_enabled}true{else}false{/if};
     var COMMISSARY_BRANCH_ID = '{commissary_branch_id}';
@@ -201,6 +207,7 @@
     window.BASE = BASE;
     window.BRANCH_ID = BRANCH_ID;
     window.LEDGER_DATE = LEDGER_DATE;
+    window.SHIFT = SHIFT;
     window.FORMAL_DELIVERY_ENABLED = FORMAL_DELIVERY_ENABLED;
     window.COMMISSARY_BRANCH_ID = COMMISSARY_BRANCH_ID;
     window.COMMISSARY_BRANCH_NAME = COMMISSARY_BRANCH_NAME;
@@ -225,7 +232,7 @@
         var branchEl = document.getElementById('branch-select');
         var date = dateEl ? dateEl.value : '';
         var branch = branchEl ? branchEl.value : '';
-        var url = BASE + '/ledger?date=' + encodeURIComponent(date) + '&branch_id=' + encodeURIComponent(branch);
+        var url = BASE + '/ledger?date=' + encodeURIComponent(date) + '&branch_id=' + encodeURIComponent(branch) + '&shift=' + encodeURIComponent(SHIFT || 'AM');
         window.dlLoadUrl(url, false);
     };
 
@@ -241,7 +248,8 @@
         PENDING_TENANT_SCOPE,
         PENDING_ACTOR_SCOPE,
         BRANCH_ID || 'branch',
-        LEDGER_DATE || 'date'
+        LEDGER_DATE || 'date',
+        SHIFT || 'AM'
     ].join(':');
     var QUARANTINE_KEY = [PENDING_STORAGE_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
 
@@ -282,6 +290,7 @@
             actor_id: PENDING_ACTOR_SCOPE,
             branch_id: BRANCH_ID || '',
             date: LEDGER_DATE,
+            shift: SHIFT || 'AM',
             product_id: String(productId || ''),
             field: String(field || ''),
             value: parseInt(value, 10) || 0,
@@ -296,6 +305,8 @@
         if (String(payload.actor_id || '') !== PENDING_ACTOR_SCOPE) return null;
         if (String(payload.branch_id || '') !== String(BRANCH_ID || '')) return null;
         if (String(payload.date || '') !== String(LEDGER_DATE || '')) return null;
+        // Pre-shift pending entries had no shift field — treat as AM for continuity.
+        if (String(payload.shift || 'AM') !== String(SHIFT || 'AM')) return null;
         if (PENDING_ALLOWED_FIELDS.indexOf(String(payload.field || '')) === -1) return null;
         if (String(payload.product_id || '').trim() === '') return null;
         return buildPendingPayload(payload.product_id, payload.field, payload.value);
@@ -418,7 +429,8 @@
             product_id: productId,
             field: field,
             value: value,
-            date: LEDGER_DATE
+            date: LEDGER_DATE,
+            shift: SHIFT
         };
         if (BRANCH_ID) payload.branch_id = BRANCH_ID;
         return fetch(BASE + '/api/v1/cashier/ledger/save', {

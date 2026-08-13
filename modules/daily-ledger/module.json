@@ -114,7 +114,9 @@
     "database/migrations/040_add_liable_user_to_withdrawals.sql",
     "database/migrations/041_add_auditor_viewer_roles.sql",
     "database/migrations/042_pos_sales_and_day_modes.sql",
-    "database/migrations/043_add_adjustment_custom_reason.sql"
+    "database/migrations/043_add_adjustment_custom_reason.sql",
+    "database/migrations/044_add_ledger_shift.sql",
+    "database/migrations/045_rebuild_ledger_shift_key.sql"
   ],
   "capabilities": {
     "exposes": [
