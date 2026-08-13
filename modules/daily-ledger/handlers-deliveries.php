@@ -2145,7 +2145,8 @@ function apiEditDeliveryByDr(array $params = []): void
 
     $actorId = dl_getActorUserId($user);
     $businessDate = dl_businessDate();
-    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
 
     // Merge duplicate product lines; quantities may be 0 to remove a line.
     $desired = [];

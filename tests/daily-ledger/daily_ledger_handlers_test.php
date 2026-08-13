@@ -183,7 +183,26 @@ $h->test('field save scopes by shift', str_contains($handlersSource, "AND ledger
 $h->test('batch save scopes by shift', str_contains($handlersSource, 'AND ledger_date = :d AND shift = :shift FOR UPDATE'));
 $h->test('withdrawals scopes ledger by shift', str_contains($handlersSource, "AND ledger_date = :d AND shift = :shift FOR UPDATE"));
 
+// Per-cashier shift binding: each cashier is locked to their assigned shift
+// (dl_users.shift); bound cashiers keep editing only their own ledger, even
+// after the other shift has started.
+$h->test('dl_userAssignedShift available', function_exists('dl_userAssignedShift'));
+$h->test('dl_userShift available', function_exists('dl_userShift'));
+$h->test('dl_userShiftBound available', function_exists('dl_userShiftBound'));
+$h->test('dl_resolveLedgerShift available', function_exists('dl_resolveLedgerShift'));
+$h->test('assigned shift wins over time', str_contains($handlersSource, '$boundShift = dl_userAssignedShift($user);'));
+$h->test('ledger page resolves shift via helper', str_contains($handlersSource, 'dl_resolveLedgerShift($user, $input)'));
+$h->test('ledger page passes shift_locked', str_contains($handlersSource, "'shift_locked' => \$shiftBound,"));
+$h->test('field save resolves shift via helper', (bool)preg_match('/function apiSaveLedgerField[\s\S]*?dl_resolveLedgerShift\(\$user, \$input\)/', $handlersSource));
+$h->test('batch save resolves shift via helper', (bool)preg_match('/function apiSaveLedgerBatch[\s\S]*?dl_resolveLedgerShift\(\$user, \$input\)/', $handlersSource));
+$h->test('withdrawals resolve shift via helper', (bool)preg_match('/function apiSaveCashierWithdrawals[\s\S]*?dl_resolveLedgerShift\(\$user, \$input\)/', $handlersSource));
+$h->test('create user persists shift column', str_contains($handlersSource, 'role, shift, is_active'));
+$h->test('update user persists shift column', str_contains($handlersSource, "', shift = :shift'"));
+$h->test('update user keeps shift when payload lacks it', str_contains($handlersSource, "array_key_exists('shift', \$input)"));
+$h->test('create user auto-derives shift from username', str_contains($handlersSource, 'preg_match(\'/^(am|pm)$/i\', substr($username, -2))'));
+
 $deliveriesSource = (string) file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
+$h->test('delivery edit resolves shift via helper', str_contains($deliveriesSource, 'dl_resolveLedgerShift($user, $input)'));
 // Regression: dl_delivery_items has no updated_at column — the edit update must not reference it.
 $h->test('delivery-item edit update avoids updated_at', !str_contains($deliveriesSource, 'dl_delivery_items SET quantity = :qty, updated_at'));
 // Move service requires authority over both branches (excludes single-branch cashiers).

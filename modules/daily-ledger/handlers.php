@@ -1323,6 +1323,90 @@ function dl_amShiftCutoff(): string
     return $raw;
 }
 
+/**
+ * Explicit per-user shift assignment (AM/PM) read from dl_users.shift, or
+ * null when the account has no assignment. Cached per request+user id so
+ * the ledger hot path only queries once.
+ */
+function dl_userAssignedShift(array $user): ?string
+{
+    $id = dl_getActorUserId($user);
+    if ($id <= 0) {
+        return null;
+    }
+    static $cache = [];
+    if (array_key_exists($id, $cache)) {
+        return $cache[$id];
+    }
+    $value = null;
+    $ctx = module();
+    if ($ctx) {
+        try {
+            $stmt = $ctx->db()->prepare('SELECT shift FROM dl_users WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $id]);
+            $v = $stmt->fetchColumn();
+            if ($v === 'AM' || $v === 'PM') {
+                $value = (string)$v;
+            }
+        } catch (\Throwable $e) {
+            // Column may be missing on tenants that have not run migration 046.
+            $value = null;
+        }
+    }
+    $cache[$id] = $value;
+    return $value;
+}
+
+/**
+ * Effective shift for the current actor.
+ *
+ * - Assigned cashiers (dl_users.shift set) are locked to their shift:
+ *   the AM cashier stays on AM and may keep editing its own ledger even
+ *   after the PM shift has started; the PM cashier stays on PM.
+ * - Unassigned accounts (admin/supervisor/auditor, or cashiers without
+ *   an assignment) follow the time-based active shift (dl_currentShift).
+ */
+function dl_userShift(array $user): string
+{
+    $assigned = dl_userAssignedShift($user);
+    if ($assigned !== null) {
+        return $assigned;
+    }
+    return dl_currentShift();
+}
+
+/**
+ * Whether the account is bound to a specific shift (AM or PM) via
+ * dl_users.shift. Bound cashiers may only ever view/edit that shift.
+ */
+function dl_userShiftBound(array $user): bool
+{
+    return dl_userAssignedShift($user) !== null;
+}
+
+/**
+ * Resolve and enforce the ledger shift for the current actor.
+ *
+ * - A shift-bound cashier (dl_users.shift set) is FORCED to their assigned
+ *   shift: any `shift` value coming from the request is ignored, so they can
+ *   never open or edit the other shift's ledger.
+ * - Everyone else (admin/supervisor/unassigned) follows the requested shift
+ *   and defaults to the time-based active shift (dl_currentShift), which
+ *   stays PM for the rest of the day once the AM cutoff has passed.
+ *
+ * @return array{shift: string, bound: bool}
+ */
+function dl_resolveLedgerShift(array $user, array $input): array
+{
+    $boundShift = dl_userAssignedShift($user);
+    if ($boundShift !== null) {
+        return ['shift' => $boundShift, 'bound' => true];
+    }
+    $shift = (($input['shift'] ?? dl_currentShift()) === 'PM') ? 'PM' : 'AM';
+    return ['shift' => $shift, 'bound' => false];
+}
+
+
 function dl_generateSku(): string
 {
     $ctx = module();
@@ -2811,7 +2895,9 @@ function handleCashierLedger(array $params = []): void
     $branchId   = $authResult['branch_id'];
     $today      = dl_businessDate();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
-    $shift      = (($input['shift'] ?? dl_currentShift()) === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift      = $shiftResolved['shift'];
+    $shiftBound = $shiftResolved['bound'];
     $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
@@ -2921,6 +3007,7 @@ function handleCashierLedger(array $params = []): void
         'branch_name' => $branchName,
         'ledger_date' => $ledgerDate,
         'shift'       => $shift,
+        'shift_locked' => $shiftBound,
         'today'       => $today,
         'day_status'  => $dayStatus,
         'branches'    => $branches,
@@ -2969,7 +3056,8 @@ function handleCashierRows(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
-    $shift = (($input['shift'] ?? dl_currentShift()) === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
 
     if ($branchId) {
@@ -3031,7 +3119,12 @@ function apiGetLedgerRows(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
-    $shift = ((!empty($_GET['shift']) ? (string)$_GET['shift'] : ($input['shift'] ?? dl_currentShift())) === 'PM') ? 'PM' : 'AM';
+    $shiftSource = $input;
+    if (!empty($_GET['shift'])) {
+        $shiftSource['shift'] = (string)$_GET['shift'];
+    }
+    $shiftResolved = dl_resolveLedgerShift($user, $shiftSource);
+    $shift = $shiftResolved['shift'];
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
@@ -3063,6 +3156,7 @@ function apiGetLedgerRows(array $params = []): void
         'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
         'day_status' => $dayStatus,
         'shift' => $shift,
+        'shift_locked' => $shiftResolved['bound'],
     ]);
 }
 
@@ -3146,7 +3240,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
         return;
     }
     $date = $input['date'] ?? date('Y-m-d');
-    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
     $header = (array)($input['header'] ?? []);
     $lines = (array)($input['lines'] ?? []);
 
@@ -3468,7 +3563,8 @@ function apiCreateCashierDispatch(array $params = []): void
         return;
     }
     $originBranchId = $authResult['branch_id'];
-    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $drNumber = trim((string)($input['dr_number'] ?? ''));
     $destType = (string)($input['destination_type'] ?? 'branch');
@@ -3728,7 +3824,8 @@ function apiReceiveDelivery(array $params = []): void
         return;
     }
     $branchId = $authResult['branch_id'];
-    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
     $ids = array_values(array_filter(array_map('intval', (array)($input['withdrawal_ids'] ?? []))));
     $deliveryIds = array_values(array_filter(array_map('intval', (array)($input['delivery_ids'] ?? []))));
 
@@ -3866,7 +3963,8 @@ function apiReceivePaperDelivery(array $params = []): void
         return;
     }
     $destinationBranchId = $authResult['branch_id'];
-    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
     $originType = (string)($input['origin_type'] ?? 'commissary');
     $originId = isset($input['origin_id']) && $input['origin_id'] !== '' ? (int)$input['origin_id'] : null;
     $drNumber = trim((string)($input['dr_number'] ?? ''));
@@ -4039,7 +4137,8 @@ function apiSaveLedgerField(array $params = []): void
     $field     = (string)($input['field'] ?? '');
     $value     = (int)($input['value'] ?? 0);
     $date      = (string)($input['date'] ?? dl_businessDate());
-    $shift     = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift     = $shiftResolved['shift'];
     $userId    = dl_getActorUserId($user);
     if ($userId <= 0) {
         write_log('daily-ledger save auth required', 'error', [
@@ -4219,7 +4318,8 @@ function apiSaveLedgerBatch(array $params = []): void
 
     $input = $ctx->input();
     $date = (string)($input['date'] ?? dl_businessDate());
-    $shift = (($input['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
     $rows = $input['rows'] ?? null;
     $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
 
@@ -7772,7 +7872,7 @@ function handleAdminUsers(array $params = []): void
 
     $usersHaveEmail = dlTableHasColumn('dl_users', 'email');
     $userEmailSelect = $usersHaveEmail ? 'u.email, ' : '';
-    $sql = "SELECT u.id, u.username, {$userEmailSelect}u.full_name, u.role,
+    $sql = "SELECT u.id, u.username, {$userEmailSelect}u.full_name, u.role, u.shift,
                    u.is_active, u.deleted_at,
                    CASE WHEN u.role = 'cashier'
                         THEN (SELECT MIN(ub.branch_id) FROM dl_user_branches ub WHERE ub.user_id = u.id)
@@ -7806,6 +7906,7 @@ function handleAdminUsers(array $params = []): void
         $userRow['branch_names'] = (string)($userRow['branch_names'] ?? '');
         $userRow['branch_ids_csv'] = (string)($userRow['branch_ids_csv'] ?? '');
         $userRow['branch_id'] = (int)($userRow['branch_id'] ?? 0);
+        $userRow['shift'] = (string)($userRow['shift'] ?? '');
     }
     unset($userRow);
 
@@ -7862,6 +7963,7 @@ function apiCreateUser(array $params = []): void
     $fullName = trim((string)($input['full_name'] ?? ''));
     $role     = (string)($input['role'] ?? 'cashier');
     $branchId = (int)($input['branch_id'] ?? 0);
+    $shift    = (string)($input['shift'] ?? '');
 
     if ($username === '' || $password === '' || $fullName === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'All fields required', 'type' => 'error']]));
@@ -7873,6 +7975,18 @@ function apiCreateUser(array $params = []): void
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid role', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid role'], 422);
         return;
+    }
+
+    if ($shift !== '' && !in_array($shift, ['AM', 'PM'], true)) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid shift', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Invalid shift'], 422);
+        return;
+    }
+
+    // Convenience: when creating a cashier without an explicit shift, auto-bind
+    // AM/PM from a username ending in "am"/"pm" (e.g. cashier-miputakAM).
+    if ($shift === '' && $role === 'cashier' && preg_match('/^(am|pm)$/i', substr($username, -2))) {
+        $shift = strtoupper(substr($username, -2));
     }
 
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -7917,13 +8031,13 @@ function apiCreateUser(array $params = []): void
         $usersHaveEmail = dlTableHasColumn('dl_users', 'email');
         $emailColumn = $usersHaveEmail ? ', email' : '';
         $emailPlaceholder = $usersHaveEmail ? ', :e' : '';
-        $createBind = [':u' => $username, ':p' => $hash, ':n' => $fullName, ':r' => $role];
+        $createBind = [':u' => $username, ':p' => $hash, ':n' => $fullName, ':r' => $role, ':s' => $shift !== '' ? $shift : null];
         if ($usersHaveEmail) {
             $createBind[':e'] = $email !== '' ? $email : null;
         }
         $ctx->db()->prepare(
-            'INSERT INTO dl_users (username' . $emailColumn . ', password_hash, full_name, role, is_active)
-             VALUES (:u' . $emailPlaceholder . ', :p, :n, :r, 1)'
+            'INSERT INTO dl_users (username' . $emailColumn . ', password_hash, full_name, role, shift, is_active)
+             VALUES (:u' . $emailPlaceholder . ', :p, :n, :r, :s, 1)'
         )->execute($createBind);
         $newUserId = (int)$ctx->db()->lastInsertId();
 
@@ -7945,6 +8059,7 @@ function apiCreateUser(array $params = []): void
             'full_name' => $fullName,
             'email' => $email !== '' ? $email : null,
             'role' => $role,
+            'shift' => $shift !== '' ? $shift : null,
             'branch_id' => $role === 'cashier' ? $branchId : null,
             'branch_ids' => in_array($role, ['supervisor', 'production_in_charge'], true) ? $branchIds : null,
         ]);
@@ -8014,10 +8129,17 @@ function apiUpdateUser(array $params = []): void
     $isActive = (int)($input['is_active'] ?? 1);
     $password = (string)($input['password'] ?? '');
     $branchId = (int)($input['branch_id'] ?? 0);
+    $shift    = (string)($input['shift'] ?? '');
 
     if (!$editId || $fullName === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
+        return;
+    }
+
+    if ($shift !== '' && !in_array($shift, ['AM', 'PM'], true)) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid shift', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Invalid shift'], 422);
         return;
     }
 
@@ -8092,6 +8214,12 @@ function apiUpdateUser(array $params = []): void
         $usersHaveEmail = dlTableHasColumn('dl_users', 'email');
         $sql = 'UPDATE dl_users SET full_name = :name, is_active = :active';
         $bind = [':name' => $fullName, ':active' => $isActive, ':id' => $editId];
+        // Only write `shift` when the payload carries it, so callers that
+        // predate the per-user shift feature cannot accidentally clear one.
+        if (array_key_exists('shift', $input)) {
+            $sql .= ', shift = :shift';
+            $bind[':shift'] = $shift !== '' ? $shift : null;
+        }
         if ($usersHaveEmail) {
             $sql .= ', email = :email';
             $bind[':email'] = $email !== '' ? $email : null;
@@ -8130,6 +8258,7 @@ function apiUpdateUser(array $params = []): void
             'full_name' => $fullName,
             'email' => $email !== '' ? $email : null,
             'role' => $role,
+            'shift' => $shift !== '' ? $shift : null,
             'is_active' => $isActive,
             'branch_id' => $role === 'cashier' ? $branchId : null,
             'branch_ids' => in_array($role, ['supervisor', 'production_in_charge'], true) ? $branchIds : null,
