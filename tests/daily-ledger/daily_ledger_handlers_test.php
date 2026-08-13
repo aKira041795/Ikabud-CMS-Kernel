@@ -164,6 +164,9 @@ $handlersSource = (string) file_get_contents($base . '/modules/daily-ledger/hand
 $h->test('custom_reason persisted in withdrawal insert', str_contains($handlersSource, 'custom_reason'));
 $h->test('custom reason required when reason is other', str_contains($handlersSource, 'A custom reason is required when reason is Other.'));
 $h->test('apiSaveRolePermissions persists pos_enabled', str_contains($handlersSource, "'pos_enabled' => \$posEnabled ? '1' : '0'"));
+$h->test('dl_amShiftCutoff available', function_exists('dl_amShiftCutoff'));
+$h->test('dl_currentShift uses configured cutoff', str_contains($handlersSource, 'dl_amShiftCutoff()'));
+$h->test('settings save persists am_shift_cutoff', str_contains($handlersSource, "'am_shift_cutoff' => \$amShiftCutoff,"));
 
 // Regression (developer review): dl_rolePermissions() REPLACES a role's stored
 // permissions on save, so apiSaveRolePermissions must seed each role with its

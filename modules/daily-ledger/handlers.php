@@ -1288,17 +1288,39 @@ function dl_getDayStatus(int $branchId, string $date): string
 
 /**
  * Which cashier shift is active right now, resolved in the operating timezone.
- * AM before the shift boundary (14:00), PM at/after. Used as the default shift
- * on the cashier ledger so a PM-hour cashier lands on the PM shift (and sees
- * the AM ending handed off as her beginning) without manually toggling.
- * The explicit AM/PM toggle always overrides.
+ * AM before the configured AM→PM cutoff (dl_amShiftCutoff()), PM at/after.
+ * Used as the default shift on the cashier ledger so a PM-hour cashier lands
+ * on the PM shift (and sees the AM ending handed off as her beginning)
+ * without manually toggling. The explicit AM/PM toggle always overrides.
  */
 function dl_currentShift(?\DateTimeImmutable $now = null): string
 {
     $settings = dl_closeOfDaySettings();
     $timezone = new \DateTimeZone($settings['operating_timezone']);
     $now = $now ? $now->setTimezone($timezone) : new \DateTimeImmutable('now', $timezone);
-    return (int)$now->format('G') < 14 ? 'AM' : 'PM';
+    list($hours, $minutes) = array_map('intval', explode(':', dl_amShiftCutoff()));
+    $nowMinutes = (int)$now->format('G') * 60 + (int)$now->format('i');
+    $cutoffMinutes = $hours * 60 + $minutes;
+    return $nowMinutes < $cutoffMinutes ? 'AM' : 'PM';
+}
+
+/**
+ * AM→PM shift cutoff time (HH:MM) configured in Admin Settings. Invalid or
+ * missing values fall back to "14:00". At/after this time the active shift
+ * is PM.
+ */
+function dl_amShiftCutoff(): string
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $raw = trim((string)(dlModuleSettings()['am_shift_cutoff'] ?? '14:00'));
+    if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $raw)) {
+        $raw = '14:00';
+    }
+    $cache = $raw;
+    return $raw;
 }
 
 function dl_generateSku(): string
@@ -5602,6 +5624,7 @@ function handleAdminSettings(array $params = []): void
         'perm_prod_production_override' => in_array('production.override', $permissions['production_in_charge'] ?? [], true),
         'auto_close_enabled' => $closeOfDaySettings['auto_close_enabled'],
         'close_of_day_time' => $closeOfDaySettings['close_of_day_time'],
+        'am_shift_cutoff' => dl_amShiftCutoff(),
         'operating_timezone' => $closeOfDaySettings['operating_timezone'],
         'operating_region' => $closeOfDaySettings['operating_region'],
         'operating_timezone_choices' => dl_operatingTimezoneChoices($closeOfDaySettings['operating_timezone']),
@@ -5848,6 +5871,11 @@ function apiSaveRolePermissions(array $params = []): void
 
     $autoCloseEnabled = $toBool($input['auto_close_enabled'] ?? false);
     $closeOfDayTime = dl_normalizeCloseOfDayTime($input['close_of_day_time'] ?? '00:00');
+    // AM→PM shift cutoff: valid HH:MM required; falls back to 14:00 otherwise.
+    $amShiftCutoff = dl_normalizeCloseOfDayTime($input['am_shift_cutoff'] ?? '14:00');
+    if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', trim((string)($input['am_shift_cutoff'] ?? '')))) {
+        $amShiftCutoff = '14:00';
+    }
     $operatingTimezone = dl_normalizeTimezone($input['operating_timezone'] ?? config('app.timezone', 'Asia/Manila'));
     $operatingRegion = dl_normalizeRegion($input['operating_region'] ?? '');
     $featureSettings = dl_featureSettings();
@@ -5938,6 +5966,7 @@ function apiSaveRolePermissions(array $params = []): void
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled ? '1' : '0',
         'close_of_day_time' => $closeOfDayTime,
+        'am_shift_cutoff' => $amShiftCutoff,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled ? '1' : '0',
@@ -5962,6 +5991,7 @@ function apiSaveRolePermissions(array $params = []): void
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled,
         'close_of_day_time' => $closeOfDayTime,
+        'am_shift_cutoff' => $amShiftCutoff,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'logo_url' => $logoUrl,
@@ -5991,6 +6021,7 @@ function apiSaveRolePermissions(array $params = []): void
         'backup_retention_days' => $backupRetentionDays,
         'reset_second_phrase_enabled' => $resetSecondPhraseEnabled,
         'close_of_day_time' => $closeOfDayTime,
+        'am_shift_cutoff' => $amShiftCutoff,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled,

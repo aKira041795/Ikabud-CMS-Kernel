@@ -246,6 +246,13 @@
       "description": "Comma-separated tender methods accepted at POS checkout (e.g. cash,gcash,card)."
     },
     {
+      "key": "am_shift_cutoff",
+      "type": "time",
+      "label": "AM to PM Shift Cutoff",
+      "default": "14:00",
+      "description": "Time the AM shift ends and the PM shift begins. The ledger auto-selects PM for cashiers working at/after this time, and the PM shift starts with the AM ending count."
+    },
+    {
       "key": "reset_second_phrase_enabled",
       "type": "checkbox",
       "label": "Require Second Phrase For Full Reset",

@@ -107,6 +107,7 @@ $h->test('formal_delivery_workflow_enabled declared', in_array('formal_delivery_
 $h->test('price_groups_enabled declared', in_array('price_groups_enabled', $settingKeys, true));
 $h->test('pos_enabled declared', in_array('pos_enabled', $settingKeys, true));
 $h->test('pos_allowed_tenders declared', in_array('pos_allowed_tenders', $settingKeys, true));
+$h->test('am_shift_cutoff declared', in_array('am_shift_cutoff', $settingKeys, true));
 $h->test('at least 6 settings declared', count($settings) >= 6);
 
 // ─── Navigation ─────────────────────────────────────────────────

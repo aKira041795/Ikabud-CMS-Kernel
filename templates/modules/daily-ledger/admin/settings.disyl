@@ -71,8 +71,37 @@
 </div>
 <div class="card mb-6">
     <div class="card-header">
-        <span>Close of Day</span>
-        <span class="text-sm text-muted">Cashier and Production</span>
+        <span>Shifts</span>
+        <span class="text-sm text-muted">AM / PM Cashier Handoff</span>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div class="form-group mb-0">
+                <label class="form-label" for="am-shift-cutoff">AM to PM Shift Cutoff</label>
+                <input type="time" id="am-shift-cutoff" class="form-input" value="{am_shift_cutoff}" onchange="updateShiftBadgePreview()">
+                <p class="mt-2 text-sm text-gray-500">The AM shift ends and the PM shift begins at this time. A cashier working at or after this time is auto-selected to the PM shift on the ledger, and the PM shift starts with the AM ending count.</p>
+                <div class="mt-3">
+                    <span class="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-800 ring-1 ring-inset ring-indigo-200" id="shift-badge-preview">
+                        PM shift starts at {am_shift_cutoff}
+                    </span>
+                </div>
+            </div>
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+                <p class="font-semibold">How the two shifts work</p>
+                <ul class="mt-2 list-disc pl-4 space-y-1 text-xs leading-5">
+                    <li><span class="font-semibold">AM</span> encodes its own beginning, adjustments, and ending.</li>
+                    <li><span class="font-semibold">PM</span> validates the AM ending and uses it as its beginning, then continues with its own adjustments and ending.</li>
+                    <li>Each shift keeps its own sales total; the day total is the sum of both.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Operating Clock</span>
+        <span class="text-sm text-muted">Region and Timezone</span>
     </div>
     <div class="card-body">
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -92,8 +121,19 @@
                     <option value="{tz}" {if tz == operating_timezone}selected{/if}>{tz}</option>
                     {/foreach}
                 </select>
-                <p class="mt-2 text-sm text-gray-500">Used for business-date and auto-close cutoff calculations.</p>
+                <p class="mt-2 text-sm text-gray-500">Used for business-date, shift, and auto-close cutoff calculations.</p>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Close of Day</span>
+        <span class="text-sm text-muted">Business-Day Cutoff</span>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
                 <label class="inline-flex items-center gap-2 text-sm text-gray-700">
                     <input type="checkbox" id="auto-close-enabled" {if auto_close_enabled}checked{/if} onchange="toggleCloseOfDayTime()">
@@ -117,7 +157,7 @@
 
 <div class="card mb-6">
     <div class="card-header">
-        <span>Feature Activation</span>
+        <span>Features</span>
         <span class="text-sm text-muted">Admin / Superadmin Control</span>
     </div>
     <div class="card-body">
@@ -205,7 +245,7 @@
 
 <div class="card mb-6">
     <div class="card-header">
-        <span>Override Permissions</span>
+        <span>Roles &amp; Permissions</span>
         <span class="text-sm text-muted">Daily Ledger</span>
     </div>
     <div class="card-body">
@@ -470,6 +510,14 @@
         document.getElementById('cutoff-badge-preview').textContent = 'Cutoff: ' + val;
     }
 
+    function updateShiftBadgePreview() {
+        var val = document.getElementById('am-shift-cutoff').value || '14:00';
+        var badge = document.getElementById('shift-badge-preview');
+        if (badge) {
+            badge.textContent = 'PM shift starts at ' + val;
+        }
+    }
+
     function renderDeploymentResetResult(data) {
         var box = document.getElementById('deployment-reset-result');
         if (!box) {
@@ -663,6 +711,7 @@
             operating_timezone: document.getElementById('operating-timezone').value,
             auto_close_enabled: autoCloseEnabled,
             close_of_day_time: closeOfDayTime,
+            am_shift_cutoff: document.getElementById('am-shift-cutoff').value || '14:00',
             backup_before_reset_enabled: document.getElementById('backup-before-reset-enabled').checked,
             backup_include_users: document.getElementById('backup-include-users').checked,
             backup_retention_days: parseInt(document.getElementById('backup-retention-days').value, 10) || 14,
