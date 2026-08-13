@@ -376,4 +376,23 @@ $h->test('draft-upgrade branch precedes idempotency hash conflict', $draftBranch
 // Stock-field isolation (POS never writes manual ledger source columns).
 $h->test('POS has no INSERT/UPDATE on dl_daily_ledger', !preg_match('/(INSERT INTO\s+dl_daily_ledger|UPDATE\s+dl_daily_ledger)/i', $posSource));
 
+// ─── POS shift alignment (shift-period model) ────────────────────
+$h->section('POS Shift Alignment');
+
+// Each POS sale is tagged with the cashier's shift so admin reports can split
+// AM vs PM, mirroring the manual ledger. A shift-bound cashier is forced to
+// their assigned shift.
+$h->test('checkout resolves shift via helper', (bool)preg_match('/function dl_pos_checkout[\s\S]*?dl_resolveLedgerShift\(\$cashier, \$args\)/', $posSource));
+$h->test('checkout completed INSERT stores shift', str_contains($posSource, "cashier_id, shift, receipt_no"));
+$h->test('checkout draft-upgrade UPDATE stores shift', (bool)preg_match('/UPDATE dl_pos_sales[\s\S]*?shift = :shift/s', $posSource));
+$h->test('cart save draft INSERT stores shift', str_contains($posSource, "cashier_id, shift, receipt_no, status"));
+$h->test('refund inherits original sale shift', str_contains($posSource, "':shift' => (\$sale['shift'] ?? null) ?: null"));
+$h->test('querySales selects shift', str_contains($posSource, 's.total_cents, s.shift,'));
+$h->test('querySales filters by shift', str_contains($posSource, "AND s.shift = ?"));
+$h->test('fallback snapshot aggregates shift rows', (bool)preg_match('/SELECT product_id, shift, addtl, withdraw FROM dl_daily_ledger/s', $posSource));
+$h->test('fallback snapshot sums addtl/withdraw across shifts', str_contains($posSource, "\$ledgerRows[\$pid]['addtl'] = (\$ledgerRows[\$pid]['addtl'] ?? 0) + (int)\$row['addtl']"));
+$h->test('POS page resolves shift via helper', (bool)preg_match('/function handleCashierPos[\s\S]*?dl_resolveLedgerShift\(\$user, \$input\)/', $posSource));
+$h->test('POS page passes shift_locked to template', str_contains($posSource, "'shift_locked' => \$shiftBound,"));
+$h->test('POS CSV export includes shift column', str_contains($posSource, "'Cashier', 'Shift', 'Kind'"));
+
 $h->done();

@@ -89,7 +89,7 @@
 <form class="card mb-6 print-hide" action="{base_url}/admin/sales" method="GET"
       onsubmit="return window.dlLoadForm(this)">
     <div class="card-body">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end">
     <div class="form-group">
         <label class="form-label">From</label>
         <input type="date" class="form-input" name="date_from" value="{date_from}">
@@ -110,6 +110,14 @@
     <div class="form-group">
         <label class="form-label">Search</label>
         <input type="text" class="form-input" name="q" value="{search}" placeholder="Product, SKU, or branch...">
+    </div>
+    <div class="form-group">
+        <label class="form-label">Shift</label>
+        <select class="form-input" name="shift">
+            <option value="">All</option>
+            <option value="AM" {if filter_shift == 'AM'}selected{/if}>AM</option>
+            <option value="PM" {if filter_shift == 'PM'}selected{/if}>PM</option>
+        </select>
     </div>
     <button type="submit" class="btn btn-primary">Filter</button>
     </div>

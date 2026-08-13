@@ -564,6 +564,12 @@ function dl_pos_checkout($db, array $args): array
     $expectedVersion = isset($args['expected_version']) && $args['expected_version'] !== null
         ? (int)$args['expected_version'] : null;
 
+    // Shift attribution: a shift-bound cashier is forced to their assigned
+    // shift; everyone else follows the time-based active shift. This mirrors
+    // the manual ledger so AM/PM POS sales are tagged consistently.
+    $shiftResolved = dl_resolveLedgerShift($cashier, $args);
+    $shift = $shiftResolved['shift'];
+
     if ($branchId <= 0 || $date === '' || $cashierId <= 0) {
         return ['ok' => false, 'code' => 'INVALID_CONTEXT', 'error' => 'Missing branch, date, or cashier.', 'status' => 422];
     }
@@ -711,14 +717,14 @@ function dl_pos_checkout($db, array $args): array
             $receiptNo = dl_pos_nextReceiptNo($db, $branchId, $date);
             $upd = $db->prepare(
                 "UPDATE dl_pos_sales
-                    SET status = 'completed', receipt_no = :rn, request_hash = :rh,
+                    SET status = 'completed', receipt_no = :rn, request_hash = :rh, shift = :shift,
                         item_count = :ic, subtotal_cents = :sub, discount_cents = :disc,
                         tax_cents = :tax, total_cents = :tot, version = version + 1,
                         completed_at = NOW()
                   WHERE id = :id AND status = 'draft'"
             );
             $upd->execute([
-                ':rn' => $receiptNo, ':rh' => $requestHash,
+                ':rn' => $receiptNo, ':rh' => $requestHash, ':shift' => $shift,
                 ':ic' => count($validatedLines), ':sub' => $totals['subtotal'],
                 ':disc' => $totals['discount'], ':tax' => $totals['tax'], ':tot' => $totals['total'],
                 ':id' => $saleId,
@@ -736,14 +742,15 @@ function dl_pos_checkout($db, array $args): array
             $ins = $db->prepare(
                 "INSERT INTO dl_pos_sales
                     (sale_uuid, client_operation_key, request_hash, sale_kind, branch_id, ledger_date,
-                     cashier_id, receipt_no, status, item_count, subtotal_cents, discount_cents,
+                     cashier_id, shift, receipt_no, status, item_count, subtotal_cents, discount_cents,
                      tax_cents, total_cents, completed_at)
                  VALUES
-                    (:uuid, :opk, :rh, 'sale', :b, :d, :cid, :rn, 'completed', :ic, :sub, :disc, :tax, :tot, NOW())"
+                    (:uuid, :opk, :rh, 'sale', :b, :d, :cid, :shift, :rn, 'completed', :ic, :sub, :disc, :tax, :tot, NOW())"
             );
             $ins->execute([
                 ':uuid' => $saleUuid, ':opk' => $clientOpKey, ':rh' => $requestHash,
-                ':b' => $branchId, ':d' => $date, ':cid' => $cashierId, ':rn' => $receiptNo,
+                ':b' => $branchId, ':d' => $date, ':cid' => $cashierId, ':shift' => $shift,
+                ':rn' => $receiptNo,
                 ':ic' => count($validatedLines), ':sub' => $totals['subtotal'],
                 ':disc' => $totals['discount'], ':tax' => $totals['tax'], ':tot' => $totals['total'],
             ]);
@@ -1062,16 +1069,17 @@ function dl_pos_refundSale($db, int $saleId, array $actor, array $lines, string 
         $ins = $db->prepare(
             "INSERT INTO dl_pos_sales
                 (sale_uuid, client_operation_key, request_hash, sale_kind, refund_of_sale_id, branch_id,
-                 ledger_date, cashier_id, receipt_no, status, item_count, subtotal_cents, discount_cents,
+                 ledger_date, cashier_id, shift, receipt_no, status, item_count, subtotal_cents, discount_cents,
                  tax_cents, total_cents, refund_reason, completed_at)
              VALUES
-                (:uuid, :opk, '', 'refund', :rid, :b, :d, :cid, :rn, 'completed', :ic, :sub, 0, 0, :tot, :reason, NOW())"
+                (:uuid, :opk, '', 'refund', :rid, :b, :d, :cid, :shift, :rn, 'completed', :ic, :sub, 0, 0, :tot, :reason, NOW())"
         );
         $ins->execute([
             ':uuid' => dl_generateMovementUuid(),
             ':opk' => $clientOpKey !== '' ? $clientOpKey : ('refund-' . $saleId . '-' . bin2hex(random_bytes(6))),
             ':rid' => $saleId,
             ':b' => $branchId, ':d' => $date, ':cid' => $actorId > 0 ? $actorId : (int)$sale['cashier_id'],
+            ':shift' => ($sale['shift'] ?? null) ?: null,
             ':rn' => $receiptNo, ':ic' => count($refundLines),
             ':sub' => $totals['total'], ':tot' => $totals['total'],
             ':reason' => substr($reason, 0, 255),
@@ -1213,13 +1221,18 @@ function dl_pos_recordFallbackCheckpoint($db, int $branchId, string $date, array
         }
 
         // Current ledger addtl/withdraw snapshots at the checkpoint instant.
+        // Shift-period model: AM and PM are separate rows per product, so the
+        // snapshots must SUM addtl/withdraw across both shift rows (the PM row
+        // must not silently overwrite the AM row's movement).
         $ledgerStmt = $db->prepare(
-            'SELECT product_id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d'
+            'SELECT product_id, shift, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d'
         );
         $ledgerStmt->execute([':b' => $branchId, ':d' => $date]);
         $ledgerRows = [];
         foreach ($ledgerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $ledgerRows[(int)$row['product_id']] = $row;
+            $pid = (int)$row['product_id'];
+            $ledgerRows[$pid]['addtl'] = ($ledgerRows[$pid]['addtl'] ?? 0) + (int)$row['addtl'];
+            $ledgerRows[$pid]['withdraw'] = ($ledgerRows[$pid]['withdraw'] ?? 0) + (int)$row['withdraw'];
         }
 
         $ins = $db->prepare(
@@ -1673,6 +1686,9 @@ function apiPosSaveCart(array $params = []): void
     $input = $guard['input'];
     $userId = dl_getActorUserId($guard['user']);
 
+    $shiftResolved = dl_resolveLedgerShift($guard['user'], $input);
+    $shift = $shiftResolved['shift'];
+
     $clientOpKey = substr(trim((string)($input['client_operation_key'] ?? '')), 0, 80);
     $lines = is_array($input['lines'] ?? null) ? array_values($input['lines']) : [];
     if ($clientOpKey === '') {
@@ -1703,12 +1719,12 @@ function apiPosSaveCart(array $params = []): void
             $db->prepare('DELETE FROM dl_pos_sale_items WHERE sale_id = :id')->execute([':id' => $saleId]);
         } else {
             $db->prepare(
-                "INSERT INTO dl_pos_sales (sale_uuid, client_operation_key, branch_id, ledger_date, cashier_id, receipt_no, status)
-                 VALUES (:uuid, :k, :b, :d, :c, :rn, 'draft')"
+                "INSERT INTO dl_pos_sales (sale_uuid, client_operation_key, branch_id, ledger_date, cashier_id, shift, receipt_no, status)
+                 VALUES (:uuid, :k, :b, :d, :c, :shift, :rn, 'draft')"
             )->execute([
                 ':uuid' => dl_generateMovementUuid(),
                 ':k' => $clientOpKey,
-                ':b' => $branchId, ':d' => $date, ':c' => $userId,
+                ':b' => $branchId, ':d' => $date, ':c' => $userId, ':shift' => $shift,
                 ':rn' => 'DRAFT-' . substr(md5($clientOpKey), 0, 12),
             ]);
             $saleId = (int)$db->lastInsertId();
@@ -1939,7 +1955,7 @@ function dl_pos_querySales($db, array $user, array $filters): array
     if ($accessible === []) { $accessible = [0]; }
     $placeholders = implode(',', array_fill(0, count($accessible), '?'));
 
-    $sql = "SELECT s.id, s.receipt_no, s.sale_kind, s.status, s.ledger_date, s.total_cents,
+    $sql = "SELECT s.id, s.receipt_no, s.sale_kind, s.status, s.ledger_date, s.total_cents, s.shift,
                    s.item_count, s.completed_at, b.name AS branch_name, u.full_name AS cashier_name,
                    (SELECT GROUP_CONCAT(p.tender_method) FROM dl_pos_payments p WHERE p.sale_id = s.id) AS tenders
               FROM dl_pos_sales s
@@ -1952,6 +1968,11 @@ function dl_pos_querySales($db, array $user, array $filters): array
     if ($branchId > 0 && in_array($branchId, $accessible, true)) {
         $sql .= ' AND s.branch_id = ?';
         $bind[] = $branchId;
+    }
+    $shiftFilter = strtoupper(trim((string)($filters['shift'] ?? '')));
+    if (in_array($shiftFilter, ['AM', 'PM'], true)) {
+        $sql .= ' AND s.shift = ?';
+        $bind[] = $shiftFilter;
     }
     foreach (['date_from' => '>=', 'date_to' => '<='] as $key => $op) {
         $value = trim((string)($filters[$key] ?? ''));
@@ -2016,6 +2037,10 @@ function handleCashierPos(array $params = []): void
     $mode = $branchId > 0 ? dl_pos_dayMode($db, $branchId, $date) : ['mode' => 'manual', 'row' => null, 'decided' => false];
     $summary = ($branchId > 0 && $posEnabled) ? dl_pos_salesSummary($db, $branchId, $date) : null;
 
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
+    $shiftBound = $shiftResolved['bound'];
+
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/cashier/pos.disyl', [
@@ -2029,6 +2054,8 @@ function handleCashierPos(array $params = []): void
         'branch_id' => $branchId,
         'branch_name' => $branchId > 0 ? dl_getBranchName($branchId) : '',
         'ledger_date' => $date,
+        'shift' => $shift,
+        'shift_locked' => $shiftBound,
         'day_status' => $branchId > 0 ? dl_getDayStatus($branchId, $date) : 'open',
         'pos_enabled' => $posEnabled,
         'can_sell' => $canSell,
@@ -2117,6 +2144,7 @@ function handleAdminPosSales(array $params = []): void
         'filter_date_to' => trim((string)($input['date_to'] ?? '')),
         'filter_status' => trim((string)($input['status'] ?? '')),
         'filter_tender' => trim((string)($input['tender'] ?? '')),
+        'filter_shift' => strtoupper(trim((string)($input['shift'] ?? ''))),
         'business_date_label' => $clockLabel['business_date'],
         'close_of_day_time' => $clockLabel['close_of_day_time'],
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
@@ -2142,10 +2170,11 @@ function handleAdminPosSalesExport(array $params = []): void
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="pos-sales-' . date('Ymd-His') . '.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['Receipt No', 'Date', 'Branch', 'Cashier', 'Kind', 'Status', 'Items', 'Tenders', 'Total']);
+    fputcsv($out, ['Receipt No', 'Date', 'Branch', 'Cashier', 'Shift', 'Kind', 'Status', 'Items', 'Tenders', 'Total']);
     foreach ($rows as $row) {
         fputcsv($out, [
             $row['receipt_no'], $row['ledger_date'], $row['branch_name'], $row['cashier_name'],
+            (string)($row['shift'] ?? ''),
             $row['sale_kind'], $row['status'], $row['item_count'], (string)($row['tenders'] ?? ''),
             number_format((float)$row['total'], 2, '.', ''),
         ]);

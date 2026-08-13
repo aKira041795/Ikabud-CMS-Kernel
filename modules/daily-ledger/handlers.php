@@ -3912,29 +3912,30 @@ function apiReceiveDelivery(array $params = []): void
             $foundIds[] = $rid;
         }
 
-        // Apply to dl_daily_ledger.addtl for receive date
+        // Apply to dl_daily_ledger.addtl for receive date (shift-scoped: each
+        // shift receives into its own row).
         $stmtCheck = $ctx->db()->prepare(
-            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
+            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
         $stmtUpd = $ctx->db()->prepare(
             'UPDATE dl_daily_ledger SET addtl = :addtl, updated_by = :uid
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
         );
         $stmtInit = $ctx->db()->prepare(
-            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, addtl, encoded_by, updated_by)
-             VALUES (:bid, :pid, :d, :prc, :addtl, :uid_enc, :uid_upd)'
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, addtl, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :shift, :prc, :addtl, :uid_enc, :uid_upd)'
         );
 
         foreach ($perProduct as $pid => $qty) {
-            $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate]);
+            $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate, ':shift' => $shift]);
             $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
             if ($existing) {
                 $newAddtl = (int)$existing['addtl'] + (int)$qty;
-                $stmtUpd->execute([':addtl' => $newAddtl, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate]);
+                $stmtUpd->execute([':addtl' => $newAddtl, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate, ':shift' => $shift]);
             } else {
                 $price = dl_resolveBranchProductPrice($branchId, (int)$pid, $receiveDate);
                 $stmtInit->execute([
-                    ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate,
+                    ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate, ':shift' => $shift,
                     ':prc' => $price, ':addtl' => (int)$qty,
                     ':uid_enc' => $userId, ':uid_upd' => $userId,
                 ]);
@@ -5363,6 +5364,10 @@ function handleAdminSales(array $params = []): void
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
     $actionFilter = trim((string)($input['action_filter'] ?? ''));
     $search   = trim((string)($input['q'] ?? ''));
+    $shiftFilter = strtoupper(trim((string)($input['shift'] ?? '')));
+    if (!in_array($shiftFilter, ['AM', 'PM'], true)) {
+        $shiftFilter = '';
+    }
 
     $actionFilterMap = [
         'output' => ['production_output'],
@@ -5431,6 +5436,10 @@ function handleAdminSales(array $params = []): void
         $bind[] = $like;
         $bind[] = $like;
         $bind[] = $like;
+    }
+    if ($shiftFilter !== '') {
+        $sql .= ' AND dl.shift = ?';
+        $bind[] = $shiftFilter;
     }
     $sql .= ' ORDER BY dl.ledger_date DESC, b.name, p.name';
 
@@ -5501,6 +5510,7 @@ function handleAdminSales(array $params = []): void
         'grand_units'  => $grandUnits,
         'grand_amount' => $grandAmount,
         'search'       => $search,
+        'filter_shift' => $shiftFilter,
         'pos_enabled'  => $posEnabled,
         'pos_branch_modes' => $posBranchModes,
         'pos_reconciliation' => $posReconciliation,

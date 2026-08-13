@@ -10,6 +10,10 @@
 </style>
 {/block}
 
+{block header_shift}
+{include "modules/daily-ledger/cashier/partials/shift-badge.disyl"}
+{/block}
+
 {block content}
 <div class="mb-6">
     <div class="flex items-center justify-between flex-wrap gap-2">

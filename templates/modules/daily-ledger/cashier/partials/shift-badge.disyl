@@ -1,0 +1,8 @@
+{if shift}
+<div class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wide ring-1 ring-inset shadow-sm {if shift == 'PM'}bg-indigo-600 text-white ring-indigo-700{else}bg-emerald-600 text-white ring-emerald-700{/if}"
+     title="{if shift_locked}Locked to your assigned shift: the AM cashier stays on AM and the PM cashier stays on PM.{else}Active shift follows the operating clock. AM cutoff {close_of_day_time}; PM is active for the rest of the day.{/if}">
+    <span class="inline-flex h-2 w-2 rounded-full bg-white/90"></span>
+    {shift} Shift
+    {if shift_locked}<i class="fas fa-lock ml-1 text-[10px]" aria-hidden="true"></i>{/if}
+</div>
+{/if}

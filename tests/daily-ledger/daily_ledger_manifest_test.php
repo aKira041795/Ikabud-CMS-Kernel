@@ -147,6 +147,8 @@ $h->test('migration 045 registered', in_array('database/migrations/045_rebuild_l
 $h->test('migration 045 file exists', is_file($base . '/modules/daily-ledger/database/migrations/045_rebuild_ledger_shift_key.sql'));
 $h->test('migration 046 registered', in_array('database/migrations/046_add_user_shift.sql', $migrations, true));
 $h->test('migration 046 file exists', is_file($base . '/modules/daily-ledger/database/migrations/046_add_user_shift.sql'));
+$h->test('migration 047 registered', in_array('database/migrations/047_add_pos_sale_shift.sql', $migrations, true));
+$h->test('migration 047 file exists', is_file($base . '/modules/daily-ledger/database/migrations/047_add_pos_sale_shift.sql'));
 
 $m044 = is_file($base . '/modules/daily-ledger/database/migrations/044_add_ledger_shift.sql')
     ? (string)file_get_contents($base . '/modules/daily-ledger/database/migrations/044_add_ledger_shift.sql') : '';
@@ -162,6 +164,11 @@ $m046 = is_file($base . '/modules/daily-ledger/database/migrations/046_add_user_
     ? (string)file_get_contents($base . '/modules/daily-ledger/database/migrations/046_add_user_shift.sql') : '';
 $h->test('migration 046 adds dl_users.shift ENUM', str_contains($m046, "ADD COLUMN shift ENUM('AM','PM')"));
 $h->test('migration 046 default is NULL (unassigned)', str_contains($m046, 'DEFAULT NULL'));
+
+$m047 = is_file($base . '/modules/daily-ledger/database/migrations/047_add_pos_sale_shift.sql')
+    ? (string)file_get_contents($base . '/modules/daily-ledger/database/migrations/047_add_pos_sale_shift.sql') : '';
+$h->test('migration 047 adds dl_pos_sales.shift ENUM', str_contains($m047, "ADD COLUMN shift ENUM('AM','PM')"));
+$h->test('migration 047 targets dl_pos_sales', str_contains($m047, 'ALTER TABLE dl_pos_sales'));
 
 $migrationOk = true;
 foreach ($migrations as $m) {

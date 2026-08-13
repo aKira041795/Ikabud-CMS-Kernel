@@ -203,6 +203,16 @@ $h->test('create user auto-derives shift from username', str_contains($handlersS
 
 $deliveriesSource = (string) file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
 $h->test('delivery edit resolves shift via helper', str_contains($deliveriesSource, 'dl_resolveLedgerShift($user, $input)'));
+
+// Review gap fixes (shift-period model):
+// - apiReceiveDelivery writes addtl into the shift-scoped ledger row (a plain
+//   branch+product+date UPDATE would touch BOTH the AM and PM rows).
+$h->test('receive delivery check scopes by shift', str_contains($handlersSource, 'AND ledger_date = :d AND shift = :shift FOR UPDATE'));
+$h->test('receive delivery update scopes by shift', str_contains($handlersSource, 'WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'));
+$h->test('receive delivery insert stores shift', str_contains($handlersSource, 'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot'));
+// - Admin Sales report can filter by shift (parity with POS).
+$h->test('admin sales filters by shift', (bool)preg_match('/function handleAdminSales[\s\S]*?AND dl\.shift = \?/', $handlersSource));
+$h->test('admin sales passes filter_shift', str_contains($handlersSource, "'filter_shift' => \$shiftFilter,"));
 // Regression: dl_delivery_items has no updated_at column — the edit update must not reference it.
 $h->test('delivery-item edit update avoids updated_at', !str_contains($deliveriesSource, 'dl_delivery_items SET quantity = :qty, updated_at'));
 // Move service requires authority over both branches (excludes single-branch cashiers).

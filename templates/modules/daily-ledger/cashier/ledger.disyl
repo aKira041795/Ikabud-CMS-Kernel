@@ -3,6 +3,10 @@
 {block head}
 {/block}
 
+{block header_shift}
+{include "modules/daily-ledger/cashier/partials/shift-badge.disyl"}
+{/block}
+
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
@@ -48,7 +52,7 @@
         {/if}
 
         {if shift_locked}
-        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if shift == 'PM'}bg-indigo-50 text-indigo-700 ring-indigo-200{else}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}">{shift} Shift (locked)</span>
+        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-300">Locked to {shift} Shift</span>
         {else}
         <div class="inline-flex items-center rounded-full bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-300" role="group" aria-label="Shift">
             <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=AM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'AM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">AM</a>
@@ -71,30 +75,6 @@
 
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
         <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
-    </div>
-</div>
-
-<!-- Prominent active-shift banner: the current shift is impossible to miss.
-     Bound cashiers are locked to their assigned shift (no toggle) and keep
-     editing their own ledger even after the other shift has started. -->
-<div class="mb-4 flex items-center justify-between rounded-xl px-4 py-3 shadow-sm {if shift == 'PM'}bg-indigo-600 text-white{else}bg-emerald-600 text-white{/if}">
-    <div class="flex items-center gap-4">
-        <div>
-            <div class="text-[10px] font-bold uppercase tracking-widest opacity-80">Active Shift</div>
-            <div class="text-2xl font-extrabold leading-tight tracking-tight">{shift} SHIFT</div>
-        </div>
-        <div class="hidden text-xs opacity-90 sm:block">
-            {if shift_locked}
-            <div class="font-semibold">Locked to your assigned shift</div>
-            {else}
-            <div class="font-semibold">Follows the operating clock</div>
-            {/if}
-            <div>AM cutoff {close_of_day_time}</div>
-        </div>
-    </div>
-    <div class="text-right text-xs opacity-90">
-        <div class="font-bold uppercase tracking-wide">{if shift == 'PM'}PM ledger{else}AM ledger{/if}</div>
-        <div>{ledger_date}</div>
     </div>
 </div>
 

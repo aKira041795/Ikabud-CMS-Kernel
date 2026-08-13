@@ -7,7 +7,7 @@
             <h2 class="text-lg font-semibold text-gray-900">POS Sales</h2>
             <p class="text-sm text-gray-500">Itemized POS receipts, voids, and refunds. Manual stock-derived sales are on the Sales report.</p>
         </div>
-        <a class="btn btn-outline" href="{base_url}/admin/pos-sales/export?branch_id={filter_branch_id}&date_from={filter_date_from}&date_to={filter_date_to}&status={filter_status}&tender={filter_tender}">Export CSV</a>
+        <a class="btn btn-outline" href="{base_url}/admin/pos-sales/export?branch_id={filter_branch_id}&date_from={filter_date_from}&date_to={filter_date_to}&status={filter_status}&tender={filter_tender}&shift={filter_shift}">Export CSV</a>
     </div>
 </div>
 
@@ -51,6 +51,14 @@
                 <label class="form-label">Tender</label>
                 <input type="text" class="form-input" name="tender" value="{filter_tender}" placeholder="cash">
             </div>
+            <div class="form-group">
+                <label class="form-label">Shift</label>
+                <select class="form-input" name="shift">
+                    <option value="">All</option>
+                    <option value="AM" {if filter_shift == 'AM'}selected{/if}>AM</option>
+                    <option value="PM" {if filter_shift == 'PM'}selected{/if}>PM</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary">Filter</button>
         </div>
     </div>
@@ -69,6 +77,7 @@
                     <th>Date</th>
                     <th>Branch</th>
                     <th>Cashier</th>
+                    <th>Shift</th>
                     <th>Kind</th>
                     <th>Status</th>
                     <th>Tenders</th>
@@ -83,6 +92,11 @@
                     <td>{sale.ledger_date}</td>
                     <td>{sale.branch_name}</td>
                     <td>{sale.cashier_name}</td>
+                    <td>
+                        {if sale.shift == 'AM'}<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">AM</span>{/if}
+                        {if sale.shift == 'PM'}<span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">PM</span>{/if}
+                        {if sale.shift != 'AM' && sale.shift != 'PM'}<span class="text-gray-400">—</span>{/if}
+                    </td>
                     <td>{sale.sale_kind}</td>
                     <td>
                         {if sale.status == 'completed'}
@@ -106,7 +120,7 @@
                     </td>
                 </tr>
                 {forelse}
-                <tr><td colspan="9" class="text-center text-gray-500 py-6">No POS receipts match the filters.</td></tr>
+                <tr><td colspan="10" class="text-center text-gray-500 py-6">No POS receipts match the filters.</td></tr>
                 {/foreach}
             </tbody>
         </table>
