@@ -2951,14 +2951,16 @@ function handleCashierRows(array $params = []): void
         'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot
+                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot,
+                COALESCE(am.bal_end, 0) AS am_bal_end
            FROM dl_products p
            INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
            LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
+           LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
           WHERE p.is_active = 1
           ORDER BY p.sort_order, p.name'
     );
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift]);
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     echo dlRender('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
@@ -3009,14 +3011,16 @@ function apiGetLedgerRows(array $params = []): void
         'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales
+                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales,
+                COALESCE(am.bal_end, 0) AS am_bal_end
          FROM dl_products p
          INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
          LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
+         LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
          WHERE p.is_active = 1
          ORDER BY p.sort_order, p.name'
     );
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift]);
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
     $ctx->json([
         'ok' => true,
         'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
@@ -4395,14 +4399,16 @@ function apiSaveLedgerBatch(array $params = []): void
             'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                     COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                     COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                    GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales
+                    GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales,
+                    COALESCE(am.bal_end, 0) AS am_bal_end
              FROM dl_products p
              INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
              LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
+             LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
              WHERE p.is_active = 1
              ORDER BY p.sort_order, p.name'
         );
-        $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
+        $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $date]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
         $response = [
