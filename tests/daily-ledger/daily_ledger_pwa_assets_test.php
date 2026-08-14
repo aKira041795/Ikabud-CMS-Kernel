@@ -76,6 +76,7 @@ $h->section('Service worker boundaries');
 $worker = (string) file_get_contents($workerPath);
 $h->test('worker uses versioned cache lifecycle', str_contains($worker, 'CACHE_VERSION') && str_contains($worker, 'caches.delete') && str_contains($worker, 'clients.claim'));
 $h->test('worker caches only ledger navigation', str_contains($worker, "url.pathname === LEDGER_PATH") && str_contains($worker, "request.mode === 'navigate'"));
+$h->test('worker serves local static assets from cache for offline rendering', str_contains($worker, 'isLocalStaticAsset(url)') && str_contains($worker, 'event.respondWith(cacheFirst(request))') && str_contains($worker, "'/daily-ledger/assets/"));
 $h->test('worker does not intercept non-GET or APIs', str_contains($worker, "request.method !== 'GET'") && str_contains($worker, "'/daily-ledger/api/'"));
 $h->test('worker excludes login and purges cached ledger on logout', str_contains($worker, "login|logout") && str_contains($worker, "url.pathname === '/daily-ledger/logout'") && str_contains($worker, 'cache.delete(LEDGER_PATH)'));
 $h->test('worker deterministically precaches local app dependencies', str_contains($worker, '/daily-ledger/assets/tailwindcss.js') && str_contains($worker, '/daily-ledger/assets/htmx-1.9.10.min.js') && str_contains($worker, '/daily-ledger/assets/alpine-3.min.js') && !str_contains($worker, 'OPTIONAL_CDN_URLS'));

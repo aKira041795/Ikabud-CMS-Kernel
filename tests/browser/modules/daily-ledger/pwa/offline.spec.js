@@ -14,8 +14,8 @@ test.describe('Daily Ledger PWA offline pilot', () => {
         await page.waitForLoadState('networkidle');
         await shell.expectVisible();
         await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', BASE + '/manifest.webmanifest');
-        var serviceWorkerAvailable = await page.evaluate(() => 'serviceWorker' in navigator);
-        test.skip(!serviceWorkerAvailable, 'Service-worker offline reload requires an HTTPS or localhost test origin.');
+        var secureContext = await page.evaluate(() => window.isSecureContext && 'serviceWorker' in navigator);
+        test.skip(!secureContext, 'Service-worker offline reload requires an HTTPS or localhost test origin.');
         await page.evaluate(() => navigator.serviceWorker.ready);
         // A first registration is not guaranteed to control the page that created it.
         // Reload once online so the activated worker owns the ledger navigation.

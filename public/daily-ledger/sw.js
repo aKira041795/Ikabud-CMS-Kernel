@@ -44,6 +44,27 @@ function isExcluded(url) {
     /\/(login|logout)(\/|$)/.test(url.pathname);
 }
 
+// Local static files that are safe to serve from cache while offline. These are
+// precached at install and, on a cache miss while online, are stored at runtime.
+function isLocalStaticAsset(url) {
+  return url.origin === self.location.origin && (
+    url.pathname.startsWith('/daily-ledger/assets/') ||
+    url.pathname.startsWith('/daily-ledger/icons/') ||
+    url.pathname === '/daily-ledger/manifest.webmanifest'
+  );
+}
+
+async function cacheFirst(request) {
+  const cache = await caches.open(CACHE_VERSION);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok && response.type === 'basic') {
+    cache.put(request, response.clone());
+  }
+  return response;
+}
+
 async function networkFirstLedger(request) {
   const cache = await caches.open(CACHE_VERSION);
   try {
@@ -86,6 +107,13 @@ self.addEventListener('fetch', event => {
     return;
   }
   if (isExcluded(url)) return;
+
+  // Serve the self-hosted shell assets from cache so the cached ledger page
+  // renders (CSS/JS/icons) while offline instead of breaking on network failures.
+  if (isLocalStaticAsset(url)) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
 
   if (isLedgerNavigation(request, url)) {
     event.respondWith(networkFirstLedger(request));
