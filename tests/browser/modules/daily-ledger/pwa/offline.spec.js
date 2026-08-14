@@ -22,7 +22,7 @@ test.describe('Daily Ledger PWA offline pilot', () => {
         await page.reload({ waitUntil: 'networkidle' });
         await page.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 15000 });
         var cachedCredentialState = await page.evaluate(async () => {
-            var cache = await caches.open('daily-ledger-pwa-v3');
+            var cache = await caches.open('daily-ledger-pwa-v4');
             var cached = await cache.match('/daily-ledger/ledger');
             var html = cached ? await cached.text() : '';
             return {
