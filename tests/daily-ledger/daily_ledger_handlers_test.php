@@ -397,4 +397,35 @@ $h->gap('Session/Request: dlCurrentUser requires HTTP + JWT context');
 $h->gap('Rate Limit: dlForgotPasswordRateLimitExceeded requires cache + DB state');
 $h->gap('Rate Limit: dlResetPasswordRateLimitExceeded requires cache + DB state');
 
+/**
+ * Pull the array literal passed to dl_salesResetTables() candidates so the
+ * test can assert master-data tables are excluded. Declared unconditionally
+ * at top level so it is hoisted before the section below uses it.
+ */
+function dl_extract_sales_reset_list(string $src): string
+{
+    if (preg_match('/function dl_salesResetTables\(.*?\$candidates = \[(.*?)\];/s', $src, $m)) {
+        return $m[1];
+    }
+    return '';
+}
+
+// ─── Sales Data Reset (settings) ─────────────────────────────────
+$h->section('Sales Data Reset');
+
+// "Reset sales data only" must clear transaction/evidence tables while keeping
+// master data, so a fresh sales period can start without rebuilding the catalog.
+$h->test('dl_salesResetTables available', function_exists('dl_salesResetTables'));
+$h->test('dl_runSalesDataReset available', function_exists('dl_runSalesDataReset'));
+$h->test('sales reset list includes ledger', (bool)preg_match("/'dl_daily_ledger'/", $handlersSource));
+$h->test('sales reset list includes POS sales', (bool)preg_match("/'dl_pos_sales'/", $handlersSource));
+$h->test('sales reset list excludes users (master data)', !(bool)preg_match("/'dl_users'/", dl_extract_sales_reset_list($handlersSource)));
+$h->test('sales reset list excludes products (master data)', !(bool)preg_match("/'dl_products'/", dl_extract_sales_reset_list($handlersSource)));
+$h->test('sales reset list excludes branches (master data)', !(bool)preg_match("/'dl_branches'/", dl_extract_sales_reset_list($handlersSource)));
+$h->test('sales reset handler requires confirm phrase', str_contains($handlersSource, "'Type RESET SALES DATA to continue.'"));
+$h->test('sales reset handler returns sales_data_reset', str_contains($handlersSource, "'sales_data_reset' => \$resetResult"));
+$h->test('sales reset supports dry run', str_contains($handlersSource, "['sales_data_reset_dry_run']"));
+$h->test('sales reset preserves master data flag', str_contains($handlersSource, "'preserved_master_data' => true"));
+$h->test('sales reset audits the action', str_contains($handlersSource, "dl_auditLog('sales_data_reset'"));
+
 $h->done();

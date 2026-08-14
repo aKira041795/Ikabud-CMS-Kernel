@@ -381,6 +381,40 @@
 
 <div class="card mb-6">
     <div class="card-header">
+        <span>Reset Sales Data</span>
+        <span class="text-sm text-muted">Testing & Re-sync</span>
+    </div>
+    <div class="card-body">
+        <div class="rounded-xl border border-sky-300 bg-sky-50 p-4 text-sm text-sky-900">
+            <p class="font-semibold">Clears only sales/transaction data — keeps users, branches, products, prices, and settings.</p>
+            <p class="mt-2">Removes ledger entries, POS sales, deliveries, withdrawals, variance flags, and day status so the module can start a fresh period. Useful while testing and for live-host re-sync. Reference data and audit logs are preserved.</p>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="md:col-span-2">
+                <label class="form-label" for="sales-reset-confirm">Confirmation Phrase</label>
+                <input type="text" id="sales-reset-confirm" class="form-input" placeholder="Type: RESET SALES DATA">
+                <p class="mt-2 text-xs text-gray-500">Required phrase: <span class="font-semibold">RESET SALES DATA</span></p>
+            </div>
+            <div class="flex items-end">
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="sales-reset-dry-run" checked>
+                    Preview only (dry run)
+                </label>
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline" id="sales-reset-preview-btn" onclick="runSalesDataReset(true)">Preview Reset Scope</button>
+            <button type="button" class="btn btn-danger" id="sales-reset-run-btn" onclick="runSalesDataReset(false)">Reset Sales Data</button>
+        </div>
+
+        <div id="sales-reset-result" class="mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"></div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
         <span>Deployment Reset</span>
         <span class="text-sm text-muted">Live Server Safety</span>
     </div>
@@ -689,6 +723,98 @@
             runBtn.disabled = false;
             previewBtn.textContent = 'Preview Reset Scope';
             runBtn.textContent = 'Reset Operational Data';
+        });
+    }
+
+    function renderSalesDataResetResult(data) {
+        var box = document.getElementById('sales-reset-result');
+        if (!box) {
+            return;
+        }
+        var reset = data && data.sales_data_reset ? data.sales_data_reset : null;
+        if (!reset) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+
+        var rows = Array.isArray(reset.tables) ? reset.tables : [];
+        var html = '';
+        html += '<div class="font-semibold text-slate-900">' + (reset.dry_run ? 'Sales Data Reset Preview' : 'Sales Data Reset Completed') + '</div>';
+        html += '<div class="mt-1 text-xs text-slate-600">Preserved master data (users, branches, products, prices, settings, audit logs)</div>';
+        html += '<div class="mt-1 text-xs text-slate-600">Total rows: ' + String(reset.total_rows || 0) + '</div>';
+        html += '<div class="mt-3 max-h-52 overflow-auto rounded-lg border border-slate-200 bg-white">';
+        html += '<table class="min-w-full text-xs"><thead><tr><th class="px-3 py-2 text-left">Table</th><th class="px-3 py-2 text-right">Rows</th></tr></thead><tbody>';
+        rows.forEach(function(row) {
+            html += '<tr><td class="px-3 py-1.5">' + String(row.table || '') + '</td><td class="px-3 py-1.5 text-right">' + String(row.rows || 0) + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    function runSalesDataReset(forceDryRun) {
+        var phraseInput = document.getElementById('sales-reset-confirm');
+        var dryRunCheckbox = document.getElementById('sales-reset-dry-run');
+        var previewBtn = document.getElementById('sales-reset-preview-btn');
+        var runBtn = document.getElementById('sales-reset-run-btn');
+        var phrase = (phraseInput && phraseInput.value ? phraseInput.value : '').trim();
+
+        if (phrase !== 'RESET SALES DATA') {
+            showToast('Type RESET SALES DATA to continue.', 'error');
+            if (phraseInput) {
+                phraseInput.focus();
+            }
+            return;
+        }
+
+        var isDryRun = forceDryRun ? true : !!(dryRunCheckbox && dryRunCheckbox.checked);
+        if (!isDryRun) {
+            var ok = confirm('Reset sales data now? This removes ledger entries, POS sales, deliveries, withdrawals, variance flags, and day status. Users, branches, products, prices, and settings are kept.');
+            if (!ok) {
+                return;
+            }
+        }
+
+        previewBtn.disabled = true;
+        runBtn.disabled = true;
+        previewBtn.textContent = isDryRun ? 'Previewing...' : 'Preview Reset Scope';
+        runBtn.textContent = isDryRun ? 'Reset Sales Data' : 'Resetting...';
+
+        fetch('{base_url}/api/v1/admin/settings/permissions', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                sales_data_reset: true,
+                sales_data_reset_confirm: phrase,
+                sales_data_reset_dry_run: isDryRun
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                throw new Error(res.error || 'Failed to run sales data reset');
+            }
+            renderSalesDataResetResult(res);
+            showToast(isDryRun ? 'Sales data reset preview ready.' : 'Sales data reset completed.', 'success');
+            if (!isDryRun) {
+                setTimeout(function() { window.refreshMainContent(); }, 800);
+            }
+        })
+        .catch(function(err) {
+            showToast(err.message || 'Failed to run sales data reset', 'error');
+        })
+        .finally(function() {
+            previewBtn.disabled = false;
+            runBtn.disabled = false;
+            previewBtn.textContent = 'Preview Reset Scope';
+            runBtn.textContent = 'Reset Sales Data';
         });
     }
 

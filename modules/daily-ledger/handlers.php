@@ -1149,6 +1149,124 @@ function dl_runDeploymentDataReset(array $user, bool $dryRun = false): array
     return $result;
 }
 
+/**
+ * Tables whose rows are SALES/transaction evidence for the "reset sales data
+ * only" feature. Reference/master data is intentionally NOT listed: users,
+ * branches, products, prices, price groups, supply rules, production,
+ * selling accounts, audit logs, and settings are preserved so a fresh sales
+ * period can start without rebuilding the catalog.
+ */
+function dl_salesResetTables($db): array
+{
+    $candidates = [
+        'dl_daily_ledger',
+        'dl_pos_sales',
+        'dl_pos_sale_items',
+        'dl_pos_payments',
+        'dl_pos_sale_events',
+        'dl_sales_day_modes',
+        'dl_pos_fallback_checkpoints',
+        'dl_pos_fallback_checkpoint_items',
+        'dl_cashier_withdrawals',
+        'dl_deliveries',
+        'dl_delivery_items',
+        'dl_branch_receivings',
+        'dl_branch_receiving_items',
+        'dl_variance_flags',
+        'dl_delivery_variance_flags',
+        'dl_ledger_day_status',
+    ];
+    $tables = [];
+    foreach ($candidates as $table) {
+        if (dl_tableExists($db, $table)) {
+            $tables[] = $table;
+        }
+    }
+    sort($tables);
+    return $tables;
+}
+
+/**
+ * Reset ONLY sales/transaction data (ledger, POS, deliveries, withdrawals,
+ * variance flags, day status). Master data (users, branches, products,
+ * prices, settings, audit logs) is untouched, so no admin-account restore is
+ * needed. Supports dry-run preview and optional backup-before-reset.
+ */
+function dl_runSalesDataReset(array $user, bool $dryRun = false): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        throw new RuntimeException('Module context unavailable');
+    }
+
+    $db = $ctx->db();
+    $tables = dl_salesResetTables($db);
+
+    $result = [
+        'dry_run' => $dryRun,
+        'preserved_master_data' => true,
+        'backup' => null,
+        'tables' => [],
+        'total_rows' => 0,
+    ];
+
+    if ($dryRun) {
+        foreach ($tables as $table) {
+            $rows = dl_countRowsIfTableExists($db, $table);
+            $result['tables'][] = ['table' => $table, 'rows' => $rows];
+            $result['total_rows'] += $rows;
+        }
+        return $result;
+    }
+
+    $backupSettings = dl_backupSettings();
+    if ($backupSettings['backup_before_reset_enabled']) {
+        $result['backup'] = dl_generateDatabaseBackup(
+            $user,
+            'before_sales_data_reset',
+            (bool)$backupSettings['backup_include_users']
+        );
+    }
+
+    $db->beginTransaction();
+    $fkChecksDisabled = false;
+    try {
+        $db->prepare('SET FOREIGN_KEY_CHECKS=0')->execute();
+        $fkChecksDisabled = true;
+
+        foreach ($tables as $table) {
+            $rows = dl_deleteAllRowsIfTableExists($db, $table);
+            $result['tables'][] = ['table' => $table, 'rows' => $rows];
+            $result['total_rows'] += $rows;
+        }
+
+        $db->prepare('SET FOREIGN_KEY_CHECKS=1')->execute();
+        $fkChecksDisabled = false;
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($fkChecksDisabled) {
+            try {
+                $db->prepare('SET FOREIGN_KEY_CHECKS=1')->execute();
+            } catch (Throwable) {
+            }
+        }
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    dl_auditLog('sales_data_reset', null, 'module_settings', 'daily-ledger', null, [
+        'performed_by_role' => (string)($user['role'] ?? ''),
+        'performed_by_source' => (string)($user['source'] ?? ''),
+        'preserved_master_data' => true,
+        'total_rows' => $result['total_rows'],
+        'tables' => $result['tables'],
+    ]);
+
+    return $result;
+}
+
 function dl_closeOfDaySettings(): array
 {
     static $cache = null;
@@ -5941,6 +6059,47 @@ function apiSaveRolePermissions(array $params = []): void
         $ctx->json([
             'ok' => true,
             'deployment_reset' => $resetResult,
+        ]);
+        return;
+    }
+
+    if ($toBool($input['sales_data_reset'] ?? false)) {
+        $confirmPhrase = trim((string)($input['sales_data_reset_confirm'] ?? ''));
+        if ($confirmPhrase !== 'RESET SALES DATA') {
+            $ctx->json([
+                'ok' => false,
+                'error' => 'Type RESET SALES DATA to continue.',
+            ], 422);
+            return;
+        }
+
+        $dryRun = $toBool($input['sales_data_reset_dry_run'] ?? false);
+
+        try {
+            $resetResult = dl_runSalesDataReset($user, $dryRun);
+        } catch (Throwable $e) {
+            write_log('daily-ledger sales data reset failed', 'error', [
+                'message' => $e->getMessage(),
+                'actor_role' => (string)($user['role'] ?? ''),
+                'actor_source' => (string)($user['source'] ?? ''),
+                'dry_run' => $dryRun,
+            ]);
+            $ctx->json([
+                'ok' => false,
+                'error' => 'Sales data reset failed: ' . $e->getMessage(),
+            ], 500);
+            return;
+        }
+
+        header('HX-Trigger: ' . json_encode(['showToast' => [
+            'message' => $dryRun
+                ? 'Sales data reset preview ready. Review row counts before execution.'
+                : 'Sales data reset completed. Master data (users, branches, products, settings) was preserved.',
+            'type' => 'success',
+        ]]));
+        $ctx->json([
+            'ok' => true,
+            'sales_data_reset' => $resetResult,
         ]);
         return;
     }
