@@ -2990,6 +2990,28 @@ function dailyLedgerLogout(): void
     dlRedirect('/daily-ledger/login');
 }
 
+/**
+ * @return array<int,array<string,mixed>>
+ */
+function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, string $ledgerDate, string $shift): array
+{
+    $stmt = $db->prepare(
+        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
+                COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
+                COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
+                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot,
+                COALESCE(am.bal_end, 0) AS am_bal_end
+           FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+           LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
+           LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
+          WHERE p.is_active = 1
+          ORDER BY p.sort_order, p.name'
+    );
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 function handleCashierLedger(array $params = []): void
 {
     $ctx = module();
@@ -3112,6 +3134,7 @@ function handleCashierLedger(array $params = []): void
     // POS context: feature flag, cashier sell access, and the branch-day sales mode.
     $posEnabled = dl_isPosEnabled();
     $posMode = ($branchId && $posEnabled) ? dl_pos_dayMode($ctx->db(), $branchId, $ledgerDate) : ['mode' => 'manual', 'row' => null, 'decided' => false];
+    $ledgerRows = $branchId ? dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift) : [];
 
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
@@ -3153,6 +3176,7 @@ function handleCashierLedger(array $params = []): void
         'commissary_branch_name' => $commissaryBranchName,
         'liable_persons' => $liablePersons,
         'liable_persons_json' => json_encode($liablePersons, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+        'rows' => $ledgerRows,
     ]);
 }
 
@@ -3190,22 +3214,7 @@ function handleCashierRows(array $params = []): void
         return;
     }
 
-    // Get all active products for this branch with their ledger data
-    $stmt = $ctx->db()->prepare(
-        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
-                COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
-                COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot,
-                COALESCE(am.bal_end, 0) AS am_bal_end
-           FROM dl_products p
-           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
-           LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
-           LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
-          WHERE p.is_active = 1
-          ORDER BY p.sort_order, p.name'
-    );
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $rows = dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift);
 
     echo dlRender('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
         'rows'        => $rows,
@@ -5785,6 +5794,8 @@ function handleAdminProductionOutput(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    $actorId = dl_getActorUserId($user);
+    $tenantScope = (string)(app()->tenant()->current() ?? '');
     $featureSettings = dl_featureSettings();
     $accessibleBranchIds = dl_accessibleBranchIds($user);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
@@ -5801,6 +5812,8 @@ function handleAdminProductionOutput(array $params = []): void
         'current_page' => 'production_output',
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'dl_user_id' => $actorId > 0 ? $actorId : '',
+        'tenant_scope' => $tenantScope,
         'ledger_date' => $ledgerDate,
         'date_from' => $dateFrom,
         'date_to' => $dateTo,

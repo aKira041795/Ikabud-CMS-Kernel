@@ -3,7 +3,7 @@
     <td class="row-num w-14 whitespace-nowrap text-center align-middle text-sm text-gray-500">{loop.index1}</td>
     <td class="product-name whitespace-nowrap align-middle font-medium text-gray-900">{row.name}</td>
     <td class="align-middle text-right">
-        <input type="number" class="ledger-input mt-0 ml-auto block w-20 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" inputmode="numeric" min="0"
+        <input type="number" class="ledger-input mt-0 ml-auto block min-h-11 w-20 rounded-lg border border-gray-300 bg-white px-2 py-2 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" inputmode="numeric" enterkeyhint="next" min="0"
                data-product="{row.product_id}" data-field="beg_bal"
                value="{if shift == 'PM' && row.beg_bal == 0 && row.am_bal_end > 0}{row.am_bal_end}{else}{row.beg_bal}{/if}"
                data-am-end="{if shift == 'PM'}{row.am_bal_end}{else}0{/if}"
@@ -46,7 +46,7 @@
         {/if}
     </td>
     <td class="align-middle text-right">
-        <input type="number" class="ledger-input mt-0 ml-auto block w-20 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" inputmode="numeric" min="0"
+        <input type="number" class="ledger-input mt-0 ml-auto block min-h-11 w-20 rounded-lg border border-gray-300 bg-white px-2 py-2 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" inputmode="numeric" enterkeyhint="next" min="0"
                data-product="{row.product_id}" data-field="bal_end"
                value="{row.bal_end}"
                onfocus="this.select()"

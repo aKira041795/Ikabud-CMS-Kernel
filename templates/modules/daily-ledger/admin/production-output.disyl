@@ -24,6 +24,7 @@
 {/block}
 
 {block content}
+<div id="production-offline-status" class="hidden mb-4 rounded-lg border px-4 py-3 text-sm font-semibold" role="status" aria-live="polite"></div>
 <div class="flex items-center justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Production Output</h2>
@@ -259,6 +260,134 @@
 
 {block scripts}
 <script>
+    var OUTPUT_PENDING_KEY = ['daily-ledger:pending-production-output', String(window.DL_TENANT_SCOPE || 'tenant'), String(window.DL_USER_ID || 'anonymous')].join(':');
+    var outputSyncing = false;
+
+    function getPendingOutputBatches() {
+        try {
+            var parsed = JSON.parse(localStorage.getItem(OUTPUT_PENDING_KEY) || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            renderOutputOfflineStatus('storage');
+            return [];
+        }
+    }
+
+    function setPendingOutputBatches(batches) {
+        try {
+            if (!batches.length) localStorage.removeItem(OUTPUT_PENDING_KEY);
+            else localStorage.setItem(OUTPUT_PENDING_KEY, JSON.stringify(batches));
+            return true;
+        } catch (e) {
+            renderOutputOfflineStatus('storage');
+            return false;
+        }
+    }
+
+    function renderOutputOfflineStatus(state) {
+        var box = document.getElementById('production-offline-status');
+        if (!box) return;
+        box.className = 'mb-4 rounded-lg border px-4 py-3 text-sm font-semibold';
+        if (state === 'storage') {
+            box.className += ' border-red-300 bg-red-50 text-red-800';
+            box.textContent = 'Device storage unavailable — production output cannot be queued.';
+            return;
+        }
+        var count = getPendingOutputBatches().length;
+        var blocked = getPendingOutputBatches().filter(function(batch) { return batch.blocked === true; }).length;
+        if (blocked > 0) {
+            box.className += ' border-red-300 bg-red-50 text-red-800';
+            box.textContent = blocked + ' production batch' + (blocked === 1 ? '' : 'es') + ' need review after server rejection.';
+            return;
+        }
+        if (!navigator.onLine || count > 0) {
+            box.className += ' border-amber-300 bg-amber-50 text-amber-900';
+            box.textContent = 'Offline production output · ' + count + ' pending batch' + (count === 1 ? '' : 'es') + ' saved on this device.';
+            return;
+        }
+        box.className += ' hidden border-emerald-300 bg-emerald-50 text-emerald-800';
+        box.textContent = 'Production output synchronized.';
+    }
+
+    function queueOutputBatch(batch) {
+        var batches = getPendingOutputBatches().filter(function(batch) { return batch.blocked !== true; });
+        batches.push(batch);
+        return setPendingOutputBatches(batches);
+    }
+
+    function sendOutputBatch(batch) {
+        return fetch('{base_url}/api/v1/production/sync-batch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ operations: batch.operations, idempotency_key: batch.idempotency_key })
+        }).then(function(response) {
+            var contentType = response.headers.get('Content-Type') || '';
+            if (response.redirected || contentType.indexOf('application/json') === -1) {
+                var authError = new Error('Authentication required');
+                authError.retryable = false;
+                throw authError;
+            }
+            return response.json().then(function(body) {
+                if (!response.ok && response.status >= 500) {
+                    var serverError = new Error('retryable-server-error');
+                    serverError.retryable = true;
+                    throw serverError;
+                }
+                return body;
+            });
+        });
+    }
+
+    function retryPendingOutputBatches() {
+        if (outputSyncing || !navigator.onLine || window.DL_OFFLINE_SHELL) return Promise.resolve();
+        var batches = getPendingOutputBatches();
+        if (!batches.length) { renderOutputOfflineStatus(); return Promise.resolve(); }
+        outputSyncing = true;
+        var chain = Promise.resolve();
+        batches.forEach(function(batch) {
+            chain = chain.then(function() {
+                return sendOutputBatch(batch).then(function(result) {
+                    var current = getPendingOutputBatches();
+                    if (!result || result.ok !== true) {
+                        current.forEach(function(item) {
+                            if (item.idempotency_key === batch.idempotency_key) {
+                                item.blocked = true;
+                                item.last_error = (result && result.error) || 'Server rejected queued production output';
+                            }
+                        });
+                        setPendingOutputBatches(current);
+                        return;
+                    }
+                    var failedIndexes = [];
+                    (result.results || []).forEach(function(item) { if (!item.ok) failedIndexes.push(Number(item.index)); });
+                    var remaining = current.filter(function(item) { return item.idempotency_key !== batch.idempotency_key; });
+                    if (failedIndexes.length > 0) {
+                        remaining.push({
+                            idempotency_key: batch.idempotency_key + '-rejected',
+                            operations: batch.operations.filter(function(operation, index) { return failedIndexes.indexOf(index) !== -1; }),
+                            created_at: batch.created_at,
+                            blocked: true,
+                            last_error: 'One or more queued production items were rejected'
+                        });
+                    }
+                    setPendingOutputBatches(remaining);
+                    if (result.summary && result.summary.failed > 0) {
+                        showToast('A queued production batch synchronized with ' + result.summary.failed + ' rejected item(s).', 'error');
+                    }
+                });
+            });
+        });
+        return chain.catch(function() {}).finally(function() {
+            outputSyncing = false;
+            renderOutputOfflineStatus();
+        });
+    }
+
     function switchOutputTab(tab) {
         var breadBody = document.getElementById('out-tbody-bread');
         var cakeBody  = document.getElementById('out-tbody-cake');
@@ -354,17 +483,23 @@
         btn.disabled = true;
         btn.textContent = 'Submitting...';
 
-        fetch('{base_url}/api/v1/production/sync-batch', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': (window.DL_CSRF || ''),
-                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
-            },
-            body: JSON.stringify({ operations: operations })
-        })
-        .then(function(r) { return r.json(); })
+        var batch = {
+            idempotency_key: 'production-output-' + now + '-' + Math.random().toString(36).slice(2),
+            operations: operations,
+            created_at: new Date().toISOString()
+        };
+        if (!navigator.onLine) {
+            if (queueOutputBatch(batch)) {
+                resetOutputBatches();
+                showToast('Production output saved on this device and will sync on reconnect.', 'success');
+                renderOutputOfflineStatus();
+            }
+            btn.disabled = false;
+            btn.textContent = 'Submit Output';
+            return;
+        }
+
+        sendOutputBatch(batch)
         .then(function(res) {
             if (!res.ok) {
                 showToast(res.error || 'Failed to submit output', 'error');
@@ -376,13 +511,30 @@
             showToast(msg, summary.failed > 0 ? 'error' : 'success');
             setTimeout(function() { window.refreshMainContent(); }, 700);
         })
-        .catch(function() {
-            showToast('Network error while submitting output', 'error');
+        .catch(function(error) {
+            if (error && error.retryable === false) {
+                showToast('Your session expired. Sign in again before submitting output.', 'error');
+                return;
+            }
+            if (queueOutputBatch(batch)) {
+                resetOutputBatches();
+                showToast('Network unavailable. Production output saved on this device.', 'success');
+                renderOutputOfflineStatus();
+            }
         })
         .finally(function() {
             btn.disabled = false;
             btn.textContent = 'Submit Output';
         });
+    }
+
+    window.addEventListener('online', retryPendingOutputBatches);
+    window.addEventListener('offline', function() { renderOutputOfflineStatus(); });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { renderOutputOfflineStatus(); retryPendingOutputBatches(); });
+    } else {
+        renderOutputOfflineStatus();
+        retryPendingOutputBatches();
     }
 
     function printOutputLedger() {

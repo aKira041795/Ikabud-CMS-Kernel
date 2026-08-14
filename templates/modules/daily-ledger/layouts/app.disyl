@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title | default:'Daily Ledger'}</title>
     <link rel="icon" href="{resolved_favicon_url}">
+    <link rel="manifest" href="/daily-ledger/manifest.webmanifest">
+    <meta name="theme-color" content="#4f46e5">
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/daily-ledger/assets/tailwindcss.js"></script>
+    <link rel="stylesheet" href="/daily-ledger/assets/fontawesome/all.min.css">
+    <script src="/daily-ledger/assets/htmx-1.9.10.min.js"></script>
+    <script defer src="/daily-ledger/assets/alpine-3.min.js"></script>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -85,9 +87,18 @@
     </style>
 
     <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/daily-ledger/sw.js').catch(function(error) {
+                    console.warn('Daily Ledger service worker registration failed', error);
+                });
+            });
+        }
+
         window.DL_BASE = '/daily-ledger';
         window.DL_CSRF = '{csrf_token}';
         window.DL_TOKEN = '{dl_token}';
+        window.DL_OFFLINE_SHELL = false;
         window.DL_USER_ID = '{dl_user_id | default:''}';
         window.DL_TENANT_SCOPE = '{tenant_scope | default:''}';
         window.showToast = function(message, type) {
@@ -124,6 +135,12 @@
             var verb = (evt.detail.verb || '').toUpperCase();
             if (verb === 'POST' || verb === 'PUT' || verb === 'PATCH' || verb === 'DELETE') {
                 evt.detail.headers['X-CSRF-Token'] = DL_CSRF;
+            }
+        });
+        document.addEventListener('htmx:beforeRequest', function(evt) {
+            var path = String((evt.detail && evt.detail.pathInfo && evt.detail.pathInfo.requestPath) || '');
+            if (!navigator.onLine && path.indexOf('/daily-ledger/ledger/rows') === 0) {
+                evt.preventDefault();
             }
         });
         function maybeShowToastFromHeader(xhr) {
