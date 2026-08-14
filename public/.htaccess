@@ -14,6 +14,11 @@
 # Disable directory listings
 Options -Indexes
 
+# Web app manifest MIME (not guaranteed by every host's default mime.types)
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
 # Block lock.php after installation (uncomment after install)
 # <Files "lock.php">
 #     <IfModule mod_authz_core.c>
