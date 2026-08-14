@@ -13,6 +13,8 @@ $h->fingerprint('public/daily-ledger/assets/alpine-3.min.js');
 $h->fingerprint('public/daily-ledger/assets/fontawesome/all.min.css');
 $h->fingerprint('templates/modules/daily-ledger/layouts/app.disyl');
 $h->fingerprint('templates/modules/daily-ledger/cashier/ledger.disyl');
+$h->fingerprint('templates/modules/daily-ledger/cashier/offline_reference.disyl');
+$h->fingerprint('templates/modules/daily-ledger/cashier/offline_auth.disyl');
 $h->fingerprint('templates/modules/daily-ledger/admin/production-output.disyl');
 $h->fingerprint('modules/daily-ledger/handlers.php');
 
@@ -48,29 +50,40 @@ $h->test('512 icon has correct dimensions and MIME', is_array($icon512) && $icon
 $httpBase = rtrim((string)(getenv('TEST_BASE_URL') ?: 'http://baronledger.test'), '/');
 $manifestHeaders = pwaHead($httpBase . '/daily-ledger/manifest.webmanifest');
 $workerHeaders = pwaHead($httpBase . '/daily-ledger/sw.js');
-$manifestType = is_array($manifestHeaders['Content-Type'] ?? null) ? end($manifestHeaders['Content-Type']) : ($manifestHeaders['Content-Type'] ?? '');
-$workerType = is_array($workerHeaders['Content-Type'] ?? null) ? end($workerHeaders['Content-Type']) : ($workerHeaders['Content-Type'] ?? '');
-$h->test('manifest is served with HTTP 200 and manifest MIME', str_contains((string)($manifestHeaders[0] ?? ''), '200') && str_contains((string)$manifestType, 'application/manifest+json'));
-$h->test('worker is served with HTTP 200 and JavaScript MIME', str_contains((string)($workerHeaders[0] ?? ''), '200') && (str_contains((string)$workerType, 'javascript')));
-$localRuntimeAssets = [
-    '/daily-ledger/assets/tailwindcss.js',
-    '/daily-ledger/assets/htmx-1.9.10.min.js',
-    '/daily-ledger/assets/alpine-3.min.js',
-    '/daily-ledger/assets/fontawesome/all.min.css',
-    '/daily-ledger/assets/webfonts/fa-brands-400.woff2',
-    '/daily-ledger/assets/webfonts/fa-regular-400.woff2',
-    '/daily-ledger/assets/webfonts/fa-solid-900.woff2',
-    '/daily-ledger/assets/webfonts/fa-v4compatibility.woff2',
-];
-$runtimeAssetsServed = true;
-foreach ($localRuntimeAssets as $assetUrl) {
-    $headers = pwaHead($httpBase . $assetUrl);
-    if (!str_contains((string)($headers[0] ?? ''), '200')) {
-        $runtimeAssetsServed = false;
-        break;
+// The three HTTP-delivery checks require a live web server at $httpBase.
+// A clean checkout / CI machine may not have the dev vhost running. When no
+// server is reachable these are skipped (the file-level checks above still
+// prove the assets exist and are valid) instead of failing the whole suite.
+$serverReachable = is_array($manifestHeaders) && ($manifestHeaders[0] ?? '') !== '';
+if (!$serverReachable) {
+    $h->skip('manifest is served with HTTP 200 and manifest MIME', 'No test HTTP server reachable at ' . $httpBase . '; file-level asset checks still apply.');
+    $h->skip('worker is served with HTTP 200 and JavaScript MIME', 'No test HTTP server reachable at ' . $httpBase . '; file-level asset checks still apply.');
+    $h->skip('all local offline runtime assets are served with HTTP 200', 'No test HTTP server reachable at ' . $httpBase . '; file-level asset checks still apply.');
+} else {
+    $manifestType = is_array($manifestHeaders['Content-Type'] ?? null) ? end($manifestHeaders['Content-Type']) : ($manifestHeaders['Content-Type'] ?? '');
+    $workerType = is_array($workerHeaders['Content-Type'] ?? null) ? end($workerHeaders['Content-Type']) : ($workerHeaders['Content-Type'] ?? '');
+    $h->test('manifest is served with HTTP 200 and manifest MIME', str_contains((string)($manifestHeaders[0] ?? ''), '200') && str_contains((string)$manifestType, 'application/manifest+json'));
+    $h->test('worker is served with HTTP 200 and JavaScript MIME', str_contains((string)($workerHeaders[0] ?? ''), '200') && (str_contains((string)$workerType, 'javascript')));
+    $localRuntimeAssets = [
+        '/daily-ledger/assets/tailwindcss.js',
+        '/daily-ledger/assets/htmx-1.9.10.min.js',
+        '/daily-ledger/assets/alpine-3.min.js',
+        '/daily-ledger/assets/fontawesome/all.min.css',
+        '/daily-ledger/assets/webfonts/fa-brands-400.woff2',
+        '/daily-ledger/assets/webfonts/fa-regular-400.woff2',
+        '/daily-ledger/assets/webfonts/fa-solid-900.woff2',
+        '/daily-ledger/assets/webfonts/fa-v4compatibility.woff2',
+    ];
+    $runtimeAssetsServed = true;
+    foreach ($localRuntimeAssets as $assetUrl) {
+        $headers = pwaHead($httpBase . $assetUrl);
+        if (!str_contains((string)($headers[0] ?? ''), '200')) {
+            $runtimeAssetsServed = false;
+            break;
+        }
     }
+    $h->test('all local offline runtime assets are served with HTTP 200', $runtimeAssetsServed);
 }
-$h->test('all local offline runtime assets are served with HTTP 200', $runtimeAssetsServed);
 
 $h->section('Service worker boundaries');
 $worker = (string) file_get_contents($workerPath);
@@ -91,6 +104,8 @@ $withdrawalModal = (string) file_get_contents($base . '/templates/modules/daily-
 $receiveModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/receive_modal.disyl');
 $dispatchModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/dispatch_modal.disyl');
 $editDeliveryModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/edit_delivery_modal.disyl');
+$offlineReference = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/offline_reference.disyl');
+$offlineAuth = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/offline_auth.disyl');
 $h->test('layout links manifest', str_contains($layout, '<link rel="manifest" href="/daily-ledger/manifest.webmanifest">'));
 $h->test('layout uses only local PWA runtime dependencies', str_contains($layout, '/daily-ledger/assets/tailwindcss.js') && str_contains($layout, '/daily-ledger/assets/fontawesome/all.min.css') && str_contains($layout, '/daily-ledger/assets/htmx-1.9.10.min.js') && str_contains($layout, '/daily-ledger/assets/alpine-3.min.js') && !str_contains($layout, 'cdn.tailwindcss.com') && !str_contains($layout, 'unpkg.com'));
 $h->test('layout registers scoped worker', str_contains($layout, "serviceWorker.register('/daily-ledger/sw.js')"));
@@ -107,6 +122,10 @@ $h->test('ledger has offline operation queue with idempotency keys', str_contain
 $h->test('withdrawal modal queues offline and sends idempotency key', str_contains($withdrawalModal, "enqueueOperation('withdrawal'") && str_contains($withdrawalModal, 'payload.idempotency_key'));
 $h->test('paper-DR receive queues offline and sends idempotency key', str_contains($receiveModal, "enqueueOperation('receive_paper_dr'") && str_contains($receiveModal, 'payload.idempotency_key'));
 $h->test('dispatch and delivery-edit block offline with a clear message', str_contains($dispatchModal, 'Sending stock requires cloud connectivity') && str_contains($editDeliveryModal, 'Delivery correction requires cloud connectivity'));
+$h->test('worker refreshes the changed offline shell at cache v5', str_contains($worker, "daily-ledger-pwa-v5"));
+$h->test('ledger captures a tenant-and-branch-scoped IndexedDB product reference', str_contains($ledger, 'offline_reference.disyl') && str_contains($ledger, 'dlCaptureProductReference') && str_contains($offlineReference, "DB_NAME = 'daily-ledger-reference'") && str_contains($offlineReference, 'DL_TENANT_SCOPE') && str_contains($offlineReference, 'BRANCH_ID') && str_contains($offlineReference, 'dlPersistProductReference') && str_contains($offlineReference, 'dlReadProductReference'));
+$h->test('cashier modals fall back to the offline product reference', str_contains($withdrawalModal, 'dlReadProductReference') && str_contains($receiveModal, 'dlReadProductReference'));
+$h->test('ledger wires cashier-scoped PBKDF2 offline PIN locking', str_contains($ledger, 'offline_auth.disyl') && str_contains($ledger, 'dlMaybeLockOffline') && str_contains($ledger, 'dlOpenPinSettings') && str_contains($offlineAuth, 'id="offline-lock"') && str_contains($offlineAuth, 'DL_OFFLINE_SHELL !== true') && str_contains($offlineAuth, 'ITERATIONS = 120000') && str_contains($offlineAuth, 'MAX_ATTEMPTS = 5') && str_contains($offlineAuth, 'LOCK_MS = 5 * 60 * 1000') && str_contains($offlineAuth, 'DL_USER_ID') && str_contains($offlineAuth, 'requires a secure (HTTPS) connection') && !str_contains($offlineAuth, "DL_USER_ID || 'anonymous'"));
 $h->test('queued operation endpoints enforce idempotency', str_contains($handlers, "dl_loadIdempotentResponse('cashier_withdrawal'") && str_contains($handlers, "dl_loadIdempotentResponse('receive_paper_dr'") && str_contains($handlers, "dl_storeIdempotentResponse('cashier_withdrawal'") && str_contains($handlers, "dl_storeIdempotentResponse('receive_paper_dr'"));
 
 $h->done();

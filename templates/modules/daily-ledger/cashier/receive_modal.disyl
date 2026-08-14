@@ -304,6 +304,9 @@ function receiveModal() {
                     this.products.push({ id: pid, name: nm.trim() });
                 }
             }.bind(this));
+            if (rows.length === 0 && typeof window.dlReadProductReference === 'function') {
+                window.dlReadProductReference().then(function(products) { this.products = products; }.bind(this));
+            }
         },
 
         addPaperItem() {

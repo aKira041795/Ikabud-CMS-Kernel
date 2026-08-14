@@ -4,6 +4,7 @@
         "build:tailwind": "php scripts/build-tailwind.php",
         "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch",
         "test": "npx playwright test",
+        "test:pwa": "node tests/browser/modules/daily-ledger/pwa/run-pwa-tests.js",
         "test:ark": "./scripts/ark-test",
         "test:ark:coverage": "./scripts/ark-test --mode coverage",
         "test:ark:triage": "./scripts/ark-test --mode triage",

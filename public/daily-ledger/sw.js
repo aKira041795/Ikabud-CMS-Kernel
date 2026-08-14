@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_VERSION = 'daily-ledger-pwa-v4';
+const CACHE_VERSION = 'daily-ledger-pwa-v5';
 const LEDGER_PATH = '/daily-ledger/ledger';
 const PRECACHE_URLS = [
   '/daily-ledger/manifest.webmanifest',

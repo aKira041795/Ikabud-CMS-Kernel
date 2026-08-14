@@ -74,6 +74,7 @@
         {/if}
 
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
+        <button type="button" class="btn btn-outline" onclick="dlOpenPinSettings()">Offline PIN</button>
         <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
     </div>
 </div>
@@ -208,9 +209,11 @@
 {include "modules/daily-ledger/cashier/dispatch_modal.disyl"}
 {include "modules/daily-ledger/cashier/receive_modal.disyl"}
 {include "modules/daily-ledger/cashier/edit_delivery_modal.disyl"}
+{include "modules/daily-ledger/cashier/offline_auth.disyl"}
 {/block}
 
 {block scripts}
+{include "modules/daily-ledger/cashier/offline_reference.disyl"}
 <script>
     var BASE = '{base_url}';
     var BRANCH_ID = '{branch_id}';
@@ -966,7 +969,31 @@
         syncPendingStorage();
         renderConnectivityBanner();
         probeCloud();
+        if (typeof window.dlCaptureProductReference === 'function') window.dlCaptureProductReference();
+        if (typeof window.dlMaybeLockOffline === 'function') window.dlMaybeLockOffline();
     }
+
+    window.dlOpenPinSettings = function() {
+        if (!window.isSecureContext || !window.crypto || !window.crypto.subtle) {
+            showToast('Offline PIN requires a secure (HTTPS) connection.', 'error');
+            return;
+        }
+        if (window.dlOfflineAuthHasVerifier && window.dlOfflineAuthHasVerifier()) {
+            if (window.confirm('Clear the offline PIN for this cashier on this device?')) {
+                window.dlOfflineAuthClear();
+                showToast('Offline PIN cleared.');
+            }
+            return;
+        }
+        var pin = window.prompt('Set a 4–6 digit offline PIN for this cashier on this device:');
+        if (pin === null) return;
+        if (!/^\d{4,6}$/.test(pin)) { showToast('Use a 4–6 digit PIN.', 'error'); return; }
+        var confirmation = window.prompt('Confirm the offline PIN:');
+        if (confirmation !== pin) { showToast('PINs do not match.', 'error'); return; }
+        window.dlOfflineAuthSetPin(pin).then(function(ok) {
+            showToast(ok ? 'Offline PIN saved on this device.' : 'Unable to save the offline PIN.', ok ? 'success' : 'error');
+        });
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initializePendingQueue);

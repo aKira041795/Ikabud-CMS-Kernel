@@ -1,0 +1,104 @@
+<script>
+// ── Offline product reference snapshot ──────────────────────────────
+// Captures the branch's product list from the rendered ledger rows into
+// IndexedDB so the cashier modals can populate product selects even when
+// the offline shell has no rows (e.g. a partial PWA cache). Rebuilt on
+// every page load. It is reference data only — safe to lose, never used
+// for writes.
+(function() {
+    var DB_NAME = 'daily-ledger-reference';
+    var DB_VERSION = 2;
+    var STORE = 'products';
+    var META = 'meta';
+    var dbPromise = null;
+
+    function referenceScope() {
+        var tenant = String(window.DL_TENANT_SCOPE || '');
+        var branch = String(window.BRANCH_ID || '');
+        return tenant && branch ? tenant + ':' + branch : '';
+    }
+
+    function openDb() {
+        if (dbPromise) return dbPromise;
+        dbPromise = new Promise(function(resolve) {
+            if (!('indexedDB' in window)) { resolve(null); return; }
+            var req = indexedDB.open(DB_NAME, DB_VERSION);
+            req.onupgradeneeded = function() {
+                var db = req.result;
+                if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE);
+                var s = db.createObjectStore(STORE, { keyPath: 'key' });
+                s.createIndex('scope', 'scope', { unique: false });
+                s.createIndex('name', 'name', { unique: false });
+                if (!db.objectStoreNames.contains(META)) {
+                    db.createObjectStore(META, { keyPath: 'key' });
+                }
+            };
+            req.onsuccess = function() { resolve(req.result); };
+            req.onerror = function() { resolve(null); };
+        });
+        return dbPromise;
+    }
+
+    window.dlPersistProductReference = function(products, meta) {
+        var scope = referenceScope();
+        if (!scope) return Promise.resolve(false);
+        return openDb().then(function(db) {
+            if (!db) return false;
+            return new Promise(function(resolve) {
+                var tx = db.transaction([STORE, META], 'readwrite');
+                var store = tx.objectStore(STORE);
+                var cursor = store.index('scope').openCursor(IDBKeyRange.only(scope));
+                cursor.onsuccess = function() {
+                    var row = cursor.result;
+                    if (row) { row.delete(); row.continue(); return; }
+                    (products || []).forEach(function(p) {
+                        var id = String(p.id);
+                        store.put({ key: scope + ':' + id, scope: scope, id: id, name: String(p.name || '') });
+                    });
+                };
+                tx.objectStore(META).put({
+                    key: 'snapshot:' + scope,
+                    scope: scope,
+                    branch_id: String((meta && meta.branch_id) || ''),
+                    saved_at: new Date().toISOString()
+                });
+                tx.oncomplete = function() { resolve(true); };
+                tx.onerror = function() { resolve(false); };
+            });
+        });
+    };
+
+    window.dlReadProductReference = function() {
+        var scope = referenceScope();
+        if (!scope) return Promise.resolve([]);
+        return openDb().then(function(db) {
+            if (!db) return [];
+            return new Promise(function(resolve) {
+                var out = [];
+                var req = db.transaction(STORE, 'readonly').objectStore(STORE).index('scope').openCursor(IDBKeyRange.only(scope));
+                req.onsuccess = function() {
+                    var c = req.result;
+                    if (c) { out.push(c.value); c.continue(); }
+                    else { resolve(out); }
+                };
+                req.onerror = function() { resolve([]); };
+            });
+        });
+    };
+
+    window.dlCaptureProductReference = function() {
+        var products = [];
+        var seen = {};
+        document.querySelectorAll('tr[data-product-id]').forEach(function(r) {
+            var pid = r.getAttribute('data-product-id');
+            var nm = (r.querySelector('.product-name') || {}).textContent || '';
+            if (pid && !seen[pid]) {
+                seen[pid] = true;
+                products.push({ id: pid, name: nm.trim() });
+            }
+        });
+        if (products.length === 0) return Promise.resolve(false);
+        return window.dlPersistProductReference(products, { branch_id: window.BRANCH_ID || '' });
+    };
+})();
+</script>
