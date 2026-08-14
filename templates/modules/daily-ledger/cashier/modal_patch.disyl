@@ -213,6 +213,16 @@ function withdrawalModal() {
             if (this.header.withdrawal_type === 'pullout' && window.COMMISSARY_BRANCH_ID && window.COMMISSARY_BRANCH_ID !== '') {
                 payload.header.target_branch_id = parseInt(window.COMMISSARY_BRANCH_ID, 10);
             }
+            payload.idempotency_key = window.generateOperationId ? window.generateOperationId() : String(Date.now());
+
+            // Offline: queue the adjustment on this device and sync later.
+            if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
+                window.enqueueOperation('withdrawal', payload);
+                this.saving = false;
+                showToast('Saved on this device — will sync when connectivity returns', 'success');
+                this.closeModal();
+                return;
+            }
 
             fetch(BASE + '/api/v1/cashier/ledger/withdrawals', {
                 method: 'POST',
@@ -242,13 +252,19 @@ function withdrawalModal() {
                              window.refreshMainContent();
                          }
                      }
+                } else if (window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
+                    window.enqueueOperation('withdrawal', payload);
+                    showToast('Saved on this device — will sync when connectivity returns', 'success');
+                    this.closeModal();
                 } else {
                     this.errorMsg = data.error || 'Failed to save adjustment.';
                 }
             }.bind(this))
             .catch(function() {
                 this.saving = false;
-                this.errorMsg = 'Network error while saving adjustment.';
+                window.enqueueOperation('withdrawal', payload);
+                showToast('Saved on this device — will sync when connectivity returns', 'success');
+                this.closeModal();
             }.bind(this));
         }
     };

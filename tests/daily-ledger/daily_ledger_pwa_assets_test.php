@@ -87,6 +87,10 @@ $layout = (string) file_get_contents($layoutPath);
 $ledger = (string) file_get_contents($ledgerPath);
 $production = (string) file_get_contents($productionPath);
 $handlers = (string) file_get_contents($handlersPath);
+$withdrawalModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
+$receiveModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/receive_modal.disyl');
+$dispatchModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/dispatch_modal.disyl');
+$editDeliveryModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/edit_delivery_modal.disyl');
 $h->test('layout links manifest', str_contains($layout, '<link rel="manifest" href="/daily-ledger/manifest.webmanifest">'));
 $h->test('layout uses only local PWA runtime dependencies', str_contains($layout, '/daily-ledger/assets/tailwindcss.js') && str_contains($layout, '/daily-ledger/assets/fontawesome/all.min.css') && str_contains($layout, '/daily-ledger/assets/htmx-1.9.10.min.js') && str_contains($layout, '/daily-ledger/assets/alpine-3.min.js') && !str_contains($layout, 'cdn.tailwindcss.com') && !str_contains($layout, 'unpkg.com'));
 $h->test('layout registers scoped worker', str_contains($layout, "serviceWorker.register('/daily-ledger/sw.js')"));
@@ -98,5 +102,11 @@ $h->test('storage failure has red stop message', str_contains($ledger, 'Device s
 $h->test('ledger cache includes server-rendered editable rows', str_contains($ledger, 'partials/ledger-rows.disyl') && str_contains($handlers, "'rows' => \$ledgerRows"));
 $h->test('queue completion cannot remove a newer entry', str_contains($ledger, 'removePendingIfUnchanged(payload)') && str_contains($ledger, 'saveFieldVersions[saveKey] !== saveVersion'));
 $h->test('production output has scoped offline queue and idempotency', str_contains($production, 'daily-ledger:pending-production-output') && str_contains($production, 'idempotency_key') && str_contains($production, "addEventListener('online', retryPendingOutputBatches)") && str_contains($handlers, "'tenant_scope' => \$tenantScope") && str_contains($handlers, "'dl_user_id' => \$actorId"));
+$h->test('cashier modals open offline (no online-action block on openers)', !str_contains($ledger, 'data-online-action="Receiving"') && !str_contains($ledger, 'data-online-action="Stock adjustment"') && !str_contains($ledger, 'data-online-action="Sending stock"') && !str_contains($ledger, 'data-online-action="Delivery correction"') && str_contains($ledger, 'data-online-action="POS"') && str_contains($ledger, 'data-online-action="Day close"'));
+$h->test('ledger has offline operation queue with idempotency keys', str_contains($ledger, 'daily-ledger:pending-ops') && str_contains($ledger, 'window.enqueueOperation') && str_contains($ledger, 'replayPendingOperations') && str_contains($ledger, 'window.generateOperationId'));
+$h->test('withdrawal modal queues offline and sends idempotency key', str_contains($withdrawalModal, "enqueueOperation('withdrawal'") && str_contains($withdrawalModal, 'payload.idempotency_key'));
+$h->test('paper-DR receive queues offline and sends idempotency key', str_contains($receiveModal, "enqueueOperation('receive_paper_dr'") && str_contains($receiveModal, 'payload.idempotency_key'));
+$h->test('dispatch and delivery-edit block offline with a clear message', str_contains($dispatchModal, 'Sending stock requires cloud connectivity') && str_contains($editDeliveryModal, 'Delivery correction requires cloud connectivity'));
+$h->test('queued operation endpoints enforce idempotency', str_contains($handlers, "dl_loadIdempotentResponse('cashier_withdrawal'") && str_contains($handlers, "dl_loadIdempotentResponse('receive_paper_dr'") && str_contains($handlers, "dl_storeIdempotentResponse('cashier_withdrawal'") && str_contains($handlers, "dl_storeIdempotentResponse('receive_paper_dr'"));
 
 $h->done();

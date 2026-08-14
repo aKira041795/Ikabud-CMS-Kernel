@@ -179,6 +179,14 @@ function dispatchModal() {
             if (!this.validate()) return;
             this.saving = true;
 
+            // Send to Branch needs target-branch and product data resolved
+            // server-side, so it cannot run offline.
+            if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
+                this.saving = false;
+                this.errorMsg = 'Sending stock requires cloud connectivity. Reconnect and try again.';
+                return;
+            }
+
             var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
             var payload = {
                 branch_id: BRANCH_ID,

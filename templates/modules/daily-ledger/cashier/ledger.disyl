@@ -114,7 +114,7 @@
         </div>
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-indigo-900 ring-1 ring-inset ring-indigo-200">Best for: stock that has already reached this branch.</div>
         <div class="mt-4">
-            <button type="button" class="btn btn-outline w-full justify-center" onclick="openReceiveModal()" data-online-action="Receiving">Open Receive Stock</button>
+            <button type="button" class="btn btn-outline w-full justify-center" onclick="openReceiveModal()">Open Receive Stock</button>
         </div>
     </div>
     {if formal_delivery_enabled}
@@ -124,7 +124,7 @@
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-emerald-900 ring-1 ring-inset ring-emerald-200">Best for: normal branch-to-branch stock transfer out.</div>
         <div class="mt-4">
             {if day_status == 'open' && !reference_only}
-            <button type="button" class="btn btn-primary w-full justify-center" onclick="openDispatchModal()" data-online-action="Sending stock">Open Send to Branch</button>
+            <button type="button" class="btn btn-primary w-full justify-center" onclick="openDispatchModal()">Open Send to Branch</button>
             {/if}
             {if day_status != 'open' || reference_only}
             <div class="rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-xs text-emerald-900">Unavailable while this day is closed or in reference-only mode.</div>
@@ -138,7 +138,7 @@
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-amber-900 ring-1 ring-inset ring-amber-200">Best for: non-transfer corrections inside this branch only.</div>
         <div class="mt-4">
             {if day_status == 'open' && !reference_only}
-            <button type="button" class="btn btn-outline w-full justify-center" onclick="openWithdrawalModal()" data-online-action="Stock adjustment">Open Stock Adjustment</button>
+            <button type="button" class="btn btn-outline w-full justify-center" onclick="openWithdrawalModal()">Open Stock Adjustment</button>
             {/if}
             {if day_status != 'open' || reference_only}
             <div class="rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-xs text-amber-900">Unavailable while this day is closed or in reference-only mode.</div>
@@ -152,7 +152,7 @@
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-sky-900 ring-1 ring-inset ring-sky-200">Best for: correcting a delivery captured from a paper DR.</div>
         <div class="mt-4">
             {if day_status == 'open' && !reference_only}
-            <button type="button" class="btn btn-outline w-full justify-center" onclick="openEditDeliveryModal()" data-online-action="Delivery correction">Open Correct Delivery by DR</button>
+            <button type="button" class="btn btn-outline w-full justify-center" onclick="openEditDeliveryModal()">Open Correct Delivery by DR</button>
             {/if}
             {if day_status != 'open' || reference_only}
             <div class="rounded-lg border border-sky-200 bg-white/70 px-3 py-2 text-xs text-sky-900">Unavailable while this day is closed or in reference-only mode.</div>
@@ -272,6 +272,7 @@
     ].join(':');
     var QUARANTINE_KEY = [PENDING_STORAGE_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
     var cloudOnline = false;
+    var cloudProbeDone = false;
     var syncingPending = false;
     var storageAvailable = true;
     var lastCloudSync = null;
@@ -448,6 +449,133 @@
         }
     }
 
+    // ── Offline cashier-operation queue ──────────────────────────────
+    // Stock Adjustment (withdrawal) and Paper-DR Receive can be entered
+    // while the cloud is unreachable. Each operation is queued on the
+    // device with its own idempotency key and replayed when connectivity
+    // returns (the backend dedupes replays by that key).
+    var PENDING_OPS_PREFIX = 'daily-ledger:pending-ops';
+    var PENDING_OPS_KEY = [
+        PENDING_OPS_PREFIX,
+        PENDING_TENANT_SCOPE,
+        PENDING_ACTOR_SCOPE,
+        BRANCH_ID || 'branch',
+        LEDGER_DATE || 'date',
+        SHIFT || 'AM'
+    ].join(':');
+    var OPS_QUARANTINE_KEY = [PENDING_OPS_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
+
+    function getPendingOps() {
+        return readStoredArray(PENDING_OPS_KEY);
+    }
+    function setPendingOps(arr) {
+        if (!Array.isArray(arr) || arr.length === 0) {
+            try { localStorage.removeItem(PENDING_OPS_KEY); } catch (e) { markStorageUnavailable(); }
+            return true;
+        }
+        localStorage.setItem(PENDING_OPS_KEY, JSON.stringify(arr));
+        return true;
+    }
+    function pendingTotal() {
+        return getPending().length + getPendingOps().length;
+    }
+    window.generateOperationId = function() {
+        if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+        return 'op-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    };
+    window.enqueueOperation = function(op, payload) {
+        var list = getPendingOps();
+        list.push({
+            schema_version: 1,
+            module: 'daily-ledger',
+            tenant_scope: PENDING_TENANT_SCOPE,
+            actor_id: PENDING_ACTOR_SCOPE,
+            branch_id: BRANCH_ID || '',
+            date: LEDGER_DATE,
+            shift: SHIFT || 'AM',
+            op: op,
+            idempotency_key: window.generateOperationId(),
+            payload: payload || {},
+            created_at: new Date().toISOString()
+        });
+        setPendingOps(list);
+        renderConnectivityBanner();
+        updateGlobalStatus('pending');
+        return list[list.length - 1];
+    };
+    function removePendingOperation(idempotencyKey) {
+        var list = getPendingOps().filter(function(e) { return e.idempotency_key !== idempotencyKey; });
+        setPendingOps(list);
+        renderConnectivityBanner();
+    }
+    function quarantinePendingOperation(entry, reason) {
+        var stale = readStoredArray(OPS_QUARANTINE_KEY);
+        stale.push({ reason: reason, quarantined_at: new Date().toISOString(), payload: entry });
+        try { localStorage.setItem(OPS_QUARANTINE_KEY, JSON.stringify(stale.slice(-200))); } catch (e) { markStorageUnavailable(); }
+    }
+    // Server errors on a queued operation are mostly deterministic; only
+    // transient failures should retry. Everything else is quarantined for
+    // review instead of retrying forever.
+    function shouldQueueOperationFailure(res) {
+        var error = String((res && res.error) || '');
+        if (error === '') return true;
+        return [
+            'already received', 'already', 'required', 'Invalid', 'invalid',
+            'A different', 'Reference only', 'Day is closed', 'Branch not authorized',
+            'cannot override', 'Auth required', 'Add at least one', 'must be 255',
+            'Unable to resolve', 'Missing', 'requires'
+        ].every(function(fragment) { return error.indexOf(fragment) === -1; });
+    }
+    function replayPendingOperations() {
+        var list = getPendingOps();
+        if (list.length === 0) return Promise.resolve();
+        var requests = list.map(function(entry) {
+            if (!entry || entry.schema_version !== 1 || entry.module !== 'daily-ledger' ||
+                (entry.op !== 'withdrawal' && entry.op !== 'receive_paper_dr')) {
+                quarantinePendingOperation(entry, 'schema-mismatch');
+                removePendingOperation(entry.idempotency_key);
+                return Promise.resolve();
+            }
+            if (String(entry.branch_id) !== String(BRANCH_ID || '') || String(entry.date) !== String(LEDGER_DATE || '')) {
+                quarantinePendingOperation(entry, 'scope-mismatch');
+                removePendingOperation(entry.idempotency_key);
+                return Promise.resolve();
+            }
+            var url = entry.op === 'withdrawal'
+                ? BASE + '/api/v1/cashier/ledger/withdrawals'
+                : BASE + '/api/v1/cashier/ledger/receive-paper-dr';
+            var payload = JSON.parse(JSON.stringify(entry.payload || {}));
+            payload.idempotency_key = entry.idempotency_key;
+            return fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.ok) {
+                    removePendingOperation(entry.idempotency_key);
+                } else if (!shouldQueueOperationFailure(res)) {
+                    quarantinePendingOperation(entry, 'server-rejected');
+                    removePendingOperation(entry.idempotency_key);
+                }
+            })
+            .catch(function() { cloudOnline = false; });
+        });
+        return Promise.all(requests).then(function() {
+            updateGlobalStatus(pendingTotal() > 0 ? 'pending' : 'saved');
+            renderConnectivityBanner();
+        });
+    }
+    function drainPendingWork() {
+        return retryPending().then(function() { return replayPendingOperations(); });
+    }
+
     // Compute sales = beg_bal + addtl - withdraw - bal_end
     function computeSales(productId) {
         var row = document.querySelector('tr[data-product-id="' + productId + '"]');
@@ -576,7 +704,7 @@
             el.classList.add('pending');
             return;
         }
-        if (state === 'saved') {
+        if (state === 'saved' && pendingTotal() === 0) {
             el.textContent = 'All saved';
             el.classList.add('all-saved');
         } else {
@@ -646,7 +774,7 @@
             updateGlobalStatus('pending');
             return;
         }
-        var pending = getPending().length;
+        var pending = pendingTotal();
         if (cloudOnline) {
             box.className += ' border-emerald-300 bg-emerald-50 text-emerald-800';
             var stamp = lastCloudSync ? lastCloudSync.toLocaleTimeString() : new Date().toLocaleTimeString();
@@ -685,13 +813,14 @@
                     window.location.reload();
                     return true;
                 }
-                return retryPending().then(function() { return true; });
+                return drainPendingWork().then(function() { return true; });
             });
         }).catch(function() {
             cloudOnline = false;
             return false;
         }).finally(function() {
             if (timer) clearTimeout(timer);
+            cloudProbeDone = true;
             renderConnectivityBanner();
         });
     }

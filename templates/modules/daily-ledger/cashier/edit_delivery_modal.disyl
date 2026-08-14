@@ -212,6 +212,14 @@ function editDeliveryModal() {
             if (!this.validate()) return;
             this.saving = true;
 
+            // Delivery correction needs the server delivery-detail lookup,
+            // so it cannot run offline.
+            if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
+                this.saving = false;
+                this.errorMsg = 'Delivery correction requires cloud connectivity. Reconnect and try again.';
+                return;
+            }
+
             var payload = {
                 branch_id: window.BRANCH_ID || null,
                 dr_number: (this.drNumber || '').trim(),

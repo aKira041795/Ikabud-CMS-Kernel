@@ -355,6 +355,16 @@ function receiveModal() {
                     };
                 })
             };
+            payload.idempotency_key = window.generateOperationId ? window.generateOperationId() : String(Date.now());
+
+            // Offline: queue the paper-DR receive on this device and sync later.
+            if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
+                window.enqueueOperation('receive_paper_dr', payload);
+                this.paperSaving = false;
+                showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
+                this.closeModal();
+                return;
+            }
 
             fetch(BASE + '/api/v1/cashier/ledger/receive-paper-dr', {
                 method: 'POST',
@@ -372,13 +382,19 @@ function receiveModal() {
                     showToast('Paper DR captured and received', 'success');
                     this.closeModal();
                     window.refreshMainContent();
+                } else if (window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
+                    window.enqueueOperation('receive_paper_dr', payload);
+                    showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
+                    this.closeModal();
                 } else {
                     this.errorMsg = (data && data.error) || 'Failed to receive paper DR.';
                 }
             }.bind(this))
             .catch(function() {
                 this.paperSaving = false;
-                this.errorMsg = 'Network error while receiving paper DR.';
+                window.enqueueOperation('receive_paper_dr', payload);
+                showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
+                this.closeModal();
             }.bind(this));
         },
 

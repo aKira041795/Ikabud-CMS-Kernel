@@ -3357,6 +3357,14 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
     $user = dlCurrentUser();
     $input = (array)json_decode(file_get_contents('php://input'), true);
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+    if ($idempotencyKey !== '') {
+        $cached = dl_loadIdempotentResponse('cashier_withdrawal', $idempotencyKey);
+        if ($cached !== null) {
+            $ctx->json($cached);
+            return;
+        }
+    }
     $authResult = dl_authorizeBranch($user, $input);
     if ($authResult['branch_id'] < 0) {
         $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
@@ -3661,6 +3669,9 @@ function apiSaveCashierWithdrawals(array $params = []): void
         if ($returnDeliveryId !== null) {
             $response['delivery_id'] = $returnDeliveryId;
             $response['receiving_id'] = $returnReceivingId;
+        }
+        if ($idempotencyKey !== '') {
+            dl_storeIdempotentResponse('cashier_withdrawal', $idempotencyKey, $response, 86400);
         }
         $ctx->json($response);
     } catch (\Throwable $e) {
@@ -4086,6 +4097,14 @@ function apiReceivePaperDelivery(array $params = []): void
     $user = dlCurrentUser();
 
     $input = (array)json_decode(file_get_contents('php://input'), true);
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+    if ($idempotencyKey !== '') {
+        $cached = dl_loadIdempotentResponse('receive_paper_dr', $idempotencyKey);
+        if ($cached !== null) {
+            $ctx->json($cached);
+            return;
+        }
+    }
     $authResult = dl_authorizeBranch($user, $input);
     if ($authResult['branch_id'] < 0) {
         $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
@@ -4235,7 +4254,11 @@ function apiReceivePaperDelivery(array $params = []): void
 
         $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null, $shift);
         $ctx->db()->commit();
-        $ctx->json(['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId]);
+        $response = ['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId];
+        if ($idempotencyKey !== '') {
+            dl_storeIdempotentResponse('receive_paper_dr', $idempotencyKey, $response, 86400);
+        }
+        $ctx->json($response);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);

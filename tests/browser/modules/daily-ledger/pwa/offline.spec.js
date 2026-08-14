@@ -74,6 +74,45 @@ test.describe('Daily Ledger PWA offline pilot', () => {
         await expect(page.locator('#connectivity-banner-text')).toContainText('Online');
     });
 
+    test('queued cashier operations replay on reconnect and never show all-saved while pending', async ({ page, context, shell }) => {
+        await page.goto(APP_URL + BASE + '/ledger');
+        await page.waitForLoadState('networkidle');
+        await shell.expectVisible();
+        await context.setOffline(true);
+
+        await page.evaluate(() => {
+            var key = ['daily-ledger:pending-ops', window.DL_TENANT_SCOPE || 'tenant', window.DL_USER_ID || 'anonymous', window.BRANCH_ID || 'branch', window.LEDGER_DATE || 'date', window.SHIFT || 'AM'].join(':');
+            localStorage.setItem(key, JSON.stringify([{
+                schema_version: 1,
+                module: 'daily-ledger',
+                tenant_scope: String(window.DL_TENANT_SCOPE || 'tenant'),
+                actor_id: String(window.DL_USER_ID || 'anonymous'),
+                branch_id: String(window.BRANCH_ID || ''),
+                date: String(window.LEDGER_DATE || ''),
+                shift: String(window.SHIFT || 'AM'),
+                op: 'withdrawal',
+                idempotency_key: 'test-op-key-1',
+                payload: {
+                    date: String(window.LEDGER_DATE || ''),
+                    branch_id: String(window.BRANCH_ID || ''),
+                    header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', custom_reason: '' },
+                    lines: [{ product_id: 1, quantity: 2 }]
+                },
+                created_at: new Date().toISOString()
+            }]));
+            window.dispatchEvent(new Event('offline'));
+        });
+        await expect(page.locator('#connectivity-banner-text')).toContainText('1 pending');
+        await expect(page.locator('#global-status')).not.toHaveText('All saved');
+
+        await page.route('**/daily-ledger/api/v1/cashier/ledger/day-status', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
+        await page.route('**/daily-ledger/api/v1/cashier/ledger/withdrawals', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"totals":[]}' }));
+        await context.setOffline(false);
+        await page.evaluate(() => window.dispatchEvent(new Event('online')));
+        await expect(page.locator('#global-status')).toHaveText('All saved');
+        await expect(page.locator('#connectivity-banner-text')).toContainText('Online');
+    });
+
     test('required-online actions show a red blocked message offline', async ({ page, context, shell }) => {
         await page.goto(APP_URL + BASE + '/ledger');
         await page.waitForLoadState('networkidle');
@@ -101,9 +140,9 @@ test.describe('Daily Ledger PWA offline pilot', () => {
             localStorage.setItem(key, JSON.stringify([oldEntry]));
             var originalFetch = window.fetch;
             var release;
-            window.fetch = function(url) {
+            window.fetch = function (url) {
                 if (String(url).indexOf('/ledger/save') !== -1) {
-                    return new Promise(function(resolve) { release = function() { resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } })); }; });
+                    return new Promise(function (resolve) { release = function () { resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } })); }; });
                 }
                 return originalFetch.apply(window, arguments);
             };
