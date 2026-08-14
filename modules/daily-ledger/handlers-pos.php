@@ -312,6 +312,39 @@ function dl_isPosEnabled(): bool
     return dl_settingToBool($settings['pos_enabled'] ?? false);
 }
 
+/**
+ * Whether the POS product grid is arranged by units sold (most-sold first,
+ * descending). Controlled by the "Arrange POS Items By Sales" setting.
+ */
+function dl_pos_sortBySalesEnabled(): bool
+{
+    $settings = dlModuleSettings();
+    return dl_settingToBool($settings['pos_sort_by_sales'] ?? true);
+}
+
+/**
+ * Units sold per branch product, using the module's canonical stock-derived
+ * sales formula (GREATEST(0, beg + addtl - withdraw - bal_end)) summed across
+ * all ledger rows for the branch (all dates, both shifts). Single source —
+ * POS sale items are intentionally NOT added (POS and stock-derived totals
+ * are never combined). Returns [product_id => units].
+ */
+function dl_pos_productSalesRanking($db, int $branchId): array
+{
+    $stmt = $db->prepare(
+        'SELECT dl.product_id, SUM(GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end)) AS units
+           FROM dl_daily_ledger dl
+          WHERE dl.branch_id = :b
+          GROUP BY dl.product_id'
+    );
+    $stmt->execute([':b' => $branchId]);
+    $ranking = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $ranking[(int)$row['product_id']] = (int)$row['units'];
+    }
+    return $ranking;
+}
+
 function dl_pos_allowedTenders(): array
 {
     $settings = dlModuleSettings();
@@ -518,7 +551,7 @@ function dl_pos_requestHash(array $lines, array $payments): string
 function dl_pos_branchProducts($db, int $branchId, string $date): array
 {
     $stmt = $db->prepare(
-        'SELECT p.id AS product_id, p.sku, p.name
+        'SELECT p.id AS product_id, p.sku, p.name, p.sort_order
            FROM dl_branch_products bp
            INNER JOIN dl_products p ON p.id = bp.product_id
           WHERE bp.branch_id = :b AND bp.is_active = 1 AND p.is_active = 1
@@ -535,10 +568,31 @@ function dl_pos_branchProducts($db, int $branchId, string $date): array
             'product_id' => $pid,
             'sku' => (string)$row['sku'],
             'name' => (string)$row['name'],
+            'sort_order' => (int)($row['sort_order'] ?? 0),
             'unit_price_cents' => (int)round(dl_resolveProductPrice($pid, $priceGroupId, $date) * 100),
             'price_group_id' => $priceGroupId,
         ];
     }
+
+    // Arrange the product grid by units sold (most-sold first, descending)
+    // when the "Arrange POS Items By Sales" setting is on. Tie-breaks fall
+    // back to the manual sort_order, then name. Sorting keys never changes
+    // the keyed map, so checkout resolution is unaffected.
+    if (dl_pos_sortBySalesEnabled()) {
+        $ranking = dl_pos_productSalesRanking($db, $branchId);
+        uasort($out, static function (array $a, array $b) use ($ranking): int {
+            $sa = (int)($ranking[$a['product_id']] ?? 0);
+            $sb = (int)($ranking[$b['product_id']] ?? 0);
+            if ($sa !== $sb) {
+                return $sb <=> $sa;
+            }
+            if ($a['sort_order'] !== $b['sort_order']) {
+                return $a['sort_order'] <=> $b['sort_order'];
+            }
+            return strcmp((string)$a['name'], (string)$b['name']);
+        });
+    }
+
     return $out;
 }
 

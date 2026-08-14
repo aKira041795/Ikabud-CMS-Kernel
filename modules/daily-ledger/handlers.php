@@ -394,6 +394,7 @@ function dl_featureSettings(): array
         'formal_delivery_workflow_enabled' => dl_settingToBool($settings['formal_delivery_workflow_enabled'] ?? false),
         'price_groups_enabled' => dl_settingToBool($settings['price_groups_enabled'] ?? true),
         'pos_enabled' => dl_settingToBool($settings['pos_enabled'] ?? false),
+        'pos_sort_by_sales' => dl_settingToBool($settings['pos_sort_by_sales'] ?? true),
     ];
 }
 
@@ -5862,6 +5863,7 @@ function handleAdminSettings(array $params = []): void
         'formal_delivery_workflow_enabled' => $featureSettings['formal_delivery_workflow_enabled'],
         'price_groups_enabled' => $featureSettings['price_groups_enabled'],
         'pos_enabled' => $featureSettings['pos_enabled'],
+        'pos_sort_by_sales' => $featureSettings['pos_sort_by_sales'],
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
         'logo_url' => dlLogoUrl(),
         'favicon_url' => dlFaviconUrl(),
@@ -6154,6 +6156,7 @@ function apiSaveRolePermissions(array $params = []): void
     $formalDeliveryEnabled = $featureSettings['formal_delivery_workflow_enabled'];
     $priceGroupsEnabled = $featureSettings['price_groups_enabled'];
     $posEnabled = $featureSettings['pos_enabled'];
+    $posSortBySales = $featureSettings['pos_sort_by_sales'];
     $backupBeforeResetEnabled = $backupSettings['backup_before_reset_enabled'];
     $backupIncludeUsers = $backupSettings['backup_include_users'];
     $backupRetentionDays = $backupSettings['backup_retention_days'];
@@ -6173,6 +6176,7 @@ function apiSaveRolePermissions(array $params = []): void
         'formal_delivery_workflow_enabled' => &$formalDeliveryEnabled,
         'price_groups_enabled' => &$priceGroupsEnabled,
         'pos_enabled' => &$posEnabled,
+        'pos_sort_by_sales' => &$posSortBySales,
     ] as $key => &$ref) {
         if (array_key_exists($key, $input)) {
             if (!$canManageFeatureActivation) {
@@ -6242,6 +6246,7 @@ function apiSaveRolePermissions(array $params = []): void
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled ? '1' : '0',
         'price_groups_enabled' => $priceGroupsEnabled ? '1' : '0',
         'pos_enabled' => $posEnabled ? '1' : '0',
+        'pos_sort_by_sales' => $posSortBySales ? '1' : '0',
         'backup_before_reset_enabled' => $backupBeforeResetEnabled ? '1' : '0',
         'backup_include_users' => $backupIncludeUsers ? '1' : '0',
         'backup_retention_days' => (string)$backupRetentionDays,
@@ -6269,6 +6274,7 @@ function apiSaveRolePermissions(array $params = []): void
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
         'pos_enabled' => $posEnabled,
+        'pos_sort_by_sales' => $posSortBySales,
         'backup_before_reset_enabled' => $backupBeforeResetEnabled,
         'backup_include_users' => $backupIncludeUsers,
         'backup_retention_days' => $backupRetentionDays,
@@ -6297,6 +6303,7 @@ function apiSaveRolePermissions(array $params = []): void
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
         'pos_enabled' => $posEnabled,
+        'pos_sort_by_sales' => $posSortBySales,
     ]);
 }
 

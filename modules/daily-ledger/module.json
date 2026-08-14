@@ -248,6 +248,13 @@
       "description": "Comma-separated tender methods accepted at POS checkout (e.g. cash,gcash,card)."
     },
     {
+      "key": "pos_sort_by_sales",
+      "type": "checkbox",
+      "label": "Arrange POS Items By Sales",
+      "default": "1",
+      "description": "Sort the POS product grid by units sold so the most-sold items appear at the top (descending). When off, products keep their manual sort order."
+    },
+    {
       "key": "am_shift_cutoff",
       "type": "time",
       "label": "AM to PM Shift Cutoff",

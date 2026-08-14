@@ -231,6 +231,11 @@
                     Enable POS
                 </label>
                 <p class="mt-2 text-sm text-gray-500">Enabling POS makes it available to cashiers granted the pos.sell permission.</p>
+                <label class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="feature-pos-sort-sales" {if pos_sort_by_sales}checked{/if}>
+                    Arrange POS items by sales (most-sold first)
+                </label>
+                <p class="mt-1 text-sm text-gray-500">Sorts the POS product grid by units sold, descending. Off keeps the manual product sort order.</p>
                 {/if}
                 {if !can_manage_feature_activation}
                 <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if pos_enabled}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !pos_enabled}bg-gray-100 text-gray-700 ring-gray-300{/if}">
@@ -872,6 +877,10 @@
         var featurePos = document.getElementById('feature-pos');
         if (featurePos) {
             payload.pos_enabled = featurePos.checked;
+        }
+        var featurePosSortSales = document.getElementById('feature-pos-sort-sales');
+        if (featurePosSortSales) {
+            payload.pos_sort_by_sales = featurePosSortSales.checked;
         }
 
         var appNameInput = document.getElementById('app-name');

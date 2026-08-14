@@ -164,6 +164,9 @@ $handlersSource = (string) file_get_contents($base . '/modules/daily-ledger/hand
 $h->test('custom_reason persisted in withdrawal insert', str_contains($handlersSource, 'custom_reason'));
 $h->test('custom reason required when reason is other', str_contains($handlersSource, 'A custom reason is required when reason is Other.'));
 $h->test('apiSaveRolePermissions persists pos_enabled', str_contains($handlersSource, "'pos_enabled' => \$posEnabled ? '1' : '0'"));
+$h->test('feature settings include pos_sort_by_sales', str_contains($handlersSource, "'pos_sort_by_sales' => dl_settingToBool(\$settings['pos_sort_by_sales'] ?? true),"));
+$h->test('settings save persists pos_sort_by_sales', str_contains($handlersSource, "'pos_sort_by_sales' => \$posSortBySales ? '1' : '0'"));
+$h->test('settings page passes pos_sort_by_sales', str_contains($handlersSource, "'pos_sort_by_sales' => \$featureSettings['pos_sort_by_sales'],"));
 $h->test('dl_amShiftCutoff available', function_exists('dl_amShiftCutoff'));
 $h->test('dl_currentShift uses configured cutoff', str_contains($handlersSource, 'dl_amShiftCutoff()'));
 $h->test('settings save persists am_shift_cutoff', str_contains($handlersSource, "'am_shift_cutoff' => \$amShiftCutoff,"));

@@ -30,6 +30,10 @@ require_once $base . '/modules/daily-ledger/helpers/entity-views.php';
 require_once $base . '/modules/daily-ledger/handlers-deliveries.php';
 require_once $base . '/modules/daily-ledger/handlers.php';
 
+// handlers-pos.php source, loaded once near the top so any section (including
+// the early "POS Sort By Sales" checks) can inspect it.
+$posSource = (string)file_get_contents($base . '/modules/daily-ledger/handlers-pos.php');
+
 // ─── Money: cents parsing ───────────────────────────────────────
 $h->section('POS Money — cents parsing');
 
@@ -224,6 +228,19 @@ $h->test('feature settings include pos_enabled', array_key_exists('pos_enabled',
 $h->test('layout flags include feature_pos', array_key_exists('feature_pos', dl_layoutFlags()));
 $h->test('allowed tenders returns list', is_array(dl_pos_allowedTenders()) && dl_pos_allowedTenders() !== []);
 
+// ─── Arrange POS items by sales ─────────────────────────────────
+$h->section('POS Sort By Sales');
+
+$h->test('dl_pos_sortBySalesEnabled returns bool', is_bool(dl_pos_sortBySalesEnabled()));
+$h->test('feature settings include pos_sort_by_sales', array_key_exists('pos_sort_by_sales', dl_featureSettings()));
+$h->test('dl_pos_productSalesRanking available', function_exists('dl_pos_productSalesRanking'));
+$h->test('sales ranking uses canonical derived-sales formula', str_contains($posSource, 'GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end)'));
+$h->test('sales ranking scopes by branch', str_contains($posSource, 'WHERE dl.branch_id = :b'));
+$h->test('sales ranking never combines POS items', !(bool)preg_match('/dl_pos_sale_items[\s\S]{0,80}dl_daily_ledger/s', $posSource));
+$h->test('branchProducts includes sort_order for tie-break', str_contains($posSource, 'p.sort_order'));
+$h->test('branchProducts sorts by sales when enabled', (bool)preg_match('/if \(dl_pos_sortBySalesEnabled\(\)\)[\s\S]*?uasort\(\$out/s', $posSource));
+$h->test('branchProducts sorts descending', str_contains($posSource, 'return $sb <=> $sa;'));
+
 // ─── Manifest ownership ─────────────────────────────────────────
 $h->section('POS Manifest Ownership');
 
@@ -297,7 +314,6 @@ foreach ($expectedPost as $path => $handler) {
 // ─── Source wiring: POS never touches ledger stock fields ──────
 $h->section('POS Stock-Field Isolation');
 
-$posSource = (string)file_get_contents($base . '/modules/daily-ledger/handlers-pos.php');
 $h->test('handlers-pos.php loaded by handlers.php', str_contains((string)file_get_contents($base . '/modules/daily-ledger/handlers.php'), "handlers-pos.php"));
 // POS must never write the manual ledger source columns.
 $writesLedger = (bool)preg_match('/(INSERT INTO\s+dl_daily_ledger|UPDATE\s+dl_daily_ledger)/i', $posSource);
