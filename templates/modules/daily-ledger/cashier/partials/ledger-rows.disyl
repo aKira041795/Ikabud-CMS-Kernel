@@ -8,6 +8,7 @@
                value="{if shift == 'PM' && row.beg_bal == 0 && row.am_bal_end > 0}{row.am_bal_end}{else}{row.beg_bal}{/if}"
                data-am-end="{if shift == 'PM'}{row.am_bal_end}{else}0{/if}"
                data-orig-beg="{row.beg_bal}"
+               onfocus="this.select()"
                onchange="saveField(this)"
                {if day_status == 'closed' || reference_only}disabled{/if}>
         {if shift == 'PM'}
@@ -48,6 +49,7 @@
         <input type="number" class="ledger-input mt-0 ml-auto block w-20 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" inputmode="numeric" min="0"
                data-product="{row.product_id}" data-field="bal_end"
                value="{row.bal_end}"
+               onfocus="this.select()"
                onchange="saveField(this)"
                {if day_status == 'closed' || reference_only}disabled{/if}>
     </td>

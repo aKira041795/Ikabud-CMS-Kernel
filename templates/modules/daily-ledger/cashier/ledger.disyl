@@ -581,6 +581,18 @@
         }
     });
 
+    // Auto-select behaviour for ledger numbers: tapping/clicking a field
+    // selects the whole value so cashiers type straight over the old
+    // quantity. The inline onfocus="this.select()" handles touch; this
+    // delegated mouseup guard stops the desktop click from collapsing that
+    // selection back to a caret.
+    document.addEventListener('mouseup', function(e) {
+        var target = e.target;
+        if (!target || !target.classList || !target.classList.contains('ledger-input')) return;
+        e.preventDefault();
+        try { target.select(); } catch (err) { /* number input */ }
+    });
+
     function closeDay() {
         if (!confirm('Close this day? Cashiers will no longer be able to edit.')) return;
         var btn = document.getElementById('close-day-btn');
