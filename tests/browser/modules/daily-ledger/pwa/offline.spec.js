@@ -70,11 +70,11 @@ test.describe('Daily Ledger PWA offline pilot', () => {
             var crossBranch = await window.dlReadProductReference();
             window.BRANCH_ID = originalBranch;
 
-            document.querySelectorAll('tr[data-product-id]').forEach(function(row) { row.remove(); });
+            document.querySelectorAll('tr[data-product-id]').forEach(function (row) { row.remove(); });
             var modal = window.withdrawalModal();
             modal.loadProducts();
             for (var i = 0; i < 50 && modal.products.length === 0; i++) {
-                await new Promise(function(resolve) { setTimeout(resolve, 10); });
+                await new Promise(function (resolve) { setTimeout(resolve, 10); });
             }
             return {
                 captured: captured,
