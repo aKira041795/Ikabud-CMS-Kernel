@@ -343,3 +343,39 @@ Operating notes:
 - Production In-charge lands on **Production Output** after sign-in.
 - The production pages no longer expose a flow-mode dropdown; they always submit under the production flow.
 - On paper DR exceptions, Production In-charge can mark the delivery **Verified**. Admin and supervisors can also mark **Discrepancy** or **Reopen Check**.
+## 11. Duplicate Withdrawal Protection (migration 052+)
+
+A cashier withdrawal (charge / pullout / adjustment_add) is written to
+`dl_cashier_withdrawals` and flows into the ledger's `withdraw` / `addtl`
+columns. Historically the only duplicate guard was the client `idempotency_key`,
+which lives in the app cache — a modal reopen, second tab, cache eviction, or
+concurrent double-fire could bypass it and inflate variance flags (the
+2026-08-15 branch 8 incident: 12 duplicate pullouts ~1 minute apart).
+
+**DB-level guard (stable & future-proof):**
+- Migration `052_cashier_withdrawals_dedup_hash.sql` adds a deterministic
+  fingerprint column `dedup_hash CHAR(40)` with a UNIQUE index
+  (`uq_dl_cw_dedup`) on `dl_cashier_withdrawals`.
+- The fingerprint = SHA1 of `branch | product | date | type | reason |
+  custom_reason | dr_number | target_branch | qty | liable_user` — computed
+  identically in SQL (migration backfill) and PHP
+  (`dl_withdrawalDedupHash()` in `helpers.php`).
+- Online (`apiSaveCashierWithdrawals`) and offline
+  (`dl_offlineApplyWithdrawal`) both bind the hash. A duplicate violation
+  rolls back the whole transaction: online returns `{ok:true, duplicate:true}`
+  (modal shows "Duplicate ignored"); offline surfaces a 409 conflict receipt
+  (quarantined, never retried).
+- The idempotency cache remains as the fast-path replay; the unique index is
+  the durable, atomic safety net.
+
+**Operational notes:**
+- An identical re-submission is treated as a duplicate by design. If a second,
+  genuinely separate identical withdrawal is needed, change a distinguishing
+  field (quantity, reason, or liable person) so the fingerprint differs.
+- `scripts/cleanup-duplicate-withdrawals.php` removes pre-existing duplicates
+  (dry-run by default, `--apply` to persist) and rebuilds the ledger + variance
+  flags — run it once against any tenant that accumulated duplicates before
+  migration 052.
+- The admin variance page self-heals: `dl_refreshVariancesForDateView()`
+  recomputes OPEN days on view so anomalies in legacy/imported/offline-synced
+  data surface without a manual recompute.
