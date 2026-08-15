@@ -473,6 +473,27 @@ if (is_array($insertedRow)) {
     $wdAudit->execute([':b' => $branchId]);
     $h->test('withdrawal emits an audit action for traceability', (int)$wdAudit->fetchColumn() >= 1);
 
+    // Idempotent replay: re-applying the same withdrawal with the same
+    // idempotency_key must NOT create a duplicate record. Key is unique per run
+    // so a persistent cache from a prior run cannot pre-satisfy the replay.
+    $replayKey = 'offline-wd-replay-' . substr(hash('sha256', 'replay-' . $testDate . '-' . bin2hex(random_bytes(6))), 0, 24);
+    $replayOp = [
+        'type' => 'withdrawal',
+        'payload' => [
+            'branch_id' => $branchId,
+            'date' => $testDate,
+            'shift' => 'AM',
+            'idempotency_key' => $replayKey,
+            'header' => ['withdrawal_type' => 'charge', 'reason_code' => 'manual_adjustment'],
+            'lines' => [['product_id' => $productId, 'quantity' => 3]],
+        ],
+    ];
+    $baseWdCount = (int)$db->query("SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId)->fetchColumn();
+    dl_offlineApplyWithdrawal($adminUser, $replayOp);
+    dl_offlineApplyWithdrawal($adminUser, $replayOp);
+    $afterWdCount = (int)$db->query("SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId)->fetchColumn();
+    $h->test('offline withdrawal replay with same key is deduped', $afterWdCount === $baseWdCount + 1);
+
     // Receipts
     $clientOpId = 'op-' . substr(hash('sha256', 'offline-test-op'), 0, 32);
     dl_offlineRecordReceipt((string)$insertedRow['enrollment_id'], $clientOpId, 'ledger_save', 'applied', ['ok' => true, 'field' => 'beg_bal', 'value' => 40]);

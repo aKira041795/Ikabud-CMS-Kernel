@@ -619,7 +619,19 @@
     };
     function enqueueLegacyOperation(op, payload) {
         var list = getPendingOps();
-        list.push({
+        // Honor a caller-provided idempotency key (e.g. a modal's stable key) so
+        // retries of the same logical operation reuse it; otherwise generate one.
+        var idempotencyKey = (payload && payload.idempotency_key) ? String(payload.idempotency_key) : window.generateOperationId();
+        // Dedupe: the same logical operation (same op + key) must never queue twice.
+        var existing = null;
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].op === op && list[i].idempotency_key === idempotencyKey) {
+                existing = list[i];
+                break;
+            }
+        }
+        if (existing) return existing;
+        var entry = {
             schema_version: 1,
             module: 'daily-ledger',
             tenant_scope: PENDING_TENANT_SCOPE,
@@ -628,14 +640,15 @@
             date: LEDGER_DATE,
             shift: SHIFT || 'AM',
             op: op,
-            idempotency_key: window.generateOperationId(),
+            idempotency_key: idempotencyKey,
             payload: payload || {},
             created_at: new Date().toISOString()
-        });
+        };
+        list.push(entry);
         setPendingOps(list);
         renderConnectivityBanner();
         updateGlobalStatus('pending');
-        return list[list.length - 1];
+        return entry;
     }
 
     window.enqueueOperation = function(op, payload) {

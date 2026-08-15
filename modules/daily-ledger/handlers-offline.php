@@ -488,6 +488,15 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     }
 
     $input = is_array($op['payload'] ?? null) ? $op['payload'] : [];
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+    if ($idempotencyKey !== '') {
+        // A retry of an already-applied withdrawal (same key) is a replay, not a
+        // new submission — return the original response instead of double-applying.
+        $cached = dl_loadIdempotentResponse('cashier_withdrawal', $idempotencyKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+    }
     $authResult = dl_authorizeBranch($user, $input);
     if ($authResult['branch_id'] < 0) {
         throw new RuntimeException('Branch not authorized', 403);
@@ -729,6 +738,9 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         if ($returnDeliveryId !== null) {
             $response['delivery_id'] = $returnDeliveryId;
             $response['receiving_id'] = $returnReceivingId;
+        }
+        if ($idempotencyKey !== '') {
+            dl_storeIdempotentResponse('cashier_withdrawal', $idempotencyKey, $response, 86400);
         }
 
         return $response;

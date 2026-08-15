@@ -143,6 +143,10 @@ function withdrawalModal() {
             this.errorMsg = '';
             this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' };
             this.lines = [{ product_id: '', quantity: '' }];
+            // One idempotency key per modal session: a retry after a lost response
+            // reuses it, so the server replays the original result instead of
+            // creating a duplicate withdrawal.
+            this.idempotencyKey = window.generateOperationId ? window.generateOperationId() : String(Date.now());
             this.loadProducts();
             this.isOpen = true;
         },
@@ -216,7 +220,7 @@ function withdrawalModal() {
             if (this.header.withdrawal_type === 'pullout' && window.COMMISSARY_BRANCH_ID && window.COMMISSARY_BRANCH_ID !== '') {
                 payload.header.target_branch_id = parseInt(window.COMMISSARY_BRANCH_ID, 10);
             }
-            payload.idempotency_key = window.generateOperationId ? window.generateOperationId() : String(Date.now());
+            payload.idempotency_key = this.idempotencyKey || (window.generateOperationId ? window.generateOperationId() : String(Date.now()));
 
             // Offline: queue the adjustment on this device and sync later.
             if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
