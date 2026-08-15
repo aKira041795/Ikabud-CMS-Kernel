@@ -117,9 +117,51 @@ PREPARE vf_note_st FROM @vf_note;
 EXECUTE vf_note_st;
 DEALLOCATE PREPARE vf_note_st;
 
--- Replace the old unique keys with the kind+shift identity. Legacy deployments
--- carry the day-only key under either `uq_dl_variance` (canonical) or the older
--- `uq_variance` name; drop whichever exists, then add only when absent.
+-- Replace the old unique keys with the kind+shift identity, FK-safe.
+-- The legacy day-only unique key backs the branch FK (fk_dl_vf_branch /
+-- fk_vf_branch), so dropping it first fails with MySQL error 1553
+-- ("Cannot drop index ... needed in a foreign key constraint"). Detach the FK
+-- constraints, rebuild the indexes, then re-attach them (canonical names).
+-- Idempotent: every step is guarded by an existence check.
+
+-- 1) Detach FK constraints (canonical + legacy Bluehost names).
+SET @vf_fk_branch = IF(
+  EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND CONSTRAINT_NAME = 'fk_dl_vf_branch' AND CONSTRAINT_TYPE = 'FOREIGN KEY'),
+  'ALTER TABLE dl_variance_flags DROP FOREIGN KEY fk_dl_vf_branch',
+  'SELECT 1'
+);
+PREPARE vf_fk_branch_st FROM @vf_fk_branch;
+EXECUTE vf_fk_branch_st;
+DEALLOCATE PREPARE vf_fk_branch_st;
+
+SET @vf_fk_product = IF(
+  EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND CONSTRAINT_NAME = 'fk_dl_vf_product' AND CONSTRAINT_TYPE = 'FOREIGN KEY'),
+  'ALTER TABLE dl_variance_flags DROP FOREIGN KEY fk_dl_vf_product',
+  'SELECT 1'
+);
+PREPARE vf_fk_product_st FROM @vf_fk_product;
+EXECUTE vf_fk_product_st;
+DEALLOCATE PREPARE vf_fk_product_st;
+
+SET @vf_fk_vf_branch = IF(
+  EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND CONSTRAINT_NAME = 'fk_vf_branch' AND CONSTRAINT_TYPE = 'FOREIGN KEY'),
+  'ALTER TABLE dl_variance_flags DROP FOREIGN KEY fk_vf_branch',
+  'SELECT 1'
+);
+PREPARE vf_fk_vf_branch_st FROM @vf_fk_vf_branch;
+EXECUTE vf_fk_vf_branch_st;
+DEALLOCATE PREPARE vf_fk_vf_branch_st;
+
+SET @vf_fk_vf_product = IF(
+  EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND CONSTRAINT_NAME = 'fk_vf_product' AND CONSTRAINT_TYPE = 'FOREIGN KEY'),
+  'ALTER TABLE dl_variance_flags DROP FOREIGN KEY fk_vf_product',
+  'SELECT 1'
+);
+PREPARE vf_fk_vf_product_st FROM @vf_fk_vf_product;
+EXECUTE vf_fk_vf_product_st;
+DEALLOCATE PREPARE vf_fk_vf_product_st;
+
+-- 2) Drop the legacy unique keys (no FK constraint depends on them now).
 SET @vf_drop_uq_legacy = IF(
   EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND INDEX_NAME = 'uq_variance'),
   'ALTER TABLE dl_variance_flags DROP INDEX uq_variance',
@@ -138,6 +180,8 @@ PREPARE vf_drop_uq_st FROM @vf_drop_uq;
 EXECUTE vf_drop_uq_st;
 DEALLOCATE PREPARE vf_drop_uq_st;
 
+-- 3) Add the canonical kind+shift unique key (branch_id leftmost → backs the
+--    branch FK after re-attach).
 SET @vf_add_uq = IF(
   EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND INDEX_NAME = 'uq_dl_variance'),
   'SELECT 1',
@@ -146,6 +190,39 @@ SET @vf_add_uq = IF(
 PREPARE vf_add_uq_st FROM @vf_add_uq;
 EXECUTE vf_add_uq_st;
 DEALLOCATE PREPARE vf_add_uq_st;
+
+-- 4) Ensure a product_id index exists for the product FK, then re-attach the
+--    canonical FK constraints.
+SET @vf_add_pidx = IF(
+  EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND INDEX_NAME = 'idx_dl_vf_product'),
+  'SELECT 1',
+  'ALTER TABLE dl_variance_flags ADD INDEX idx_dl_vf_product (product_id)'
+);
+PREPARE vf_add_pidx_st FROM @vf_add_pidx;
+EXECUTE vf_add_pidx_st;
+DEALLOCATE PREPARE vf_add_pidx_st;
+
+SET @vf_readd_branch = IF(
+  EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND CONSTRAINT_NAME = 'fk_dl_vf_branch' AND CONSTRAINT_TYPE = 'FOREIGN KEY'),
+  'SELECT 1',
+  'ALTER TABLE dl_variance_flags ADD CONSTRAINT fk_dl_vf_branch FOREIGN KEY (branch_id) REFERENCES dl_branches(id) ON DELETE CASCADE'
+);
+PREPARE vf_readd_branch_st FROM @vf_readd_branch;
+EXECUTE vf_readd_branch_st;
+DEALLOCATE PREPARE vf_readd_branch_st;
+
+-- Re-attach the product FK only when no orphaned product_id rows exist (a
+-- legacy install may have referenced the unprefixed products table; in that
+-- case skip re-attach rather than block the migration with a validation error).
+SET @vf_readd_product = IF(
+  EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'dl_variance_flags' AND CONSTRAINT_NAME = 'fk_dl_vf_product' AND CONSTRAINT_TYPE = 'FOREIGN KEY')
+  OR EXISTS(SELECT 1 FROM dl_variance_flags v LEFT JOIN dl_products p ON p.id = v.product_id WHERE v.product_id IS NOT NULL AND p.id IS NULL),
+  'SELECT 1',
+  'ALTER TABLE dl_variance_flags ADD CONSTRAINT fk_dl_vf_product FOREIGN KEY (product_id) REFERENCES dl_products(id) ON DELETE CASCADE'
+);
+PREPARE vf_readd_product_st FROM @vf_readd_product;
+EXECUTE vf_readd_product_st;
+DEALLOCATE PREPARE vf_readd_product_st;
 
 -- ── 4. Conservative legacy backfills ─────────────────────────────────
 -- Variance flags: existing rows were the beg-vs-prior-ending check →
