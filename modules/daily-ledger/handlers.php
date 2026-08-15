@@ -11112,7 +11112,18 @@ function handleAdminWithdrawals(): void
         $branchId = 0;
     }
 
+    // Branch dropdowns below use positional placeholders; the main query must
+    // use NAMED placeholders only — PDO native prepares reject mixing
+    // positional `?` with `:named` (HY093).
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branchNamed = [];
+    $executeBind = [];
+    foreach (array_values($accessibleBranchIds) as $index => $accessibleBranchId) {
+        $key = ':branch_' . $index;
+        $branchNamed[] = $key;
+        $executeBind[$key] = (int)$accessibleBranchId;
+    }
+    $branchNamedSql = implode(',', $branchNamed);
 
     $sql = 'SELECT cw.id, cw.ledger_date, cw.created_at, cw.withdrawal_type, cw.reason_code,
                    cw.custom_reason, cw.quantity, cw.dr_number, cw.liable_user_id,
@@ -11137,10 +11148,10 @@ function handleAdminWithdrawals(): void
               LEFT JOIN dl_branches cb ON cb.id = b.assigned_commissary_id AND cb.is_commissary = 1
               LEFT JOIN dl_users u ON u.id = cw.encoded_by AND cw.encoded_by > 0
               LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
-             WHERE cw.branch_id IN (' . $branchPlaceholders . ')
+             WHERE cw.branch_id IN (' . $branchNamedSql . ')
                AND cw.ledger_date BETWEEN :date_from AND :date_to';
-    $bind = [':date_from' => $dateFrom, ':date_to' => $dateTo];
-    $executeBind = array_merge($accessibleBranchIds, $bind);
+    $executeBind[':date_from'] = $dateFrom;
+    $executeBind[':date_to'] = $dateTo;
     if ($branchId > 0) {
         $sql .= ' AND cw.branch_id = :bid';
         $executeBind[':bid'] = $branchId;
