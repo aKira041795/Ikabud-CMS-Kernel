@@ -33,12 +33,16 @@ DEALLOCATE PREPARE vf_withdraw_st;
 -- Backfill existing flags from their shift's ledger row (shift known).
 -- Flags with unknown provenance (legacy shift NULL) are left NULL and are
 -- regenerated with snapshots on the next recompute.
+-- The dl.shift = vf.shift join must be collation-safe: Bluehost's legacy
+-- dl_daily_ledger is utf8mb4_general_ci while dl_variance_flags.shift (migration
+-- 049) is utf8mb4_unicode_ci — without an explicit COLLATE this fails with MySQL
+-- error 1267 "Illegal mix of collations". Force unicode_ci on the join.
 UPDATE dl_variance_flags vf
   LEFT JOIN dl_daily_ledger dl
     ON dl.branch_id = vf.branch_id
    AND dl.product_id = vf.product_id
    AND dl.ledger_date = vf.ledger_date
-   AND dl.shift = vf.shift
+   AND dl.shift COLLATE utf8mb4_unicode_ci = vf.shift
    SET vf.addtl = COALESCE(vf.addtl, dl.addtl),
        vf.withdraw = COALESCE(vf.withdraw, dl.withdraw)
  WHERE vf.shift IS NOT NULL
