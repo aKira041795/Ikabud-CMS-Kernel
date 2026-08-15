@@ -2632,13 +2632,13 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
             // overnight (AM) — AM beg vs prior recorded ending.
             if ($am !== null && isset($prevEnd[$pid])) {
                 $beg = $am['beg_bal'] !== null ? (int)$am['beg_bal'] : 0;
-                dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'overnight', 'AM', $beg - $prevEnd[$pid], $prevEnd[$pid], $beg);
+                dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'overnight', 'AM', $beg - $prevEnd[$pid], $prevEnd[$pid], $beg, $beg, $prevEnd[$pid]);
             }
 
             // handoff (PM) — PM beg vs AM ending, both recorded.
             if ($pm !== null && $am !== null && $am['bal_end'] !== null) {
                 $pmBeg = $pm['beg_bal'] !== null ? (int)$pm['beg_bal'] : 0;
-                dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'handoff', 'PM', $pmBeg - (int)$am['bal_end'], (int)$am['bal_end'], $pmBeg);
+                dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'handoff', 'PM', $pmBeg - (int)$am['bal_end'], (int)$am['bal_end'], $pmBeg, $pmBeg, (int)$am['bal_end']);
             }
 
             foreach ([['row' => $am, 'shift' => 'AM'], ['row' => $pm, 'shift' => 'PM']] as $pair) {
@@ -2654,8 +2654,8 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
                 $over = $end - $expected;       // ending above supply
                 $rawSales = $expected - $end;   // negative raw sales
                 if ($over > 0) {
-                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'ending', $pair['shift'], $over, $expected, $end);
-                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'sales', $pair['shift'], $rawSales, $expected, $end);
+                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'ending', $pair['shift'], $over, $expected, $end, $beg);
+                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'sales', $pair['shift'], $rawSales, $expected, $end, $beg);
                 }
             }
         }
@@ -2675,10 +2675,16 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
 
 /**
  * Upsert one variance flag by (branch, product, date, kind, shift).
+ * current_beg_bal carries the shift's beginning balance for every kind (the
+ * comparison anchor alongside shift). prev_bal_end carries the reference
+ * balance feeding the comparison: the prior day's ending for overnight and the
+ * AM ending for handoff; it is null for ending/sales, whose anchor is the
+ * shift beginning (current_beg_bal) and whose comparison is expected vs
+ * recorded end.
  * Zero variance auto-clears unreviewed flags; reviewed flags are retained at
  * zero with an auditable auto-clear note (reviewer/status metadata preserved).
  */
-function dl_upsertVarianceFlag($db, int $branchId, int $productId, string $date, string $kind, ?string $shift, int $variance, ?int $expectedEnd, ?int $recordedEnd): void
+function dl_upsertVarianceFlag($db, int $branchId, int $productId, string $date, string $kind, ?string $shift, int $variance, ?int $expectedEnd, ?int $recordedEnd, ?int $currentBeg = null, ?int $prevEnd = null): void
 {
     $kind = in_array($kind, ['overnight', 'handoff', 'ending', 'sales'], true) ? $kind : 'overnight';
     $shift = ($shift === 'AM' || $shift === 'PM') ? $shift : null;
@@ -2724,8 +2730,8 @@ function dl_upsertVarianceFlag($db, int $branchId, int $productId, string $date,
         ':kind' => $kind,
         ':shift' => $shift,
         ':var' => $variance,
-        ':prev' => $kind === 'overnight' ? $expectedEnd : null,
-        ':cur' => $kind === 'overnight' ? $recordedEnd : null,
+        ':prev' => $prevEnd !== null ? $prevEnd : ($kind === 'overnight' ? $expectedEnd : null),
+        ':cur' => $currentBeg !== null ? $currentBeg : ($kind === 'overnight' ? $recordedEnd : null),
         ':exp' => $expectedEnd,
         ':rec' => $recordedEnd,
     ]);

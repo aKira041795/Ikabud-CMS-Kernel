@@ -303,10 +303,10 @@ dl_recomputeVariancesForDay($branchId, $testDate, false);
 
 // overnight (AM): 10 - 8 = 2
 $ov = dl_t_flag($db, $branchId, $pA, $testDate, 'overnight', 'AM');
-$h->test('overnight variance computed (AM beg - prior end)', is_array($ov) && (int)$ov['variance'] === 2 && (int)$ov['expected_end_bal'] === 8 && (int)$ov['recorded_end_bal'] === 10);
+$h->test('overnight variance computed (AM beg - prior end)', is_array($ov) && (int)$ov['variance'] === 2 && (int)$ov['expected_end_bal'] === 8 && (int)$ov['recorded_end_bal'] === 10 && (int)$ov['current_beg_bal'] === 10);
 // handoff (PM): 6 - 5 = 1
 $ho = dl_t_flag($db, $branchId, $pA, $testDate, 'handoff', 'PM');
-$h->test('handoff variance computed (PM beg - AM end)', is_array($ho) && (int)$ho['variance'] === 1 && (int)$ho['expected_end_bal'] === 5 && (int)$ho['recorded_end_bal'] === 6);
+$h->test('handoff variance computed (PM beg - AM end)', is_array($ho) && (int)$ho['variance'] === 1 && (int)$ho['expected_end_bal'] === 5 && (int)$ho['recorded_end_bal'] === 6 && (int)$ho['current_beg_bal'] === 6 && (int)$ho['prev_bal_end'] === 5);
 // Product B PM ending null → NO handoff/ending/sales flag and no fabricated overnight.
 $h->test('null PM ending creates no numeric variance for B', dl_t_flag($db, $branchId, $pB, $testDate, 'handoff', 'PM') === null && dl_t_flag($db, $branchId, $pB, $testDate, 'ending', 'PM') === null);
 // Overnight for B falls back to the recorded AM ending (20 - 5 = 15).
@@ -321,8 +321,8 @@ dl_t_ledger($db, $branchId, $pA, $testDate, 'AM', 10, 0, 0, 15);
 dl_recomputeVariancesForDay($branchId, $testDate, false);
 $endFlag = dl_t_flag($db, $branchId, $pA, $testDate, 'ending', 'AM');
 $salesFlag = dl_t_flag($db, $branchId, $pA, $testDate, 'sales', 'AM');
-$h->test('ending-above-supply produces ending kind', is_array($endFlag) && (int)$endFlag['variance'] === 5 && (int)$endFlag['expected_end_bal'] === 10 && (int)$endFlag['recorded_end_bal'] === 15);
-$h->test('ending-above-supply produces negative raw sales kind', is_array($salesFlag) && (int)$salesFlag['variance'] === -5);
+$h->test('ending-above-supply produces ending kind', is_array($endFlag) && (int)$endFlag['variance'] === 5 && (int)$endFlag['expected_end_bal'] === 10 && (int)$endFlag['recorded_end_bal'] === 15 && (int)$endFlag['current_beg_bal'] === 10);
+$h->test('ending-above-supply produces negative raw sales kind', is_array($salesFlag) && (int)$salesFlag['variance'] === -5 && (int)$salesFlag['current_beg_bal'] === 10);
 $h->test('save order cannot overwrite identity (overnight still AM)', ($ov = dl_t_flag($db, $branchId, $pA, $testDate, 'overnight', 'AM')) !== null);
 
 // Restore AM end to 5 and verify handoff recompute (D→D+1 propagation).
@@ -372,7 +372,7 @@ $h->test('pre-enhancement anomaly has no flags before recompute', dl_t_flag($db,
 dl_recomputeVariancesForDay($branchId, $histDate, false);
 $histEnd = dl_t_flag($db, $branchId, 99064, $histDate, 'ending', 'AM');
 $histSales = dl_t_flag($db, $branchId, 99064, $histDate, 'sales', 'AM');
-$h->test('beginning-lesser-than-ending surfaces ending variance', is_array($histEnd) && (int)$histEnd['variance'] === 32 && (int)$histEnd['expected_end_bal'] === -10 && (int)$histEnd['recorded_end_bal'] === 22);
+$h->test('beginning-lesser-than-ending surfaces ending variance', is_array($histEnd) && (int)$histEnd['variance'] === 32 && (int)$histEnd['expected_end_bal'] === -10 && (int)$histEnd['recorded_end_bal'] === 22 && (int)$histEnd['current_beg_bal'] === 10);
 $h->test('beginning-lesser-than-ending surfaces negative raw sales', is_array($histSales) && (int)$histSales['variance'] === -32);
 
 // Self-healing view refresh must surface the anomaly from a no-flag state on an
