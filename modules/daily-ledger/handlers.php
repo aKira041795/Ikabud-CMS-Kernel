@@ -5904,16 +5904,17 @@ function handleAdminDashboard(array $params = []): void
     // Recent encoder activity (last 20) — human-readable + branch-scoped for non-admins.
     $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
     $hasActorSource = dlAuditLogHasColumn('actor_source');
+    $hasUsersTable = dl_tableExists($ctx->db(), 'users');
     $activitySql = 'SELECT a.action, a.created_at, a.branch_id,
                            b.name AS branch_name,
                            ' . ($hasActorSource ? 'a.actor_source' : 'NULL') . ' AS actor_source,
                            a.actor_user_id,
                            ' . ($hasActorModuleUserId ? 'a.actor_module_user_id' : 'NULL') . ' AS actor_module_user_id,
-                           ku.full_name AS kernel_actor_name,
+                           ' . ($hasUsersTable ? 'ku.full_name AS kernel_actor_name' : 'NULL AS kernel_actor_name') . ',
                            ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name
                     FROM audit_logs a
                     LEFT JOIN dl_branches b ON b.id = a.branch_id
-                    LEFT JOIN users ku ON ku.id = a.actor_user_id
+                    ' . ($hasUsersTable ? 'LEFT JOIN users ku ON ku.id = a.actor_user_id' : '') . '
                     ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0') . '
                     WHERE a.module = \'daily-ledger\'';
     $activityBind = [];
@@ -7337,12 +7338,17 @@ function handleAdminActivity(array $params = []): void
     }
 
     $kernelUserLookup = [];
-    foreach ($ctx->db()->query('SELECT id, full_name, username FROM users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $kernelUserRow) {
-        $kernelUserLookup[(int)$kernelUserRow['id']] = [
-            'full_name' => (string)($kernelUserRow['full_name'] ?? ''),
-            'username' => (string)($kernelUserRow['username'] ?? ''),
-            'email' => '',
-        ];
+    // The shared kernel `users` table exists only when the connected DB is the
+    // base/single-tenant DB. Auth-owned module tenants keep their users in
+    // dl_users and have no `users` table — guard so the activity view never 500s.
+    if (dl_tableExists($ctx->db(), 'users')) {
+        foreach ($ctx->db()->query('SELECT id, full_name, username FROM users')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $kernelUserRow) {
+            $kernelUserLookup[(int)$kernelUserRow['id']] = [
+                'full_name' => (string)($kernelUserRow['full_name'] ?? ''),
+                'username' => (string)($kernelUserRow['username'] ?? ''),
+                'email' => '',
+            ];
+        }
     }
 
     $formatUserLabel = static function (array $userRow, int $userId): string {
@@ -7450,6 +7456,7 @@ function handleAdminActivity(array $params = []): void
 
     $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
     $hasActorSource = dlAuditLogHasColumn('actor_source');
+    $hasUsersTable = dl_tableExists($ctx->db(), 'users');
 
     $sql = 'SELECT a.action, a.created_at, a.old_data, a.new_data,
                    a.entity_type, a.entity_id, '
@@ -7457,11 +7464,11 @@ function handleAdminActivity(array $params = []): void
                    a.actor_user_id, '
         . ($hasActorModuleUserId ? 'a.actor_module_user_id' : 'NULL') . ' AS actor_module_user_id,
                    b.name AS branch_name,
-                   ku.full_name AS kernel_actor_name,
+                   ' . ($hasUsersTable ? 'ku.full_name AS kernel_actor_name' : 'NULL AS kernel_actor_name') . ',
                    ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name
             FROM audit_logs a
             LEFT JOIN dl_branches b ON b.id = a.branch_id
-            LEFT JOIN users ku ON ku.id = a.actor_user_id
+            ' . ($hasUsersTable ? 'LEFT JOIN users ku ON ku.id = a.actor_user_id' : '') . '
             ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0') . '
             WHERE a.module = \'daily-ledger\'
               AND DATE(a.created_at) BETWEEN :df AND :dt';
