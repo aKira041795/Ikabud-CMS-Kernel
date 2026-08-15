@@ -469,6 +469,9 @@ if (is_array($insertedRow)) {
     $wdCount = $db->prepare('SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = :b AND product_id = :p AND ledger_date = :d');
     $wdCount->execute([':b' => $branchId, ':p' => $productId, ':d' => $testDate]);
     $h->test('withdrawal row persisted', (int)$wdCount->fetchColumn() >= 1);
+    $wdAudit = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'withdrawal' AND branch_id = :b");
+    $wdAudit->execute([':b' => $branchId]);
+    $h->test('withdrawal emits an audit action for traceability', (int)$wdAudit->fetchColumn() >= 1);
 
     // Receipts
     $clientOpId = 'op-' . substr(hash('sha256', 'offline-test-op'), 0, 32);

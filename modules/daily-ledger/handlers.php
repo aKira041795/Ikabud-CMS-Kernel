@@ -4078,6 +4078,15 @@ function apiSaveCashierWithdrawals(array $params = []): void
             }
         }
 
+        dl_auditLog('withdrawal', $branchId, 'dl_cashier_withdrawals', "{$date}-{$shift}", null, [
+            'withdrawal_type' => $type,
+            'reason_code' => $reasonCode,
+            'custom_reason' => $customReason !== '' ? $customReason : null,
+            'dr_number' => $drNumber,
+            'liable_user_id' => $liableUserId,
+            'lines' => $totals,
+        ]);
+
         dl_recomputeVariancesForDay($branchId, $date);
 
         $ctx->db()->commit();
