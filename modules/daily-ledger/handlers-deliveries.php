@@ -2457,7 +2457,7 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
                 COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN ' . $salesExpr . ' ELSE 0 END),0) AS provisional_qty,
                 COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN ' . $amountExpr . ' ELSE 0 END),0) AS provisional_amt
            FROM dl_daily_ledger dl
-           LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
+           LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
           WHERE dl.branch_id = :b AND dl.ledger_date = :d'
     );
     $regStmt->execute([':b' => $branchId, ':d' => $date]);

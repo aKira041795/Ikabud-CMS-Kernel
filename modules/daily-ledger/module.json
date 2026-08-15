@@ -123,7 +123,8 @@
     "database/migrations/046_add_user_shift.sql",
     "database/migrations/047_add_pos_sale_shift.sql",
     "database/migrations/048_offline_device_enrollments.sql",
-    "database/migrations/049_nullable_endings_and_shift_status.sql"
+    "database/migrations/049_nullable_endings_and_shift_status.sql",
+    "database/migrations/050_normalize_dl_daily_ledger_collation.sql"
   ],
   "capabilities": {
     "exposes": [

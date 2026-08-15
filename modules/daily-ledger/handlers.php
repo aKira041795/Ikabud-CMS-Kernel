@@ -5795,7 +5795,7 @@ function handleAdminDashboard(array $params = []): void
                 COUNT(DISTINCT dl.product_id) AS product_count
          FROM dl_daily_ledger dl
          INNER JOIN dl_branches b ON b.id = dl.branch_id
-         LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
+         LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
          WHERE dl.ledger_date = ? AND dl.branch_id IN (' . $branchPlaceholders . ')
          GROUP BY dl.branch_id
          ORDER BY b.name'
@@ -5812,7 +5812,7 @@ function handleAdminDashboard(array $params = []): void
                 COUNT(DISTINCT dl.product_id) AS product_count
          FROM dl_daily_ledger dl
          INNER JOIN dl_branches b ON b.id = dl.branch_id
-         LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
+         LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
          WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
     $filteredSalesBind = array_merge([$salesFilterDateFrom, $salesFilterDateTo], $accessibleBranchIds);
     if ($salesFilterBranchId > 0) {
@@ -6197,7 +6197,7 @@ function handleAdminSales(array $params = []): void
              FROM dl_daily_ledger dl
              INNER JOIN dl_products p ON p.id = dl.product_id
              INNER JOIN dl_branches b ON b.id = dl.branch_id
-             LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
+             LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
             WHERE dl.branch_id IN (' . $branchPlaceholders . ') AND dl.ledger_date BETWEEN ? AND ?';
     $bind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);
 
