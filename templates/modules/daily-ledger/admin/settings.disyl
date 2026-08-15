@@ -157,6 +157,26 @@
 
 <div class="card mb-6">
     <div class="card-header">
+        <span>Offline Access</span>
+        <span class="text-sm text-muted">Encrypted Device Offline Shell</span>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="form-group mb-0">
+                <label class="form-label">Max Offline Days</label>
+                <input type="number" id="max-offline-days" class="form-input" min="1" max="90" value="{max_offline_days}">
+                <p class="mt-2 text-sm text-gray-500">Offline access granted to an enrolled device expires after this many days (1–90). Expiry is enforced at next contact and before any sync.</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-700 font-medium">About offline access</p>
+                <p class="mt-1 text-sm text-gray-500">An authenticated cashier/supervisor/admin explicitly enables offline access on a device. The device stores an encrypted snapshot plus pending edits, unlocked by a device-only PIN. POS, day close, dispatch, and delivery correction remain online-only.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
         <span>Features</span>
         <span class="text-sm text-muted">Admin / Superadmin Control</span>
     </div>
@@ -846,6 +866,7 @@
             backup_before_reset_enabled: document.getElementById('backup-before-reset-enabled').checked,
             backup_include_users: document.getElementById('backup-include-users').checked,
             backup_retention_days: parseInt(document.getElementById('backup-retention-days').value, 10) || 14,
+            max_offline_days: parseInt(document.getElementById('max-offline-days').value, 10) || 14,
             reset_second_phrase_enabled: document.getElementById('reset-second-phrase-enabled').checked,
             supervisor_ledger_override: document.getElementById('perm-supervisor-ledger').checked,
             supervisor_production_override: document.getElementById('perm-supervisor-production').checked,

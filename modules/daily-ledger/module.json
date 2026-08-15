@@ -62,7 +62,9 @@
     "dl_pos_payments",
     "dl_pos_sale_events",
     "dl_pos_fallback_checkpoints",
-    "dl_pos_fallback_checkpoint_items"
+    "dl_pos_fallback_checkpoint_items",
+    "dl_offline_device_enrollments",
+    "dl_offline_sync_receipts"
   ],
   "co_owns_tables": [
     "audit_logs"
@@ -118,7 +120,8 @@
     "database/migrations/044_add_ledger_shift.sql",
     "database/migrations/045_rebuild_ledger_shift_key.sql",
     "database/migrations/046_add_user_shift.sql",
-    "database/migrations/047_add_pos_sale_shift.sql"
+    "database/migrations/047_add_pos_sale_shift.sql",
+    "database/migrations/048_offline_device_enrollments.sql"
   ],
   "capabilities": {
     "exposes": [
@@ -267,6 +270,13 @@
       "label": "Require Second Phrase For Full Reset",
       "default": "1",
       "description": "Require a second confirmation phrase before non-dry-run full reset executes."
+    },
+    {
+      "key": "max_offline_days",
+      "type": "number",
+      "label": "Max Offline Days",
+      "default": "14",
+      "description": "Offline access granted to an enrolled device expires after this many days. Revocation is unknowable fully offline, so expiry plus next-contact validation bound the offline window. Range 1-90."
     }
   ],
   "auth_cookie": "daily_ledger_token",

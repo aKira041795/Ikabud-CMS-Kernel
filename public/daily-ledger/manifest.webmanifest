@@ -1,4 +1,5 @@
 {
+  "id": "/daily-ledger/ledger",
   "name": "Daily Ledger",
   "short_name": "Ledger",
   "description": "Branch daily inventory and sales ledger",

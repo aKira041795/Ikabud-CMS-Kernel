@@ -80,6 +80,10 @@ return [
 
         // Cashier: current items of a paper-DR delivery (edit-by-DR prefetch)
         '/daily-ledger/api/v1/cashier/ledger/delivery-detail' => 'daily-ledger:apiGetDeliveryByDrForEdit',
+
+        // Offline PWA: enrollment status + bootstrap refresh (additive/versioned)
+        '/daily-ledger/api/v1/offline/status'    => 'daily-ledger:apiOfflineStatus',
+        '/daily-ledger/api/v1/offline/bootstrap' => 'daily-ledger:apiOfflineBootstrap',
     ],
     'POST' => [
         // Module-owned login (namespaced)
@@ -170,5 +174,9 @@ return [
         '/daily-ledger/api/v1/pos/sales/refund'      => 'daily-ledger:apiPosRefundSale',
         '/daily-ledger/api/v1/pos/fallback'          => 'daily-ledger:apiPosFallbackCheckpoint',
 
+        // Offline PWA: enroll / revoke / reconcile (additive/versioned)
+        '/daily-ledger/api/v1/offline/enroll'       => 'daily-ledger:apiOfflineEnroll',
+        '/daily-ledger/api/v1/offline/revoke'       => 'daily-ledger:apiOfflineRevoke',
+        '/daily-ledger/api/v1/offline/reconcile'    => 'daily-ledger:apiOfflineReconcile',
     ],
 ];

@@ -6,6 +6,7 @@ require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/helpers/entity-views.php';
 require_once __DIR__ . '/handlers-deliveries.php';
 require_once __DIR__ . '/handlers-pos.php';
+require_once __DIR__ . '/handlers-offline.php';
 
 // Load DiSyL entity view configs
 if (is_dir(__DIR__ . '/helpers/views')) {
@@ -5908,6 +5909,7 @@ function handleAdminSettings(array $params = []): void
         'backup_retention_days' => $backupSettings['backup_retention_days'],
         'reset_second_phrase_enabled' => $resetSafeguardSettings['reset_second_phrase_enabled'],
         'reset_second_phrase' => $resetSafeguardSettings['reset_second_phrase'],
+        'max_offline_days' => dl_offlineMaxDays(),
     ]);
 }
 
@@ -6247,6 +6249,20 @@ function apiSaveRolePermissions(array $params = []): void
         return;
     }
 
+    // Max offline days: bounds offline enrollment expiry (1..90).
+    if (array_key_exists('max_offline_days', $input)) {
+        $maxOfflineDays = (int)$input['max_offline_days'];
+        if ($maxOfflineDays < 1 || $maxOfflineDays > 90) {
+            $ctx->json([
+                'ok' => false,
+                'error' => 'Max offline days must be between 1 and 90.',
+            ], 422);
+            return;
+        }
+    } else {
+        $maxOfflineDays = dl_offlineMaxDays();
+    }
+
     if ($autoCloseEnabled && !dl_isAllowedAutoCloseTime($closeOfDayTime)) {
         $ctx->json([
             'ok' => false,
@@ -6287,6 +6303,7 @@ function apiSaveRolePermissions(array $params = []): void
         'backup_include_users' => $backupIncludeUsers ? '1' : '0',
         'backup_retention_days' => (string)$backupRetentionDays,
         'reset_second_phrase_enabled' => $resetSecondPhraseEnabled ? '1' : '0',
+        'max_offline_days' => (string)$maxOfflineDays,
     ];
 
     if (!dlPersistModuleSettings($settingsToSave)) {

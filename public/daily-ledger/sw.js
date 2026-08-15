@@ -1,9 +1,38 @@
 'use strict';
 
-const CACHE_VERSION = 'daily-ledger-pwa-v5';
+/**
+ * Daily Ledger — Service Worker (static offline shell)
+ * =====================================================
+ * Replaces the old cached-authenticated-HTML model. This worker:
+ *
+ *   * Pre-caches ONLY the token-free static offline shell and its local
+ *     assets. It NEVER caches authenticated HTML, tokens, CSRF, cookies, or
+ *     business payloads, and performs NO string rewriting.
+ *   * Uses the offline shell as a fallback for the Daily Ledger document
+ *     (network-first) — from the installed start URL or a failed
+ *     /daily-ledger/ledger navigation. It is NEVER served for APIs or
+ *     unrelated routes.
+ *   * Activates atomically: the new cache is fully installed before old
+ *     versions are deleted; clients are claimed so the first launch works
+ *     without a manual reload.
+ *   * Required entries are verified at install; optional asset failures are
+ *     tolerated so installation never breaks over a single optional file.
+ */
+
+const CACHE_VERSION = 'daily-ledger-pwa-v6';
+const OFFLINE_SHELL = '/daily-ledger/offline.html';
 const LEDGER_PATH = '/daily-ledger/ledger';
-const PRECACHE_URLS = [
+
+// Required: the offline shell cannot work without these.
+const REQUIRED_PRECACHE = [
+  OFFLINE_SHELL,
   '/daily-ledger/manifest.webmanifest',
+  '/daily-ledger/assets/offline-app.js',
+  '/daily-ledger/assets/offline-vault.js'
+];
+
+// Optional: local runtime assets. A failure here must not break install.
+const OPTIONAL_PRECACHE = [
   '/daily-ledger/icons/icon-192.png',
   '/daily-ledger/icons/icon-512.png',
   '/daily-ledger/assets/tailwindcss.js',
@@ -16,11 +45,33 @@ const PRECACHE_URLS = [
   '/daily-ledger/assets/webfonts/fa-v4compatibility.woff2'
 ];
 
+self.addEventListener('message', event => {
+  const data = event.data;
+  if (!data || !data.type) return;
+  if (data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+  // Forward launch messages (e.g. dl-offline-activated / dl-offline-locked)
+  // from a controlled online page to all clients, including the offline shell.
+  if (data.type === 'dl-offline-activated' || data.type === 'dl-offline-locked') {
+    self.clients.matchAll({ includeUncontrolled: true }).then(clients => {
+      clients.forEach(client => client.postMessage({ type: data.type }));
+    });
+  }
+});
+
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      .then(async cache => {
-        await cache.addAll(PRECACHE_URLS);
+      .then(cache => cache.addAll(REQUIRED_PRECACHE))
+      .then(() => {
+        // Optional entries added one-by-one; a single failure is ignored.
+        return caches.open(CACHE_VERSION).then(cache => {
+          return Promise.allSettled(OPTIONAL_PRECACHE.map(url =>
+            cache.add(url).catch(() => { })
+          ));
+        });
       })
       .then(() => self.skipWaiting())
   );
@@ -29,28 +80,34 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key.startsWith('daily-ledger-pwa-') && key !== CACHE_VERSION).map(key => caches.delete(key))))
+      .then(keys => Promise.all(
+        keys
+          .filter(key => key.startsWith('daily-ledger-pwa-') && key !== CACHE_VERSION)
+          .map(key => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
   );
 });
 
 function isLedgerNavigation(request, url) {
-  return request.mode === 'navigate' && url.origin === self.location.origin && url.pathname === LEDGER_PATH;
+  return request.mode === 'navigate' &&
+    url.origin === self.location.origin &&
+    url.pathname === LEDGER_PATH;
 }
 
 function isExcluded(url) {
   return url.pathname.startsWith('/api/v1/') ||
     url.pathname.startsWith('/daily-ledger/api/') ||
-    /\/(login|logout)(\/|$)/.test(url.pathname);
+    /\/(login|logout|forgot-password|reset-password)(\/|$)/.test(url.pathname);
 }
 
-// Local static files that are safe to serve from cache while offline. These are
-// precached at install and, on a cache miss while online, are stored at runtime.
+// Local static assets that belong to the offline shell (cache-first).
 function isLocalStaticAsset(url) {
   return url.origin === self.location.origin && (
     url.pathname.startsWith('/daily-ledger/assets/') ||
     url.pathname.startsWith('/daily-ledger/icons/') ||
-    url.pathname === '/daily-ledger/manifest.webmanifest'
+    url.pathname === '/daily-ledger/manifest.webmanifest' ||
+    url.pathname === '/daily-ledger/offline.html'
   );
 }
 
@@ -68,32 +125,13 @@ async function cacheFirst(request) {
 async function networkFirstLedger(request) {
   const cache = await caches.open(CACHE_VERSION);
   try {
-    const response = await fetch(request);
-    const finalUrl = new URL(response.url);
-    const isLedgerHtml = response.ok &&
-      !response.redirected &&
-      response.type === 'basic' &&
-      finalUrl.origin === self.location.origin &&
-      finalUrl.pathname === LEDGER_PATH &&
-      (response.headers.get('Content-Type') || '').includes('text/html');
-    if (isLedgerHtml) {
-      const html = await response.clone().text();
-      const sanitized = html
-        .replace(/window\.DL_CSRF\s*=\s*'[^']*';/, "window.DL_CSRF = '';")
-        .replace(/window\.DL_TOKEN\s*=\s*'[^']*';/, "window.DL_TOKEN = '';")
-        .replace('window.DL_OFFLINE_SHELL = false;', 'window.DL_OFFLINE_SHELL = true;');
-      const headers = new Headers(response.headers);
-      headers.delete('Content-Length');
-      await cache.put(LEDGER_PATH, new Response(sanitized, {
-        status: response.status,
-        statusText: response.statusText,
-        headers
-      }));
-    }
-    return response;
+    return await fetch(request);
   } catch (error) {
-    const cached = await cache.match(LEDGER_PATH);
-    if (cached) return cached;
+    // Offline: fall back to the token-free static shell. Only the Daily
+    // Ledger document path reaches here (guarded by the caller), so this
+    // never fakes success for APIs or unrelated routes.
+    const shell = await cache.match(OFFLINE_SHELL);
+    if (shell) return shell;
     throw error;
   }
 }
@@ -102,19 +140,16 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.origin === self.location.origin && url.pathname === '/daily-ledger/logout') {
-    event.waitUntil(caches.open(CACHE_VERSION).then(cache => cache.delete(LEDGER_PATH)));
-    return;
-  }
+  if (url.origin !== self.location.origin) return;
   if (isExcluded(url)) return;
 
-  // Serve the self-hosted shell assets from cache so the cached ledger page
-  // renders (CSS/JS/icons) while offline instead of breaking on network failures.
+  // Serve self-hosted shell assets from cache while offline.
   if (isLocalStaticAsset(url)) {
     event.respondWith(cacheFirst(request));
     return;
   }
 
+  // Network-first for the ledger document; fall back to the offline shell.
   if (isLedgerNavigation(request, url)) {
     event.respondWith(networkFirstLedger(request));
     return;

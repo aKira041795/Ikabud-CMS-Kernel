@@ -89,10 +89,41 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/daily-ledger/sw.js').catch(function(error) {
+                navigator.serviceWorker.register('/daily-ledger/sw.js')
+                .then(function(reg) {
+                    // Ensure the newest worker takes control on first launch so
+                    // the offline shell is reachable without a manual reload.
+                    if (reg.waiting && navigator.serviceWorker.controller) {
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                    return navigator.serviceWorker.ready;
+                })
+                .then(function() {
+                    if (navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({ type: 'DL_CONTROLLED' });
+                    }
+                })
+                .catch(function(error) {
                     console.warn('Daily Ledger service worker registration failed', error);
                 });
             });
+
+            // Launch messaging: the online ledger tells a concurrently open
+            // offline shell to re-lock after enrollment or logout. The shell
+            // (offline-app.js) listens for these on navigator.serviceWorker.
+            window.dlNotifyOfflineActivated = function() {
+                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'dl-offline-activated' });
+                }
+            };
+            window.dlNotifyOfflineLocked = function() {
+                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'dl-offline-locked' });
+                }
+            };
+        } else {
+            window.dlNotifyOfflineActivated = function() {};
+            window.dlNotifyOfflineLocked = function() {};
         }
 
         window.DL_BASE = '/daily-ledger';

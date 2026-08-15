@@ -74,7 +74,8 @@
         {/if}
 
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
-        <button type="button" class="btn btn-outline" onclick="dlOpenPinSettings()">Offline PIN</button>
+        <span id="offline-ready-badge" class="hidden inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">Offline ready</span>
+        <button type="button" class="btn btn-outline" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>
         <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
     </div>
 </div>
@@ -213,6 +214,7 @@
 {/block}
 
 {block scripts}
+<script src="/daily-ledger/assets/offline-vault.js"></script>
 {include "modules/daily-ledger/cashier/offline_reference.disyl"}
 <script>
     var BASE = '{base_url}';
@@ -480,13 +482,115 @@
         return true;
     }
     function pendingTotal() {
-        return getPending().length + getPendingOps().length;
+        return getPending().length + getPendingOps().length + vaultPendingCount;
+    }
+
+    // ── Encrypted vault queue adapter ────────────────────────────────
+    // When offline access is enrolled AND unlocked, pending ledger saves and
+    // supported offline operations are encrypted into the vault (durable
+    // before UI success) and synced through the reconcile API. Devices that
+    // have not yet enrolled keep using the legacy localStorage queues above,
+    // so the old path is preserved until migration/browser proof.
+    var vaultQueueActive = false;
+    var vaultPendingCount = 0;
+
+    function vaultRefreshPendingCount() {
+        if (!window.DLOfflineVault || !window.DLOfflineVault.isUnlocked()) return;
+        window.DLOfflineVault.countPending().then(function(n) {
+            vaultPendingCount = n;
+            updateGlobalStatus('saved');
+            renderConnectivityBanner();
+        }).catch(function() {});
+    }
+
+    function vaultEnqueue(type, payload) {
+        if (!vaultQueueActive || !window.DLOfflineVault) {
+            return Promise.resolve({ ok: false });
+        }
+        return window.DLOfflineVault.enqueueOperation(type, payload)
+            .then(function(op) {
+                vaultPendingCount++;
+                updateGlobalStatus('pending');
+                renderConnectivityBanner();
+                return { ok: true, op: op };
+            })
+            .catch(function() {
+                // Vault write failed (locked/storage) — signal the failure so the
+                // caller can fall back to the legacy queue. The edit is NEVER
+                // silently dropped.
+                markStorageUnavailable();
+                return { ok: false };
+            });
+    }
+
+    function vaultOrLegacyAddPending(payload) {
+        if (vaultQueueActive && window.DLOfflineVault && window.DLOfflineVault.isUnlocked()) {
+            vaultEnqueue('ledger_save', {
+                product_id: payload.product_id,
+                field: payload.field,
+                value: payload.value,
+                date: payload.date,
+                branch_id: payload.branch_id,
+                shift: payload.shift || 'AM'
+            }).then(function(res) {
+                if (!res.ok) addPending(payload); // never lose the edit
+            });
+            return;
+        }
+        addPending(payload);
+    }
+
+    function drainVault() {
+        if (!vaultQueueActive || !window.DLOfflineVault || !window.DLOfflineVault.isUnlocked()) {
+            return Promise.resolve();
+        }
+        return window.DLOfflineVault.getStoredEnrollmentId().then(function(enId) {
+            return window.DLOfflineVault.ensureDeviceId().then(function(deviceId) {
+                return { enId: enId, deviceId: deviceId };
+            });
+        }).then(function(ctx) {
+            if (!ctx.enId) return;
+            return window.DLOfflineVault.listOperations().then(function(ops) {
+                if (ops.length === 0) return;
+                var payload = ops.map(function(op) {
+                    return { client_op_id: op.client_op_id, type: op.type, base_version: op.base_version, payload: op.payload };
+                });
+                return fetch(BASE + '/api/v1/offline/reconcile', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': (window.DL_CSRF || ''),
+                        'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                    },
+                    body: JSON.stringify({ enrollment_id: ctx.enId, device_id: ctx.deviceId, operations: payload })
+                }).then(function(r) { return r.json(); }).then(function(res) {
+                    if (!res.ok) { cloudOnline = false; return; }
+                    var remove = [];
+                    (res.results || []).forEach(function(r) {
+                        if (r.status === 'applied' || r.duplicate) {
+                            window.DLOfflineVault.saveReceipt({ client_op_id: r.client_op_id, result: r.result || {}, duplicate: !!r.duplicate, status: r.status }).catch(function() {});
+                            remove.push(r.client_op_id);
+                        } else if (r.status === 'rejected' || r.status === 'conflict') {
+                            window.DLOfflineVault.quarantineRecord({ reason: r.status, source_key: 'ledger-reconcile', payload: { client_op_id: r.client_op_id, type: r.type, error: r.error } }).catch(function() {});
+                            remove.push(r.client_op_id);
+                        }
+                    });
+                    return Promise.all(remove.map(function(id) { return window.DLOfflineVault.removeOperation(id).catch(function() {}); })).then(function() {
+                        return window.DLOfflineVault.countPending().then(function(n) { vaultPendingCount = n; });
+                    });
+                });
+            });
+        }).catch(function() { cloudOnline = false; }).then(function() {
+            updateGlobalStatus('saved');
+            renderConnectivityBanner();
+        });
     }
     window.generateOperationId = function() {
         if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
         return 'op-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
     };
-    window.enqueueOperation = function(op, payload) {
+    function enqueueLegacyOperation(op, payload) {
         var list = getPendingOps();
         list.push({
             schema_version: 1,
@@ -505,6 +609,16 @@
         renderConnectivityBanner();
         updateGlobalStatus('pending');
         return list[list.length - 1];
+    }
+
+    window.enqueueOperation = function(op, payload) {
+        if (vaultQueueActive && window.DLOfflineVault && window.DLOfflineVault.isUnlocked()) {
+            vaultEnqueue(op, payload || {}).then(function(res) {
+                if (!res.ok) enqueueLegacyOperation(op, payload || {});
+            });
+            return { idempotency_key: window.generateOperationId() };
+        }
+        return enqueueLegacyOperation(op, payload || {});
     };
     function removePendingOperation(idempotencyKey) {
         var list = getPendingOps().filter(function(e) { return e.idempotency_key !== idempotencyKey; });
@@ -576,6 +690,9 @@
         });
     }
     function drainPendingWork() {
+        if (vaultQueueActive && window.DLOfflineVault && window.DLOfflineVault.isUnlocked()) {
+            return drainVault();
+        }
         return retryPending().then(function() { return replayPendingOperations(); });
     }
 
@@ -646,7 +763,7 @@
             } else {
                 input.classList.add('error');
                 if (shouldQueueServerFailure(res)) {
-                    addPending(pendingPayload);
+                    vaultOrLegacyAddPending(pendingPayload);
                 } else {
                     quarantinePendingEntries([buildPendingPayload(productId, field, value)], 'server-rejected', PENDING_KEY);
                     renderPendingWarning();
@@ -658,7 +775,7 @@
             if (saveFieldVersions[saveKey] !== saveVersion) return;
             input.classList.remove('saving');
             input.classList.add('error');
-            addPending(pendingPayload);
+            vaultOrLegacyAddPending(pendingPayload);
             updateGlobalStatus('pending');
         });
     }
@@ -973,27 +1090,104 @@
         if (typeof window.dlMaybeLockOffline === 'function') window.dlMaybeLockOffline();
     }
 
-    window.dlOpenPinSettings = function() {
-        if (!window.isSecureContext || !window.crypto || !window.crypto.subtle) {
-            showToast('Offline PIN requires a secure (HTTPS) connection.', 'error');
+    function renderOfflineReadyBadge(on) {
+        var badge = document.getElementById('offline-ready-badge');
+        if (badge) badge.classList.toggle('hidden', !on);
+        var btn = document.getElementById('offline-access-btn');
+        if (btn) btn.textContent = on ? 'Offline access: On' : 'Enable offline access';
+    }
+
+    // Explicit online enrollment: one action reaches verified "Offline ready".
+    // The server derives tenant/actor/branch/shift; the client stores an
+    // encrypted, scope-bound bootstrap + PIN-wrapped key in the vault.
+    window.dlOpenOfflineAccess = function() {
+        if (!window.isSecureContext || !window.crypto || !window.crypto.subtle || !window.DLOfflineVault) {
+            showToast('Offline access requires a secure (HTTPS) connection on this device.', 'error');
             return;
         }
-        if (window.dlOfflineAuthHasVerifier && window.dlOfflineAuthHasVerifier()) {
-            if (window.confirm('Clear the offline PIN for this cashier on this device?')) {
-                window.dlOfflineAuthClear();
-                showToast('Offline PIN cleared.');
+        window.DLOfflineVault.hasLocalEnrollment().then(function(has) {
+            if (has) {
+                if (window.DLOfflineVault.isUnlocked()) {
+                    showToast('This device already has offline access.', 'success');
+                    renderOfflineReadyBadge(true);
+                    return;
+                }
+                showToast('Offline access is set up on this device. Use the offline shell to unlock it.', 'success');
+                renderOfflineReadyBadge(true);
+                return;
             }
-            return;
-        }
-        var pin = window.prompt('Set a 4–6 digit offline PIN for this cashier on this device:');
-        if (pin === null) return;
-        if (!/^\d{4,6}$/.test(pin)) { showToast('Use a 4–6 digit PIN.', 'error'); return; }
-        var confirmation = window.prompt('Confirm the offline PIN:');
-        if (confirmation !== pin) { showToast('PINs do not match.', 'error'); return; }
-        window.dlOfflineAuthSetPin(pin).then(function(ok) {
-            showToast(ok ? 'Offline PIN saved on this device.' : 'Unable to save the offline PIN.', ok ? 'success' : 'error');
+
+            var pin = window.prompt('Set a 4–6 digit offline PIN for this device (unlocks offline data only):');
+            if (pin === null) return;
+            if (!/^\d{4,6}$/.test(pin)) { showToast('Use a 4–6 digit PIN.', 'error'); return; }
+            var confirmation = window.prompt('Confirm the offline PIN:');
+            if (confirmation !== pin) { showToast('PINs do not match.', 'error'); return; }
+
+            var btn = document.getElementById('offline-access-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Enrolling…'; }
+
+            window.DLOfflineVault.ensureDeviceId().then(function(deviceId) {
+                return fetch(BASE + '/api/v1/offline/enroll', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': (window.DL_CSRF || ''),
+                        'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                    },
+                    body: JSON.stringify({ device_id: deviceId })
+                }).then(function(r) { return r.json(); });
+            }).then(function(res) {
+                if (!res.ok || !res.enrollment || !res.bootstrap) {
+                    throw new Error((res && res.error) || 'Enrollment failed');
+                }
+                return window.DLOfflineVault.activate(res.enrollment, res.bootstrap, pin)
+                    .then(function() {
+                        return window.DLOfflineVault.migrateLegacy().catch(function() { return null; });
+                    })
+                    .then(function() {
+                        vaultQueueActive = true;
+                        vaultRefreshPendingCount();
+                        renderOfflineReadyBadge(true);
+                        if (typeof window.dlNotifyOfflineActivated === 'function') window.dlNotifyOfflineActivated();
+                        if (btn) { btn.disabled = false; }
+                        showToast('Offline ready. This device can work without a connection.', 'success');
+                    });
+            }).catch(function(err) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Enable offline access'; }
+                showToast((err && err.message) || 'Unable to enable offline access.', 'error');
+            });
         });
     };
+
+    // Legacy alias — "Offline PIN" now routes through the enrollment flow.
+    window.dlOpenPinSettings = function() {
+        window.dlOpenOfflineAccess();
+    };
+
+    function initializePendingQueue() {
+        syncPendingStorage();
+        renderConnectivityBanner();
+        probeCloud();
+        if (typeof window.dlCaptureProductReference === 'function') window.dlCaptureProductReference();
+        if (typeof window.dlMaybeLockOffline === 'function') window.dlMaybeLockOffline();
+        if (window.DLOfflineVault) {
+            window.DLOfflineVault.hasLocalEnrollment().then(function(has) {
+                if (has) {
+                    renderOfflineReadyBadge(true);
+                    if (window.DLOfflineVault.isUnlocked()) {
+                        vaultQueueActive = true;
+                        window.DLOfflineVault.migrateLegacy().catch(function() {});
+                        window.DLOfflineVault.countPending().then(function(n) {
+                            vaultPendingCount = n;
+                            updateGlobalStatus('saved');
+                            renderConnectivityBanner();
+                        }).catch(function() {});
+                    }
+                }
+            });
+        }
+    }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initializePendingQueue);

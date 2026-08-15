@@ -15,6 +15,7 @@
                 "/daily-ledger/admin/commissary",
                 "/daily-ledger/admin/dashboard",
                 "/daily-ledger/admin/deliveries",
+                "/daily-ledger/admin/overview",
                 "/daily-ledger/admin/pos-sales",
                 "/daily-ledger/admin/pos-sales/export",
                 "/daily-ledger/admin/price-groups",
@@ -56,7 +57,9 @@
                 "/daily-ledger/pos",
                 "/daily-ledger/pos/receipt",
                 "/daily-ledger/reset-password",
-                "/daily-ledger/api/v1/cashier/ledger/delivery-detail"
+                "/daily-ledger/api/v1/cashier/ledger/delivery-detail",
+                "/daily-ledger/api/v1/offline/status",
+                "/daily-ledger/api/v1/offline/bootstrap"
             ],
             "POST": [
                 "/daily-ledger/api/v1/admin/branch-supply-rules",
@@ -110,7 +113,10 @@
                 "/daily-ledger/api/v1/receivings/post",
                 "/daily-ledger/api/v1/receivings/void",
                 "/daily-ledger/auth/login",
-                "/daily-ledger/auth/refresh"
+                "/daily-ledger/auth/refresh",
+                "/daily-ledger/api/v1/offline/enroll",
+                "/daily-ledger/api/v1/offline/revoke",
+                "/daily-ledger/api/v1/offline/reconcile"
             ],
             "PUT": [],
             "PATCH": [],

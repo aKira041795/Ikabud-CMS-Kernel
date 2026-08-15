@@ -1,16 +1,16 @@
 <script>
-// ── Offline product reference snapshot ──────────────────────────────
-// Captures the branch's product list from the rendered ledger rows into
-// IndexedDB so the cashier modals can populate product selects even when
-// the offline shell has no rows (e.g. a partial PWA cache). Rebuilt on
-// every page load. It is reference data only — safe to lose, never used
-// for writes.
+// ── Offline product reference (vault-backed, legacy fallback) ───────
+// When offline access is enrolled and unlocked, the product reference comes
+// from the encrypted bootstrap in the unified vault (no separate unencrypted
+// copy). Devices that have not yet enrolled keep using the legacy
+// `daily-ledger-reference` IndexedDB, which is migrated into the vault at
+// enrollment time. Reference data only — safe to lose, never used for writes.
 (function() {
-    var DB_NAME = 'daily-ledger-reference';
-    var DB_VERSION = 2;
+    var LEGACY_DB_NAME = 'daily-ledger-reference';
+    var LEGACY_DB_VERSION = 2;
     var STORE = 'products';
     var META = 'meta';
-    var dbPromise = null;
+    var legacyDbPromise = null;
 
     function referenceScope() {
         var tenant = String(window.DL_TENANT_SCOPE || '');
@@ -18,17 +18,33 @@
         return tenant && branch ? tenant + ':' + branch : '';
     }
 
-    function openDb() {
-        if (dbPromise) return dbPromise;
-        dbPromise = new Promise(function(resolve) {
+    // Products from the encrypted vault bootstrap (preferred path).
+    function vaultProducts() {
+        if (window.DLOfflineVault && window.DLOfflineVault.isUnlocked()) {
+            return window.DLOfflineVault.getBootstrap()
+                .then(function(boot) {
+                    var branchId = String((boot.branch && boot.branch.id) || '');
+                    var scope = referenceScope() || ('tenant:' + branchId);
+                    return (boot.products || []).map(function(p) {
+                        return { key: scope + ':' + p.id, scope: scope, id: String(p.id), name: String(p.name || '') };
+                    });
+                })
+                .catch(function() { return null; });
+        }
+        return Promise.resolve(null);
+    }
+
+    function openLegacyDb() {
+        if (legacyDbPromise) return legacyDbPromise;
+        legacyDbPromise = new Promise(function(resolve) {
             if (!('indexedDB' in window)) { resolve(null); return; }
-            var req = indexedDB.open(DB_NAME, DB_VERSION);
+            var req = indexedDB.open(LEGACY_DB_NAME, LEGACY_DB_VERSION);
             req.onupgradeneeded = function() {
                 var db = req.result;
-                if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE);
-                var s = db.createObjectStore(STORE, { keyPath: 'key' });
-                s.createIndex('scope', 'scope', { unique: false });
-                s.createIndex('name', 'name', { unique: false });
+                if (!db.objectStoreNames.contains(STORE)) {
+                    var s = db.createObjectStore(STORE, { keyPath: 'key' });
+                    s.createIndex('scope', 'scope', { unique: false });
+                }
                 if (!db.objectStoreNames.contains(META)) {
                     db.createObjectStore(META, { keyPath: 'key' });
                 }
@@ -36,13 +52,18 @@
             req.onsuccess = function() { resolve(req.result); };
             req.onerror = function() { resolve(null); };
         });
-        return dbPromise;
+        return legacyDbPromise;
     }
 
     window.dlPersistProductReference = function(products, meta) {
+        if (window.DLOfflineVault && window.DLOfflineVault.isUnlocked()) {
+            // The vault bootstrap already carries the products; a persist is a
+            // no-op on the vault path. Nothing unencrypted is written.
+            return Promise.resolve(true);
+        }
         var scope = referenceScope();
         if (!scope) return Promise.resolve(false);
-        return openDb().then(function(db) {
+        return openLegacyDb().then(function(db) {
             if (!db) return false;
             return new Promise(function(resolve) {
                 var tx = db.transaction([STORE, META], 'readwrite');
@@ -69,19 +90,22 @@
     };
 
     window.dlReadProductReference = function() {
-        var scope = referenceScope();
-        if (!scope) return Promise.resolve([]);
-        return openDb().then(function(db) {
-            if (!db) return [];
-            return new Promise(function(resolve) {
-                var out = [];
-                var req = db.transaction(STORE, 'readonly').objectStore(STORE).index('scope').openCursor(IDBKeyRange.only(scope));
-                req.onsuccess = function() {
-                    var c = req.result;
-                    if (c) { out.push(c.value); c.continue(); }
-                    else { resolve(out); }
-                };
-                req.onerror = function() { resolve([]); };
+        return vaultProducts().then(function(vp) {
+            if (vp !== null) return vp;
+            var scope = referenceScope();
+            if (!scope) return Promise.resolve([]);
+            return openLegacyDb().then(function(db) {
+                if (!db) return [];
+                return new Promise(function(resolve) {
+                    var out = [];
+                    var req = db.transaction(STORE, 'readonly').objectStore(STORE).index('scope').openCursor(IDBKeyRange.only(scope));
+                    req.onsuccess = function() {
+                        var c = req.result;
+                        if (c) { out.push(c.value); c.continue(); }
+                        else { resolve(out); }
+                    };
+                    req.onerror = function() { resolve([]); };
+                });
             });
         });
     };

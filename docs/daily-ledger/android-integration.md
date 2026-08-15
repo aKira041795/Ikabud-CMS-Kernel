@@ -55,4 +55,16 @@ When modifying Daily Ledger handlers or routes, keep these Android-specific beha
 * `apiCloseDay()` and `apiReopenDay()` should continue returning the resulting `day_status` in their JSON payloads.
 * Admin and supervisor calls may supply `branch_id`; cashier flows remain branch-scoped to the authenticated user.
 
+### Browser-PWA offline endpoints (additive, Android-safe)
+
+The browser offline shell adds versioned endpoints that are **additive only** — none of the Android routes above are removed or changed:
+
+* `POST /daily-ledger/api/v1/offline/enroll` — authenticated device enrollment (returns a bounded bootstrap + expiring enrollment descriptor).
+* `GET  /daily-ledger/api/v1/offline/status` — enrollment validation at next contact (expiry/revocation).
+* `GET  /daily-ledger/api/v1/offline/bootstrap` — authenticated bootstrap refresh.
+* `POST /daily-ledger/api/v1/offline/revoke` — authenticated device revocation ("Remove offline access").
+* `POST /daily-ledger/api/v1/offline/reconcile` — authenticated single-flight sync; each client operation id is idempotent and records a transactional receipt.
+
+These endpoints accept the same bearer-token / cookie auth as the rest of the module and are tenant-scoped. They never serve the offline shell to APIs or unrelated routes, and they do not affect the Android Retrofit contract.
+
 If the Android app is brought under version control later, keep this document synchronized with `ApiService.kt` and the offline/auth model.

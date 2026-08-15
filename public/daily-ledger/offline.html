@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Ledger — Offline</title>
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="manifest" href="/daily-ledger/manifest.webmanifest">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        .shell {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 16px 16px 64px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-pad {
+            padding: 16px;
+        }
+
+        .mt-2 {
+            margin-top: 8px;
+        }
+
+        .mt-3 {
+            margin-top: 12px;
+        }
+
+        .mt-4 {
+            margin-top: 16px;
+        }
+
+        .muted {
+            color: #475569;
+            font-size: 13px;
+        }
+
+        .sm {
+            font-size: 13px;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .row-between {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-green {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .badge-amber {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .badge-red {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .badge-slate {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+        }
+
+        .badge-indigo {
+            background: #eef2ff;
+            color: #3730a3;
+            border: 1px solid #c7d2fe;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 4px;
+        }
+
+        h2 {
+            font-size: 16px;
+            margin: 0 0 8px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            cursor: pointer;
+        }
+
+        .btn:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: #fff;
+        }
+
+        .btn-primary:not(:disabled):hover {
+            background: #4338ca;
+        }
+
+        .btn-outline {
+            background: #fff;
+            color: #0f172a;
+            border-color: #cbd5e1;
+        }
+
+        .btn-outline:not(:disabled):hover {
+            background: #f8fafc;
+        }
+
+        .btn-danger {
+            background: #fff;
+            color: #be123c;
+            border-color: #fecdd3;
+        }
+
+        .btn-danger:not(:disabled):hover {
+            background: #fff1f2;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        input[type=password],
+        input[type=number],
+        input[type=text],
+        select {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 14px;
+            background: #fff;
+            color: #0f172a;
+        }
+
+        input[type=password]:focus,
+        input[type=number]:focus,
+        input[type=text]:focus,
+        select:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, .2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 8px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #475569;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 14px;
+        }
+
+        .num {
+            text-align: right;
+        }
+
+        input.num {
+            width: 90px;
+            text-align: right;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .banner {
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .banner-amber {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .banner-red {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .banner-green {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, .45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 100;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: #fff;
+            border-radius: 8px;
+            max-width: 480px;
+            width: 100%;
+            padding: 20px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal h3 {
+            margin: 0 0 12px;
+            font-size: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            margin: 8px 0 4px;
+        }
+
+        .form-input {
+            display: block;
+            width: 100%;
+            margin-top: 2px;
+        }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .divider {
+            border-top: 1px solid #e2e8f0;
+            margin: 12px 0;
+        }
+
+        ul.plain {
+            padding-left: 18px;
+            margin: 6px 0;
+        }
+
+        ul.plain li {
+            font-size: 13px;
+            margin: 4px 0;
+        }
+
+        .kbd {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 0 4px;
+            font-size: 12px;
+        }
+
+        .ledger-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        #state-root>section {
+            margin-bottom: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="shell" id="shell">
+        <div id="state-root">
+            <!-- Rendered by offline-app.js: Not enrolled / Preparing / Unlock /
+             Offline ready / Expired / Revoked / Update required /
+             Storage unavailable -->
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true">
+            <h3 id="modal-title">Action</h3>
+            <div id="modal-body"></div>
+            <div class="mt-3 row" style="justify-content:flex-end;">
+                <button type="button" class="btn btn-outline" id="modal-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="modal-ok">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/daily-ledger/assets/offline-vault.js"></script>
+    <script src="/daily-ledger/assets/offline-app.js"></script>
+</body>
+
+</html>

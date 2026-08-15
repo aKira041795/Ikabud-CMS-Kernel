@@ -1,163 +1,28 @@
-<!-- Offline PIN lock overlay — shown only when the ledger page is served
-     from the PWA cache (window.DL_OFFLINE_SHELL === true). Proves the
-     cashier's identity on a device that has no live cloud session. The
-     verifier is device-local (PBKDF2, salted, throttled); it is never sent
-     to the server and no password is ever stored. -->
-<div id="offline-lock" class="fixed inset-0 z-[500] hidden flex flex-col items-center justify-center bg-gray-900 bg-opacity-90 p-4">
-    <div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
-        <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900">Daily Ledger — Offline</h3>
-            <button type="button" class="text-sm text-gray-400 hover:text-gray-600" onclick="dlOfflineLockNotes()" title="About the offline PIN">?</button>
-        </div>
-        <p id="offline-lock-hint" class="mt-1 text-sm text-gray-500">Enter your offline PIN to continue without a connection.</p>
-        <input type="password" inputmode="numeric" id="offline-pin-input" maxlength="6" autocomplete="off"
-               class="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-center text-2xl tracking-[0.5em] font-mono focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" placeholder="••••">
-        <p id="offline-lock-message" class="mt-2 hidden text-sm font-medium text-rose-600"></p>
-        <div class="mt-4">
-            <button type="button" id="offline-unlock-btn" class="btn btn-primary w-full justify-center">Unlock</button>
-        </div>
-    </div>
-</div>
+<!--
+  Offline unlock — RETIRED cached-page overlay (Daily Ledger PWA v6).
 
+  The old model served the authenticated ledger page from the service-worker
+  cache and gated it with a device-local PBKDF2 PIN overlay. That model is
+  replaced by the encrypted vault: the ledger page is never cached or served
+  offline anymore, unlock happens in the token-free static offline shell
+  (public/daily-ledger/offline.html + offline-app.js), and the PIN now
+  wraps the vault data key.
+
+  This block is a compatibility shim only. It keeps the old global function
+  names from throwing for any lingering reference and no-ops the overlay.
+-->
 <script>
 (function() {
-    var AUTH_PREFIX = 'daily-ledger:offline-pin';
-    var ATTEMPTS_PREFIX = 'daily-ledger:offline-pin-attempts';
-    var MAX_ATTEMPTS = 5;
-    var LOCK_MS = 5 * 60 * 1000;
-    var ITERATIONS = 120000;
-
-    function actorScope() {
-        var tenant = String(window.DL_TENANT_SCOPE || '');
-        var actor = String(window.DL_USER_ID || '');
-        return tenant && actor ? tenant + ':' + actor : '';
-    }
-    function authKey() { var scope = actorScope(); return scope ? AUTH_PREFIX + ':' + scope : ''; }
-    function attemptsKey() { var scope = actorScope(); return scope ? ATTEMPTS_PREFIX + ':' + scope : ''; }
-    function readJson(key) { try { var v = JSON.parse(localStorage.getItem(key) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
-    function writeJson(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; } }
-    function bufToB64(buf) { var b = new Uint8Array(buf); var s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
-    function b64ToBuf(b64) { var s = atob(b64); var b = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b.buffer; }
-    function cryptoAvailable() { return typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.getRandomValues === 'function'; }
-
-    function deriveKey(pin, saltBuf) {
-        return crypto.subtle.importKey('raw', new TextEncoder().encode(String(pin)), 'PBKDF2', false, ['deriveBits'])
-            .then(function(key) {
-                return crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: saltBuf, iterations: ITERATIONS }, key, 256);
-            });
-    }
-
-    window.dlOfflineAuthHasVerifier = function() {
-        var key = authKey();
-        var verifier = key ? readJson(key) : null;
-        return !!(verifier && typeof verifier.salt === 'string' && typeof verifier.hash === 'string' && verifier.iterations >= ITERATIONS);
-    };
-
-    window.dlOfflineAuthSetPin = function(pin) {
-        if (!authKey() || !cryptoAvailable() || !/^\d{4,6}$/.test(String(pin || ''))) return Promise.resolve(false);
-        var salt = crypto.getRandomValues(new Uint8Array(16));
-        return deriveKey(pin, salt.buffer).then(function(hash) {
-            var ok = writeJson(authKey(), {
-                salt: bufToB64(salt.buffer),
-                hash: bufToB64(hash),
-                iterations: ITERATIONS,
-                created_at: new Date().toISOString()
-            });
-            if (ok) { try { localStorage.removeItem(attemptsKey()); } catch (e) {} }
-            return ok;
-        }).catch(function() { return false; });
-    };
-
-    window.dlOfflineAuthClear = function() {
-        try { if (authKey()) localStorage.removeItem(authKey()); if (attemptsKey()) localStorage.removeItem(attemptsKey()); } catch (e) {}
-    };
-
-    window.dlOfflineAuthLockState = function() {
-        var key = attemptsKey();
-        var a = key ? readJson(key) : null;
-        if (!a || !a.lock_until) return { locked: false };
-        return { locked: Date.now() < a.lock_until, lock_until: a.lock_until };
-    };
-
-    window.dlOfflineAuthVerify = function(pin) {
-        var key = authKey();
-        var verifier = key ? readJson(key) : null;
-        if (!window.dlOfflineAuthHasVerifier() || !cryptoAvailable()) return Promise.resolve(false);
-        if (window.dlOfflineAuthLockState().locked) return Promise.resolve(false);
-        var salt;
-        try { salt = b64ToBuf(verifier.salt); } catch (e) { return Promise.resolve(false); }
-        return deriveKey(pin, salt).then(function(hash) {
-            var ok = bufToB64(hash) === verifier.hash;
-            if (ok) {
-                try { localStorage.removeItem(attemptsKey()); } catch (e) {}
-                return true;
-            }
-            var a = readJson(attemptsKey()) || { count: 0 };
-            a.count = (a.count || 0) + 1;
-            if (a.count >= MAX_ATTEMPTS) { a.lock_until = Date.now() + LOCK_MS; a.count = 0; }
-            writeJson(attemptsKey(), a);
-            return false;
-        }).catch(function() { return false; });
-    };
-
-    window.dlMaybeLockOffline = function() {
-        var overlay = document.getElementById('offline-lock');
-        if (!overlay) return;
-        if (window.DL_OFFLINE_SHELL !== true) { overlay.classList.add('hidden'); return; }
-        overlay.classList.remove('hidden');
-        var msg = document.getElementById('offline-lock-message');
-        if (msg) msg.classList.add('hidden');
-        var hint = document.getElementById('offline-lock-hint');
-        var input = document.getElementById('offline-pin-input');
-        var btn = document.getElementById('offline-unlock-btn');
-        if (!cryptoAvailable()) {
-            if (hint) hint.textContent = 'Offline PIN requires a secure (HTTPS) connection on this device.';
-            if (btn) btn.disabled = true;
-            if (input) input.disabled = true;
-            return;
-        }
-        if (!window.dlOfflineAuthHasVerifier()) {
-            if (hint) hint.textContent = 'No offline PIN is set for this device. Set one while connected to unlock offline use.';
-            if (btn) btn.disabled = true;
-            if (input) input.disabled = true;
-            return;
-        }
-        if (hint) hint.textContent = 'Enter your offline PIN to continue without a connection.';
-        if (btn) btn.disabled = false;
-        if (input) { input.disabled = false; input.value = ''; setTimeout(function() { input.focus(); }, 50); }
-    };
-
-    function attemptUnlock() {
-        var input = document.getElementById('offline-pin-input');
-        var msg = document.getElementById('offline-lock-message');
-        var pin = input ? input.value : '';
-        if (window.dlOfflineAuthLockState().locked) {
-            if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Too many attempts. Try again in a few minutes.'; }
-            return;
-        }
-        window.dlOfflineAuthVerify(pin).then(function(ok) {
-            if (ok) {
-                var overlay = document.getElementById('offline-lock');
-                if (overlay) overlay.classList.add('hidden');
-                return;
-            }
-            if (msg) {
-                msg.classList.remove('hidden');
-                msg.textContent = window.dlOfflineAuthLockState().locked ? 'Too many attempts. Locked for 5 minutes.' : 'Incorrect PIN.';
-            }
-            if (input) { input.value = ''; input.focus(); }
-        });
-    }
-
-    window.dlOfflineLockNotes = function() {
-        window.alert('The offline PIN is a device-only unlock. It is stored hashed on this device and never sent to the server. Only offline-capable actions work without a connection; day close, POS, and dispatch still require connectivity.');
-    };
-
-    document.addEventListener('click', function(e) {
-        if (e.target && e.target.id === 'offline-unlock-btn') { e.preventDefault(); attemptUnlock(); }
-    });
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && e.target && e.target.id === 'offline-pin-input') { e.preventDefault(); attemptUnlock(); }
-    });
+    // The static offline shell owns unlock now. These legacy globals are
+    // kept as inert compatibility stubs; they never gate the ledger page.
+    window.dlOfflineAuthHasVerifier = function() { return false; };
+    window.dlOfflineAuthSetPin = function() { return Promise.resolve(false); };
+    window.dlOfflineAuthClear = function() {};
+    window.dlOfflineAuthLockState = function() { return { locked: false }; };
+    window.dlOfflineAuthVerify = function() { return Promise.resolve(false); };
+    window.dlOfflineLockNotes = function() {};
+    // The ledger page is never served as a cached offline shell; nothing to
+    // lock here. Unlock/readiness live in the offline shell.
+    window.dlMaybeLockOffline = function() {};
 })();
 </script>

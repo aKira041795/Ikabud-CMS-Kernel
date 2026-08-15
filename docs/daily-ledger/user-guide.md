@@ -18,6 +18,17 @@ As a Cashier, your main focus is on recording the daily operations of your speci
 * **Offline Work:** If the internet or server is unavailable, the Android app can continue working with locally cached data after you unlock it using your offline PIN.
 * **Reconnect Behavior:** Offline entries are queued and synced automatically when the connection comes back. If the day cannot be closed because the app is offline, reconnect first and try again.
 
+### Offline Access (browser PWA)
+
+The online ledger now supports a token-free offline shell on the browser:
+
+* **Enable offline access:** On the ledger page, choose **Enable offline access** while connected, set a 4–6 digit offline PIN, and confirm it. One action reaches a verified **Offline ready** state — no manual reload needed. The device stores an encrypted snapshot of your branch ledger plus your pending edits.
+* **Offline shell:** Once offline, launching the installed Daily Ledger app or opening the ledger URL opens the offline PIN screen. Enter your PIN to unlock a read/edit view of your branch's current day. Your edits are saved securely on the device first, then synced when the connection returns.
+* **What works offline:** Manual ledger field edits, **Stock Adjustment**, and **Receive by Paper DR** are queued locally and synced automatically on reconnect.
+* **What stays online-only:** POS, **Day close**, **Day reopen**, **Send to Branch / dispatch**, and **Delivery correction** require connectivity. The offline shell explains why they are blocked.
+* **Security:** The offline PIN never leaves the device, and the stored snapshot and queued changes are encrypted. Offline access expires after the configured **Max Offline Days**; after expiry or revocation you must re-enroll online.
+* **Lock / remove:** **Lock** hides the offline view without deleting anything. **Remove offline access** warns if you have unsynced changes, revokes the enrollment, and clears that device's encrypted vault.
+
 ## 2. Production In-charge (Commissary Flow)
 If you manage the bakery or commissary, your work now follows one operator flow instead of separate disconnected pages.
 

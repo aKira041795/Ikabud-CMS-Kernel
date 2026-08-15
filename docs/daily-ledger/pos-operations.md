@@ -71,8 +71,9 @@ Each branch + business date has one mode stored in `dl_sales_day_modes`:
 
 - A network or server error means the sale is **not confirmed**. The cashier must verify (POS screen /
   POS Sales report) before retrying. Retrying with the same `client_operation_key` is always safe.
-- There is no offline POS queue. The existing `localStorage` pending-save queue is for manual ledger
-  field saves only and is never used for payments.
+- There is no offline POS queue. Manual ledger field saves and the supported offline operations
+  (stock adjustment, paper-DR receive) are queued behind the encrypted offline vault (`offline-vault.js`)
+  when the device is enrolled, and are never used for payments.
 
 ## Admin reporting
 
