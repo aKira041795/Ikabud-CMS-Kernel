@@ -31,6 +31,7 @@ $h->fingerprint('modules/daily-ledger/helpers.php');
 $h->fingerprint('modules/daily-ledger/handlers-pos.php');
 $h->fingerprint('modules/daily-ledger/handlers-deliveries.php');
 $h->fingerprint('modules/daily-ledger/database/migrations/049_nullable_endings_and_shift_status.sql');
+$h->fingerprint('modules/daily-ledger/database/migrations/051_variance_shift_inputs.sql');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
@@ -130,6 +131,8 @@ function dl_t_flag(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId,
 // ══════════════════════════════════════════════════════════════════════
 $migrationSql = (string) file_get_contents($base . '/modules/daily-ledger/database/migrations/049_nullable_endings_and_shift_status.sql');
 $h->test('migration 049 file exists', $migrationSql !== '');
+$migration051Sql = (string) file_get_contents($base . '/modules/daily-ledger/database/migrations/051_variance_shift_inputs.sql');
+$h->test('migration 051 file exists', $migration051Sql !== '');
 
 $cols = [];
 foreach ($db->query('SHOW COLUMNS FROM dl_daily_ledger') as $c) {
@@ -181,7 +184,7 @@ $vfCols = [];
 foreach ($db->query('SHOW COLUMNS FROM dl_variance_flags') as $c) {
     $vfCols[(string)$c['Field']] = $c;
 }
-foreach (['resolution_status', 'kind', 'shift', 'expected_end_bal', 'recorded_end_bal', 'frozen_at', 'auto_clear_note'] as $need) {
+foreach (['resolution_status', 'kind', 'shift', 'expected_end_bal', 'recorded_end_bal', 'frozen_at', 'auto_clear_note', 'addtl', 'withdraw'] as $need) {
     $h->test('variance column present: ' . $need, isset($vfCols[$need]));
 }
 // Variance unique key (branch,product,date,kind,shift) — behavioral proof.
@@ -321,8 +324,8 @@ dl_t_ledger($db, $branchId, $pA, $testDate, 'AM', 10, 0, 0, 15);
 dl_recomputeVariancesForDay($branchId, $testDate, false);
 $endFlag = dl_t_flag($db, $branchId, $pA, $testDate, 'ending', 'AM');
 $salesFlag = dl_t_flag($db, $branchId, $pA, $testDate, 'sales', 'AM');
-$h->test('ending-above-supply produces ending kind', is_array($endFlag) && (int)$endFlag['variance'] === 5 && (int)$endFlag['expected_end_bal'] === 10 && (int)$endFlag['recorded_end_bal'] === 15 && (int)$endFlag['current_beg_bal'] === 10);
-$h->test('ending-above-supply produces negative raw sales kind', is_array($salesFlag) && (int)$salesFlag['variance'] === -5 && (int)$salesFlag['current_beg_bal'] === 10);
+$h->test('ending-above-supply produces ending kind', is_array($endFlag) && (int)$endFlag['variance'] === 5 && (int)$endFlag['expected_end_bal'] === 10 && (int)$endFlag['recorded_end_bal'] === 15 && (int)$endFlag['current_beg_bal'] === 10 && (int)$endFlag['addtl'] === 0 && (int)$endFlag['withdraw'] === 0);
+$h->test('ending-above-supply produces negative raw sales kind', is_array($salesFlag) && (int)$salesFlag['variance'] === -5 && (int)$salesFlag['current_beg_bal'] === 10 && (int)$salesFlag['addtl'] === 0 && (int)$salesFlag['withdraw'] === 0);
 $h->test('save order cannot overwrite identity (overnight still AM)', ($ov = dl_t_flag($db, $branchId, $pA, $testDate, 'overnight', 'AM')) !== null);
 
 // Restore AM end to 5 and verify handoff recompute (D→D+1 propagation).
@@ -372,7 +375,7 @@ $h->test('pre-enhancement anomaly has no flags before recompute', dl_t_flag($db,
 dl_recomputeVariancesForDay($branchId, $histDate, false);
 $histEnd = dl_t_flag($db, $branchId, 99064, $histDate, 'ending', 'AM');
 $histSales = dl_t_flag($db, $branchId, 99064, $histDate, 'sales', 'AM');
-$h->test('beginning-lesser-than-ending surfaces ending variance', is_array($histEnd) && (int)$histEnd['variance'] === 32 && (int)$histEnd['expected_end_bal'] === -10 && (int)$histEnd['recorded_end_bal'] === 22 && (int)$histEnd['current_beg_bal'] === 10);
+$h->test('beginning-lesser-than-ending surfaces ending variance', is_array($histEnd) && (int)$histEnd['variance'] === 32 && (int)$histEnd['expected_end_bal'] === -10 && (int)$histEnd['recorded_end_bal'] === 22 && (int)$histEnd['current_beg_bal'] === 10 && (int)$histEnd['addtl'] === 0 && (int)$histEnd['withdraw'] === 20);
 $h->test('beginning-lesser-than-ending surfaces negative raw sales', is_array($histSales) && (int)$histSales['variance'] === -32);
 
 // Self-healing view refresh must surface the anomaly from a no-flag state on an

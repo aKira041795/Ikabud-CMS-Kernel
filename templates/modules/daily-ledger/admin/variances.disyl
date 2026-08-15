@@ -411,10 +411,10 @@
                             <th>Product</th>
                             <th>Kind</th>
                             <th>Shift</th>
-                            <th class="text-right">Prev Bal</th>
-                            <th class="text-right">Curr Beg</th>
-                            <th class="text-right">Expected End</th>
-                            <th class="text-right">Recorded End</th>
+                            <th class="text-right">Shift Beg</th>
+                            <th class="text-right">Addt'l</th>
+                            <th class="text-right">W/Draw</th>
+                            <th class="text-right">Rec. End</th>
                             <th class="text-right">Variance</th>
                             <th>Status</th>
                             <th>Reviewed</th>
@@ -437,9 +437,9 @@
                                 <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.kind == 'overnight'}bg-sky-50 text-sky-700 ring-sky-200{/if}{if v.kind == 'handoff'}bg-violet-50 text-violet-700 ring-violet-200{/if}{if v.kind == 'ending'}bg-rose-50 text-rose-700 ring-rose-200{/if}{if v.kind == 'sales'}bg-orange-50 text-orange-700 ring-orange-200{/if}">{v.kind}</span>
                             </td>
                             <td class="text-sm text-gray-500">{if v.shift}{v.shift}{else}—{/if}</td>
-                            <td class="text-right text-sm">{v.prev_bal_end}</td>
-                            <td class="text-right text-sm">{v.current_beg_bal}</td>
-                            <td class="text-right text-sm">{if v.expected_end_bal !== null}{v.expected_end_bal}{else}—{/if}</td>
+                            <td class="text-right text-sm">{if v.current_beg_bal !== null}{v.current_beg_bal}{else}—{/if}</td>
+                            <td class="text-right text-sm">{if v.addtl !== null}{v.addtl}{else}—{/if}</td>
+                            <td class="text-right text-sm">{if v.withdraw !== null}{v.withdraw}{else}—{/if}</td>
                             <td class="text-right text-sm">{if v.recorded_end_bal !== null}{v.recorded_end_bal}{else}—{/if}</td>
                             <td class="text-right">
                                 <span class="variance-value {if v.variance > 0}variance-value--over{/if}{if v.variance < 0}variance-value--short{/if}{if v.variance == 0}variance-value--zero{/if}">
@@ -498,10 +498,10 @@
                             <th>Product</th>
                             <th>Kind</th>
                             <th>Shift</th>
-                            <th class="text-right">Prev Bal</th>
-                            <th class="text-right">Curr Beg</th>
-                            <th class="text-right">Expected End</th>
-                            <th class="text-right">Recorded End</th>
+                            <th class="text-right">Shift Beg</th>
+                            <th class="text-right">Addt'l</th>
+                            <th class="text-right">W/Draw</th>
+                            <th class="text-right">Rec. End</th>
                             <th class="text-right">Variance</th>
                             <th>Status</th>
                             <th>Reviewer</th>
@@ -529,9 +529,9 @@
                                 <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.kind == 'overnight'}bg-sky-50 text-sky-700 ring-sky-200{/if}{if v.kind == 'handoff'}bg-violet-50 text-violet-700 ring-violet-200{/if}{if v.kind == 'ending'}bg-rose-50 text-rose-700 ring-rose-200{/if}{if v.kind == 'sales'}bg-orange-50 text-orange-700 ring-orange-200{/if}">{v.kind}</span>
                             </td>
                             <td class="text-sm text-gray-500">{if v.shift}{v.shift}{else}—{/if}</td>
-                            <td class="text-right text-sm">{v.prev_bal_end}</td>
-                            <td class="text-right text-sm">{v.current_beg_bal}</td>
-                            <td class="text-right text-sm">{if v.expected_end_bal !== null}{v.expected_end_bal}{else}—{/if}</td>
+                            <td class="text-right text-sm">{if v.current_beg_bal !== null}{v.current_beg_bal}{else}—{/if}</td>
+                            <td class="text-right text-sm">{if v.addtl !== null}{v.addtl}{else}—{/if}</td>
+                            <td class="text-right text-sm">{if v.withdraw !== null}{v.withdraw}{else}—{/if}</td>
                             <td class="text-right text-sm">{if v.recorded_end_bal !== null}{v.recorded_end_bal}{else}—{/if}</td>
                             <td class="text-right">
                                 <span class="variance-value {if v.variance > 0}variance-value--over{/if}{if v.variance < 0}variance-value--short{/if}{if v.variance == 0}variance-value--zero{/if}">
