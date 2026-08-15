@@ -73,7 +73,11 @@ if (!$db instanceof PDO) {
     exit(1);
 }
 
-$salesExpr = 'GREATEST(0, COALESCE(beg_bal,0) + COALESCE(addtl,0) - COALESCE(withdraw,0) - COALESCE(bal_end,0))';
+// Null-aware canonical sales expression: an uncounted ending (bal_end NULL)
+// yields NULL (pending), never a fabricated counted value. Mismatch rows are
+// `sales <> expr`, so pending rows are excluded and --apply can never stamp a
+// pending row as sold.
+$salesExpr = 'CASE WHEN bal_end IS NULL THEN NULL ELSE GREATEST(0, COALESCE(beg_bal,0) + COALESCE(addtl,0) - COALESCE(withdraw,0) - COALESCE(bal_end,0)) END';
 $amountExpr = '(' . $salesExpr . ') * COALESCE(price_snapshot,0)';
 $scopeWhere = [];
 $mismatchWhere = ['sales <> ' . $salesExpr];

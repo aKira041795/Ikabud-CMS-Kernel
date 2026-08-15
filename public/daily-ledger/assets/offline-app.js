@@ -278,21 +278,22 @@
                 inputs = '<input type="number" class="num" data-product="' + escaper(r.product_id) + '" data-field="beg_bal" value="' + escaper(r.beg_bal != null ? r.beg_bal : 0) + '" min="0">' +
                     '<input type="number" class="num" data-product="' + escaper(r.product_id) + '" data-field="addtl" value="' + escaper(r.addtl != null ? r.addtl : 0) + '" min="0">' +
                     '<input type="number" class="num" data-product="' + escaper(r.product_id) + '" data-field="withdraw" value="' + escaper(r.withdraw != null ? r.withdraw : 0) + '" min="0">' +
-                    '<input type="number" class="num" data-product="' + escaper(r.product_id) + '" data-field="bal_end" value="' + escaper(r.bal_end != null ? r.bal_end : 0) + '" min="0">';
+                    '<input type="number" class="num" data-product="' + escaper(r.product_id) + '" data-field="bal_end" value="' + escaper(r.bal_end != null ? r.bal_end : '') + '" min="0">';
             } else {
                 inputs = '<span class="num">' + escaper(r.beg_bal != null ? r.beg_bal : 0) + '</span>' +
                     '<span class="num">' + escaper(r.addtl != null ? r.addtl : 0) + '</span>' +
                     '<span class="num">' + escaper(r.withdraw != null ? r.withdraw : 0) + '</span>' +
-                    '<span class="num">' + escaper(r.bal_end != null ? r.bal_end : 0) + '</span>';
+                    '<span class="num">' + (r.bal_end != null ? escaper(r.bal_end) : '—') + '</span>';
             }
-            var sales = (r.beg_bal != null && r.addtl != null && r.withdraw != null && r.bal_end != null)
-                ? Math.max(0, Number(r.beg_bal) + Number(r.addtl) - Number(r.withdraw) - Number(r.bal_end))
-                : (r.sales != null ? r.sales : 0);
+            var salesPending = (r.bal_end == null);
+            var sales = salesPending
+                ? 'Pending'
+                : Math.max(0, Number(r.beg_bal != null ? r.beg_bal : 0) + Number(r.addtl != null ? r.addtl : 0) - Number(r.withdraw != null ? r.withdraw : 0) - Number(r.bal_end));
             return '<tr>' +
                 '<td>' + escaper(r.product_id) + '</td>' +
                 '<td>' + escaper(r.name) + '</td>' +
                 '<td class="num">' + inputs + '</td>' +
-                '<td class="num">' + escaper(sales) + '</td>' +
+                '<td class="num">' + (salesPending ? '<span class="badge badge-amber">Pending</span>' : escaper(sales)) + '</td>' +
                 '</tr>';
         }).join('');
 

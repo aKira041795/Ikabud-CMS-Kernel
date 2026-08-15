@@ -76,6 +76,13 @@
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
         <span id="offline-ready-badge" class="hidden inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">Offline ready</span>
         <button type="button" class="btn btn-outline" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>
+        {if shift == 'PM' && day_status == 'open' && !reference_only}
+        {if pm_pending}
+        <button type="button" class="btn btn-primary" id="finalize-pm-btn" onclick="finalizePmShift()">Close PM Shift</button>
+        {else}
+        <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">PM Shift Finalized</span>
+        {/if}
+        {/if}
         <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
     </div>
 </div>
@@ -84,6 +91,16 @@
     <span id="connectivity-banner-text">Checking cloud connection…</span>
 </div>
 <div id="online-action-blocked" class="hidden mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" role="alert"></div>
+
+{if prior_pending_day}
+<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+    <span class="font-semibold">PM ending pending for {prior_pending_day.date}.</span>
+    <span class="ml-1 text-amber-800">That business date is still open because its PM shift was not finalized. Enter the late counts, then close the PM shift.</span>
+    <a class="ml-2 font-semibold text-amber-900 underline" href="{base_url}/ledger?date={prior_pending_day.date}&branch_id={branch_id}&shift=PM">Open prior PM ledger</a>
+</div>
+{/if}
+
+<div id="finalize-pm-result" class="hidden mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div>
 
 <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
     <div>
@@ -263,7 +280,7 @@
     // Offline buffer: localStorage write-ahead log scoped to the active actor, tenant, branch, and business date.
     var PENDING_STORAGE_PREFIX = 'daily-ledger:pending-saves';
     var LEGACY_PENDING_PREFIX = 'bbs_pending_saves';
-    var PENDING_SCHEMA_VERSION = 2;
+    var PENDING_SCHEMA_VERSION = 3;
     var PENDING_ALLOWED_FIELDS = ['beg_bal', 'addtl', 'withdraw', 'bal_end'];
     var PENDING_TENANT_SCOPE = String(window.DL_TENANT_SCOPE || 'tenant');
     var PENDING_ACTOR_SCOPE = String(window.DL_USER_ID || 'anonymous');
@@ -331,6 +348,7 @@
         }
     }
     function buildPendingPayload(productId, field, value) {
+        var storedValue = (String(field) === 'bal_end' && (value === null || value === '' || value === undefined)) ? null : (parseInt(value, 10) || 0);
         return {
             schema_version: PENDING_SCHEMA_VERSION,
             module: 'daily-ledger',
@@ -341,7 +359,7 @@
             shift: SHIFT || 'AM',
             product_id: String(productId || ''),
             field: String(field || ''),
-            value: parseInt(value, 10) || 0,
+            value: storedValue,
             created_at: new Date().toISOString()
         };
     }
@@ -357,7 +375,16 @@
         if (String(payload.shift || 'AM') !== String(SHIFT || 'AM')) return null;
         if (PENDING_ALLOWED_FIELDS.indexOf(String(payload.field || '')) === -1) return null;
         if (String(payload.product_id || '').trim() === '') return null;
-        return buildPendingPayload(payload.product_id, payload.field, payload.value);
+        // Legacy queues (schema < 3) auto-defaulted a blank bal_end to 0. Replaying
+        // that as a counted zero would falsify a pending ending, so demote it to
+        // null (pending) and let the cashier confirm the count.
+        var val = payload.value;
+        if (String(payload.field) === 'bal_end'
+            && (parseInt(payload.schema_version, 10) || 0) < 3
+            && (val === 0 || val === '0')) {
+            val = null;
+        }
+        return buildPendingPayload(payload.product_id, payload.field, val);
     }
     function quarantinePendingEntries(entries, reason, sourceKey) {
         if (!Array.isArray(entries) || entries.length === 0) return 0;
@@ -696,21 +723,33 @@
         return retryPending().then(function() { return replayPendingOperations(); });
     }
 
-    // Compute sales = beg_bal + addtl - withdraw - bal_end
+    // Compute sales = beg_bal + addtl - withdraw - bal_end (pending when no ending)
     function computeSales(productId) {
         var row = document.querySelector('tr[data-product-id="' + productId + '"]');
-        if (!row) return 0;
+        if (!row) return null;
+        var endInput = row.querySelector('[data-field="bal_end"]');
+        var end = (endInput && endInput.value.trim() !== '') ? (parseInt(endInput.value, 10) || 0) : null;
         var beg = parseInt(row.querySelector('[data-field="beg_bal"]').value) || 0;
         var addEl = row.querySelector('[data-field="addtl"]');
         var add = parseInt(addEl ? (addEl.value !== undefined ? addEl.value : addEl.textContent) : 0) || 0;
         var wdrEl = row.querySelector('[data-field="withdraw"]');
         var wdr = parseInt(wdrEl ? (wdrEl.value !== undefined ? wdrEl.value : wdrEl.textContent) : 0) || 0;
-        var end = parseInt(row.querySelector('[data-field="bal_end"]').value) || 0;
+        var span = row.querySelector('.sales-computed');
+        if (end === null) {
+            if (span) {
+                span.textContent = 'Pending';
+                span.dataset.pending = '1';
+                span.className = 'sales-computed ml-auto inline-flex w-20 justify-end rounded-lg bg-amber-50 px-2 py-1.5 text-sm font-semibold text-amber-700 ring-1 ring-inset ring-amber-200';
+            }
+            return null;
+        }
         var sales = beg + add - wdr - end;
         if (sales < 0) sales = 0;
-        // Update the display
-        var span = row.querySelector('.sales-computed');
-        if (span) span.textContent = sales;
+        if (span) {
+            span.textContent = sales;
+            delete span.dataset.pending;
+            span.className = 'sales-computed ml-auto inline-flex w-20 justify-end rounded-lg bg-gray-50 px-2 py-1.5 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-200';
+        }
         return sales;
     }
 
@@ -741,9 +780,9 @@
         var saveKey = String(productId) + ':' + String(field);
         var saveVersion = (saveFieldVersions[saveKey] || 0) + 1;
         saveFieldVersions[saveKey] = saveVersion;
-        var value = parseInt(input.value) || 0;
+        var value = (field === 'bal_end' && input.value.trim() === '') ? null : (parseInt(input.value, 10) || 0);
         var pendingPayload = buildPendingPayload(productId, field, value);
-        input.value = value;
+        if (value === null) { input.value = ''; } else { input.value = value; }
         input.classList.remove('saved', 'error');
         input.classList.add('saving');
         updateGlobalStatus('pending');
@@ -1211,8 +1250,9 @@
             var addtl = (addtlEl.value !== undefined ? addtlEl.value : addtlEl.textContent) || '0';
             var withdrawEl = row.querySelector('[data-field="withdraw"]') || {};
             var withdraw = (withdrawEl.value !== undefined ? withdrawEl.value : withdrawEl.textContent) || '0';
-            var balEnd = (row.querySelector('[data-field="bal_end"]') || {}).value || '0';
-            var sales = (row.querySelector('.sales-computed') || {}).textContent || '0';
+            var balEndEl = (row.querySelector('[data-field="bal_end"]') || {});
+            var balEnd = (balEndEl.value !== undefined && balEndEl.value !== '') ? String(balEndEl.value) : '—';
+            var sales = (row.querySelector('.sales-computed') || {}).textContent || 'Pending';
 
             return '<tr>' +
                 '<td style="text-align:center;">' + String(rowNum).trim() + '</td>' +
@@ -1256,6 +1296,53 @@
         w.focus();
         w.print();
     }
+
+    // Close PM shift: server-authoritative finalization of the manual day gate.
+    window.finalizePmShift = function() {
+        var btn = document.getElementById('finalize-pm-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Finalizing…'; }
+        var box = document.getElementById('finalize-pm-result');
+        if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+        fetch(BASE + '/api/v1/cashier/ledger/finalize-pm', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('PM shift finalized.', 'success');
+                location.reload();
+                return;
+            }
+            var msg = res.error || 'Failed to finalize PM shift.';
+            if (box) {
+                var html = '<div class="font-semibold">' + String(msg) + '</div>';
+                var missing = (res.missing_products || []).slice(0, 50);
+                if (missing.length) {
+                    html += '<ul class="mt-2 list-disc pl-5 text-xs">';
+                    missing.forEach(function(m) {
+                        html += '<li>' + String(m.name || ('Product #' + m.product_id)) + '</li>';
+                    });
+                    html += '</ul>';
+                }
+                box.innerHTML = html;
+                box.classList.remove('hidden');
+            }
+            showToast(msg, 'error');
+        })
+        .catch(function(err) {
+            showToast(err.message || 'Failed to finalize PM shift', 'error');
+        })
+        .finally(function() {
+            if (btn) { btn.disabled = false; btn.textContent = 'Close PM Shift'; }
+        });
+    };
 
     // PM shift handoff: auto-adopt the AM shift's ending count as the PM
     // beginning (one batch save), so the PM cashier validates instead of

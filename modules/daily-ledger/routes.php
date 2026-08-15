@@ -98,6 +98,8 @@ return [
         '/daily-ledger/api/v1/cashier/ledger/save-batch' => 'daily-ledger:apiSaveLedgerBatch',
         // Cashier: close day
         '/daily-ledger/api/v1/cashier/ledger/close-day'  => 'daily-ledger:apiCloseDay',
+        // Cashier: finalize the PM shift (server-authoritative manual-day gate)
+        '/daily-ledger/api/v1/cashier/ledger/finalize-pm' => 'daily-ledger:apiFinalizePmShift',
 
         // Cashier: detailed withdrawals
         '/daily-ledger/api/v1/cashier/ledger/withdrawals' => 'daily-ledger:apiSaveCashierWithdrawals',

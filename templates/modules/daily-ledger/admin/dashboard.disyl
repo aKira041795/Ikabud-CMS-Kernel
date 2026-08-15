@@ -67,6 +67,11 @@
             </div>
             <div class="mt-2 text-lg font-semibold text-gray-900">PHP {total_amount_today | number_format:2}</div>
             <div class="mt-1 text-sm text-gray-500">across all branches</div>
+            {if provisional_units_today > 0}
+            <div class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-200">
+                + {provisional_units_today} units · PHP {provisional_amount_today | number_format:2} provisional (pending ending / unfinalized PM)
+            </div>
+            {/if}
         </div>
     </div>
 
@@ -97,6 +102,9 @@
     </div>
     <div class="card-body px-4 py-3 border-b border-gray-100 bg-slate-50 text-sm text-gray-600">
         Scope total: <span class="font-semibold text-gray-900">{branch_sales_units}</span> units · PHP {branch_sales_amount | number_format:2}
+        {if branch_provisional_units > 0}
+        <span class="ml-2 text-xs text-amber-700">(+ {branch_provisional_units} units · PHP {branch_provisional_amount | number_format:2} provisional)</span>
+        {/if}
     </div>
     <div class="card-body p-0">
         {foreach branch_cards as card}
@@ -110,6 +118,9 @@
             </div>
             <div class="text-right">
                 <div class="text-sm font-semibold text-gray-900">{if card.amount > 0}PHP {card.amount | number_format:2}{/if}{if card.amount == 0}—{/if}</div>
+                {if card.provisional_amount > 0}
+                <div class="text-xs text-amber-700 mt-0.5" title="Pending ending / unfinalized PM">+ PHP {card.provisional_amount | number_format:2} provisional</div>
+                {/if}
                 {if selling_accounts_enabled}
                 <div class="text-xs text-indigo-600 mt-0.5" title="Selling accounts gross sales today">
                     {if card.selling_accounts_total > 0}+ PHP {card.selling_accounts_total | number_format:2} accounts{/if}

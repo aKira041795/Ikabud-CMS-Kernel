@@ -1177,6 +1177,7 @@ function dl_salesResetTables($db): array
         'dl_variance_flags',
         'dl_delivery_variance_flags',
         'dl_ledger_day_status',
+        'dl_ledger_shift_status',
     ];
     $tables = [];
     foreach ($candidates as $table) {
@@ -1339,20 +1340,75 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
     }
 
     $closeActorId = ($actorId !== null && $actorId > 0) ? $actorId : null;
-    $stmt = $ctx->db()->prepare(
-        'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_by, closed_at)
-         VALUES (:bid, :d, \'closed\', :uid, CURRENT_TIMESTAMP)
-         ON DUPLICATE KEY UPDATE status = \'closed\', closed_by = VALUES(closed_by), closed_at = CURRENT_TIMESTAMP'
-    );
-    $stmt->execute([':bid' => $branchId, ':d' => $closeDate, ':uid' => $closeActorId]);
+    $ownsTxn = !$ctx->db()->inTransaction();
+    if ($ownsTxn) {
+        $ctx->db()->beginTransaction();
+    }
+    try {
+        $lockedStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $closeDate);
+        if ($lockedStatus === 'closed') {
+            if ($ownsTxn) {
+                $ctx->db()->commit();
+            }
+            return false;
+        }
 
-    dl_auditLog('auto_close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$closeDate}", null, [
-        'status' => 'closed',
-        'source' => 'cutoff',
-        'close_of_day_time' => $settings['close_of_day_time'],
-    ]);
+        // POS/fallback days close under their own receipt/checkpoint rules.
+        // Fully manual days require the PM shift finalized before the cutoff
+        // may lock them; otherwise the day stays open and pending is surfaced.
+        if (dl_isFullyManualDay($ctx->db(), $branchId, $closeDate)) {
+            $pmRow = dl_lockShiftStatusRow($ctx->db(), $branchId, $closeDate, 'PM');
+            if ((string)$pmRow['status'] !== 'finalized') {
+                $notify = $ctx->db()->prepare(
+                    'UPDATE dl_ledger_shift_status SET pending_notified_at = CURRENT_TIMESTAMP
+                      WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\' AND pending_notified_at IS NULL'
+                );
+                $notify->execute([':bid' => $branchId, ':d' => $closeDate]);
+                if ($notify->rowCount() > 0) {
+                    dl_auditLog('pm_ending_pending', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$closeDate}-PM", null, [
+                        'status' => 'open',
+                        'source' => 'auto_close_cutoff',
+                        'close_of_day_time' => $settings['close_of_day_time'],
+                    ]);
+                }
+                if ($ownsTxn) {
+                    $ctx->db()->commit();
+                }
+                return false;
+            }
+            // Finalized manual day: full variance sweep + freeze before closing.
+            dl_recomputeVariancesForDay($branchId, $closeDate, false);
+            dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
+        }
 
-    return true;
+        $stmt = $ctx->db()->prepare(
+            'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_by, closed_at)
+             VALUES (:bid, :d, \'closed\', :uid, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE status = \'closed\', closed_by = VALUES(closed_by), closed_at = CURRENT_TIMESTAMP'
+        );
+        $stmt->execute([':bid' => $branchId, ':d' => $closeDate, ':uid' => $closeActorId]);
+
+        dl_auditLog('auto_close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$closeDate}", null, [
+            'status' => 'closed',
+            'source' => 'cutoff',
+            'close_of_day_time' => $settings['close_of_day_time'],
+        ]);
+
+        if ($ownsTxn) {
+            $ctx->db()->commit();
+        }
+        return true;
+    } catch (\Throwable $e) {
+        if ($ownsTxn && $ctx->db()->inTransaction()) {
+            $ctx->db()->rollBack();
+        }
+        write_log('daily-ledger auto close failed', 'error', [
+            'branch_id' => $branchId,
+            'ledger_date' => $closeDate,
+            'error' => $e->getMessage(),
+        ]);
+        return false;
+    }
 }
 
 function dl_maybeAutoCloseBranches(array $branchIds, ?int $actorId = null, ?\DateTimeImmutable $now = null): void
@@ -1712,21 +1768,31 @@ function dl_generateMovementUuid(): string
     }
 }
 
-function dl_computeSalesValue(int $begBal, int $addtl, int $withdraw, int $balEnd): int
+function dl_computeSalesValue(?int $begBal, ?int $addtl, ?int $withdraw, ?int $balEnd): ?int
 {
-    return max(0, $begBal + $addtl - $withdraw - $balEnd);
+    // An absent ending means sales is pending — never substitute 0.
+    if ($balEnd === null) {
+        return null;
+    }
+    return max(0, ($begBal ?? 0) + ($addtl ?? 0) - ($withdraw ?? 0) - $balEnd);
 }
 
+/**
+ * Canonical stock-derived sales quantity expression. Returns NULL when the
+ * ending was never recorded (pending) so aggregations can exclude it; a
+ * recorded zero ending still computes the full invariant.
+ */
 function dl_ledgerSalesQuantitySql(string $alias = 'dl'): string
 {
     $safeAlias = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) ? $alias : 'dl';
-    return "GREATEST(0, COALESCE({$safeAlias}.beg_bal,0) + COALESCE({$safeAlias}.addtl,0) - COALESCE({$safeAlias}.withdraw,0) - COALESCE({$safeAlias}.bal_end,0))";
+    return "CASE WHEN {$safeAlias}.bal_end IS NULL THEN NULL ELSE GREATEST(0, COALESCE({$safeAlias}.beg_bal,0) + COALESCE({$safeAlias}.addtl,0) - COALESCE({$safeAlias}.withdraw,0) - COALESCE({$safeAlias}.bal_end,0)) END";
 }
 
 function dl_ledgerSalesAmountSql(string $alias = 'dl', string $priceColumn = 'price_snapshot'): string
 {
     $safeAlias = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) ? $alias : 'dl';
     $safePriceColumn = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $priceColumn) ? $priceColumn : 'price_snapshot';
+    // NULL quantity propagates: pending rows never contribute an official amount.
     return dl_ledgerSalesQuantitySql($safeAlias) . " * COALESCE({$safeAlias}.{$safePriceColumn},0)";
 }
 
@@ -1740,6 +1806,20 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
     $ctx = module();
     if (!$ctx) {
         throw new \RuntimeException('Module context unavailable');
+    }
+
+    // Finalized shifts are immutable to every domain mutation. Admin/supervisor
+    // must explicitly reopen the shift before correcting locked sales. For the
+    // PM shift (the only finalizable shift) lock the shift-status row so a
+    // concurrent finalize cannot interleave with this mutation — consistent
+    // lock order with apiFinalizePmShift (day-status → shift-status).
+    if ($shift === 'PM') {
+        $shiftLock = dl_lockShiftStatusRow($ctx->db(), $branchId, $ledgerDate, 'PM');
+        if ((string)$shiftLock['status'] === 'finalized') {
+            throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
+        }
+    } else {
+        dl_assertShiftMutable($ctx->db(), $branchId, $ledgerDate, 'AM');
     }
 
     $select = $ctx->db()->prepare(
@@ -1756,9 +1836,10 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
         }
         $addtlVal = $column === 'addtl' ? $delta : 0;
         $withdrawVal = $column === 'withdraw' ? $delta : 0;
+        // A delta-created row has no counted ending yet — bal_end stays NULL.
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
-             VALUES (:bid, :pid, :d, :shift, :price, 0, :addtl, :withdraw, 0, :uid, :uid2)'
+             VALUES (:bid, :pid, :d, :shift, :price, 0, :addtl, :withdraw, NULL, :uid, :uid2)'
         );
         $ins->execute([
             ':bid' => $branchId,
@@ -1772,6 +1853,7 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
             ':uid2' => $actorId > 0 ? $actorId : null,
         ]);
         dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId), $shift);
+        dl_recomputeVariancesForDay($branchId, $ledgerDate);
         return [$column => $delta];
     }
 
@@ -1794,6 +1876,7 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
     ]);
 
     dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId), $shift);
+    dl_recomputeVariancesForDay($branchId, $ledgerDate);
     return [$column => $newVal];
 }
 
@@ -2351,7 +2434,12 @@ function dl_recomputeSales(int $branchId, int $productId, string $date, int $use
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return;
 
-        $sales = dl_computeSalesValue((int)$row['beg_bal'], (int)$row['addtl'], (int)$row['withdraw'], (int)$row['bal_end']);
+        $sales = dl_computeSalesValue(
+            $row['beg_bal'] !== null ? (int)$row['beg_bal'] : null,
+            $row['addtl'] !== null ? (int)$row['addtl'] : null,
+            $row['withdraw'] !== null ? (int)$row['withdraw'] : null,
+            $row['bal_end'] !== null ? (int)$row['bal_end'] : null
+        );
 
         $ctx->db()->prepare(
             'UPDATE dl_daily_ledger SET sales = :sales, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
@@ -2362,44 +2450,294 @@ function dl_recomputeSales(int $branchId, int $productId, string $date, int $use
     }
 }
 
-function dl_computeVarianceSilently(int $branchId, int $productId, string $date, int $begBal): void
+// ─── Shift lifecycle helpers ─────────────────────────────────────────
+
+function dl_normalizeShift(string $shift): string
+{
+    return ($shift === 'PM') ? 'PM' : 'AM';
+}
+
+function dl_getShiftStatus($db, int $branchId, string $date, string $shift): ?array
+{
+    $shift = dl_normalizeShift($shift);
+    $stmt = $db->prepare(
+        'SELECT * FROM dl_ledger_shift_status
+         WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift LIMIT 1'
+    );
+    $stmt->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return is_array($row) ? $row : null;
+}
+
+function dl_shiftIsFinalized($db, int $branchId, string $date, string $shift): bool
+{
+    $row = dl_getShiftStatus($db, $branchId, $date, $shift);
+    return $row !== null && (string)$row['status'] === 'finalized';
+}
+
+/** Lock (and create-if-absent) the shift-status row inside the caller's txn. */
+function dl_lockShiftStatusRow($db, int $branchId, string $date, string $shift): array
+{
+    $shift = dl_normalizeShift($shift);
+    $ensure = $db->prepare(
+        'INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status)
+         VALUES (:bid, :d, :shift, "open")
+         ON DUPLICATE KEY UPDATE branch_id = branch_id'
+    );
+    $ensure->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+
+    $lock = $db->prepare(
+        'SELECT * FROM dl_ledger_shift_status
+         WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift
+         LIMIT 1 FOR UPDATE'
+    );
+    $lock->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+    $row = $lock->fetch(PDO::FETCH_ASSOC);
+    return is_array($row)
+        ? $row
+        : ['branch_id' => $branchId, 'ledger_date' => $date, 'shift' => $shift, 'status' => 'open', 'finalized_by' => null, 'finalized_at' => null];
+}
+
+/**
+ * Active branch products lacking a ledger row for the shift, or whose ending
+ * has not been recorded yet. PM finalization reports these before locking.
+ *
+ * @return array<int,array{product_id:int,name:string,sku:string}>
+ */
+function dl_shiftMissingEndings($db, int $branchId, string $date, string $shift): array
+{
+    $shift = dl_normalizeShift($shift);
+    $stmt = $db->prepare(
+        'SELECT p.id AS product_id, p.name, p.sku
+           FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+           LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
+          WHERE p.is_active = 1
+            AND (dl.id IS NULL OR dl.bal_end IS NULL)
+          ORDER BY p.sort_order, p.name'
+    );
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Fully manual day: no decided POS/fallback mode governs the day. */
+function dl_isFullyManualDay($db, int $branchId, string $date): bool
+{
+    if (!dl_isPosEnabled()) {
+        return true;
+    }
+    $mode = dl_pos_dayMode($db, $branchId, $date);
+    return $mode['mode'] === 'manual';
+}
+
+/**
+ * Whether a cashier may edit the given branch/date/shift. The current business
+ * date is always editable; additionally the immediately previous date's PM is
+ * editable while that day is open and PM is still pending (late-count window
+ * after the 22:00 rollover). Everything else is reference-only for cashiers.
+ */
+function dl_cashierMayEdit(int $branchId, string $date, string $shift, string $today, string $dayStatus): bool
+{
+    if ($date === $today) {
+        return true;
+    }
+    if ($shift !== 'PM' || $dayStatus === 'closed') {
+        return false;
+    }
+    $prev = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+    if ($date !== $prev) {
+        return false;
+    }
+    $ctx = module();
+    if (!$ctx) {
+        return false;
+    }
+    return !dl_shiftIsFinalized($ctx->db(), $branchId, $date, 'PM');
+}
+
+/** Throw (403) when the shift is finalized — immutability guard for writers. */
+function dl_assertShiftMutable($db, int $branchId, string $date, string $shift): void
+{
+    if (dl_shiftIsFinalized($db, $branchId, $date, $shift)) {
+        throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
+    }
+}
+
+// ─── Deterministic variance recompute ────────────────────────────────
+
+/**
+ * Pure, idempotent, day-level variance recompute. Derives every applicable
+ * variance kind from recorded ledger values only:
+ *   - overnight (AM):    AM.beg_bal(D) − ending(D−1)   [recorded ending: PM row preferred, AM fallback]
+ *   - handoff (PM):      PM.beg_bal(D) − AM.bal_end(D) [both recorded]
+ *   - ending (per shift): bal_end − (beg+addtl−withdraw) when positive
+ *   - sales (per shift):  (beg+addtl−withdraw) − bal_end when negative (raw)
+ * A missing ending creates no numeric variance (pending context only).
+ * Unreviewed flags for the day are regenerated; reviewed zero-resolved flags
+ * are retained with variance=0 and an auto-clear note.
+ */
+function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNextDay = true): void
 {
     $ctx = module();
     if (!$ctx) return;
+    $db = $ctx->db();
 
-    // Find previous day's bal_end for same branch+product. With shift-period
-    // ledgers the day's ending physical count is the PM row (fallback AM).
-    $stmt = $ctx->db()->prepare(
-        'SELECT bal_end FROM dl_daily_ledger
-         WHERE branch_id = :bid AND product_id = :pid AND ledger_date < :d
-         ORDER BY ledger_date DESC, CASE shift WHEN \'PM\' THEN 1 ELSE 0 END DESC LIMIT 1'
-    );
-    $stmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
-    $prev = $stmt->fetch(PDO::FETCH_ASSOC);
+    try {
+        $ledgerStmt = $db->prepare(
+            'SELECT product_id, shift, beg_bal, addtl, withdraw, bal_end
+               FROM dl_daily_ledger
+              WHERE branch_id = :bid AND ledger_date = :d'
+        );
+        $ledgerStmt->execute([':bid' => $branchId, ':d' => $date]);
+        $rows = $ledgerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    if (!$prev) return; // No previous day — nothing to compare
+        // Recorded prior ending per product (any earlier date, PM preferred).
+        $prevStmt = $db->prepare(
+            'SELECT product_id, shift, bal_end
+               FROM dl_daily_ledger
+              WHERE branch_id = :bid AND ledger_date < :d AND bal_end IS NOT NULL
+              ORDER BY ledger_date DESC, CASE shift WHEN \'PM\' THEN 1 ELSE 0 END DESC'
+        );
+        $prevStmt->execute([':bid' => $branchId, ':d' => $date]);
+        $prevEnd = [];
+        foreach ($prevStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $pid = (int)$r['product_id'];
+            if (!isset($prevEnd[$pid])) {
+                $prevEnd[$pid] = (int)$r['bal_end'];
+            }
+        }
 
-    $prevBalEnd = (int)$prev['bal_end'];
-    $variance   = $begBal - $prevBalEnd;
+        // Recompute owns the day: clear unreviewed flags, keep reviewed history.
+        $db->prepare(
+            'DELETE FROM dl_variance_flags
+              WHERE branch_id = :bid AND ledger_date = :d AND resolution_status = \'unreviewed\''
+        )->execute([':bid' => $branchId, ':d' => $date]);
+
+        $byProduct = [];
+        foreach ($rows as $r) {
+            $byProduct[(int)$r['product_id']][] = $r;
+        }
+
+        foreach ($byProduct as $pid => $productRows) {
+            $am = null;
+            $pm = null;
+            foreach ($productRows as $r) {
+                if ((string)$r['shift'] === 'PM') {
+                    $pm = $r;
+                } else {
+                    $am = $r;
+                }
+            }
+
+            // overnight (AM) — AM beg vs prior recorded ending.
+            if ($am !== null && isset($prevEnd[$pid])) {
+                $beg = $am['beg_bal'] !== null ? (int)$am['beg_bal'] : 0;
+                dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'overnight', 'AM', $beg - $prevEnd[$pid], $prevEnd[$pid], $beg);
+            }
+
+            // handoff (PM) — PM beg vs AM ending, both recorded.
+            if ($pm !== null && $am !== null && $am['bal_end'] !== null) {
+                $pmBeg = $pm['beg_bal'] !== null ? (int)$pm['beg_bal'] : 0;
+                dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'handoff', 'PM', $pmBeg - (int)$am['bal_end'], (int)$am['bal_end'], $pmBeg);
+            }
+
+            foreach ([['row' => $am, 'shift' => 'AM'], ['row' => $pm, 'shift' => 'PM']] as $pair) {
+                $row = $pair['row'];
+                if ($row === null || $row['bal_end'] === null) {
+                    continue; // pending ending → context only, no numeric variance.
+                }
+                $beg = $row['beg_bal'] !== null ? (int)$row['beg_bal'] : 0;
+                $add = $row['addtl'] !== null ? (int)$row['addtl'] : 0;
+                $wdr = $row['withdraw'] !== null ? (int)$row['withdraw'] : 0;
+                $end = (int)$row['bal_end'];
+                $expected = $beg + $add - $wdr;
+                $over = $end - $expected;       // ending above supply
+                $rawSales = $expected - $end;   // negative raw sales
+                if ($over > 0) {
+                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'ending', $pair['shift'], $over, $expected, $end);
+                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'sales', $pair['shift'], $rawSales, $expected, $end);
+                }
+            }
+        }
+
+        if ($touchNextDay) {
+            $next = (new \DateTimeImmutable($date))->modify('+1 day')->format('Y-m-d');
+            dl_recomputeVariancesForDay($branchId, $next, false);
+        }
+    } catch (\Throwable $e) {
+        write_log('daily-ledger variance recompute failed', 'error', [
+            'branch_id' => $branchId,
+            'ledger_date' => $date,
+            'error' => $e->getMessage(),
+        ]);
+    }
+}
+
+/**
+ * Upsert one variance flag by (branch, product, date, kind, shift).
+ * Zero variance auto-clears unreviewed flags; reviewed flags are retained at
+ * zero with an auditable auto-clear note (reviewer/status metadata preserved).
+ */
+function dl_upsertVarianceFlag($db, int $branchId, int $productId, string $date, string $kind, ?string $shift, int $variance, ?int $expectedEnd, ?int $recordedEnd): void
+{
+    $kind = in_array($kind, ['overnight', 'handoff', 'ending', 'sales'], true) ? $kind : 'overnight';
+    $shift = ($shift === 'AM' || $shift === 'PM') ? $shift : null;
 
     if ($variance === 0) {
-        // No variance — remove any existing flag
-        $ctx->db()->prepare(
-            'DELETE FROM dl_variance_flags WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
-        )->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
+        $sel = $db->prepare(
+            'SELECT id, resolution_status FROM dl_variance_flags
+              WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
+                AND kind = :kind AND shift <=> :shift LIMIT 1'
+        );
+        $sel->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':kind' => $kind, ':shift' => $shift]);
+        $existing = $sel->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($existing)) {
+            return;
+        }
+        if ((string)$existing['resolution_status'] === 'unreviewed') {
+            $db->prepare('DELETE FROM dl_variance_flags WHERE id = :id')->execute([':id' => (int)$existing['id']]);
+        } else {
+            $db->prepare(
+                'UPDATE dl_variance_flags
+                    SET variance = 0, expected_end_bal = :exp, recorded_end_bal = :rec,
+                        auto_clear_note = "auto-cleared by recompute"
+                  WHERE id = :id'
+            )->execute([':exp' => $expectedEnd, ':rec' => $recordedEnd, ':id' => (int)$existing['id']]);
+        }
         return;
     }
 
-    // Upsert variance flag
-    $ctx->db()->prepare(
-        'INSERT INTO dl_variance_flags (branch_id, product_id, ledger_date, prev_bal_end, current_beg_bal, variance)
-         VALUES (:bid, :pid, :d, :prev, :beg, :var)
-         ON DUPLICATE KEY UPDATE prev_bal_end = VALUES(prev_bal_end), current_beg_bal = VALUES(current_beg_bal), variance = VALUES(variance)'
+    $db->prepare(
+        'INSERT INTO dl_variance_flags
+            (branch_id, product_id, ledger_date, kind, shift, variance, prev_bal_end, current_beg_bal, expected_end_bal, recorded_end_bal)
+         VALUES (:bid, :pid, :d, :kind, :shift, :var, :prev, :cur, :exp, :rec)
+         ON DUPLICATE KEY UPDATE
+            variance = VALUES(variance),
+            prev_bal_end = VALUES(prev_bal_end),
+            current_beg_bal = VALUES(current_beg_bal),
+            expected_end_bal = VALUES(expected_end_bal),
+            recorded_end_bal = VALUES(recorded_end_bal)'
     )->execute([
         ':bid' => $branchId,
-        ':pid' => $productId, ':d' => $date,
-        ':prev' => $prevBalEnd, ':beg' => $begBal, ':var' => $variance,
+        ':pid' => $productId,
+        ':d' => $date,
+        ':kind' => $kind,
+        ':shift' => $shift,
+        ':var' => $variance,
+        ':prev' => $kind === 'overnight' ? $expectedEnd : null,
+        ':cur' => $kind === 'overnight' ? $recordedEnd : null,
+        ':exp' => $expectedEnd,
+        ':rec' => $recordedEnd,
     ]);
+}
+
+/** Freeze the variance snapshot for a manual day close (explicit metadata). */
+function dl_freezeVarianceFlags($db, int $branchId, string $date, ?int $actorId): void
+{
+    $db->prepare(
+        'UPDATE dl_variance_flags SET frozen_at = COALESCE(frozen_at, CURRENT_TIMESTAMP)
+          WHERE branch_id = :bid AND ledger_date = :d AND frozen_at IS NULL'
+    )->execute([':bid' => $branchId, ':d' => $date]);
 }
 
 // ─── Cashier Handlers ──────────────────────────────────────────────────
@@ -2996,11 +3334,12 @@ function dailyLedgerLogout(): void
  */
 function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, string $ledgerDate, string $shift): array
 {
+    $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $stmt = $db->prepare(
         'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
-                COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot,
+                COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
+                ' . $salesExpr . ' AS sales, dl.price_snapshot,
                 COALESCE(am.bal_end, 0) AS am_bal_end
            FROM dl_products p
            INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
@@ -3041,13 +3380,28 @@ function handleCashierLedger(array $params = []): void
     $shift      = $shiftResolved['shift'];
     $shiftBound = $shiftResolved['bound'];
     $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
-    $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
     }
 
     $dayStatus  = $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open';
+    $referenceOnly = ($role === 'cashier' && !dl_cashierMayEdit($branchId, $ledgerDate, $shift, $today, $dayStatus));
+
+    // Shift lifecycle for the visible ledger.
+    $shiftRow = $branchId ? dl_getShiftStatus($ctx->db(), (int)$branchId, $ledgerDate, $shift) : null;
+    $shiftStatus = $shiftRow ? (string)$shiftRow['status'] : 'open';
+
+    // A prior pending PM day the cashier may recover after the 22:00 rollover.
+    $priorPendingDay = null;
+    if ($role === 'cashier' && $branchId) {
+        $prevDate = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+        if ($prevDate !== $ledgerDate
+            && dl_getDayStatus($branchId, $prevDate) === 'open'
+            && !dl_shiftIsFinalized($ctx->db(), $branchId, $prevDate, 'PM')) {
+            $priorPendingDay = ['date' => $prevDate];
+        }
+    }
 
     // Branch selector: only accessible branches for the current actor
     $branches = [];
@@ -3178,6 +3532,9 @@ function handleCashierLedger(array $params = []): void
         'liable_persons' => $liablePersons,
         'liable_persons_json' => json_encode($liablePersons, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
         'rows' => $ledgerRows,
+        'shift_status' => $shiftStatus,
+        'pm_pending' => ($shift === 'PM' && $shiftStatus !== 'finalized'),
+        'prior_pending_day' => $priorPendingDay,
     ]);
 }
 
@@ -3202,7 +3559,7 @@ function handleCashierRows(array $params = []): void
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
-    $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
+    $referenceOnly = ($role === 'cashier' && !dl_cashierMayEdit($branchId, $ledgerDate, $shift, dl_businessDate(), $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open'));
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
@@ -3266,11 +3623,12 @@ function apiGetLedgerRows(array $params = []): void
         return;
     }
 
+    $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $stmt = $ctx->db()->prepare(
         'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
-                COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales,
+                COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
+                ' . $salesExpr . ' AS sales,
                 COALESCE(am.bal_end, 0) AS am_bal_end
          FROM dl_products p
          INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
@@ -3438,7 +3796,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $dayStatus = dl_getDayStatus($branchId, $date);
-    if ($role === 'cashier' && $date !== dl_businessDate()) {
+    if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
         return;
     }
@@ -3452,6 +3810,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
 
     $ctx->db()->beginTransaction();
     try {
+        dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
         $stmtIns = $ctx->db()->prepare(
             'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id)
              VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid)'
@@ -3665,6 +4024,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
             }
         }
 
+        dl_recomputeVariancesForDay($branchId, $date);
+
         $ctx->db()->commit();
         $response = ['ok' => true, 'totals' => $totals];
         if ($returnDeliveryId !== null) {
@@ -3678,6 +4039,10 @@ function apiSaveCashierWithdrawals(array $params = []): void
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
         $ctx->log('apiSaveCashierWithdrawals error: ' . $e->getMessage(), 'error');
+        if ($e instanceof RuntimeException && $e->getCode() === 403) {
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 403);
+            return;
+        }
         $ctx->json(['ok' => false, 'error' => 'Database error']);
     }
 }
@@ -4288,7 +4653,7 @@ function apiSaveLedgerField(array $params = []): void
     $branchId  = $authResult['branch_id'];
     $productId = (int)($input['product_id'] ?? 0);
     $field     = (string)($input['field'] ?? '');
-    $value     = (int)($input['value'] ?? 0);
+    $rawValue  = $input['value'] ?? null;
     $date      = (string)($input['date'] ?? dl_businessDate());
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift     = $shiftResolved['shift'];
@@ -4330,7 +4695,17 @@ function apiSaveLedgerField(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
         return;
     }
-    if ($value < 0 || $value > 999999999) {
+    // bal_end accepts null (ending not yet counted). Every other field is an int.
+    if ($column === 'bal_end' && ($rawValue === null || $rawValue === '')) {
+        $value = null;
+    } elseif ($column === 'bal_end' && !is_numeric($rawValue)) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Value must be a number', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Value must be a number'], 422);
+        return;
+    } else {
+        $value = (int)$rawValue;
+    }
+    if ($value !== null && ($value < 0 || $value > 999999999)) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Value out of bounds', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Value out of bounds'], 422);
         return;
@@ -4372,7 +4747,8 @@ function apiSaveLedgerField(array $params = []): void
         }
     }
 
-    if ($role === 'cashier' && $date !== dl_businessDate()) {
+    $dayStatus = $branchId ? dl_getDayStatus($branchId, $date) : 'open';
+    if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
         return;
@@ -4384,6 +4760,7 @@ function apiSaveLedgerField(array $params = []): void
         if ($dayStatus === 'closed' && $role === 'cashier') {
             throw new RuntimeException('Day is closed');
         }
+        dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
         $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
         $oldStmt = $ctx->db()->prepare(
@@ -4410,23 +4787,20 @@ function apiSaveLedgerField(array $params = []): void
             ':uid3'  => $userId,
         ]);
 
-        // Silent variance computation when beg_bal changes
-        if ($field === 'beg_bal') {
-            dl_computeVarianceSilently($branchId, $productId, $date, $value);
-        }
-
         // Auto-recompute sales = beg_bal + addtl - withdraw - bal_end (server-side)
         if ($field !== 'sales') {
             dl_recomputeSales($branchId, $productId, $date, $userId, $shift);
         }
+        dl_recomputeVariancesForDay($branchId, $date);
 
         // Audit log (silent)
+        $oldAudit = $oldVal !== false ? ($oldVal !== null ? (int)$oldVal : null) : null;
         dl_auditLog(
             'field_update',
             $branchId,
             'dl_daily_ledger',
             "{$branchId}-{$productId}-{$date}-{$shift}",
-            [$field => $oldVal !== false ? (int)$oldVal : null],
+            [$field => $oldAudit],
             [$field => $value]
         );
 
@@ -4441,6 +4815,11 @@ function apiSaveLedgerField(array $params = []): void
         if ($e instanceof RuntimeException && $e->getMessage() === 'Day is closed') {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+            return;
+        }
+        if ($e instanceof RuntimeException && $e->getCode() === 403) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $e->getMessage(), 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 403);
             return;
         }
         $ctx->log('apiSaveLedgerField failed: ' . $e->getMessage(), 'error', [
@@ -4509,7 +4888,7 @@ function apiSaveLedgerBatch(array $params = []): void
         return;
     }
 
-    $isReadOnly = ($role === 'cashier' && $date !== dl_businessDate());
+    $isReadOnly = ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), dl_getDayStatus($branchId, $date)));
     if ($isReadOnly) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
@@ -4530,9 +4909,13 @@ function apiSaveLedgerBatch(array $params = []): void
         $beg = (int)($r['beg_bal'] ?? 0);
         $add = (int)($r['addtl'] ?? 0);
         $with = (int)($r['withdraw'] ?? 0);
-        $end = (int)($r['bal_end'] ?? 0);
+        // bal_end is written only when explicitly present; an absent key must
+        // preserve the existing ending (partial/handoff payloads never stamp 0).
+        $hasEnd = array_key_exists('bal_end', $r);
+        $end = $hasEnd && $r['bal_end'] !== null && $r['bal_end'] !== '' ? (int)$r['bal_end'] : null;
 
-        if ($beg < 0 || $add < 0 || $with < 0 || $end < 0 || $beg > 999999999 || $add > 999999999 || $with > 999999999 || $end > 999999999) {
+        if ($beg < 0 || $add < 0 || $with < 0 || $beg > 999999999 || $add > 999999999 || $with > 999999999
+            || ($end !== null && ($end < 0 || $end > 999999999))) {
             $ctx->json(['ok' => false, 'error' => 'Values are out of bounds'], 422);
             return;
         }
@@ -4543,6 +4926,7 @@ function apiSaveLedgerBatch(array $params = []): void
             'addtl' => $add,
             'withdraw' => $with,
             'bal_end' => $end,
+            'has_bal_end' => $hasEnd,
         ];
     }
 
@@ -4583,12 +4967,14 @@ function apiSaveLedgerBatch(array $params = []): void
             if ($role === 'cashier' && $dayStatus === 'closed') {
                 throw new RuntimeException('Day is closed');
             }
+            dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
         $selectOld = $ctx->db()->prepare(
             'SELECT beg_bal, addtl, withdraw, bal_end FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
 
-        $upsert = $ctx->db()->prepare(
+        // Two upsert variants: bal_end written only when explicitly present.
+        $upsertWithEnd = $ctx->db()->prepare(
             'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
              VALUES (:bid, :pid, :d, :shift, :price, :beg, :addtl, :withdraw, :end, :uid, :uid2)
              ON DUPLICATE KEY UPDATE
@@ -4596,6 +4982,16 @@ function apiSaveLedgerBatch(array $params = []): void
                 addtl = VALUES(addtl),
                 withdraw = VALUES(withdraw),
                 bal_end = VALUES(bal_end),
+                updated_by = VALUES(updated_by),
+                updated_at = CURRENT_TIMESTAMP'
+        );
+        $upsertWithoutEnd = $ctx->db()->prepare(
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :shift, :price, :beg, :addtl, :withdraw, :uid, :uid2)
+             ON DUPLICATE KEY UPDATE
+                beg_bal = VALUES(beg_bal),
+                addtl = VALUES(addtl),
+                withdraw = VALUES(withdraw),
                 updated_by = VALUES(updated_by),
                 updated_at = CURRENT_TIMESTAMP'
         );
@@ -4643,26 +5039,36 @@ function apiSaveLedgerBatch(array $params = []): void
                 }
             }
 
-            $upsert->execute([
-                ':bid'      => $branchId,
-                ':pid'      => $pid,
-                ':d'        => $date,
-                ':shift'    => $shift,
-                ':price'    => $currentPrice,
-                ':beg'      => (int)$r['beg_bal'],
-                ':addtl'    => $addtlVal,
-                ':withdraw' => $withdrawVal,
-                ':end'      => (int)$r['bal_end'],
-                ':uid'      => $userId,
-                ':uid2'     => $userId,
-            ]);
-
-            // Beg-bal changes trigger variance check
-            if ($old && array_key_exists('beg_bal', $old) && (int)$old['beg_bal'] !== (int)$r['beg_bal']) {
-                dl_computeVarianceSilently($branchId, $pid, $date, (int)$r['beg_bal']);
+            if (!empty($r['has_bal_end'])) {
+                $upsertWithEnd->execute([
+                    ':bid'      => $branchId,
+                    ':pid'      => $pid,
+                    ':d'        => $date,
+                    ':shift'    => $shift,
+                    ':price'    => $currentPrice,
+                    ':beg'      => (int)$r['beg_bal'],
+                    ':addtl'    => $addtlVal,
+                    ':withdraw' => $withdrawVal,
+                    ':end'      => $r['bal_end'],
+                    ':uid'      => $userId,
+                    ':uid2'     => $userId,
+                ]);
+            } else {
+                $upsertWithoutEnd->execute([
+                    ':bid'      => $branchId,
+                    ':pid'      => $pid,
+                    ':d'        => $date,
+                    ':shift'    => $shift,
+                    ':price'    => $currentPrice,
+                    ':beg'      => (int)$r['beg_bal'],
+                    ':addtl'    => $addtlVal,
+                    ':withdraw' => $withdrawVal,
+                    ':uid'      => $userId,
+                    ':uid2'     => $userId,
+                ]);
             }
 
-            // Always recompute sales from invariant
+            // Always recompute sales from the invariant.
             dl_recomputeSales($branchId, $pid, $date, $userId, $shift);
 
             // Audit as a single event per product row
@@ -4676,20 +5082,23 @@ function apiSaveLedgerBatch(array $params = []): void
                     'beg_bal'  => (int)$r['beg_bal'],
                     'addtl'    => $addtlVal,
                     'withdraw' => $withdrawVal,
-                    'bal_end'  => (int)$r['bal_end'],
+                    'bal_end'  => $r['bal_end'],
                 ]
             );
         }
+
+        dl_recomputeVariancesForDay($branchId, $date);
 
         $ctx->db()->commit();
         } // end if (!$isReadOnly)
 
         // Return updated rows as fresh read
+        $salesExpr = dl_ledgerSalesQuantitySql('dl');
         $stmt = $ctx->db()->prepare(
             'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                     COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
-                    COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                    GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales,
+                    COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
+                    ' . $salesExpr . ' AS sales,
                     COALESCE(am.bal_end, 0) AS am_bal_end
              FROM dl_products p
              INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
@@ -4721,6 +5130,11 @@ function apiSaveLedgerBatch(array $params = []): void
         if ($e instanceof RuntimeException && $e->getMessage() === 'Day is closed') {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+            return;
+        }
+        if ($e instanceof RuntimeException && $e->getCode() === 403) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $e->getMessage(), 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 403);
             return;
         }
 
@@ -5009,6 +5423,133 @@ function apiProductionSyncBatch(array $params = []): void
     $ctx->json($response);
 }
 
+function apiFinalizePmShift(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    $role = (string)($user['role'] ?? '');
+    if (!in_array($role, ['cashier', 'supervisor', 'admin'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Forbidden'], 403);
+        return;
+    }
+
+    $input = $ctx->input();
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
+    $date = (string)($input['date'] ?? dl_businessDate());
+    $userId = dl_getActorUserId($user);
+    if ($userId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
+        return;
+    }
+    if (!$branchId || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid branch or date'], 422);
+        return;
+    }
+
+    // Cashiers may finalize PM only for the current date or the immediately
+    // previous pending PM day (late-count window). Supervisors/admins may
+    // finalize any open day's PM on their authorized branch.
+    if ($role === 'cashier') {
+        $today = dl_businessDate();
+        $prev = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+        if ($date !== $today && $date !== $prev) {
+            $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+            return;
+        }
+    }
+
+    try {
+        $ctx->db()->beginTransaction();
+
+        $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
+        if ($dayStatus === 'closed') {
+            $ctx->db()->rollBack();
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'code' => 'DAY_CLOSED', 'error' => 'This business date is closed.'], 422);
+            return;
+        }
+
+        $pmStatus = dl_lockShiftStatusRow($ctx->db(), $branchId, $date, 'PM');
+        if ((string)$pmStatus['status'] === 'finalized') {
+            // Idempotent: an unchanged already-finalized PM shift is a success.
+            $ctx->db()->commit();
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'PM shift already finalized', 'type' => 'success']]));
+            $ctx->json(['ok' => true, 'already_finalized' => true, 'finalized' => true]);
+            return;
+        }
+
+        // Validate every currently active branch product has a recorded ending.
+        $missing = dl_shiftMissingEndings($ctx->db(), $branchId, $date, 'PM');
+        if (count($missing) > 0) {
+            $ctx->db()->rollBack();
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Complete all PM ending counts first.', 'type' => 'error']]));
+            $ctx->json([
+                'ok' => false,
+                'code' => 'PM_ENDING_MISSING',
+                'error' => count($missing) . ' active product(s) are missing a PM ending count.',
+                'missing_products' => array_map(static function (array $m): array {
+                    return ['product_id' => (int)$m['product_id'], 'name' => (string)$m['name'], 'sku' => (string)($m['sku'] ?? '')];
+                }, $missing),
+            ], 422);
+            return;
+        }
+
+        // Recompute every PM sales value inside the lock, then the day variances.
+        $updStmt = $ctx->db()->prepare(
+            'SELECT product_id FROM dl_daily_ledger
+              WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
+        );
+        $updStmt->execute([':bid' => $branchId, ':d' => $date]);
+        foreach ($updStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            dl_recomputeSales($branchId, (int)$r['product_id'], $date, $userId, 'PM');
+        }
+        dl_recomputeVariancesForDay($branchId, $date, false);
+
+        $finalize = $ctx->db()->prepare(
+            'UPDATE dl_ledger_shift_status
+                SET status = \'finalized\', finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP
+              WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
+        );
+        $finalize->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date]);
+
+        dl_auditLog('finalize_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", ['status' => 'open'], [
+            'status' => 'finalized',
+            'shift' => 'PM',
+            'finalized_by' => $userId,
+        ]);
+
+        $ctx->db()->commit();
+
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'PM shift finalized', 'type' => 'success']]));
+        $ctx->json(['ok' => true, 'finalized' => true]);
+    } catch (\Throwable $e) {
+        try {
+            if ($ctx->db()->inTransaction()) {
+                $ctx->db()->rollBack();
+            }
+        } catch (\Throwable $ignored) {
+        }
+        write_log('daily-ledger finalize pm failed', 'error', [
+            'branch_id' => $branchId,
+            'ledger_date' => $date,
+            'error' => $e->getMessage(),
+        ]);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to finalize PM shift', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Failed to finalize PM shift'], 500);
+    }
+}
+
 function apiCloseDay(array $params = []): void
 {
     $ctx = module();
@@ -5048,12 +5589,42 @@ function apiCloseDay(array $params = []): void
     }
 
     try {
+        $ctx->db()->beginTransaction();
+
+        // Serialize on the day-status row first (creates the open row if absent).
+        $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
+        if ($dayStatus === 'closed') {
+            $ctx->db()->commit();
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day already closed', 'type' => 'success']]));
+            $ctx->json(['ok' => true, 'day_status' => 'closed']);
+            return;
+        }
+
         // POS days have extra close requirements (open carts, variance ack).
         $posBlock = dl_pos_dayClosePrecheck($ctx->db(), $branchId, $date, $input);
         if (is_array($posBlock)) {
+            $ctx->db()->rollBack();
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => (string)$posBlock['error'], 'type' => 'error']]));
             $ctx->json($posBlock, 422);
             return;
+        }
+
+        // Fully manual days require the PM shift to be finalized first.
+        if (dl_isFullyManualDay($ctx->db(), $branchId, $date)) {
+            $pmStatus = dl_lockShiftStatusRow($ctx->db(), $branchId, $date, 'PM');
+            if ((string)$pmStatus['status'] !== 'finalized') {
+                $ctx->db()->rollBack();
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Close the PM shift before closing the day.', 'type' => 'error']]));
+                $ctx->json([
+                    'ok' => false,
+                    'code' => 'PM_ENDING_PENDING',
+                    'error' => 'The PM shift has not been finalized. Complete the PM ending counts and close the PM shift before closing the day.',
+                ], 422);
+                return;
+            }
+            // Complete manual-day variance sweep + freeze before locking.
+            dl_recomputeVariancesForDay($branchId, $date, false);
+            dl_freezeVarianceFlags($ctx->db(), $branchId, $date, $userId);
         }
 
         $stmt = $ctx->db()->prepare(
@@ -5067,9 +5638,22 @@ function apiCloseDay(array $params = []): void
 
         dl_auditLog('close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", null, ['status' => 'closed']);
 
+        $ctx->db()->commit();
+
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day closed', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'day_status' => 'closed']);
     } catch (\Throwable $e) {
+        try {
+            if ($ctx->db()->inTransaction()) {
+                $ctx->db()->rollBack();
+            }
+        } catch (\Throwable $ignored) {
+        }
+        if ($e instanceof RuntimeException && $e->getCode() === 403) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $e->getMessage(), 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 403);
+            return;
+        }
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to close day', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Failed to close day'], 500);
     }
@@ -5119,6 +5703,20 @@ function apiReopenDay(array $params = []): void
              WHERE branch_id = :bid AND ledger_date = :d'
         );
         $stmt->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date]);
+
+        // Reopening a day deliberately reopens both shift lifecycles so locked
+        // finalized sales can be corrected under an audited override.
+        $shiftStmt = $ctx->db()->prepare(
+            'UPDATE dl_ledger_shift_status
+                SET status = \'open\', finalized_by = NULL, finalized_at = NULL, pending_notified_at = NULL
+              WHERE branch_id = :bid AND ledger_date = :d'
+        );
+        $shiftStmt->execute([':bid' => $branchId, ':d' => $date]);
+        if ($shiftStmt->rowCount() > 0) {
+            dl_auditLog('reopen_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}", ['status' => 'finalized'], ['status' => 'open']);
+        }
+
+        dl_recomputeVariancesForDay($branchId, $date);
 
         dl_auditLog('reopen_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", ['status' => 'closed'], ['status' => 'open']);
 
@@ -5183,14 +5781,21 @@ function handleAdminDashboard(array $params = []): void
         }));
     }
 
-    // Today's sales per branch — computed: sales = beg_bal + addtl - withdraw - bal_end
+    // Today's sales per branch — computed: sales = beg_bal + addtl - withdraw - bal_end.
+    // Official vs provisional: unfinalized manual PM rows and uncounted endings
+    // (bal_end IS NULL) are provisional and never inflate official totals.
+    $provisionalExpr = '(dl.bal_end IS NULL OR (dl.shift = \'PM\' AND (ss.status IS NULL OR ss.status <> \'finalized\')))';
+    $qtyExpr = 'GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end)';
     $salesStmt = $ctx->db()->prepare(
         'SELECT dl.branch_id, b.name AS branch_name,
-                SUM(GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end)) AS total_units,
-                SUM(GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end) * dl.price_snapshot) AS total_amount,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE ' . $qtyExpr . ' END), 0) AS total_units,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE ' . $qtyExpr . ' * dl.price_snapshot END), 0) AS total_amount,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN ' . $qtyExpr . ' ELSE 0 END), 0) AS provisional_units,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN ' . $qtyExpr . ' * dl.price_snapshot ELSE 0 END), 0) AS provisional_amount,
                 COUNT(DISTINCT dl.product_id) AS product_count
          FROM dl_daily_ledger dl
          INNER JOIN dl_branches b ON b.id = dl.branch_id
+         LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
          WHERE dl.ledger_date = ? AND dl.branch_id IN (' . $branchPlaceholders . ')
          GROUP BY dl.branch_id
          ORDER BY b.name'
@@ -5200,11 +5805,14 @@ function handleAdminDashboard(array $params = []): void
 
     $filteredSalesSql =
         'SELECT dl.branch_id, b.name AS branch_name,
-                SUM(GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end)) AS total_units,
-                SUM(GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end) * dl.price_snapshot) AS total_amount,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE ' . $qtyExpr . ' END), 0) AS total_units,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE ' . $qtyExpr . ' * dl.price_snapshot END), 0) AS total_amount,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN ' . $qtyExpr . ' ELSE 0 END), 0) AS provisional_units,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN ' . $qtyExpr . ' * dl.price_snapshot ELSE 0 END), 0) AS provisional_amount,
                 COUNT(DISTINCT dl.product_id) AS product_count
          FROM dl_daily_ledger dl
          INNER JOIN dl_branches b ON b.id = dl.branch_id
+         LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
          WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
     $filteredSalesBind = array_merge([$salesFilterDateFrom, $salesFilterDateTo], $accessibleBranchIds);
     if ($salesFilterBranchId > 0) {
@@ -5316,20 +5924,28 @@ function handleAdminDashboard(array $params = []): void
 
     $scopeUnits = 0;
     $scopeAmount = 0.0;
+    $scopeProvisionalUnits = 0;
+    $scopeProvisionalAmount = 0.0;
     $branchCards = [];
     foreach ($salesScopeBranches as $br) {
         $bid = (int)$br['id'];
         $ts = $salesByBranch[$bid] ?? null;
         $units  = $ts ? (int)$ts['total_units'] : 0;
         $amount = $ts ? (float)$ts['total_amount'] : 0.0;
+        $pUnits  = $ts ? (int)($ts['provisional_units'] ?? 0) : 0;
+        $pAmount = $ts ? (float)($ts['provisional_amount'] ?? 0) : 0.0;
         $status = $dayStatuses[$bid] ?? 'none';
         $scopeUnits  += $units;
         $scopeAmount += $amount;
+        $scopeProvisionalUnits  += $pUnits;
+        $scopeProvisionalAmount += $pAmount;
         $branchCards[] = [
             'branch_id' => $bid,
             'name'   => $br['name'],
             'units'  => $units,
             'amount' => $amount,
+            'provisional_units' => $pUnits,
+            'provisional_amount' => $pAmount,
             'status' => $status,
         ];
     }
@@ -5353,10 +5969,14 @@ function handleAdminDashboard(array $params = []): void
         'sales_filter_period_label' => $salesFilterPeriodLabel,
         'branch_sales_units'    => $scopeUnits,
         'branch_sales_amount'   => $scopeAmount,
+        'branch_provisional_units' => $scopeProvisionalUnits,
+        'branch_provisional_amount' => $scopeProvisionalAmount,
         'unreviewed_variances'  => $unreviewedVariances,
         'recent_activity'       => $recentActivity,
         'total_units_today'     => array_reduce($todaySales, static fn(int $carry, array $row): int => $carry + (int)($row['total_units'] ?? 0), 0),
         'total_amount_today'    => array_reduce($todaySales, static fn(float $carry, array $row): float => $carry + (float)($row['total_amount'] ?? 0), 0.0),
+        'provisional_units_today' => array_reduce($todaySales, static fn(int $carry, array $row): int => $carry + (int)($row['provisional_units'] ?? 0), 0),
+        'provisional_amount_today' => array_reduce($todaySales, static fn(float $carry, array $row): float => $carry + (float)($row['provisional_amount'] ?? 0), 0.0),
         'business_date_label'   => $clockLabel['business_date'],
         'close_of_day_time'     => $clockLabel['close_of_day_time'],
         'auto_close_enabled'    => $clockLabel['auto_close_enabled'],
@@ -5564,17 +6184,20 @@ function handleAdminSales(array $params = []): void
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // Sales data with computed sales and amount (admin can see these)
+    // Sales data with computed sales and amount (admin can see these).
+    // shift_status marks unfinalized manual PM rows as provisional.
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $amountExpr = dl_ledgerSalesAmountSql('dl');
     $sql = 'SELECT dl.ledger_date, dl.shift, p.name AS product_name, p.sku, b.name AS branch_name,
                    dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end,
                    ' . $salesExpr . ' AS sales,
                    dl.price_snapshot,
-                   (' . $amountExpr . ') AS amount
+                   (' . $amountExpr . ') AS amount,
+                   ss.status AS shift_status
              FROM dl_daily_ledger dl
              INNER JOIN dl_products p ON p.id = dl.product_id
              INNER JOIN dl_branches b ON b.id = dl.branch_id
+             LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
             WHERE dl.branch_id IN (' . $branchPlaceholders . ') AND dl.ledger_date BETWEEN ? AND ?';
     $bind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);
 
@@ -5599,12 +6222,22 @@ function handleAdminSales(array $params = []): void
     $stmt->execute($bind);
     $salesRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // Grand totals
-    $grandUnits  = 0;
+    // Grand totals — official vs provisional. A row is provisional when its
+    // ending is uncounted (NULL) or it is an unfinalized manual PM row.
+    $grandUnits = 0;
     $grandAmount = 0.0;
+    $provisionalUnits = 0;
+    $provisionalAmount = 0.0;
     foreach ($salesRows as $r) {
-        $grandUnits  += (int)$r['sales'];
-        $grandAmount += (float)$r['amount'];
+        $isProvisional = ($r['bal_end'] === null)
+            || ((string)($r['shift'] ?? '') === 'PM' && (string)($r['shift_status'] ?? '') !== 'finalized');
+        if ($isProvisional) {
+            $provisionalUnits  += (int)$r['sales'];
+            $provisionalAmount += (float)$r['amount'];
+        } else {
+            $grandUnits  += (int)$r['sales'];
+            $grandAmount += (float)$r['amount'];
+        }
     }
 
     $role = (string)($user['role'] ?? '');
@@ -5661,6 +6294,8 @@ function handleAdminSales(array $params = []): void
         'sales_rows'   => $salesRows,
         'grand_units'  => $grandUnits,
         'grand_amount' => $grandAmount,
+        'provisional_units' => $provisionalUnits,
+        'provisional_amount' => $provisionalAmount,
         'search'       => $search,
         'filter_shift' => $shiftFilter,
         'pos_enabled'  => $posEnabled,
@@ -6376,6 +7011,10 @@ function handleAdminVariances(array $params = []): void
     $input = $ctx->input();
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
     $statusFilter = (string)($input['status'] ?? '');
+    $kindFilter = (string)($input['kind'] ?? '');
+    $shiftFilter = strtoupper(trim((string)($input['shift'] ?? '')));
+    if (!in_array($kindFilter, ['overnight', 'handoff', 'ending', 'sales'], true)) { $kindFilter = ''; }
+    if (!in_array($shiftFilter, ['AM', 'PM'], true)) { $shiftFilter = ''; }
     $dateFilter = (string)($input['date'] ?? dl_businessDate());
     $search   = trim((string)($input['q'] ?? ''));
     $viewMode = $input['view'] ?? ($isSupervisor ? 'grouped' : 'list');
@@ -6426,6 +7065,14 @@ function handleAdminVariances(array $params = []): void
         $sql .= ' AND vf.resolution_status = :st';
         $bind[':st'] = $statusFilter;
     }
+    if ($kindFilter !== '') {
+        $sql .= ' AND vf.kind = :kind';
+        $bind[':kind'] = $kindFilter;
+    }
+    if ($shiftFilter !== '') {
+        $sql .= ' AND vf.shift = :shift';
+        $bind[':shift'] = $shiftFilter;
+    }
     if ($search !== '') {
         $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2 OR b.name LIKE :q3 OR b.code LIKE :q4)';
         $bind[':q'] = "%{$search}%";
@@ -6445,14 +7092,27 @@ function handleAdminVariances(array $params = []): void
     $statsUnreviewed = 0;
     $statsInvestigated = 0;
     $statsCorrected = 0;
-    $statsTotalVariance = 0;
+    $statsByKind = [
+        'overnight' => ['count' => 0, 'net' => 0],
+        'handoff' => ['count' => 0, 'net' => 0],
+        'ending' => ['count' => 0, 'net' => 0],
+        'sales' => ['count' => 0, 'net' => 0],
+    ];
     foreach ($variances as $v) {
         $st = (string)($v['resolution_status'] ?? '');
         if ($st === 'unreviewed') { $statsUnreviewed++; }
         elseif ($st === 'investigated') { $statsInvestigated++; }
         elseif ($st === 'corrected') { $statsCorrected++; }
-        $statsTotalVariance += (int)($v['variance'] ?? 0);
+        $k = (string)($v['kind'] ?? 'overnight');
+        if (isset($statsByKind[$k])) {
+            $statsByKind[$k]['count']++;
+            $statsByKind[$k]['net'] += (int)($v['variance'] ?? 0);
+        }
     }
+    // Net is only meaningful within a single variance kind — never across kinds.
+    $statsTotalVariance = $kindFilter !== '' && isset($statsByKind[$kindFilter])
+        ? $statsByKind[$kindFilter]['net']
+        : null;
 
     // ── Per-branch breakdown ─────────────────────────────────────────
     $branchSummary = [];
@@ -6500,6 +7160,8 @@ function handleAdminVariances(array $params = []): void
         'date'          => $dateFilter,
         'branch_id'     => $branchId,
         'status_filter' => $statusFilter,
+        'kind_filter' => $kindFilter,
+        'shift_filter' => $shiftFilter,
         'branches'      => $branches,
         'variances'     => $variances,
         'search'        => $search,
@@ -6512,6 +7174,7 @@ function handleAdminVariances(array $params = []): void
         'stats_unreviewed'   => $statsUnreviewed,
         'stats_investigated' => $statsInvestigated,
         'stats_corrected'    => $statsCorrected,
+        'stats_by_kind'      => $statsByKind,
         'stats_net_variance' => $statsTotalVariance,
         // Branch breakdown
         'branch_summary' => $branchSummary,

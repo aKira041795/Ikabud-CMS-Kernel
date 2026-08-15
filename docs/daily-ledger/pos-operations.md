@@ -67,6 +67,24 @@ Each branch + business date has one mode stored in `dl_sales_day_modes`:
   stock-derived totals differ — an explicit variance acknowledgment (`acknowledge_variance`), which is
   audit-logged. Variance never blocks silently and never alters completed transactions.
 
+### Manual (non-POS) day close — Close PM Shift gate
+
+A fully manual day cannot be closed until its PM shift is **finalized** via the cashier's
+**Close PM Shift** action (server-authoritative `POST /api/v1/cashier/ledger/finalize-pm`):
+
+- An absent PM ending is stored as `bal_end = NULL` and derived `sales = NULL` (pending), never `0`.
+  Entering a physical count of `0` still records a real zero and computes the invariant.
+- `Close PM Shift` validates every **active** branch product has a recorded PM ending and returns a
+  structured `missing_products` list if any are pending; nothing is locked until all pass.
+- Finalized PM data is immutable to cashier field/batch saves and every domain mutation
+  (`dl_applyLedgerDelta`, withdrawals, deliveries, production). Admin/supervisor correction requires
+  reopening the day (which deliberately reopens both shifts) under `ledger.override` with audit.
+- Manual day close (manual button or the 22:00 auto-close cutoff) requires PM `finalized`. If PM is
+  still pending at the cutoff, the day stays **open** and is surfaced as **"PM ending pending"** with a
+  single deduplicated audit event; the next morning the cashier may open only the immediately previous
+  PM ledger, enter the late counts, finalize PM, and then close.
+- POS/fallback days are exempt from the manual PM gate and keep their existing receipt/checkpoint rules.
+
 ## Recovery from a failed checkout
 
 - A network or server error means the sale is **not confirmed**. The cashier must verify (POS screen /

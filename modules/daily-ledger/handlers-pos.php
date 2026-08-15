@@ -1417,12 +1417,13 @@ function dl_pos_fallbackManualSegment($db, int $branchId, string $date): array
     $ledgerStmt->execute([':b' => $branchId, ':d' => $date]);
     // Aggregate shift-period rows per product: addtl/withdraw sum across shifts;
     // the day's ending physical count is the PM row's bal_end (PM overwrites AM).
+    // An uncounted ending (NULL) makes the manual segment provisional — skipped.
     $ledger = [];
     foreach ($ledgerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $pid = (int)$row['product_id'];
         $ledger[$pid]['addtl'] = ($ledger[$pid]['addtl'] ?? 0) + (int)$row['addtl'];
         $ledger[$pid]['withdraw'] = ($ledger[$pid]['withdraw'] ?? 0) + (int)$row['withdraw'];
-        $ledger[$pid]['bal_end'] = (int)$row['bal_end'];
+        $ledger[$pid]['bal_end'] = $row['bal_end'] !== null ? (int)$row['bal_end'] : null;
         $ledger[$pid]['price_snapshot'] = (float)($row['price_snapshot'] ?? 0);
     }
 
@@ -1431,7 +1432,10 @@ function dl_pos_fallbackManualSegment($db, int $branchId, string $date): array
     $rows = [];
     foreach ($items as $item) {
         $pid = (int)$item['product_id'];
-        $cur = $ledger[$pid] ?? ['addtl' => 0, 'withdraw' => 0, 'bal_end' => 0, 'price_snapshot' => 0];
+        $cur = $ledger[$pid] ?? ['addtl' => 0, 'withdraw' => 0, 'bal_end' => null, 'price_snapshot' => 0];
+        if ($cur['bal_end'] === null) {
+            continue; // ending pending → no numeric manual-segment qty.
+        }
         $qty = dl_pos_computeFallbackSegmentQty(
             (int)$item['physical_count'],
             (int)$cur['addtl'] - (int)$item['addtl_snapshot'],

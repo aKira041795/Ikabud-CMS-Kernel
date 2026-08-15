@@ -64,7 +64,8 @@
     "dl_pos_fallback_checkpoints",
     "dl_pos_fallback_checkpoint_items",
     "dl_offline_device_enrollments",
-    "dl_offline_sync_receipts"
+    "dl_offline_sync_receipts",
+    "dl_ledger_shift_status"
   ],
   "co_owns_tables": [
     "audit_logs"
@@ -121,7 +122,8 @@
     "database/migrations/045_rebuild_ledger_shift_key.sql",
     "database/migrations/046_add_user_shift.sql",
     "database/migrations/047_add_pos_sale_shift.sql",
-    "database/migrations/048_offline_device_enrollments.sql"
+    "database/migrations/048_offline_device_enrollments.sql",
+    "database/migrations/049_nullable_endings_and_shift_status.sql"
   ],
   "capabilities": {
     "exposes": [

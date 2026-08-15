@@ -86,6 +86,7 @@
                 "/daily-ledger/api/v1/cashier/ledger/close-day",
                 "/daily-ledger/api/v1/cashier/ledger/delivery-edit",
                 "/daily-ledger/api/v1/cashier/ledger/dispatch",
+                "/daily-ledger/api/v1/cashier/ledger/finalize-pm",
                 "/daily-ledger/api/v1/cashier/ledger/receive-delivery",
                 "/daily-ledger/api/v1/cashier/ledger/receive-paper-dr",
                 "/daily-ledger/api/v1/cashier/ledger/save",
@@ -160,7 +161,8 @@
             "dl_pos_payments",
             "dl_pos_sale_events",
             "dl_pos_fallback_checkpoints",
-            "dl_pos_fallback_checkpoint_items"
+            "dl_pos_fallback_checkpoint_items",
+            "dl_ledger_shift_status"
         ],
         "capabilities": [
             "entity.get.daily_ledger_entry@1",

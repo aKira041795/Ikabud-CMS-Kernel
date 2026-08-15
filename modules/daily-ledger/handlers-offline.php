@@ -353,7 +353,7 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
     $branchId = $authResult['branch_id'];
     $productId = (int)($input['product_id'] ?? 0);
     $field = (string)($input['field'] ?? '');
-    $value = (int)($input['value'] ?? 0);
+    $rawValue = $input['value'] ?? null;
     $date = (string)($input['date'] ?? dl_businessDate());
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
@@ -369,7 +369,15 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
     if ($column === null || !$branchId || !$productId || $userId <= 0) {
         throw new RuntimeException('Invalid input', 422);
     }
-    if ($value < 0 || $value > 999999999) {
+    // bal_end accepts null (uncounted ending); every other field is an int.
+    if ($column === 'bal_end' && ($rawValue === null || $rawValue === '')) {
+        $value = null;
+    } elseif ($column === 'bal_end' && !is_numeric($rawValue)) {
+        throw new RuntimeException('Value must be a number', 422);
+    } else {
+        $value = (int)$rawValue;
+    }
+    if ($value !== null && ($value < 0 || $value > 999999999)) {
         throw new RuntimeException('Value out of bounds', 422);
     }
 
@@ -396,7 +404,7 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
         }
     }
 
-    if ($role === 'cashier' && $date !== dl_businessDate()) {
+    if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), dl_getDayStatus($branchId, $date))) {
         throw new RuntimeException('Reference only', 403);
     }
 
@@ -408,6 +416,7 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
         if ($dayStatus === 'closed' && $role === 'cashier') {
             throw new RuntimeException('Day is closed', 403);
         }
+        dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
         $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
         $oldStmt = $ctx->db()->prepare(
@@ -434,19 +443,18 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
             ':uid3' => $userId,
         ]);
 
-        if ($field === 'beg_bal') {
-            dl_computeVarianceSilently($branchId, $productId, $date, $value);
-        }
         if ($field !== 'sales') {
             dl_recomputeSales($branchId, $productId, $date, $userId, $shift);
         }
+        dl_recomputeVariancesForDay($branchId, $date);
 
+        $oldAudit = $oldVal !== false ? ($oldVal !== null ? (int)$oldVal : null) : null;
         dl_auditLog(
             'field_update',
             $branchId,
             'dl_daily_ledger',
             "{$branchId}-{$productId}-{$date}-{$shift}",
-            [$field => $oldVal !== false ? (int)$oldVal : null],
+            [$field => $oldAudit],
             [$field => $value]
         );
 
@@ -537,7 +545,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
 
     $role = (string)($user['role'] ?? '');
     $dayStatus = dl_getDayStatus($branchId, $date);
-    if ($role === 'cashier' && $date !== dl_businessDate()) {
+    if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
         throw new RuntimeException('Reference only', 403);
     }
     if ($dayStatus === 'closed' && $role === 'cashier') {
@@ -554,6 +562,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         $ctx->db()->beginTransaction();
     }
     try {
+        dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
         $stmtIns = $ctx->db()->prepare(
             'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id)
              VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid)'
@@ -704,6 +713,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         if (!$inTx) {
             $ctx->db()->commit();
         }
+
+        dl_recomputeVariancesForDay($branchId, $date);
 
         $response = ['ok' => true, 'totals' => $totals];
         if ($returnDeliveryId !== null) {

@@ -177,6 +177,14 @@ function dl_t_ledgerRow(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $bran
     return $row ?: null;
 }
 
+function dl_t_setLedgerEnding(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, int $productId, string $date, int $ending): void
+{
+    $db->prepare(
+        'UPDATE dl_daily_ledger SET bal_end = :e WHERE branch_id = :b AND product_id = :p AND ledger_date = :d'
+    )->execute([':e' => $ending, ':b' => $branchId, ':p' => $productId, ':d' => $date]);
+    dl_recomputeSales($branchId, $productId, $date, 1);
+}
+
 function dl_t_commissaryRow(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, int $productId, string $date): ?array
 {
     $stmt = $db->prepare(
@@ -335,7 +343,12 @@ $h->test('result has a movement id', (int)($res['movement_id'] ?? 0) > 0);
 
 $ledger = dl_t_ledgerRow($db, $bSelf, $p1, $testDate);
 $h->test('addtl incremented exactly once (100)', ($ledger['addtl'] ?? null) === 100);
-$h->test('derived sales = beg_bal + addtl - withdraw - bal_end', (int)($ledger['sales'] ?? -1) === (0 + 100 - 0 - 0));
+// No ending counted yet → derived sales is pending (NULL), never a fabricated 0.
+$h->test('derived sales pending (NULL) while ending is uncounted', is_array($ledger) && array_key_exists('sales', $ledger) && $ledger['sales'] === null && array_key_exists('bal_end', $ledger) && $ledger['bal_end'] === null);
+// Recording an ending computes the invariant.
+dl_t_setLedgerEnding($db, $bSelf, $p1, $testDate, 40);
+$ledgerEnded = dl_t_ledgerRow($db, $bSelf, $p1, $testDate);
+$h->test('derived sales computes once ending is recorded', is_array($ledgerEnded) && (int)($ledgerEnded['sales'] ?? -1) === (100 - 40));
 
 $comm = dl_t_commissaryRow($db, $bSelf, $p1, $testDate);
 $h->test('commissary produced = 100', ($comm['produced_qty'] ?? null) === 100);
@@ -594,7 +607,8 @@ $h->section('Regression — adjustment addtl + derived sales');
 $adjRes = dl_applyLedgerDelta($bSelf, $p1, $testDate, 25, 1, 'addtl');
 $h->test('manual adjustment_add still increments addtl', ($adjRes['addtl'] ?? null) === 125);
 $ledgerAdj = dl_t_ledgerRow($db, $bSelf, $p1, $testDate);
-$h->test('derived sales recomputed after adjustment', (int)($ledgerAdj['sales'] ?? -1) === (int)($ledgerAdj['beg_bal'] ?? 0) + (int)($ledgerAdj['addtl'] ?? 0) - (int)($ledgerAdj['withdraw'] ?? 0) - (int)($ledgerAdj['bal_end'] ?? 0));
+// The ending recorded earlier is preserved; sales recomputes from the invariant.
+$h->test('derived sales recomputed after adjustment', is_array($ledgerAdj) && (int)($ledgerAdj['sales'] ?? -1) === (int)($ledgerAdj['beg_bal'] ?? 0) + (int)($ledgerAdj['addtl'] ?? 0) - (int)($ledgerAdj['withdraw'] ?? 0) - (int)($ledgerAdj['bal_end'] ?? 0));
 $h->test('adjustment does not create a delivery', dl_t_countRows($db, 'dl_deliveries', 'destination_id = ? AND delivery_date = ? AND dr_number = ?', [$bSelf, $testDate, 'ADJ']) === 0);
 
 // ─── Section 11: CSV product import — malformed rows are skipped, not fatal ──

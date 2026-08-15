@@ -2448,18 +2448,28 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
 
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $amountExpr = dl_ledgerSalesAmountSql('dl');
+    // Official totals exclude provisional rows: uncounted endings (bal_end NULL)
+    // and unfinalized manual PM rows must never inflate the official summary.
+    $provisional = '(dl.bal_end IS NULL OR (dl.shift = \'PM\' AND (ss.status IS NULL OR ss.status <> \'finalized\')))';
     $regStmt = $ctx->db()->prepare(
-        'SELECT COALESCE(SUM(' . $salesExpr . '),0) AS qty, COALESCE(SUM(' . $amountExpr . '),0) AS amt
-           FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d'
+        'SELECT COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $salesExpr . ' END),0) AS qty,
+                COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $amountExpr . ' END),0) AS amt,
+                COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN ' . $salesExpr . ' ELSE 0 END),0) AS provisional_qty,
+                COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN ' . $amountExpr . ' ELSE 0 END),0) AS provisional_amt
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift
+          WHERE dl.branch_id = :b AND dl.ledger_date = :d'
     );
     $regStmt->execute([':b' => $branchId, ':d' => $date]);
-    $reg = $regStmt->fetch(PDO::FETCH_ASSOC) ?: ['qty' => 0, 'amt' => 0];
+    $reg = $regStmt->fetch(PDO::FETCH_ASSOC) ?: ['qty' => 0, 'amt' => 0, 'provisional_qty' => 0, 'provisional_amt' => 0];
 
     return [
         'branch_id' => $branchId,
         'date' => $date,
         'regular_sales' => (float)$reg['amt'],
         'regular_qty' => (int)$reg['qty'],
+        'provisional_sales' => (float)$reg['provisional_amt'],
+        'provisional_qty' => (int)$reg['provisional_qty'],
         'total_sales' => (float)$reg['amt'],
     ];
 }

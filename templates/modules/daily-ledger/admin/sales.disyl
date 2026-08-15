@@ -154,26 +154,39 @@
                 {foreach sales_rows as row}
                 <tr>
                     <td>{row.ledger_date}</td>
-                    <td>{if row.shift == 'PM'}PM{else}AM{/if}</td>
+                    <td>
+                        {if row.shift == 'PM'}PM{else}AM{/if}
+                        {if row.bal_end !== null && row.bal_end !== '' && row.shift == 'PM' && row.shift_status != 'finalized'}
+                        <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">provisional</span>
+                        {/if}
+                    </td>
                     <td>{row.branch_name}</td>
                     <td>{row.product_name}</td>
                     <td class="text-muted text-sm">{row.sku}</td>
                     <td class="text-right">{row.beg_bal}</td>
                     <td class="text-right">{row.addtl}</td>
                     <td class="text-right">{row.withdraw}</td>
-                    <td class="text-right">{row.bal_end}</td>
-                    <td class="text-right">{row.sales}</td>
+                    <td class="text-right">{if row.bal_end !== null && row.bal_end !== ''}{row.bal_end}{else}—{/if}</td>
+                    <td class="text-right">{if row.sales !== null && row.sales !== ''}{row.sales}{else}—{/if}</td>
                     <td class="text-right">{row.price_snapshot}</td>
                     <td class="text-right font-semibold text-emerald-700">{row.amount}</td>
                 </tr>
                 {/foreach}
                 {if sales_rows | count > 0}
                 <tr>
-                    <td colspan="9" class="text-right font-semibold bg-gray-50 border-t border-gray-200">Grand Total:</td>
+                    <td colspan="9" class="text-right font-semibold bg-gray-50 border-t border-gray-200">Official Total:</td>
                     <td class="text-right">{grand_units}</td>
                     <td></td>
                     <td class="text-right font-semibold text-emerald-700">PHP {grand_amount | number_format}</td>
                 </tr>
+                {if provisional_units > 0}
+                <tr>
+                    <td colspan="9" class="text-right bg-amber-50/50 border-t border-gray-200 text-xs text-amber-800">Provisional (pending ending / unfinalized PM):</td>
+                    <td class="text-right text-xs text-amber-800">{provisional_units}</td>
+                    <td></td>
+                    <td class="text-right text-xs font-semibold text-amber-800">PHP {provisional_amount | number_format}</td>
+                </tr>
+                {/if}
                 {/if}
             </tbody>
         </table>

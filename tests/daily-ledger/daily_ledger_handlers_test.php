@@ -391,7 +391,7 @@ $h->gap('DB-backed: dl_lockDayStatusRow requires database connection');
 $h->gap('DB-backed: dl_applyLedgerDelta requires database + ledger rows');
 $h->gap('DB-backed: dl_processProductionMovement requires database + inventory state');
 $h->gap('DB-backed: dl_recomputeSales requires database + ledger data');
-$h->gap('DB-backed: dl_computeVarianceSilently requires database + ledger data');
+$h->gap('DB-backed: dl_recomputeVariancesForDay requires database + ledger data');
 $h->gap('DB-backed: dl_acceptFormalDelivery requires database + delivery rows');
 $h->gap('DB-backed: dl_branchConsolidatedSummary requires database');
 $h->gap('Session/Request: dlUserFromRequest requires HTTP context');
