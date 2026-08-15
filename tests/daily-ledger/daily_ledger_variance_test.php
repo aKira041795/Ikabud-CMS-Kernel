@@ -358,6 +358,40 @@ dl_recomputeVariancesForDay($branchId, $testDate, false);
 $ovB = dl_t_flag($db, $branchId, $pB, $testDate, 'overnight', 'AM');
 $h->test('recorded prior ending participates in overnight variance', is_array($ovB) && (int)$ovB['variance'] === 2);
 
+// ─── Historical backfill gap: "beginning lesser than ending" ────────────
+// A row entered BEFORE the variance enhancement (no flags exist anywhere) must
+// be surfaced by (1) a direct recompute and (2) the self-healing view refresh.
+// User-reported shape: beg=10, addtl=0, withdraw=20, bal_end=22 → expected −10,
+// over = 32 → ending variance 32, raw sales −32.
+$histDate = '2030-02-12';
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+dl_t_ledger($db, $branchId, 99064, $histDate, 'AM', 10, 0, 20, 22, 5.0);
+$h->test('pre-enhancement anomaly has no flags before recompute', dl_t_flag($db, $branchId, 99064, $histDate, 'ending', 'AM') === null);
+
+dl_recomputeVariancesForDay($branchId, $histDate, false);
+$histEnd = dl_t_flag($db, $branchId, 99064, $histDate, 'ending', 'AM');
+$histSales = dl_t_flag($db, $branchId, 99064, $histDate, 'sales', 'AM');
+$h->test('beginning-lesser-than-ending surfaces ending variance', is_array($histEnd) && (int)$histEnd['variance'] === 32 && (int)$histEnd['expected_end_bal'] === -10 && (int)$histEnd['recorded_end_bal'] === 22);
+$h->test('beginning-lesser-than-ending surfaces negative raw sales', is_array($histSales) && (int)$histSales['variance'] === -32);
+
+// Self-healing view refresh must surface the anomaly from a no-flag state on an
+// OPEN day, and must NOT mutate a CLOSED (frozen) day.
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+dl_refreshVariancesForDateView($histDate, [$branchId]);
+$h->test('view refresh surfaces anomaly on an open day', dl_t_flag($db, $branchId, 99064, $histDate, 'ending', 'AM') !== null);
+
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+$db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+$db->execute('INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status) VALUES (:b, :d, "closed")', [':b' => $branchId, ':d' => $histDate]);
+dl_refreshVariancesForDateView($histDate, [$branchId]);
+$h->test('view refresh skips closed days', dl_t_flag($db, $branchId, 99064, $histDate, 'ending', 'AM') === null);
+
+// Cleanup this block's isolated day.
+$db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $histDate]);
+
 // Close freeze metadata.
 dl_t_ledger($db, $branchId, $pA, $testDate, 'PM', 5, 0, 0, 9);
 dl_recomputeVariancesForDay($branchId, $testDate, false);

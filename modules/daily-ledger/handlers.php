@@ -2740,6 +2740,51 @@ function dl_freezeVarianceFlags($db, int $branchId, string $date, ?int $actorId)
     )->execute([':bid' => $branchId, ':d' => $date]);
 }
 
+/**
+ * Self-healing variance refresh for the admin variance page.
+ *
+ * Recomputes derived variance flags for the viewed date on OPEN days so the
+ * page always reflects the current ledger. This surfaces anomalies in data that
+ * entered outside the recompute-on-save path — rows encoded before the variance
+ * enhancement was deployed, imports, offline syncs — exactly the historical
+ * backfill gap where "beginning lesser than ending" rows silently go unflagged.
+ *
+ * Closed days are skipped: their frozen variance snapshot is authoritative and
+ * must not be mutated by a page view. Only the viewed day is touched (no
+ * next-day chaining), so viewing one day never rewrites another day's flags.
+ */
+function dl_refreshVariancesForDateView(string $date, array $accessibleBranchIds): void
+{
+    if ($date === '') {
+        return;
+    }
+    $ctx = module();
+    if (!$ctx) {
+        return;
+    }
+    $db = $ctx->db();
+
+    $dayBranchIds = $db->prepare(
+        'SELECT DISTINCT branch_id FROM dl_daily_ledger WHERE ledger_date = :d'
+    );
+    $dayBranchIds->execute([':d' => $date]);
+    $dayStatusStmt = $db->prepare(
+        'SELECT status FROM dl_ledger_day_status WHERE branch_id = :bid AND ledger_date = :d'
+    );
+
+    foreach ($dayBranchIds->fetchAll(PDO::FETCH_COLUMN) ?: [] as $rawBranchId) {
+        $branchId = (int)$rawBranchId;
+        if (!in_array($branchId, $accessibleBranchIds, true)) {
+            continue;
+        }
+        $dayStatusStmt->execute([':bid' => $branchId, ':d' => $date]);
+        if ((string)$dayStatusStmt->fetchColumn() === 'closed') {
+            continue;
+        }
+        dl_recomputeVariancesForDay($branchId, $date, false);
+    }
+}
+
 // ─── Cashier Handlers ──────────────────────────────────────────────────
 
 function dlCookieName(): string
@@ -7036,6 +7081,11 @@ function handleAdminVariances(array $params = []): void
     $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Self-healing: refresh variances for the viewed date on open days so the
+    // page surfaces anomalies even when rows entered before the variance
+    // enhancement (imports, pre-deployment data) never triggered recompute.
+    dl_refreshVariancesForDateView($dateFilter, $accessibleBranchIds);
 
     // Build the variance query
     $sql = 'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
