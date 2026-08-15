@@ -32,6 +32,7 @@ $h->fingerprint('modules/daily-ledger/handlers-pos.php');
 $h->fingerprint('modules/daily-ledger/handlers-deliveries.php');
 $h->fingerprint('modules/daily-ledger/database/migrations/049_nullable_endings_and_shift_status.sql');
 $h->fingerprint('modules/daily-ledger/database/migrations/051_variance_shift_inputs.sql');
+$h->fingerprint('modules/daily-ledger/database/migrations/052_cashier_withdrawals_dedup_hash.sql');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
@@ -636,6 +637,87 @@ $q->execute([':b' => $branchId, ':p' => $pB, ':d' => $testDate, ':s' => 'PM']);
 $h->test('canonical sales SQL returns NULL for pending row', $q->fetchColumn() === null);
 $q->execute([':b' => $branchId, ':p' => $pA, ':d' => $testDate, ':s' => 'PM']);
 $h->test('canonical sales SQL computes recorded row', (int)$q->fetchColumn() === 2);
+
+// ══════════════════════════════════════════════════════════════════════
+// F. Cashier-withdrawal dedup guard (migration 052 + handler wiring)
+// ── Prevents the 2026-08-15 duplicate-pullout incident: identical
+//    re-submissions are rejected atomically by uq_dl_cw_dedup on a
+//    deterministic fingerprint — cache-independent, durable, race-proof.
+// ══════════════════════════════════════════════════════════════════════
+$migration052Sql = (string) file_get_contents($base . '/modules/daily-ledger/database/migrations/052_cashier_withdrawals_dedup_hash.sql');
+$h->test('migration 052 file exists', $migration052Sql !== '');
+$h->test('migration 052 defines dedup_hash + unique index', str_contains($migration052Sql, 'dedup_hash') && str_contains($migration052Sql, 'uq_dl_cw_dedup'));
+
+$cwCols = [];
+foreach ($db->query('SHOW COLUMNS FROM dl_cashier_withdrawals') as $c) {
+    $cwCols[(string)$c['Field']] = $c;
+}
+$h->test('dl_cashier_withdrawals has dedup_hash column', isset($cwCols['dedup_hash']));
+
+// Hash parity: the PHP helper must equal the SQL backfill expression exactly.
+$pidHash = 99065;
+$dedupDate = '2030-02-20';
+$db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $pidHash]);
+$db->execute('INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active) VALUES (:id, :sku, :name, :price, :sort, 1)', [
+    ':id' => $pidHash, ':sku' => 'VAR-DEDUP', ':name' => 'Dedup Product', ':price' => 8.0, ':sort' => 4,
+]);
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)', [':b' => $branchId, ':p' => $pidHash]);
+
+$phpHash = dl_withdrawalDedupHash($branchId, $pidHash, $dedupDate, 'pullout', 'spoilage', null, null, null, 3, 2);
+$db->execute(
+    'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
+     VALUES (:b, :p, :d, :t, :rc, :cr, :dr, :tb, :q, :e, :l, :dh)',
+    [':b' => $branchId, ':p' => $pidHash, ':d' => $dedupDate, ':t' => 'pullout', ':rc' => 'spoilage',
+     ':cr' => null, ':dr' => null, ':tb' => null, ':q' => 3, ':e' => 1, ':l' => 2, ':dh' => $phpHash]
+);
+$sqlHash = (string)$db->query(
+    "SELECT SHA1(CONCAT_WS('|', branch_id, product_id, ledger_date, withdrawal_type, COALESCE(reason_code,''), COALESCE(custom_reason,''), COALESCE(dr_number,''), COALESCE(target_branch_id,''), quantity, COALESCE(liable_user_id,'')))
+       FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId . " AND product_id = " . (int)$pidHash . " AND ledger_date = '$dedupDate' LIMIT 1"
+)->fetchColumn();
+$h->test('PHP dedup hash matches SQL backfill expression', $phpHash === $sqlHash);
+
+// Behavioral proof of the unique index (module DB forbids SHOW INDEX): a second
+// identical insert must be rejected; a distinct fingerprint must be accepted.
+$dupRejected = true;
+try {
+    $db->execute(
+        'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
+         VALUES (:b, :p, :d, :t, :rc, :cr, :dr, :tb, :q, :e, :l, :dh)',
+        [':b' => $branchId, ':p' => $pidHash, ':d' => $dedupDate, ':t' => 'pullout', ':rc' => 'spoilage',
+         ':cr' => null, ':dr' => null, ':tb' => null, ':q' => 3, ':e' => 1, ':l' => 2, ':dh' => $phpHash]
+    );
+    $dupRejected = false;
+} catch (Throwable $e) {
+    // expected unique violation
+}
+$h->test('uq_dl_cw_dedup rejects an identical withdrawal row', $dupRejected);
+
+$distinctAllowed = true;
+try {
+    $db->execute(
+        'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
+         VALUES (:b, :p, :d, :t, :rc, :cr, :dr, :tb, :q, :e, :l, :dh)',
+        [':b' => $branchId, ':p' => $pidHash, ':d' => $dedupDate, ':t' => 'pullout', ':rc' => 'spoilage',
+         ':cr' => null, ':dr' => null, ':tb' => null, ':q' => 5, ':e' => 1, ':l' => 2,
+         ':dh' => dl_withdrawalDedupHash($branchId, $pidHash, $dedupDate, 'pullout', 'spoilage', null, null, null, 5, 2)]
+    );
+} catch (Throwable $e) {
+    $distinctAllowed = false;
+}
+$h->test('uq_dl_cw_dedup allows a distinct fingerprint (different qty)', $distinctAllowed);
+
+// Handler wiring: both insert paths bind the hash; the online handler answers a
+// duplicate violation with an idempotent response (not a 500 / not a re-apply).
+$handlersSrc = (string) file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$h->test('online withdrawal insert binds dedup_hash', str_contains($handlersSrc, "':dedup' => \$dedupHash"));
+$h->test('online handler answers duplicate as idempotent', str_contains($handlersSrc, 'instanceof DlDuplicateWithdrawalException') && str_contains($handlersSrc, "'duplicate' => true"));
+$offlineSrc = (string) file_get_contents($base . '/modules/daily-ledger/handlers-offline.php');
+$h->test('offline withdrawal insert binds dedup_hash', str_contains($offlineSrc, "':dedup' => \$dedupHash"));
+
+// Cleanup — dedup guard section rows only.
+$db->execute('DELETE FROM dl_cashier_withdrawals WHERE branch_id = :b', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b AND product_id = :p', [':b' => $branchId, ':p' => $pidHash]);
+$db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $pidHash]);
 
 // ══════════════════════════════════════════════════════════════════════
 // Cleanup — every seeded / created row

@@ -3,6 +3,61 @@
 declare(strict_types=1);
 
 /**
+ * Raised when a cashier withdrawal insert hits the DB-level dedup guard
+ * (uq_dl_cw_dedup on dedup_hash). Carries HTTP 409 so the online handler can
+ * reply with an idempotent duplicate response and the offline sync loop can
+ * record a deterministic 'conflict' receipt (no retry, no double-apply).
+ */
+class DlDuplicateWithdrawalException extends \RuntimeException
+{
+    public function __construct(string $message = 'Duplicate withdrawal already recorded')
+    {
+        parent::__construct($message, 409);
+    }
+}
+
+/**
+ * True when a PDOException is a duplicate-entry (unique key) violation.
+ * SQLSTATE 23000 with driver code 1062 (InnoDB).
+ */
+function dl_isDuplicateKeyError(\PDOException $e): bool
+{
+    $sqlState = (string)$e->getCode();
+    $driverCode = (int)($e->errorInfo[1] ?? 0);
+    return $sqlState === '23000' || $driverCode === 1062;
+}
+
+/**
+ * Deterministic fingerprint of one cashier-withdrawal line, matching the
+ * migration-052 SQL backfill byte-for-byte:
+ *
+ *   SHA1(CONCAT_WS('|', branch_id, product_id, ledger_date, withdrawal_type,
+ *        COALESCE(reason_code,''), COALESCE(custom_reason,''),
+ *        COALESCE(dr_number,''), COALESCE(target_branch_id,''),
+ *        quantity, COALESCE(liable_user_id,'')))
+ *
+ * Callers must pass the values exactly as they are bound to the INSERT
+ * (NULLs normalised to null — not '' — for custom_reason/dr_number/
+ * target_branch_id/liable_user_id, and reason_code already defaulted to
+ * 'manual_adjustment'). `?? ''` in the implode mirrors SQL COALESCE.
+ */
+function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDate, string $type, ?string $reasonCode, ?string $customReason, ?string $drNumber, ?int $targetBranchId, int $qty, ?int $liableUserId): string
+{
+    return sha1(implode('|', [
+        (string)$branchId,
+        (string)$productId,
+        $ledgerDate,
+        $type,
+        (string)($reasonCode ?? ''),
+        (string)($customReason ?? ''),
+        (string)($drNumber ?? ''),
+        (string)($targetBranchId ?? ''),
+        (string)$qty,
+        (string)($liableUserId ?? ''),
+    ]));
+}
+
+/**
  * Returns the base URL for the Daily Ledger module.
  */
 function dlGetBaseUrl(): string

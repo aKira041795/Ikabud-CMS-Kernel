@@ -573,8 +573,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id)
-             VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
+             VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid, :dedup)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
@@ -608,19 +608,40 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             $pid = $line['product_id'];
             $qty = $line['quantity'];
 
-            $stmtIns->execute([
-                ':bid' => $branchId,
-                ':pid' => $pid,
-                ':d' => $date,
-                ':typ' => $type,
-                ':rc' => $reasonCode,
-                ':crc' => $customReason !== '' ? $customReason : null,
-                ':dr' => $drNumber,
-                ':tbid' => $targetBranchId,
-                ':qty' => $qty,
-                ':uid' => $userId,
-                ':luid' => $liableUserId,
-            ]);
+            $dedupHash = dl_withdrawalDedupHash(
+                $branchId, $pid, $date, $type,
+                $reasonCode,
+                $customReason !== '' ? $customReason : null,
+                $drNumber,
+                $targetBranchId,
+                $qty,
+                $liableUserId
+            );
+
+            try {
+                $stmtIns->execute([
+                    ':bid' => $branchId,
+                    ':pid' => $pid,
+                    ':d' => $date,
+                    ':typ' => $type,
+                    ':rc' => $reasonCode,
+                    ':crc' => $customReason !== '' ? $customReason : null,
+                    ':dr' => $drNumber,
+                    ':tbid' => $targetBranchId,
+                    ':qty' => $qty,
+                    ':uid' => $userId,
+                    ':luid' => $liableUserId,
+                    ':dedup' => $dedupHash,
+                ]);
+            } catch (\PDOException $e) {
+                if (dl_isDuplicateKeyError($e)) {
+                    // DB-level dedup guard: identical line already recorded.
+                    // Propagate as a 409 conflict — the sync loop records a
+                    // deterministic 'conflict' receipt (quarantine, no retry).
+                    throw new DlDuplicateWithdrawalException();
+                }
+                throw $e;
+            }
 
             if ($isAddtl) {
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);

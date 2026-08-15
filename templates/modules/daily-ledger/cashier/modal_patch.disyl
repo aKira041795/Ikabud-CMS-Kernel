@@ -245,9 +245,12 @@ function withdrawalModal() {
                 this.saving = false;
                 if (data.ok) {
                     var msg = 'Adjustment saved';
-                     if (this.header.withdrawal_type === 'adjustment_add') {
-                         msg = 'Stock added — charged to liable person';
-                     } else if (data.delivery_id && data.receiving_id) {
+                    if (data.duplicate) {
+                        // DB-level dedup guard replay: identical line(s) already recorded.
+                        msg = 'Duplicate ignored — identical adjustment already recorded';
+                    } else if (this.header.withdrawal_type === 'adjustment_add') {
+                        msg = 'Stock added — charged to liable person';
+                    } else if (data.delivery_id && data.receiving_id) {
                         msg = 'Pullout recorded and returned to commissary';
                     }
                     showToast(msg, 'success');

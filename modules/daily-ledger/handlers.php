@@ -3866,8 +3866,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id)
-             VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
+             VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid, :dedup)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
@@ -3903,19 +3903,39 @@ function apiSaveCashierWithdrawals(array $params = []): void
             $pid = $line['product_id'];
             $qty = $line['quantity'];
 
-            $stmtIns->execute([
-                ':bid' => $branchId,
-                ':pid' => $pid,
-                ':d' => $date,
-                ':typ' => $type,
-                ':rc' => $reasonCode,
-                ':crc' => $customReason !== '' ? $customReason : null,
-                ':dr' => $drNumber,
-                ':tbid' => $targetBranchId,
-                ':qty' => $qty,
-                ':uid' => $userId,
-                ':luid' => $liableUserId,
-            ]);
+            $dedupHash = dl_withdrawalDedupHash(
+                $branchId, $pid, $date, $type,
+                $reasonCode,
+                $customReason !== '' ? $customReason : null,
+                $drNumber,
+                $targetBranchId,
+                $qty,
+                $liableUserId
+            );
+
+            try {
+                $stmtIns->execute([
+                    ':bid' => $branchId,
+                    ':pid' => $pid,
+                    ':d' => $date,
+                    ':typ' => $type,
+                    ':rc' => $reasonCode,
+                    ':crc' => $customReason !== '' ? $customReason : null,
+                    ':dr' => $drNumber,
+                    ':tbid' => $targetBranchId,
+                    ':qty' => $qty,
+                    ':uid' => $userId,
+                    ':luid' => $liableUserId,
+                    ':dedup' => $dedupHash,
+                ]);
+            } catch (\PDOException $e) {
+                if (dl_isDuplicateKeyError($e)) {
+                    // DB-level dedup guard: identical line already recorded.
+                    // Treat the whole submission as a replay — nothing to apply.
+                    throw new DlDuplicateWithdrawalException();
+                }
+                throw $e;
+            }
 
             if ($isAddtl) {
                 // adjustment_add: increment addtl by qty (adds stock back to branch)
@@ -4101,6 +4121,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
         $ctx->json($response);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
+        if ($e instanceof DlDuplicateWithdrawalException) {
+            // Idempotent replay: identical withdrawal already recorded, so the
+            // transaction (including any ledger delta) was rolled back whole.
+            $ctx->json(['ok' => true, 'duplicate' => true, 'message' => 'Identical withdrawal already recorded — no changes made.']);
+            return;
+        }
         $ctx->log('apiSaveCashierWithdrawals error: ' . $e->getMessage(), 'error');
         if ($e instanceof RuntimeException && $e->getCode() === 403) {
             $ctx->json(['ok' => false, 'error' => $e->getMessage()], 403);

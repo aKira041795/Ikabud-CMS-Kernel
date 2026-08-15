@@ -494,6 +494,31 @@ if (is_array($insertedRow)) {
     $afterWdCount = (int)$db->query("SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId)->fetchColumn();
     $h->test('offline withdrawal replay with same key is deduped', $afterWdCount === $baseWdCount + 1);
 
+    // DB-level dedup guard (migration 052): a DIFFERENT idempotency key does NOT
+    // bypass the unique fingerprint — the server rejects the identical re-apply
+    // atomically. This is the modal-reopen / second-tab / cache-eviction case that
+    // created the 2026-08-15 duplicate pullouts; the row count must not grow.
+    $dbGuardBase = (int)$db->query("SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId)->fetchColumn();
+    $dbGuardRejected = false;
+    try {
+        dl_offlineApplyWithdrawal($adminUser, [
+            'type' => 'withdrawal',
+            'payload' => [
+                'branch_id' => $branchId,
+                'date' => $testDate,
+                'shift' => 'AM',
+                'idempotency_key' => 'offline-wd-dbguard-' . substr(hash('sha256', 'dbguard-' . bin2hex(random_bytes(6))), 0, 24),
+                'header' => ['withdrawal_type' => 'charge', 'reason_code' => 'manual_adjustment'],
+                'lines' => [['product_id' => $productId, 'quantity' => 5]],
+            ],
+        ]);
+    } catch (DlDuplicateWithdrawalException $e) {
+        $dbGuardRejected = true;
+    }
+    $h->test('offline withdrawal DB guard rejects identical re-apply with a different key', $dbGuardRejected);
+    $dbGuardAfter = (int)$db->query("SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId)->fetchColumn();
+    $h->test('offline withdrawal DB guard adds no duplicate row', $dbGuardAfter === $dbGuardBase);
+
     // Receipts
     $clientOpId = 'op-' . substr(hash('sha256', 'offline-test-op'), 0, 32);
     dl_offlineRecordReceipt((string)$insertedRow['enrollment_id'], $clientOpId, 'ledger_save', 'applied', ['ok' => true, 'field' => 'beg_bal', 'value' => 40]);
