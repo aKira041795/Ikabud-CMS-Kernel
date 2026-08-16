@@ -213,7 +213,7 @@
             <span>{actor_name | default:'User'}</span>
             <span class="mi-role">{role | default:''}</span>
         </span>
-        <a class="mi-link" href="/login" title="Sign out">Sign out</a>
+        <a class="mi-link" href="/auth/logout" title="Sign out">Sign out</a>
     </header>
 
     <nav class="mi-nav" aria-label="Moto Inventory">

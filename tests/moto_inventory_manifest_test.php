@@ -58,6 +58,11 @@ $motoRoutes = require $base . '/modules/moto-inventory/routes.php';
 $motoGet = $motoRoutes['GET'] ?? [];
 $h->test('GET /moto-inventory/login route registered (entry auth contract)', isset($motoGet['/moto-inventory/login']) && is_string($motoGet['/moto-inventory/login']));
 $h->test('motoPageLogin handler is callable', function_exists('motoPageLogin'));
+
+$layoutPath = $base . '/templates/modules/moto-inventory/layouts/app.disyl';
+$layout = (string)file_get_contents($layoutPath);
+$h->test('layout sign-out links to kernel canonical /auth/logout (module convention)', str_contains($layout, 'class="mi-link" href="/auth/logout"'));
+$h->test('layout sign-out does NOT link to /login', !str_contains($layout, 'class="mi-link" href="/login"'));
 $h->test('entry module eligibility helper lists moto-inventory', (function (): bool {
     if (!function_exists('listTenantEntryModuleOptions')) {
         return false;
