@@ -51,11 +51,12 @@
                         let detail = '';
                         if (a.after_data) detail = S.esc(JSON.stringify(a.after_data));
                         else if (a.before_data) detail = S.esc(JSON.stringify(a.before_data));
+                        const targetId = a.target_id ? ' #' + S.esc(a.target_id) : '';
                         return `<tr>
                             <td class="mi-muted" style="font-size:.78rem;white-space:nowrap">${S.esc(a.created_at)}</td>
                             <td>${S.esc(a.actor_name || '—')}</td>
                             <td><span class="mi-badge muted">${S.esc(a.action)}</span></td>
-                            <td class="mi-muted" style="font-size:.78rem">${S.esc(a.target_type || '')}${a.target_id ? ' #' + S.esc(a.target_id) : ''}</td>
+                            <td class="mi-muted" style="font-size:.78rem">${S.esc(a.target_type || '')}${targetId}</td>
                             <td style="font-size:.78rem;max-width:320px;overflow-wrap:anywhere">${detail}</td>
                         </tr>`;
                     }).join('');

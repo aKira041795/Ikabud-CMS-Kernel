@@ -93,15 +93,33 @@
     };
 
     // ── Product editor ────────────────────────────────────────────────
+    S.brands = S.brands || [];
+
+    S.loadBrands = async function () {
+        try {
+            const json = await S.api('/api/v1/moto-inventory/brands?include_archived=1&include_trashed=1');
+            if (json.ok) S.brands = json.data.rows || [];
+        } catch (e) {
+            S.brands = [];
+        }
+        return S.brands;
+    };
+
     S.productForm = function (product) {
         const branch = product ? product.branch_id : (S.me.branches[0] ? S.me.branches[0].id : '');
         const isEdit = !!product;
+        const available = (S.brands || []).filter(b => !b.trashed);
+        const currentBrandId = product ? (product.brand_id || '') : (available[0] ? available[0].id : '');
+        const brandOptions = available.map(b =>
+            `<option value="${b.id}"${String(b.id) === String(currentBrandId) ? ' selected' : ''}>${S.esc(b.name)}${b.archived ? ' (archived)' : ''}</option>`
+        ).join('');
         const extraHtml = (product && product.extra && Object.keys(product.extra).length)
             ? Object.entries(product.extra).map(([k, v]) =>
                 `<div class="mi-field"><label>${S.esc(k)}</label><input class="mi-input" data-extra="${S.esc(k)}" value="${S.esc(v)}"></div>`).join('')
             : '';
         return `
             <input type="hidden" id="mi-f-branch" value="${S.esc(branch)}">
+            <div class="mi-field"><label>Brand</label><select class="mi-input" id="mi-f-brand">${brandOptions || '<option value="">No brand — add a brand first</option>'}</select></div>
             <div class="mi-field"><label>Part No.</label><input class="mi-input" id="mi-f-part" value="${S.esc(product ? product.part_number : '')}" ${isEdit ? 'disabled' : ''}></div>
             <div class="mi-field"><label>Description</label><input class="mi-input" id="mi-f-desc" value="${S.esc(product ? product.description : '')}"></div>
             <div class="mi-grid cols-2">
@@ -116,8 +134,9 @@
         `;
     };
 
-    S.addProduct = function (onDone) {
+    S.addProduct = async function (onDone) {
         if (!S.me.branches.length) return S.toast('No branch assigned', true);
+        if (!(S.brands && S.brands.length)) await S.loadBrands();
         const m = S.modal('Add part', S.productForm(null),
             '<button class="mi-btn" data-mclose="1">Cancel</button><button class="mi-btn primary" data-save="1">Save</button>');
         const q = document.getElementById('mi-modal-backdrop');
@@ -125,8 +144,10 @@
         q.querySelector('[data-save]').onclick = async () => {
             const extra = {};
             q.querySelectorAll('[data-extra]').forEach(i => { extra[i.dataset.extra] = i.value; });
+            const brandId = +q.querySelector('#mi-f-brand').value;
             const body = {
                 branch_id: +q.querySelector('#mi-f-branch').value,
+                brand_id: brandId,
                 part_number: q.querySelector('#mi-f-part').value.trim(),
                 description: q.querySelector('#mi-f-desc').value.trim(),
                 cost: q.querySelector('#mi-f-cost').value,
@@ -135,6 +156,7 @@
                 qty: q.querySelector('#mi-f-qty').value,
                 extra,
             };
+            if (!brandId) return S.toast('Please add a brand first', true);
             if (!body.part_number) return S.toast('Part number is required', true);
             const json = await S.api('/api/v1/moto-inventory/products', { method: 'POST', body });
             if (json.ok) { S.toast('Part added', false, 'good'); m.close(); onDone && onDone(); }
@@ -143,8 +165,9 @@
     };
 
     S.editProduct = function (id, branch, onDone) {
-        S.api('/api/v1/moto-inventory/products/' + id + '?branch_id=' + branch).then(json => {
+        S.api('/api/v1/moto-inventory/products/' + id + '?branch_id=' + branch).then(async json => {
             if (!json.ok) return S.toast(json.error, true);
+            if (!(S.brands && S.brands.length)) await S.loadBrands();
             const product = json.data.product;
             const m = S.modal('Edit part — ' + product.part_number, S.productForm(product),
                 '<button class="mi-btn" data-mclose="1">Cancel</button><button class="mi-btn primary" data-save="1">Save</button>');
@@ -155,6 +178,7 @@
                 q.querySelectorAll('[data-extra]').forEach(i => { extra[i.dataset.extra] = i.value; });
                 const body = {
                     branch_id: +q.querySelector('#mi-f-branch').value,
+                    brand_id: +q.querySelector('#mi-f-brand').value,
                     description: q.querySelector('#mi-f-desc').value.trim(),
                     cost: q.querySelector('#mi-f-cost').value,
                     price: q.querySelector('#mi-f-price').value,

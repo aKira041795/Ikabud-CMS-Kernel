@@ -244,7 +244,7 @@
     </div>
     <div class="mi-toast" id="mi-toast" role="status"></div>
 
-    <script src="/moto-inventory/assets/moto-inventory.js" defer></script>
+    <script src="/moto-inventory/assets/moto-inventory.js"></script>
     <script type="application/json" id="mi-config">{mi_config_json|raw}</script>
     <script>
         window.MOTO_INVENTORY = window.MOTO_INVENTORY || {};

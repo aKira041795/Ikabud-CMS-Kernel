@@ -293,7 +293,7 @@ final class CatalogService
         }
 
         $stmt = $db->query(
-            "SELECT p.id, p.part_number, p.description, p.code, p.cost, p.price, p.qty_on_hand,
+            "SELECT p.id, p.brand_id, p.part_number, p.description, p.code, p.cost, p.price, p.qty_on_hand,
                     p.extra, p.archived, p.created_at, p.updated_at,
                     p.branch_id, b.name AS brand, b.archived AS brand_archived, b.trashed AS brand_trashed
              FROM moto_products p

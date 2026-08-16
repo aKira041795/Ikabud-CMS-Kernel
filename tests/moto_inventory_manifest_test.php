@@ -167,6 +167,20 @@ $h->test('settings_fields declared', is_array($settingsFields) && count($setting
 $h->test('low_stock_threshold default 5', $settingsFields[0]['key'] === 'low_stock_threshold' && (string)$settingsFields[0]['default'] === '5');
 $h->test('undo_window_minutes default 5', (string)$settingsFields[2]['default'] === '5');
 
+$h->section('Manifest — import handler defaults (regression)');
+
+$importHandler = (string)file_get_contents($base . '/modules/moto-inventory/handlers/50-api-import-export.php');
+$h->test('stage handler allows server-side auto-mapping (no hard 422 on missing mapping)', !preg_match('/A column mapping is required/', $importHandler));
+$h->test('stage handler defaults data_start_row to 1 (skips header row)', str_contains($importHandler, "array_key_exists('data_start_row', \$input)") && str_contains($importHandler, ': 1'));
+$h->test('stage handler still forwards an explicit mapping', str_contains($importHandler, 'ImportService::stage('));
+
+$productsApi = (string)file_get_contents($base . '/modules/moto-inventory/services/CatalogService.php');
+$h->test('products list API returns brand_id (part edit preselect)', preg_match('/SELECT p\.id, p\.brand_id, p\.part_number/', $productsApi) === 1);
+
+$layoutFile = (string)file_get_contents($base . '/templates/modules/moto-inventory/layouts/app.disyl');
+$h->test('shared JS loads before page scripts (no defer)', str_contains($layoutFile, '<script src="/moto-inventory/assets/moto-inventory.js"></script>'));
+$h->test('config uses application/json script block (DiSyL-safe)', str_contains($layoutFile, '<script type="application/json" id="mi-config">'));
+
 $h->section('Manifest — permissions model');
 
 $actions = moto_inventory_permission_actions();

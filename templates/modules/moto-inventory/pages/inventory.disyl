@@ -99,6 +99,7 @@
         fetch('/api/v1/moto-inventory/brands?include_archived=1&include_trashed=1')
             .then(r => r.json()).then(json => {
                 if (!json.ok) return;
+                S.brands = json.data.rows || [];
                 const el = $('mi-brand-list');
                 el.innerHTML = '';
                 json.data.rows.forEach(b => {
@@ -134,10 +135,11 @@
                     tbody.innerHTML = d.rows.map(row => {
                         const out = row.qty_on_hand <= 0 ? '<span class="mi-badge bad">OUT</span>'
                             : (row.qty_on_hand <= (S.me.settings && S.me.settings.low_stock_threshold || 5) ? '<span class="mi-badge warn">LOW</span>' : '');
+                        const brandMark = row.brand_archived ? ' 📦' : '';
                         let html = `<tr>
                             <td><strong>${S.esc(row.part_number)}</strong></td>
                             <td>${S.esc(row.description)}</td>
-                            <td>${S.esc(row.brand)}${row.brand_archived ? ' 📦' : ''}</td>
+                            <td>${S.esc(row.brand)}${brandMark}</td>
                             <td>${S.esc(row.code)}</td>
                             <td style="text-align:right">${row.qty_on_hand} ${out}</td>`;
                         if (S.me.permissions.indexOf('moto_inventory.view_cost') !== -1) {

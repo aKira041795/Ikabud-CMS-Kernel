@@ -88,12 +88,18 @@ function motoApiImportStage(array $params = []): void
         $brandId = (int)($input['brand_id'] ?? 0);
         $sheetIndex = max(0, (int)($input['sheet_index'] ?? 0));
         $headerRow = max(0, (int)($input['header_row'] ?? 0));
-        $dataStartRow = max(0, (int)($input['data_start_row'] ?? 0));
+        // Default to row 1 (skip the header row) so a UI-driven import does not
+        // import the header as a product; matches ImportService::stage default.
+        $dataStartRow = array_key_exists('data_start_row', $input)
+            ? max(0, (int)$input['data_start_row'])
+            : 1;
         $idem = (string)($input['idempotency_key'] ?? '');
+        // Column mapping is optional from the UI: when absent, ImportService
+        // auto-guesses it from the header row (guessMappingFromHeaders). A
+        // client-supplied mapping is honoured when it is a real array.
         $mapping = $input['mapping'] ?? null;
         if (!is_array($mapping) || $mapping === []) {
-            moto_json_error('A column mapping is required');
-            return;
+            $mapping = null;
         }
 
         $file = $_FILES['file'] ?? null;

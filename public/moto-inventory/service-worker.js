@@ -9,7 +9,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'moto-inventory-shell-v1';
+const CACHE_NAME = 'moto-inventory-shell-v2';
 
 const SHELL_FILES = [
     '/moto-inventory/manifest.json',

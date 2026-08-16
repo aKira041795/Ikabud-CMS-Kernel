@@ -220,6 +220,7 @@
 
     function showReceipt(sale) {
         const body = $('mi-receipt-body');
+        const overrideBanner = sale.override ? '<div class="mi-banner warn" style="margin-top:8px">*Contains negative-stock override*</div>' : '';
         body.innerHTML = `
             <div style="text-align:center;margin-bottom:10px">
                 <strong>MOTO INVENTORY</strong><br>
@@ -236,7 +237,7 @@
                 <strong>TOTAL</strong><div class="mi-spacer"></div>
                 <strong class="mi-amount" style="font-size:1.2rem">₱${S.fmtMoney(sale.total)}</strong>
             </div>
-            ${sale.override ? '<div class="mi-banner warn" style="margin-top:8px">*Contains negative-stock override*</div>' : ''}
+            ${overrideBanner}
         `;
         $('mi-receipt-backdrop').classList.add('open');
     }
