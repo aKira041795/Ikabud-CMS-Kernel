@@ -13,6 +13,7 @@
 
 namespace Ikabud\Kernel\DiSyL\Component;
 
+use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
 use Ikabud\Kernel\DiSyL\TemplateEngine;
 
 final class ComponentRenderer
