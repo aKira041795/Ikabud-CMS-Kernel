@@ -129,12 +129,16 @@ jobs:
       - name: Run clientsite migrations
         env:
           APP_TENANT_DEFAULT: "2"
-        run: php -d variables_order=EGPCS ikabud migrate
+        run: |
+          php -d variables_order=EGPCS ikabud migrate:base
+          php -d variables_order=EGPCS ikabud migrate
 
       - name: Run healthcare tenant migrations
         env:
           APP_TENANT_DEFAULT: "3"
-        run: php -d variables_order=EGPCS ikabud migrate
+        run: |
+          php -d variables_order=EGPCS ikabud migrate:base
+          php -d variables_order=EGPCS ikabud migrate
 
       - name: Seed clientsite database
         run: |
