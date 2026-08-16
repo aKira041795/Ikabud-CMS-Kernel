@@ -4346,6 +4346,19 @@ MD;
                     }
                     out('  ' . dim('Separate tenant database sync will apply those modules where they actually belong.'));
                 }
+
+                // Late Bluehost username case-sensitivity hardening. This ALTERs
+                // per-module user tables, so it must run after every module
+                // migration (skipped during migrate:base when those tables don't
+                // exist yet). Safe to run repeatedly (MODIFY is idempotent).
+                $hardeningFile = BASE_PATH . '/database/migrations/bluehost-username-case-sensitive.sql';
+                if (is_file($hardeningFile)) {
+                    $hardeningRunner = new MigrationRunner($baseDb);
+                    $hardeningExecuted = $hardeningRunner->migrateFile('_kernel', $hardeningFile);
+                    if ($hardeningExecuted !== []) {
+                        out('  ' . dim('Applied username case-sensitivity hardening (' . implode(', ', $hardeningExecuted) . ').'));
+                    }
+                }
             }
 
             if (!empty($tenantTargets)) {
@@ -4439,6 +4452,49 @@ MD;
             }
         } catch (\Throwable $e) {
             out('  ' . red('✗ Migration failed: ') . $e->getMessage());
+            exit(1);
+        }
+        out('');
+        break;
+
+    // ── migrate:base ─────────────────────────────────────────────
+    // Applies the legacy base app schema (database/migrations/) to the
+    // primary app database. This is the schema that historically created the
+    // core kernel tables (users, audit_logs, rate_limits, refresh_tokens,
+    // workflow_*, …) before the module system split migrations into
+    // migrations/ (_kernel) + per-module dirs. Fresh databases (e.g. CI)
+    // need these base tables present before module migrations can run.
+    // The destructive Bluehost fresh-install script is excluded so this is
+    // safe to run against both fresh and existing databases.
+    case 'migrate:base':
+        banner();
+        try {
+            $runner = new MigrationRunner(
+                app()->db(),
+                null,
+                BASE_PATH . '/database/migrations',
+                null,
+                [
+                    // Destructive Bluehost fresh-install script (drops _migrations + audit_logs).
+                    '004_bluehost_install_no_create_db.sql',
+                    // Post-module hardening: ALTERs per-module user tables that don't
+                    // exist yet during base-schema application. Applied at the end of
+                    // `php ikabud migrate` instead.
+                    'bluehost-username-case-sensitive.sql',
+                ]
+            );
+            out('  Applying base app schema (database/migrations)...');
+            $executed = $runner->migrate('_kernel');
+            if (empty($executed)) {
+                out('  ' . dim('Nothing to migrate.'));
+            } else {
+                foreach ($executed as $f) {
+                    out('  ' . green('✓') . " {$f}");
+                }
+                out('  ' . green('✓') . bold(' ' . count($executed) . ' base migration(s) executed.'));
+            }
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Base migration failed: ') . $e->getMessage());
             exit(1);
         }
         out('');

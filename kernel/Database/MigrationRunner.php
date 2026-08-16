@@ -36,15 +36,27 @@ class MigrationRunner
     private string $modulesPath;
     private string $kernelMigrationsPath;
     private string $controlMigrationsPath;
+    /** @var array<string, true> basenames of migration files that must never be executed by this runner. */
+    private array $excludeMigrations;
 
     private const TABLE = '_migrations';
 
-    public function __construct(PDO $pdo, ?string $modulesPath = null, ?string $kernelMigrationsPath = null, ?string $controlMigrationsPath = null)
+    /**
+     * @param array<int, string> $excludeMigrations Basenames (e.g. '004_bluehost_install_no_create_db.sql') to skip.
+     */
+    public function __construct(PDO $pdo, ?string $modulesPath = null, ?string $kernelMigrationsPath = null, ?string $controlMigrationsPath = null, array $excludeMigrations = [])
     {
         $this->pdo = $pdo;
         $this->modulesPath = $modulesPath ?? (defined('BASE_PATH') ? BASE_PATH . '/modules' : './modules');
         $this->kernelMigrationsPath = $kernelMigrationsPath ?? (defined('BASE_PATH') ? BASE_PATH . '/migrations' : './migrations');
         $this->controlMigrationsPath = $controlMigrationsPath ?? (defined('BASE_PATH') ? BASE_PATH . '/control-migrations' : './control-migrations');
+        $this->excludeMigrations = [];
+        foreach ($excludeMigrations as $ex) {
+            $ex = (string)$ex;
+            if ($ex !== '') {
+                $this->excludeMigrations[$ex] = true;
+            }
+        }
         $this->ensureTable();
     }
 
@@ -245,6 +257,65 @@ class MigrationRunner
     }
 
     /**
+     * Run a single migration SQL file that is not discovered by the regular
+     * directory scan (e.g. late post-module hardening scripts that must run
+     * after every module migration because they ALTER per-module tables).
+     *
+     * The file is recorded in the tracking table under $moduleId so it only
+     * runs once. Idempotent DDL errors are treated as success.
+     *
+     * @return array<int, string> executed filenames
+     */
+    public function migrateFile(string $moduleId, string $filePath): array
+    {
+        if (!is_file($filePath)) {
+            return [];
+        }
+
+        $base = basename($filePath);
+        if (isset($this->excludeMigrations[$base])) {
+            return [];
+        }
+
+        $appliedSet = [];
+        foreach ($this->getApplied($moduleId) as $row) {
+            $appliedSet[(string)($row['migration'] ?? '')] = true;
+        }
+        if (isset($appliedSet[$base])) {
+            return [];
+        }
+
+        $sql = file_get_contents($filePath);
+        if ($sql === false || trim($sql) === '') {
+            return [];
+        }
+
+        $batch = $this->getNextBatch($moduleId);
+
+        try {
+            $this->executeSql($sql);
+        } catch (\PDOException $e) {
+            $mysqlCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : 0;
+            $idempotentCodes = [
+                1060, // Duplicate column name  — ADD COLUMN on existing column
+                1061, // Duplicate key name     — ADD INDEX on existing index
+                1050, // Table already exists   — CREATE TABLE without IF NOT EXISTS
+                1091, // Can't DROP index/key   — DROP INDEX on non-existent index
+            ];
+            if (!in_array($mysqlCode, $idempotentCodes, true)) {
+                throw $e;
+            }
+        }
+
+        $stmt = $this->pdo->prepare(
+            "INSERT IGNORE INTO `" . self::TABLE . "` (module, migration, batch) VALUES (?, ?, ?)"
+        );
+        $stmt->execute([$moduleId, $base, $batch]);
+
+        return [$base];
+    }
+
+    /**
      * Rollback the last batch of migrations for a module.
      * Requires companion .down.sql files.
      * Returns array of rolled-back migration filenames.
@@ -381,6 +452,9 @@ class MigrationRunner
                     if (!str_ends_with($file, '.sql') || str_ends_with($file, '.down.sql')) {
                         continue;
                     }
+                    if (isset($this->excludeMigrations[$file])) {
+                        continue;
+                    }
                     $migrationKey = $this->buildMigrationKey($moduleId, $file);
                     if (isset($appliedSet[$migrationKey])) {
                         continue;
@@ -395,6 +469,9 @@ class MigrationRunner
                 if (!is_file($filePath)) continue;
                 $base = basename($filePath);
                 if (!str_ends_with($base, '.sql') || str_ends_with($base, '.down.sql')) {
+                    continue;
+                }
+                if (isset($this->excludeMigrations[$base])) {
                     continue;
                 }
                 $migrationKey = $this->buildMigrationKey($moduleId, $base);

@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, master ]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   module-contracts:
     name: Module manifest and golden lifecycle
@@ -109,6 +113,9 @@ jobs:
 
       - name: Seed CI tenant control data
         run: php database/seeds/ci_tenants.php
+
+      - name: Apply base app schema
+        run: php ikabud migrate:base
 
       - name: Run application migrations
         run: php ikabud migrate

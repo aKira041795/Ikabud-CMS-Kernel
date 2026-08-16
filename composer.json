@@ -10,7 +10,7 @@
         "test:single": "php",
         "benchmark:disyl": "php scripts/benchmark-disyl.php",
         "guard:manifests": "php scripts/guard-module-manifests.php",
-        "analyse": "phpstan analyse --memory-limit=512M",
+        "analyse": "phpstan analyse --memory-limit=1G",
         "lint": "php-cs-fixer fix --dry-run --diff",
         "lint:fix": "php-cs-fixer fix",
         "coverage": "bash scripts/collect-coverage.sh",
