@@ -1,0 +1,29 @@
+{
+    "type": "entity_view",
+    "label": "Entity View",
+    "category": "data",
+    "icon": "detail-view",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Entity Source",
+            "required": true
+        },
+        "id": {
+            "type": "text",
+            "label": "Entity ID",
+            "required": true
+        },
+        "view": {
+            "type": "text",
+            "label": "View Name"
+        }
+    },
+    "renders_with": "ikb_entity_detail"
+}

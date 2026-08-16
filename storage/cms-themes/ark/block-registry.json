@@ -26,6 +26,7 @@
             "spacer"
         ],
         "data": [
+            "entity_view",
             "entity_list",
             "entity_detail",
             "stat_card",
