@@ -9,6 +9,23 @@ declare(strict_types=1);
  * /api/v1/moto-inventory/* endpoints from focused same-origin JS.
  */
 
+/**
+ * Kernel login surface for entry-module routing.
+ *
+ * The module is NOT auth_owned — kernel authentication is the identity
+ * authority. This route exists so the module satisfies the auth/entry route
+ * contract (and stays selectable as a tenant entry module); it simply sends
+ * the visitor to the kernel canonical login page.
+ */
+function motoPageLogin(array $params = []): void
+{
+    if (app()->user()) {
+        app()->redirect('/moto-inventory');
+        return;
+    }
+    app()->redirect('/login');
+}
+
 function motoPageDashboard(array $params = []): void
 {
     $ctx = moto_ctx();

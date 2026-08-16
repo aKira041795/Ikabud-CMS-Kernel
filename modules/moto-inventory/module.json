@@ -6,6 +6,7 @@
     "author": "Ikabud Kernel Team",
     "routes": "routes.php",
     "handlers": "handlers.php",
+    "entry_module": true,
     "owns_tables": [
         "moto_branches",
         "moto_user_branches",

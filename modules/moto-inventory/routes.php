@@ -15,6 +15,7 @@ return [
     'GET' => [
         // Pages
         '/moto-inventory'                => 'moto-inventory:motoPageDashboard',
+        '/moto-inventory/login'          => 'moto-inventory:motoPageLogin',
         '/moto-inventory/dashboard'      => 'moto-inventory:motoPageDashboard',
         '/moto-inventory/inventory'      => 'moto-inventory:motoPageInventory',
         '/moto-inventory/sales'          => 'moto-inventory:motoPageSales',

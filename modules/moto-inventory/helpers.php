@@ -684,3 +684,27 @@ function moto_branch_name(int $tenantId, int $branchId): string
         return 'Branch #' . $branchId;
     }
 }
+
+// ── Tenant entry-module home redirect ─────────────────────────────
+//
+// When this tenant's entry module is moto-inventory, an authenticated user's
+// home redirect lands in the module dashboard. Superadmin is handled by the
+// kernel before this hook fires; the persona roles listed below are the ones
+// the module's permission map understands.
+app()->hooks()->on('kernel.home_url', static function (?string $url, string $role, ?array $user = null) {
+    if (!in_array((string)$role, ['admin', 'manager', 'cashier', 'owner'], true)) {
+        return $url;
+    }
+    if (!function_exists('tenantEntryModuleIdForTenant')) {
+        return $url;
+    }
+    try {
+        $tenantId = app()->tenant()->current();
+    } catch (\Throwable $e) {
+        return $url;
+    }
+    if ($tenantId === null || tenantEntryModuleIdForTenant((int)$tenantId) !== 'moto-inventory') {
+        return $url;
+    }
+    return '/moto-inventory';
+}, 80);

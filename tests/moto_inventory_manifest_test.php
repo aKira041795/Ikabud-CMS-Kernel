@@ -18,6 +18,7 @@ require_once __DIR__ . '/moto_inventory_test_helper.php';
 // App bootstrap MUST run in global scope for $config visibility.
 require_once dirname(__DIR__) . '/bootstrap.php';
 require_once dirname(__DIR__) . '/src/helpers/module-manager.php';
+require_once dirname(__DIR__) . '/src/http/tenant-entry-modules.php';
 require_once dirname(__DIR__) . '/modules/moto-inventory/helpers.php';
 require_once dirname(__DIR__) . '/modules/moto-inventory/handlers.php';
 
@@ -45,6 +46,29 @@ $h->test('name is Moto Inventory', ($manifest['name'] ?? '') === 'Moto Inventory
 $h->test('version is set', !empty($manifest['version']));
 $h->test('routes file declared', ($manifest['routes'] ?? '') === 'routes.php');
 $h->test('handlers file declared', ($manifest['handlers'] ?? '') === 'handlers.php');
+
+$h->section('Manifest — tenant entry-module contract');
+
+$h->test('entry_module is true (selectable as tenant entry module)', ($manifest['entry_module'] ?? false) === true);
+$h->test('auth_owned is NOT set (kernel auth is the identity authority)', empty($manifest['auth_owned']));
+$h->test('auth_cookie is NOT set', empty($manifest['auth_cookie']));
+$h->test('type is not service-module', ($manifest['type'] ?? 'module') !== 'service-module');
+
+$motoRoutes = require $base . '/modules/moto-inventory/routes.php';
+$motoGet = $motoRoutes['GET'] ?? [];
+$h->test('GET /moto-inventory/login route registered (entry auth contract)', isset($motoGet['/moto-inventory/login']) && is_string($motoGet['/moto-inventory/login']));
+$h->test('motoPageLogin handler is callable', function_exists('motoPageLogin'));
+$h->test('entry module eligibility helper lists moto-inventory', (function (): bool {
+    if (!function_exists('listTenantEntryModuleOptions')) {
+        return false;
+    }
+    foreach (listTenantEntryModuleOptions() as $option) {
+        if (($option['id'] ?? '') === 'moto-inventory') {
+            return true;
+        }
+    }
+    return false;
+})());
 
 $h->section('Manifest — owned tables & migrations');
 
