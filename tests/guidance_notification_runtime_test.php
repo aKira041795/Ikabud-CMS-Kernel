@@ -182,7 +182,14 @@ moduleWithContext('guidance', static function () use ($guidance): void {
 });
 
 try {
-    app()->capabilities()->register('test.guidance.runtime.capture@1', 'tests', 'test_guidance_runtime_capture_capability', 1, ['first']);
+    // Register with provider 'kernel' (not 'tests'): the CapabilityBus
+    // enforces Activation-Before-Participation on non-kernel providers
+    // (moduleIsActive()), and 'tests' is not a real module — so a 'tests'
+    // provider would be silently skipped when the trigger fires and every
+    // capture assertion would fail with "No permitted capability providers".
+    // Kernel providers are always active, so this test fixture registers as
+    // 'kernel' and still captures the payload through its own handler.
+    app()->capabilities()->register('test.guidance.runtime.capture@1', 'kernel', 'test_guidance_runtime_capture_capability', 1, ['first']);
 } catch (Throwable $e) {
 }
 
@@ -222,7 +229,7 @@ try {
         'guidance',
         'guidance.booking.created',
         'test.guidance.runtime.capture@1',
-        'tests',
+        'kernel',
         1,
         1,
         null,

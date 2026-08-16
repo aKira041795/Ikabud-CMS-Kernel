@@ -7,10 +7,14 @@ declare(strict_types=1);
 function readModuleRegistry(): array
 {
     // Per-request cache: the registry only changes on module enable/disable.
+    // A write sets the dirty flag so the next read in the same process
+    // observes the fresh file instead of returning the stale snapshot.
     static $cached = null;
-    if (is_array($cached)) {
+    if (is_array($cached) && empty($GLOBALS['_kernel_module_registry_dirty'])) {
         return $cached;
     }
+    $cached = null;
+    unset($GLOBALS['_kernel_module_registry_dirty']);
 
     // Cross-request APCu cache. Bluehost-safe: gracefully falls back to the
     // disk file when APCu is unavailable. Invalidated on write so module
@@ -46,6 +50,10 @@ function writeModuleRegistry(array $registry): void
         @mkdir($dir, 0775, true);
     }
     file_put_contents($path, json_encode($registry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+
+    // Mark the in-process snapshot dirty so readModuleRegistry() re-reads the
+    // freshly written file on the next call in the same request/process.
+    $GLOBALS['_kernel_module_registry_dirty'] = true;
 
     // Invalidate the cached registry so module enable/disable takes effect immediately.
     if (function_exists('apcu_delete')) {

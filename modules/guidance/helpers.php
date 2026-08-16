@@ -148,26 +148,12 @@ function guidanceClearTrackerCache(): void
 
 function guidanceGetSetting(string $key, ?string $default = null): ?string
 {
-    // Per-request cache: batch-load all settings on first call to avoid
-    // repeated DB queries when multiple settings are read in one request.
-    static $cache = null;
-    if ($cache === null) {
-        $cache = [];
-        try {
-            $rows = guidanceDb()->query('SELECT setting_key, setting_value FROM gm_settings')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            foreach ($rows as $row) {
-                $cache[(string)$row['setting_key']] = (string)$row['setting_value'];
-            }
-        } catch (Throwable $e) {
-            // Fall through to per-key query on cache miss
-        }
-    }
-
-    if (array_key_exists($key, $cache)) {
-        return $cache[$key] !== '' ? $cache[$key] : $default;
-    }
-
-    // Cold path: key not in batch-loaded cache (e.g. new setting added mid-request)
+    // No per-request static cache: gm_settings is a small table and settings
+    // can be mutated mid-request (tests upsert settings between reads; the
+    // settings admin UI saves values that must be visible to the very next
+    // read). A static batch cache made those writes invisible until process
+    // restart, causing stale notification_channel / email_notifications etc.
+    // after a settings save within the same request. Read the DB directly.
     try {
         $stmt = guidanceDb()->prepare("SELECT setting_value FROM gm_settings WHERE setting_key = ? LIMIT 1");
         $stmt->execute([$key]);
@@ -176,7 +162,7 @@ function guidanceGetSetting(string $key, ?string $default = null): ?string
     } catch (Throwable $e) {
         $value = $default;
     }
-    $cache[$key] = $value;
+
     return $value;
 }
 
@@ -682,22 +668,15 @@ function guidanceFindActiveUserByIdentity(string $identity): ?array
  * Returns 'free' or 'pro'.
  */
 function guidanceTenantTier(): string {
-    static $cached = null;
-    if ($cached !== null) {
-        return $cached;
-    }
-
     $tenantId = (int)(app()->tenant()->current() ?? 0);
     $entitlement = moduleTenantEntitlementRow('guidance', $tenantId);
     
     // Safely extract tier, default to free
     if (!$entitlement || empty($entitlement['tier'])) {
-        $cached = 'free';
         return 'free';
     }
     
-    $cached = strtolower((string)$entitlement['tier']) === 'pro' ? 'pro' : 'free';
-    return $cached;
+    return strtolower((string)$entitlement['tier']) === 'pro' ? 'pro' : 'free';
 }
 
 /**

@@ -467,6 +467,12 @@ function dl_arePriceGroupsEnabled(): bool
     return dl_settingToBool($settings['price_groups_enabled'] ?? true);
 }
 
+function dl_areSellingAccountsEnabled(): bool
+{
+    $settings = dlModuleSettings();
+    return dl_settingToBool($settings['selling_accounts_enabled'] ?? false);
+}
+
 function dl_defaultPriceGroupId(): ?int
 {
     $ctx = module();

@@ -718,6 +718,144 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
     return $receivingId;
 }
 
+/**
+ * Post a posted delivery to a selling-account ledger.
+ *
+ * Called after a delivery whose destination_type = 'selling_account' is marked
+ * posted. Writes/merges one dl_selling_account_ledger row per delivery item:
+ *   delivered_qty += item.quantity
+ *   price_snapshot  = item.price_snapshot (fallback: product current_price)
+ *   gross_amount    = sold_qty * price_snapshot
+ * where sold_qty = beg_qty + delivered_qty - return_qty - end_qty (see
+ * dl_recomputeSellingAccountLedger()). Idempotent per
+ * (selling_account_id, product_id, ledger_date).
+ */
+function dl_postDeliveryToSellingAccount(int $deliveryId): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        return ['ok' => false, 'error' => 'Module context unavailable'];
+    }
+
+    $db = $ctx->db();
+    $delivery = $db->query(
+        'SELECT id, destination_id, destination_type, delivery_date, dr_number, status FROM dl_deliveries WHERE id = :id LIMIT 1',
+        [':id' => $deliveryId]
+    )->fetch(PDO::FETCH_ASSOC);
+
+    if (!is_array($delivery)) {
+        return ['ok' => false, 'error' => 'Delivery not found'];
+    }
+    if ((string)($delivery['status'] ?? '') !== 'posted') {
+        return ['ok' => false, 'error' => 'Delivery must be posted before posting to a selling account'];
+    }
+    if ((string)($delivery['destination_type'] ?? '') !== 'selling_account') {
+        return ['ok' => false, 'error' => 'Delivery destination is not a selling account'];
+    }
+
+    $sellingAccountId = (int)($delivery['destination_id'] ?? 0);
+    $deliveryDate = (string)($delivery['delivery_date'] ?? date('Y-m-d'));
+    if ($sellingAccountId <= 0) {
+        return ['ok' => false, 'error' => 'Selling account id missing on delivery'];
+    }
+
+    $items = $db->query(
+        'SELECT product_id, quantity, price_snapshot, price_group_id FROM dl_delivery_items WHERE delivery_id = :did',
+        [':did' => $deliveryId]
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if ($items === []) {
+        return ['ok' => false, 'error' => 'No items on delivery'];
+    }
+
+    $written = 0;
+    foreach ($items as $item) {
+        $productId = (int)($item['product_id'] ?? 0);
+        $qty = (int)($item['quantity'] ?? 0);
+        if ($productId <= 0 || $qty <= 0) {
+            continue;
+        }
+
+        $price = (float)($item['price_snapshot'] ?? 0.0);
+        if ($price <= 0) {
+            $price = (float)($db->query('SELECT current_price FROM dl_products WHERE id = :id LIMIT 1', [':id' => $productId])->fetchColumn() ?: 0.0);
+        }
+
+        $existing = $db->query(
+            'SELECT id, beg_qty, delivered_qty, return_qty, end_qty, sold_qty, price_snapshot FROM dl_selling_account_ledger '
+            . 'WHERE selling_account_id = :a AND product_id = :p AND ledger_date = :d LIMIT 1',
+            [':a' => $sellingAccountId, ':p' => $productId, ':d' => $deliveryDate]
+        )->fetch(PDO::FETCH_ASSOC);
+
+        if (is_array($existing)) {
+            $newDelivered = (int)($existing['delivered_qty'] ?? 0) + $qty;
+            $db->execute(
+                'UPDATE dl_selling_account_ledger SET delivered_qty = :dq, price_snapshot = :price, updated_by = :uid '
+                . 'WHERE id = :id',
+                [':dq' => $newDelivered, ':price' => $price, ':uid' => null, ':id' => (int)$existing['id']]
+            );
+        } else {
+            $db->execute(
+                'INSERT INTO dl_selling_account_ledger '
+                . '(selling_account_id, product_id, ledger_date, price_snapshot, beg_qty, delivered_qty, return_qty, end_qty, sold_qty, gross_amount, encoded_by) '
+                . 'VALUES (:a, :p, :d, :price, 0, :dq, 0, 0, 0, 0, :uid)',
+                [':a' => $sellingAccountId, ':p' => $productId, ':d' => $deliveryDate, ':price' => $price, ':dq' => $qty, ':uid' => null]
+            );
+        }
+
+        $written++;
+    }
+
+    // Recompute sold_qty / gross_amount for every touched product on this day.
+    if ($written > 0) {
+        dl_recomputeSellingAccountLedger($sellingAccountId, $deliveryDate);
+    }
+
+    dl_auditLog('post_selling_account_delivery', $sellingAccountId, 'dl_deliveries', (string)$deliveryId, null, [
+        'dr_number' => (string)($delivery['dr_number'] ?? ''),
+        'items' => $written,
+        'delivery_date' => $deliveryDate,
+    ]);
+
+    return ['ok' => true, 'items' => $written];
+}
+
+/**
+ * Recompute sold_qty / gross_amount for a selling-account ledger day.
+ *
+ *   sold_qty     = beg_qty + delivered_qty - return_qty - end_qty
+ *   gross_amount = sold_qty * price_snapshot
+ * Applies to every row for (selling_account_id, ledger_date).
+ */
+function dl_recomputeSellingAccountLedger(int $sellingAccountId, string $ledgerDate): int
+{
+    $ctx = module();
+    if (!$ctx) {
+        return 0;
+    }
+
+    $db = $ctx->db();
+    $rows = $db->query(
+        'SELECT id, beg_qty, delivered_qty, return_qty, end_qty, price_snapshot FROM dl_selling_account_ledger '
+        . 'WHERE selling_account_id = :a AND ledger_date = :d',
+        [':a' => $sellingAccountId, ':d' => $ledgerDate]
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $updated = 0;
+    foreach ($rows as $row) {
+        $sold = (int)($row['beg_qty'] ?? 0) + (int)($row['delivered_qty'] ?? 0)
+            - (int)($row['return_qty'] ?? 0) - (int)($row['end_qty'] ?? 0);
+        $gross = max(0, $sold) * (float)($row['price_snapshot'] ?? 0.0);
+        $db->execute(
+            'UPDATE dl_selling_account_ledger SET sold_qty = :sold, gross_amount = :gross, updated_by = NULL WHERE id = :id',
+            [':sold' => $sold, ':gross' => $gross, ':id' => (int)$row['id']]
+        );
+        $updated++;
+    }
+
+    return $updated;
+}
+
 function apiCreateDelivery(array $params = []): void
 {
     $ctx = module();
@@ -2463,6 +2601,35 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
     $regStmt->execute([':b' => $branchId, ':d' => $date]);
     $reg = $regStmt->fetch(PDO::FETCH_ASSOC) ?: ['qty' => 0, 'amt' => 0, 'provisional_qty' => 0, 'provisional_amt' => 0];
 
+    // Selling accounts assigned to this branch contribute gross_amount to the
+    // consolidated total. Each selling account's own ledger is already
+    // recomputed (dl_recomputeSellingAccountLedger) after postings.
+    $sellingAccountsTotal = 0.0;
+    $sellingAccounts = [];
+    try {
+        $saStmt = $ctx->db()->prepare(
+            'SELECT sa.id, sa.code, sa.name, sa.ledger_type,
+                    COALESCE(SUM(sal.gross_amount), 0) AS gross_amount
+               FROM dl_selling_accounts sa
+               LEFT JOIN dl_selling_account_ledger sal
+                      ON sal.selling_account_id = sa.id AND sal.ledger_date = :d
+              WHERE sa.assigned_branch_id = :b AND sa.is_active = 1
+              GROUP BY sa.id, sa.code, sa.name, sa.ledger_type
+              ORDER BY sa.name ASC'
+        );
+        $saStmt->execute([':b' => $branchId, ':d' => $date]);
+        $sellingAccounts = $saStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($sellingAccounts as &$saRow) {
+            $saRow['gross_amount'] = (float)($saRow['gross_amount'] ?? 0.0);
+            $sellingAccountsTotal += $saRow['gross_amount'];
+        }
+        unset($saRow);
+    } catch (Throwable $e) {
+        // Selling-account tables may not exist on older schemas — degrade gracefully.
+        $sellingAccounts = [];
+        $sellingAccountsTotal = 0.0;
+    }
+
     return [
         'branch_id' => $branchId,
         'date' => $date,
@@ -2470,7 +2637,9 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
         'regular_qty' => (int)$reg['qty'],
         'provisional_sales' => (float)$reg['provisional_amt'],
         'provisional_qty' => (int)$reg['provisional_qty'],
-        'total_sales' => (float)$reg['amt'],
+        'selling_accounts_total' => $sellingAccountsTotal,
+        'selling_accounts' => $sellingAccounts,
+        'total_sales' => (float)$reg['amt'] + $sellingAccountsTotal,
     ];
 }
 

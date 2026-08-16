@@ -58,7 +58,7 @@ function runReconciliationTest()
         'owns_tables' => ['test_module_b'],
     ], JSON_PRETTY_PRINT));
 
-    $res = uninstallModule('test-module-a', ['purge' => true]);
+    $res = uninstallModule('test-module-a', ['purge' => true, 'confirm_purge' => true]);
     
     $tables = $db->query("SHOW TABLES LIKE 'test_module_%'")->fetchAll(PDO::FETCH_COLUMN);
     if (in_array('test_module_a', $tables)) {

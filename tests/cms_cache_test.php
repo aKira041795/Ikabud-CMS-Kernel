@@ -235,12 +235,16 @@ $originalTenantId = $resolver->current();
 $resolver->setTenantId(111);
 $GLOBALS['cms_active_theme_cached_t111'] = true;
 $GLOBALS['cms_active_theme_value_t111'] = 'theme-one';
+$GLOBALS['cms_preferred_ecommerce_theme_cached_t111'] = true;
+$GLOBALS['cms_preferred_ecommerce_theme_value_t111'] = null;
 $GLOBALS['cms_cap_map_cached_t111'] = true;
 $GLOBALS['cms_cap_map_t111'] = ['content.edit' => 'author'];
 
 $resolver->setTenantId(222);
 $GLOBALS['cms_active_theme_cached_t222'] = true;
 $GLOBALS['cms_active_theme_value_t222'] = 'theme-two';
+$GLOBALS['cms_preferred_ecommerce_theme_cached_t222'] = true;
+$GLOBALS['cms_preferred_ecommerce_theme_value_t222'] = null;
 $GLOBALS['cms_cap_map_cached_t222'] = true;
 $GLOBALS['cms_cap_map_t222'] = ['content.edit' => 'editor'];
 

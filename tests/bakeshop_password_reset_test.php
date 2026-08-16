@@ -230,6 +230,9 @@ try {
         'print_template' => $originalSettings['print_template'] ?? 'standard',
         'role_permissions' => $originalSettings['role_permissions'] ?? '',
     ]);
+    // The brand settings are cached per-tenant; invalidate so the freshly
+    // saved store name/logo are visible to the login render below.
+    bakeshopClearBrandSettingsCache();
 
     $loginHtml = app()->render('pages/login.disyl', bakeshopLoginPageContext());
     btReset('login render uses configured store name', str_contains($loginHtml, 'Sunrise Dough'));
@@ -465,6 +468,7 @@ PHP;
 } finally {
     app()->setUser(is_array($previousUser) ? $previousUser : []);
     saveModuleSettings('bakeshop', $originalSettings);
+    bakeshopClearBrandSettingsCache();
     $cleanupLookup = $db->prepare('SELECT id FROM bakeshop_users WHERE username IN (?, ?)');
     $cleanupLookup->execute([$uiTestUsername, $apiTestUsername]);
     $cleanupIds = $cleanupLookup->fetchAll(PDO::FETCH_COLUMN) ?: [];

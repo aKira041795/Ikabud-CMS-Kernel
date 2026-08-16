@@ -395,6 +395,7 @@ function dl_featureSettings(): array
         'production_output_enabled' => dl_settingToBool($settings['production_output_enabled'] ?? false),
         'formal_delivery_workflow_enabled' => dl_settingToBool($settings['formal_delivery_workflow_enabled'] ?? false),
         'price_groups_enabled' => dl_settingToBool($settings['price_groups_enabled'] ?? true),
+        'selling_accounts_enabled' => dl_settingToBool($settings['selling_accounts_enabled'] ?? false),
         'pos_enabled' => dl_settingToBool($settings['pos_enabled'] ?? false),
         'pos_sort_by_sales' => dl_settingToBool($settings['pos_sort_by_sales'] ?? true),
     ];

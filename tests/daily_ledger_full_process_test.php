@@ -357,10 +357,22 @@ try {
     $totalWithdrawnPandesal = 0;
 
     foreach ($reasonTypes as [$reason, $qty, $note]) {
+        $dedupHash = dl_withdrawalDedupHash(
+            $retailBranchId,
+            $productAId,
+            $today,
+            'charge',
+            $reason,
+            null,
+            null,
+            null,
+            $qty,
+            null
+        );
         $pdo->prepare(
             'INSERT INTO dl_cashier_withdrawals
-                (branch_id, product_id, ledger_date, withdrawal_type, reason_code, quantity, encoded_by)
-             VALUES (:b, :p, :d, "charge", :rc, :qty, :enc)'
+                (branch_id, product_id, ledger_date, withdrawal_type, reason_code, quantity, encoded_by, dedup_hash)
+             VALUES (:b, :p, :d, "charge", :rc, :qty, :enc, :dh)'
         )->execute([
             ':b'   => $retailBranchId,
             ':p'   => $productAId,
@@ -368,6 +380,7 @@ try {
             ':rc'  => $reason,
             ':qty' => $qty,
             ':enc' => $actorId,
+            ':dh'  => $dedupHash,
         ]);
         $wid = (int)$pdo->lastInsertId();
         $withdrawalIds[] = $wid;
@@ -391,6 +404,15 @@ try {
         (int)($ledAAfterWd['withdraw'] ?? -1) === $totalWithdrawnPandesal,
         "got " . ($ledAAfterWd['withdraw'] ?? 'missing'));
 
+    // Record the end-of-day count (bal_end = 0) so sales becomes deterministic.
+    // Under the nullable-endings design, an uncounted row (bal_end NULL) keeps
+    // sales pending (NULL) and is excluded from official aggregates.
+    $pdo->prepare(
+        'UPDATE dl_daily_ledger SET bal_end = 0 WHERE branch_id = :b AND product_id = :p AND ledger_date = :d'
+    )->execute([':b' => $retailBranchId, ':p' => $productAId, ':d' => $today]);
+    dl_recomputeSales($retailBranchId, $productAId, $today, max(0, $actorId), 'AM');
+    $ledAAfterWd = $checkLedger($retailBranchId, $productAId, $today);
+
     // Sales should auto-recompute: beg(0) + addtl(100) - withdraw(10) - bal_end(0) = 90
     $expectedSales = max(0,
         (int)($ledAAfterWd['beg_bal'] ?? 0) +
@@ -402,16 +424,35 @@ try {
         (int)($ledAAfterWd['sales'] ?? -1) === $expectedSales,
         "got sales=" . ($ledAAfterWd['sales'] ?? 'missing'));
 
+    // Record end-of-day count for MONAY as well so the S7 consolidated summary
+    // includes its regular sales (beg 0 + addtl 60 - withdraw 0 - bal_end 0).
+    $pdo->prepare(
+        'UPDATE dl_daily_ledger SET bal_end = 0 WHERE branch_id = :b AND product_id = :p AND ledger_date = :d'
+    )->execute([':b' => $retailBranchId, ':p' => $productBId, ':d' => $today]);
+    dl_recomputeSales($retailBranchId, $productBId, $today, max(0, $actorId), 'AM');
+
     // Also do a "charge" type withdrawal for MONAY (inter-branch transfer type)
+    $transferDedupHash = dl_withdrawalDedupHash(
+        $retailBranchId,
+        $productBId,
+        $today,
+        'transfer',
+        null,
+        null,
+        null,
+        $commissaryBranchId,
+        5,
+        null
+    );
     $pdo->prepare(
         'INSERT INTO dl_cashier_withdrawals
             (branch_id, product_id, ledger_date, withdrawal_type, reason_code,
-             target_branch_id, quantity, encoded_by)
-         VALUES (:b, :p, :d, "transfer", NULL, :tb, :qty, :enc)'
+             target_branch_id, quantity, encoded_by, dedup_hash)
+         VALUES (:b, :p, :d, "transfer", NULL, :tb, :qty, :enc, :dh)'
     )->execute([
         ':b'   => $retailBranchId, ':p'   => $productBId,
         ':d'   => $today, ':tb'  => $commissaryBranchId,
-        ':qty' => 5, ':enc' => $actorId,
+        ':qty' => 5, ':enc' => $actorId, ':dh' => $transferDedupHash,
     ]);
     $transferWid = (int)$pdo->lastInsertId();
     $withdrawalIds[] = $transferWid;
@@ -559,7 +600,28 @@ try {
     // ═══════════════════════════════════════════════════════════════════
     echo "\n── Extra: Production withdrawal movement ──\n";
 
-    // Simulate raw-material withdrawal from commissary (type=withdrawal)
+    // Simulate raw-material withdrawal from commissary (type=withdrawal).
+    // With the formal delivery workflow enabled, a production withdrawal must
+    // reference a matching branch delivery for the same DR — so create one
+    // first, mirroring the handler's contract.
+    $wdDr = 'STRESS-WD-' . $suffix;
+    $pdo->prepare(
+        'INSERT INTO dl_deliveries
+            (origin_type, origin_id, destination_type, destination_id, dr_number, delivery_date, status, posted_at)
+         VALUES ("commissary", :orig, "branch", :dest, :dr, :d, "posted", NOW())'
+    )->execute([
+        ':orig' => $commissaryBranchId,
+        ':dest' => $commissaryBranchId,
+        ':dr'   => $wdDr,
+        ':d'    => $today,
+    ]);
+    $wdDeliveryId = (int)$pdo->lastInsertId();
+    $trackedDeliveryIds[] = $wdDeliveryId;
+    $pdo->prepare(
+        'INSERT INTO dl_delivery_items (delivery_id, product_id, quantity, unit, price_snapshot)
+         VALUES (:d, :p, 20, "pcs", 30.00)'
+    )->execute([':d' => $wdDeliveryId, ':p' => $productAId]);
+
     $wInput = [
         'destination_branch_id' => $commissaryBranchId,
         'product_id'            => $productAId,
@@ -567,7 +629,7 @@ try {
         'ledger_date'           => $today,
         'flow_mode'             => 'production',
         'reason'                => '',
-        'dr_number'             => '',
+        'dr_number'             => $wdDr,
         'client_op_id'          => 'stress-wd-' . $suffix,
     ];
     $wResult = dl_processProductionMovement($adminUser, 'withdrawal', $wInput);
@@ -608,8 +670,14 @@ try {
         json_encode($oResult));
     fp('output ledger_column = addtl',
         ($oResult['ledger_column'] ?? '') === 'addtl');
-    fp('output resulting_addtl = 75 (60 from delivery + 15 extra)',
-        (int)($oResult['resulting_addtl'] ?? -1) === 75,
+    // With the formal delivery workflow enabled, a production output creates a
+    // delivery record instead of directly bumping the branch addtl — the branch
+    // receives addtl when it accepts that delivery via Receive Stock.
+    fp('output creates a formal delivery for the extra quantity',
+        (int)($oResult['delivery_id'] ?? 0) > 0,
+        json_encode($oResult));
+    fp('output resulting_addtl reflects delivery-based flow',
+        (int)($oResult['resulting_addtl'] ?? -1) === 0,
         "got " . json_encode($oResult['resulting_addtl'] ?? null));
 
     // ═══════════════════════════════════════════════════════════════════

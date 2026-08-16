@@ -62,6 +62,9 @@ try {
         'usage_decimal_places' => '2',
         'print_template' => 'standard',
     ]);
+    // The brand settings are cached per-tenant; invalidate so the freshly
+    // saved store branding is visible to the print summary render below.
+    bakeshopClearBrandSettingsCache();
 
     $kgUnitId = (int)($db->query("SELECT id FROM bakeshop_units WHERE code = 'kg' LIMIT 1")->fetchColumn() ?: 0);
     btPrint('seeded kg unit exists', $kgUnitId > 0);
@@ -344,6 +347,7 @@ try {
         'usage_decimal_places' => $originalUsageDecimalPlaces,
         'print_template' => $originalPrintTemplate,
     ]);
+    bakeshopClearBrandSettingsCache();
 }
 
 $appLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/app.log'));

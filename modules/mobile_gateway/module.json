@@ -172,7 +172,9 @@
                 }
             }
         ],
-        "depends": []
+        "depends": [
+            "kernel.auth.user@1"
+        ]
     },
     "routes": "routes.php",
     "handlers": "handlers.php"

@@ -213,7 +213,7 @@ t('cms plan does not pull ehr from nav hook declarations', !in_array('ehr', $cms
 t('cms akira plan includes profile standard', in_array('cms-akira-profile-standard', $cmsAkiraPlan, true), json_encode($cmsAkiraPlan));
 t('cms akira plan stays scoped (no academic-similarity spillover)', !in_array('academic-similarity', $cmsAkiraPlan, true), json_encode($cmsAkiraPlan));
 t('tenant entry option exposes ehr as suite', is_array($ehrOption) && (string)($ehrOption['name'] ?? '') === 'EHR Suite', is_array($ehrOption) ? json_encode($ehrOption) : 'missing');
-t('tenant entry option exposes cms akira standard', is_array($cmsAkiraOption) && (string)($cmsAkiraOption['name'] ?? '') === 'CMS Akira', is_array($cmsAkiraOption) ? json_encode($cmsAkiraOption) : 'missing');
+t('tenant entry option exposes cms akira standard', is_array($cmsAkiraOption) && (string)($cmsAkiraOption['name'] ?? '') === 'CMS Akira Standard Profile', is_array($cmsAkiraOption) ? json_encode($cmsAkiraOption) : 'missing');
 t('legacy ehr-core entry normalizes to ehr', (normalizeTenantEntryModuleId('ehr-core')['value'] ?? null) === 'ehr', json_encode(normalizeTenantEntryModuleId('ehr-core')));
 
 // ── Planner: reverse-selected modules receive forward closure ───────────

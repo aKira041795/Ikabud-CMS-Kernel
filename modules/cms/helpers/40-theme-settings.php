@@ -377,6 +377,8 @@ function cmsResetThemeRuntimeCache(): void
     $tid = cmsRuntimeTenantId();
     $GLOBALS['cms_active_theme_cached_t' . $tid] = false;
     $GLOBALS['cms_active_theme_value_t' . $tid] = null;
+    $GLOBALS['cms_preferred_ecommerce_theme_cached_t' . $tid] = false;
+    $GLOBALS['cms_preferred_ecommerce_theme_value_t' . $tid] = null;
     $GLOBALS['cms_theme_symlink_checked_t' . $tid] = false;
     $GLOBALS['cms_active_theme_manifest_cached_t' . $tid] = false;
     $GLOBALS['cms_active_theme_manifest_value_t' . $tid] = null;
@@ -491,13 +493,26 @@ function cmsThemeManifestForSlug(?string $slug): array
 
 function cmsPreferredEcommerceTheme(): ?string
 {
+    $tid = cmsRuntimeTenantId();
+    $cachedKey = 'cms_preferred_ecommerce_theme_cached_t' . $tid;
+    $valueKey = 'cms_preferred_ecommerce_theme_value_t' . $tid;
+    $cached = (bool)($GLOBALS[$cachedKey] ?? false);
+    $theme = $GLOBALS[$valueKey] ?? null;
+    if ($cached) {
+        return $theme;
+    }
+    $GLOBALS[$cachedKey] = true;
+
     $settings = array_merge(cmsSettingsDefaults(), getModuleSettings('cms'));
     $configured = trim((string)($settings['active_ecommerce_theme'] ?? ''));
     if ($configured === '' || $configured === 'default') {
+        $GLOBALS[$valueKey] = null;
         return null;
     }
 
-    return cmsThemeExists($configured) ? $configured : null;
+    $resolved = cmsThemeExists($configured) ? $configured : null;
+    $GLOBALS[$valueKey] = $resolved;
+    return $resolved;
 }
 
 function cmsResolveEcommerceThemePolicy(array $context = []): array

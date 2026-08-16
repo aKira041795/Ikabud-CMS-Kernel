@@ -86,6 +86,15 @@ foreach ($files as $file) {
             @unlink($cacheFile);
         }
     }
+    // Clear the per-tenant bakeshop brand settings cache between tests so
+    // saveModuleSettings('bakeshop', ...) + bakeshopBrandSettings() inside a
+    // test are not shadowed by a previous test's cached branding (the cache
+    // instance is keyed by tenant and persists on disk across subprocesses).
+    foreach (glob($root . '/storage/cache/bakeshop_brand_settings_*', GLOB_ONLYDIR) as $cacheDir) {
+        foreach (glob($cacheDir . '/*.cache') ?: [] as $cacheFile) {
+            @unlink($cacheFile);
+        }
+    }
 
     $descriptors = [
         0 => ['pipe', 'r'],

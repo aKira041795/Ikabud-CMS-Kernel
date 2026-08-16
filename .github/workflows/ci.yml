@@ -158,6 +158,9 @@ jobs:
           mysql -h 127.0.0.1 -u root -pci_root_pass clientsite_ci < modules/cms/database/seeds/001_cms_baseline_content_types.sql
           mysql -h 127.0.0.1 -u root -pci_root_pass clientsite_ci < database/seeds/ci_clientsite.sql
 
+      - name: Enable modules + provision users exercised by e2e tests
+        run: php database/seeds/ci_enable_modules.php
+
       - name: Configure anti-spam for CI testing
         run: |
           mysql -h 127.0.0.1 -u root -pci_root_pass baronbakeshop_ci -e "INSERT INTO antispam_settings (setting_key, setting_value) VALUES ('rate_limit_max', '1000') ON DUPLICATE KEY UPDATE setting_value = '1000';" 2>/dev/null || true

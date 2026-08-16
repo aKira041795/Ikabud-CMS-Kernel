@@ -2873,7 +2873,10 @@ if (PHP_SAPI === 'cli' && !isset($GLOBALS['pdo'])) {
 // CLI tenant override: when PAL_TENANT_ID env is set, configure the tenant
 // context before any module code runs. This ensures all queries hit the
 // correct tenant database (e.g. palsystem for PAL tenant 502).
-if (PHP_SAPI === 'cli' && app()->tenant()->current() === null) {
+// The override applies even when a default tenant was resolved (APP_TENANT_DEFAULT
+// in CI), because the pal tests require an explicit PAL tenant and would
+// otherwise run against the wrong DB (current tenant would be 1, not 502).
+if (PHP_SAPI === 'cli') {
     $cliTenant = (int)(getenv('PAL_TENANT_ID') ?: 0);
     if ($cliTenant > 0) {
         app()->tenant()->setTenantId($cliTenant);

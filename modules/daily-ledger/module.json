@@ -283,6 +283,13 @@
       "description": "Allow product prices to vary by channel (Regular Branch, Mall, Reseller, Event, etc.). Snapshots are recorded on every delivery and ledger entry."
     },
     {
+      "key": "selling_accounts_enabled",
+      "type": "checkbox",
+      "label": "Enable Selling Accounts",
+      "default": "0",
+      "description": "Expose the selling-account management UI and APIs. Existing data is unaffected when off."
+    },
+    {
       "key": "backup_before_reset_enabled",
       "type": "checkbox",
       "label": "Auto Backup Before Deployment Reset",
