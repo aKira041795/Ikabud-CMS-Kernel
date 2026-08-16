@@ -22,6 +22,34 @@ final class ImportService
     public const MAX_CELLS = 200000;
     public const MAX_FIELD_LEN = 191;
 
+    // Coded-price cipher (port of the Fazt Sale source app): a "code" column
+    // from genuine-parts suppliers encodes a price. M-I-C-H-A-E-L-S-O-N maps
+    // to 1-2-3-4-5-6-7-8-9-0, so e.g. MSN = 1-8-0 = ₱180.
+    public const CODE_CIPHER = ['M' => '1', 'I' => '2', 'C' => '3', 'H' => '4', 'A' => '5', 'E' => '6', 'L' => '7', 'S' => '8', 'O' => '9', 'N' => '0'];
+
+    /**
+     * Decode a coded price string into a float, or null when it contains a
+     * letter outside M-I-C-H-A-E-L-S-O-N (not decodable).
+     */
+    public static function codeToPrice(string $code): ?float
+    {
+        $clean = strtoupper(trim($code));
+        $clean = (string)(preg_replace('/[^A-Z]/', '', $clean) ?? '');
+        if ($clean === '') {
+            return null;
+        }
+        $digits = '';
+        foreach (str_split($clean) as $ch) {
+            if (!isset(self::CODE_CIPHER[$ch])) {
+                return null;
+            }
+            $digits .= self::CODE_CIPHER[$ch];
+        }
+        $n = (float)$digits;
+
+        return is_nan($n) ? null : $n;
+    }
+
     // ── XLSX parsing (ZipArchive + SimpleXML, no third-party dependency) ──
 
     /**
@@ -223,14 +251,23 @@ final class ImportService
      * Build import rows from a worksheet grid using a mapping.
      * $mapping maps 'part_number|description|cost|price|qty|code' OR 'custom:<label>' → column index.
      *
-     * @return array{rows:array, errors:array, new_count:int, existing_count:int}
+     * When a `code` column is mapped and no explicit `price` column is mapped,
+     * the price is decoded from the coded price (MICHAELSON cipher); rows whose
+     * code is not decodable get price 0 and a warning (they do not block commit,
+     * matching the Fazt Sale source behaviour).
+     *
+     * @return array{rows:array, errors:array, warnings:array, new_count:int, existing_count:int}
      */
-    public static function buildRows(array $ctx, int $branchId, int $brandId, array $grid, array $mapping, int $headerRow, int $dataStartRow): array
+    public static function buildRows(array $ctx, int $branchId, int $brandId, array $grid, array $mapping, int $headerRow, int $dataStartRow, ?int $dataEndRow = null): array
     {
         $rows = [];
         $errors = [];
+        $warnings = [];
         $seenParts = [];
         $existingMap = [];
+
+        $priceExplicit = isset($mapping['price']);
+        $codeMapped = isset($mapping['code']);
 
         // Load existing products for this brand+branch for diff counts.
         $db = moto_db((int)$ctx['tenant_id']);
@@ -250,8 +287,9 @@ final class ImportService
         $gridRows = array_values($grid);
         $rowCount = count($gridRows);
         $dataStart = max(0, $dataStartRow);
+        $dataEnd = $dataEndRow === null ? $rowCount - 1 : max($dataStart, min($dataEndRow, $rowCount - 1));
 
-        for ($i = $dataStart; $i < $rowCount; $i++) {
+        for ($i = $dataStart; $i <= $dataEnd; $i++) {
             if (count($rows) >= self::MAX_ROWS) {
                 $errors[] = 'Row limit of ' . self::MAX_ROWS . ' exceeded';
                 break;
@@ -289,6 +327,19 @@ final class ImportService
                     if (mb_strlen($label) <= 60) {
                         $row['extra'][$label] = trim($value);
                     }
+                }
+            }
+
+            // Coded price: when only a code column is mapped, decode it into
+            // the sell price (Fazt Sale semantics). Undecodable codes become
+            // price 0 plus a warning.
+            if ($codeMapped && !$priceExplicit && $row['code'] !== '') {
+                $decoded = self::codeToPrice($row['code']);
+                if ($decoded === null) {
+                    $row['price'] = 0.0;
+                    $warnings[] = 'Row ' . ($i + 2) . ' (' . $row['part_number'] . '): code "' . $row['code'] . '" contains a letter outside M-I-C-H-A-E-L-S-O-N and could not be decoded — price set to 0. Check the source data.';
+                } else {
+                    $row['price'] = $decoded;
                 }
             }
 
@@ -341,6 +392,7 @@ final class ImportService
         return [
             'rows'           => $rows,
             'errors'         => $errors,
+            'warnings'       => $warnings,
             'new_count'      => $newCount,
             'existing_count' => $existingCount,
         ];
@@ -414,9 +466,9 @@ final class ImportService
      * Stage a validated import. Persists the import header and rows in
      * 'staged' status; nothing touches inventory.
      *
-     * @return array{import_id:int, rows:array, new_count:int, existing_count:int, errors:array}
+     * @return array{import_id:int, rows:array, new_count:int, existing_count:int, errors:array, warnings:array}
      */
-    public static function stage(array $ctx, int $branchId, int $brandId, string $filePath, string $filename, string $mime, ?array $mapping = null, int $sheetIndex = 0, int $headerRow = 0, int $dataStartRow = 1, ?string $idempotencyKey = null): array
+    public static function stage(array $ctx, int $branchId, int $brandId, string $filePath, string $filename, string $mime, ?array $mapping = null, int $sheetIndex = 0, int $headerRow = 0, int $dataStartRow = 1, ?int $dataEndRow = null, ?string $idempotencyKey = null): array
     {
         $branchId = moto_require_write_branch($ctx, $branchId);
         $tenantId = (int)$ctx['tenant_id'];
@@ -474,8 +526,13 @@ final class ImportService
         if (!isset($seen['part_number'])) {
             throw new \InvalidArgumentException('Exactly one Part No. column is required');
         }
+        // Sell Price and Code Price both feed the item's price — never both
+        // (matches the Fazt Sale mapping wizard validation).
+        if (isset($seen['price']) && isset($seen['code'])) {
+            throw new \InvalidArgumentException("Sell Price and Code Price both map to the item's price — pick one");
+        }
 
-        $built = self::buildRows($ctx, $branchId, $brandId, $grid, $mapping, $headerRow, $dataStartRow);
+        $built = self::buildRows($ctx, $branchId, $brandId, $grid, $mapping, $headerRow, $dataStartRow, $dataEndRow);
         if ($built['rows'] === []) {
             throw new \InvalidArgumentException('No data rows found in the selected range');
         }
@@ -530,6 +587,7 @@ final class ImportService
             // Audit the staged import atomically with the header + rows.
             moto_audit($ctx, 'moto_inventory.import.staged', 'moto_import', (string)$importId, null, [
                 'branch_id' => $branchId, 'filename' => $filename, 'new' => $built['new_count'], 'existing' => $built['existing_count'],
+                'warnings' => $built['warnings'] === [] ? null : $built['warnings'],
             ], $branchId, $idempotencyKey, $db);
 
             $db->commit();
@@ -544,6 +602,7 @@ final class ImportService
             'new_count'      => $built['new_count'],
             'existing_count' => $built['existing_count'],
             'errors'         => $built['errors'],
+            'warnings'       => $built['warnings'],
         ];
     }
 

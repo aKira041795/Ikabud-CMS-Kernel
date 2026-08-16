@@ -93,11 +93,21 @@ function motoApiImportStage(array $params = []): void
         $dataStartRow = array_key_exists('data_start_row', $input)
             ? max(0, (int)$input['data_start_row'])
             : 1;
+        $dataEndRow = array_key_exists('data_end_row', $input) && (int)$input['data_end_row'] > 0
+            ? max(0, (int)$input['data_end_row'])
+            : null;
         $idem = (string)($input['idempotency_key'] ?? '');
         // Column mapping is optional from the UI: when absent, ImportService
         // auto-guesses it from the header row (guessMappingFromHeaders). A
-        // client-supplied mapping is honoured when it is a real array.
+        // client-supplied mapping is honoured when it is a real array (JSON
+        // body) or a JSON-encoded object string (multipart form).
         $mapping = $input['mapping'] ?? null;
+        if (is_string($mapping) && trim((string)$mapping) !== '') {
+            $decoded = json_decode((string)$mapping, true);
+            if (is_array($decoded)) {
+                $mapping = $decoded;
+            }
+        }
         if (!is_array($mapping) || $mapping === []) {
             $mapping = null;
         }
@@ -117,7 +127,7 @@ function motoApiImportStage(array $params = []): void
 
         $result = ImportService::stage(
             $ctx, $branchId, $brandId, (string)$file['tmp_name'], $filename, $mime,
-            $mapping, $sheetIndex, $headerRow, $dataStartRow,
+            $mapping, $sheetIndex, $headerRow, $dataStartRow, $dataEndRow,
             $idem !== '' ? $idem : null
         );
         moto_json_ok($result, 201);

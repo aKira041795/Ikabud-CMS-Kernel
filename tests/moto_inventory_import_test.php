@@ -72,6 +72,63 @@ $h->test('auto-mapping detects cost', ($mapping['cost'] ?? null) === 2);
 $h->test('auto-mapping detects price', ($mapping['price'] ?? null) === 3);
 $h->test('auto-mapping detects qty', ($mapping['qty'] ?? null) === 4);
 
+// ── Fazt Sale import-mapping parity (coded price, mapping validation, custom fields) ──
+$h->section('Coded price & mapping');
+
+// codeToPrice cipher (M-I-C-H-A-E-L-S-O-N = 1-2-3-4-5-6-7-8-9-0)
+$h->test('codeToPrice decodes MSN → 180', ImportService::codeToPrice('MSN') === 180.0);
+$h->test('codeToPrice decodes lowercase', ImportService::codeToPrice('msn') === 180.0);
+$h->test('codeToPrice rejects letter outside cipher', ImportService::codeToPrice('MXN') === null);
+$h->test('codeToPrice empty → null', ImportService::codeToPrice('') === null);
+
+// Coded-price workbook: Part No. + Code Price columns only.
+$codeFile = $tmpDir . '/code.xlsx';
+moto_test_build_xlsx($codeFile, [
+    ['Part No.', 'Code'],
+    ['P-300', 'MSN'],   // → 180
+    ['P-301', 'HEN'],   // → 460
+    ['P-302', 'MXN'],   // undecodable → 0 + warning
+]);
+$codeMapping = ['part_number' => 0, 'code' => 1];
+$codeStage = ImportService::stage($ctx, $branchId, $brandId, $codeFile, 'code.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $codeMapping, 0, 0, 1, null, 'imp-code');
+$codeRow = static function (array $rows, string $part): ?array {
+    foreach ($rows as $r) {
+        if (($r['part_number'] ?? '') === $part) {
+            return $r;
+        }
+    }
+    return null;
+};
+$p300 = $codeRow($codeStage['rows'], 'P-300');
+$h->test('coded price decoded into staged price (MSN→180)', is_array($p300) && (float)($p300['price'] ?? 0) === 180.0);
+$h->test('coded price code stored', is_array($p300) && ($p300['code'] ?? '') === 'MSN');
+$p301 = $codeRow($codeStage['rows'], 'P-301');
+$h->test('coded price HEN → 460', is_array($p301) && (float)($p301['price'] ?? 0) === 460.0);
+$p302 = $codeRow($codeStage['rows'], 'P-302');
+$h->test('undecodable code → price 0', is_array($p302) && (float)($p302['price'] ?? 0) === 0.0);
+$h->test('undecodable code surfaces a warning', count($codeStage['warnings'] ?? []) === 1);
+$h->test('undecodable code does not block staging', ($codeStage['errors'] ?? []) === []);
+
+// Sell Price + Code Price both mapped → rejected (mutually exclusive).
+$bothRejected = false;
+try {
+    ImportService::stage($ctx, $branchId, $brandId, $goodFile, 'both.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ['part_number' => 0, 'price' => 3, 'code' => 1], 0, 0, 1, null, 'imp-both');
+} catch (\InvalidArgumentException $e) {
+    $bothRejected = str_contains($e->getMessage(), 'pick one');
+}
+$h->test('Sell Price + Code Price both mapped rejected', $bothRejected);
+
+// Custom-field mapping (unknown columns become extra).
+$customMapping = ['part_number' => 0, 'description' => 1, 'custom:Application' => 3, 'custom:Model' => 4];
+$customStage = ImportService::stage($ctx, $branchId, $brandId, $goodFile, 'custom.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $customMapping, 0, 0, 1, null, 'imp-custom');
+$pCustom = $codeRow($customStage['rows'], 'P-100');
+$h->test('custom column mapped into extra', is_array($pCustom) && ($pCustom['extra']['Application'] ?? '') === '300');
+$h->test('custom mapping keeps standard fields', is_array($pCustom) && ($pCustom['description'] ?? '') === 'Brake Pad');
+
+// data_end_row limits the imported range.
+$rangeStage = ImportService::stage($ctx, $branchId, $brandId, $goodFile, 'range.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, 0, 0, 1, 2, 'imp-range');
+$h->test('data_end_row limits imported rows to 2 of 3', count($rangeStage['rows'] ?? []) === 2);
+
 // ── Malformed file rejection ───────────────────────────────────────
 $h->section('Malformed file rejection');
 
@@ -109,7 +166,7 @@ $h->test('non-.xlsx extension rejected', $extRejected);
 // ── Staging (preview, no inventory change) ─────────────────────────
 $h->section('Staging');
 
-$stage = ImportService::stage($ctx, $branchId, $brandId, $goodFile, 'good.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, 0, 0, 1, 'imp-1');
+$stage = ImportService::stage($ctx, $branchId, $brandId, $goodFile, 'good.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, 0, 0, 1, null, 'imp-1');
 $h->test('stage returns import id', ($stage['import_id'] ?? 0) > 0);
 $h->test('stage preview new count = 3', ($stage['new_count'] ?? 0) === 3);
 $h->test('stage has no errors', ($stage['errors'] ?? []) === []);
@@ -141,7 +198,7 @@ moto_test_build_xlsx($dupFile, [
     ['P-200', 'New Part', '50', '110', '2'],        // new
     ['P-100', 'Brake Pad dup', '1', '1', '1'],      // duplicate within file
 ]);
-$dupStage = ImportService::stage($ctx, $branchId, $brandId, $dupFile, 'dup.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, 0, 0, 1, 'imp-2');
+$dupStage = ImportService::stage($ctx, $branchId, $brandId, $dupFile, 'dup.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, 0, 0, 1, null, 'imp-2');
 $h->test('duplicate within file flagged as error', count(array_filter($dupStage['rows'] ?? [], static fn (array $r): bool => $r['validation_status'] === 'error')) === 1);
 $h->test('existing/new counts split correctly', ($dupStage['existing_count'] ?? 0) === 1 && ($dupStage['new_count'] ?? 0) === 1);
 

@@ -24,12 +24,61 @@
             <input id="mi-imp-file" class="mi-input" type="file" accept=".xlsx" aria-label="Choose .xlsx file">
         </div>
         <div class="mi-row">
-            <button class="mi-btn primary" id="mi-imp-stage" type="button">Upload & review</button>
+            <button class="mi-btn primary" id="mi-imp-stage" type="button">Choose file &amp; map columns</button>
             <button class="mi-btn ghost" id="mi-imp-export" type="button">Export branch data (.json)</button>
             <label class="mi-btn" style="cursor:pointer">Import backup (.json)<input id="mi-imp-backup-file" type="file" accept=".json" hidden></label>
         </div>
+        <div class="mi-banner error" id="mi-imp-file-error" style="display:none;margin-top:10px"></div>
         <div class="mi-banner info" style="margin-top:10px">
-            Files are validated and staged for review before any inventory change. Duplicate part numbers, oversized files, and malformed sheets are rejected server-side.
+            Pick the brand's .xlsx pricelist, then map each column to a field (Part No., Description, Cost, Sell Price or Code, Quantity). Exactly one column must be <strong>Part No.</strong>; anything else becomes a custom field stored under the label you type. Files are validated and staged for review before any inventory change.
+        </div>
+    </div>
+
+    <div class="mi-card" id="mi-imp-wizard" style="display:none">
+        <h2 style="margin-top:0">Import wizard <span class="mi-muted" style="font-size:.8rem" id="mi-wiz-note"></span></h2>
+
+        <div id="mi-wiz-step-sheet" style="display:none">
+            <p class="mi-muted">This file has multiple sheets. Choose the one that holds the pricelist.</p>
+            <div id="mi-wiz-sheet-list" style="margin-bottom:12px"></div>
+            <div class="mi-row">
+                <button class="mi-btn primary" id="mi-wiz-sheet-next" type="button">Next: choose columns &amp; rows</button>
+            </div>
+        </div>
+
+        <div id="mi-wiz-step-range" style="display:none">
+            <div class="mi-grid cols-3">
+                <div class="mi-field"><label for="mi-wiz-cols">Columns (e.g. A-F or A,C,F)</label><input class="mi-input" id="mi-wiz-cols" placeholder="A-F" aria-label="Columns"></div>
+                <div class="mi-field"><label for="mi-wiz-row-from">Header row (1-based)</label><input class="mi-input" id="mi-wiz-row-from" type="number" min="1" aria-label="Header row"></div>
+                <div class="mi-field"><label for="mi-wiz-row-to">Last data row (1-based)</label><input class="mi-input" id="mi-wiz-row-to" type="number" min="1" aria-label="Last data row"></div>
+            </div>
+            <p class="mi-muted" id="mi-wiz-range-info" style="font-size:.78rem"></p>
+            <div id="mi-wiz-range-preview" class="mi-table-wrap"></div>
+            <div class="mi-row" style="margin-top:12px">
+                <button class="mi-btn ghost" id="mi-wiz-range-back" type="button">Back</button>
+                <button class="mi-btn primary" id="mi-wiz-range-next" type="button">Next: map columns</button>
+            </div>
+        </div>
+
+        <div id="mi-wiz-step-mapping" style="display:none">
+            <p class="mi-muted" style="font-size:.84rem">Type what each column means. Exactly one must be <strong>Part No.</strong> — anything else becomes a custom field stored and shown exactly as you name it. A <strong>Code Price</strong> column decodes the brand's coded price (M-I-C-H-A-E-L-S-O-N = 1-2-3-4-5-6-7-8-9-0).</p>
+            <div id="mi-wiz-map-rows" style="margin-bottom:12px"></div>
+            <div class="mi-row" style="margin-bottom:12px">
+                <select id="mi-wiz-add-col" class="mi-input" style="max-width:320px" aria-label="Add column"></select>
+                <button class="mi-btn" id="mi-wiz-add-col-btn" type="button">+ Add column</button>
+            </div>
+            <div class="mi-banner error" id="mi-wiz-map-warning" style="display:none;margin-bottom:12px"></div>
+            <div class="mi-row">
+                <button class="mi-btn ghost" id="mi-wiz-map-back" type="button">Back</button>
+                <button class="mi-btn primary" id="mi-wiz-map-next" type="button">Next: review</button>
+            </div>
+        </div>
+
+        <div id="mi-wiz-step-review" style="display:none">
+            <div id="mi-wiz-review-body"></div>
+            <div class="mi-row" style="margin-top:12px">
+                <button class="mi-btn ghost" id="mi-wiz-review-back" type="button">Back</button>
+                <button class="mi-btn primary" id="mi-wiz-stage" type="button">Upload &amp; stage for review</button>
+            </div>
         </div>
     </div>
 
@@ -73,6 +122,7 @@
 {/block}
 
 {block scripts}
+<script src="/moto-inventory/assets/import-wizard.js"></script>
 <script>
 (function () {
     const S = window.MOTO_INVENTORY;
@@ -89,21 +139,8 @@
         return r.json();
     }
 
-    if ($('mi-imp-stage')) $('mi-imp-stage').addEventListener('click', async () => {
-        const file = $('mi-imp-file').files[0];
-        if (!file) return S.toast('Choose an .xlsx file first', true);
-        const branchId = $('mi-imp-branch').value;
-        const brandId = $('mi-imp-brand').value;
-        if (!branchId || !brandId) return S.toast('Pick a branch and brand first', true);
-
-        const form = new FormData();
-        form.append('file', file);
-        form.append('branch_id', branchId);
-        form.append('brand_id', brandId);
-        form.append('idempotency_key', S.uuid());
-        const json = await api('/api/v1/moto-inventory/imports/stage', { method: 'POST', body: form }, true);
-        if (!json.ok) return S.toast(json.error, true);
-        staged = json.data;
+    function showStaged(json) {
+        staged = json;
         $('mi-imp-review').style.display = 'block';
         const body = $('mi-imp-review-body');
         let html = `<div class="mi-grid cols-2">
@@ -112,11 +149,49 @@
         </div>`;
         if (staged.errors && staged.errors.length) {
             html += `<div class="mi-banner error" style="margin-top:10px"><strong>${staged.errors.length} validation error(s)</strong><br>${S.esc(staged.errors.slice(0, 8).join('<br>'))}</div>`;
+        } else if (staged.warnings && staged.warnings.length) {
+            html += `<div class="mi-banner warn" style="margin-top:10px"><strong>${staged.warnings.length} warning(s)</strong><br>${S.esc(staged.warnings.slice(0, 6).join('<br>'))}</div>`;
         } else {
             html += '<div class="mi-banner good" style="margin-top:10px">No validation errors — ready to commit.</div>';
         }
         body.innerHTML = html;
         S.toast('Import staged for review');
+    }
+
+    if ($('mi-imp-stage')) $('mi-imp-stage').addEventListener('click', () => {
+        const file = $('mi-imp-file').files[0];
+        if (!file) return S.toast('Choose an .xlsx file first', true);
+        const branchId = $('mi-imp-branch').value;
+        const brandId = $('mi-imp-brand').value;
+        if (!branchId || !brandId) return S.toast('Pick a branch and brand first', true);
+        const errBox = $('mi-imp-file-error');
+        errBox.style.display = 'none';
+        if (window.MOTO_IMPORT_WIZARD && typeof window.MOTO_IMPORT_WIZARD.init === 'function') {
+            window.MOTO_IMPORT_WIZARD.init({
+                branchId: +branchId,
+                brandId: +brandId,
+                file,
+                onStage: async (mapping, headerRow, dataStartRow, dataEndRow, sheetIdx) => {
+                    const form = new FormData();
+                    form.append('file', file);
+                    form.append('branch_id', branchId);
+                    form.append('brand_id', brandId);
+                    form.append('sheet_index', sheetIdx);
+                    form.append('header_row', headerRow);
+                    form.append('data_start_row', dataStartRow);
+                    form.append('data_end_row', dataEndRow);
+                    form.append('mapping', JSON.stringify(mapping));
+                    form.append('idempotency_key', S.uuid());
+                    const json = await api('/api/v1/moto-inventory/imports/stage', { method: 'POST', body: form }, true);
+                    if (!json.ok) { S.toast(json.error, true); return; }
+                    $('mi-imp-wizard').style.display = 'none';
+                    showStaged(json.data);
+                }
+            });
+        } else {
+            errBox.textContent = 'Import wizard script failed to load.';
+            errBox.style.display = 'block';
+        }
     });
 
     if ($('mi-imp-commit')) $('mi-imp-commit').addEventListener('click', async () => {
