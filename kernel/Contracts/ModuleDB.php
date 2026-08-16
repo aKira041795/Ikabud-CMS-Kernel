@@ -234,8 +234,10 @@ class ModuleDB implements DatabaseContract
             }
 
             if (in_array($tableLower, $this->readsTables, true)) {
-                // Read-only — only SELECT allowed
-                if ($queryType !== 'SELECT') {
+                // Read-only — only read operations allowed (SELECT plus
+                // metadata/introspection statements like SHOW COLUMNS,
+                // DESCRIBE, EXPLAIN).
+                if (!in_array($queryType, ['SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN'], true)) {
                     $this->deny(
                         "Module '{$this->moduleId}' attempted {$queryType} on read-only table '{$table}'",
                         $sql
@@ -264,6 +266,9 @@ class ModuleDB implements DatabaseContract
         if (preg_match('/^UPDATE\b/i', $sql)) return 'UPDATE';
         if (preg_match('/^DELETE\b/i', $sql)) return 'DELETE';
         if (preg_match('/^REPLACE\b/i', $sql)) return 'INSERT';
+        if (preg_match('/^SHOW\b/i', $sql)) return 'SHOW';
+        if (preg_match('/^DESCRIBE\b|^DESC\b/i', $sql)) return 'DESCRIBE';
+        if (preg_match('/^EXPLAIN\b/i', $sql)) return 'EXPLAIN';
         return 'UNKNOWN';
     }
 
