@@ -20,7 +20,14 @@ function kernelCliBootstrap(?string $basePath = null): \Ikabud\Kernel\App
         throw new RuntimeException("bootstrap.php not found at expected path: {$bootstrapPath}");
     }
 
-    require_once $bootstrapPath;
+    // bootstrap.php historically assigns $config in the including scope while
+    // app() reads it from globals. CLI includes run inside this function, so
+    // promote the returned/local configuration just like the test harness.
+    global $config;
+    $returned = require_once $bootstrapPath;
+    if ((!is_array($config) || !isset($config['database'])) && is_array($returned)) {
+        $config = $returned;
+    }
 
     if (!function_exists('app')) {
         throw new RuntimeException('Kernel bootstrap loaded but app() helper is unavailable. Ensure bootstrap.php initializes correctly.');

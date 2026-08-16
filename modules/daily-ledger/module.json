@@ -163,6 +163,30 @@
           "first"
         ],
         "description": "Get single daily ledger entry"
+      },
+      {
+        "id": "export.daily_ledger_sales@1",
+        "priority": 50,
+        "modes": ["first"],
+        "description": "Governed Daily Ledger sales report export"
+      },
+      {
+        "id": "export.daily_ledger_variances@1",
+        "priority": 50,
+        "modes": ["first"],
+        "description": "Governed Daily Ledger variance report export"
+      },
+      {
+        "id": "export.daily_ledger_branch_summary@1",
+        "priority": 50,
+        "modes": ["first"],
+        "description": "Governed Daily Ledger branch summary export"
+      },
+      {
+        "id": "export.daily_ledger_month_end@1",
+        "priority": 50,
+        "modes": ["first"],
+        "description": "Governed Daily Ledger month-end export"
       }
     ],
     "depends": [],
@@ -177,6 +201,44 @@
       }
     }
   },
+  "report_packs": [
+    {
+      "id": "sales",
+      "title": "Daily Sales Report",
+      "description": "Official and provisional sales by date, shift, branch, and product.",
+      "entity_type": "daily_ledger_sales",
+      "formats": ["pdf", "csv"],
+      "permission": "export.daily_ledger_sales@1",
+      "schedule": "daily"
+    },
+    {
+      "id": "variances",
+      "title": "Variance Report",
+      "description": "Shift-deterministic inventory variance evidence and resolution state.",
+      "entity_type": "daily_ledger_variances",
+      "formats": ["pdf", "csv"],
+      "permission": "export.daily_ledger_variances@1",
+      "schedule": "weekly"
+    },
+    {
+      "id": "branch-summary",
+      "title": "Branch Consolidated Summary",
+      "description": "Official and provisional branch totals for the selected period.",
+      "entity_type": "daily_ledger_branch_summary",
+      "formats": ["pdf", "csv"],
+      "permission": "export.daily_ledger_branch_summary@1",
+      "schedule": "weekly"
+    },
+    {
+      "id": "month-end",
+      "title": "Month-End Summary",
+      "description": "Monthly official and provisional totals by branch.",
+      "entity_type": "daily_ledger_month_end",
+      "formats": ["pdf", "csv"],
+      "permission": "export.daily_ledger_month_end@1",
+      "schedule": "monthly"
+    }
+  ],
   "settings_fields": [
     {
       "key": "app_name",

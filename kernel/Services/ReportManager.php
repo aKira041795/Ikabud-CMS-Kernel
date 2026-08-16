@@ -89,10 +89,13 @@ final class ReportManager
         $meta['file'] = $archivePath;
         $meta['created_at'] = date('c');
 
-        file_put_contents(
-            $dir . '/' . $id . '.json',
-            json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
-        );
+        $metaPath = $dir . '/' . $id . '.json';
+        $encoded = json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (!is_string($encoded) || file_put_contents($metaPath, $encoded, LOCK_EX) === false) {
+            @unlink($archivePath);
+            @unlink($metaPath);
+            return null;
+        }
 
         return $id;
     }
@@ -117,10 +120,18 @@ final class ReportManager
         // Check capability gate
         $capId = "export.{$entityType}";
         try {
-            if (\function_exists('app') && \app()->capabilities()->has($capId)) {
-                return true;
+            if (\function_exists('app')) {
+                $registry = \app()->capabilities();
+                $resolvedCapId = $registry->resolve($capId);
+                if ($registry->has($resolvedCapId)) {
+                    return true;
+                }
             }
-        } catch (\Throwable $e) {\n            if (function_exists('write_log')) {\n                write_log('ReportManager capability check failed: ' . $e->getMessage(), 'warning');\n            }\n        }
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('ReportManager capability check failed: ' . $e->getMessage(), 'warning');
+            }
+        }
 
         // Editors can export common formats
         if ($role === 'editor' && in_array($format, ['csv', 'pdf'], true)) return true;

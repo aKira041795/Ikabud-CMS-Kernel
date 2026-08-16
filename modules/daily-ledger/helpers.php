@@ -76,7 +76,16 @@ function daily_ledger_capability_handlers(): array
         'kernel.auth.authenticate@1' => 'daily_ledger_cap_kernel_auth_authenticate_1',
         'entity.list.daily_ledger_entry@1' => 'dl_cap_entity_list_entry_1',
         'entity.get.daily_ledger_entry@1' => 'dl_cap_entity_get_entry_1',
+        'export.daily_ledger_sales@1' => 'dl_cap_export_report_1',
+        'export.daily_ledger_variances@1' => 'dl_cap_export_report_1',
+        'export.daily_ledger_branch_summary@1' => 'dl_cap_export_report_1',
+        'export.daily_ledger_month_end@1' => 'dl_cap_export_report_1',
     ];
+}
+
+function dl_cap_export_report_1(array $input = []): array
+{
+    return ['ok' => true, 'governed_by' => 'daily-ledger', 'input' => $input];
 }
 
 function dlCtx(): \Ikabud\Kernel\Contracts\ModuleContext

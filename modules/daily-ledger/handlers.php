@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/helpers/entity-views.php';
+require_once __DIR__ . '/helpers/reporting.php';
 require_once __DIR__ . '/handlers-deliveries.php';
 require_once __DIR__ . '/handlers-pos.php';
 require_once __DIR__ . '/handlers-offline.php';
@@ -6205,6 +6206,152 @@ function handleAdminOverview(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+    ]);
+}
+
+function handleAdminReports(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $role = (string)($user['role'] ?? '');
+    $packs = array_values(array_filter(
+        \Ikabud\Kernel\Services\ReportManager::moduleReportPacks(),
+        static fn(array $pack): bool => (string)($pack['module'] ?? '') === 'daily-ledger'
+    ));
+    $tenantScope = dl_reportTenantScope();
+    $archives = array_values(array_filter(
+        \Ikabud\Kernel\Services\ReportManager::listArchived(),
+        static fn(array $item): bool => dl_reportArchiveVisibleToTenant($item, $tenantScope)
+    ));
+    echo dlRender('modules/daily-ledger/admin/reports.disyl', [
+        'page_title' => 'Reports',
+        'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
+        'user_role' => $role,
+        'current_page' => 'reports',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'csrf_token' => app()->csrfToken(),
+        'landing' => true,
+        'report_packs' => $packs,
+        'archives' => array_slice($archives, 0, 20),
+        'report_type' => '',
+        'report_title' => 'Reports',
+        'report_rows' => [],
+        'totals' => [],
+        'filters' => [],
+        'branches' => [],
+        'products' => [],
+        'columns' => [],
+    ]);
+}
+
+function dl_handleAdminReport(string $type): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $definitions = dl_reportDefinitions();
+    if (!isset($definitions[$type])) { http_response_code(404); echo 'Report not found'; return; }
+    $reportInput = $ctx->input();
+    if ($type === 'month-end' && empty($reportInput['date_from']) && empty($reportInput['date_to'])) {
+        $reportInput['date_from'] = (new DateTimeImmutable(dl_businessDate()))->modify('first day of this month')->format('Y-m-d');
+        $reportInput['date_to'] = dl_businessDate();
+    }
+    $filters = dl_reportFilters($reportInput, $user);
+    $data = dl_reportDataForType($ctx->db(), $type, $filters);
+    echo dlRender('modules/daily-ledger/admin/reports.disyl', [
+        'page_title' => $definitions[$type]['title'],
+        'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
+        'user_role' => (string)($user['role'] ?? ''),
+        'current_page' => 'reports',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'csrf_token' => app()->csrfToken(),
+        'landing' => false,
+        'report_packs' => [],
+        'archives' => [],
+        'report_type' => $type,
+        'report_title' => $definitions[$type]['title'],
+        'report_rows' => $data['rows'],
+        'totals' => $data['totals'],
+        'filters' => $filters,
+        'branches' => dl_reportFilterBranches($ctx->db(), $filters),
+        'products' => dl_reportFilterProducts($ctx->db(), $filters),
+        'columns' => $definitions[$type]['columns'],
+    ]);
+}
+
+function handleAdminReportSales(array $params = []): void { dl_handleAdminReport('sales'); }
+function handleAdminReportVariances(array $params = []): void { dl_handleAdminReport('variances'); }
+function handleAdminReportBranchSummary(array $params = []): void { dl_handleAdminReport('branch-summary'); }
+function handleAdminReportMonthEnd(array $params = []): void { dl_handleAdminReport('month-end'); }
+
+function dl_handleAdminReportExport(string $type): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $input = $ctx->input();
+    $format = strtolower(trim((string)($input['format'] ?? 'pdf')));
+    if (!in_array($format, ['pdf', 'csv'], true)) { http_response_code(422); echo 'Unsupported format'; return; }
+    try {
+        $filters = dl_reportFilters($input, $user);
+        $data = dl_reportDataForType($ctx->db(), $type, $filters);
+        $branchLabel = 'all';
+        foreach (dl_reportFilterBranches($ctx->db(), $filters) as $branch) {
+            if ((int)$branch['id'] === (int)$filters['branch_id']) { $branchLabel = (string)$branch['code']; break; }
+        }
+        $export = dl_generateGovernedReport($type, $format, $data, $filters, $user, $branchLabel);
+        if (!is_array($export)) { throw new DlReportUserException('Unable to generate report.'); }
+        if (!empty($export['queued'])) {
+            http_response_code(202);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo (string)$export['message'];
+            return;
+        }
+        header('Content-Type: ' . $export['mime']);
+        header('Content-Disposition: attachment; filename="' . basename((string)$export['filename']) . '"');
+        header('Content-Length: ' . (int)$export['size']);
+        readfile((string)$export['path']);
+        @unlink((string)$export['path']);
+    } catch (Throwable $e) {
+        write_log('daily-ledger report export failed: ' . $e->getMessage(), 'error', ['type' => $type, 'format' => $format]);
+        http_response_code(422);
+        echo $e instanceof DlReportUserException ? $e->getMessage() : 'Unable to generate report.';
+    }
+}
+
+function handleAdminReportSalesExport(array $params = []): void { dl_handleAdminReportExport('sales'); }
+function handleAdminReportVariancesExport(array $params = []): void { dl_handleAdminReportExport('variances'); }
+function handleAdminReportBranchSummaryExport(array $params = []): void { dl_handleAdminReportExport('branch-summary'); }
+function handleAdminReportMonthEndExport(array $params = []): void { dl_handleAdminReportExport('month-end'); }
+
+function handleAdminForecast(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $input = $ctx->input();
+    $filters = dl_reportFilters($input, $user);
+    $targetDate = dl_reportValidDate((string)($input['target_date'] ?? ''))
+        ?: (new DateTimeImmutable(dl_businessDate()))->modify('+1 day')->format('Y-m-d');
+    $window = max(3, min(90, (int)($input['window'] ?? 14)));
+    $rows = dl_forecastRows($ctx->db(), $filters, $targetDate, $window);
+    echo dlRender('modules/daily-ledger/admin/forecast.disyl', [
+        'page_title' => 'Production Forecast',
+        'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
+        'user_role' => (string)($user['role'] ?? ''),
+        'current_page' => 'forecast',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'csrf_token' => app()->csrfToken(),
+        'target_date' => $targetDate,
+        'window' => $window,
+        'rows' => $rows,
+        'filters' => $filters,
+        'branches' => dl_reportFilterBranches($ctx->db(), $filters),
+        'products' => dl_reportFilterProducts($ctx->db(), $filters),
     ]);
 }
 

@@ -6,12 +6,13 @@ const http = require('http');
 const listenHost = '127.0.0.1';
 const listenPort = Number(process.env.DL_PWA_PROXY_PORT || 4179);
 const upstreamHost = process.env.DL_PWA_UPSTREAM_HOST || 'baronledger.test';
+const upstreamPort = Number(process.env.DL_PWA_UPSTREAM_PORT || 80);
 
 const server = http.createServer((request, response) => {
     const headers = { ...request.headers, host: upstreamHost };
     const upstream = http.request({
         hostname: '127.0.0.1',
-        port: 80,
+        port: upstreamPort,
         method: request.method,
         path: request.url,
         headers
