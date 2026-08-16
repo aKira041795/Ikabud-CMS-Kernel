@@ -59,7 +59,13 @@ if ($tenantId === null || $tenantId <= 0) {
     // a fresh bakeshop tenant while applicationos.test is the active context;
     // TenantProvisioner::seedAdminUser() only seeds bakeshop_users when the
     // bakeshop module is enabled (kernelAuthOwnedSpecForModule → getEnabledModules()).
-    $modules = ['ticketing', 'contact-form', 'guidance', 'bakeshop'];
+    // tinymce: guidance declares tinymce.* capability depends; if tinymce is
+    // not enabled for the resolved tenant, getEnabledModules() skips guidance
+    // with a "missing capability providers" warning (pollutes app.log → breaks
+    // the cms_theme_test "no app.log warnings/errors" assertion) and its
+    // kernel.auth.authenticate@1 provider never registers → the guidance login
+    // handler returns 401. Enable it so guidance actually loads.
+    $modules = ['ticketing', 'contact-form', 'guidance', 'bakeshop', 'tinymce'];
 
     echo "CI module seed: enabling " . implode(', ', $modules) . " for tenant #{$tenantId} ({$host})\n";
     foreach ($modules as $moduleId) {
@@ -104,8 +110,12 @@ if ($cmsTenantId === null || $cmsTenantId <= 0) {
     // (wordpress-importer). That relevance is driven by the CMS tenant's
     // `_installed_submodules` setting (read in superadminTenantRelevantModuleMap).
     // The dev CMS tenant has wordpress-importer/content-ingestion in that list;
-    // CI's fresh tenant does not, so the assertion fails. Mirror the dev state.
+    // CI's fresh tenants do not, so the assertion fails. The test resolves the
+    // CMS tenant as `entry_module_id='cms' ORDER BY id LIMIT 1` (clientsite,
+    // id=2, in CI) — NOT necessarily cmsnew.test — so seed the submodules for
+    // EVERY active CMS tenant.
     ciEnsureCmsInstalledSubmodules($cmsTenantId);
+    ciEnsureAllCmsTenantSubmodules();
 
     // bakeshop_characterization_test (cmsnew.test → this tenant) asserts the
     // bakeshop tables have baseline data (ingredients, products). CI's fresh
@@ -149,6 +159,33 @@ function ciEnsureCmsInstalledSubmodules(int $tenantId): void
         invalidateTenantModuleSettingsCache();
     }
     echo "  cms _installed_submodules: " . implode(',', $current) . " (tenant #{$tenantId})\n";
+}
+
+/**
+ * Seed `_installed_submodules` for EVERY active CMS tenant. The superadmin
+ * relevance test resolves the CMS tenant with `entry_module_id='cms'
+ * ORDER BY id LIMIT 1`, which in CI is clientsite (id=2), a different tenant
+ * than cmsnew.test. Cover all of them so whichever tenant the test picks has
+ * the wordpress-importer / content-ingestion data add-ons.
+ */
+function ciEnsureAllCmsTenantSubmodules(): void
+{
+    try {
+        $controlDb = app()->controlDb();
+        $rows = $controlDb->query(
+            "SELECT id FROM kernel_tenants WHERE status = 'active' AND entry_module_id = 'cms' ORDER BY id ASC"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        fwrite(STDERR, "  cms submodules: cannot enumerate CMS tenants ({$e->getMessage()})\n");
+        return;
+    }
+
+    foreach ($rows as $row) {
+        $tid = (int)($row['id'] ?? 0);
+        if ($tid > 0) {
+            ciEnsureCmsInstalledSubmodules($tid);
+        }
+    }
 }
 
 /**

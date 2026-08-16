@@ -111,6 +111,19 @@ foreach ($files as $file) {
             }
         }
     }
+    // Clear the CMS derived public-context cache (cms_t{tid}) between tests.
+    // cmsPublicContext() caches a derived context (theme + entity presentation +
+    // theme settings merged) keyed on theme/scope factors with TTL 120s. A stale
+    // entry from an earlier test makes cms_theme_test's post-upsert
+    // cmsPublicContext() return the previous defaults. Tag invalidation is not
+    // relied on here; wipe the cache dir so the next test rebuilds fresh.
+    foreach (glob($root . '/storage/cache/cms_t*', GLOB_ONLYDIR) as $cacheDir) {
+        foreach (glob($cacheDir . '/*') ?: [] as $cacheFile) {
+            if (is_file($cacheFile)) {
+                @unlink($cacheFile);
+            }
+        }
+    }
 
     $descriptors = [
         0 => ['pipe', 'r'],
