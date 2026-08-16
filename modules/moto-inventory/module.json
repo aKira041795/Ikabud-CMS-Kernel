@@ -1,0 +1,264 @@
+{
+    "id": "moto-inventory",
+    "name": "Moto Inventory",
+    "version": "1.0.0",
+    "description": "Motorcycle parts inventory, sales, profit reporting, pricelist import, branch management, audit, and safe data export for Moto Inventory shops.",
+    "author": "Ikabud Kernel Team",
+    "routes": "routes.php",
+    "handlers": "handlers.php",
+    "owns_tables": [
+        "moto_branches",
+        "moto_user_branches",
+        "moto_brands",
+        "moto_products",
+        "moto_stock_movements",
+        "moto_sales",
+        "moto_sale_items",
+        "moto_imports",
+        "moto_import_rows",
+        "moto_audit_log",
+        "moto_idempotency_keys",
+        "moto_preferences",
+        "moto_backups"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_moto_inventory_core.sql",
+        "database/migrations/002_moto_inventory_sales_and_movements.sql",
+        "database/migrations/003_moto_inventory_import_audit_and_idempotency.sql"
+    ],
+    "events": [
+        {
+            "key": "moto_inventory.sale.completed"
+        },
+        {
+            "key": "moto_inventory.sale.voided"
+        },
+        {
+            "key": "moto_inventory.product.created"
+        },
+        {
+            "key": "moto_inventory.product.updated"
+        },
+        {
+            "key": "moto_inventory.product.archived"
+        },
+        {
+            "key": "moto_inventory.stock.adjusted"
+        },
+        {
+            "key": "moto_inventory.import.committed"
+        }
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "moto_inventory.catalog.query@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Read products and brands (branch-scoped)"
+            },
+            {
+                "id": "moto_inventory.catalog.mutate@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create/edit/archive/restore brands and products"
+            },
+            {
+                "id": "moto_inventory.stock.query@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Query stock balances and movements"
+            },
+            {
+                "id": "moto_inventory.stock.adjust@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Record stock adjustments with a reason"
+            },
+            {
+                "id": "moto_inventory.sale.complete@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Complete a sale with stable receipt/reference"
+            },
+            {
+                "id": "moto_inventory.sale.void@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Void or undo a sale with compensating stock"
+            },
+            {
+                "id": "moto_inventory.report.query@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Sales and profit reporting"
+            },
+            {
+                "id": "moto_inventory.import.mutate@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Stage and commit reviewed pricelist imports"
+            },
+            {
+                "id": "moto_inventory.export.mutate@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Safe versioned data export/import"
+            },
+            {
+                "id": "moto_inventory.audit.query@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Read append-only audit records"
+            },
+            {
+                "id": "moto_inventory.branch.query@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List branches and user branch assignments"
+            }
+        ],
+        "depends": []
+    },
+    "settings_fields": [
+        {
+            "key": "low_stock_threshold",
+            "type": "number",
+            "label": "Low Stock Threshold",
+            "default": "5",
+            "description": "Quantity at or below which a product is flagged LOW in the inventory list."
+        },
+        {
+            "key": "allow_negative_stock",
+            "type": "bool",
+            "label": "Allow Negative Stock",
+            "default": false,
+            "description": "When disabled, sales/adjustments that would drive stock below zero are rejected. When enabled, an explicit override flag is recorded."
+        },
+        {
+            "key": "undo_window_minutes",
+            "type": "number",
+            "label": "Undo Window (Minutes)",
+            "default": "5",
+            "description": "Window in minutes during which the latest sale can be undone by the cashier that made it."
+        },
+        {
+            "key": "role_permissions",
+            "type": "textarea",
+            "label": "Role Permissions",
+            "default": "",
+            "description": "Optional JSON role-to-permission map. Supported permissions: moto_inventory.manage, moto_inventory.sell, moto_inventory.void, moto_inventory.view_cost, moto_inventory.view_profit, moto_inventory.view_audit, moto_inventory.view_all_branches."
+        }
+    ],
+    "nav": [
+        {
+            "label": "Dashboard",
+            "url": "/moto-inventory",
+            "icon": "layout-dashboard",
+            "roles": [
+                "admin",
+                "manager",
+                "cashier",
+                "owner",
+                "superadmin"
+            ]
+        },
+        {
+            "label": "Inventory",
+            "url": "/moto-inventory/inventory",
+            "icon": "box",
+            "roles": [
+                "admin",
+                "manager",
+                "cashier",
+                "owner",
+                "superadmin"
+            ]
+        },
+        {
+            "label": "Sales",
+            "url": "/moto-inventory/sales",
+            "icon": "shopping-cart",
+            "roles": [
+                "admin",
+                "manager",
+                "cashier",
+                "superadmin"
+            ]
+        },
+        {
+            "label": "History",
+            "url": "/moto-inventory/history",
+            "icon": "history",
+            "roles": [
+                "admin",
+                "manager",
+                "cashier",
+                "owner",
+                "superadmin"
+            ]
+        },
+        {
+            "label": "Reports",
+            "url": "/moto-inventory/reports",
+            "icon": "chart-bar",
+            "roles": [
+                "admin",
+                "manager",
+                "owner",
+                "superadmin"
+            ]
+        },
+        {
+            "label": "Audit",
+            "url": "/moto-inventory/audit",
+            "icon": "scroll-text",
+            "roles": [
+                "admin",
+                "owner",
+                "superadmin"
+            ]
+        },
+        {
+            "label": "Import",
+            "url": "/moto-inventory/import",
+            "icon": "upload",
+            "roles": [
+                "admin",
+                "superadmin"
+            ]
+        },
+        {
+            "label": "Branches",
+            "url": "/moto-inventory/branches",
+            "icon": "git-branch",
+            "roles": [
+                "admin",
+                "superadmin"
+            ]
+        }
+    ]
+}

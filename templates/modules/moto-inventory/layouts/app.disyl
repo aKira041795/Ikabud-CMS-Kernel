@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a1a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Moto Inventory">
+    <link rel="manifest" href="/moto-inventory/manifest.json">
+    <link rel="icon" type="image/png" href="/moto-inventory/favicon.png">
+    <link rel="apple-touch-icon" href="/moto-inventory/icon-192.png">
+    <title>{page_title | default:'Moto Inventory'}</title>
+    <link rel="stylesheet" href="/moto-inventory/assets/moto-inventory.css">
+    <style>
+        :root {
+            --ink: #1a1a1a;
+            --ink-soft: #2b2b2b;
+            --paper: #f7f6f2;
+            --surface: #ffffff;
+            --line: #e3e0d6;
+            --muted: #6b675e;
+            --accent: #d97706;
+            --accent-strong: #b45309;
+            --accent-soft: #fef3c7;
+            --good: #15803d;
+            --good-soft: #dcfce7;
+            --bad: #b91c1c;
+            --bad-soft: #fee2e2;
+            --warn: #a16207;
+            --warn-soft: #fef9c3;
+            --radius: 12px;
+            --shadow: 0 10px 26px rgba(26, 26, 26, 0.08);
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            font-size: 15px;
+            line-height: 1.45;
+        }
+        a { color: inherit; }
+        button, input, select, textarea { font: inherit; }
+        .mi-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            background: var(--ink);
+            color: #f5f1e8;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.18);
+        }
+        .mi-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .mi-brand img { width: 34px; height: 34px; border-radius: 8px; background: #fff; object-fit: contain; padding: 2px; }
+        .mi-brand-title { font-weight: 800; font-size: 1.02rem; letter-spacing: .02em; white-space: nowrap; }
+        .mi-brand-sub { font-size: .68rem; opacity: .72; letter-spacing: .14em; text-transform: uppercase; }
+        .mi-topbar-spacer { flex: 1; }
+        .mi-user-chip {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+            padding: 6px 10px; border-radius: 999px; font-size: .8rem; color: #f5f1e8;
+        }
+        .mi-user-chip .mi-role {
+            background: var(--accent); color: #fff; border-radius: 999px;
+            padding: 1px 8px; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+        }
+        .mi-link { color: #f5f1e8; text-decoration: none; font-size: .8rem; }
+        .mi-nav {
+            display: flex;
+            overflow-x: auto;
+            gap: 4px;
+            background: var(--ink-soft);
+            padding: 6px 10px;
+            position: sticky;
+            top: 58px;
+            z-index: 30;
+            scrollbar-width: none;
+        }
+        .mi-nav::-webkit-scrollbar { display: none; }
+        .mi-nav a {
+            color: rgba(245,241,232,.78);
+            text-decoration: none;
+            white-space: nowrap;
+            padding: 8px 13px;
+            border-radius: 9px;
+            font-size: .84rem;
+            font-weight: 600;
+        }
+        .mi-nav a.active { background: var(--accent); color: #fff; }
+        .mi-main { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+        .mi-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; }
+        .mi-title h1 { margin: 0; font-size: 1.5rem; font-weight: 800; }
+        .mi-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+        .mi-grid { display: grid; gap: 12px; }
+        .mi-grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+        .mi-stat { padding: 14px; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+        .mi-stat .mi-stat-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+        .mi-stat .mi-stat-value { font-size: 1.35rem; font-weight: 800; margin-top: 4px; }
+        .mi-btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            border: 1px solid var(--line); background: #fff; color: var(--ink);
+            padding: 9px 14px; border-radius: 10px; font-weight: 600; font-size: .86rem;
+            cursor: pointer; text-decoration: none; line-height: 1.2;
+        }
+        .mi-btn:hover { background: #faf9f5; }
+        .mi-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .mi-btn.primary:hover { background: var(--accent-strong); }
+        .mi-btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+        .mi-btn.ghost { background: transparent; }
+        .mi-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .mi-field { display: grid; gap: 5px; margin-bottom: 12px; }
+        .mi-field label { font-size: .78rem; font-weight: 600; color: var(--muted); }
+        .mi-input, .mi-select, .mi-textarea {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+            border-radius: 10px; background: #fff; color: var(--ink); font-size: .92rem;
+        }
+        .mi-input:focus, .mi-select:focus, .mi-textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+        .mi-table-wrap { overflow-x: auto; }
+        .mi-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+        .mi-table th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+        .mi-table td { padding: 9px 10px; border-bottom: 1px solid #f0ede5; vertical-align: top; }
+        .mi-table tr:hover td { background: #fbfaf6; }
+        .mi-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: .68rem; font-weight: 700; }
+        .mi-badge.good { background: var(--good-soft); color: var(--good); }
+        .mi-badge.bad { background: var(--bad-soft); color: var(--bad); }
+        .mi-badge.warn { background: var(--warn-soft); color: var(--warn); }
+        .mi-badge.muted { background: #eee; color: var(--muted); }
+        .mi-banner { border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: .86rem; }
+        .mi-banner.info { background: #e0edff; color: #1e40af; }
+        .mi-banner.warn { background: var(--warn-soft); color: var(--warn); }
+        .mi-banner.error { background: var(--bad-soft); color: var(--bad); }
+        .mi-banner.good { background: var(--good-soft); color: var(--good); }
+        .mi-empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: .9rem; }
+        .mi-muted { color: var(--muted); }
+        .mi-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .mi-spacer { flex: 1; }
+        .mi-pager { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .mi-pager .mi-pager-info { font-size: .8rem; color: var(--muted); }
+        .mi-amount { font-variant-numeric: tabular-nums; font-weight: 700; }
+        .mi-search { position: relative; }
+        .mi-search input { padding-left: 34px; }
+        .mi-search::before {
+            content: "⌕"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: var(--muted); font-size: 1.05rem;
+        }
+        .mi-mobile-bar { display: none; }
+        @media (max-width: 640px) {
+            .mi-topbar { flex-wrap: wrap; padding: 10px 12px; }
+            .mi-brand-sub { display: none; }
+            .mi-user-chip { font-size: .72rem; padding: 4px 8px; }
+            .mi-main { padding: 14px 12px 60px; }
+            .mi-nav { top: 52px; }
+        }
+        .mi-modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60;
+            display: none; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow-y: auto;
+        }
+        .mi-modal-backdrop.open { display: flex; }
+        .mi-modal {
+            background: #fff; border-radius: 14px; box-shadow: var(--shadow);
+            width: 100%; max-width: 520px; padding: 18px; margin: auto 0;
+        }
+        .mi-modal h2 { margin: 0 0 12px; font-size: 1.15rem; }
+        .mi-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+        .mi-toast {
+            position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+            background: var(--ink); color: #f5f1e8; padding: 11px 18px; border-radius: 10px;
+            font-size: .86rem; z-index: 80; box-shadow: var(--shadow); display: none; max-width: 90vw;
+        }
+        .mi-toast.show { display: block; }
+        .mi-toast.error { background: var(--bad); }
+        .mi-toast.good { background: var(--good); }
+        .mi-offline-note {
+            display: none; align-items: center; gap: 8px; background: var(--warn-soft);
+            color: var(--warn); font-size: .78rem; padding: 6px 10px; border-radius: 8px; margin-bottom: 10px;
+        }
+        .mi-offline-note.show { display: flex; }
+    </style>
+    {block head}{/block}
+</head>
+<body>
+    <div class="mi-offline-note" id="mi-offline-note">
+        <span>⚠</span><span>You are offline. Catalog and cart draft are read-only — sales, void, import, adjustment, and restore cannot complete until you reconnect.</span>
+    </div>
+
+    <header class="mi-topbar">
+        <div class="mi-brand">
+            <img src="/moto-inventory/icon-192.png" alt="Moto Inventory logo" width="34" height="34">
+            <div>
+                <div class="mi-brand-title">MOTO INVENTORY</div>
+                <div class="mi-brand-sub">Inventory · Sales · Profit</div>
+            </div>
+        </div>
+        <div class="mi-topbar-spacer"></div>
+        <span class="mi-user-chip" title="{actor_name | default:''} ({role | default:''})">
+            <span>{actor_name | default:'User'}</span>
+            <span class="mi-role">{role | default:''}</span>
+        </span>
+        <a class="mi-link" href="/login" title="Sign out">Sign out</a>
+    </header>
+
+    <nav class="mi-nav" aria-label="Moto Inventory">
+        <a href="/moto-inventory" class="{if active_nav == 'dashboard'}active{/if}">Dashboard</a>
+        <a href="/moto-inventory/inventory" class="{if active_nav == 'inventory'}active{/if}">Inventory</a>
+        {if can_sell || can_manage}
+        <a href="/moto-inventory/sales" class="{if active_nav == 'sales'}active{/if}">Sales</a>
+        {/if}
+        <a href="/moto-inventory/history" class="{if active_nav == 'history'}active{/if}">History</a>
+        {if can_view_profit}
+        <a href="/moto-inventory/reports" class="{if active_nav == 'reports'}active{/if}">Reports</a>
+        {/if}
+        {if can_view_audit}
+        <a href="/moto-inventory/audit" class="{if active_nav == 'audit'}active{/if}">Audit</a>
+        {/if}
+        {if can_manage}
+        <a href="/moto-inventory/import" class="{if active_nav == 'import'}active{/if}">Import</a>
+        <a href="/moto-inventory/branches" class="{if active_nav == 'branches'}active{/if}">Branches</a>
+        {/if}
+    </nav>
+
+    <main class="mi-main">
+        {block content}{/block}
+    </main>
+
+    <div class="mi-modal-backdrop" id="mi-modal-backdrop" aria-hidden="true">
+        <div class="mi-modal" role="dialog" aria-modal="true"></div>
+    </div>
+    <div class="mi-toast" id="mi-toast" role="status"></div>
+
+    <script src="/moto-inventory/assets/moto-inventory.js" defer></script>
+    <script>
+        const MOTO_INVENTORY = {
+            csrf: {if csrf_token}{csrf_token|json_encode}{else}""{/if},
+            me: {json_encode(me_payload)}
+        };
+    </script>
+    {block scripts}{/block}
+</body>
+</html>

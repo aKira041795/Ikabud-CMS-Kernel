@@ -1,0 +1,152 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>Import & Backup</h1>
+</div>
+
+<div class="mi-grid" style="grid-template-columns:minmax(0,1fr);gap:14px">
+    <div class="mi-card">
+        <h2 style="margin-top:0">Import pricelist (.xlsx)</h2>
+        <div class="mi-row" style="margin-bottom:12px">
+            <label style="min-width:180px"><span class="mi-muted" style="font-size:.72rem">Branch</span>
+                <select id="mi-imp-branch" class="mi-select">
+                    {for b in branches}<option value="{b.id}">{b.name}</option>{/for}
+                </select>
+            </label>
+            <label style="min-width:180px"><span class="mi-muted" style="font-size:.72rem">Brand / Supplier</span>
+                <select id="mi-imp-brand" class="mi-select">
+                    {for b in brands}<option value="{b.id}">{b.name}</option>{/for}
+                </select>
+            </label>
+        </div>
+        <div class="mi-field">
+            <input id="mi-imp-file" class="mi-input" type="file" accept=".xlsx" aria-label="Choose .xlsx file">
+        </div>
+        <div class="mi-row">
+            <button class="mi-btn primary" id="mi-imp-stage" type="button">Upload & review</button>
+            <button class="mi-btn ghost" id="mi-imp-export" type="button">Export branch data (.json)</button>
+            <label class="mi-btn" style="cursor:pointer">Import backup (.json)<input id="mi-imp-backup-file" type="file" accept=".json" hidden></label>
+        </div>
+        <div class="mi-banner info" style="margin-top:10px">
+            Files are validated and staged for review before any inventory change. Duplicate part numbers, oversized files, and malformed sheets are rejected server-side.
+        </div>
+    </div>
+
+    <div class="mi-card" id="mi-imp-review" style="display:none">
+        <h2 style="margin-top:0">Review staged import</h2>
+        <div id="mi-imp-review-body"></div>
+        <div class="mi-row" style="margin-top:12px">
+            <label class="mi-row" style="gap:6px;font-size:.84rem"><input type="checkbox" id="mi-imp-overwrite-qty"> Also overwrite quantity on existing items</label>
+            <div class="mi-spacer"></div>
+            <button class="mi-btn ghost" id="mi-imp-errors" type="button">Download error report</button>
+            <button class="mi-btn primary" id="mi-imp-commit" type="button">Commit import</button>
+        </div>
+    </div>
+</div>
+
+<div class="mi-card">
+    <h2 style="margin-top:0">Recent imports</h2>
+    <div class="mi-table-wrap">
+        <table class="mi-table">
+            <thead><tr><th>File</th><th>Brand</th><th>Status</th><th style="text-align:right">Rows</th><th style="text-align:right">New</th><th style="text-align:right">Updated</th><th>When</th></tr></thead>
+            <tbody id="mi-imp-list">
+                {if imports}
+                {for i in imports}
+                <tr>
+                    <td>{i.filename}</td>
+                    <td>{i.brand_name}</td>
+                    <td>{if i.status == 'committed'}<span class="mi-badge good">Committed</span>{elseif i.status == 'rejected'}<span class="mi-badge bad">Rejected</span>{else}<span class="mi-badge warn">Staged</span>{/if}</td>
+                    <td style="text-align:right">{i.row_count}</td>
+                    <td style="text-align:right">{i.new_count}</td>
+                    <td style="text-align:right">{i.existing_count}</td>
+                    <td class="mi-muted" style="font-size:.78rem">{i.created_at}</td>
+                </tr>
+                {/for}
+                {else}
+                <tr><td colspan="7" class="mi-empty">No imports yet.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const S = window.MOTO_INVENTORY;
+    const $ = (id) => document.getElementById(id);
+    let staged = null;
+
+    async function api(url, opts, isForm) {
+        opts = opts || {};
+        if (opts.method && opts.method !== 'GET') {
+            if (isForm) opts.headers = Object.assign({ 'X-CSRF-Token': S.csrf }, opts.headers || {});
+            else { opts.headers = Object.assign({ 'Content-Type': 'application/json', 'X-CSRF-Token': S.csrf }, opts.headers || {}); opts.body = JSON.stringify(opts.body || {}); }
+        }
+        const r = await fetch(url, opts);
+        return r.json();
+    }
+
+    if ($('mi-imp-stage')) $('mi-imp-stage').addEventListener('click', async () => {
+        const file = $('mi-imp-file').files[0];
+        if (!file) return S.toast('Choose an .xlsx file first', true);
+        const branchId = $('mi-imp-branch').value;
+        const brandId = $('mi-imp-brand').value;
+        if (!branchId || !brandId) return S.toast('Pick a branch and brand first', true);
+
+        const form = new FormData();
+        form.append('file', file);
+        form.append('branch_id', branchId);
+        form.append('brand_id', brandId);
+        form.append('idempotency_key', S.uuid());
+        const json = await api('/api/v1/moto-inventory/imports/stage', { method: 'POST', body: form }, true);
+        if (!json.ok) return S.toast(json.error, true);
+        staged = json.data;
+        $('mi-imp-review').style.display = 'block';
+        const body = $('mi-imp-review-body');
+        let html = `<div class="mi-grid cols-2">
+            <div class="mi-stat"><div class="mi-stat-label">Rows</div><div class="mi-stat-value">${staged.rows.length}</div></div>
+            <div class="mi-stat"><div class="mi-stat-label">New / Existing</div><div class="mi-stat-value">${staged.new_count} / ${staged.existing_count}</div></div>
+        </div>`;
+        if (staged.errors && staged.errors.length) {
+            html += `<div class="mi-banner error" style="margin-top:10px"><strong>${staged.errors.length} validation error(s)</strong><br>${S.esc(staged.errors.slice(0, 8).join('<br>'))}</div>`;
+        } else {
+            html += '<div class="mi-banner good" style="margin-top:10px">No validation errors — ready to commit.</div>';
+        }
+        body.innerHTML = html;
+        S.toast('Import staged for review');
+    });
+
+    if ($('mi-imp-commit')) $('mi-imp-commit').addEventListener('click', async () => {
+        if (!staged) return;
+        if (!confirm('Commit this import now? Existing products will be updated.')) return;
+        const json = await api('/api/v1/moto-inventory/imports/' + staged.import_id + '/commit', { method: 'POST', body: { overwrite_qty: $('mi-imp-overwrite-qty').checked } });
+        if (json.ok) { S.toast('Import committed', false, 'good'); staged = null; $('mi-imp-review').style.display = 'none'; setTimeout(() => location.reload(), 800); }
+        else S.toast(json.error, true);
+    });
+
+    if ($('mi-imp-errors')) $('mi-imp-errors').addEventListener('click', () => {
+        if (staged) location.href = '/api/v1/moto-inventory/imports/' + staged.import_id + '/errors';
+    });
+
+    if ($('mi-imp-export')) $('mi-imp-export').addEventListener('click', () => {
+        const q = new URLSearchParams({ branch_id: $('mi-imp-branch').value });
+        location.href = '/api/v1/moto-inventory/export?' + q.toString();
+    });
+
+    if ($('mi-imp-backup-file')) $('mi-imp-backup-file').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        let payload;
+        try { payload = JSON.parse(await file.text()); }
+        catch (err) { return S.toast('Not a valid backup file', true); }
+        const json = await api('/api/v1/moto-inventory/import', { method: 'POST', body: { branch_id: +$('mi-imp-branch').value, idempotency_key: S.uuid(), payload } });
+        if (json.ok) { S.toast(`Backup imported: ${json.data.products_created} new, ${json.data.products_updated} updated`, false, 'good'); }
+        else S.toast(json.error, true);
+        e.target.value = '';
+    });
+})();
+</script>
+{/block}

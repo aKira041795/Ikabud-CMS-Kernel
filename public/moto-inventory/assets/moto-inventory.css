@@ -1,0 +1,41 @@
+/*
+ * Moto Inventory — shared stylesheet.
+ * The app shell styles live in templates/modules/moto-inventory/layouts/app.disyl;
+ * this file hosts any page-agnostic utilities loaded before the page scripts.
+ */
+.mi-nowrap {
+    white-space: nowrap;
+}
+
+.mi-text-right {
+    text-align: right;
+}
+
+.mi-text-center {
+    text-align: center;
+}
+
+.mi-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mi-stack {
+    display: grid;
+    gap: 8px;
+}
+
+.mi-divider {
+    height: 1px;
+    background: var(--line);
+    margin: 12px 0;
+}
+
+.mi-kbd {
+    display: inline-block;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    padding: 1px 6px;
+    font-size: .78rem;
+    background: #fff;
+}

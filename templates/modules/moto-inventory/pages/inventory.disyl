@@ -1,0 +1,232 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>Inventory</h1>
+    <div class="mi-row">
+        <label style="margin:0"><span class="mi-muted" style="font-size:.72rem">Branch</span>
+            <select id="mi-inv-branch" class="mi-select">
+                {for b in branches}<option value="{b.id}">{b.name}</option>{/for}
+            </select>
+        </label>
+        <button class="mi-btn" id="mi-inv-refresh" type="button">Refresh</button>
+        {if can_manage}
+        <button class="mi-btn primary" id="mi-add-part" type="button">+ Add part</button>
+        {/if}
+    </div>
+</div>
+
+<div class="mi-card">
+    <div class="mi-row" style="margin-bottom:12px">
+        <div class="mi-search" style="flex:1;min-width:200px">
+            <input id="mi-inv-search" class="mi-input" type="search" placeholder="Search part no. or description…" aria-label="Search parts">
+        </div>
+        <select id="mi-inv-brand" class="mi-select" aria-label="Filter by brand">
+            <option value="">All brands</option>
+            {for b in brands}<option value="{b.id}">{b.name}</option>{/for}
+        </select>
+        {if can_manage}
+        <label class="mi-row" style="gap:4px;font-size:.82rem"><input type="checkbox" id="mi-inv-archived"> Archived</label>
+        <label class="mi-row" style="gap:4px;font-size:.82rem"><input type="checkbox" id="mi-inv-trashed"> Trash</label>
+        {/if}
+    </div>
+
+    <div class="mi-table-wrap">
+        <table class="mi-table" id="mi-inv-table">
+            <thead>
+                <tr>
+                    <th>Part No.</th>
+                    <th>Description</th>
+                    <th>Brand</th>
+                    <th>Code</th>
+                    <th style="text-align:right">Qty</th>
+                    {if can_view_cost}<th style="text-align:right">Cost</th>{/if}
+                    <th style="text-align:right">Price</th>
+                    {if can_manage}<th style="text-align:right">Actions</th>{/if}
+                </tr>
+            </thead>
+            <tbody id="mi-inv-rows">
+                <tr><td colspan="9" class="mi-empty">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mi-pager">
+        <button class="mi-btn ghost" id="mi-inv-prev" type="button">‹ Prev</button>
+        <span class="mi-pager-info" id="mi-inv-info">–</span>
+        <button class="mi-btn ghost" id="mi-inv-next" type="button">Next ›</button>
+        <div class="mi-spacer"></div>
+        <select id="mi-inv-perpage" class="mi-select" style="width:auto" aria-label="Rows per page">
+            <option value="25">25</option><option value="50" selected>50</option>
+            <option value="100">100</option><option value="250">250</option>
+        </select>
+    </div>
+</div>
+
+{if can_manage}
+<div class="mi-card">
+    <h2 style="margin-top:0">Brands</h2>
+    <div class="mi-row">
+        <input id="mi-brand-name" class="mi-input" placeholder="New brand name" style="max-width:260px" aria-label="New brand name">
+        <button class="mi-btn" id="mi-add-brand" type="button">+ Add brand</button>
+        <div class="mi-spacer"></div>
+        <button class="mi-btn ghost" id="mi-bulk-price" type="button">Bulk adjust price (active brand)</button>
+    </div>
+    <div class="mi-row" id="mi-brand-list" style="margin-top:10px;gap:6px"></div>
+</div>
+{/if}
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const S = window.MOTO_INVENTORY;
+    const $ = (id) => document.getElementById(id);
+    const state = { page: 1, perPage: 50, brandId: '', q: '', showArchived: false, showTrashed: false };
+    const branchSelect = $('mi-inv-branch');
+
+    async function api(url, opts) {
+        opts = opts || {};
+        if (opts.method && opts.method !== 'GET') {
+            opts.headers = Object.assign({ 'Content-Type': 'application/json', 'X-CSRF-Token': S.csrf }, opts.headers || {});
+            opts.body = JSON.stringify(opts.body || {});
+        }
+        const r = await fetch(url, opts);
+        return r.json();
+    }
+
+    function renderBrands() {
+        fetch('/api/v1/moto-inventory/brands?include_archived=1&include_trashed=1')
+            .then(r => r.json()).then(json => {
+                if (!json.ok) return;
+                const el = $('mi-brand-list');
+                el.innerHTML = '';
+                json.data.rows.forEach(b => {
+                    const chip = document.createElement('button');
+                    chip.className = 'mi-btn ghost';
+                    chip.style.fontSize = '.76rem';
+                    chip.textContent = b.name + (b.archived ? ' 📦' : '') + (b.trashed ? ' 🗑️' : '');
+                    chip.onclick = () => S.brandMenu(b);
+                    el.appendChild(chip);
+                });
+            }).catch(() => {});
+    }
+
+    function load() {
+        const q = new URLSearchParams();
+        q.set('page', state.page);
+        q.set('per_page', state.perPage);
+        q.set('branch_id', branchSelect ? branchSelect.value : '');
+        if (state.q) q.set('q', state.q);
+        if (state.brandId) q.set('brand_id', state.brandId);
+        if (state.showArchived) q.set('state', 'archived');
+        if (state.showTrashed) q.set('state', 'trashed');
+
+        fetch('/api/v1/moto-inventory/products?' + q.toString())
+            .then(r => r.json()).then(json => {
+                if (!json.ok) return;
+                const d = json.data;
+                // Versioned read-only catalog cache (online responses only).
+                S.offline.cacheCatalog(d.rows);
+                const tbody = $('mi-inv-rows');
+                if (!d.rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="mi-empty">No parts found.</td></tr>'; }
+                else {
+                    tbody.innerHTML = d.rows.map(row => {
+                        const out = row.qty_on_hand <= 0 ? '<span class="mi-badge bad">OUT</span>'
+                            : (row.qty_on_hand <= (S.me.settings && S.me.settings.low_stock_threshold || 5) ? '<span class="mi-badge warn">LOW</span>' : '');
+                        let html = `<tr>
+                            <td><strong>${S.esc(row.part_number)}</strong></td>
+                            <td>${S.esc(row.description)}</td>
+                            <td>${S.esc(row.brand)}${row.brand_archived ? ' 📦' : ''}</td>
+                            <td>${S.esc(row.code)}</td>
+                            <td style="text-align:right">${row.qty_on_hand} ${out}</td>`;
+                        if (S.me.permissions.indexOf('moto_inventory.view_cost') !== -1) {
+                            html += `<td style="text-align:right">${S.fmtMoney(row.cost)}</td>`;
+                        }
+                        html += `<td style="text-align:right"><span class="mi-amount">${S.fmtMoney(row.price)}</span></td>`;
+                        if (S.me.permissions.indexOf('moto_inventory.manage') !== -1) {
+                            html += `<td style="text-align:right;white-space:nowrap">
+                                <button class="mi-btn ghost" data-action="edit" data-id="${row.id}" data-branch="${row.branch_id}" type="button">Edit</button>
+                                <button class="mi-btn ghost" data-action="adjust" data-id="${row.id}" data-branch="${row.branch_id}" type="button">Adjust</button>
+                                ${row.archived
+                                    ? `<button class="mi-btn ghost" data-action="restore" data-id="${row.id}" data-branch="${row.branch_id}" type="button">Restore</button>`
+                                    : `<button class="mi-btn ghost" data-action="archive" data-id="${row.id}" data-branch="${row.branch_id}" type="button">Archive</button>`}
+                                <button class="mi-btn ghost danger" data-action="delete" data-id="${row.id}" data-branch="${row.branch_id}" type="button">Delete</button>
+                            </td>`;
+                        }
+                        return html + '</tr>';
+                    }).join('');
+                    tbody.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', onRowAction));
+                }
+                $('mi-inv-info').textContent = `Page ${d.page} of ${d.pages} · ${d.total} parts`;
+            }).catch(() => {
+                // Offline read-only fallback: show the cached catalog.
+                S.offline.loadCatalog().then(cached => {
+                    if (!cached || !cached.length) {
+                        $('mi-inv-rows').innerHTML = '<tr><td colspan="9" class="mi-empty">Offline — no cached inventory.</td></tr>';
+                        return;
+                    }
+                    const tbody = $('mi-inv-rows');
+                    tbody.innerHTML = cached.map(row => {
+                        const out = row.qty_on_hand <= 0 ? '<span class="mi-badge bad">OUT</span>'
+                            : (row.qty_on_hand <= (S.me.settings && S.me.settings.low_stock_threshold || 5) ? '<span class="mi-badge warn">LOW</span>' : '');
+                        let html = `<tr>
+                            <td><strong>${S.esc(row.part_number)}</strong></td>
+                            <td>${S.esc(row.description)}</td>
+                            <td>${S.esc(row.brand)}</td>
+                            <td>${S.esc(row.code)}</td>
+                            <td style="text-align:right">${row.qty_on_hand} ${out}</td>`;
+                        if (S.me.permissions.indexOf('moto_inventory.view_cost') !== -1) {
+                            html += `<td style="text-align:right">${S.fmtMoney(row.cost)}</td>`;
+                        }
+                        html += `<td style="text-align:right"><span class="mi-amount">${S.fmtMoney(row.price)}</span></td>`;
+                        if (S.me.permissions.indexOf('moto_inventory.manage') !== -1) {
+                            html += `<td style="text-align:right;white-space:nowrap"><span class="mi-muted" style="font-size:.76rem">read-only (offline)</span></td>`;
+                        }
+                        return html + '</tr>';
+                    }).join('');
+                    $('mi-inv-info').textContent = `Offline cached catalog · ${cached.length} parts`;
+                });
+            });
+    }
+
+    function onRowAction(e) {
+        const btn = e.currentTarget;
+        const id = btn.dataset.id, branch = btn.dataset.branch, action = btn.dataset.action;
+        if (action === 'edit') return S.editProduct(id, branch, load);
+        if (action === 'adjust') return S.adjustStock(id, branch, load);
+        if (action === 'archive') return S.archiveProduct(id, branch, load);
+        if (action === 'restore') return S.restoreProduct(id, branch, load);
+        if (action === 'delete') return S.deleteProduct(id, branch, load);
+    }
+
+    const searchEl = $('mi-inv-search');
+    let timer = null;
+    if (searchEl) searchEl.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => { state.q = searchEl.value.trim(); state.page = 1; load(); }, 250);
+    });
+    if ($('mi-inv-brand')) $('mi-inv-brand').addEventListener('change', e => { state.brandId = e.target.value; state.page = 1; load(); });
+    if (branchSelect) branchSelect.addEventListener('change', () => { state.page = 1; load(); renderBrands(); });
+    if ($('mi-inv-archived')) $('mi-inv-archived').addEventListener('change', e => { state.showArchived = e.target.checked; state.showTrashed = false; $('mi-inv-trashed').checked = false; state.page = 1; load(); });
+    if ($('mi-inv-trashed')) $('mi-inv-trashed').addEventListener('change', e => { state.showTrashed = e.target.checked; state.showArchived = false; $('mi-inv-archived').checked = false; state.page = 1; load(); });
+    if ($('mi-inv-prev')) $('mi-inv-prev').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
+    if ($('mi-inv-next')) $('mi-inv-next').addEventListener('click', () => { state.page++; load(); });
+    if ($('mi-inv-perpage')) $('mi-inv-perpage').addEventListener('change', e => { state.perPage = +e.target.value; state.page = 1; load(); });
+    if ($('mi-inv-refresh')) $('mi-inv-refresh').addEventListener('click', () => { load(); renderBrands(); });
+
+    if (S.me.permissions.indexOf('moto_inventory.manage') !== -1) {
+        if ($('mi-add-part')) $('mi-add-part').addEventListener('click', () => S.addProduct(load));
+        if ($('mi-add-brand')) $('mi-add-brand').addEventListener('click', () => {
+            const name = $('mi-brand-name').value.trim();
+            if (!name) return S.toast('Enter a brand name', true);
+            api('/api/v1/moto-inventory/brands', { method: 'POST', body: { name } })
+                .then(j => { if (j.ok) { S.toast('Brand added'); $('mi-brand-name').value = ''; renderBrands(); } else S.toast(j.error, true); });
+        });
+        if ($('mi-bulk-price')) $('mi-bulk-price').addEventListener('click', () => S.bulkPrice(load));
+    }
+
+    if (branchSelect) { load(); renderBrands(); }
+})();
+</script>
+{/block}

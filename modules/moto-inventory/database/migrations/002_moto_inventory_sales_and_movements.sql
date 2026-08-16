@@ -1,0 +1,75 @@
+-- Moto Inventory — Sales, Sale Items, and Append-Only Stock Movement Ledger
+-- Tenant-scoped. MySQL 5.7 compatible.
+
+CREATE TABLE IF NOT EXISTS moto_stock_movements (
+    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       INT UNSIGNED NOT NULL,
+    branch_id       INT UNSIGNED NOT NULL,
+    product_id      INT UNSIGNED NOT NULL,
+    movement_type   VARCHAR(40)  NOT NULL COMMENT 'sale, sale_void, import, adjustment, restore, undo',
+    quantity        DECIMAL(14,4) NOT NULL COMMENT 'Signed: negative removes stock, positive adds',
+    prev_qty        DECIMAL(14,4) NULL,
+    new_qty         DECIMAL(14,4) NULL,
+    reference_type  VARCHAR(40)  NULL,
+    reference_id    INT UNSIGNED NULL,
+    idempotency_key VARCHAR(191) NULL,
+    reason          VARCHAR(500) NULL,
+    actor_user_id   INT UNSIGNED NULL,
+    actor_name      VARCHAR(191) NULL,
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_moto_movement_product (tenant_id, product_id),
+    INDEX idx_moto_movement_branch (tenant_id, branch_id),
+    INDEX idx_moto_movement_type (tenant_id, movement_type),
+    INDEX idx_moto_movement_reference (tenant_id, reference_type, reference_id),
+    INDEX idx_moto_movement_created (tenant_id, created_at),
+    CONSTRAINT fk_moto_movement_product FOREIGN KEY (product_id) REFERENCES moto_products (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS moto_sales (
+    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       INT UNSIGNED NOT NULL,
+    branch_id       INT UNSIGNED NOT NULL,
+    sale_ref        VARCHAR(64)  NOT NULL,
+    total           DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    cost            DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    profit          DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    customer        VARCHAR(191) NULL,
+    override_flag   TINYINT(1)   NOT NULL DEFAULT 0,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'completed' COMMENT 'completed, voided',
+    undo_deadline   DATETIME     NULL,
+    voided_at       DATETIME     NULL,
+    voided_by       INT UNSIGNED NULL,
+    voided_by_name  VARCHAR(191) NULL,
+    idempotency_key VARCHAR(191) NOT NULL,
+    created_by      INT UNSIGNED NULL,
+    created_by_name VARCHAR(191) NULL,
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_moto_sale_ref (tenant_id, sale_ref),
+    UNIQUE KEY uq_moto_sale_idem (tenant_id, branch_id, idempotency_key),
+    INDEX idx_moto_sale_branch (tenant_id, branch_id),
+    INDEX idx_moto_sale_status (tenant_id, status),
+    INDEX idx_moto_sale_created (tenant_id, created_at),
+    CONSTRAINT fk_moto_sale_branch FOREIGN KEY (branch_id) REFERENCES moto_branches (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS moto_sale_items (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tenant_id     INT UNSIGNED NOT NULL,
+    sale_id       INT UNSIGNED NOT NULL,
+    product_id    INT UNSIGNED NOT NULL,
+    branch_id     INT UNSIGNED NOT NULL,
+    part_number   VARCHAR(191) NOT NULL,
+    description   VARCHAR(191) NOT NULL DEFAULT '',
+    brand_name    VARCHAR(191) NOT NULL DEFAULT '',
+    qty           DECIMAL(14,4) NOT NULL,
+    price         DECIMAL(14,2) NOT NULL,
+    cost          DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    line_total    DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    stock_before  DECIMAL(14,4) NULL,
+    stock_after   DECIMAL(14,4) NULL,
+    INDEX idx_moto_sale_item_sale (tenant_id, sale_id),
+    INDEX idx_moto_sale_item_product (tenant_id, product_id),
+    CONSTRAINT fk_moto_sale_item_sale FOREIGN KEY (sale_id) REFERENCES moto_sales (id) ON DELETE CASCADE,
+    CONSTRAINT fk_moto_sale_item_product FOREIGN KEY (product_id) REFERENCES moto_products (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

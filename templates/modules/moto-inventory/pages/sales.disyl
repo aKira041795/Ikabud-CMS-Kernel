@@ -1,0 +1,269 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>Sales</h1>
+    <div class="mi-row">
+        <label style="margin:0"><span class="mi-muted" style="font-size:.72rem">Branch</span>
+            <select id="mi-sale-branch" class="mi-select">
+                {for b in branches}<option value="{b.id}">{b.name}</option>{/for}
+            </select>
+        </label>
+    </div>
+</div>
+
+<div class="mi-grid" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px">
+    <div>
+        <div class="mi-card">
+            <div class="mi-search">
+                <input id="mi-sale-search" class="mi-input" type="search" placeholder="Search in-stock parts…" aria-label="Search parts to sell">
+            </div>
+            <div class="mi-table-wrap" style="margin-top:10px">
+                <table class="mi-table">
+                    <thead><tr><th>Part No.</th><th>Description</th><th>Brand</th><th>Qty</th><th>Price</th><th></th></tr></thead>
+                    <tbody id="mi-sale-results">
+                        <tr><td colspan="6" class="mi-empty">Type to search parts in this branch.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <div class="mi-card">
+            <h2 style="margin-top:0">Cart</h2>
+            <div class="mi-field">
+                <input id="mi-sale-customer" class="mi-input" placeholder="Customer / plate no. (optional)" aria-label="Customer">
+            </div>
+            <div class="mi-table-wrap">
+                <table class="mi-table">
+                    <thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Total</th><th></th></tr></thead>
+                    <tbody id="mi-cart-rows">
+                        <tr><td colspan="4" class="mi-empty">Cart is empty.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mi-row" style="margin-top:12px">
+                <span class="mi-muted">Total</span>
+                <div class="mi-spacer"></div>
+                <span class="mi-amount" id="mi-cart-total" style="font-size:1.4rem">₱0.00</span>
+            </div>
+            {if can_manage || can_sell}
+            <div class="mi-row" style="margin-top:12px">
+                <button class="mi-btn primary" id="mi-complete-sale" type="button" style="flex:1">Complete sale</button>
+            </div>
+            <button class="mi-btn ghost" id="mi-undo-sale" type="button" style="width:100%;margin-top:8px">Undo last sale (5 min)</button>
+            {/if}
+            <div class="mi-banner info" style="margin-top:10px">
+                Sales are recorded online. If you are offline, sales cannot be completed.
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mi-modal-backdrop" id="mi-receipt-backdrop" aria-hidden="true">
+    <div class="mi-modal">
+        <h2>Receipt</h2>
+        <div id="mi-receipt-body"></div>
+        <div class="mi-modal-actions">
+            <button class="mi-btn" id="mi-receipt-close" type="button">Close</button>
+            <button class="mi-btn primary" id="mi-receipt-print" type="button">Print</button>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const S = window.MOTO_INVENTORY;
+    const $ = (id) => document.getElementById(id);
+    const cart = []; // {product_id, part_number, description, brand, qty, price}
+    const branchSelect = $('mi-sale-branch');
+
+    async function api(url, opts) {
+        opts = opts || {};
+        if (opts.method && opts.method !== 'GET') {
+            opts.headers = Object.assign({ 'Content-Type': 'application/json', 'X-CSRF-Token': S.csrf }, opts.headers || {});
+            opts.body = JSON.stringify(opts.body || {});
+        }
+        const r = await fetch(url, opts);
+        return r.json();
+    }
+
+    function branchId() { return branchSelect ? branchSelect.value : ''; }
+
+    function renderCart() {
+        const tbody = $('mi-cart-rows');
+        let total = 0;
+        if (!cart.length) { tbody.innerHTML = '<tr><td colspan="4" class="mi-empty">Cart is empty.</td></tr>'; }
+        else {
+            tbody.innerHTML = cart.map((line, i) => {
+                const lineTotal = line.qty * line.price;
+                total += lineTotal;
+                return `<tr>
+                    <td><strong>${S.esc(line.part_number)}</strong><br><span class="mi-muted" style="font-size:.76rem">${S.esc(line.description)}</span></td>
+                    <td style="text-align:right">
+                        <div class="mi-row" style="justify-content:flex-end;gap:4px">
+                            <button class="mi-btn ghost" data-cart="minus" data-i="${i}" type="button">−</button>
+                            <span>${line.qty}</span>
+                            <button class="mi-btn ghost" data-cart="plus" data-i="${i}" type="button">+</button>
+                        </div>
+                    </td>
+                    <td style="text-align:right" class="mi-amount">${S.fmtMoney(lineTotal)}</td>
+                    <td><button class="mi-btn ghost danger" data-cart="remove" data-i="${i}" type="button">×</button></td>
+                </tr>`;
+            }).join('');
+            tbody.querySelectorAll('[data-cart]').forEach(btn => btn.addEventListener('click', onCartAction));
+        }
+        $('mi-cart-total').textContent = '₱' + S.fmtMoney(total);
+        // Persist the cart draft (versioned IndexedDB) so it survives reloads
+        // and offline periods. Completing the sale still requires the server.
+        S.offline.saveCartDraft(cart);
+    }
+
+    function onCartAction(e) {
+        const i = +e.currentTarget.dataset.i;
+        const action = e.currentTarget.dataset.cart;
+        if (action === 'plus') cart[i].qty++;
+        if (action === 'minus') { cart[i].qty--; if (cart[i].qty <= 0) cart.splice(i, 1); }
+        if (action === 'remove') cart.splice(i, 1);
+        renderCart();
+    }
+
+    const searchEl = $('mi-sale-search');
+    let timer = null;
+    if (searchEl) searchEl.addEventListener('input', () => {
+        clearTimeout(timer);
+        const q = searchEl.value.trim();
+        if (!q) { $('mi-sale-results').innerHTML = '<tr><td colspan="6" class="mi-empty">Type to search.</td></tr>'; return; }
+        timer = setTimeout(() => {
+            const params = new URLSearchParams({ q, per_page: '25', state: 'active', branch_id: branchId() });
+            fetch('/api/v1/moto-inventory/products?' + params.toString())
+                .then(r => r.json()).then(json => {
+                    if (!json.ok) return;
+                    const rows = json.data.rows.filter(r => r.qty_on_hand > 0);
+                    // Versioned read-only catalog cache (written only from
+                    // successful online responses).
+                    S.offline.cacheCatalog(json.data.rows);
+                    if (!rows.length) { $('mi-sale-results').innerHTML = '<tr><td colspan="6" class="mi-empty">No in-stock parts match.</td></tr>'; return; }
+                    $('mi-sale-results').innerHTML = rows.map(row => `<tr>
+                        <td><strong>${S.esc(row.part_number)}</strong></td>
+                        <td>${S.esc(row.description)}</td>
+                        <td>${S.esc(row.brand)}</td>
+                        <td>${row.qty_on_hand}</td>
+                        <td class="mi-amount">${S.fmtMoney(row.price)}</td>
+                        <td><button class="mi-btn" data-add="${row.id}" type="button">+ Add</button></td>
+                    </tr>`).join('');
+                    $('mi-sale-results').querySelectorAll('[data-add]').forEach(btn => btn.addEventListener('click', () => {
+                        const row = rows.find(r => r.id == btn.dataset.add);
+                        const existing = cart.find(l => l.product_id === row.id);
+                        if (existing) existing.qty++;
+                        else cart.push({ product_id: row.id, part_number: row.part_number, description: row.description, brand: row.brand, qty: 1, price: +row.price });
+                        renderCart();
+                    }));
+                })
+                .catch(() => {
+                    // Offline read-only fallback: search the cached catalog.
+                    S.offline.loadCatalog().then(cached => {
+                        const ql = q.toLowerCase();
+                        const rows = (cached || []).filter(r => r.qty_on_hand > 0 && !r.archived &&
+                            (String(r.part_number).toLowerCase().indexOf(ql) !== -1 || String(r.description).toLowerCase().indexOf(ql) !== -1));
+                        if (!rows.length) { $('mi-sale-results').innerHTML = '<tr><td colspan="6" class="mi-empty">Offline — no cached parts match.</td></tr>'; return; }
+                        $('mi-sale-results').innerHTML = rows.map(row => `<tr>
+                            <td><strong>${S.esc(row.part_number)}</strong></td>
+                            <td>${S.esc(row.description)}</td>
+                            <td>${S.esc(row.brand)}</td>
+                            <td>${row.qty_on_hand}</td>
+                            <td class="mi-amount">${S.fmtMoney(row.price)}</td>
+                            <td><button class="mi-btn" data-add="${row.id}" type="button">+ Add</button></td>
+                        </tr>`).join('');
+                        $('mi-sale-results').querySelectorAll('[data-add]').forEach(btn => btn.addEventListener('click', () => {
+                            const row = rows.find(r => r.id == btn.dataset.add);
+                            const existing = cart.find(l => l.product_id === row.id);
+                            if (existing) existing.qty++;
+                            else cart.push({ product_id: row.id, part_number: row.part_number, description: row.description, brand: row.brand, qty: 1, price: +row.price });
+                            renderCart();
+                        }));
+                    });
+                });
+        }, 200);
+    });
+
+    const completeBtn = $('mi-complete-sale');
+    if (completeBtn) completeBtn.addEventListener('click', async () => {
+        if (!cart.length) return S.toast('Cart is empty', true);
+        const idem = S.uuid();
+        const customer = $('mi-sale-customer').value.trim();
+        let body = { branch_id: +branchId(), lines: cart.map(l => ({ product_id: l.product_id, qty: l.qty, price: l.price })), customer: customer || null, idempotency_key: idem };
+        let json = await api('/api/v1/moto-inventory/sales/complete', { method: 'POST', body });
+        if (!json.ok && /insufficient stock/i.test(json.error)) {
+            if (!confirm(json.error + '\n\nOverride and complete anyway?')) return;
+            body.allow_override = true;
+            json = await api('/api/v1/moto-inventory/sales/complete', { method: 'POST', body });
+        }
+        if (!json.ok) return S.toast(json.error, true);
+        const d = json.data;
+        showReceipt(d);
+        cart.length = 0;
+        renderCart();
+        S.offline.clearCartDraft();
+        S.toast('Sale recorded — stock deducted automatically', false, 'good');
+    });
+
+    if ($('mi-undo-sale')) $('mi-undo-sale').addEventListener('click', async () => {
+        if (!confirm('Undo the latest sale? This restores stock (5-minute window).')) return;
+        const json = await api('/api/v1/moto-inventory/sales/undo', { method: 'POST', body: { branch_id: +branchId() } });
+        if (json.ok) S.toast('Latest sale undone — stock restored', false, 'good');
+        else S.toast(json.error, true);
+    });
+
+    function showReceipt(sale) {
+        const body = $('mi-receipt-body');
+        body.innerHTML = `
+            <div style="text-align:center;margin-bottom:10px">
+                <strong>MOTO INVENTORY</strong><br>
+                <span class="mi-muted" style="font-size:.8rem">Receipt ${S.esc(sale.sale_ref)}</span><br>
+                <span class="mi-muted" style="font-size:.8rem">${S.esc(sale.receipt.date)}</span>
+            </div>
+            <table class="mi-table">
+                <thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Total</th></tr></thead>
+                <tbody>
+                ${sale.items.map(i => `<tr><td>${S.esc(i.part_number)}</td><td style="text-align:right">${i.qty}</td><td style="text-align:right" class="mi-amount">${S.fmtMoney(i.line_total)}</td></tr>`).join('')}
+                </tbody>
+            </table>
+            <div class="mi-row" style="margin-top:10px">
+                <strong>TOTAL</strong><div class="mi-spacer"></div>
+                <strong class="mi-amount" style="font-size:1.2rem">₱${S.fmtMoney(sale.total)}</strong>
+            </div>
+            ${sale.override ? '<div class="mi-banner warn" style="margin-top:8px">*Contains negative-stock override*</div>' : ''}
+        `;
+        $('mi-receipt-backdrop').classList.add('open');
+    }
+    if ($('mi-receipt-close')) $('mi-receipt-close').addEventListener('click', () => $('mi-receipt-backdrop').classList.remove('open'));
+    if ($('mi-receipt-print')) $('mi-receipt-print').addEventListener('click', () => window.print());
+    $('mi-receipt-backdrop').addEventListener('click', e => { if (e.target === $('mi-receipt-backdrop')) $('mi-receipt-backdrop').classList.remove('open'); });
+
+    // ── Persisted cart draft + offline mutation guards ─────────────
+    // Restore the draft from versioned IndexedDB so an in-progress sale
+    // survives reloads. The draft is read-only evidence while offline.
+    S.offline.loadCartDraft().then(draft => {
+        if (Array.isArray(draft) && draft.length) {
+            draft.forEach(l => cart.push(l));
+            renderCart();
+            S.toast('Cart draft restored from this device');
+        }
+    });
+
+    function setMutationControls(offline) {
+        if (completeBtn) completeBtn.disabled = offline;
+        const undoBtn = $('mi-undo-sale');
+        if (undoBtn) undoBtn.disabled = offline;
+    }
+    window.addEventListener('mi-offline-change', e => setMutationControls(!!e.detail && e.detail.offline));
+    setMutationControls(S.offline.isOffline());
+
+    renderCart();
+})();
+</script>
+{/block}

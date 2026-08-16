@@ -1,0 +1,23 @@
+{
+    "name": "Moto Inventory",
+    "short_name": "Moto Inv",
+    "description": "Motorcycle parts inventory, sales, profit, pricelist import, and audit for Moto Inventory shops.",
+    "start_url": "/moto-inventory",
+    "scope": "/moto-inventory/",
+    "display": "standalone",
+    "background_color": "#1a1a1a",
+    "theme_color": "#1a1a1a",
+    "lang": "en",
+    "icons": [
+        {
+            "src": "/moto-inventory/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/moto-inventory/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

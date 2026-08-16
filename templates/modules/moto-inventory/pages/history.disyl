@@ -1,0 +1,103 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>History</h1>
+    <div class="mi-row">
+        <label style="margin:0"><span class="mi-muted" style="font-size:.72rem">Branch</span>
+            <select id="mi-hist-branch" class="mi-select">
+                {for b in branches}<option value="{b.id}">{b.name}</option>{/for}
+            </select>
+        </label>
+        <input id="mi-hist-from" class="mi-input" type="date" aria-label="From date">
+        <input id="mi-hist-to" class="mi-input" type="date" aria-label="To date">
+        <button class="mi-btn" id="mi-hist-filter" type="button">Filter</button>
+        <button class="mi-btn ghost" id="mi-hist-clear" type="button">Clear</button>
+    </div>
+</div>
+
+<div class="mi-card">
+    <div class="mi-table-wrap">
+        <table class="mi-table">
+            <thead>
+                <tr><th>Ref</th><th>Items</th><th>By</th><th style="text-align:right">Total</th><th>Status</th><th>When</th>{if can_void}<th></th>{/if}</tr>
+            </thead>
+            <tbody id="mi-hist-rows">
+                <tr><td colspan="8" class="mi-empty">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="mi-pager">
+        <button class="mi-btn ghost" id="mi-hist-prev" type="button">‹ Prev</button>
+        <span class="mi-pager-info" id="mi-hist-info">–</span>
+        <button class="mi-btn ghost" id="mi-hist-next" type="button">Next ›</button>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const S = window.MOTO_INVENTORY;
+    const $ = (id) => document.getElementById(id);
+    const state = { page: 1, from: '', to: '' };
+
+    async function api(url, opts) {
+        opts = opts || {};
+        if (opts.method) {
+            opts.headers = Object.assign({ 'Content-Type': 'application/json', 'X-CSRF-Token': S.csrf }, opts.headers || {});
+            opts.body = JSON.stringify(opts.body || {});
+        }
+        const r = await fetch(url, opts);
+        return r.json();
+    }
+
+    function load() {
+        const branch = $('mi-hist-branch') ? $('mi-hist-branch').value : '';
+        const q = new URLSearchParams({ page: state.page, per_page: '50' });
+        if (branch) q.set('branch_id', branch);
+        if (state.from) q.set('from', state.from);
+        if (state.to) q.set('to', state.to);
+        fetch('/api/v1/moto-inventory/sales?' + q.toString())
+            .then(r => r.json()).then(json => {
+                if (!json.ok) return;
+                const d = json.data;
+                const tbody = $('mi-hist-rows');
+                if (!d.rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="mi-empty">No sales found.</td></tr>'; }
+                else {
+                    tbody.innerHTML = d.rows.map(s => {
+                        const status = s.status === 'voided'
+                            ? '<span class="mi-badge bad">VOIDED</span>'
+                            : '<span class="mi-badge good">Completed</span>';
+                        let html = `<tr>
+                            <td><strong>${S.esc(s.sale_ref)}</strong></td>
+                            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${S.esc(s.item_summary)}">${S.esc(s.item_summary || (s.item_count + ' item(s)'))}</td>
+                            <td>${S.esc(s.created_by_name || '—')}</td>
+                            <td style="text-align:right" class="mi-amount">${S.fmtMoney(s.total)}</td>
+                            <td>${status}</td>
+                            <td class="mi-muted" style="font-size:.78rem">${S.esc(s.created_at)}</td>`;
+                        if (S.me.permissions.indexOf('moto_inventory.void') !== -1 && s.status === 'completed') {
+                            html += `<td><button class="mi-btn ghost danger" data-void="${s.id}" type="button">Void</button></td>`;
+                        }
+                        return html + '</tr>';
+                    }).join('');
+                    tbody.querySelectorAll('[data-void]').forEach(btn => btn.addEventListener('click', async () => {
+                        if (!confirm('Void this sale? Stock will be restored once.')) return;
+                        const json = await api('/api/v1/moto-inventory/sales/' + btn.dataset.void + '/void', { method: 'POST', body: { branch_id: +($('mi-hist-branch') ? $('mi-hist-branch').value : 0) } });
+                        if (json.ok) { S.toast('Sale voided — stock restored', false, 'good'); load(); }
+                        else S.toast(json.error, true);
+                    }));
+                }
+                $('mi-hist-info').textContent = `Page ${d.page} of ${d.pages} · ${d.total} sales`;
+            }).catch(() => { $('mi-hist-rows').innerHTML = '<tr><td colspan="8" class="mi-empty">Could not load sales.</td></tr>'; });
+    }
+
+    if ($('mi-hist-filter')) $('mi-hist-filter').addEventListener('click', () => { state.from = $('mi-hist-from').value; state.to = $('mi-hist-to').value; state.page = 1; load(); });
+    if ($('mi-hist-clear')) $('mi-hist-clear').addEventListener('click', () => { state.from = ''; state.to = ''; $('mi-hist-from').value = ''; $('mi-hist-to').value = ''; state.page = 1; load(); });
+    if ($('mi-hist-prev')) $('mi-hist-prev').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
+    if ($('mi-hist-next')) $('mi-hist-next').addEventListener('click', () => { state.page++; load(); });
+    if ($('mi-hist-branch')) $('mi-hist-branch').addEventListener('change', () => { state.page = 1; load(); });
+    load();
+})();
+</script>
+{/block}

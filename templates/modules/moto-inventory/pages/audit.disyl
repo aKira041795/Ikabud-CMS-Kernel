@@ -1,0 +1,71 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>Audit</h1>
+    <div class="mi-row">
+        <label style="margin:0"><span class="mi-muted" style="font-size:.72rem">Branch</span>
+            <select id="mi-audit-branch" class="mi-select">
+                <option value="">All branches</option>
+                {for b in branches}<option value="{b.id}">{b.name}</option>{/for}
+            </select>
+        </label>
+        <input id="mi-audit-from" class="mi-input" type="date" aria-label="From date">
+        <input id="mi-audit-to" class="mi-input" type="date" aria-label="To date">
+        <button class="mi-btn" id="mi-audit-filter" type="button">Filter</button>
+    </div>
+</div>
+
+<div class="mi-card">
+    <p class="mi-muted" style="margin-top:0;font-size:.82rem">Audit records are append-only server evidence and cannot be edited from this UI.</p>
+    <div class="mi-table-wrap">
+        <table class="mi-table">
+            <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+            <tbody id="mi-audit-rows">
+                <tr><td colspan="5" class="mi-empty">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const S = window.MOTO_INVENTORY;
+    const $ = (id) => document.getElementById(id);
+
+    function load() {
+        const q = new URLSearchParams({ limit: '200' });
+        if ($('mi-audit-branch').value) q.set('branch_id', $('mi-audit-branch').value);
+        if ($('mi-audit-from').value) q.set('from', $('mi-audit-from').value);
+        if ($('mi-audit-to').value) q.set('to', $('mi-audit-to').value);
+        fetch('/api/v1/moto-inventory/audit?' + q.toString())
+            .then(r => r.json()).then(json => {
+                if (!json.ok) return;
+                const rows = json.data.audit;
+                const tbody = $('mi-audit-rows');
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="mi-empty">No audit records found.</td></tr>'; }
+                else {
+                    tbody.innerHTML = rows.map(a => {
+                        let detail = '';
+                        if (a.after_data) detail = S.esc(JSON.stringify(a.after_data));
+                        else if (a.before_data) detail = S.esc(JSON.stringify(a.before_data));
+                        return `<tr>
+                            <td class="mi-muted" style="font-size:.78rem;white-space:nowrap">${S.esc(a.created_at)}</td>
+                            <td>${S.esc(a.actor_name || '—')}</td>
+                            <td><span class="mi-badge muted">${S.esc(a.action)}</span></td>
+                            <td class="mi-muted" style="font-size:.78rem">${S.esc(a.target_type || '')}${a.target_id ? ' #' + S.esc(a.target_id) : ''}</td>
+                            <td style="font-size:.78rem;max-width:320px;overflow-wrap:anywhere">${detail}</td>
+                        </tr>`;
+                    }).join('');
+                }
+            }).catch(() => { tbody.innerHTML = '<tr><td colspan="5" class="mi-empty">Could not load audit.</td></tr>'; });
+    }
+
+    if ($('mi-audit-filter')) $('mi-audit-filter').addEventListener('click', load);
+    if ($('mi-audit-branch')) $('mi-audit-branch').addEventListener('change', load);
+    load();
+})();
+</script>
+{/block}

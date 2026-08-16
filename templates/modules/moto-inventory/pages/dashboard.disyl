@@ -1,0 +1,107 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>Dashboard</h1>
+    <div class="mi-row">
+        <label class="mi-field" style="margin:0;min-width:180px">
+            <span class="mi-muted" style="font-size:.72rem">Branch</span>
+            <select id="mi-branch-select" class="mi-select">
+                {for b in branches}
+                <option value="{b.id}">{b.name}</option>
+                {/for}
+            </select>
+        </label>
+        <button class="mi-btn" id="mi-refresh-dashboard" type="button">Refresh</button>
+    </div>
+</div>
+
+<div class="mi-grid cols-2" id="mi-dashboard-metrics">
+    <div class="mi-stat"><div class="mi-stat-label">Parts</div><div class="mi-stat-value" id="mi-metric-parts">–</div></div>
+    <div class="mi-stat"><div class="mi-stat-label">Units on hand</div><div class="mi-stat-value" id="mi-metric-units">–</div></div>
+    {if can_view_cost}
+    <div class="mi-stat"><div class="mi-stat-label">Stock value (retail)</div><div class="mi-stat-value mi-amount" id="mi-metric-retail">–</div></div>
+    {/if}
+    <div class="mi-stat"><div class="mi-stat-label">Sales today</div><div class="mi-stat-value" id="mi-metric-sales">–</div></div>
+    {if can_view_profit}
+    <div class="mi-stat"><div class="mi-stat-label">Revenue today</div><div class="mi-stat-value mi-amount" id="mi-metric-revenue">–</div></div>
+    <div class="mi-stat"><div class="mi-stat-label">Profit today</div><div class="mi-stat-value mi-amount" id="mi-metric-profit">–</div></div>
+    {/if}
+    {if can_manage}
+    <div class="mi-stat"><div class="mi-stat-label">Staged imports</div><div class="mi-stat-value" id="mi-metric-imports">–</div></div>
+    {/if}
+</div>
+
+<div class="mi-card">
+    <h2 style="margin-top:0">Quick actions</h2>
+    <div class="mi-row">
+        {if can_sell || can_manage}
+        <a class="mi-btn primary" href="/moto-inventory/sales">New sale</a>
+        {/if}
+        <a class="mi-btn" href="/moto-inventory/inventory">Browse inventory</a>
+        {if can_manage}
+        <a class="mi-btn" href="/moto-inventory/import">Import pricelist</a>
+        {/if}
+        {if can_view_profit}
+        <a class="mi-btn" href="/moto-inventory/reports">Profit report</a>
+        {/if}
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const $ = (id) => document.getElementById(id);
+    const branchSelect = $('mi-branch-select');
+
+    function refresh() {
+        const branchId = branchSelect ? branchSelect.value : '';
+        const q = new URLSearchParams();
+        if (branchId) q.set('branch_id', branchId);
+        const suffix = q.toString() ? '?' + q.toString() : '';
+
+        fetch('/api/v1/moto-inventory/stock/balances' + suffix, { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(json => {
+                if (!json.ok) return;
+                const d = json.data;
+                $('mi-metric-parts').textContent = d.part_count;
+                $('mi-metric-units').textContent = d.units_on_hand;
+                const retail = $('mi-metric-retail');
+                if (retail) retail.textContent = window.MOTO_INVENTORY.fmtMoney(d.stock_value_retail);
+            })
+            .catch(() => {});
+
+        fetch('/api/v1/moto-inventory/reports/profit' + suffix, { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(json => {
+                if (!json.ok) return;
+                const d = json.data;
+                const today = new Date().toISOString().slice(0, 10);
+                $('mi-metric-sales').textContent = d.sales_count;
+                const rev = $('mi-metric-revenue');
+                if (rev) rev.textContent = window.MOTO_INVENTORY.fmtMoney(d.revenue);
+                const profit = $('mi-metric-profit');
+                if (profit) profit.textContent = window.MOTO_INVENTORY.fmtMoney(d.profit);
+            })
+            .catch(() => {});
+
+        if (window.MOTO_INVENTORY.me.permissions.indexOf('moto_inventory.manage') !== -1) {
+            fetch('/api/v1/moto-inventory/imports' + suffix, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(json => {
+                    if (!json.ok) return;
+                    $('mi-metric-imports').textContent = json.data.imports.filter(i => i.status === 'staged').length;
+                })
+                .catch(() => {});
+        }
+    }
+
+    if (branchSelect) branchSelect.addEventListener('change', refresh);
+    const btn = $('mi-refresh-dashboard');
+    if (btn) btn.addEventListener('click', refresh);
+    refresh();
+})();
+</script>
+{/block}

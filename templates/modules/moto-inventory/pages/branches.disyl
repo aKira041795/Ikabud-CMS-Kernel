@@ -1,0 +1,103 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>Branches & Settings</h1>
+</div>
+
+<div class="mi-card">
+    <h2 style="margin-top:0">Branches</h2>
+    <div class="mi-row" style="margin-bottom:12px">
+        <input id="mi-br-key" class="mi-input" placeholder="branch key (e.g. main, quezon-ave)" style="max-width:220px" aria-label="Branch key">
+        <input id="mi-br-name" class="mi-input" placeholder="Branch name" style="max-width:240px" aria-label="Branch name">
+        <button class="mi-btn primary" id="mi-br-add" type="button">+ Add branch</button>
+    </div>
+    <div class="mi-table-wrap">
+        <table class="mi-table">
+            <thead><tr><th>Key</th><th>Name</th><th>Status</th><th>Assign user</th></tr></thead>
+            <tbody>
+                {for b in branches}
+                <tr>
+                    <td><code>{b.branch_key}</code></td>
+                    <td>{b.name}</td>
+                    <td>{if b.is_active}<span class="mi-badge good">Active</span>{else}<span class="mi-badge muted">Inactive</span>{/if}</td>
+                    <td>
+                        <div class="mi-row" style="gap:6px">
+                            <input class="mi-input" type="number" min="1" placeholder="Kernel user id" style="width:130px" data-assign-user="{b.id}" aria-label="User id to assign">
+                            <button class="mi-btn ghost" data-assign-btn="{b.id}" type="button">Assign</button>
+                        </div>
+                    </td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mi-card">
+    <h2 style="margin-top:0">Module settings</h2>
+    <form method="post" action="/moto-inventory/settings">
+        <input type="hidden" name="_token" value="{csrf_token}">
+        <div class="mi-grid cols-2">
+            <div class="mi-field">
+                <label for="mi-set-low">Low stock threshold</label>
+                <input class="mi-input" id="mi-set-low" type="number" name="low_stock_threshold" value="{settings.low_stock_threshold}" min="0">
+            </div>
+            <div class="mi-field">
+                <label for="mi-set-undo">Undo window (minutes)</label>
+                <input class="mi-input" id="mi-set-undo" type="number" name="undo_window_minutes" value="{settings.undo_window_minutes}" min="0">
+            </div>
+        </div>
+        <div class="mi-field">
+            <label class="mi-row" style="gap:6px;font-size:.88rem">
+                <input type="checkbox" name="allow_negative_stock" value="1" {if settings.allow_negative_stock}checked{/if}>
+                Allow negative stock (sales may drive stock below zero with an explicit override)
+            </label>
+        </div>
+        <div class="mi-field">
+            <label for="mi-set-roles">Role permissions (JSON)</label>
+            <textarea class="mi-textarea" id="mi-set-roles" name="role_permissions" rows="8" placeholder='{"admin":["moto_inventory.manage","moto_inventory.sell","moto_inventory.void","moto_inventory.view_cost","moto_inventory.view_profit","moto_inventory.view_audit","moto_inventory.view_all_branches"],"cashier":["moto_inventory.sell"],"owner":["moto_inventory.view_profit","moto_inventory.view_audit","moto_inventory.view_all_branches"]}'>{settings.role_permissions}</textarea>
+        </div>
+        <div class="mi-row">
+            <button class="mi-btn primary" type="submit">Save settings</button>
+            <span class="mi-muted" style="font-size:.78rem">Permissions apply to the authenticated kernel user's role.</span>
+        </div>
+    </form>
+    {if $_GET.success == 'settings-saved'}<div class="mi-banner good" style="margin-top:10px">Settings saved.</div>{/if}
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const S = window.MOTO_INVENTORY;
+    const $ = (id) => document.getElementById(id);
+
+    async function api(url, opts) {
+        opts = opts || {};
+        opts.headers = Object.assign({ 'Content-Type': 'application/json', 'X-CSRF-Token': S.csrf }, opts.headers || {});
+        opts.body = JSON.stringify(opts.body || {});
+        const r = await fetch(url, opts);
+        return r.json();
+    }
+
+    if ($('mi-br-add')) $('mi-br-add').addEventListener('click', async () => {
+        const key = $('mi-br-key').value.trim();
+        const name = $('mi-br-name').value.trim();
+        if (!key || !name) return S.toast('Enter a branch key and name', true);
+        const json = await api('/api/v1/moto-inventory/branches', { method: 'POST', body: { branch_key: key, name } });
+        if (json.ok) { S.toast('Branch added', false, 'good'); setTimeout(() => location.reload(), 700); }
+        else S.toast(json.error, true);
+    });
+
+    document.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
+        const branchId = btn.dataset.assignBtn;
+        const userId = document.querySelector(`[data-assign-user="${branchId}"]`).value.trim();
+        if (!userId) return S.toast('Enter a user id', true);
+        const json = await api('/api/v1/moto-inventory/branches/' + branchId + '/assign', { method: 'POST', body: { user_id: +userId, assigned: true } });
+        if (json.ok) S.toast('User assigned to branch', false, 'good');
+        else S.toast(json.error, true);
+    }));
+})();
+</script>
+{/block}

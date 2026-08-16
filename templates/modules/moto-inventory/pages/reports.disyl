@@ -1,0 +1,104 @@
+{extends "modules/moto-inventory/layouts/app.disyl"}
+
+{block content}
+<div class="mi-title">
+    <h1>Reports</h1>
+    <div class="mi-row">
+        <label style="margin:0"><span class="mi-muted" style="font-size:.72rem">Branch</span>
+            <select id="mi-rep-branch" class="mi-select">
+                {for b in branches}<option value="{b.id}">{b.name}</option>{/for}
+            </select>
+        </label>
+        <label class="mi-row" style="gap:4px;font-size:.82rem"><input type="radio" name="range" value="all" checked> All time</label>
+        <label class="mi-row" style="gap:4px;font-size:.82rem"><input type="radio" name="range" value="today"> Today</label>
+        <button class="mi-btn" id="mi-rep-refresh" type="button">Refresh</button>
+    </div>
+</div>
+
+<div class="mi-grid cols-2">
+    <div class="mi-card">
+        <h2 style="margin-top:0">Sales</h2>
+        <div class="mi-stat"><div class="mi-stat-label">Sales count</div><div class="mi-stat-value" id="mi-rep-count">–</div></div>
+        <div class="mi-stat"><div class="mi-stat-label">Revenue</div><div class="mi-stat-value mi-amount" id="mi-rep-revenue">–</div></div>
+        {if can_view_cost}
+        <div class="mi-stat"><div class="mi-stat-label">Cost of goods</div><div class="mi-stat-value mi-amount" id="mi-rep-cost">–</div></div>
+        <div class="mi-stat"><div class="mi-stat-label">Profit</div><div class="mi-stat-value mi-amount" id="mi-rep-profit">–</div></div>
+        {/if}
+    </div>
+    <div class="mi-card">
+        <h2 style="margin-top:0">Stock value</h2>
+        <div class="mi-stat"><div class="mi-stat-label">Parts</div><div class="mi-stat-value" id="mi-rep-parts">–</div></div>
+        <div class="mi-stat"><div class="mi-stat-label">Units on hand</div><div class="mi-stat-value" id="mi-rep-units">–</div></div>
+        <div class="mi-stat"><div class="mi-stat-label">At retail</div><div class="mi-stat-value mi-amount" id="mi-rep-retail">–</div></div>
+        {if can_view_cost}
+        <div class="mi-stat"><div class="mi-stat-label">At cost</div><div class="mi-stat-value mi-amount" id="mi-rep-cost-value">–</div></div>
+        {/if}
+    </div>
+</div>
+
+<div class="mi-card">
+    <h2 style="margin-top:0">Profit by staff</h2>
+    <div class="mi-table-wrap">
+        <table class="mi-table">
+            <thead><tr><th>Staff</th><th style="text-align:right">Sales</th><th style="text-align:right">Revenue</th>{if can_view_cost}<th style="text-align:right">Profit</th>{/if}</tr></thead>
+            <tbody id="mi-rep-staff"><tr><td colspan="4" class="mi-empty">Loading…</td></tr></tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    const S = window.MOTO_INVENTORY;
+    const $ = (id) => document.getElementById(id);
+
+    function range() {
+        const el = document.querySelector('input[name="range"]:checked');
+        return el ? el.value : 'all';
+    }
+
+    function load() {
+        const branch = $('mi-rep-branch') ? $('mi-rep-branch').value : '';
+        const q = new URLSearchParams();
+        if (branch) q.set('branch_id', branch);
+        const today = new Date().toISOString().slice(0, 10);
+        if (range() === 'today') { q.set('from', today); q.set('to', today); }
+
+        fetch('/api/v1/moto-inventory/reports/profit?' + q.toString())
+            .then(r => r.json()).then(json => {
+                if (!json.ok) return;
+                const d = json.data;
+                $('mi-rep-count').textContent = d.sales_count;
+                $('mi-rep-revenue').textContent = '₱' + S.fmtMoney(d.revenue);
+                if ($('mi-rep-cost')) $('mi-rep-cost').textContent = '₱' + S.fmtMoney(d.cost);
+                if ($('mi-rep-profit')) $('mi-rep-profit').textContent = '₱' + S.fmtMoney(d.profit);
+                const tbody = $('mi-rep-staff');
+                if (!d.by_staff.length) { tbody.innerHTML = '<tr><td colspan="4" class="mi-empty">No sales in this range.</td></tr>'; }
+                else {
+                    tbody.innerHTML = d.by_staff.map(s => {
+                        let html = `<tr><td><strong>${S.esc(s.staff)}</strong></td><td style="text-align:right">${s.sales_count}</td><td style="text-align:right" class="mi-amount">${S.fmtMoney(s.revenue)}</td>`;
+                        if ($('mi-rep-cost')) html += `<td style="text-align:right" class="mi-amount">${S.fmtMoney(s.profit)}</td>`;
+                        return html + '</tr>';
+                    }).join('');
+                }
+            }).catch(() => {});
+
+        fetch('/api/v1/moto-inventory/stock/balances' + (q.toString() ? '?' + q.toString() : ''))
+            .then(r => r.json()).then(json => {
+                if (!json.ok) return;
+                const d = json.data;
+                $('mi-rep-parts').textContent = d.part_count;
+                $('mi-rep-units').textContent = d.units_on_hand;
+                $('mi-rep-retail').textContent = '₱' + S.fmtMoney(d.stock_value_retail);
+                if ($('mi-rep-cost-value')) $('mi-rep-cost-value').textContent = '₱' + S.fmtMoney(d.stock_value_cost);
+            }).catch(() => {});
+    }
+
+    if ($('mi-rep-refresh')) $('mi-rep-refresh').addEventListener('click', load);
+    if ($('mi-rep-branch')) $('mi-rep-branch').addEventListener('change', load);
+    document.querySelectorAll('input[name="range"]').forEach(r => r.addEventListener('change', load));
+    load();
+})();
+</script>
+{/block}
