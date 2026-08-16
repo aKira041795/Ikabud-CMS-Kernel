@@ -382,6 +382,9 @@ function cmsResetThemeRuntimeCache(): void
     $GLOBALS['cms_theme_symlink_checked_t' . $tid] = false;
     $GLOBALS['cms_active_theme_manifest_cached_t' . $tid] = false;
     $GLOBALS['cms_active_theme_manifest_value_t' . $tid] = null;
+    if (function_exists('cmsResetPublicContextRequestCache')) {
+        cmsResetPublicContextRequestCache();
+    }
 }
 
 function cmsCurrentPublicThemeContext(): array

@@ -164,14 +164,27 @@ function cmsPublicContextHasSection(array $availability, string $section): bool
  * Includes menus, social links, current year, site settings.
  */
 
+/**
+ * Bump the cmsPublicContext() per-request cache generation.
+ * Call after theme/customizer state changes so a later cmsPublicContext()
+ * call in the same process rebuilds instead of serving a stale static cache.
+ */
+function cmsResetPublicContextRequestCache(): void
+{
+    $key = 'cms_public_context_cache_generation';
+    $GLOBALS[$key] = (int)($GLOBALS[$key] ?? 0) + 1;
+}
+
 function cmsPublicContext(array $extra = []): array
 {
     // Per-request cache: avoid rebuilding menus, customizer, and theme
     // context when multiple handlers call cmsPublicContext() in the same request.
     static $cached = null;
     static $cachedExtra = null;
+    static $cachedGeneration = -1;
+    $cacheGeneration = (int)($GLOBALS['cms_public_context_cache_generation'] ?? 0);
     $hasEntityContext = !empty($extra['entity']['id']);
-    if (!$hasEntityContext && $cached !== null && $cachedExtra === $extra) {
+    if (!$hasEntityContext && $cached !== null && $cachedExtra === $extra && $cachedGeneration === $cacheGeneration) {
         return $cached;
     }
 
@@ -603,6 +616,7 @@ function cmsPublicContext(array $extra = []): array
     // with the same extra parameters within a single request.
     $cached = $result;
     $cachedExtra = $extra;
+    $cachedGeneration = $cacheGeneration;
 
     return $result;
 }
