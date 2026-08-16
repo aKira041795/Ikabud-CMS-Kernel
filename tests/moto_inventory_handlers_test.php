@@ -133,6 +133,38 @@ $out3 = ob_get_clean();
 $decoded3 = json_decode((string)$out3, true);
 $h->test('generic Throwable → 500 envelope', is_array($decoded3) && ($decoded3['ok'] ?? null) === false && ($decoded3['error'] ?? '') === 'Unexpected server error.');
 
+// ── User management endpoints ────────────────────────────────────
+$h->section('User management — permission guard');
+
+$h->test('moto_list_users exists', function_exists('moto_list_users'));
+$h->test('moto_create_kernel_user exists', function_exists('moto_create_kernel_user'));
+$h->test('moto_set_user_moto_role exists', function_exists('moto_set_user_moto_role'));
+$h->test('moto_set_user_password exists', function_exists('moto_set_user_password'));
+$h->test('moto_set_user_active exists', function_exists('moto_set_user_active'));
+$h->test('moto_assign_user_branch exists', function_exists('moto_assign_user_branch'));
+$h->test('moto_audit_target_label exists', function_exists('moto_audit_target_label'));
+$h->test('moto_user_role exists', function_exists('moto_user_role'));
+
+// Pure role-resolution fallbacks (no DB / request needed).
+$h->test('moto_user_role falls back to kernel role', moto_user_role(null, ['id' => 0, 'role' => 'cashier', 'source' => 'kernel']) === 'cashier');
+$h->test('moto_user_role kernel superadmin → superadmin', moto_user_role(null, ['id' => 0, 'role' => 'superadmin', 'source' => 'kernel']) === 'superadmin');
+$h->test('moto_user_role empty for anonymous', moto_user_role(null, null) === '');
+
+// User-admin handlers require moto_inventory.manage; a cashier must be denied.
+$guardResult = (static function () use ($cashier): bool {
+    $cashier['permissions'] = array_values(array_filter(
+        $cashier['permissions'] ?? [],
+        static fn (string $p): bool => $p !== 'moto_inventory.manage'
+    ));
+    try {
+        moto_require_permission($cashier, 'moto_inventory.manage');
+        return false; // should have thrown
+    } catch (\RuntimeException $e) {
+        return true;
+    }
+})();
+$h->test('user admin guarded by manage permission', $guardResult);
+
 // ── Route → handler wiring ────────────────────────────────────────
 $h->section('Route → handler wiring');
 
@@ -145,6 +177,11 @@ $sensitiveRoutes = [
     '/api/v1/moto-inventory/brands' => 'moto-inventory:motoApiBrandCreate',
     '/api/v1/moto-inventory/export' => 'moto-inventory:motoApiExport',
     '/api/v1/moto-inventory/audit' => 'moto-inventory:motoApiAudit',
+    '/api/v1/moto-inventory/users' => 'moto-inventory:motoApiUsers',
+    '/api/v1/moto-inventory/users/{id}/password' => 'moto-inventory:motoApiUserPassword',
+    '/api/v1/moto-inventory/users/{id}/role' => 'moto-inventory:motoApiUserRole',
+    '/api/v1/moto-inventory/users/{id}/status' => 'moto-inventory:motoApiUserStatus',
+    '/api/v1/moto-inventory/users/{id}/branch' => 'moto-inventory:motoApiUserBranch',
 ];
 foreach ($sensitiveRoutes as $route => $expectedHandler) {
     $found = false;

@@ -21,6 +21,22 @@
         return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
+    // Render a small object as a readable key/value list (used by audit detail)
+    // instead of dumping raw JSON.
+    S.fmtDetail = function (obj) {
+        if (!obj || typeof obj !== 'object') return '';
+        const moneyKeys = ['total', 'cost', 'price', 'revenue', 'profit', 'line_total', 'amount', 'qty', 'stock_value', 'low_stock_threshold', 'undo_window_minutes'];
+        return Object.entries(obj).map(([k, v]) => {
+            let val;
+            if (v === null || v === undefined || v === '') val = '—';
+            else if (typeof v === 'boolean') val = v ? 'Yes' : 'No';
+            else if (moneyKeys.indexOf(k) !== -1) val = S.fmtMoney(v);
+            else if (typeof v === 'object') val = JSON.stringify(v);
+            else val = String(v);
+            return `<div class="mi-detail-row"><span class="mi-detail-key">${S.esc(k)}</span><span class="mi-detail-val">${S.esc(val)}</span></div>`;
+        }).join('');
+    };
+
     S.uuid = function () {
         if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {

@@ -10,6 +10,7 @@
     "owns_tables": [
         "moto_branches",
         "moto_user_branches",
+        "moto_user_roles",
         "moto_brands",
         "moto_products",
         "moto_stock_movements",
@@ -26,7 +27,8 @@
     "migrations": [
         "database/migrations/001_moto_inventory_core.sql",
         "database/migrations/002_moto_inventory_sales_and_movements.sql",
-        "database/migrations/003_moto_inventory_import_audit_and_idempotency.sql"
+        "database/migrations/003_moto_inventory_import_audit_and_idempotency.sql",
+        "database/migrations/004_moto_inventory_user_roles.sql"
     ],
     "events": [
         {

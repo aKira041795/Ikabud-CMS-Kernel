@@ -49,15 +49,16 @@
                 else {
                     tbody.innerHTML = rows.map(a => {
                         let detail = '';
-                        if (a.after_data) detail = S.esc(JSON.stringify(a.after_data));
-                        else if (a.before_data) detail = S.esc(JSON.stringify(a.before_data));
+                        if (a.after_data) detail = S.fmtDetail(a.after_data);
+                        else if (a.before_data) detail = S.fmtDetail(a.before_data);
                         const targetId = a.target_id ? ' #' + S.esc(a.target_id) : '';
+                        const targetName = a.target_label ? ` — ${S.esc(a.target_label)}` : '';
                         return `<tr>
                             <td class="mi-muted" style="font-size:.78rem;white-space:nowrap">${S.esc(a.created_at)}</td>
                             <td>${S.esc(a.actor_name || '—')}</td>
                             <td><span class="mi-badge muted">${S.esc(a.action)}</span></td>
-                            <td class="mi-muted" style="font-size:.78rem">${S.esc(a.target_type || '')}${targetId}</td>
-                            <td style="font-size:.78rem;max-width:320px;overflow-wrap:anywhere">${detail}</td>
+                            <td class="mi-muted" style="font-size:.78rem">${S.esc(a.target_type || '')}${targetId}${targetName}</td>
+                            <td style="font-size:.78rem;max-width:340px;overflow-wrap:anywhere">${detail || '<span class="mi-muted">—</span>'}</td>
                         </tr>`;
                     }).join('');
                 }

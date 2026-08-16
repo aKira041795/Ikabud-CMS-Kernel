@@ -19,3 +19,4 @@ require_once __DIR__ . '/handlers/30-api-stock.php';
 require_once __DIR__ . '/handlers/40-api-sales.php';
 require_once __DIR__ . '/handlers/50-api-import-export.php';
 require_once __DIR__ . '/handlers/60-api-reports-audit.php';
+require_once __DIR__ . '/handlers/70-api-users.php';

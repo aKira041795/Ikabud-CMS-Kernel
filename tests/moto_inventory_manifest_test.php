@@ -88,7 +88,7 @@ $h->section('Manifest — owned tables & migrations');
 
 $owned = $manifest['owns_tables'] ?? [];
 $expectedTables = [
-    'moto_branches', 'moto_user_branches', 'moto_brands', 'moto_products',
+    'moto_branches', 'moto_user_branches', 'moto_user_roles', 'moto_brands', 'moto_products',
     'moto_stock_movements', 'moto_sales', 'moto_sale_items', 'moto_imports',
     'moto_import_rows', 'moto_audit_log', 'moto_idempotency_keys',
     'moto_preferences', 'moto_backups',
@@ -102,17 +102,28 @@ $h->test('all owned tables prefixed moto_', count(array_filter(
     static fn (string $t): bool => str_starts_with($t, 'moto_')
 )) === count(is_array($owned) ? $owned : []));
 
+// Kernel `users` is kernel-owned and must NOT be claimed by this module
+// (manifest guard rejects owning a kernel table). User administration reaches
+// it through src/helpers/kernel-users-admin.php (kernel escalation).
+$coOwned = $manifest['co_owns_tables'] ?? [];
+$h->test('co_owns_tables is an array', is_array($coOwned));
+$declared = array_merge(is_array($owned) ? $owned : [], is_array($coOwned) ? $coOwned : [], is_array($manifest['reads_tables'] ?? null) ? $manifest['reads_tables'] : []);
+$h->test('kernel users table not claimed in manifest', !in_array('users', $declared, true));
+$h->test('kernel-users-admin helper exists', is_file($base . '/src/helpers/kernel-users-admin.php'));
+$h->test('kernelUsersList helper available', function_exists('kernelUsersList') || is_file($base . '/src/helpers/kernel-users-admin.php'));
+
 $migrations = $manifest['migrations'] ?? [];
-$h->test('three migrations declared', is_array($migrations) && count($migrations) === 3);
+$h->test('four migrations declared', is_array($migrations) && count($migrations) === 4);
 $expectedMigrations = [
     'database/migrations/001_moto_inventory_core.sql',
     'database/migrations/002_moto_inventory_sales_and_movements.sql',
     'database/migrations/003_moto_inventory_import_audit_and_idempotency.sql',
+    'database/migrations/004_moto_inventory_user_roles.sql',
 ];
 foreach ($expectedMigrations as $m) {
     $h->test("migration file exists: {$m}", is_file($base . '/modules/moto-inventory/' . $m));
 }
-$h->test('no MySQL 8 window functions in migrations', !preg_match('/OVER\s*\(/i', (string)file_get_contents($base . '/modules/moto-inventory/database/migrations/001_moto_inventory_core.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/002_moto_inventory_sales_and_movements.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/003_moto_inventory_import_audit_and_idempotency.sql')));
+$h->test('no MySQL 8 window functions in migrations', !preg_match('/OVER\s*\(/i', (string)file_get_contents($base . '/modules/moto-inventory/database/migrations/001_moto_inventory_core.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/002_moto_inventory_sales_and_movements.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/003_moto_inventory_import_audit_and_idempotency.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/004_moto_inventory_user_roles.sql')));
 $h->test('no CTEs in migrations', !preg_match('/\bWITH\b\s+[A-Za-z_]+/i', (string)file_get_contents($base . '/modules/moto-inventory/database/migrations/002_moto_inventory_sales_and_movements.sql')));
 
 $h->section('Manifest — capabilities');

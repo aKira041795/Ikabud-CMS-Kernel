@@ -144,8 +144,40 @@ function motoPageBranches(array $params = []): void
     $ctx = moto_ctx();
     moto_require_page_permission($ctx, 'moto_inventory.manage');
     $branches = moto_accessible_branches($ctx);
+    $users = [];
+    try {
+        $users = moto_list_users($ctx);
+    } catch (\Throwable $e) {
+        $users = [];
+    }
+
+    // Precompute branch → assigned users chips (avoids relying on DiSyL `in`
+    // / dynamic-key array access, which are not supported).
+    $branchUsers = [];
+    foreach ($users as $u) {
+        foreach ((array)($u['branches'] ?? []) as $bid) {
+            $branchUsers[(int)$bid][] = $u;
+        }
+    }
+    $branches = array_map(static function (array $b) use ($branchUsers): array {
+        $bid = (int)$b['id'];
+        $chips = [];
+        foreach ($branchUsers[$bid] ?? [] as $u) {
+            $chips[] = '<span class="mi-badge" style="background:var(--accent-soft);color:var(--accent-strong)">'
+                . htmlspecialchars((string)$u['username'], ENT_QUOTES, 'UTF-8')
+                . ' <a href="#" data-unassign-branch="' . $bid . '" data-user-id="' . (int)$u['id']
+                . '" title="Remove" style="color:inherit;text-decoration:none;font-weight:700">×</a></span>';
+        }
+        $b['user_chips'] = $chips !== []
+            ? implode('', $chips)
+            : '<span class="mi-muted" style="font-size:.76rem">No users assigned</span>';
+        return $b;
+    }, $branches);
+
     echo app()->render('modules/moto-inventory/pages/branches', moto_page_context($ctx, 'branches', 'Branches', [
-        'branches' => $branches,
+        'branches'                   => $branches,
+        'users'                      => $users,
+        'role_permissions_effective' => json_encode(moto_inventory_role_permissions(), JSON_UNESCAPED_SLASHES),
     ]));
 }
 

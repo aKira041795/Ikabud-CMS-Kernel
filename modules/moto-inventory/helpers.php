@@ -29,6 +29,15 @@ declare(strict_types=1);
     }
 })();
 
+// ── Kernel users administration helper (src/helpers, kernel-escalated) ────
+// The kernel `users` table is kernel-owned; modules must not declare it in
+// owns_tables/co_owns_tables. Access goes through kernelEscalationEnter()
+// from src/helpers (the same mechanism used for tenant_module_settings).
+$kernelUsersAdminPath = dirname(__DIR__, 2) . '/src/helpers/kernel-users-admin.php';
+if (file_exists($kernelUsersAdminPath)) {
+    require_once $kernelUsersAdminPath;
+}
+
 // ── Permission catalog ────────────────────────────────────────────
 
 function moto_inventory_permission_actions(): array
@@ -267,10 +276,54 @@ function moto_has_permission(string $permission, ?array $user = null): bool
     if (($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'superadmin') {
         return true;
     }
-    $role = (string)($user['role'] ?? '');
+    $role = moto_user_role(null, $user);
     $permissions = moto_inventory_role_permissions();
 
     return in_array($permission, $permissions[$role] ?? [], true);
+}
+
+/**
+ * Resolve the module role for a kernel user.
+ *
+ * Kernel auth is the identity authority; the module role is stored per tenant
+ * in moto_user_roles so an admin can differentiate cashiers/owners/etc. that
+ * all authenticate as kernel admins. Falls back to the kernel role when no
+ * moto_user_roles row exists.
+ */
+function moto_user_role(?array $ctx = null, ?array $user = null): string
+{
+    $user = $user ?? (is_array(app()->user()) ? app()->user() : null);
+    if (!is_array($user)) {
+        return '';
+    }
+    if (($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'superadmin') {
+        return 'superadmin';
+    }
+
+    $tenantId = $ctx !== null && isset($ctx['tenant_id']) ? (int)$ctx['tenant_id'] : 0;
+    if ($tenantId <= 0) {
+        try {
+            $tenantId = moto_resolve_tenant_id();
+        } catch (\Throwable $e) {
+            $tenantId = 0;
+        }
+    }
+    $userId = (int)($user['id'] ?? (int)($user['sub'] ?? 0));
+    if ($tenantId > 0 && $userId > 0) {
+        try {
+            $db = moto_db($tenantId);
+            $stmt = $db->prepare('SELECT role FROM moto_user_roles WHERE tenant_id = :tid AND user_id = :uid LIMIT 1');
+            $stmt->execute([':tid' => $tenantId, ':uid' => $userId]);
+            $role = $stmt->fetchColumn();
+            if (is_string($role) && $role !== '') {
+                return $role;
+            }
+        } catch (\Throwable $e) {
+            // Fall through to the kernel role.
+        }
+    }
+
+    return (string)($user['role'] ?? '');
 }
 
 function moto_can_view_all_branches(?array $user = null): bool
@@ -299,6 +352,196 @@ function moto_user_branch_ids(int $tenantId, int $userId): array
     } catch (\Throwable $e) {
         return [];
     }
+}
+
+// ── User management (kernel users table) ─────────────────────────
+// Kernel auth is the identity authority: login + password hashes live in the
+// kernel `users` table (via app()->db(), the tenant DB). This module provides
+// an admin UI to administer those users and to assign each a per-tenant
+// module role (moto_user_roles) and branch memberships.
+
+function moto_list_users(array $ctx): array
+{
+    $tenantId = (int)$ctx['tenant_id'];
+    $rows = kernelUsersList($tenantId);
+
+    $mdb = moto_db($tenantId);
+    foreach ($rows as &$row) {
+        $userId = (int)$row['id'];
+        $row['moto_role'] = null;
+        $stmt = $mdb->prepare('SELECT role FROM moto_user_roles WHERE tenant_id = :tid AND user_id = :uid LIMIT 1');
+        $stmt->execute([':tid' => $tenantId, ':uid' => $userId]);
+        $role = $stmt->fetchColumn();
+        if (is_string($role) && $role !== '') {
+            $row['moto_role'] = $role;
+        }
+        $row['branches'] = moto_user_branch_ids($tenantId, $userId);
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function moto_create_kernel_user(array $ctx, array $input): array
+{
+    $username = strtolower(trim((string)($input['username'] ?? '')));
+    $fullName = trim((string)($input['full_name'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $kernelRole = trim((string)($input['role'] ?? 'admin'));
+    $motoRole = trim((string)($input['moto_role'] ?? ''));
+    // New users are active by default so they can log in immediately.
+    $isActive = array_key_exists('is_active', $input) ? (!empty($input['is_active']) ? 1 : 0) : 1;
+
+    if (!preg_match('/^[a-z0-9_.-]{3,50}$/', $username)) {
+        throw new \InvalidArgumentException('Username must be 3–50 characters (letters, numbers, . _ -)');
+    }
+    if ($password === '' || strlen($password) < 6) {
+        throw new \InvalidArgumentException('Password must be at least 6 characters');
+    }
+    if (!in_array($kernelRole, ['admin', 'superadmin', 'manager', 'viewer'], true)) {
+        throw new \InvalidArgumentException('Invalid kernel role');
+    }
+    if ($motoRole !== '' && !in_array($motoRole, ['admin', 'manager', 'cashier', 'owner'], true)) {
+        throw new \InvalidArgumentException('Invalid module role');
+    }
+
+    $tenantId = (int)$ctx['tenant_id'];
+    if (kernelUserExistsByUsername($tenantId, $username)) {
+        throw new \InvalidArgumentException('Username already exists');
+    }
+
+    $hash = password_hash($password, PASSWORD_BCRYPT);
+    $email = trim((string)($input['email'] ?? ''));
+    $userId = kernelUserCreate(
+        $tenantId,
+        $username,
+        $email !== '' ? $email : null,
+        $hash,
+        $fullName !== '' ? $fullName : $username,
+        $kernelRole,
+        $isActive
+    );
+
+    if ($motoRole !== '') {
+        moto_set_user_moto_role($ctx, $userId, $motoRole);
+    }
+    $branchIds = $input['branch_ids'] ?? [];
+    if (is_array($branchIds)) {
+        foreach ($branchIds as $bid) {
+            $bid = (int)$bid;
+            if ($bid > 0) {
+                moto_assign_user_branch($ctx, $bid, $userId, true);
+            }
+        }
+    }
+
+    moto_audit($ctx, 'moto_inventory.user.created', 'kernel_user', (string)$userId, null, [
+        'username' => $username, 'role' => $kernelRole, 'moto_role' => $motoRole,
+    ]);
+
+    return ['id' => $userId, 'username' => $username, 'moto_role' => $motoRole !== '' ? $motoRole : $kernelRole];
+}
+
+function moto_set_user_password(array $ctx, int $userId, string $password): void
+{
+    if ($userId <= 0) {
+        throw new \InvalidArgumentException('Invalid user');
+    }
+    if (strlen($password) < 6) {
+        throw new \InvalidArgumentException('Password must be at least 6 characters');
+    }
+    $tenantId = (int)$ctx['tenant_id'];
+    if (!kernelUserExists($tenantId, $userId)) {
+        throw new \InvalidArgumentException('User not found');
+    }
+    kernelUserSetPassword($tenantId, $userId, password_hash($password, PASSWORD_BCRYPT));
+    moto_audit($ctx, 'moto_inventory.user.password_reset', 'kernel_user', (string)$userId, null, ['password_reset' => true]);
+}
+
+function moto_set_user_moto_role(array $ctx, int $userId, string $role): void
+{
+    if ($userId <= 0) {
+        throw new \InvalidArgumentException('Invalid user');
+    }
+    if (!in_array($role, ['admin', 'manager', 'cashier', 'owner'], true)) {
+        throw new \InvalidArgumentException('Invalid module role');
+    }
+    $db = moto_db((int)$ctx['tenant_id']);
+    $db->prepare(
+        'INSERT INTO moto_user_roles (tenant_id, user_id, role) VALUES (:tid, :uid, :r)
+         ON DUPLICATE KEY UPDATE role = VALUES(role)'
+    )->execute([':tid' => (int)$ctx['tenant_id'], ':uid' => $userId, ':r' => $role]);
+    moto_audit($ctx, 'moto_inventory.user.role_set', 'kernel_user', (string)$userId, null, ['role' => $role]);
+}
+
+function moto_set_user_active(array $ctx, int $userId, bool $active): void
+{
+    if ($userId <= 0) {
+        throw new \InvalidArgumentException('Invalid user');
+    }
+    kernelUserSetActive((int)$ctx['tenant_id'], $userId, $active);
+    moto_audit($ctx, 'moto_inventory.user.status', 'kernel_user', (string)$userId, null, ['is_active' => $active]);
+}
+
+function moto_assign_user_branch(array $ctx, int $branchId, int $userId, bool $assigned): void
+{
+    $tenantId = (int)$ctx['tenant_id'];
+    $db = moto_db($tenantId);
+    if ($assigned) {
+        $db->prepare(
+            'INSERT IGNORE INTO moto_user_branches (tenant_id, user_id, branch_id) VALUES (:tid, :uid, :bid)'
+        )->execute([':tid' => $tenantId, ':uid' => $userId, ':bid' => $branchId]);
+    } else {
+        $db->prepare('DELETE FROM moto_user_branches WHERE tenant_id = :tid AND user_id = :uid AND branch_id = :bid')
+            ->execute([':tid' => $tenantId, ':uid' => $userId, ':bid' => $branchId]);
+    }
+    moto_audit($ctx, 'moto_inventory.branch.assignment.updated', 'moto_branch', (string)$branchId, null, [
+        'user_id' => $userId, 'assigned' => $assigned,
+    ]);
+}
+
+/**
+ * Resolve a human-readable label for an audit target (JOIN instead of raw id).
+ */
+function moto_audit_target_label(\PDO|\Ikabud\Kernel\Contracts\DatabaseContract $db, int $tenantId, string $type, int $id): ?string
+{
+    static $cache = [];
+    $key = $type . ':' . $id;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    $label = null;
+    try {
+        if ($type === 'moto_product') {
+            $stmt = $db->prepare('SELECT part_number FROM moto_products WHERE tenant_id = :t AND id = :i LIMIT 1');
+            $stmt->execute([':t' => $tenantId, ':i' => $id]);
+            $v = $stmt->fetchColumn();
+            $label = is_string($v) ? $v : null;
+        } elseif ($type === 'moto_sale') {
+            $stmt = $db->prepare('SELECT sale_ref FROM moto_sales WHERE tenant_id = :t AND id = :i LIMIT 1');
+            $stmt->execute([':t' => $tenantId, ':i' => $id]);
+            $v = $stmt->fetchColumn();
+            $label = is_string($v) ? $v : null;
+        } elseif ($type === 'moto_branch') {
+            $stmt = $db->prepare('SELECT name FROM moto_branches WHERE tenant_id = :t AND id = :i LIMIT 1');
+            $stmt->execute([':t' => $tenantId, ':i' => $id]);
+            $v = $stmt->fetchColumn();
+            $label = is_string($v) ? $v : null;
+        } elseif ($type === 'moto_brand') {
+            $stmt = $db->prepare('SELECT name FROM moto_brands WHERE tenant_id = :t AND id = :i LIMIT 1');
+            $stmt->execute([':t' => $tenantId, ':i' => $id]);
+            $v = $stmt->fetchColumn();
+            $label = is_string($v) ? $v : null;
+        } elseif ($type === 'kernel_user') {
+            $label = kernelUserUsername($tenantId, $id);
+        }
+    } catch (\Throwable $e) {
+        $label = null;
+    }
+
+    $cache[$key] = $label;
+    return $label;
 }
 
 /**

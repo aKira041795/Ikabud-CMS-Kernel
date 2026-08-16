@@ -192,6 +192,16 @@
             color: var(--warn); font-size: .78rem; padding: 6px 10px; border-radius: 8px; margin-bottom: 10px;
         }
         .mi-offline-note.show { display: flex; }
+        .mi-detail-row { display: flex; gap: 8px; justify-content: space-between; border-bottom: 1px dashed #eee8dc; padding: 1px 0; }
+        .mi-detail-row:last-child { border-bottom: none; }
+        .mi-detail-key { color: var(--muted); text-transform: capitalize; }
+        .mi-detail-val { font-weight: 600; text-align: right; }
+        .mi-role-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+        .mi-role-pill.admin { background: #e7e5e4; color: #292524; }
+        .mi-role-pill.manager { background: rgba(251,191,36,.14); color: var(--warn); }
+        .mi-role-pill.cashier { background: rgba(21,128,61,.12); color: var(--good); }
+        .mi-role-pill.owner { background: rgba(185,28,28,.10); color: var(--bad); }
+        .mi-role-pill.viewer { background: rgba(107,103,94,.12); color: var(--muted); }
     </style>
     {block head}{/block}
 </head>

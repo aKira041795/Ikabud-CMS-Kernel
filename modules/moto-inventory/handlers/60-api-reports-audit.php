@@ -74,6 +74,10 @@ function motoApiAudit(array $params = []): void
         foreach ($rows as &$row) {
             $row['before_data'] = $row['before_data'] !== null ? json_decode((string)$row['before_data'], true) : null;
             $row['after_data'] = $row['after_data'] !== null ? json_decode((string)$row['after_data'], true) : null;
+            $targetId = (int)($row['target_id'] ?? 0);
+            $row['target_label'] = $targetId > 0
+                ? moto_audit_target_label($db, $tid, (string)($row['target_type'] ?? ''), $targetId)
+                : null;
         }
         unset($row);
 

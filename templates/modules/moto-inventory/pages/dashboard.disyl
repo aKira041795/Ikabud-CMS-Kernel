@@ -73,21 +73,24 @@
             })
             .catch(() => {});
 
-        fetch('/api/v1/moto-inventory/reports/profit' + suffix, { headers: { 'Accept': 'application/json' } })
-            .then(r => r.json())
-            .then(json => {
-                if (!json.ok) return;
-                const d = json.data;
-                const today = new Date().toISOString().slice(0, 10);
-                $('mi-metric-sales').textContent = d.sales_count;
-                const rev = $('mi-metric-revenue');
-                if (rev) rev.textContent = window.MOTO_INVENTORY.fmtMoney(d.revenue);
-                const profit = $('mi-metric-profit');
-                if (profit) profit.textContent = window.MOTO_INVENTORY.fmtMoney(d.profit);
-            })
-            .catch(() => {});
+        const perms = window.MOTO_INVENTORY.me.permissions || [];
+        if (perms.indexOf('moto_inventory.view_profit') !== -1) {
+            fetch('/api/v1/moto-inventory/reports/profit' + suffix, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(json => {
+                    if (!json.ok) return;
+                    const d = json.data;
+                    const today = new Date().toISOString().slice(0, 10);
+                    $('mi-metric-sales').textContent = d.sales_count;
+                    const rev = $('mi-metric-revenue');
+                    if (rev) rev.textContent = window.MOTO_INVENTORY.fmtMoney(d.revenue);
+                    const profit = $('mi-metric-profit');
+                    if (profit) profit.textContent = window.MOTO_INVENTORY.fmtMoney(d.profit);
+                })
+                .catch(() => {});
+        }
 
-        if (window.MOTO_INVENTORY.me.permissions.indexOf('moto_inventory.manage') !== -1) {
+        if (perms.indexOf('moto_inventory.manage') !== -1) {
             fetch('/api/v1/moto-inventory/imports' + suffix, { headers: { 'Accept': 'application/json' } })
                 .then(r => r.json())
                 .then(json => {

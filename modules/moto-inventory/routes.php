@@ -29,6 +29,9 @@ return [
         '/api/v1/moto-inventory/me'                  => 'moto-inventory:motoApiMe',
         '/api/v1/moto-inventory/branches'            => 'moto-inventory:motoApiBranches',
 
+        // API: user management (kernel users + module roles)
+        '/api/v1/moto-inventory/users'               => 'moto-inventory:motoApiUsers',
+
         // API: catalog
         '/api/v1/moto-inventory/brands'              => 'moto-inventory:motoApiBrands',
         '/api/v1/moto-inventory/products'            => 'moto-inventory:motoApiProducts',
@@ -71,6 +74,9 @@ return [
         // API: branches
         '/api/v1/moto-inventory/branches'            => 'moto-inventory:motoApiBranchCreate',
 
+        // API: users (mutations)
+        '/api/v1/moto-inventory/users'               => 'moto-inventory:motoApiUserCreate',
+
         // Settings (form POST, CSRF-protected non-API route)
         '/moto-inventory/settings'                   => 'moto-inventory:motoPageSettingsSave',
 
@@ -83,5 +89,9 @@ return [
         '/api/v1/moto-inventory/sales/{id}/void'     => 'moto-inventory:motoApiSaleVoid',
         '/api/v1/moto-inventory/imports/{id}/commit' => 'moto-inventory:motoApiImportCommit',
         '/api/v1/moto-inventory/branches/{id}/assign' => 'moto-inventory:motoApiBranchAssign',
+        '/api/v1/moto-inventory/users/{id}/password' => 'moto-inventory:motoApiUserPassword',
+        '/api/v1/moto-inventory/users/{id}/role'     => 'moto-inventory:motoApiUserRole',
+        '/api/v1/moto-inventory/users/{id}/status'   => 'moto-inventory:motoApiUserStatus',
+        '/api/v1/moto-inventory/users/{id}/branch'   => 'moto-inventory:motoApiUserBranch',
     ],
 ];
