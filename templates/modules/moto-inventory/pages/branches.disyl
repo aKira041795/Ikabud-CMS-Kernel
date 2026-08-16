@@ -41,34 +41,6 @@
 </div>
 
 <div class="mi-card">
-    <h2 style="margin-top:0">Users</h2>
-    <div class="mi-grid cols-2" style="margin-bottom:12px;align-items:end">
-        <div class="mi-field"><label for="mi-u-username">Username</label><input class="mi-input" id="mi-u-username" placeholder="e.g. cashier1" aria-label="Username"></div>
-        <div class="mi-field"><label for="mi-u-name">Full name</label><input class="mi-input" id="mi-u-name" placeholder="Display name" aria-label="Full name"></div>
-        <div class="mi-field"><label for="mi-u-pass">Password</label><input class="mi-input" id="mi-u-pass" type="password" placeholder="min 6 chars" aria-label="Password"></div>
-        <div class="mi-field">
-            <label for="mi-u-role">Module role</label>
-            <select class="mi-input" id="mi-u-role" aria-label="Module role">
-                <option value="admin">Admin</option>
-                <option value="manager">Manager</option>
-                <option value="cashier">Cashier</option>
-                <option value="owner">Owner</option>
-            </select>
-        </div>
-    </div>
-    <div class="mi-row" style="margin-bottom:12px">
-        <button class="mi-btn primary" id="mi-u-add" type="button">+ Add user</button>
-        <span class="mi-muted" style="font-size:.78rem">Users authenticate through the kernel login; their module role here controls what they can do in Moto Inventory.</span>
-    </div>
-    <div class="mi-table-wrap">
-        <table class="mi-table">
-            <thead><tr><th>Username</th><th>Name</th><th>Kernel role</th><th>Module role</th><th>Branches</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="mi-users-rows"><tr><td colspan="7" class="mi-empty">Loading…</td></tr></tbody>
-        </table>
-    </div>
-</div>
-
-<div class="mi-card">
     <h2 style="margin-top:0">Module settings</h2>
     <form method="post" action="/moto-inventory/settings" id="mi-settings-form">
         <input type="hidden" name="_token" value="{csrf_token}">
@@ -193,71 +165,6 @@
         e.preventDefault();
         assignBranchUser(a.dataset.unassignBranch, a.dataset.userId, false, () => setTimeout(() => location.reload(), 500));
     }));
-
-    // ── User list + management ─────────────────────────────────────
-    function rolePill(role) {
-        const cls = ['admin', 'manager', 'cashier', 'owner', 'viewer'].indexOf(role) !== -1 ? role : 'viewer';
-        return `<span class="mi-role-pill ${cls}">${S.esc(role || '—')}</span>`;
-    }
-    function loadUsers() {
-        api('/api/v1/moto-inventory/users').then(json => {
-            if (!json.ok) return;
-            const tbody = $('mi-users-rows');
-            const users = json.data.users || [];
-            if (!users.length) { tbody.innerHTML = '<tr><td colspan="7" class="mi-empty">No users yet.</td></tr>'; return; }
-            tbody.innerHTML = users.map(u => {
-                const branches = (u.branches || []).join(', ') || '—';
-                const roleOpts = ROLES.map(r => {
-                    const sel = u.moto_role === r ? ' selected' : '';
-                    return `<option value="${r}"${sel}>${r}</option>`;
-                }).join('');
-                const kernelSel = !u.moto_role ? ' selected' : '';
-                const activeChk = u.is_active ? ' checked' : '';
-                const activeLbl = u.is_active ? 'Active' : 'Disabled';
-                return `<tr>
-                    <td><strong>${S.esc(u.username)}</strong></td>
-                    <td>${S.esc(u.full_name || '—')}</td>
-                    <td>${rolePill(u.role)}</td>
-                    <td><select class="mi-input" style="max-width:120px" data-user-role="${u.id}">${roleOpts}<option value=""${kernelSel}>kernel</option></select></td>
-                    <td class="mi-muted" style="font-size:.78rem">${S.esc(branches)}</td>
-                    <td><label class="mi-row" style="gap:6px"><input type="checkbox" data-user-active="${u.id}"${activeChk}> ${activeLbl}</label></td>
-                    <td style="white-space:nowrap">
-                        <button class="mi-btn ghost" data-user-pass="${u.id}" type="button">Reset pwd</button>
-                    </td>
-                </tr>`;
-            }).join('');
-            tbody.querySelectorAll('[data-user-role]').forEach(sel => sel.addEventListener('change', async () => {
-                const json = await api('/api/v1/moto-inventory/users/' + sel.dataset.userRole + '/role', { method: 'POST', body: { moto_role: sel.value } });
-                if (json.ok) S.toast('Module role updated', false, 'good');
-                else S.toast(json.error, true);
-            }));
-            tbody.querySelectorAll('[data-user-active]').forEach(cb => cb.addEventListener('change', async () => {
-                const json = await api('/api/v1/moto-inventory/users/' + cb.dataset.userActive + '/status', { method: 'POST', body: { is_active: cb.checked } });
-                if (json.ok) { S.toast(cb.checked ? 'User enabled' : 'User disabled', false, 'good'); }
-                else { cb.checked = !cb.checked; S.toast(json.error, true); }
-            }));
-            tbody.querySelectorAll('[data-user-pass]').forEach(btn => btn.addEventListener('click', async () => {
-                const pwd = prompt('New password (min 6 characters):');
-                if (!pwd) return;
-                const json = await api('/api/v1/moto-inventory/users/' + btn.dataset.userPass + '/password', { method: 'POST', body: { password: pwd } });
-                if (json.ok) S.toast('Password reset', false, 'good');
-                else S.toast(json.error, true);
-            }));
-        }).catch(() => { $('mi-users-rows').innerHTML = '<tr><td colspan="7" class="mi-empty">Could not load users.</td></tr>'; });
-    }
-
-    if ($('mi-u-add')) $('mi-u-add').addEventListener('click', async () => {
-        const username = $('mi-u-username').value.trim();
-        const fullName = $('mi-u-name').value.trim();
-        const password = $('mi-u-pass').value;
-        const motoRole = $('mi-u-role').value;
-        if (!username || !password) return S.toast('Username and password are required', true);
-        const json = await api('/api/v1/moto-inventory/users', { method: 'POST', body: { username, full_name: fullName, password, moto_role: motoRole, role: 'admin' } });
-        if (json.ok) { S.toast('User added', false, 'good'); $('mi-u-username').value = ''; $('mi-u-name').value = ''; $('mi-u-pass').value = ''; loadUsers(); }
-        else S.toast(json.error, true);
-    });
-
-    loadUsers();
 })();
 </script>
 {/block}

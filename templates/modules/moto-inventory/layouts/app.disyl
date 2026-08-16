@@ -242,6 +242,7 @@
         {if can_manage}
         <a href="/moto-inventory/import" class="{if active_nav == 'import'}active{/if}">Import</a>
         <a href="/moto-inventory/branches" class="{if active_nav == 'branches'}active{/if}">Branches</a>
+        <a href="/moto-inventory/users" class="{if active_nav == 'users'}active{/if}">Users</a>
         {/if}
     </nav>
 

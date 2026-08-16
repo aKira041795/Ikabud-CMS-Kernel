@@ -134,6 +134,36 @@ function kernelUserSetPassword(int $tenantId, int $userId, string $passwordHash)
 }
 
 /**
+ * Update a kernel user's display full name ("First Last").
+ */
+function kernelUserSetFullName(int $tenantId, int $userId, string $fullName): void
+{
+    KernelPDO::kernelEscalationEnter();
+    try {
+        kernelUsersTenantDb($tenantId)
+            ->prepare('UPDATE users SET full_name = :n WHERE id = :id')
+            ->execute([':n' => mb_substr($fullName, 0, 100), ':id' => $userId]);
+    } finally {
+        KernelPDO::kernelEscalationLeave();
+    }
+}
+
+/**
+ * Update a kernel user's email address (nullable).
+ */
+function kernelUserSetEmail(int $tenantId, int $userId, ?string $email): void
+{
+    KernelPDO::kernelEscalationEnter();
+    try {
+        kernelUsersTenantDb($tenantId)
+            ->prepare('UPDATE users SET email = :e WHERE id = :id')
+            ->execute([':e' => $email, ':id' => $userId]);
+    } finally {
+        KernelPDO::kernelEscalationLeave();
+    }
+}
+
+/**
  * Enable/disable a kernel user (bumps token_version to revoke live sessions).
  */
 function kernelUserSetActive(int $tenantId, int $userId, bool $active): void

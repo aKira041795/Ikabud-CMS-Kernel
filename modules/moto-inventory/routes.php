@@ -24,6 +24,7 @@ return [
         '/moto-inventory/audit'          => 'moto-inventory:motoPageAudit',
         '/moto-inventory/import'         => 'moto-inventory:motoPageImport',
         '/moto-inventory/branches'       => 'moto-inventory:motoPageBranches',
+        '/moto-inventory/users'          => 'moto-inventory:motoPageUsers',
 
         // API: session + branch scope
         '/api/v1/moto-inventory/me'                  => 'moto-inventory:motoApiMe',
@@ -93,5 +94,6 @@ return [
         '/api/v1/moto-inventory/users/{id}/role'     => 'moto-inventory:motoApiUserRole',
         '/api/v1/moto-inventory/users/{id}/status'   => 'moto-inventory:motoApiUserStatus',
         '/api/v1/moto-inventory/users/{id}/branch'   => 'moto-inventory:motoApiUserBranch',
+        '/api/v1/moto-inventory/users/{id}'          => 'moto-inventory:motoApiUserUpdate',
     ],
 ];

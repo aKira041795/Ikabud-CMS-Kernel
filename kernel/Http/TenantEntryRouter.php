@@ -225,6 +225,8 @@ class TenantEntryRouter
             $uri === '/login'
             || $uri === '/auth/login'
             || $uri === '/auth/logout'
+            || $uri === '/forgot-password'
+            || $uri === '/reset-password'
             || str_starts_with($uri, '/auth/')
             || str_starts_with($uri, '/api/v1/auth/')
         ) {

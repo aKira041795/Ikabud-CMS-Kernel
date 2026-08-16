@@ -264,6 +264,16 @@ ok($rewritten3 === '/admin/content', '"/admin/content" is NOT rewritten (admin r
 
 $resolver->reset();
 $_SERVER['HTTP_HOST'] = 'cmsnew.test';
+$rewrittenForgot = $router->rewriteUri('/forgot-password');
+ok($rewrittenForgot === '/forgot-password', '"/forgot-password" is NOT rewritten (kernel auth endpoint skip) (got: ' . $rewrittenForgot . ')');
+
+$resolver->reset();
+$_SERVER['HTTP_HOST'] = 'cmsnew.test';
+$rewrittenReset = $router->rewriteUri('/reset-password');
+ok($rewrittenReset === '/reset-password', '"/reset-password" is NOT rewritten (kernel auth endpoint skip) (got: ' . $rewrittenReset . ')');
+
+$resolver->reset();
+$_SERVER['HTTP_HOST'] = 'cmsnew.test';
 $rewritten4 = $router->rewriteUri('/api/v1/health');
 ok($rewritten4 === '/api/v1/health', '"/api/v1/health" is NOT rewritten (API routes skip) (got: ' . $rewritten4 . ')');
 

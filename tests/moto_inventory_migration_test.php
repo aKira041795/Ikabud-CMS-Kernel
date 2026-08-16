@@ -28,6 +28,7 @@ $h->fingerprint('modules/moto-inventory/database/migrations/001_moto_inventory_c
 $h->fingerprint('modules/moto-inventory/database/migrations/002_moto_inventory_sales_and_movements.sql');
 $h->fingerprint('modules/moto-inventory/database/migrations/003_moto_inventory_import_audit_and_idempotency.sql');
 $h->fingerprint('modules/moto-inventory/database/migrations/004_moto_inventory_user_roles.sql');
+$h->fingerprint('modules/moto-inventory/database/migrations/005_moto_inventory_user_profiles.sql');
 
 $tenant = null;
 try {
@@ -43,7 +44,7 @@ $pdo = $tenant['pdo'];
 $h->section('Clean install');
 
 $expectedTables = [
-    'moto_branches', 'moto_user_branches', 'moto_user_roles', 'moto_brands', 'moto_products',
+    'moto_branches', 'moto_user_branches', 'moto_user_roles', 'moto_user_profiles', 'moto_brands', 'moto_products',
     'moto_stock_movements', 'moto_sales', 'moto_sale_items', 'moto_imports',
     'moto_import_rows', 'moto_audit_log', 'moto_idempotency_keys',
     'moto_preferences', 'moto_backups',
@@ -89,7 +90,7 @@ $rerun = $runner->migrate('moto-inventory');
 $h->test('rerun executes nothing', $rerun === []);
 
 $regCount = (int)$pdo->query("SELECT COUNT(*) FROM `_migrations` WHERE module = 'moto-inventory'")->fetchColumn();
-$h->test('migrations registered in _migrations (4)', $regCount === 4);
+$h->test('migrations registered in _migrations (5)', $regCount === 5);
 
 $h->section('Kernel-users provisioning bootstrap');
 

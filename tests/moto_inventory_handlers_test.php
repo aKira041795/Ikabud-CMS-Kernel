@@ -142,6 +142,8 @@ $h->test('moto_set_user_moto_role exists', function_exists('moto_set_user_moto_r
 $h->test('moto_set_user_password exists', function_exists('moto_set_user_password'));
 $h->test('moto_set_user_active exists', function_exists('moto_set_user_active'));
 $h->test('moto_assign_user_branch exists', function_exists('moto_assign_user_branch'));
+$h->test('moto_set_user_profile exists', function_exists('moto_set_user_profile'));
+$h->test('moto_set_user_email exists', function_exists('moto_set_user_email'));
 $h->test('moto_audit_target_label exists', function_exists('moto_audit_target_label'));
 $h->test('moto_user_role exists', function_exists('moto_user_role'));
 
@@ -182,6 +184,7 @@ $sensitiveRoutes = [
     '/api/v1/moto-inventory/users/{id}/role' => 'moto-inventory:motoApiUserRole',
     '/api/v1/moto-inventory/users/{id}/status' => 'moto-inventory:motoApiUserStatus',
     '/api/v1/moto-inventory/users/{id}/branch' => 'moto-inventory:motoApiUserBranch',
+    '/api/v1/moto-inventory/users/{id}' => 'moto-inventory:motoApiUserUpdate',
 ];
 foreach ($sensitiveRoutes as $route => $expectedHandler) {
     $found = false;

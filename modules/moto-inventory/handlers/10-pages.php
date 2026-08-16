@@ -182,6 +182,28 @@ function motoPageBranches(array $params = []): void
 }
 
 /**
+ * Dedicated Users page: manage kernel users (name, email, password, role).
+ */
+function motoPageUsers(array $params = []): void
+{
+    $ctx = moto_ctx();
+    moto_require_page_permission($ctx, 'moto_inventory.manage');
+    $users = [];
+    $branches = [];
+    try {
+        $users = moto_list_users($ctx);
+        $branches = moto_accessible_branches($ctx);
+    } catch (\Throwable $e) {
+        $users = [];
+    }
+
+    echo app()->render('modules/moto-inventory/pages/users', moto_page_context($ctx, 'users', 'Users', [
+        'users'    => $users,
+        'branches' => $branches,
+    ]));
+}
+
+/**
  * Settings form save (non-API, CSRF-protected).
  */
 function motoPageSettingsSave(array $params = []): void

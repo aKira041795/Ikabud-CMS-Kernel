@@ -88,7 +88,7 @@ $h->section('Manifest — owned tables & migrations');
 
 $owned = $manifest['owns_tables'] ?? [];
 $expectedTables = [
-    'moto_branches', 'moto_user_branches', 'moto_user_roles', 'moto_brands', 'moto_products',
+    'moto_branches', 'moto_user_branches', 'moto_user_roles', 'moto_user_profiles', 'moto_brands', 'moto_products',
     'moto_stock_movements', 'moto_sales', 'moto_sale_items', 'moto_imports',
     'moto_import_rows', 'moto_audit_log', 'moto_idempotency_keys',
     'moto_preferences', 'moto_backups',
@@ -113,17 +113,18 @@ $h->test('kernel-users-admin helper exists', is_file($base . '/src/helpers/kerne
 $h->test('kernelUsersList helper available', function_exists('kernelUsersList') || is_file($base . '/src/helpers/kernel-users-admin.php'));
 
 $migrations = $manifest['migrations'] ?? [];
-$h->test('four migrations declared', is_array($migrations) && count($migrations) === 4);
+$h->test('five migrations declared', is_array($migrations) && count($migrations) === 5);
 $expectedMigrations = [
     'database/migrations/001_moto_inventory_core.sql',
     'database/migrations/002_moto_inventory_sales_and_movements.sql',
     'database/migrations/003_moto_inventory_import_audit_and_idempotency.sql',
     'database/migrations/004_moto_inventory_user_roles.sql',
+    'database/migrations/005_moto_inventory_user_profiles.sql',
 ];
 foreach ($expectedMigrations as $m) {
     $h->test("migration file exists: {$m}", is_file($base . '/modules/moto-inventory/' . $m));
 }
-$h->test('no MySQL 8 window functions in migrations', !preg_match('/OVER\s*\(/i', (string)file_get_contents($base . '/modules/moto-inventory/database/migrations/001_moto_inventory_core.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/002_moto_inventory_sales_and_movements.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/003_moto_inventory_import_audit_and_idempotency.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/004_moto_inventory_user_roles.sql')));
+$h->test('no MySQL 8 window functions in migrations', !preg_match('/OVER\s*\(/i', (string)file_get_contents($base . '/modules/moto-inventory/database/migrations/001_moto_inventory_core.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/002_moto_inventory_sales_and_movements.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/003_moto_inventory_import_audit_and_idempotency.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/004_moto_inventory_user_roles.sql') . file_get_contents($base . '/modules/moto-inventory/database/migrations/005_moto_inventory_user_profiles.sql')));
 $h->test('no CTEs in migrations', !preg_match('/\bWITH\b\s+[A-Za-z_]+/i', (string)file_get_contents($base . '/modules/moto-inventory/database/migrations/002_moto_inventory_sales_and_movements.sql')));
 
 $h->section('Manifest — capabilities');

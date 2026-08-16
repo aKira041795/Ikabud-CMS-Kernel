@@ -366,6 +366,14 @@ function moto_list_users(array $ctx): array
     $rows = kernelUsersList($tenantId);
 
     $mdb = moto_db($tenantId);
+    $profiles = [];
+    try {
+        foreach ($mdb->query('SELECT user_id, first_name, last_name FROM moto_user_profiles WHERE tenant_id = ' . (int)$tenantId)->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $p) {
+            $profiles[(int)$p['user_id']] = $p;
+        }
+    } catch (\Throwable $e) {
+        $profiles = [];
+    }
     foreach ($rows as &$row) {
         $userId = (int)$row['id'];
         $row['moto_role'] = null;
@@ -375,6 +383,9 @@ function moto_list_users(array $ctx): array
         if (is_string($role) && $role !== '') {
             $row['moto_role'] = $role;
         }
+        $profile = $profiles[$userId] ?? null;
+        $row['first_name'] = $profile ? (string)($profile['first_name'] ?? '') : '';
+        $row['last_name'] = $profile ? (string)($profile['last_name'] ?? '') : '';
         $row['branches'] = moto_user_branch_ids($tenantId, $userId);
     }
     unset($row);
@@ -385,7 +396,12 @@ function moto_list_users(array $ctx): array
 function moto_create_kernel_user(array $ctx, array $input): array
 {
     $username = strtolower(trim((string)($input['username'] ?? '')));
+    $firstName = trim((string)($input['first_name'] ?? ''));
+    $lastName = trim((string)($input['last_name'] ?? ''));
     $fullName = trim((string)($input['full_name'] ?? ''));
+    if ($fullName === '' && ($firstName !== '' || $lastName !== '')) {
+        $fullName = trim($firstName . ' ' . $lastName);
+    }
     $password = (string)($input['password'] ?? '');
     $kernelRole = trim((string)($input['role'] ?? 'admin'));
     $motoRole = trim((string)($input['moto_role'] ?? ''));
@@ -404,6 +420,10 @@ function moto_create_kernel_user(array $ctx, array $input): array
     if ($motoRole !== '' && !in_array($motoRole, ['admin', 'manager', 'cashier', 'owner'], true)) {
         throw new \InvalidArgumentException('Invalid module role');
     }
+    $email = trim((string)($input['email'] ?? ''));
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new \InvalidArgumentException('Invalid email address');
+    }
 
     $tenantId = (int)$ctx['tenant_id'];
     if (kernelUserExistsByUsername($tenantId, $username)) {
@@ -411,7 +431,6 @@ function moto_create_kernel_user(array $ctx, array $input): array
     }
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $email = trim((string)($input['email'] ?? ''));
     $userId = kernelUserCreate(
         $tenantId,
         $username,
@@ -422,6 +441,9 @@ function moto_create_kernel_user(array $ctx, array $input): array
         $isActive
     );
 
+    if ($firstName !== '' || $lastName !== '') {
+        moto_set_user_profile($ctx, $userId, $firstName, $lastName);
+    }
     if ($motoRole !== '') {
         moto_set_user_moto_role($ctx, $userId, $motoRole);
     }
@@ -436,10 +458,57 @@ function moto_create_kernel_user(array $ctx, array $input): array
     }
 
     moto_audit($ctx, 'moto_inventory.user.created', 'kernel_user', (string)$userId, null, [
-        'username' => $username, 'role' => $kernelRole, 'moto_role' => $motoRole,
+        'username' => $username, 'role' => $kernelRole, 'moto_role' => $motoRole, 'first_name' => $firstName, 'last_name' => $lastName, 'email' => $email,
     ]);
 
     return ['id' => $userId, 'username' => $username, 'moto_role' => $motoRole !== '' ? $motoRole : $kernelRole];
+}
+
+/**
+ * Upsert a user's structured first/last name and keep the kernel full_name
+ * ("First Last") in sync for auth/header displays.
+ */
+function moto_set_user_profile(array $ctx, int $userId, string $firstName, string $lastName): void
+{
+    if ($userId <= 0) {
+        throw new \InvalidArgumentException('Invalid user');
+    }
+    $tenantId = (int)$ctx['tenant_id'];
+    $firstName = mb_substr(trim($firstName), 0, 100);
+    $lastName = mb_substr(trim($lastName), 0, 100);
+    $db = moto_db($tenantId);
+    $db->prepare(
+        'INSERT INTO moto_user_profiles (tenant_id, user_id, first_name, last_name) VALUES (:tid, :uid, :f, :l)
+         ON DUPLICATE KEY UPDATE first_name = VALUES(first_name), last_name = VALUES(last_name)'
+    )->execute([':tid' => $tenantId, ':uid' => $userId, ':f' => $firstName, ':l' => $lastName]);
+
+    $fullName = trim($firstName . ' ' . $lastName);
+    if ($fullName !== '') {
+        kernelUserSetFullName($tenantId, $userId, $fullName);
+    }
+    moto_audit($ctx, 'moto_inventory.user.profile_updated', 'kernel_user', (string)$userId, null, [
+        'first_name' => $firstName, 'last_name' => $lastName,
+    ]);
+}
+
+/**
+ * Update a user's email address on the kernel users table (nullable).
+ */
+function moto_set_user_email(array $ctx, int $userId, string $email): void
+{
+    if ($userId <= 0) {
+        throw new \InvalidArgumentException('Invalid user');
+    }
+    $tenantId = (int)$ctx['tenant_id'];
+    $email = trim($email);
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new \InvalidArgumentException('Invalid email address');
+    }
+    if (!kernelUserExists($tenantId, $userId)) {
+        throw new \InvalidArgumentException('User not found');
+    }
+    kernelUserSetEmail($tenantId, $userId, $email !== '' ? $email : null);
+    moto_audit($ctx, 'moto_inventory.user.email_updated', 'kernel_user', (string)$userId, null, ['email' => $email]);
 }
 
 function moto_set_user_password(array $ctx, int $userId, string $password): void

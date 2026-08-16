@@ -70,6 +70,36 @@ function motoApiUserStatus(array $params = []): void
     });
 }
 
+/**
+ * Update a user's profile (first/last name) and/or email.
+ */
+function motoApiUserUpdate(array $params = []): void
+{
+    moto_api_guard(static function () use ($params): void {
+        $ctx = moto_ctx();
+        moto_require_permission($ctx, 'moto_inventory.manage');
+        $userId = (int)($params['id'] ?? 0);
+        if ($userId <= 0) {
+            moto_json_error('Invalid user');
+            return;
+        }
+        $input = moto_input();
+        $firstName = trim((string)($input['first_name'] ?? ''));
+        $lastName = trim((string)($input['last_name'] ?? ''));
+        $email = trim((string)($input['email'] ?? ''));
+        $hasName = array_key_exists('first_name', $input) || array_key_exists('last_name', $input);
+        $hasEmail = array_key_exists('email', $input);
+
+        if ($hasName) {
+            moto_set_user_profile($ctx, $userId, $firstName, $lastName);
+        }
+        if ($hasEmail) {
+            moto_set_user_email($ctx, $userId, $email);
+        }
+        moto_json_ok(['id' => $userId]);
+    });
+}
+
 function motoApiUserBranch(array $params = []): void
 {
     moto_api_guard(static function () use ($params): void {
