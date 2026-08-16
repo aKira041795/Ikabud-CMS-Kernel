@@ -63,6 +63,15 @@ $layoutPath = $base . '/templates/modules/moto-inventory/layouts/app.disyl';
 $layout = (string)file_get_contents($layoutPath);
 $h->test('layout sign-out links to kernel canonical /auth/logout (module convention)', str_contains($layout, 'class="mi-link" href="/auth/logout"'));
 $h->test('layout sign-out does NOT link to /login', !str_contains($layout, 'class="mi-link" href="/login"'));
+
+$h->section('Manifest — branded login context');
+
+$h->test('moto_inventoryLoginPageContext is callable (branded login)', function_exists('moto_inventoryLoginPageContext'));
+$motoLoginCtx = function_exists('moto_inventoryLoginPageContext') ? moto_inventoryLoginPageContext() : [];
+$h->test('login context posts to stateless /api/v1/auth/login (no CSRF pre-auth)', ($motoLoginCtx['login_endpoint'] ?? '') === '/api/v1/auth/login');
+$h->test('login context prefers kernel auth source', ($motoLoginCtx['login_preferred_source'] ?? '') === 'kernel');
+$h->test('login context is Moto-branded (gui + logo)', (($motoLoginCtx['gui']['app_name'] ?? '') === 'Moto Inventory') && !empty($motoLoginCtx['login_logo_html']));
+$h->test('login context has forgot-password url', (($motoLoginCtx['login_forgot_url'] ?? '') !== ''));
 $h->test('entry module eligibility helper lists moto-inventory', (function (): bool {
     if (!function_exists('listTenantEntryModuleOptions')) {
         return false;

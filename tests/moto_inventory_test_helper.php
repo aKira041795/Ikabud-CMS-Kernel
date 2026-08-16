@@ -74,9 +74,23 @@ function moto_test_create_tenant(): array
     $dStmt = $appDb->prepare('INSERT INTO kernel_tenant_domains (tenant_id, domain) VALUES (:tid, :dom)');
     $dStmt->execute([':tid' => $tenantId, ':dom' => $domain]);
 
+    // Encrypt the DB password at rest (db_pass stays NULL) so disposable tenant
+    // connections do not trip the kernel's plaintext-credentials critical log.
+    $dbPass = (string)($_ENV['DB_PASSWORD'] ?? '');
+    $cipher = null;
+    $iv = null;
+    $tag = null;
+    if ($dbPass !== '' && class_exists('\\Ikabud\\Kernel\\Crypto')) {
+        $enc = (new \Ikabud\Kernel\Crypto())->encryptString($dbPass);
+        $cipher = (string)($enc['ciphertext'] ?? '');
+        $iv = (string)($enc['iv'] ?? '');
+        $tag = (string)($enc['tag'] ?? '');
+    }
+
     $cStmt = $appDb->prepare(
-        'INSERT INTO kernel_tenant_db_connections (tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset)
-         VALUES (:tid, :driver, :host, :port, :dbname, :user, :pass, :charset)'
+        'INSERT INTO kernel_tenant_db_connections '
+        . '(tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, db_pass_ciphertext, db_pass_iv, db_pass_tag) '
+        . 'VALUES (:tid, :driver, :host, :port, :dbname, :user, NULL, :charset, :cipher, :iv, :tag)'
     );
     $cStmt->execute([
         ':tid'     => $tenantId,
@@ -85,8 +99,10 @@ function moto_test_create_tenant(): array
         ':port'    => (string)($_ENV['DB_PORT'] ?? '3306'),
         ':dbname'  => $dbName,
         ':user'    => (string)($_ENV['DB_USERNAME'] ?? 'root'),
-        ':pass'    => (string)($_ENV['DB_PASSWORD'] ?? ''),
         ':charset' => 'utf8mb4',
+        ':cipher'  => $cipher,
+        ':iv'      => $iv,
+        ':tag'     => $tag,
     ]);
 
     $pdo = new PDO(

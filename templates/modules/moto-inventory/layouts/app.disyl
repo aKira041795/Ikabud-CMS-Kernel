@@ -245,11 +245,12 @@
     <div class="mi-toast" id="mi-toast" role="status"></div>
 
     <script src="/moto-inventory/assets/moto-inventory.js" defer></script>
+    <script type="application/json" id="mi-config">{mi_config_json|raw}</script>
     <script>
-        const MOTO_INVENTORY = {
-            csrf: {if csrf_token}{csrf_token|json_encode}{else}""{/if},
-            me: {json_encode(me_payload)}
-        };
+        window.MOTO_INVENTORY = window.MOTO_INVENTORY || {};
+        try {
+            Object.assign(window.MOTO_INVENTORY, JSON.parse(document.getElementById('mi-config').textContent || '{}'));
+        } catch (e) { /* helpers-only object is fine */ }
     </script>
     {block scripts}{/block}
 </body>

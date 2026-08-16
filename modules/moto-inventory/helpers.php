@@ -322,7 +322,7 @@ function moto_ctx(): array
         'user_id'            => $userId,
         'actor_name'         => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? ''),
         'role'               => (string)($user['role'] ?? ''),
-        'permissions'        => array_values(array_filter([
+        'permissions'        => array_keys(array_filter([
             'moto_inventory.manage'            => moto_has_permission('moto_inventory.manage', $user),
             'moto_inventory.sell'              => moto_has_permission('moto_inventory.sell', $user),
             'moto_inventory.void'              => moto_has_permission('moto_inventory.void', $user),
@@ -708,3 +708,53 @@ app()->hooks()->on('kernel.home_url', static function (?string $url, string $rol
     }
     return '/moto-inventory';
 }, 80);
+
+// ── Entry-module login page context ───────────────────────────────
+// Renders a Moto-branded login page on the kernel /login route for this
+// tenant (resolved by kernelResolveEntryModuleLoginContext()). Kernel auth is
+// the identity authority, so the form posts to the kernel canonical /auth/login
+// with preferred_source=kernel; the same-origin icon URL is used rather than an
+// embedded copy of the logo.
+function moto_inventoryLoginPageContext(array $overrides = []): array
+{
+    $appName = 'Moto Inventory';
+    $escapedAppName = htmlspecialchars($appName, ENT_QUOTES, 'UTF-8');
+    $logoUrl = '/moto-inventory/icon-192.png';
+    $brandMarkHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8') . '" alt="' . $escapedAppName . ' logo">';
+
+    return array_merge([
+        'page_title' => $appName . ' Sign In',
+        'app_name' => $appName,
+        'logo_url' => $logoUrl,
+        'favicon_url' => '/moto-inventory/favicon.png',
+        'login_favicon_url' => '/moto-inventory/favicon.png',
+        'brand_mark_html' => $brandMarkHtml,
+        'login_logo_html' => $brandMarkHtml,
+        'login_brand_text' => $appName,
+        'login_brand_html' => $escapedAppName,
+        'login_subtitle' => 'Inventory · Sales · Profit',
+        'login_username_label' => 'Username',
+        'login_endpoint' => '/api/v1/auth/login',
+        'login_preferred_source' => 'kernel',
+        'login_button_text' => 'Sign In',
+        'login_loading_text' => 'Signing in...',
+        'login_forgot_url' => '/forgot-password',
+        'login_forgot_text' => 'Forgot password?',
+        'gui' => [
+            'app_name' => $appName,
+            'app_name_accent' => $appName,
+            'app_name_rest' => '',
+            'font_url' => 'https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap',
+            'font_family' => 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            'color_primary' => '#d97706',
+            'color_primary_hover' => '#b45309',
+            'color_primary_light' => 'rgba(217, 119, 6, 0.18)',
+            'color_bg' => 'linear-gradient(150deg, #1a1a1a 0%, #2b2b2b 55%, #3a2c14 100%)',
+            'color_surface' => 'rgba(255, 255, 255, 0.97)',
+            'color_border' => '#e3e0d6',
+            'color_text' => '#1a1a1a',
+            'color_text_muted' => '#6b675e',
+            'css_overrides' => '.login-card{max-width:400px;border:1px solid rgba(217,119,6,.25);box-shadow:0 28px 80px rgba(0,0,0,.35)}.login-mark{background:#1a1a1a;border:1px solid rgba(217,119,6,.4)}.login-logo h1{letter-spacing:-.02em}.login-logo p{color:#6b675e}.form-label{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:#6b675e}.form-input{background:rgba(255,255,255,.9)}.btn-login{box-shadow:0 14px 30px rgba(217,119,6,.28)}',
+        ],
+    ], $overrides);
+}

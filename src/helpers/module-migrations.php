@@ -653,8 +653,55 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
     ]);
 }
 
+/**
+ * Ensure a tenant DB has the kernel `users` table when its entry module relies
+ * on kernel authentication (i.e. the module is NOT auth_owned).
+ *
+ * Kernel-users-based tenants (for example moto-inventory, which keeps kernel
+ * auth as the identity authority) need a `users` table for the kernel auth
+ * provider to authenticate against. The tenant-safe kernel artifacts only
+ * ALTER `users` (015 token_version, 019 password_resets) and assume the base
+ * table already exists — a clone of the primary schema. Fresh tenant databases
+ * are not schema clones, so this bootstrap closes that provisioning gap. It is
+ * a no-op for auth_owned entry modules (cms, bakeshop, guidance, ...) whose
+ * tenants use their own users tables, and it never seeds users.
+ */
+function tenantEnsureKernelUserTable(PDO $db, ?string $entryModuleId = null): bool
+{
+    if (!tenantEntryModuleUsesKernelUsers($entryModuleId)) {
+        return false;
+    }
+    if (tenantDatabaseHasTable($db, 'users')) {
+        return false;
+    }
+
+    $sql = "CREATE TABLE IF NOT EXISTS users (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
+        email VARCHAR(191) NULL DEFAULT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        full_name VARCHAR(100) NOT NULL,
+        role ENUM('admin','superadmin','manager','viewer') NOT NULL DEFAULT 'viewer',
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        token_version INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_users_role (role),
+        INDEX idx_users_active (is_active),
+        UNIQUE KEY users_email_unique (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+    $db->exec($sql);
+    tenantRecordModuleMigration($db, '_kernel', 'tenant_bootstrap_users');
+    return true;
+}
+
 function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null, ?string $entryModuleId = null): array
 {
+    // Kernel-users-based tenants must have a users table before the
+    // user-dependent artifacts (015/019) can be applied.
+    tenantEnsureKernelUserTable($db, $entryModuleId);
+
     $artifacts = tenantFilterKernelUserArtifacts(tenantSafeKernelMigrationArtifacts($entryModuleId), $db, $entryModuleId);
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
@@ -677,6 +724,8 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null, ?s
 function tenantRepairKernelRuntimeArtifacts(PDO $db, ?string $entryModuleId = null): array
 {
     $executed = [];
+
+    tenantEnsureKernelUserTable($db, $entryModuleId);
 
     $artifacts = tenantFilterKernelUserArtifacts(tenantSafeKernelMigrationArtifacts($entryModuleId), $db, $entryModuleId);
     foreach ($artifacts as $artifactName => $fullPath) {

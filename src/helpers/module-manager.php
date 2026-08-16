@@ -2663,7 +2663,14 @@ function executeModuleHandler(string $handler, array $params = []): void
     $role = $user ? (string)($user['role'] ?? '') : '';
     $source = $user ? (string)($user['source'] ?? 'kernel') : '';
     if ($role === 'admin' && $source === 'kernel' && !$isModuleLoginRoute) {
-        $settings = getModuleSettings($moduleId);
+        // Modules that authenticate against the kernel `users` table have no
+        // separate auth surface: their administrators ARE kernel admins, so the
+        // opt-in gate is redundant and would lock out the module's own admin
+        // users. Only apply it to modules with module-owned auth.
+        $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers')
+            && tenantEntryModuleUsesKernelUsers($moduleId);
+
+        $settings = $usesKernelUsers ? ['allow_kernel_admin' => true] : getModuleSettings($moduleId);
         $allowKernelAdmin = (bool)($settings['allow_kernel_admin'] ?? false);
         if (!$allowKernelAdmin) {
             $isApiRoute = \Ikabud\Kernel\Http\ContentNegotiator::isApiRoute();

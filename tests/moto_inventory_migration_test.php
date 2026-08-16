@@ -90,6 +90,39 @@ $h->test('rerun executes nothing', $rerun === []);
 $regCount = (int)$pdo->query("SELECT COUNT(*) FROM `_migrations` WHERE module = 'moto-inventory'")->fetchColumn();
 $h->test('migrations registered in _migrations (3)', $regCount === 3);
 
+$h->section('Kernel-users provisioning bootstrap');
+
+$hasUsersBefore = (int)$pdo->query(
+    "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+)->fetchColumn();
+$h->test('fresh tenant DB has no users table yet', $hasUsersBefore === 0);
+
+$bootstrapped = tenantEnsureKernelUserTable($pdo, 'moto-inventory');
+$h->test('tenantEnsureKernelUserTable bootstraps users for kernel-users module', $bootstrapped === true);
+
+$usersCols = array_column($pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_ASSOC), 'Field');
+$h->test('users has password_hash column', in_array('password_hash', $usersCols, true));
+$h->test('users has is_active column', in_array('is_active', $usersCols, true));
+$h->test('users has role column', in_array('role', $usersCols, true));
+$h->test('users has token_version column', in_array('token_version', $usersCols, true));
+
+$idempotent = tenantEnsureKernelUserTable($pdo, 'moto-inventory');
+$h->test('bootstrap is idempotent (no-op when users exists)', $idempotent === false);
+
+$noop = tenantEnsureKernelUserTable($pdo, 'cms');
+$h->test('auth_owned entry module (cms) does NOT get a kernel users table', $noop === false);
+
+$h->section('moto_ctx permission shape (regression)');
+
+app()->setUser(['id' => 1, 'name' => 'Test Admin', 'role' => 'admin', 'source' => 'kernel']);
+app()->tenant()->setTenantId($tenant['tenant_id']);
+$mctx = moto_ctx();
+$h->test('permissions is a list of permission string ids', is_array($mctx['permissions'] ?? null)
+    && count($mctx['permissions']) === 7
+    && in_array('moto_inventory.manage', $mctx['permissions'], true));
+$h->test('sell gate passes for admin (strict string match)', in_array('moto_inventory.sell', $mctx['permissions'], true));
+$h->test('audit gate passes for admin', in_array('moto_inventory.view_audit', $mctx['permissions'], true));
+
 $h->section('MySQL 5.7 compatibility');
 
 $migrationSql = '';

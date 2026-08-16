@@ -1819,11 +1819,14 @@ switch ($command) {
 
             // 3. Connect to tenant database
             $tenantDsn = 'mysql:host=' . $dbHost . ';port=' . $dbPort . ';dbname=' . $dbName . ';charset=' . $dbCharset;
+            $initCommandAttr = class_exists('\\Ikabud\\Kernel\\Services\\PdoMysql')
+                ? \Ikabud\Kernel\Services\PdoMysql::attr('ATTR_INIT_COMMAND')
+                : (defined('\\Pdo\\Mysql::ATTR_INIT_COMMAND') ? \Pdo\Mysql::ATTR_INIT_COMMAND : PDO::MYSQL_ATTR_INIT_COMMAND);
             $tenantPdo = new PDO($tenantDsn, $dbUser, $dbPass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
+                $initCommandAttr => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
             ]);
             out('  ' . green('✓') . ' Connected to tenant database');
 
@@ -1914,13 +1917,14 @@ switch ($command) {
                                 ':n' => $adminName,
                             ]);
                         } else {
-                            // Kernel users table
+                            // Kernel users table (password_hash / is_active columns)
                             $insertStmt = $tenantPdo->prepare(
-                                "INSERT INTO `users` (username, password, full_name, role, status) "
-                                . "VALUES (:u, :p, :n, 'admin', 'active')"
+                                "INSERT INTO `users` (username, email, password_hash, full_name, role, is_active) "
+                                . "VALUES (:u, :e, :p, :n, 'admin', 1)"
                             );
                             $insertStmt->execute([
                                 ':u' => $adminUser,
+                                ':e' => $adminUser . '@localhost',
                                 ':p' => $hash,
                                 ':n' => $adminName,
                             ]);

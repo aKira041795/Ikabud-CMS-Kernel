@@ -5,6 +5,11 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
+    # Route the moto-inventory module root to the front controller. The PWA
+    # asset directory public/moto-inventory/ would otherwise shadow the
+    # /moto-inventory dashboard route via mod_dir (301 -> directory -> 403).
+    RewriteRule ^moto-inventory/?$ index.php [QSA,L]
+
     # Front controller: route all non-file/non-dir requests to index.php
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d

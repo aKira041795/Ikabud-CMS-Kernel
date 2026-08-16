@@ -50,6 +50,19 @@ function moto_page_permission_gate(array $ctx, string $permission): bool
 function moto_page_context(array $ctx, string $page, string $title, array $extra = []): array
 {
     $branches = moto_accessible_branches($ctx);
+    $csrfToken = function_exists('app') ? app()->csrfToken() : '';
+    $mePayload = [
+        'user'        => [
+            'id'   => (int)($ctx['user_id'] ?? 0),
+            'name' => $ctx['actor_name'],
+            'role' => $ctx['role'],
+        ],
+        'permissions'    => $ctx['permissions'],
+        'view_all_branches' => (bool)$ctx['view_all_branches'],
+        'branches'       => $branches,
+        'settings'       => moto_inventory_settings(),
+        'csrf'           => $csrfToken,
+    ];
 
     return array_merge([
         'user'           => $ctx['user'],
@@ -66,23 +79,16 @@ function moto_page_context(array $ctx, string $page, string $title, array $extra
         'branches'       => $branches,
         'active_nav'     => $page,
         'page_title'     => $title,
-        'csrf_token'     => function_exists('app') ? app()->csrfToken() : '',
+        'csrf_token'     => $csrfToken,
         'base_url'       => '/moto-inventory',
         'asset_base'     => '/moto-inventory',
         'settings'       => moto_inventory_settings(),
         'app_name'       => 'Moto Inventory',
-        'me_payload'     => [
-            'user'        => [
-                'id'   => (int)($ctx['user_id'] ?? 0),
-                'name' => $ctx['actor_name'],
-                'role' => $ctx['role'],
-            ],
-            'permissions'    => $ctx['permissions'],
-            'view_all_branches' => (bool)$ctx['view_all_branches'],
-            'branches'       => $branches,
-            'settings'       => moto_inventory_settings(),
-            'csrf'           => function_exists('app') ? app()->csrfToken() : '',
-        ],
+        'me_payload'     => $mePayload,
+        'mi_config_json' => json_encode([
+            'csrf' => $csrfToken,
+            'me'   => $mePayload,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
     ], $extra);
 }
 
