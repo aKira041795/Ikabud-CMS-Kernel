@@ -95,6 +95,22 @@ foreach ($files as $file) {
             @unlink($cacheFile);
         }
     }
+    // Clear the per-tenant CMS customizer persistent caches between tests.
+    // cms_theme_test / cms_customizer_*_test upsert customizer sections via
+    // direct DB writes and then read them back through cmsCustomizerSectionRecord(),
+    // which serves from the persistent cache (cms_customizer_{scope}_t{tid},
+    // TTL 300s) when present. A stale entry written by an earlier test in the
+    // same CI run makes the section read return old defaults, so the canonical
+    // entity presentation / theme settings assertions fail. Wipe those cache
+    // files (including .tag_*.idx tag indexes) before each test so reads always
+    // hit the DB.
+    foreach (glob($root . '/storage/cache/cms_customizer_*', GLOB_ONLYDIR) as $cacheDir) {
+        foreach (glob($cacheDir . '/*') ?: [] as $cacheFile) {
+            if (is_file($cacheFile)) {
+                @unlink($cacheFile);
+            }
+        }
+    }
 
     $descriptors = [
         0 => ['pipe', 'r'],

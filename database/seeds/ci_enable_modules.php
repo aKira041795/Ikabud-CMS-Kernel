@@ -98,6 +98,57 @@ if ($cmsTenantId === null || $cmsTenantId <= 0) {
     // key and every "License key signature is invalid" assertion fails. Mirror
     // the dev DB by seeding the same private key here.
     ciEnsureEcommerceLicenseKey($cmsTenantId);
+
+    // superadmin_feature_settings_relevance_test asserts that the CMS tenant's
+    // relevant-module map includes the "WordPress importer CMS data add-on"
+    // (wordpress-importer). That relevance is driven by the CMS tenant's
+    // `_installed_submodules` setting (read in superadminTenantRelevantModuleMap).
+    // The dev CMS tenant has wordpress-importer/content-ingestion in that list;
+    // CI's fresh tenant does not, so the assertion fails. Mirror the dev state.
+    ciEnsureCmsInstalledSubmodules($cmsTenantId);
+
+    // bakeshop_characterization_test (cmsnew.test → this tenant) asserts the
+    // bakeshop tables have baseline data (ingredients, products). CI's fresh
+    // tenant has migrations only; the dev DB carries the Julies Bakeshop
+    // fixture. Apply that fixture here so the characterization assertions pass,
+    // and enable the bakeshop module for this tenant (users are already seeded
+    // by the bakeshop user provisioning block below).
+    enableModuleForTenant('bakeshop', $cmsTenantId);
+    ciEnsureBakeshopBaseline($cmsTenantId);
+}
+
+/**
+ * Seed the CMS tenant's `_installed_submodules` setting so the superadmin
+ * feature-settings relevance map reports the same CMS data add-ons that the
+ * dev database has (wordpress-importer, content-ingestion, etc.). Idempotent:
+ * merges the given ids into the existing list.
+ */
+function ciEnsureCmsInstalledSubmodules(int $tenantId): void
+{
+    $settings = readTenantModuleSettingsForTenant('cms', $tenantId);
+    $current = $settings['_installed_submodules'] ?? [];
+    if (is_string($current)) {
+        $decoded = json_decode($current, true);
+        $current = is_array($decoded) ? $decoded : [];
+    }
+    if (!is_array($current)) {
+        $current = [];
+    }
+
+    $target = ['wordpress-importer', 'content-ingestion', 'contact-form', 'theme-studio'];
+    $changed = false;
+    foreach ($target as $moduleId) {
+        if (!in_array($moduleId, $current, true)) {
+            $current[] = $moduleId;
+            $changed = true;
+        }
+    }
+
+    if ($changed) {
+        saveTenantModuleSettingsForTenant('cms', $tenantId, ['_installed_submodules' => $current]);
+        invalidateTenantModuleSettingsCache();
+    }
+    echo "  cms _installed_submodules: " . implode(',', $current) . " (tenant #{$tenantId})\n";
 }
 
 /**
@@ -199,6 +250,76 @@ function ciEnsureBakeshopUsers(int $tenantId): void
             ':r' => $row['role'],
         ]);
         echo "  bakeshop_users id={$row['id']} ({$row['username']}, {$row['role']}): ensured\n";
+    }
+}
+
+/**
+ * Apply the Julie's Bakeshop fixture to the tenant's bakeshop tables if the
+ * baseline ingredients/products are missing. bakeshop_characterization_test
+ * asserts bakeshop_ingredients / bakeshop_products have data (the dev DB
+ * carries the Julies fixture; CI's fresh tenant has migrations only). The
+ * fixture is standard SQL (temp tables + transaction, no DELIMITER), so it can
+ * be executed directly against the tenant DB. Idempotent: skips when products
+ * already exist.
+ */
+function ciEnsureBakeshopBaseline(int $tenantId): void
+{
+    $db = app()->dbForTenant($tenantId);
+    if ($db === null) {
+        fwrite(STDERR, "  bakeshop baseline: no DB connection for tenant #{$tenantId}\n");
+        return;
+    }
+
+    // Ensure bakeshop tables exist first (the characterization test expects to
+    // find seeded data; CI's tenant DB has no bakeshop tables yet).
+    try {
+        $hasTables = (bool)$db->query("SHOW TABLES LIKE 'bakeshop_products'")->fetchColumn();
+    } catch (Throwable $e) {
+        $hasTables = false;
+    }
+    if (!$hasTables) {
+        try {
+            $runner = new \Ikabud\Kernel\Database\MigrationRunner($db);
+            $runner->migrate('bakeshop');
+            echo "  bakeshop baseline: ran bakeshop migrations on tenant #{$tenantId}\n";
+        } catch (Throwable $e) {
+            fwrite(STDERR, "  bakeshop baseline: bakeshop migration failed ({$e->getMessage()})\n");
+            return;
+        }
+    }
+
+    try {
+        $productCount = (int)$db->query('SELECT COUNT(*) FROM bakeshop_products')->fetchColumn();
+    } catch (Throwable $e) {
+        fwrite(STDERR, "  bakeshop baseline: cannot inspect bakeshop_products ({$e->getMessage()})\n");
+        return;
+    }
+
+    if ($productCount > 0) {
+        echo "  bakeshop baseline: already has {$productCount} products, skipped\n";
+        return;
+    }
+
+    $seedPath = __DIR__ . '/002_bakeshop_julies_bread_pastry.sql';
+    if (!is_file($seedPath)) {
+        fwrite(STDERR, "  bakeshop baseline: fixture not found at {$seedPath}\n");
+        return;
+    }
+
+    $sql = (string)file_get_contents($seedPath);
+    if (trim($sql) === '') {
+        fwrite(STDERR, "  bakeshop baseline: fixture is empty\n");
+        return;
+    }
+
+    try {
+        // The fixture uses START TRANSACTION / temp tables / INSERT ... SELECT.
+        // KernelPDO's exec() supports multiple statements.
+        $db->exec($sql);
+        $count = (int)$db->query('SELECT COUNT(*) FROM bakeshop_products')->fetchColumn();
+        echo "  bakeshop baseline: applied Julies fixture ({$count} products)\n";
+    } catch (Throwable $e) {
+        fwrite(STDERR, "  bakeshop baseline: fixture apply failed ({$e->getMessage()})\n");
     }
 }
 

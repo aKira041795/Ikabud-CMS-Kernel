@@ -245,7 +245,16 @@ $stmt = $db->prepare("SELECT * FROM cms_media WHERE id = :id");
 $stmt->execute([':id' => $mediaId]);
 $mediaRow = $stmt->fetch(PDO::FETCH_ASSOC);
 t('Media read by id', is_array($mediaRow) && ($mediaRow['original_name'] ?? '') === 'test.txt');
-t('Media URL helper', cmsUploadsUrl($mediaRelPath) === '/assets/modules/cms/uploads/test/' . $mediaFilename);
+// cmsUploadsUrl() is tenant-aware (appends /t{tenant} when a tenant context is
+// active — CI sets APP_TENANT_DEFAULT=1, local CLI has no tenant). Compute the
+// expected URL from the same tenant prefix so the assertion is environment-stable.
+$expectedMediaUrl = '/assets/modules/cms/uploads';
+$mediaTenantId = app()->tenant()->current();
+if ($mediaTenantId !== null) {
+    $expectedMediaUrl .= '/t' . $mediaTenantId;
+}
+$expectedMediaUrl .= '/test/' . $mediaFilename;
+t('Media URL helper', cmsUploadsUrl($mediaRelPath) === $expectedMediaUrl, 'got ' . cmsUploadsUrl($mediaRelPath));
 
 // Delete media (file + DB)
 $filePath = cmsUploadsPath() . '/' . $mediaRelPath;
