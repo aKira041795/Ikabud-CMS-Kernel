@@ -591,6 +591,9 @@ function ecSettings(?string $key = null, mixed $default = null): mixed
         $generation = $currentGeneration;
     }
     $tid = app()->tenant()->current();
+    if ($tid === null) {
+        $tid = 0; // no tenant context (e.g. CLI) — cache under a stable sentinel
+    }
     if (!array_key_exists($tid, $cache)) {
         $cache[$tid] = array_merge(ecSettingsDefaults(), getModuleSettings('ecommerce'));
     }

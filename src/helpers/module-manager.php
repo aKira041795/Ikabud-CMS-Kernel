@@ -2754,6 +2754,8 @@ function executeModuleHandler(string $handler, array $params = []): void
     // traffic unless tenant settings disable it.
     if (
         $isApiRoute
+        && function_exists('moduleIsActive')
+        && moduleIsActive('anti-spam')
         && function_exists('antispamShouldProtectModuleApiRequest')
         && function_exists('antispamBuildRequestBodyText')
         && app()->capabilities()->has('antispam.check@1')
@@ -2788,6 +2790,11 @@ function executeModuleHandler(string $handler, array $params = []): void
                 kernel_request_context_delete('_capability_call_context');
                 return;
             }
+        } catch (\Ikabud\Kernel\Capabilities\CapabilityNotFoundException $e) {
+            // anti-spam is not active / has no permitted provider for this
+            // tenant, so the default gate simply does not apply. This is the
+            // expected degraded state — skip silently instead of warning on
+            // every protected request.
         } catch (\Throwable $e) {
             write_log('Default anti-spam gate failed: ' . $e->getMessage(), 'warning', [
                 'module' => $moduleId,

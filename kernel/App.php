@@ -1556,12 +1556,21 @@ final class App
                                     $cacheKey = $source . ':' . $userId;
 
                                     if (!isset($tokenVersionCache[$cacheKey])) {
-                                        $stmt = $this->db()->prepare(
-                                            'SELECT COALESCE(token_version, 0) AS token_version FROM `' . $userTable . '` WHERE id = ? LIMIT 1'
-                                        );
-                                        $stmt->execute([$userId]);
-                                        $tvRow = $stmt->fetch(\PDO::FETCH_ASSOC);
-                                        $tokenVersionCache[$cacheKey] = is_array($tvRow) ? (int)$tvRow['token_version'] : 0;
+                                        // Kernel-internal: the token_version check reads the auth
+                                        // table (e.g. kernel `users`) regardless of which module is
+                                        // the active request context, so it must be exempt from the
+                                        // ModuleDB table sandbox (same pattern as audit_logs above).
+                                        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+                                        try {
+                                            $stmt = $this->db()->prepare(
+                                                'SELECT COALESCE(token_version, 0) AS token_version FROM `' . $userTable . '` WHERE id = ? LIMIT 1'
+                                            );
+                                            $stmt->execute([$userId]);
+                                            $tvRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+                                            $tokenVersionCache[$cacheKey] = is_array($tvRow) ? (int)$tvRow['token_version'] : 0;
+                                        } finally {
+                                            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+                                        }
                                     }
 
                                     if ($tokenVersionCache[$cacheKey] !== (int)$candidateUser['token_version']) {

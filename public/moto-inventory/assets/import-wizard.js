@@ -273,7 +273,7 @@
 
     function validateMappings() {
         var counts = {};
-        Array.prototype.forEach.call(document.querySelectorAll('[data-map-flag]'), function () {});
+        Array.prototype.forEach.call(document.querySelectorAll('[data-map-flag]'), function () { });
         st.mappings.forEach(function (m, idx) {
             var t = resolveFieldType(m.label);
             var flag = document.querySelector('[data-map-flag="' + idx + '"]');
