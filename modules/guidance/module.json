@@ -87,13 +87,13 @@
     ],
     "reads_tables": [
         "audit_logs",
-        "rate_limits"
+        "rate_limits",
+        "users"
     ],
     "reads_tables_deprecated": [
         "kernel_module_catalog",
         "kernel_tenant_module_access_requests",
-        "kernel_tenant_module_entitlements",
-        "users"
+        "kernel_tenant_module_entitlements"
     ],
     "migrations": [
         "migrations/001_guidance_schema.sql",

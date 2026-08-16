@@ -106,7 +106,7 @@ jobs:
         run: mkdir -p storage/logs storage/cache/disyl storage/cache/cms storage/uploads
 
       - name: Configure test hosts
-        run: echo "127.0.0.1 applicationos.test" | sudo tee -a /etc/hosts
+        run: echo "127.0.0.1 applicationos.test cmsnew.test baronledger.test clientsite.test healthcare.test moto.test" | sudo tee -a /etc/hosts
 
       - name: Run control-plane migrations
         run: php ikabud migrate:control
@@ -120,11 +120,17 @@ jobs:
       - name: Run application migrations
         run: php ikabud migrate
 
+      - name: Seed kernel admin user
+        run: php database/seeds/ci_kernel_admin.php
+
       - name: Create clientsite CI database
         run: mysql -h 127.0.0.1 -u root -pci_root_pass -e "CREATE DATABASE IF NOT EXISTS clientsite_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
       - name: Create healthcare CI database
         run: mysql -h 127.0.0.1 -u root -pci_root_pass -e "CREATE DATABASE IF NOT EXISTS healthcare_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+      - name: Create guidance CI database
+        run: mysql -h 127.0.0.1 -u root -pci_root_pass -e "CREATE DATABASE IF NOT EXISTS guidance_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
       - name: Run clientsite migrations
         env:
@@ -136,6 +142,13 @@ jobs:
       - name: Run healthcare tenant migrations
         env:
           APP_TENANT_DEFAULT: "3"
+        run: |
+          php -d variables_order=EGPCS ikabud migrate:base
+          php -d variables_order=EGPCS ikabud migrate
+
+      - name: Run guidance tenant migrations
+        env:
+          APP_TENANT_DEFAULT: "6"
         run: |
           php -d variables_order=EGPCS ikabud migrate:base
           php -d variables_order=EGPCS ikabud migrate

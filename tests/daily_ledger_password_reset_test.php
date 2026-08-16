@@ -52,13 +52,7 @@ function dailyLedgerRenderPage(callable $handler, string $method, string $uri, a
 
 function runDailyLedgerAuthJsonRequest(string $handlerName, string $requestUri, string $rawBody): array
 {
-    $patchedAppPath = sys_get_temp_dir() . '/ikabud-dl-auth-app-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
     $runnerPath = sys_get_temp_dir() . '/ikabud-dl-auth-runner-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
-
-    $appSource = (string)file_get_contents(__DIR__ . '/../kernel/App.php');
-    $replacement = "file_get_contents('data://text/plain," . rawurlencode($rawBody) . "')";
-    $appSource = str_replace("file_get_contents('php://input')", $replacement, $appSource);
-    file_put_contents($patchedAppPath, $appSource);
 
     $bootstrap = var_export(__DIR__ . '/../bootstrap.php', true);
     $moduleManager = var_export(__DIR__ . '/../src/helpers/module-manager.php', true);
@@ -66,13 +60,12 @@ function runDailyLedgerAuthJsonRequest(string $handlerName, string $requestUri, 
     $helpers = var_export(__DIR__ . '/../modules/daily-ledger/helpers.php', true);
     $handlers = var_export(__DIR__ . '/../modules/daily-ledger/handlers.php', true);
     $migrationRunner = var_export('\\Ikabud\\Kernel\\Database\\MigrationRunner', true);
-    $patchedApp = var_export($patchedAppPath, true);
     $handlerExport = var_export($handlerName, true);
     $requestUriExport = var_export($requestUri, true);
+    $rawBodyExport = var_export($rawBody, true);
 
     $runner = <<<PHP
 <?php
-require {$patchedApp};
 require {$bootstrap};
 require_once {$moduleManager};
 require_once {$coreRoutes};
@@ -86,6 +79,7 @@ require_once {$handlers};
 \$_SERVER['CONTENT_TYPE'] = 'application/json';
 \$_GET = [];
 \$_POST = [];
+\Ikabud\Kernel\Http\Input::setRawInputForTesting({$rawBodyExport});
 
 \$migrationRunner = {$migrationRunner};
 \$runner = new \$migrationRunner(app()->db());
@@ -112,7 +106,6 @@ PHP;
     exec('php ' . escapeshellarg($runnerPath) . ' 2>&1', $output, $exitCode);
 
     @unlink($runnerPath);
-    @unlink($patchedAppPath);
 
     $decoded = json_decode(implode("\n", $output), true);
     if (!is_array($decoded)) {

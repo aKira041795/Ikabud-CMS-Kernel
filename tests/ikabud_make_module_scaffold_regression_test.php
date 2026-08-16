@@ -25,7 +25,10 @@ $ikabudPath = BASE_PATH . '/ikabud';
 $code = (string) file_get_contents($ikabudPath);
 
 t('ikabud file exists', is_file($ikabudPath));
-t('ikabud scaffold template defines modulePath with BASE_PATH', str_contains($code, '\\$modulePath = BASE_PATH . \'/modules/{$id}\';'));
+// modulePath now resolves via modulePathForId() with a BASE_PATH fallback
+// (supports suite modules with custom install dirs), so assert the template
+// still roots module paths at BASE_PATH/modules rather than a bare expression.
+t('ikabud scaffold template defines modulePath with BASE_PATH', str_contains($code, "BASE_PATH . '/modules/{$id}'"));
 t('ikabud scaffold template uses escaped modulePath for routesFile', str_contains($code, '\\$routesFile = \\$modulePath . \'/routes.php\';'));
 t('ikabud scaffold template uses escaped modulePath for helpersFile', str_contains($code, '\\$helpersFile = \\$modulePath . \'/helpers.php\';'));
 t('ikabud scaffold template no longer embeds unescaped routesFile expression', !str_contains($code, '\\$routesFile = $modulePath . \'/routes.php\';'));

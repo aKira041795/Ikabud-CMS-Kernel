@@ -65,6 +65,16 @@ function sendEmail(string $to, string $subject, string $body, array $options = [
             write_log("Email validation failed: Invalid email address '$to'", 'error');
             return false;
         }
+
+        // Null/log mailer: tests and ephemeral environments must never send
+        // real mail. EMAIL_MAILER=log|null|test skips SMTP entirely, records a
+        // debug line, and reports success so flows (forgot-password, etc.)
+        // behave normally without hitting a real SMTP server.
+        $mailerMode = strtolower(emailEnv('EMAIL_MAILER', 'smtp'));
+        if (in_array($mailerMode, ['null', 'log', 'test', 'array'], true)) {
+            write_log("Email [$mailerMode]: to=$to, subject=$subject", 'debug');
+            return true;
+        }
         
         // Create PHPMailer instance
         $mail = new PHPMailer(true);
