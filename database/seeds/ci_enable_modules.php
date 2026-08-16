@@ -65,7 +65,12 @@ if ($tenantId === null || $tenantId <= 0) {
     // the cms_theme_test "no app.log warnings/errors" assertion) and its
     // kernel.auth.authenticate@1 provider never registers → the guidance login
     // handler returns 401. Enable it so guidance actually loads.
-    $modules = ['ticketing', 'contact-form', 'guidance', 'bakeshop', 'tinymce'];
+    // sms: ticketing declares sms.send@1 capability depends; without the sms
+    // module enabled, getEnabledModules() skips ticketing with a
+    // "missing capability providers" warning (pollutes app.log → breaks
+    // guidance_password_reset_test + cms_theme_test log checks) and its routes
+    // never register → ticketing_e2e_test gets 404 on /submit-ticket.
+    $modules = ['ticketing', 'contact-form', 'guidance', 'bakeshop', 'tinymce', 'sms'];
 
     echo "CI module seed: enabling " . implode(', ', $modules) . " for tenant #{$tenantId} ({$host})\n";
     foreach ($modules as $moduleId) {
