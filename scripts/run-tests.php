@@ -49,6 +49,16 @@ if ($files === false || count($files) === 0) {
     echo "No test files found in {$searchPath}\n";
     exit(1);
 }
+
+// Exclude the manual HTTP load-test tool from the default suite. load_test.php
+// is a manual benchmark that fires real HTTP requests across all profiles
+// (storefront/api/mixed/multitenant/checkout/concurrency ramp) and typically
+// runs 125s+ — far beyond the per-test timeout — so it is not a CI unit test.
+// It remains runnable directly:  php tests/load_test.php [profile] [concurrency]
+// Or opt back into the suite explicitly: RUN_LOAD_TEST=1 php scripts/run-tests.php
+if ($subDir === null && getenv('RUN_LOAD_TEST') === false) {
+    $files = array_values(array_filter($files, fn(string $f): bool => basename($f) !== 'load_test.php'));
+}
 sort($files);
 
 // Resolve display names relative to tests/

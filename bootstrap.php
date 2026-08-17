@@ -1314,6 +1314,30 @@ function kernelDispatchJob(string $handler, array $payload = [], string $queue =
 }
 
 /**
+ * @mysql57-compat Whether the connected DB supports `FOR UPDATE SKIP LOCKED`.
+ * MySQL 8.0.1+ and MariaDB 10.6+ support it; MySQL 5.7 / MariaDB <10.6 do not
+ * (the clause is a syntax error there). The kernel job queue worker and the
+ * push delivery worker fall back to plain `FOR UPDATE` on such servers, which
+ * is safe for the single-worker case and correct on the Bluehost MySQL 5.7
+ * production target.
+ */
+function kernelDbSupportsSkipLocked(?\PDO $db = null): bool
+{
+    try {
+        $db = $db ?? app()->db();
+        $version = (string)$db->getAttribute(\PDO::ATTR_SERVER_VERSION);
+        if (stripos($version, 'MariaDB') !== false) {
+            // e.g. "10.6.18-MariaDB" — SKIP LOCKED added in 10.6.
+            return version_compare((string)preg_replace('/[^0-9.].*$/', '', $version), '10.6', '>=');
+        }
+        // MySQL — SKIP LOCKED added in 8.0.1 (8.0.0 introduced, 8.0.1 usable).
+        return version_compare($version, '8.0.1', '>=');
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+/**
  * Claim and process the next available job from a queue.
  * Uses SELECT…FOR UPDATE SKIP LOCKED for safe concurrent worker support.
  *
@@ -1328,6 +1352,10 @@ function kernelProcessNextJob(string $queue = 'default', int $lockTimeoutSeconds
         // Claim a job atomically
         $db->beginTransaction();
 
+        $skipLocked = kernelDbSupportsSkipLocked($db)
+            ? ' FOR UPDATE SKIP LOCKED'
+            : ' FOR UPDATE';
+
         $stmt = $db->prepare(
             'SELECT id, handler, payload_json, attempts, max_attempts
                FROM kernel_jobs
@@ -1336,8 +1364,7 @@ function kernelProcessNextJob(string $queue = 'default', int $lockTimeoutSeconds
                 AND reserved_at IS NULL
                 AND failed_at IS NULL
               ORDER BY available_at ASC, id ASC
-              LIMIT 1
-              FOR UPDATE SKIP LOCKED'
+              LIMIT 1' . $skipLocked
         );
         $stmt->execute([$queue, $now]);
         $job = $stmt->fetch(\PDO::FETCH_ASSOC);

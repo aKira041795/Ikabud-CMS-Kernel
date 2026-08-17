@@ -29,12 +29,17 @@ class PushWorker
         $db = self::db();
         $sent = 0;
 
+        // @mysql57-compat SKIP LOCKED is unsupported on MySQL 5.7 / MariaDB <10.6.
+        $skipLocked = (function_exists('kernelDbSupportsSkipLocked') && kernelDbSupportsSkipLocked($db))
+            ? ' FOR UPDATE SKIP LOCKED'
+            : ' FOR UPDATE';
+
         $stmt = $db->prepare(
             'SELECT id, tenant_id, user_id, title, body, data_json, attempts, max_attempts
              FROM kernel_push_queue
              WHERE status = \'pending\' AND available_at <= NOW()
              ORDER BY created_at ASC
-             LIMIT ? FOR UPDATE SKIP LOCKED'
+             LIMIT ?' . $skipLocked
         );
         $stmt->execute([$batchSize]);
 
