@@ -108,3 +108,96 @@ function moto_test_col_letter(int $index): string
     }
     return $letter;
 }
+
+/**
+ * Build a multi-sheet .xlsx file (named sheets) matching a supplier workbook.
+ *
+ * @param array<int, array{name:string, rows:array<int, array<int, string|int|float>>}> $sheets
+ */
+function moto_test_build_multi_xlsx(string $path, array $sheets): void
+{
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('Could not create xlsx');
+    }
+
+    // Shared strings: unique non-numeric cells across all sheets.
+    $shared = [];
+    $sharedIndex = [];
+    foreach ($sheets as $sheet) {
+        foreach ($sheet['rows'] as $row) {
+            foreach ($row as $cell) {
+                if ($cell !== '' && !is_numeric($cell)) {
+                    $key = (string)$cell;
+                    if (!isset($sharedIndex[$key])) {
+                        $sharedIndex[$key] = count($shared);
+                        $shared[] = $key;
+                    }
+                }
+            }
+        }
+    }
+
+    $sharedXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="' . count($shared) . '" uniqueCount="' . count($shared) . '">';
+    foreach ($shared as $s) {
+        $sharedXml .= '<si><t>' . htmlspecialchars((string)$s, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</t></si>';
+    }
+    $sharedXml .= '</sst>';
+    $zip->addFromString('xl/sharedStrings.xml', $sharedXml);
+
+    $workbookSheets = '';
+    $relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+    $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' .
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' .
+        '<Default Extension="xml" ContentType="application/xml"/>' .
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' .
+        '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>';
+
+    foreach ($sheets as $i => $sheet) {
+        $num = $i + 1;
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+        foreach ($sheet['rows'] as $rowIdx => $row) {
+            $sheetXml .= '<row r="' . ($rowIdx + 1) . '">';
+            foreach ($row as $colIdx => $value) {
+                $ref = moto_test_col_letter($colIdx) . ($rowIdx + 1);
+                if ($value === '') {
+                    continue;
+                }
+                if (is_numeric($value)) {
+                    $sheetXml .= '<c r="' . $ref . '"><v>' . $value . '</v></c>';
+                } else {
+                    $idx = $sharedIndex[(string)$value];
+                    $sheetXml .= '<c r="' . $ref . '" t="s"><v>' . $idx . '</v></c>';
+                }
+            }
+            $sheetXml .= '</row>';
+        }
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet' . $num . '.xml', $sheetXml);
+
+        $workbookSheets .= '<sheet name="' . htmlspecialchars((string)$sheet['name'], ENT_XML1 | ENT_QUOTES, 'UTF-8') . '" sheetId="' . $num . '" r:id="rIdS' . $num . '"/>';
+        $relsXml .= '<Relationship Id="rIdS' . $num . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' . $num . '.xml"/>';
+        $contentTypes .= '<Override PartName="/xl/worksheets/sheet' . $num . '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    }
+    $relsXml .= '<Relationship Id="rIdShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>';
+    $contentTypes .= '</Types>';
+
+    $workbookXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' .
+        '<sheets>' . $workbookSheets . '</sheets></workbook>';
+
+    $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' .
+        '</Relationships>';
+
+    $zip->addFromString('[Content_Types].xml', $contentTypes);
+    $zip->addFromString('_rels/.rels', $rootRels);
+    $zip->addFromString('xl/workbook.xml', $workbookXml);
+    $zip->addFromString('xl/_rels/workbook.xml.rels', $relsXml);
+    $zip->close();
+}

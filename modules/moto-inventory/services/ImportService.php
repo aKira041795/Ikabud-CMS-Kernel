@@ -219,7 +219,12 @@ final class ImportService
             }
             if ($rowData !== []) {
                 ksort($rowData);
-                $grid[$rowCount] = array_values($rowData);
+                // Preserve true spreadsheet column indices (A=0, B=1, …) instead
+                // of compacting the row. Supplier pricelists are sparse — cells
+                // are frequently missing — and mappings (template presets and
+                // the wizard) are keyed by real column letter, so compacting
+                // here would silently shift every mapped column after a gap.
+                $grid[$rowCount] = $rowData;
             }
             $rowCount++;
         }
@@ -249,16 +254,24 @@ final class ImportService
 
     /**
      * Build import rows from a worksheet grid using a mapping.
-     * $mapping maps 'part_number|description|cost|price|qty|code' OR 'custom:<label>' → column index.
+     * $mapping maps 'part_number|description|cost|price|qty|code|code_attr'
+     * OR 'custom:<label>' → column index.
      *
      * When a `code` column is mapped and no explicit `price` column is mapped,
      * the price is decoded from the coded price (MICHAELSON cipher); rows whose
      * code is not decodable get price 0 and a warning (they do not block commit,
-     * matching the Fazt Sale source behaviour).
+     * matching the Fazt Sale source behaviour). `code_attr` never decodes: it
+     * stores the raw code as an attribute and may be mapped alongside a price
+     * column (brand template behavior).
+     *
+     * An optional $template (see ImportTemplateService) supplies part-number
+     * synthesis for sheets that have no real part-number column: the part
+     * number can be taken from the description column, or built by joining a
+     * set of columns (composite, e.g. TIRE = SIZE + BRAND + PATTERN).
      *
      * @return array{rows:array, errors:array, warnings:array, new_count:int, existing_count:int}
      */
-    public static function buildRows(array $ctx, int $branchId, int $brandId, array $grid, array $mapping, int $headerRow, int $dataStartRow, ?int $dataEndRow = null): array
+    public static function buildRows(array $ctx, int $branchId, int $brandId, array $grid, array $mapping, int $headerRow, int $dataStartRow, ?int $dataEndRow = null, ?array $template = null): array
     {
         $rows = [];
         $errors = [];
@@ -268,6 +281,11 @@ final class ImportService
 
         $priceExplicit = isset($mapping['price']);
         $codeMapped = isset($mapping['code']);
+        $codeAttrMapped = isset($mapping['code_attr']);
+        $pnSource = $template !== null ? (string)($template['part_number_source'] ?? 'column') : 'column';
+        $pnCompositeCols = $template !== null && $pnSource === 'composite'
+            ? (array)($template['part_number_cols'] ?? []) : [];
+        $pnCompositeSep = $template !== null ? (string)($template['part_number_sep'] ?? ' ') : ' ';
 
         // Load existing products for this brand+branch for diff counts.
         $db = moto_db((int)$ctx['tenant_id']);
@@ -320,7 +338,10 @@ final class ImportService
                     $row['price'] = self::parseNumeric($value);
                 } elseif ($field === 'qty') {
                     $row['qty'] = self::parseNumeric($value);
-                } elseif ($field === 'code') {
+                } elseif ($field === 'code' || $field === 'code_attr') {
+                    // `code` (decode-eligible) and `code_attr` (stored as-is)
+                    // both feed the product's code column; decoding happens
+                    // below only for `code` when no price column is mapped.
                     $row['code'] = strtoupper(trim($value));
                 } elseif (str_starts_with($field, 'custom:')) {
                     $label = substr($field, 7);
@@ -330,10 +351,33 @@ final class ImportService
                 }
             }
 
+            // Template part-number synthesis: sheets without a real part-number
+            // column derive the part identity from the description column or a
+            // composite of columns (the value is also used as the description
+            // when no description column is mapped).
+            if ($row['part_number'] === '') {
+                if ($pnSource === 'description' && isset($mapping['description'])) {
+                    $row['part_number'] = trim((string)($sourceRow[(int)$mapping['description']] ?? ''));
+                } elseif ($pnSource === 'composite') {
+                    $compositeParts = [];
+                    foreach ($pnCompositeCols as $c) {
+                        $compositeParts[] = trim((string)($sourceRow[(int)$c] ?? ''));
+                    }
+                    $compositeParts = array_values(array_filter(
+                        $compositeParts,
+                        static fn ($p): bool => $p !== ''
+                    ));
+                    $row['part_number'] = trim(implode($pnCompositeSep, $compositeParts));
+                    if ($row['description'] === '' && $row['part_number'] !== '') {
+                        $row['description'] = $row['part_number'];
+                    }
+                }
+            }
+
             // Coded price: when only a code column is mapped, decode it into
             // the sell price (Fazt Sale semantics). Undecodable codes become
-            // price 0 plus a warning.
-            if ($codeMapped && !$priceExplicit && $row['code'] !== '') {
+            // price 0 plus a warning. A stored code (code_attr) never decodes.
+            if ($codeMapped && !$priceExplicit && !$codeAttrMapped && $row['code'] !== '') {
                 $decoded = self::codeToPrice($row['code']);
                 if ($decoded === null) {
                     $row['price'] = 0.0;
@@ -466,9 +510,16 @@ final class ImportService
      * Stage a validated import. Persists the import header and rows in
      * 'staged' status; nothing touches inventory.
      *
+     * When $template (see ImportTemplateService) is supplied:
+     *   - the preferred sheet name selects the sheet when it exists,
+     *   - a missing $mapping is built from the template (including header and
+     *     data-start rows),
+     *   - part-number synthesis (description / composite) is applied, and
+     *   - a `code_attr` mapping may coexist with a Sell Price column.
+     *
      * @return array{import_id:int, rows:array, new_count:int, existing_count:int, errors:array, warnings:array}
      */
-    public static function stage(array $ctx, int $branchId, int $brandId, string $filePath, string $filename, string $mime, ?array $mapping = null, int $sheetIndex = 0, int $headerRow = 0, int $dataStartRow = 1, ?int $dataEndRow = null, ?string $idempotencyKey = null): array
+    public static function stage(array $ctx, int $branchId, int $brandId, string $filePath, string $filename, string $mime, ?array $mapping = null, int $sheetIndex = 0, int $headerRow = 0, int $dataStartRow = 1, ?int $dataEndRow = null, ?string $idempotencyKey = null, ?array $template = null): array
     {
         $branchId = moto_require_write_branch($ctx, $branchId);
         $tenantId = (int)$ctx['tenant_id'];
@@ -496,6 +547,20 @@ final class ImportService
         if ($sheets === []) {
             throw new \InvalidArgumentException('Workbook has no sheets');
         }
+
+        // A template may carry a preferred sheet name (e.g. "HONDA GEN").
+        if ($template !== null) {
+            $prefSheet = (string)($template['sheet'] ?? '');
+            if ($prefSheet !== '') {
+                foreach ($sheets as $idx => $s) {
+                    if (strcasecmp((string)$s['name'], $prefSheet) === 0) {
+                        $sheetIndex = $idx;
+                        break;
+                    }
+                }
+            }
+        }
+
         $sheetIndex = max(0, min(count($sheets) - 1, $sheetIndex));
         $sheetPath = (string)$sheets[$sheetIndex]['path'];
         if (strpos($sheetPath, 'xl/') !== 0) {
@@ -506,14 +571,30 @@ final class ImportService
             throw new \InvalidArgumentException('Selected sheet is empty');
         }
 
+        // When the client relies on the template entirely (no explicit mapping
+        // or row range), apply the template's mapping and header/data rows.
+        $templateMappingUsed = false;
+        if (($mapping === null || $mapping === []) && $template !== null) {
+            $templateMapping = $template['mapping'] ?? null;
+            if (is_array($templateMapping) && $templateMapping !== []) {
+                $mapping = [];
+                foreach ($templateMapping as $col => $field) {
+                    $mapping[(string)$field] = (int)$col;
+                }
+                $templateMappingUsed = true;
+                $headerRow = max(0, ((int)($template['header_row'] ?? 1)) - 1);
+                $dataStartRow = max(0, ((int)($template['data_start_row'] ?? 2)) - 1);
+            }
+        }
+
         // Auto-guess the mapping from the header row when none is supplied.
-        if ($mapping === null || $mapping === []) {
+        if (($mapping === null || $mapping === []) && !$templateMappingUsed) {
             $headerRow = max(0, min(count($grid) - 1, $headerRow));
             $mapping = self::guessMappingFromHeaders($grid[$headerRow] ?? []);
         }
 
         // Require a part_number mapping and at most one of each standard field.
-        $standardFields = ['part_number', 'description', 'cost', 'price', 'qty', 'code'];
+        $standardFields = ['part_number', 'description', 'cost', 'price', 'qty', 'code', 'code_attr'];
         $seen = [];
         foreach ($mapping as $field => $col) {
             if (in_array($field, $standardFields, true)) {
@@ -524,15 +605,23 @@ final class ImportService
             }
         }
         if (!isset($seen['part_number'])) {
-            throw new \InvalidArgumentException('Exactly one Part No. column is required');
+            $pnSynthesized = $template !== null
+                && in_array((string)($template['part_number_source'] ?? ''), ['description', 'composite'], true);
+            if (!$pnSynthesized) {
+                throw new \InvalidArgumentException('Exactly one Part No. column is required');
+            }
         }
         // Sell Price and Code Price both feed the item's price — never both
-        // (matches the Fazt Sale mapping wizard validation).
+        // (matches the Fazt Sale mapping wizard validation). A stored code
+        // (code_attr) does not conflict with a Sell Price column.
         if (isset($seen['price']) && isset($seen['code'])) {
             throw new \InvalidArgumentException("Sell Price and Code Price both map to the item's price — pick one");
         }
+        if (isset($seen['code']) && isset($seen['code_attr'])) {
+            throw new \InvalidArgumentException("A column cannot be both a Code Price and a stored code — pick one");
+        }
 
-        $built = self::buildRows($ctx, $branchId, $brandId, $grid, $mapping, $headerRow, $dataStartRow, $dataEndRow);
+        $built = self::buildRows($ctx, $branchId, $brandId, $grid, $mapping, $headerRow, $dataStartRow, $dataEndRow, $template);
         if ($built['rows'] === []) {
             throw new \InvalidArgumentException('No data rows found in the selected range');
         }

@@ -46,6 +46,7 @@ return [
         '/api/v1/moto-inventory/reports/profit'      => 'moto-inventory:motoApiProfit',
         '/api/v1/moto-inventory/audit'               => 'moto-inventory:motoApiAudit',
         '/api/v1/moto-inventory/imports'             => 'moto-inventory:motoApiImports',
+        '/api/v1/moto-inventory/imports/templates'    => 'moto-inventory:motoApiImportTemplates',
         '/api/v1/moto-inventory/backups'             => 'moto-inventory:motoApiBackups',
 
         // API: download endpoints
@@ -70,6 +71,7 @@ return [
 
         // API: imports + backup
         '/api/v1/moto-inventory/imports/stage'       => 'moto-inventory:motoApiImportStage',
+        '/api/v1/moto-inventory/imports/templates'   => 'moto-inventory:motoApiImportTemplateSave',
         '/api/v1/moto-inventory/import'              => 'moto-inventory:motoApiBackupImport',
 
         // API: branches
@@ -89,6 +91,7 @@ return [
         '/api/v1/moto-inventory/products/{id}/delete'    => 'moto-inventory:motoApiProductDelete',
         '/api/v1/moto-inventory/sales/{id}/void'     => 'moto-inventory:motoApiSaleVoid',
         '/api/v1/moto-inventory/imports/{id}/commit' => 'moto-inventory:motoApiImportCommit',
+        '/api/v1/moto-inventory/imports/templates/{id}/delete' => 'moto-inventory:motoApiImportTemplateDelete',
         '/api/v1/moto-inventory/branches/{id}/assign' => 'moto-inventory:motoApiBranchAssign',
         '/api/v1/moto-inventory/users/{id}/password' => 'moto-inventory:motoApiUserPassword',
         '/api/v1/moto-inventory/users/{id}/role'     => 'moto-inventory:motoApiUserRole',

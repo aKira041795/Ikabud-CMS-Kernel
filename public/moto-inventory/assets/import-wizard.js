@@ -177,6 +177,7 @@
         if (c === 'cost price' || (c.indexOf('cost') !== -1 && c.indexOf('desc') === -1 && c.indexOf('total') === -1 && c.indexOf('basis') === -1)) return 'Cost Price';
         if (c === 'sell price' || (c.indexOf('sell') !== -1 && c.indexOf('basis') === -1) || c.indexOf('srp') !== -1 || (c.indexOf('price') !== -1 && c.indexOf('cost') === -1 && c.indexOf('total') === -1 && c.indexOf('code') === -1)) return 'Sell Price';
         if (c === 'quantity' || c === 'qty' || c.indexOf('quantity') !== -1 || c === 'qoh' || c.indexOf('on hand') !== -1 || c.indexOf('stock') !== -1) return 'Quantity';
+        if (c === 'code (store)') return 'Code (store)';
         if (c === 'code' || c === 'code price' || (c.indexOf('code') !== -1 && c.indexOf('name') === -1 && c.indexOf('part') === -1)) return 'Code Price';
         return 'custom';
     }
@@ -188,6 +189,7 @@
             case 'Sell Price': return 'price';
             case 'Quantity': return 'qty';
             case 'Code Price': return 'code';
+            case 'Code (store)': return 'code_attr';
             default: return 'custom';
         }
     }
@@ -198,8 +200,80 @@
         sheets: [], sheetIdx: 0, sheetPath: null,
         headerRow: 0, dataStartRow: 1, dataEndRow: null,
         cols: [], mappings: [], pendingRows: [],
-        brandId: 0, branchId: 0, file: null
+        brandId: 0, branchId: 0, file: null,
+        templateMode: '__auto__', template: null
     };
+
+    // ── Brand template support ──
+    var TEMPLATE_FIELD_LABELS = {
+        part_number: 'Part No.', description: 'Description', cost: 'Cost Price',
+        price: 'Sell Price', qty: 'Quantity', code: 'Code Price', code_attr: 'Code (store)'
+    };
+    function templateFieldLabel(field) {
+        if (String(field).indexOf('custom:') === 0) return String(field).slice(7);
+        return TEMPLATE_FIELD_LABELS[field] || field;
+    }
+    // Map a template field key to the wizard's role. This is authoritative for
+    // template pre-fills: a custom field labelled "Qty Stock" or "Code Price"
+    // must stay a custom field even though the label matches a heuristic.
+    function fieldKeyToRole(field) {
+        if (String(field).indexOf('custom:') === 0) return 'custom';
+        var roles = {
+            part_number: 'Part No.', description: 'Description', cost: 'Cost Price',
+            price: 'Sell Price', qty: 'Quantity', code: 'Code Price', code_attr: 'Code (store)'
+        };
+        return roles[field] || 'custom';
+    }
+    // Effective role of a mapping row: an explicit template role wins; a
+    // user-typed label falls back to the label heuristics.
+    function mappingRole(m) {
+        if (m && m.role) return m.role;
+        return resolveFieldType(m ? m.label : '');
+    }
+    function resolveAutoTemplate(sheetName) {
+        var reg = window.MOTO_IMPORT_TEMPLATES || {};
+        var keys = Object.keys(reg);
+        var target = String(sheetName || '').toLowerCase();
+        for (var i = 0; i < keys.length; i++) {
+            var t = reg[keys[i]];
+            if (t && t.kind === 'preset' && t.sheet && String(t.sheet).toLowerCase() === target) return t;
+        }
+        return null;
+    }
+    // Turn a template's mapping (col → field, tolerant of field → col) into the
+    // wizard's st.mappings rows. Returns true when applied.
+    function applyTemplateMappings(tmpl) {
+        var map = tmpl && tmpl.mapping ? tmpl.mapping : null;
+        if (!map) return false;
+        var colToField = {};
+        Object.keys(map).forEach(function (k) {
+            var v = map[k];
+            var col = parseInt(k, 10);
+            if (!isNaN(col) && typeof v === 'string') { colToField[col] = v; }
+            else if (/^\d+$/.test(String(k)) === false && (typeof v === 'number' || /^\d+$/.test(String(v)))) { colToField[parseInt(v, 10)] = k; }
+        });
+        var cols = Object.keys(colToField).map(Number).filter(function (c) { return c >= 0 && c <= st.maxCol; }).sort(function (a, b) { return a - b; });
+        if (!cols.length) return false;
+        st.mappings = cols.map(function (c) {
+            var header = (st.grid[st.headerRow] && st.grid[st.headerRow][c] != null) ? String(st.grid[st.headerRow][c]) : '';
+            var field = colToField[c];
+            return { colIdx: c, header: header, label: templateFieldLabel(field), role: fieldKeyToRole(field) };
+        });
+        return true;
+    }
+    function prepareRangeStep() {
+        $('mi-wiz-cols').value = 'A-' + colIndexToLetter(st.maxCol);
+        if (st.template) {
+            var hrow = Math.max(1, parseInt(st.template.header_row, 10) || 1);
+            var drow = Math.max(hrow + 1, parseInt(st.template.data_start_row, 10) || (hrow + 1));
+            $('mi-wiz-row-from').value = hrow;
+        } else {
+            $('mi-wiz-row-from').value = 1;
+        }
+        $('mi-wiz-row-to').value = st.maxRow + 1;
+        showStep('range');
+        updateRangePreview();
+    }
 
     function showStep(step) {
         ['sheet', 'range', 'mapping', 'review'].forEach(function (s) {
@@ -263,7 +337,12 @@
                 '</div>';
         }).join('');
         Array.prototype.forEach.call(box.querySelectorAll('input[data-map-idx]'), function (inp) {
-            inp.addEventListener('input', function () { st.mappings[+inp.dataset.mapIdx].label = inp.value; validateMappings(); });
+            inp.addEventListener('input', function () {
+                var m = st.mappings[+inp.dataset.mapIdx];
+                m.label = inp.value;
+                delete m.role; // a hand-typed label re-resolves from its text
+                validateMappings();
+            });
         });
         Array.prototype.forEach.call(box.querySelectorAll('[data-map-remove]'), function (btn) {
             btn.addEventListener('click', function () { st.mappings.splice(+btn.dataset.mapRemove, 1); renderMappingRows(); });
@@ -273,20 +352,23 @@
 
     function validateMappings() {
         var counts = {};
-        Array.prototype.forEach.call(document.querySelectorAll('[data-map-flag]'), function () { });
         st.mappings.forEach(function (m, idx) {
-            var t = resolveFieldType(m.label);
+            var t = mappingRole(m);
             var flag = document.querySelector('[data-map-flag="' + idx + '"]');
             if (flag) { flag.textContent = t === 'custom' ? 'custom field' : t; flag.className = 'mi-role-pill ' + (t === 'custom' ? 'viewer' : 'admin'); }
             if (t !== 'custom') counts[t] = (counts[t] || 0) + 1;
         });
+        // A template may synthesize the part number (description / composite)
+        // so no Part No. column is required in the mapping step.
+        var pnSynthesized = st.template && (st.template.part_number_source === 'description' || st.template.part_number_source === 'composite');
         var ok = true, msg = '';
-        if (!counts['Part No.']) { ok = false; msg = 'Exactly one column must map to Part No. — none currently does.'; }
+        if (!counts['Part No.'] && !pnSynthesized) { ok = false; msg = 'Exactly one column must map to Part No. — none currently does.'; }
         else if (counts['Part No.'] > 1) { ok = false; msg = "More than one column maps to Part No. — that's ambiguous."; }
-        ['Description', 'Cost Price', 'Sell Price', 'Quantity', 'Code Price'].forEach(function (f) {
+        ['Description', 'Cost Price', 'Sell Price', 'Quantity', 'Code Price', 'Code (store)'].forEach(function (f) {
             if ((counts[f] || 0) > 1) { ok = false; msg = 'More than one column maps to ' + f + ' — that\'s ambiguous.'; }
         });
         if ((counts['Sell Price'] || 0) > 0 && (counts['Code Price'] || 0) > 0) { ok = false; msg = "Sell Price and Code Price both map to the item's price — pick one."; }
+        if ((counts['Code Price'] || 0) > 0 && (counts['Code (store)'] || 0) > 0) { ok = false; msg = "A column cannot be both a Code Price and a stored code — pick one."; }
         var warn = $('mi-wiz-map-warning');
         var next = $('mi-wiz-map-next');
         if (warn) warn.style.display = ok ? 'none' : 'block';
@@ -305,29 +387,49 @@
     }
 
     function buildPendingRows() {
-        var partCol = null, descCol = null, costCol = null, priceCol = null, qtyCol = null, codeCol = null;
+        var partCol = null, descCol = null, costCol = null, priceCol = null, qtyCol = null, codeCol = null, codeStoreCol = null;
         var customCols = [];
         st.mappings.forEach(function (m) {
-            var t = resolveFieldType(m.label);
+            var t = mappingRole(m);
             if (t === 'Part No.') partCol = m.colIdx;
             else if (t === 'Description') descCol = m.colIdx;
             else if (t === 'Cost Price') costCol = m.colIdx;
             else if (t === 'Sell Price') priceCol = m.colIdx;
             else if (t === 'Quantity') qtyCol = m.colIdx;
             else if (t === 'Code Price') codeCol = m.colIdx;
+            else if (t === 'Code (store)') codeStoreCol = m.colIdx;
             else customCols.push(m);
         });
+        var pnSource = st.template ? (st.template.part_number_source || 'column') : 'column';
+        var pnCompositeCols = (st.template && st.template.part_number_cols) || [];
+        var pnSep = (st.template && st.template.part_number_sep) || ' ';
         var rows = [], undecodable = 0;
         for (var r = st.dataStartRow; r <= st.dataEndRow; r++) {
             var row = st.grid[r];
             if (!row) continue;
-            var rawPart = row[partCol];
+            var rawPart = partCol != null ? row[partCol] : null;
             var part = rawPart == null ? '' : String(rawPart).trim();
+            if (!part && pnSource === 'description' && descCol != null) {
+                part = row[descCol] == null ? '' : String(row[descCol]).trim();
+            }
+            if (!part && pnSource === 'composite') {
+                var bits = [];
+                for (var ci = 0; ci < pnCompositeCols.length; ci++) {
+                    var cv = row[pnCompositeCols[ci]];
+                    if (cv != null && String(cv).trim() !== '') bits.push(String(cv).trim());
+                }
+                part = bits.join(pnSep);
+            }
             if (!part) continue;
+            var desc = descCol != null ? String(row[descCol] || '') : '';
+            if (!desc && pnSource === 'composite' && part) desc = part;
             var extra = {};
             customCols.forEach(function (m) { var v = row[m.colIdx]; extra[m.label] = v == null ? '' : String(v); });
             var code = '', price = null;
-            if (codeCol) {
+            if (codeStoreCol) {
+                code = row[codeStoreCol] == null ? '' : String(row[codeStoreCol]).trim().toUpperCase();
+                if (priceCol) price = parseFloat(String(row[priceCol]).replace(/,/g, '')) || 0;
+            } else if (codeCol) {
                 code = row[codeCol] == null ? '' : String(row[codeCol]).trim().toUpperCase();
                 if (code) { var p = codeToPrice(code); if (p == null) { undecodable++; price = 0; } else { price = p; } }
             } else if (priceCol) {
@@ -335,7 +437,7 @@
             }
             rows.push({
                 part: part,
-                desc: descCol != null ? String(row[descCol] || '') : '',
+                desc: desc,
                 cost: costCol != null ? (parseFloat(String(row[costCol]).replace(/,/g, '')) || 0) : 0,
                 price: price,
                 qty: qtyCol != null ? (parseFloat(String(row[qtyCol]).replace(/,/g, '')) || 0) : null,
@@ -352,8 +454,8 @@
         var box = $('mi-wiz-review-body');
         var html = '<div class="mi-grid cols-3">' +
             '<div class="mi-stat"><div class="mi-stat-label">Rows with part no.</div><div class="mi-stat-value">' + built.rows.length + '</div></div>' +
-            '<div class="mi-stat"><div class="mi-stat-label">Price source</div><div class="mi-stat-value">' + (st.mappings.some(function (m) { return resolveFieldType(m.label) === 'Code Price'; }) ? 'Code' : 'Sell price') + '</div></div>' +
-            '<div class="mi-stat"><div class="mi-stat-label">Custom fields</div><div class="mi-stat-value">' + st.mappings.filter(function (m) { return resolveFieldType(m.label) === 'custom'; }).length + '</div></div>' +
+            '<div class="mi-stat"><div class="mi-stat-label">Price source</div><div class="mi-stat-value">' + (st.mappings.some(function (m) { return mappingRole(m) === 'Code Price'; }) ? 'Code (decoded)' : (st.mappings.some(function (m) { return mappingRole(m) === 'Code (store)'; }) ? 'Sell + stored code' : 'Sell price')) + '</div></div>' +
+            '<div class="mi-stat"><div class="mi-stat-label">Custom fields</div><div class="mi-stat-value">' + st.mappings.filter(function (m) { return mappingRole(m) === 'custom'; }).length + '</div></div>' +
             '</div>';
         if (built.rows.length) {
             var first = built.rows[0];
@@ -363,7 +465,7 @@
         if (built.undecodable) {
             html += '<div class="mi-banner error" style="margin-top:10px"><strong>' + built.undecodable + ' row(s)</strong> have a code containing a letter outside M-I-C-H-A-E-L-S-O-N and will import with price 0. Check the source data.</div>';
         }
-        if (st.mappings.some(function (m) { return resolveFieldType(m.label) === 'Quantity'; })) {
+        if (st.mappings.some(function (m) { return mappingRole(m) === 'Quantity'; })) {
             html += '<p class="mi-muted" style="margin-top:8px">Quantity column mapped — new items will use it; existing items are only updated if you check "Also overwrite quantity" on the next screen.</p>';
         }
         box.innerHTML = html;
@@ -372,7 +474,7 @@
     function buildMappingPayload() {
         var mapping = {};
         st.mappings.forEach(function (m) {
-            var t = resolveFieldType(m.label);
+            var t = mappingRole(m);
             var key = fieldToServerKey(t);
             mapping[key === 'custom' ? ('custom:' + m.label) : key] = m.colIdx;
         });
@@ -381,6 +483,8 @@
 
     function init(opts) {
         st.brandId = opts.brandId; st.branchId = opts.branchId; st.file = opts.file;
+        st.templateMode = opts.templateMode || '__auto__';
+        st.template = opts.template || null;
         var errBox = $('mi-imp-file-error') || null;
         function fail(msg) { if (errBox) { errBox.textContent = msg; errBox.style.display = 'block'; } else if (typeof S.toast === 'function') S.toast(msg, true); }
 
@@ -393,22 +497,38 @@
                 var wizard = $('mi-imp-wizard');
                 if (!wizard) return fail('Import wizard is not available on this page.');
                 wizard.style.display = 'block';
+
+                // Auto mode: match a bundled preset to the sheet it was derived
+                // from (e.g. a "HONDA GEN" sheet auto-applies the HONDA GEN
+                // template). Explicit preset/custom selections use the chosen
+                // template directly; __custom__ maps manually.
+                if (st.templateMode === '__auto__') {
+                    st.template = null;
+                    for (var si = 0; si < st.sheets.length; si++) {
+                        var auto = resolveAutoTemplate(st.sheets[si].name);
+                        if (auto) { st.template = auto; break; }
+                    }
+                }
+
                 if (st.sheets.length === 1) {
+                    st.sheetIdx = 0;
                     st.sheetPath = st.sheets[0].path;
                     loadSheet(st.sheetPath);
-                    $('mi-wiz-cols').value = 'A-' + colIndexToLetter(st.maxCol);
-                    $('mi-wiz-row-from').value = 1;
-                    $('mi-wiz-row-to').value = st.maxRow + 1;
-                    showStep('range');
-                    updateRangePreview();
+                    prepareRangeStep();
                 } else {
+                    var defaultIdx = 0;
+                    if (st.template && st.template.sheet) {
+                        for (var si2 = 0; si2 < st.sheets.length; si2++) {
+                            if (String(st.sheets[si2].name).toLowerCase() === String(st.template.sheet).toLowerCase()) { defaultIdx = si2; break; }
+                        }
+                    }
+                    st.sheetIdx = defaultIdx;
                     var list = $('mi-wiz-sheet-list');
                     list.innerHTML = st.sheets.map(function (s, i) {
                         return '<label class="mi-row" style="gap:8px;padding:8px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;cursor:pointer">' +
-                            '<input type="radio" name="mi-wiz-sheet" value="' + i + '"' + (i === 0 ? ' checked' : '') + '>' +
+                            '<input type="radio" name="mi-wiz-sheet" value="' + i + '"' + (i === defaultIdx ? ' checked' : '') + '>' +
                             '<span>' + esc(s.name) + '</span></label>';
                     }).join('');
-                    st.sheetIdx = 0;
                     showStep('sheet');
                 }
             } catch (e) {
@@ -424,12 +544,13 @@
             if (!sel) return;
             st.sheetIdx = +sel.value;
             st.sheetPath = st.sheets[st.sheetIdx].path;
+            // Auto mode re-matches the bundled preset to the chosen sheet so a
+            // TIRE sheet, for example, applies the TIRE template.
+            if (st.templateMode === '__auto__') {
+                st.template = resolveAutoTemplate(st.sheets[st.sheetIdx].name);
+            }
             try { loadSheet(st.sheetPath); } catch (e) { return fail(e.message); }
-            $('mi-wiz-cols').value = 'A-' + colIndexToLetter(st.maxCol);
-            $('mi-wiz-row-from').value = 1;
-            $('mi-wiz-row-to').value = st.maxRow + 1;
-            showStep('range');
-            updateRangePreview();
+            prepareRangeStep();
         });
 
         var rangeBack = $('mi-wiz-range-back');
@@ -441,10 +562,14 @@
         var rangeNext = $('mi-wiz-range-next');
         if (rangeNext) rangeNext.addEventListener('click', function () {
             updateRangePreview();
-            st.mappings = st.cols.map(function (c) {
-                var header = (st.grid[st.headerRow] && st.grid[st.headerRow][c] != null) ? String(st.grid[st.headerRow][c]) : '';
-                return { colIdx: c, header: header, label: guessImportLabel(header) };
-            });
+            // A template pre-fills the mapping; otherwise guess from headers.
+            var applied = st.template ? applyTemplateMappings(st.template) : false;
+            if (!applied) {
+                st.mappings = st.cols.map(function (c) {
+                    var header = (st.grid[st.headerRow] && st.grid[st.headerRow][c] != null) ? String(st.grid[st.headerRow][c]) : '';
+                    return { colIdx: c, header: header, label: guessImportLabel(header) };
+                });
+            }
             populateAddColumnPicker();
             renderMappingRows();
             showStep('mapping');
@@ -480,8 +605,23 @@
         });
     }
 
+    // Payload for saving the current mapping as a reusable custom template.
+    function buildTemplatePayload() {
+        var hasCodeAttr = st.mappings.some(function (m) { return mappingRole(m) === 'Code (store)'; });
+        var hasCodePrice = st.mappings.some(function (m) { return mappingRole(m) === 'Code Price'; });
+        return {
+            sheet: (st.sheets[st.sheetIdx] || {}).name || '',
+            header_row: st.headerRow + 1,
+            data_start_row: st.dataStartRow + 1,
+            mapping: buildMappingPayload(),
+            code_mode: hasCodeAttr ? 'attribute' : (hasCodePrice ? 'decode' : 'attribute'),
+            part_number_source: 'column'
+        };
+    }
+
     window.MOTO_IMPORT_WIZARD = {
         init: init,
+        buildTemplatePayload: buildTemplatePayload,
         codeToPrice: codeToPrice,
         resolveFieldType: resolveFieldType,
         guessImportLabel: guessImportLabel

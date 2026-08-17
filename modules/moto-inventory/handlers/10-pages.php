@@ -133,9 +133,21 @@ function motoPageImport(array $params = []): void
     } catch (\Throwable $e) {
         $brands = [];
     }
+    $templates = [];
+    try {
+        $templates = ImportTemplateService::all($ctx);
+    } catch (\Throwable $e) {
+        $templates = ['presets' => [], 'custom' => []];
+    }
+    // Escaped JSON for a <script type="application/json"> embed: user-supplied
+    // template names/labels must never break out of the tag.
+    $templatesJson = json_encode($templates, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $templatesJson = str_replace(['<', '>', '&'], ['\\u003c', '\\u003e', '\\u0026'], $templatesJson);
     echo app()->render('modules/moto-inventory/pages/import', moto_page_context($ctx, 'import', 'Import', [
-        'imports' => $imports,
-        'brands'  => $brands,
+        'imports'          => $imports,
+        'brands'           => $brands,
+        'import_templates' => $templates,
+        'templates_json'   => $templatesJson,
     ]));
 }
 

@@ -97,6 +97,13 @@ function motoApiImportStage(array $params = []): void
             ? max(0, (int)$input['data_end_row'])
             : null;
         $idem = (string)($input['idempotency_key'] ?? '');
+        // A brand template (preset or saved custom) drives the mapping, sheet
+        // preference, code semantics and part-number synthesis. The wizard
+        // always sends an explicit mapping too; the template adds the
+        // part-number/description-composite behavior and relaxes the
+        // Sell Price + stored-code conflict for template layouts.
+        $templateKey = (string)($input['template_key'] ?? '');
+        $template = $templateKey !== '' ? ImportTemplateService::get($ctx, $templateKey) : null;
         // Column mapping is optional from the UI: when absent, ImportService
         // auto-guesses it from the header row (guessMappingFromHeaders). A
         // client-supplied mapping is honoured when it is a real array (JSON
@@ -128,7 +135,8 @@ function motoApiImportStage(array $params = []): void
         $result = ImportService::stage(
             $ctx, $branchId, $brandId, (string)$file['tmp_name'], $filename, $mime,
             $mapping, $sheetIndex, $headerRow, $dataStartRow, $dataEndRow,
-            $idem !== '' ? $idem : null
+            $idem !== '' ? $idem : null,
+            $template
         );
         moto_json_ok($result, 201);
     });

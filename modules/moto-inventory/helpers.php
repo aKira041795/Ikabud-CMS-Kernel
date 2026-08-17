@@ -20,6 +20,7 @@ declare(strict_types=1);
         '/services/StockService.php',
         '/services/SaleService.php',
         '/services/ImportService.php',
+        '/services/ImportTemplateService.php',
     ];
     foreach ($files as $file) {
         $path = __DIR__ . $file;

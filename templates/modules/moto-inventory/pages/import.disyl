@@ -19,7 +19,26 @@
                     {for b in brands}<option value="{b.id}">{b.name}</option>{/for}
                 </select>
             </label>
+            <label style="min-width:220px"><span class="mi-muted" style="font-size:.72rem">Brand template</span>
+                <select id="mi-imp-template" class="mi-select">
+                    <option value="__auto__">Auto (match sheet)</option>
+                    <optgroup label="Brand templates">
+                        {for t in import_templates.presets}
+                        <option value="preset:{t.key}">{t.name}</option>
+                        {/for}
+                    </optgroup>
+                    {if import_templates.custom}
+                    <optgroup label="Your saved templates">
+                        {for t in import_templates.custom}
+                        <option value="custom:{t.id}">{t.name}</option>
+                        {/for}
+                    </optgroup>
+                    {/if}
+                    <option value="__custom__">Custom (map manually)</option>
+                </select>
+            </label>
         </div>
+        <div class="mi-banner info" id="mi-imp-template-hint" style="display:none;margin-top:10px"></div>
         <div class="mi-field">
             <input id="mi-imp-file" class="mi-input" type="file" accept=".xlsx" aria-label="Choose .xlsx file">
         </div>
@@ -60,11 +79,16 @@
         </div>
 
         <div id="mi-wiz-step-mapping" style="display:none">
-            <p class="mi-muted" style="font-size:.84rem">Type what each column means. Exactly one must be <strong>Part No.</strong> — anything else becomes a custom field stored and shown exactly as you name it. A <strong>Code Price</strong> column decodes the brand's coded price (M-I-C-H-A-E-L-S-O-N = 1-2-3-4-5-6-7-8-9-0).</p>
+            <p class="mi-muted" style="font-size:.84rem">Type what each column means. Exactly one must be <strong>Part No.</strong> — anything else becomes a custom field stored and shown exactly as you name it. A <strong>Code Price</strong> column decodes the brand's coded price (M-I-C-H-A-E-L-S-O-N = 1-2-3-4-5-6-7-8-9-0); <strong>Code (store)</strong> saves the code as-is next to a Sell Price. Brand templates pre-fill this step.</p>
             <div id="mi-wiz-map-rows" style="margin-bottom:12px"></div>
             <div class="mi-row" style="margin-bottom:12px">
                 <select id="mi-wiz-add-col" class="mi-input" style="max-width:320px" aria-label="Add column"></select>
                 <button class="mi-btn" id="mi-wiz-add-col-btn" type="button">+ Add column</button>
+            </div>
+            <div class="mi-row" style="margin-bottom:12px;gap:8px;align-items:center">
+                <input class="mi-input" id="mi-wiz-template-name" placeholder="Save this mapping as a reusable template…" aria-label="Template name" style="max-width:300px;margin:0">
+                <button class="mi-btn" id="mi-wiz-save-template" type="button">Save as template</button>
+                <span class="mi-muted" style="font-size:.72rem">For brands not listed above.</span>
             </div>
             <div class="mi-banner error" id="mi-wiz-map-warning" style="display:none;margin-bottom:12px"></div>
             <div class="mi-row">
@@ -122,12 +146,56 @@
 {/block}
 
 {block scripts}
-<script src="/moto-inventory/assets/import-wizard.js"></script>
+<script type="application/json" id="mi-imp-templates-json">{templates_json|raw}</script>
+<script src="/moto-inventory/assets/import-wizard.js?v=2026-08-17-2"></script>
 <script>
 (function () {
     const S = window.MOTO_INVENTORY;
     const $ = (id) => document.getElementById(id);
     let staged = null;
+
+    // Brand template registry (server-rendered): presets + saved custom templates.
+    const TEMPLATES = (function () {
+        const el = $('mi-imp-templates-json');
+        try { return JSON.parse(el ? el.textContent : '{}'); }
+        catch (e) { return { presets: [], custom: [] }; }
+    })();
+    const TEMPLATE_MAP = (function () {
+        const m = {};
+        (TEMPLATES.presets || []).forEach(t => { m['preset:' + t.key] = t; });
+        (TEMPLATES.custom || []).forEach(t => { m['custom:' + t.id] = t; });
+        return m;
+    })();
+    // The wizard's "Auto (match sheet)" mode matches a preset to the sheet it
+    // was derived from; it reads this map by template key.
+    window.MOTO_IMPORT_TEMPLATES = TEMPLATE_MAP;
+
+    function currentTemplateKey() {
+        return $('mi-imp-template') ? $('mi-imp-template').value : '__auto__';
+    }
+    function currentTemplate() {
+        const key = currentTemplateKey();
+        if (key === '__auto__' || key === '__custom__') return null;
+        return TEMPLATE_MAP[key] || null;
+    }
+    function updateTemplateHint() {
+        const hint = $('mi-imp-template-hint');
+        if (!hint) return;
+        const key = currentTemplateKey();
+        if (key === '__auto__' || key === '__custom__') { hint.style.display = 'none'; return; }
+        const t = TEMPLATE_MAP[key];
+        if (!t) { hint.style.display = 'none'; return; }
+        const partSrc = t.part_number_source === 'description' ? 'part number = description (sheet has no part-no. column)'
+            : (t.part_number_source === 'composite' ? 'part number = combined columns' : 'part number column');
+        let html = '<strong>' + S.esc(t.name) + '</strong> — ' + S.esc(partSrc) + (t.sheet ? ' · default sheet "' + S.esc(t.sheet) + '"' : '');
+        const sel = $('mi-imp-brand');
+        const brandName = sel && sel.selectedOptions.length ? sel.selectedOptions[0].textContent : '';
+        if (t.brand_hint && brandName && String(brandName).toLowerCase().indexOf(String(t.brand_hint).toLowerCase()) === -1) {
+            html += ' <span style="opacity:.75">· destination brand is <strong>' + S.esc(brandName) + '</strong> (template targets ' + S.esc(t.brand_hint) + ')</span>';
+        }
+        hint.innerHTML = html;
+        hint.style.display = 'block';
+    }
 
     async function api(url, opts, isForm) {
         opts = opts || {};
@@ -167,10 +235,14 @@
         const errBox = $('mi-imp-file-error');
         errBox.style.display = 'none';
         if (window.MOTO_IMPORT_WIZARD && typeof window.MOTO_IMPORT_WIZARD.init === 'function') {
+            const template = currentTemplate();
+            const templateKey = currentTemplateKey();
             window.MOTO_IMPORT_WIZARD.init({
                 branchId: +branchId,
                 brandId: +brandId,
                 file,
+                templateMode: templateKey,
+                template,
                 onStage: async (mapping, headerRow, dataStartRow, dataEndRow, sheetIdx) => {
                     const form = new FormData();
                     form.append('file', file);
@@ -181,6 +253,7 @@
                     form.append('data_start_row', dataStartRow);
                     form.append('data_end_row', dataEndRow);
                     form.append('mapping', JSON.stringify(mapping));
+                    if (templateKey !== '__custom__') form.append('template_key', templateKey);
                     form.append('idempotency_key', S.uuid());
                     const json = await api('/api/v1/moto-inventory/imports/stage', { method: 'POST', body: form }, true);
                     if (!json.ok) { S.toast(json.error, true); return; }
@@ -192,6 +265,40 @@
             errBox.textContent = 'Import wizard script failed to load.';
             errBox.style.display = 'block';
         }
+    });
+
+    if ($('mi-imp-template')) {
+        $('mi-imp-template').addEventListener('change', updateTemplateHint);
+        updateTemplateHint();
+    }
+    if ($('mi-imp-brand')) $('mi-imp-brand').addEventListener('change', updateTemplateHint);
+
+    if ($('mi-wiz-save-template')) $('mi-wiz-save-template').addEventListener('click', async () => {
+        const name = $('mi-wiz-template-name') ? $('mi-wiz-template-name').value.trim() : '';
+        if (!name) return S.toast('Give the template a name first', true);
+        if (typeof window.MOTO_IMPORT_WIZARD.buildTemplatePayload !== 'function') return S.toast('Import wizard is not ready', true);
+        const payload = window.MOTO_IMPORT_WIZARD.buildTemplatePayload();
+        payload.name = name;
+        const json = await api('/api/v1/moto-inventory/imports/templates', { method: 'POST', body: payload });
+        if (json.ok) {
+            S.toast('Template "' + name + '" saved', false, 'good');
+            $('mi-wiz-template-name').value = '';
+            const t = json.data;
+            if (t && t.id) {
+                // Make the new template selectable right away (no reload needed).
+                TEMPLATES.custom.push(t);
+                TEMPLATE_MAP['custom:' + t.id] = t;
+                const sel = $('mi-imp-template');
+                if (sel) {
+                    const opt = document.createElement('option');
+                    opt.value = 'custom:' + t.id;
+                    opt.textContent = t.name;
+                    const manual = sel.querySelector('option[value="__custom__"]');
+                    sel.insertBefore(opt, manual);
+                }
+            }
+        }
+        else S.toast(json.error, true);
     });
 
     if ($('mi-imp-commit')) $('mi-imp-commit').addEventListener('click', async () => {
