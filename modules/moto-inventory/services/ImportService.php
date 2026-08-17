@@ -219,13 +219,15 @@ final class ImportService
             }
             if ($rowData !== []) {
                 ksort($rowData);
-                // Preserve true spreadsheet column indices (A=0, B=1, …) instead
-                // of compacting the row. Supplier pricelists are sparse — cells
-                // are frequently missing — and mappings (template presets and
-                // the wizard) are keyed by real column letter, so compacting
-                // here would silently shift every mapped column after a gap.
-                $grid[$rowCount] = $rowData;
             }
+            // Keep the grid dense by row-element index (including empty rows),
+            // exactly like the wizard's client-side parser. Supplier workbooks
+            // contain blank/format-only <row> elements (separators, empty rows
+            // between header and data); compacting them here would shift every
+            // subsequent row index and misalign with the data_start_row /
+            // header_row the client sends. Preserve true spreadsheet column
+            // indices (A=0, B=1, …) the same way.
+            $grid[$rowCount] = $rowData;
             $rowCount++;
         }
 
@@ -641,9 +643,11 @@ final class ImportService
 
         // A template may carry a preferred sheet name (e.g. "HONDA GEN").
         // Matching is fuzzy and case/spacing tolerant: exact > prefix >
-        // contains, mirroring the wizard's auto-match so API-driven imports
-        // pick the same sheet a user would.
-        if ($template !== null) {
+        // contains, mirroring the wizard's auto-match. This only applies when
+        // the caller relies on the template entirely (no explicit mapping) —
+        // the wizard always sends its chosen sheet_index and mapping, and an
+        // explicit user sheet choice must never be silently overridden.
+        if (($mapping === null || $mapping === []) && $template !== null) {
             $prefSheet = (string)($template['sheet'] ?? '');
             if ($prefSheet !== '') {
                 $bestIdx = null;

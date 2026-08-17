@@ -371,6 +371,11 @@
         if (!xml) throw new Error('Sheet data not found: ' + sheetPath);
         var parsed = parseSheetXml(xml, st.sharedStrings);
         st.grid = parsed.grid; st.maxRow = parsed.maxRow; st.maxCol = parsed.maxCol;
+        // Mirror the server's 5000-row limit so oversized sheets fail here with
+        // a clear message instead of freezing the tab during parsing.
+        if (st.maxRow + 1 > 5000) {
+            throw new Error('Sheet exceeds the 5000-row import limit — split it into smaller files.');
+        }
     }
 
     function updateRangePreview() {
@@ -560,6 +565,10 @@
 
         (async function () {
             try {
+                // Mirror the server's 8 MB upload cap before inflating the zip.
+                if (st.file && st.file.size > 8 * 1024 * 1024) {
+                    return fail('File exceeds the maximum size of 8 MB');
+                }
                 var buf = await st.file.arrayBuffer();
                 st.rawEntries = await readZipEntries(buf);
                 st.sharedStrings = parseSharedStrings(st.rawEntries['xl/sharedStrings.xml']);

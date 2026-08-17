@@ -179,6 +179,32 @@ $h->test('fuzzy prefix sheet auto-selected (HONDA GEN 2026 PRICES)', count($fuzz
 $fuzzyTire = ImportService::stage($ctx, $branchId, $brandId, $fuzzyFile, 'fuzzy.xlsx', $mime, null, 0, 0, 1, null, 'tpl-fz-tire', $tire);
 $h->test('fuzzy prefix sheet auto-selected (Tire - All sizes)', count($fuzzyTire['rows'] ?? []) === 1 && str_contains((string)($fuzzyTire['rows'][0]['part_number'] ?? ''), '8X400-'));
 
+// ── Parser alignment & explicit sheet choice ──────────────────────
+$h->section('Row alignment & explicit sheet choice');
+
+// An empty <row> element (blank separator) between the header and the data
+// must not shift the row indices the client uses (dense row indexing on both
+// sides, matching the wizard's client parser).
+$gapFile = $tmpDir . '/gap.xlsx';
+moto_test_build_xlsx($gapFile, [
+    ['PART NO.', 'Description', 'Price'],
+    [],
+    ['P-100', 'Axle Front', '1200'],
+    ['P-101', 'Cable Throttle', '450'],
+]);
+$gapStage = ImportService::stage($ctx, $branchId, $brandId, $gapFile, 'gap.xlsx', $mime, ['part_number' => 0, 'description' => 1, 'price' => 2], 0, 1, 2, null, 'tpl-gap');
+$h->test('empty row element does not shift data rows', count($gapStage['rows'] ?? []) === 2 && ($gapStage['rows'][0]['part_number'] ?? '') === 'P-100' && ($gapStage['rows'][1]['part_number'] ?? '') === 'P-101');
+
+// An explicit client sheet_index must be honored even when the template's
+// preferred sheet name fuzzy-matches a different sheet.
+$chooseFile = $tmpDir . '/choose.xlsx';
+moto_test_build_multi_xlsx($chooseFile, [
+    ['name' => 'HONDA GEN', 'rows' => [['DESCRIPTION', 'PARTS NUMBER'], ['HONDA-1', 'H100']]],
+    ['name' => 'YAMAHA GEN', 'rows' => [['DESCRIPTION', 'PARTS NUMBER'], ['YAMAHA-1', 'Y100']]],
+]);
+$m1Stage = ImportService::stage($ctx, $branchId, $brandId, $chooseFile, 'choose.xlsx', $mime, ['part_number' => 1, 'description' => 0], 1, 0, 1, null, 'tpl-m1', $honda);
+$h->test('explicit client sheet choice is honored over template match', count($m1Stage['rows'] ?? []) === 1 && ($m1Stage['rows'][0]['part_number'] ?? '') === 'Y100');
+
 // ── Empty-column pruning ──────────────────────────────────────────
 $h->section('Empty-column pruning');
 
@@ -297,6 +323,8 @@ $h->test('unmatched template sheet stays on caller sheet', ($ghostStage['rows'][
 @unlink($rusiFile);
 @unlink($fuzzyFile);
 @unlink($pruneFile);
+@unlink($gapFile);
+@unlink($chooseFile);
 @rmdir($tmpDir);
 $tenant['cleanup']();
 $h->done();

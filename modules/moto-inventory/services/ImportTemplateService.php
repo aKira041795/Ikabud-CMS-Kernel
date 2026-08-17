@@ -274,16 +274,27 @@ final class ImportTemplateService
     /**
      * List a tenant's custom templates (newest first).
      *
+     * Returns [] when the import-templates migration has not been applied to
+     * this tenant yet (per-request auto-migration is not enabled for this
+     * module), so the UI degrades gracefully instead of 500ing.
+     *
      * @return array<int,array>
      */
     public static function customTemplates(array $ctx): array
     {
         $db = moto_db((int)$ctx['tenant_id']);
-        $stmt = $db->query(
-            'SELECT * FROM moto_import_templates
-             WHERE tenant_id = :tid ORDER BY id DESC',
-            [':tid' => (int)$ctx['tenant_id']]
-        );
+        try {
+            $stmt = $db->query(
+                'SELECT * FROM moto_import_templates
+                 WHERE tenant_id = :tid ORDER BY id DESC',
+                [':tid' => (int)$ctx['tenant_id']]
+            );
+        } catch (\Throwable $e) {
+            if (self::missingTableException($e) !== null) {
+                return [];
+            }
+            throw $e;
+        }
         $rows = [];
         foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
             $rows[] = self::hydrate($row);
@@ -329,10 +340,20 @@ final class ImportTemplateService
             if (!is_array($cols) || $cols === []) {
                 throw new \InvalidArgumentException('Composite part number needs part_number_cols');
             }
-            $pnCols = array_values(array_map('intval', $cols));
+            $pnCols = [];
+            foreach ($cols as $c) {
+                $c = (int)$c;
+                if ($c >= 0 && $c <= 255) {
+                    $pnCols[] = $c;
+                }
+            }
+            $pnCols = array_values(array_unique($pnCols));
+            if ($pnCols === []) {
+                throw new \InvalidArgumentException('Composite part number needs valid column indices');
+            }
             $pnSep = (string)($data['part_number_sep'] ?? ' ');
-            if ($pnSep === '') {
-                $pnSep = ' ';
+            if ($pnSep === '' || mb_strlen($pnSep) > 10) {
+                $pnSep = ' '; // VARCHAR(10) column
             }
         }
 
@@ -354,53 +375,61 @@ final class ImportTemplateService
         $id = (int)($data['id'] ?? 0);
 
         $jsonOpts = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
-        if ($id > 0) {
-            $exists = $db->query(
-                'SELECT id FROM moto_import_templates WHERE tenant_id = :tid AND id = :id',
-                [':tid' => $tenantId, ':id' => $id]
-            )->fetchColumn();
-            if ($exists === false) {
-                throw new \InvalidArgumentException('Template not found');
+        try {
+            if ($id > 0) {
+                $exists = $db->query(
+                    'SELECT id FROM moto_import_templates WHERE tenant_id = :tid AND id = :id',
+                    [':tid' => $tenantId, ':id' => $id]
+                )->fetchColumn();
+                if ($exists === false) {
+                    throw new \InvalidArgumentException('Template not found');
+                }
+                $db->prepare(
+                    'UPDATE moto_import_templates
+                     SET name = :name, sheet = :sheet, header_row = :hrow, data_start_row = :drow,
+                         mapping = :mapping, code_mode = :cmode, part_number_source = :pnsrc,
+                         part_number_cols = :pncols, part_number_sep = :pnsep, updated_at = CURRENT_TIMESTAMP
+                     WHERE tenant_id = :tid AND id = :id'
+                )->execute([
+                    ':name'   => $name,
+                    ':sheet'  => $sheet,
+                    ':hrow'   => $headerRow,
+                    ':drow'   => $dataStartRow,
+                    ':mapping'=> json_encode($mapping, $jsonOpts),
+                    ':cmode'  => $codeMode,
+                    ':pnsrc'  => $pnSource,
+                    ':pncols' => $pnCols !== null ? json_encode($pnCols, $jsonOpts) : null,
+                    ':pnsep'  => $pnSep,
+                    ':tid'    => $tenantId,
+                    ':id'     => $id,
+                ]);
+            } else {
+                $db->prepare(
+                    'INSERT INTO moto_import_templates
+                        (tenant_id, name, sheet, header_row, data_start_row, mapping, code_mode, part_number_source, part_number_cols, part_number_sep, created_by, created_by_name)
+                     VALUES (:tid, :name, :sheet, :hrow, :drow, :mapping, :cmode, :pnsrc, :pncols, :pnsep, :uid, :actor)'
+                )->execute([
+                    ':tid'    => $tenantId,
+                    ':name'   => $name,
+                    ':sheet'  => $sheet,
+                    ':hrow'   => $headerRow,
+                    ':drow'   => $dataStartRow,
+                    ':mapping'=> json_encode($mapping, $jsonOpts),
+                    ':cmode'  => $codeMode,
+                    ':pnsrc'  => $pnSource,
+                    ':pncols' => $pnCols !== null ? json_encode($pnCols, $jsonOpts) : null,
+                    ':pnsep'  => $pnSep,
+                    ':uid'    => (int)($ctx['user_id'] ?? 0) ?: null,
+                    ':actor'  => (string)($ctx['actor_name'] ?? ''),
+                ]);
+                $id = (int)$db->lastInsertId();
             }
-            $db->prepare(
-                'UPDATE moto_import_templates
-                 SET name = :name, sheet = :sheet, header_row = :hrow, data_start_row = :drow,
-                     mapping = :mapping, code_mode = :cmode, part_number_source = :pnsrc,
-                     part_number_cols = :pncols, part_number_sep = :pnsep, updated_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = :tid AND id = :id'
-            )->execute([
-                ':name'   => $name,
-                ':sheet'  => $sheet,
-                ':hrow'   => $headerRow,
-                ':drow'   => $dataStartRow,
-                ':mapping'=> json_encode($mapping, $jsonOpts),
-                ':cmode'  => $codeMode,
-                ':pnsrc'  => $pnSource,
-                ':pncols' => $pnCols !== null ? json_encode($pnCols, $jsonOpts) : null,
-                ':pnsep'  => $pnSep,
-                ':tid'    => $tenantId,
-                ':id'     => $id,
-            ]);
-        } else {
-            $db->prepare(
-                'INSERT INTO moto_import_templates
-                    (tenant_id, name, sheet, header_row, data_start_row, mapping, code_mode, part_number_source, part_number_cols, part_number_sep, created_by, created_by_name)
-                 VALUES (:tid, :name, :sheet, :hrow, :drow, :mapping, :cmode, :pnsrc, :pncols, :pnsep, :uid, :actor)'
-            )->execute([
-                ':tid'    => $tenantId,
-                ':name'   => $name,
-                ':sheet'  => $sheet,
-                ':hrow'   => $headerRow,
-                ':drow'   => $dataStartRow,
-                ':mapping'=> json_encode($mapping, $jsonOpts),
-                ':cmode'  => $codeMode,
-                ':pnsrc'  => $pnSource,
-                ':pncols' => $pnCols !== null ? json_encode($pnCols, $jsonOpts) : null,
-                ':pnsep'  => $pnSep,
-                ':uid'    => (int)($ctx['user_id'] ?? 0) ?: null,
-                ':actor'  => (string)($ctx['actor_name'] ?? ''),
-            ]);
-            $id = (int)$db->lastInsertId();
+        } catch (\Throwable $e) {
+            $missing = self::missingTableException($e);
+            if ($missing !== null) {
+                throw $missing;
+            }
+            throw $e;
         }
 
         moto_audit($ctx, 'moto_inventory.import_template.saved', 'moto_import_template', (string)$id, null, [
@@ -416,14 +445,39 @@ final class ImportTemplateService
     public static function deleteCustom(array $ctx, int $id): void
     {
         $db = moto_db((int)$ctx['tenant_id']);
-        $stmt = $db->prepare(
-            'DELETE FROM moto_import_templates WHERE tenant_id = :tid AND id = :id'
-        );
-        $stmt->execute([':tid' => (int)$ctx['tenant_id'], ':id' => $id]);
+        try {
+            $stmt = $db->prepare(
+                'DELETE FROM moto_import_templates WHERE tenant_id = :tid AND id = :id'
+            );
+            $stmt->execute([':tid' => (int)$ctx['tenant_id'], ':id' => $id]);
+        } catch (\Throwable $e) {
+            $missing = self::missingTableException($e);
+            if ($missing !== null) {
+                throw $missing;
+            }
+            throw $e;
+        }
         if ($stmt->rowCount() === 0) {
             throw new \InvalidArgumentException('Template not found');
         }
         moto_audit($ctx, 'moto_inventory.import_template.deleted', 'moto_import_template', (string)$id);
+    }
+
+    /**
+     * Translate a missing moto_import_templates table into a clear, actionable
+     * error (per-request auto-migration is not enabled for this module).
+     */
+    private static function missingTableException(\Throwable $e): ?\InvalidArgumentException
+    {
+        $m = strtolower($e->getMessage());
+        $missing = str_contains($m, '42s02')
+            || (str_contains($m, 'table') && (str_contains($m, "doesn't exist") || str_contains($m, 'does not exist')));
+        if (!$missing) {
+            return null;
+        }
+        return new \InvalidArgumentException(
+            'Custom import templates are unavailable — the import-templates migration has not been applied to this tenant. Run `php ikabud tenant:migrate <tenant> moto-inventory` (or the provisioning flow) to enable custom templates.'
+        );
     }
 
     /**
