@@ -287,3 +287,24 @@
     margin: 0 calc(var(--wb-space-4, 1rem) * -1);
     padding: 0 var(--wb-space-4, 1rem);
 }
+
+/* ── Modal / dialog form controls ──────────────────────────────
+   Force border-box on inputs/selects/textareas inside modals and dialogs.
+   The Tailwind preflight box-sizing reset is NOT present in this shell, so a
+   `w-full` control with px padding + border (e.g. palDialog's type-to-confirm
+   input) otherwise sizes as content-box and overflows the modal's edge. */
+.pal-modal input,
+.pal-modal select,
+.pal-modal textarea,
+[role="dialog"] input,
+[role="dialog"] select,
+[role="dialog"] textarea {
+    box-sizing: border-box;
+}
+
+/* The palDialog box is `w-full max-w-md p-6`; make it border-box so the
+   modal's outer width (including padding) honors max-w-md instead of growing
+   past it on narrow screens. */
+[role="dialog"] .bg-white {
+    box-sizing: border-box;
+}
