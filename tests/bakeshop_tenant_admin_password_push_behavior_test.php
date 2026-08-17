@@ -46,7 +46,7 @@ function setPrivateProperty(object $object, string $property, mixed $value): voi
 function getPrivateProperty(object $object, string $property): mixed
 {
     $ref = new ReflectionProperty($object, $property);
-    $ref->setAccessible(true);
+    // setAccessible() is a no-op since PHP 8.1 and deprecated since PHP 8.5 — omit it.
     return $ref->getValue($object);
 }
 

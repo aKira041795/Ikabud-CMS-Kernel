@@ -32,7 +32,7 @@ file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 
 $router = new \Ikabud\Kernel\Http\TenantEntryRouter();
 $method = new ReflectionMethod(\Ikabud\Kernel\Http\TenantEntryRouter::class, 'shouldFastReject');
-$method->setAccessible(true);
+// setAccessible() is a no-op since PHP 8.1 and deprecated since PHP 8.5 — omit it.
 
 echo "\n=== BLOCKED PROBES ===\n";
 t('wp-login.php is fast rejected', $method->invoke($router, '/wp-login.php') === true);
