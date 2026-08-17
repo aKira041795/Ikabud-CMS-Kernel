@@ -504,6 +504,37 @@ final class ImportService
         return false;
     }
 
+    /**
+     * Score how closely a sheet name matches a template's preferred sheet name.
+     * Names are normalized (lowercase, non-alphanumerics stripped) before
+     * comparing. Scores: exact 100, prefix 90, contains 80, suffix 70, else 0.
+     * Only >= 80 is treated as a match.
+     */
+    private static function sheetMatchScore(string $sheetName, string $templateSheet): int
+    {
+        $norm = static function (string $s): string {
+            return (string)(preg_replace('/[^a-z0-9]+/', '', strtolower($s)) ?? '');
+        };
+        $a = $norm($sheetName);
+        $b = $norm($templateSheet);
+        if ($a === '' || $b === '') {
+            return 0;
+        }
+        if ($a === $b) {
+            return 100;
+        }
+        if (str_starts_with($a, $b)) {
+            return 90;
+        }
+        if (str_contains($a, $b)) {
+            return 80;
+        }
+        if (str_starts_with($b, $a)) {
+            return 70;
+        }
+        return 0;
+    }
+
     // ── Staging ─────────────────────────────────────────────────────
 
     /**
@@ -549,14 +580,23 @@ final class ImportService
         }
 
         // A template may carry a preferred sheet name (e.g. "HONDA GEN").
+        // Matching is fuzzy and case/spacing tolerant: exact > prefix >
+        // contains, mirroring the wizard's auto-match so API-driven imports
+        // pick the same sheet a user would.
         if ($template !== null) {
             $prefSheet = (string)($template['sheet'] ?? '');
             if ($prefSheet !== '') {
+                $bestIdx = null;
+                $bestScore = 0;
                 foreach ($sheets as $idx => $s) {
-                    if (strcasecmp((string)$s['name'], $prefSheet) === 0) {
-                        $sheetIndex = $idx;
-                        break;
+                    $score = self::sheetMatchScore((string)$s['name'], $prefSheet);
+                    if ($score > $bestScore) {
+                        $bestScore = $score;
+                        $bestIdx = $idx;
                     }
+                }
+                if ($bestIdx !== null && $bestScore >= 80) {
+                    $sheetIndex = $bestIdx;
                 }
             }
         }

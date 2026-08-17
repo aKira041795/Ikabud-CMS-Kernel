@@ -230,15 +230,53 @@
         if (m && m.role) return m.role;
         return resolveFieldType(m ? m.label : '');
     }
-    function resolveAutoTemplate(sheetName) {
+    // ── Fuzzy sheet-name ↔ preset matching ──
+    // Sheet names in supplier workbooks vary ("HONDA GEN 2026", "Honda Gen ",
+    // "GENUINE HONDA PARTS") so matching is normalization + scoring, not exact:
+    //   exact      = 100
+    //   sheet starts with preset  = 90
+    //   sheet contains preset     = 80
+    //   preset starts with sheet  = 70
+    // A template is only auto-applied at >= 80. Normalization lowercases and
+    // strips anything that is not a letter/digit, so spacing, punctuation and
+    // case do not matter ("honda gen" == "HONDA-GEN").
+    function normalizeSheetName(s) {
+        return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    function sheetTemplateScore(sheetName, presetSheet) {
+        var a = normalizeSheetName(sheetName), b = normalizeSheetName(presetSheet);
+        if (!a || !b) return 0;
+        if (a === b) return 100;
+        if (a.indexOf(b) === 0) return 90;      // "HONDA GEN 2026" → HONDA GEN
+        if (a.indexOf(b) !== -1) return 80;     // "GENUINE HONDA GEN PARTS" → HONDA GEN
+        if (b.indexOf(a) === 0) return 70;
+        return 0;
+    }
+    // Best preset for a sheet name, or null when nothing scores >= 80.
+    function bestPresetForSheet(sheetName) {
         var reg = window.MOTO_IMPORT_TEMPLATES || {};
-        var keys = Object.keys(reg);
-        var target = String(sheetName || '').toLowerCase();
-        for (var i = 0; i < keys.length; i++) {
-            var t = reg[keys[i]];
-            if (t && t.kind === 'preset' && t.sheet && String(t.sheet).toLowerCase() === target) return t;
-        }
-        return null;
+        var best = null, bestScore = 0;
+        Object.keys(reg).forEach(function (k) {
+            var t = reg[k];
+            if (!t || t.kind !== 'preset' || !t.sheet) return;
+            var sc = sheetTemplateScore(sheetName, t.sheet);
+            if (sc > bestScore) { bestScore = sc; best = t; }
+        });
+        return bestScore >= 80 ? { template: best, score: bestScore } : null;
+    }
+    function resolveAutoTemplate(sheetName) {
+        var m = bestPresetForSheet(sheetName);
+        return m ? m.template : null;
+    }
+    // Best-matching sheet index for a template's preferred sheet name.
+    function findSheetIndexForTemplate(tmpl) {
+        if (!tmpl || !tmpl.sheet) return 0;
+        var best = 0, bestScore = 0;
+        (st.sheets || []).forEach(function (s, i) {
+            var sc = sheetTemplateScore(s.name, tmpl.sheet);
+            if (sc > bestScore) { bestScore = sc; best = i; }
+        });
+        return bestScore >= 80 ? best : 0;
     }
     // Turn a template's mapping (col → field, tolerant of field → col) into the
     // wizard's st.mappings rows. Returns true when applied.
@@ -501,13 +539,16 @@
                 // Auto mode: match a bundled preset to the sheet it was derived
                 // from (e.g. a "HONDA GEN" sheet auto-applies the HONDA GEN
                 // template). Explicit preset/custom selections use the chosen
-                // template directly; __custom__ maps manually.
+                // template directly; __custom__ maps manually. The best match
+                // across all sheets wins (fuzzy: case/spacing tolerant).
                 if (st.templateMode === '__auto__') {
                     st.template = null;
-                    for (var si = 0; si < st.sheets.length; si++) {
-                        var auto = resolveAutoTemplate(st.sheets[si].name);
-                        if (auto) { st.template = auto; break; }
-                    }
+                    var autoBest = null, autoScore = 0;
+                    (st.sheets || []).forEach(function (s) {
+                        var m = bestPresetForSheet(s.name);
+                        if (m && m.score > autoScore) { autoScore = m.score; autoBest = m.template; }
+                    });
+                    st.template = autoBest;
                 }
 
                 if (st.sheets.length === 1) {
@@ -516,12 +557,7 @@
                     loadSheet(st.sheetPath);
                     prepareRangeStep();
                 } else {
-                    var defaultIdx = 0;
-                    if (st.template && st.template.sheet) {
-                        for (var si2 = 0; si2 < st.sheets.length; si2++) {
-                            if (String(st.sheets[si2].name).toLowerCase() === String(st.template.sheet).toLowerCase()) { defaultIdx = si2; break; }
-                        }
-                    }
+                    var defaultIdx = st.template ? findSheetIndexForTemplate(st.template) : 0;
                     st.sheetIdx = defaultIdx;
                     var list = $('mi-wiz-sheet-list');
                     list.innerHTML = st.sheets.map(function (s, i) {
@@ -569,6 +605,18 @@
                     var header = (st.grid[st.headerRow] && st.grid[st.headerRow][c] != null) ? String(st.grid[st.headerRow][c]) : '';
                     return { colIdx: c, header: header, label: guessImportLabel(header) };
                 });
+            }
+            // Show which template drove the mapping (useful for auto-match).
+            var badge = $('mi-wiz-template-badge');
+            if (badge) {
+                if (st.template) {
+                    badge.style.display = 'block';
+                    badge.textContent = 'Using template: ' + (st.template.name || st.template.key) +
+                        (st.templateMode === '__auto__' ? ' (auto-matched from sheet name)' : '') +
+                        ' — edit below if needed, then Save as template to keep changes.';
+                } else {
+                    badge.style.display = 'none';
+                }
             }
             populateAddColumnPicker();
             renderMappingRows();

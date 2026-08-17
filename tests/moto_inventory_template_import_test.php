@@ -154,6 +154,31 @@ $yamaha = ImportTemplateService::get($ctx, 'preset:yamaha_gen');
 $yamStage = ImportService::stage($ctx, $branchId, $brandId, $momFile, 'mom.xlsx', $mime, null, 0, 0, 1, null, 'tpl-yamaha', $yamaha);
 $h->test('preset yamaha_gen auto-selects its sheet by name', count($yamStage['rows'] ?? []) === 1 && str_starts_with((string)($yamStage['rows'][0]['part_number'] ?? ''), '2PH-E2651'));
 
+// ── Fuzzy sheet-name matching (new / renamed sheets) ──────────────
+$h->section('Fuzzy sheet-name matching');
+
+// Sheets whose names are close but not identical to the preset names, plus one
+// that matches nothing. Auto-selection must be case/spacing/punctuation
+// tolerant (prefix + contains scoring, not exact equality).
+$fuzzyFile = $tmpDir . '/fuzzy.xlsx';
+moto_test_build_multi_xlsx($fuzzyFile, [
+    ['name' => 'MOTORWORKS - MISCELLANEOUS', 'rows' => [['DESCRIPTION', 'PN'], ['Filler', 'X-0']]],
+    ['name' => 'HONDA GEN 2026 PRICES', 'rows' => [
+        ['DESCRIPTION', 'UNIT MODEL', 'PARTS NUMBER', 'QTY DISPLAY', 'QTY STOCK', 'CODE', 'PRICE', 'DATE OF GIVEN PRICE'],
+        ['ARM COMP CAM', 'XRM110', '14500-035-020', '8', '', '', '500', ''],
+    ]],
+    ['name' => 'Tire - All sizes', 'rows' => [
+        ['SIZE', 'BRAND', 'PATTERN', 'TYPE', 'QUANTITY', 'CODE', 'PRICE'],
+        ['8X400-', 'MTL', 'W/TUBE', 'TT', '3', '', '1350'],
+    ]],
+]);
+
+$fuzzyHonda = ImportService::stage($ctx, $branchId, $brandId, $fuzzyFile, 'fuzzy.xlsx', $mime, null, 0, 0, 1, null, 'tpl-fz-honda', $honda);
+$h->test('fuzzy prefix sheet auto-selected (HONDA GEN 2026 PRICES)', count($fuzzyHonda['rows'] ?? []) === 1 && ($fuzzyHonda['rows'][0]['part_number'] ?? '') === '14500-035-020');
+
+$fuzzyTire = ImportService::stage($ctx, $branchId, $brandId, $fuzzyFile, 'fuzzy.xlsx', $mime, null, 0, 0, 1, null, 'tpl-fz-tire', $tire);
+$h->test('fuzzy prefix sheet auto-selected (Tire - All sizes)', count($fuzzyTire['rows'] ?? []) === 1 && str_contains((string)($fuzzyTire['rows'][0]['part_number'] ?? ''), '8X400-'));
+
 // ── Sell Price + Code Price (decode) still rejected ───────────────
 $h->section('Code semantics');
 
@@ -234,9 +259,22 @@ try {
 }
 $h->test('re-deleting a template is refused', $delRejected);
 
+// A custom template whose preferred sheet name is absent from the workbook
+// must not auto-match an unrelated sheet — the caller's sheet index wins.
+$h->section('Unmatched template sheet');
+
+$ghost = ImportTemplateService::saveCustom($ctx, [
+    'name' => 'GHOST BRAND', 'sheet' => 'RUSI 3000',
+    'mapping' => ['part_number' => 0, 'description' => 1],
+]);
+$ghostTpl = ImportTemplateService::get($ctx, 'custom:' . $ghost['id']);
+$ghostStage = ImportService::stage($ctx, $branchId, $brandId, $fuzzyFile, 'fuzzy.xlsx', $mime, null, 0, 0, 1, null, 'tpl-fz-ghost', $ghostTpl);
+$h->test('unmatched template sheet stays on caller sheet', ($ghostStage['rows'][0]['part_number'] ?? '') === 'Filler');
+
 // Cleanup
 @unlink($momFile);
 @unlink($rusiFile);
+@unlink($fuzzyFile);
 @rmdir($tmpDir);
 $tenant['cleanup']();
 $h->done();

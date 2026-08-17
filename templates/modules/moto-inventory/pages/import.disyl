@@ -80,6 +80,7 @@
 
         <div id="mi-wiz-step-mapping" style="display:none">
             <p class="mi-muted" style="font-size:.84rem">Type what each column means. Exactly one must be <strong>Part No.</strong> — anything else becomes a custom field stored and shown exactly as you name it. A <strong>Code Price</strong> column decodes the brand's coded price (M-I-C-H-A-E-L-S-O-N = 1-2-3-4-5-6-7-8-9-0); <strong>Code (store)</strong> saves the code as-is next to a Sell Price. Brand templates pre-fill this step.</p>
+            <div class="mi-banner info" id="mi-wiz-template-badge" style="display:none;margin-bottom:12px"></div>
             <div id="mi-wiz-map-rows" style="margin-bottom:12px"></div>
             <div class="mi-row" style="margin-bottom:12px">
                 <select id="mi-wiz-add-col" class="mi-input" style="max-width:320px" aria-label="Add column"></select>
@@ -147,7 +148,7 @@
 
 {block scripts}
 <script type="application/json" id="mi-imp-templates-json">{templates_json|raw}</script>
-<script src="/moto-inventory/assets/import-wizard.js?v=2026-08-17-2"></script>
+<script src="/moto-inventory/assets/import-wizard.js?v=2026-08-17-3"></script>
 <script>
 (function () {
     const S = window.MOTO_INVENTORY;
