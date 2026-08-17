@@ -82,7 +82,7 @@
         <h4 class="font-semibold text-gray-900 text-sm mb-3">💳 Payment Terms</h4>
         <dl class="space-y-2 text-sm">
             <div><dt class="text-gray-500 text-xs">Mode of Payment</dt><dd class="text-gray-700">{project_overview.payment.mode_of_payment|default:'—'|replace:'_':' '}</dd></div>
-            <div><dt class="text-gray-500 text-xs">Down Payment</dt><dd class="font-medium text-gray-900">{if project_overview.payment.down_payment !== null}₱{project_overview.payment.down_payment|number_format:2}{if project_overview.payment.down_payment_type} ({project_overview.payment.down_payment_type|replace:'_':' '}){/if}{else}—{/if}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Down Payment</dt><dd class="font-medium text-gray-900">{if (project_overview.payment.down_payment|default:null) !== null}₱{project_overview.payment.down_payment|default:0|number_format:2}{if project_overview.payment.down_payment_type|default:''} ({project_overview.payment.down_payment_type|replace:'_':' '}){/if}{else}—{/if}</dd></div>
         </dl>
     </div>
     <!-- Installation & Fabrication -->

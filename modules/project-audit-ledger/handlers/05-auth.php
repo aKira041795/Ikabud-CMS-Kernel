@@ -27,6 +27,7 @@ function palPageForgotPassword(): void
     echo app()->render('pages/forgot-password.disyl', palLoginPageContext([
         'page_title' => 'Forgot Password',
         'forgot_password_endpoint' => palBaseUrl() . '/api/v1/project-audit-ledger/auth/forgot-password',
+        'login_page_url' => palBaseUrl() . '/project-audit-ledger/login',
     ]));
 }
 

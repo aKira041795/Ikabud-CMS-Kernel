@@ -214,7 +214,7 @@
             <div class="wb-list-card__item">
                 <div class="wb-list-card__item-main">
                     <p class="wb-list-card__item-title">{e.description}</p>
-                    <p class="wb-list-card__item-sub">{e.category_name|default:'—'} · {e.expense_date}</p>
+                    <p class="wb-list-card__item-sub">{e.category_name|default:'—'} · {e.expense_date|default:'—'}</p>
                 </div>
                 <div class="wb-list-card__item-end">
                     <p class="wb-list-card__item-value" style="color:var(--wb-tone-danger)">₱{e.amount|number_format:2}</p>

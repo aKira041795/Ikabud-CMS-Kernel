@@ -173,7 +173,7 @@ function palApiAutocomplete(): void
 function palApiQuickCreate(): void
 {
     palResponseGuard(function(): void {
-        $u = palCurrentUser(); $tid = (int)($u['tenant_id'] ?? 0); $db = palDb();
+        $u = palCurrentUser(); palEnforceCsrf(); $tid = (int)($u['tenant_id'] ?? 0); $db = palDb();
         $type = $_POST['type'] ?? ''; $name = $_POST['name'] ?? '';
         if ($name === '') { palJsonError('Name is required.'); return; }
 

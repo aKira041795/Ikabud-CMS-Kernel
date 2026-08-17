@@ -75,7 +75,7 @@ function palApiAttachmentUpload(): void
 /**
  * API: Delete attachment
  */
-function palApiAttachmentDelete(array $rp = []): void { palResponseGuard(function(): void { $id=(int)($rp['id']??$_POST['id']??0); if($id<=0){palJsonError('Invalid attachment ID.',400);return;} $u=palCurrentUser(); try{ $svc=new palAttachmentService(palDb(),(int)($u['tenant_id']??0),(int)$u['id']); $svc->delete($id); header('Content-Type: application/json'); echo json_encode(['ok'=>true,'message'=>'Deleted']); }catch(Throwable $e){ palJsonError($e->getMessage(),400); } }); }
+function palApiAttachmentDelete(array $rp = []): void { palResponseGuard(function(): void { $id=(int)($rp['id']??$_POST['id']??0); if($id<=0){palJsonError('Invalid attachment ID.',400);return;} $u=palCurrentUser(); palEnforceCsrf(); try{ $svc=new palAttachmentService(palDb(),(int)($u['tenant_id']??0),(int)$u['id']); $svc->delete($id); header('Content-Type: application/json'); echo json_encode(['ok'=>true,'message'=>'Deleted']); }catch(Throwable $e){ palJsonError($e->getMessage(),400); } }); }
 
 /**
  * Helper: Render PO image gallery (thumbnail grid with lightbox)

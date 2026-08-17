@@ -291,9 +291,25 @@ class ExpressionEvaluator
 
     public function evaluateArithmetic(string $expr, array $context): int|float|null
     {
+        // Registered function calls (min, max, etc.) inside an arithmetic
+        // expression are resolved to scalars first so the arithmetic tokenizer
+        // can process the remainder. Mirrors the compiled path, which parses
+        // nested function calls as first-class AST nodes.
+        if (preg_match('/\b[a-zA-Z_]\w*\s*\(/', $expr)) {
+            $resolved = $this->resolveFunctionCallsInArith($expr, $context);
+            if ($resolved === false) {
+                return null;
+            }
+            $expr = $resolved;
+        }
         $tokens = $this->tokenizeArithExpr($expr);
         if ($tokens === null || count($tokens) === 0) {
             return null;
+        }
+        // The whole expression may have collapsed to a single numeric literal
+        // (e.g. `min(a, b)` resolved to a number) — return it directly.
+        if (count($tokens) === 1 && is_numeric($tokens[0])) {
+            return str_contains((string)$tokens[0], '.') ? (float)$tokens[0] : (int)$tokens[0];
         }
         $hasOp = false;
         foreach ($tokens as $tok) {
@@ -314,6 +330,72 @@ class ExpressionEvaluator
             return (int)$result;
         }
         return $result;
+    }
+
+    /**
+     * Resolve registered function calls (min, max, etc.) appearing at the top
+     * level of an arithmetic expression into their scalar results. Handles
+     * nested function calls and arithmetic inside arguments. Returns false if
+     * a call cannot be reduced to a numeric literal (string-returning calls are
+     * not embeddable in arithmetic).
+     */
+    private function resolveFunctionCallsInArith(string $expr, array $context): string|false
+    {
+        $len = strlen($expr);
+        $i = 0;
+        $inSingle = false;
+        $inDouble = false;
+        $depth = 0;
+        $out = '';
+        while ($i < $len) {
+            $ch = $expr[$i];
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $out .= $ch; $i++; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $out .= $ch; $i++; continue; }
+            if ($inSingle || $inDouble) { $out .= $ch; $i++; continue; }
+            if ($ch === '(') { $depth++; $out .= $ch; $i++; continue; }
+            if ($ch === ')') { $depth--; $out .= $ch; $i++; continue; }
+            if ($depth === 0 && preg_match('/\G([a-zA-Z_]\w*)\s*\(/A', $expr, $m, 0, $i)) {
+                $name = $m[1];
+                if (!FunctionRegistry::has($name)) {
+                    $out .= $ch;
+                    $i++;
+                    continue;
+                }
+                $parenStart = $i + strlen($m[0]) - 1;
+                $d = 0;
+                $close = -1;
+                for ($j = $parenStart; $j < $len; $j++) {
+                    if ($expr[$j] === '(') { $d++; }
+                    elseif ($expr[$j] === ')') { $d--; if ($d === 0) { $close = $j; break; } }
+                }
+                if ($close === -1) { return false; }
+                $argsStr = substr($expr, $parenStart + 1, $close - $parenStart - 1);
+                $argParts = $this->splitCallArgs($argsStr);
+                $resolved = [];
+                foreach ($argParts as $arg) {
+                    $arg = trim($arg);
+                    if ($arg === '') { $resolved[] = null; continue; }
+                    if (is_numeric($arg)) {
+                        $resolved[] = str_contains($arg, '.') ? (float)$arg : (int)$arg;
+                    } elseif (preg_match('/^["\'](.*)["\']$/', $arg, $qm)) {
+                        $resolved[] = $qm[1];
+                    } else {
+                        $resolved[] = $this->resolveValueWithFilters($arg, $context);
+                    }
+                }
+                $result = FunctionRegistry::call($name, $resolved);
+                if (is_numeric($result) || $result === null) {
+                    $out .= (string)($result === null ? 0 : $result);
+                } else {
+                    return false;
+                }
+                $i = $close + 1;
+                continue;
+            }
+            $out .= $ch;
+            $i++;
+        }
+        return $out;
     }
 
     public function tokenizeArithExpr(string $expr): ?array
