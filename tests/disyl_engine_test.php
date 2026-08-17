@@ -2297,6 +2297,113 @@ check(
     $e45->renderString("{for item in items}{item},{/for}", ['items' => ['d','e','f']])
 );
 
+section('46. Strict mode — defined (present-but-null) vs undefined');
+
+// Strict mode: a key that exists but holds null is DEFINED (no warning),
+// while a genuinely missing key is UNDEFINED (warning). Uses reflection to
+// inspect the engine's accumulated strict errors.
+$e46 = new TemplateEngine($tmpDir, '/tmp/disyl_strict_test_' . getmypid(), false);
+$e46->enableCompiledMode(false);
+$e46->enableStrictMode(true);
+$e46errors = new ReflectionProperty($e46, 'errors');
+$e46errors->setAccessible(true);
+
+$strictWarnCount = function () use ($e46, $e46errors): int {
+    return count(array_filter($e46errors->getValue($e46), fn ($m) => str_contains($m, '[strict]')));
+};
+
+$strictCtx = [
+    'e' => ['expense_date' => null, 'name' => 'hello'],
+    'proj' => ['payment' => ['down_payment' => null]],
+];
+
+// render() resets the errors array each call, so reset before every case and
+// assert on the resulting count (0 = no warning, 1 = warned).
+$strictReset = function () use ($e46, $e46errors): void {
+    $e46errors->setValue($e46, []);
+};
+
+// 46.1 — Present-but-null key renders empty and does NOT warn
+$strictReset();
+$out = $e46->renderString('{e.expense_date}', $strictCtx);
+check(
+    'strict: present-but-null renders empty',
+    '',
+    $out
+);
+check(
+    'strict: present-but-null does NOT warn',
+    '0',
+    (string)$strictWarnCount()
+);
+
+// 46.2 — Present non-null key renders value, no warning
+$strictReset();
+$out = $e46->renderString('{e.name}', $strictCtx);
+check(
+    'strict: present non-null renders value',
+    'hello',
+    $out
+);
+check(
+    'strict: present non-null does NOT warn',
+    '0',
+    (string)$strictWarnCount()
+);
+
+// 46.3 — Present-but-null nested path does NOT warn
+$strictReset();
+$e46->renderString('{proj.payment.down_payment}', $strictCtx);
+check(
+    'strict: nested present-but-null does NOT warn',
+    '0',
+    (string)$strictWarnCount()
+);
+
+// 46.4 — Genuinely missing key renders empty AND warns
+$strictReset();
+$e46->renderString('{e.nonexistent}', $strictCtx);
+check(
+    'strict: missing key DOES warn',
+    '1',
+    (string)$strictWarnCount()
+);
+
+// 46.5 — Missing nested key warns
+$strictReset();
+$e46->renderString('{proj.payment.zzz}', $strictCtx);
+check(
+    'strict: missing nested key DOES warn',
+    '1',
+    (string)$strictWarnCount()
+);
+
+// 46.6 — default-like filter suppresses the warning
+$strictReset();
+$out = $e46->renderString('{e.nonexistent|default:\'—\'}', $strictCtx);
+check(
+    'strict: default filter renders fallback',
+    '—',
+    $out
+);
+check(
+    'strict: default filter suppresses warning',
+    '0',
+    (string)$strictWarnCount()
+);
+
+// 46.7 — Runtime arithmetic with registered function calls (min/max)
+check(
+    'strict: min() in runtime arithmetic',
+    '5',
+    $e46->renderString('{min(5, 10)}', [])
+);
+check(
+    'strict: nested max() inside arithmetic',
+    '25',
+    $e46->renderString('{min(exp / max(contract, 1) * 100, 100)}', ['exp' => 50000, 'contract' => 200000])
+);
+
 // Print final section stats
 if ($current_section && ($section_pass + $section_fail > 0)) {
     $total = $section_pass + $section_fail;

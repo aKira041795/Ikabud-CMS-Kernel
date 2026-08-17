@@ -262,6 +262,28 @@ class ExpressionEvaluator
     }
 
     /**
+     * Return whether every key along a dot path is present in the context,
+     * distinguishing "key exists but is null" (defined) from "key missing"
+     * (undefined). This lets strict mode warn only about genuinely absent
+     * variables, not legitimate nullable fields.
+     */
+    public function isDefined(string $path, array $context): bool
+    {
+        $parts = explode('.', $path);
+        $value = $context;
+        foreach ($parts as $part) {
+            if (is_array($value) && array_key_exists($part, $value)) {
+                $value = $value[$part];
+            } elseif (is_object($value) && property_exists($value, $part)) {
+                $value = $value->$part;
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Resolve an expression with optional filter chain.
      */
     public function resolveValueWithFilters(string $expr, array $context): mixed

@@ -4334,10 +4334,11 @@ class TemplateEngine
                     }
                     $value = $resolveCache[$expr];
 
-                    // Strict mode: warn when a variable resolves to null (undefined in context),
-                    // but skip the warning if the variable root is declared via {@var}.
+                    // Strict mode: warn when a variable is undefined in context
+                    // (key genuinely absent), but skip when the value is merely
+                    // null (a defined nullable field) or the root is {@var}-declared.
                     $varRoot = strtok($expr, '.');
-                    if ($this->strictMode && $value === null && ($varRoot === false || !array_key_exists($varRoot, $this->declaredVars))) {
+                    if ($this->strictMode && $value === null && !$this->isDefined($expr, $context) && ($varRoot === false || !array_key_exists($varRoot, $this->declaredVars))) {
                         $this->logError("[strict] Undefined variable: {$expr}");
                     }
 
@@ -4371,11 +4372,12 @@ class TemplateEngine
                     }
                 }
 
-                // Strict mode: warn when filtered variable is undefined,
-                // but skip if the variable root is declared via {@var} or a default-like filter
-                // will intentionally handle the missing value.
+                // Strict mode: warn when a filtered variable is undefined,
+                // but skip if the variable root is declared via {@var}, a
+                // default-like filter handles the missing value, or the key is
+                // present (a defined nullable field).
                 $filteredVarRoot = strtok($varPath, '.');
-                if ($this->strictMode && !$hasDefaultLikeFilter && $value === null && ($filteredVarRoot === false || !array_key_exists($filteredVarRoot, $this->declaredVars))) {
+                if ($this->strictMode && !$hasDefaultLikeFilter && $value === null && !$this->isDefined($varPath, $context) && ($filteredVarRoot === false || !array_key_exists($filteredVarRoot, $this->declaredVars))) {
                     $this->logError("[strict] Undefined variable: {$varPath}");
                 }
 
@@ -4516,6 +4518,16 @@ class TemplateEngine
     private function resolveValue(string $path, array $context)
     {
         return $this->evaluator()->resolveValue($path, $context);
+    }
+
+    /**
+     * Whether every key along the dotted path is present in context. Distinct
+     * from resolveValue(): a key that exists but holds null counts as defined,
+     * so strict mode does not flag legitimate nullable fields.
+     */
+    private function isDefined(string $path, array $context): bool
+    {
+        return $this->evaluator()->isDefined($path, $context);
     }
 
     /**
