@@ -1,3 +1,4 @@
+<div class="space-y-6">
 <div class="wb-panel">
     <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">General Settings</h2></div>
     <div class="p-6">
@@ -54,4 +55,40 @@
             <button type="submit" class="wb-btn wb-btn--primary">Save Settings</button>
         </form>
     </div>
+</div>
+
+<div class="wb-panel border-red-200">
+    <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-red-700">Danger Zone — Data Reset</h2></div>
+    <div class="p-6">
+        <p class="text-sm text-gray-600 mb-4">Permanently deletes selected data for this workspace. This cannot be undone. Your login account and system settings (branding) are preserved.</p>
+
+        <div class="border border-red-200 rounded-lg p-4 mb-6">
+            <h3 class="text-sm font-semibold text-gray-800 mb-1">Full Reset</h3>
+            <p class="text-xs text-gray-500 mb-3">Deletes ALL business data (projects, quotations, sales, collections, purchases, expenses, inventory &amp; materials, cash advances, mobilization, fabrication, clients, suppliers, team leads, attachments, audit trail, approvals) and all user accounts except the currently logged-in admin.</p>
+            <form id="pal-full-reset-form" action="/api/v1/project-audit-ledger/settings/data-reset" method="POST">
+                {csrf_field | raw}
+                <input type="hidden" name="mode" value="full">
+                <button type="button" onclick="palConfirmFullReset()" class="wb-btn wb-btn--danger">Reset All Data</button>
+            </form>
+        </div>
+
+        <div>
+            <h3 class="text-sm font-semibold text-gray-800 mb-1">Granular Reset</h3>
+            <p class="text-xs text-gray-500 mb-3">Select the data groups to delete. Related approval records are cleared automatically.</p>
+            <form id="pal-granular-reset-form" action="/api/v1/project-audit-ledger/settings/data-reset" method="POST">
+                {csrf_field | raw}
+                <input type="hidden" name="mode" value="granular">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                    {for g in reset_groups}
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" name="groups[]" value="{g.key}" data-label="{g.label}" class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                        {g.label}
+                    </label>
+                    {/for}
+                </div>
+                <button type="button" onclick="palConfirmGranularReset()" class="wb-btn wb-btn--outline wb-btn--danger">Reset Selected</button>
+            </form>
+        </div>
+    </div>
+</div>
 </div>

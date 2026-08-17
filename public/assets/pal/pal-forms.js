@@ -158,4 +158,48 @@
         document.getElementById('po-items').appendChild(clone);
     };
 
+    // ── Settings: Data Reset ──
+    window.palConfirmFullReset = function () {
+        var form = document.getElementById('pal-full-reset-form');
+        if (!form) return;
+        palDialog({
+            title: 'Full Data Reset',
+            bodyText: 'This permanently deletes ALL business data (projects, quotations, sales, collections, purchases, expenses, inventory & materials, cash advances, mobilization, fabrication, clients, suppliers, team leads, attachments, audit trail, approvals) and all user accounts EXCEPT the currently logged-in admin. Branding and system settings are preserved. This cannot be undone.',
+            input: true,
+            placeholder: 'Type RESET to confirm',
+            confirmLabel: 'Reset All Data',
+            confirmClass: 'bg-red-600 hover:bg-red-700',
+            onClose: function (result) {
+                if (result.cancelled) return;
+                if ((result.value || '').toUpperCase() !== 'RESET') {
+                    window.showToast('Reset cancelled — you did not type RESET.', 'error');
+                    return;
+                }
+                ajaxSubmit(form, 'All data reset');
+            }
+        });
+    };
+
+    window.palConfirmGranularReset = function () {
+        var form = document.getElementById('pal-granular-reset-form');
+        if (!form) return;
+        var checked = form.querySelectorAll('input[name="groups[]"]:checked');
+        if (checked.length === 0) {
+            window.showToast('Select at least one group to reset.', 'error');
+            return;
+        }
+        var labels = Array.prototype.map.call(checked, function (c) { return c.dataset.label || c.value; });
+        palDialog({
+            title: 'Reset Selected Data',
+            fields: [{ label: 'Groups', value: labels.length + ' selected' }],
+            bodyText: 'This permanently deletes the selected data. Related approval records are cleared automatically. This cannot be undone.',
+            confirmLabel: 'Reset Selected (' + labels.length + ')',
+            confirmClass: 'bg-red-600 hover:bg-red-700',
+            onClose: function (result) {
+                if (result.cancelled) return;
+                ajaxSubmit(form, 'Selected data reset');
+            }
+        });
+    };
+
 })();

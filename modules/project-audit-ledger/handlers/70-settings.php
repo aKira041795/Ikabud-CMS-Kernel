@@ -26,6 +26,9 @@ function palPageSettings(): void
         $s4 = $db->prepare("SELECT id,name FROM pal_suppliers WHERE tenant_id=:tid AND is_active=1 ORDER BY name"); $s4->execute([':tid'=>$tid]); $ctx['mat_suppliers'] = $s4->fetchAll(PDO::FETCH_ASSOC);
     } else {
         $ctx['settings'] = palSettings();
+        $resetGroups = [];
+        foreach (palResetGroups() as $rk => $rg) { $resetGroups[] = ['key' => $rk, 'label' => $rg['label']]; }
+        $ctx['reset_groups'] = $resetGroups;
     }
 
     palRender(__DIR__ . '/../templates/project-audit-ledger/shell.disyl', $ctx);
@@ -134,6 +137,111 @@ foreach($_POST as $key=>$val){$s=$db->prepare("INSERT INTO pal_settings (tenant_
 if(isset($_FILES['logo'])&&$_FILES['logo']['error']===UPLOAD_ERR_OK){$f=$_FILES['logo'];$ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));if(in_array($ext,['png','jpg','jpeg','gif','svg'])){$name='logo-'.$tid.'.'.$ext;$dir=PUBLIC_PATH.'/uploads/pal/'.$tid;if(!is_dir($dir)){mkdir($dir,0755,true);}move_uploaded_file($f['tmp_name'],$dir.'/'.$name);$relPath='uploads/pal/'.$tid.'/'.$name;$db->prepare("INSERT INTO pal_settings (tenant_id, setting_key, setting_value) VALUES (:t,'logo_path',:v) ON DUPLICATE KEY UPDATE setting_value=:v2")->execute([':t'=>$tid,':v'=>$relPath,':v2'=>$relPath]);}} palAudit('pal.settings.updated', (int)$u['id'], 'pal_settings', null, null, []); header('Content-Type: application/json'); echo json_encode(['ok'=>true]); }); }
 
 function palApiSettingsLogoUpload(): void { palResponseGuard(function(){ $u=palRequireRole('admin'); palEnforceCsrf(); $tid=(int)($u['tenant_id']??0); if(!isset($_FILES['logo'])||$_FILES['logo']['error']!==UPLOAD_ERR_OK){palJsonError('Upload failed.',422);return;} $f=$_FILES['logo']; $ext=strtolower(pathinfo($f['name'], PATHINFO_EXTENSION)); if(!in_array($ext,['png','jpg','jpeg','gif','svg'])){palJsonError('Invalid image type.');return;} $name='logo-'.$tid.'.'.$ext; $dir=PUBLIC_PATH.'/uploads/pal/'.$tid; if(!is_dir($dir)){mkdir($dir,0755,true);} move_uploaded_file($f['tmp_name'],$dir.'/'.$name); $relPath='uploads/pal/'.$tid.'/'.$name; $db=palDb(); $db->prepare("INSERT INTO pal_settings (tenant_id, setting_key, setting_value) VALUES (:t,'logo_path',:v) ON DUPLICATE KEY UPDATE setting_value=:v2")->execute([':t'=>$tid,':v'=>$relPath,':v2'=>$relPath]); header('Content-Type: application/json'); echo json_encode(['ok'=>true, 'path'=>$relPath]); }); }
+
+/**
+ * Data reset groups — group key => human label, tables to wipe, and the
+ * pal_approvals entity_type values that reference them (cleared too).
+ */
+function palResetGroups(): array
+{
+    return [
+        'projects'      => ['label' => 'Projects & Quotations', 'tables' => ['pal_project_items', 'pal_projects', 'pal_quotation_items', 'pal_quotations'], 'approval_entities' => ['project']],
+        'sales'         => ['label' => 'Sales & Collections', 'tables' => ['pal_sale_items', 'pal_sales', 'pal_receivable_payments', 'pal_receivables', 'pal_collections'], 'approval_entities' => []],
+        'purchases'     => ['label' => 'Purchases', 'tables' => ['pal_purchase_items', 'pal_purchases'], 'approval_entities' => ['purchase']],
+        'expenses'      => ['label' => 'Expenses', 'tables' => ['pal_expenses'], 'approval_entities' => ['expense']],
+        'inventory'     => ['label' => 'Inventory & Materials', 'tables' => ['pal_inventory_movements', 'pal_inventory_balances', 'pal_materials', 'pal_material_issuance_items', 'pal_material_issuances', 'pal_material_returns'], 'approval_entities' => ['issuance']],
+        'cash_advances' => ['label' => 'Cash Advances', 'tables' => ['pal_cash_advances'], 'approval_entities' => ['cash_advance']],
+        'mobilization'  => ['label' => 'Mobilization', 'tables' => ['pal_mobilization_requests'], 'approval_entities' => ['mobilization']],
+        'fabrication'   => ['label' => 'Fabrication', 'tables' => ['pal_fabrication_weekly_dues', 'pal_fabrication_payments', 'pal_fabrication_allocations'], 'approval_entities' => ['fabrication_payment']],
+        'clients'       => ['label' => 'Clients', 'tables' => ['pal_clients'], 'approval_entities' => []],
+        'suppliers'     => ['label' => 'Suppliers', 'tables' => ['pal_suppliers'], 'approval_entities' => []],
+        'team_leads'    => ['label' => 'Team Leads', 'tables' => ['pal_team_leads'], 'approval_entities' => []],
+        'categories'    => ['label' => 'Categories, Units & Project Types', 'tables' => ['pal_expense_categories', 'pal_material_categories', 'pal_project_types', 'pal_units', 'pal_inventory_locations'], 'approval_entities' => []],
+        'attachments'   => ['label' => 'Attachments & Files', 'tables' => ['pal_attachments'], 'approval_entities' => []],
+        'logs'          => ['label' => 'Audit Trail & Report Exports', 'tables' => ['pal_audit_logs', 'pal_report_exports'], 'approval_entities' => []],
+        'approvals'     => ['label' => 'Approval Queue', 'tables' => [], 'approval_entities' => ['project', 'purchase', 'expense', 'issuance', 'cash_advance', 'mobilization', 'fabrication_payment']],
+    ];
+}
+
+/**
+ * Wipe selected PAL data groups for a tenant. Always preserves pal_settings
+ * (branding/config) and, in full mode, the currently-logged-in admin user.
+ * Runs with FOREIGN_KEY_CHECKS disabled so parent/child tables clear in any
+ * order. Each statement goes through ModuleDB separately (multi-statement
+ * queries and DDL are forbidden by the module DB contract).
+ */
+function palResetTenantData(Ikabud\Kernel\Contracts\ModuleDB $db, int $tid, int $uid, array $groups, bool $full): void
+{
+    $all = palResetGroups();
+    $tables = [];
+    $approvalEntities = [];
+    foreach ($groups as $g) {
+        if (!isset($all[$g])) { continue; }
+        $tables = array_merge($tables, $all[$g]['tables']);
+        $approvalEntities = array_merge($approvalEntities, $all[$g]['approval_entities']);
+    }
+    $tables = array_values(array_unique($tables));
+    $approvalEntities = array_values(array_unique($approvalEntities));
+
+    $db->query('SET FOREIGN_KEY_CHECKS = 0');
+    try {
+        foreach ($tables as $table) {
+            if ($table === 'pal_otp_codes') {
+                $db->query('DELETE FROM `pal_otp_codes`');
+            } else {
+                $db->prepare("DELETE FROM `{$table}` WHERE tenant_id = :tid")->execute([':tid' => $tid]);
+            }
+        }
+        if (!empty($approvalEntities)) {
+            $in = implode(',', array_fill(0, count($approvalEntities), '?'));
+            $db->prepare("DELETE FROM pal_approvals WHERE tenant_id = ? AND entity_type IN ({$in})")->execute(array_merge([$tid], $approvalEntities));
+        }
+        if ($full) {
+            $db->prepare('DELETE FROM pal_users WHERE tenant_id = :tid AND id <> :uid')->execute([':tid' => $tid, ':uid' => $uid]);
+            $db->prepare('DELETE FROM pal_password_resets WHERE tenant_id = :tid AND user_id <> :uid')->execute([':tid' => $tid, ':uid' => $uid]);
+            $db->query('DELETE FROM pal_otp_codes');
+        }
+    } finally {
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+    }
+}
+
+/**
+ * API: Settings data reset.
+ * POST /api/v1/project-audit-ledger/settings/data-reset
+ *   mode=full  -> wipe all business data + all users except the admin logged in
+ *   mode=granular&groups[]=projects&groups[]=sales... -> wipe selected groups
+ */
+function palApiSettingsDataReset(): void
+{
+    palResponseGuard(function(): void {
+        $u = palRequireRole('admin'); palEnforceCsrf();
+        $tid = (int)($u['tenant_id'] ?? 0);
+        $uid = (int)$u['id'];
+        $db = palDb();
+        $mode = $_POST['mode'] ?? '';
+        $groups = [];
+
+        if ($mode === 'full') {
+            $groups = array_keys(palResetGroups());
+            palResetTenantData($db, $tid, $uid, $groups, true);
+        } elseif ($mode === 'granular') {
+            $groups = $_POST['groups'] ?? [];
+            if (!is_array($groups) || count($groups) === 0) { palJsonError('Select at least one group to reset.'); return; }
+            $valid = array_keys(palResetGroups());
+            foreach ($groups as $g) {
+                if (!in_array((string)$g, $valid, true)) { palJsonError('Invalid reset group.'); return; }
+            }
+            palResetTenantData($db, $tid, $uid, array_values($groups), false);
+        } else {
+            palJsonError('Invalid reset mode.'); return;
+        }
+
+        palAudit('pal.data.reset', $uid, 'pal_*', null, null, ['mode' => $mode, 'groups' => $groups]);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true, 'message' => 'Data reset completed.']);
+    });
+}
 
 function palApiAutocomplete(): void
 {

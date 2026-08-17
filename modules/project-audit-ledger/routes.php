@@ -146,6 +146,7 @@ return [
         '/api/v1/project-audit-ledger/reports/generate' => 'project-audit-ledger:palApiReportGenerate',
         '/api/v1/project-audit-ledger/reports/export' => 'project-audit-ledger:palApiReportExport',
         '/api/v1/project-audit-ledger/settings' => 'project-audit-ledger:palApiSettingsSave',
+        '/api/v1/project-audit-ledger/settings/data-reset' => 'project-audit-ledger:palApiSettingsDataReset',
         '/api/v1/project-audit-ledger/settings/categories' => 'project-audit-ledger:palApiSettingsCategoryStore',
         '/api/v1/project-audit-ledger/settings/suppliers' => 'project-audit-ledger:palApiSettingsSupplierStore',
         '/api/v1/project-audit-ledger/settings/toggle/{id}' => 'project-audit-ledger:palApiSettingsToggleStatus',
