@@ -68,8 +68,11 @@ class ExpressionEvaluator
             return null;
         }
 
-        // Quoted string literal
-        if (preg_match('/^["\'](.*)["\']$/', $path, $qm)) {
+        // Quoted string literal — only when the ENTIRE string is a single
+        // quoted token. A filter chain like 'now'|date:'Y-m-d' is NOT a
+        // literal (it starts with a quote but carries a pipe), so it must not
+        // be captured here or it would be returned mangled.
+        if (preg_match('/^["\']((?:[^"\'\\\\]|\\\\.)*)["\']$/', $path, $qm)) {
             return $qm[1];
         }
 

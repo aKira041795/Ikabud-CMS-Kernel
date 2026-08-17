@@ -85,10 +85,10 @@ class palPurchaseService
             $purchaseId = (int)$this->db->lastInsertId();
 
             if (!empty($data['items']) && is_array($data['items'])) {
-                $ins = $this->db->prepare("INSERT INTO pal_purchase_items (purchase_id, material_id, description, quantity, unit_id, unit_cost, batch_number) VALUES (:pid, :mid, :desc, :qty, :uid, :uc, :bn)");
+                $ins = $this->db->prepare("INSERT INTO pal_purchase_items (tenant_id, purchase_id, material_id, description, quantity, unit_id, unit_cost, batch_number) VALUES (:t, :pid, :mid, :desc, :qty, :uid, :uc, :bn)");
                 foreach ($data['items'] as $item) {
                     $ins->execute([
-                        ':pid' => $purchaseId, ':mid' => (int)($item['material_id'] ?? 0),
+                        ':t' => $this->tenantId, ':pid' => $purchaseId, ':mid' => (int)($item['material_id'] ?? 0),
                         ':desc' => $item['description'] ?? null, ':qty' => $item['quantity'] ?? 0,
                         ':uid' => !empty($item['unit_id']) ? (int)$item['unit_id'] : null,
                         ':uc' => $item['unit_cost'] ?? 0, ':bn' => $item['batch_number'] ?? null,

@@ -120,7 +120,7 @@
                             <tr class="border-b border-gray-100">
                                 <td class="py-1 px-2 text-xs text-gray-500 text-center" x-text="idx + 1"></td>
                                 <td class="py-1 px-2">
-                                    <select x-model="item.material_id" aria-label="Material" @change="onMaterialSelect(idx)" class="wb-table-control w-28">
+                                    <select x-model="item.material_id" :name="'material_id['+idx+']'" aria-label="Material" @change="onMaterialSelect(idx)" class="wb-table-control w-28">
                                         <option value="">—</option>
                                         {for m in materials}
                                         <option value="{m.id}"

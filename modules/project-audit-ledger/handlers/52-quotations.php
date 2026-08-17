@@ -82,7 +82,11 @@ function palApiQuotationStore(): void
         $s = new palQuotationService(palDb(), (int)($u['tenant_id'] ?? 0), (int)$u['id']);
 
         $items = [];
-        if (!empty($_POST['items']) && is_array($_POST['items'])) {
+        if (!empty($_POST['items']) && is_string($_POST['items'])) {
+            // JSON-serialized line items (matches the sales form contract)
+            $decoded = json_decode($_POST['items'], true);
+            $items = is_array($decoded) ? $decoded : [];
+        } elseif (!empty($_POST['items']) && is_array($_POST['items'])) {
             $items = $_POST['items'];
         } elseif (!empty($_POST['particulars']) && is_array($_POST['particulars'])) {
             // Form-encoded line items
@@ -120,7 +124,10 @@ function palApiQuotationUpdate(array $rp = []): void
         $s = new palQuotationService(palDb(), (int)($u['tenant_id'] ?? 0), (int)$u['id']);
 
         $items = [];
-        if (!empty($_POST['items']) && is_array($_POST['items'])) {
+        if (!empty($_POST['items']) && is_string($_POST['items'])) {
+            $decoded = json_decode($_POST['items'], true);
+            $items = is_array($decoded) ? $decoded : [];
+        } elseif (!empty($_POST['items']) && is_array($_POST['items'])) {
             $items = $_POST['items'];
         } elseif (!empty($_POST['particulars']) && is_array($_POST['particulars'])) {
             foreach ($_POST['particulars'] as $i => $part) {

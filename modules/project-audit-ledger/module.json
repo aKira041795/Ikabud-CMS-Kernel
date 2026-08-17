@@ -38,6 +38,7 @@
         ],
         "default_admin_role": "admin",
         "requires_named_admin_on_provision": true,
+        "tenant_id_column": "tenant_id",
         "touch_updated_at": true
     },
     "owns_tables": [

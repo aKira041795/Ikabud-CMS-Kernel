@@ -48,6 +48,20 @@
     });
 
     // ── Toast (accessible) ──
+    function toastContainer() {
+        var container = document.getElementById('toast-container') || document.getElementById('wb-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed top-4 right-4 z-[9999] flex flex-col gap-2';
+            container.setAttribute('role', 'status');
+            container.setAttribute('aria-live', 'polite');
+            container.setAttribute('aria-atomic', 'false');
+            document.body.appendChild(container);
+        }
+        return container;
+    }
+
     window.showToast = function (msg, type) {
         type = type || 'success';
         var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600', warning: 'bg-yellow-500 text-yellow-900' };
@@ -55,9 +69,13 @@
         el.className = (colors[type] || 'bg-gray-700') + ' text-white px-4 py-2 rounded-lg shadow-lg text-sm transition-opacity duration-300';
         el.textContent = msg;
         el.setAttribute('role', 'alert');
-        var container = document.getElementById('toast-container');
-        if (container) container.appendChild(el);
-        setTimeout(function () { el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 300); }, 4000);
+        try {
+            toastContainer().appendChild(el);
+            setTimeout(function () { el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 300); }, 4000);
+        } catch (e) {
+            // Never let a toast failure break the surrounding action.
+            console.error('showToast failed:', e);
+        }
     };
 
     // ── Lightbox (accessible dialog) ──

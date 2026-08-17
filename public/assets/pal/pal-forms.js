@@ -64,7 +64,12 @@
     };
 
     // ── Creatable select ──
+    // Idempotent: each <select data-creatable> is wired at most once, so a
+    // DOMContentLoaded auto-init and any page-level inline bootstrap scripts
+    // can safely coexist without appending duplicate "Other" options.
     window.makeCreatable = function (select) {
+        if (!select || select.dataset.palCreatableWired === '1') return;
+        select.dataset.palCreatableWired = '1';
         var opt = document.createElement('option');
         opt.value = '__other__';
         opt.textContent = '✦ Other: type new...';
@@ -76,6 +81,29 @@
             }
         });
     };
+
+    // ── Creatable select auto-init ──
+    // Wires every present <select data-creatable> without needing an inline
+    // <script> in each page template. Inline templates historically wrote
+    // bootstrap scripts like `forEach(function(e){makeCreatable(e);})` which
+    // DiSyL's script-block interpolation can mangle (curly braces are also
+    // DiSyL delimiters), producing invalid JS. Centralize that wiring here.
+    window.wireCreatableSelects = function (root) {
+        var scope = root || document;
+        var selects = scope.querySelectorAll ? scope.querySelectorAll('select[data-creatable]') : [];
+        for (var i = 0; i < selects.length; i++) {
+            window.makeCreatable(selects[i]);
+        }
+    };
+
+    function initCreatableSelects() {
+        window.wireCreatableSelects(document);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCreatableSelects);
+    } else {
+        initCreatableSelects();
+    }
 
     // ── Quick-create modal (uses shared palDialog) ──
     window.showQuickCreateModal = function (select) {

@@ -54,12 +54,12 @@ class palMaterialIssuanceService
             $issuanceId = (int)$this->db->lastInsertId();
 
             if (!empty($data['items']) && is_array($data['items'])) {
-                $ins = $this->db->prepare("INSERT INTO pal_material_issuance_items (issuance_id, material_id, requested_qty, unit_cost) VALUES (:iid, :mid, :qty, :uc)");
+                $ins = $this->db->prepare("INSERT INTO pal_material_issuance_items (tenant_id, issuance_id, material_id, requested_qty, unit_cost) VALUES (:t, :iid, :mid, :qty, :uc)");
                 foreach ($data['items'] as $item) {
                     $avgStmt = $this->db->prepare("SELECT COALESCE(avg_cost, 0) FROM pal_inventory_balances WHERE material_id = :mid AND tenant_id = :tid");
                     $avgStmt->execute([':mid' => (int)$item['material_id'], ':tid' => $this->tenantId]);
                     $avgCost = (float)$avgStmt->fetchColumn();
-                    $ins->execute([':iid' => $issuanceId, ':mid' => (int)$item['material_id'], ':qty' => $item['quantity'] ?? 0, ':uc' => $avgCost]);
+                    $ins->execute([':t' => $this->tenantId, ':iid' => $issuanceId, ':mid' => (int)$item['material_id'], ':qty' => $item['quantity'] ?? 0, ':uc' => $avgCost]);
                 }
             }
             $this->db->commit();

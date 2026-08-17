@@ -81,7 +81,7 @@ class palSalesService
                 VALUES (:t, :sn, :pj, :cl, :cn, :cc, :ce, :cp, :ca, :qi, :inv, :sd, :ga, :da, :ta, :ic, :mc, :oc, :dp, :dpt, :mop, :sow, :wi, :dd, :pt, :no, 'issued', :cb)");
 
             // Snapshot client information at time of invoice creation
-            $clientSnapshot = $this->loadClientSnapshot($data['client_id'] ?? null);
+            $clientSnapshot = $this->loadClientSnapshot(!empty($data['client_id']) ? (int)$data['client_id'] : null);
 
             $stmt->execute([
                 ':t' => $this->tenantId,

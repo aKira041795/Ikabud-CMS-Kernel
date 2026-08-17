@@ -14,7 +14,6 @@
             <div><input type="number" step="0.01" name="reorder_level" placeholder="Reorder level" class="wb-input"></div>
             <div class="col-span-2 flex gap-2"><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Create</button><button type="button" onclick="document.getElementById('mat-form').classList.add('hidden')" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button></div>
         </form>
-        <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.set-mat-cat,.set-mat-unit').forEach(function(e){if(e)makeCreatable(e);});});</script>
     </div>
     <table class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Code</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Category</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Unit</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Stock</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Avg Cost</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>

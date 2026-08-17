@@ -70,7 +70,9 @@ class palCashAdvanceService
             ':tl' => (int)$data['team_lead_id'],
             ':pj' => !empty($data['project_id']) ? (int)$data['project_id'] : null,
             ':amt' => $amount,
-            ':ad' => $data['advance_date'] ?? date('Y-m-d'),
+            // Empty string (or missing) advance_date must fall back to today —
+            // a blank date POSTed from the form would otherwise fail the DATE column.
+            ':ad' => !empty($data['advance_date']) ? $data['advance_date'] : date('Y-m-d'),
             ':desc' => $data['description'] ?? null,
             ':cb' => $this->userId,
         ]);

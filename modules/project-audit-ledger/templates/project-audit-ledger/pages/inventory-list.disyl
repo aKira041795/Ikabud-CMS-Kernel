@@ -16,7 +16,6 @@
             <div><input type="number" step="0.01" name="reorder_level" placeholder="Reorder level" class="wb-input"></div>
             <div class="col-span-3 flex gap-2"><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Create</button><button type="button" onclick="document.getElementById('material-form').classList.add('hidden')" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button></div>
         </form>
-        <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.inv-cat-select,.inv-unit-select').forEach(function(e){if(e)makeCreatable(e);});});</script>
     </div>
     <div class="wb-panel__body--flush">
         {ikb_entity_list source="pal_material" view="table" use="workbench" sortable="true" search="true" search-placeholder="Search materials..." empty="No materials." /}

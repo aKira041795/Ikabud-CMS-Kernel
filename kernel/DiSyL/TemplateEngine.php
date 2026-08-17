@@ -4156,6 +4156,25 @@ class TemplateEngine
             function($match) use ($context, &$resolveCache) {
                 $expr = trim($match[1]);
 
+                // Parenthesized pipe expression: {('literal'|filter:arg)} or
+                // {('literal'|filter1|filter2)}. The outer parens wrap the whole
+                // expression, which trips up the arithmetic path and splitByPipe
+                // (paren depth keeps the pipe inside a single segment, and the
+                // quoted-literal resolver then mangles it). Strip a balanced
+                // outer pair and re-process the inner expression.
+                if (str_starts_with($expr, '(') && str_ends_with($expr, ')') && str_contains($expr, '|')) {
+                    $inner = trim(substr($expr, 1, -1));
+                    $pDepth = 0;
+                    $pBalanced = true;
+                    for ($pi = 0, $pl = strlen($inner); $pi < $pl; $pi++) {
+                        if ($inner[$pi] === '(') { $pDepth++; }
+                        elseif ($inner[$pi] === ')') { $pDepth--; if ($pDepth < 0) { $pBalanced = false; break; } }
+                    }
+                    if ($pBalanced && $pDepth === 0) {
+                        return $this->processVariables('{' . $inner . '}', $context);
+                    }
+                }
+
                 if (!$this->isProcessableTemplateExpression($expr)) {
                     return $match[0];
                 }
@@ -4445,6 +4464,12 @@ class TemplateEngine
 
         $filters = $this->splitByPipe($expr);
         $varPath = trim((string) array_shift($filters));
+
+        // Quoted string literal piped through filters: {'text'|upper},
+        // {'now'|date:'Y-m-d'}. The base is a literal, not a variable path.
+        if (preg_match('/^["\'](?:[^"\'\\\\]|\\\\.)*["\']$/', $varPath)) {
+            return true;
+        }
 
         return $this->isValidTemplateVariablePath($varPath);
     }

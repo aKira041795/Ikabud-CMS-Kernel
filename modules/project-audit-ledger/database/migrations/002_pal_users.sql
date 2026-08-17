@@ -1,4 +1,15 @@
--- Project Audit Ledger — Users table + bootstrap seed
+-- Project Audit Ledger — Users table
+--
+-- NOTE on the bootstrap admin: the admin account is NOT seeded from this
+-- migration. PAL is an auth_owned module with `requires_named_admin_on_provision`,
+-- so `php ikabud tenant:provision <id> --admin-user=... --admin-pass=...` seeds
+-- the real admin through the kernel TenantProvisioner using the provisioned
+-- tenant's actual id (see auth_owned.tenant_id_column = "tenant_id").
+--
+-- A legacy version of this file seeded a placeholder admin with a hardcoded
+-- `tenant_id = 1`, which left fresh tenant databases with an admin scoped to
+-- the wrong tenant (auth lookups use username + tenant_id and could never
+-- match). That seed was removed; do not re-add a hardcoded tenant_id here.
 
 CREATE TABLE IF NOT EXISTS pal_users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -18,15 +29,3 @@ CREATE TABLE IF NOT EXISTS pal_users (
     INDEX idx_pal_user_tenant (tenant_id),
     INDEX idx_pal_user_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Bootstrap admin user (placeholder password requires reset)
-INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active)
-SELECT
-    1 AS tenant_id,
-    'admin' AS username,
-    'admin@project-ledger.local' AS email,
-    '!pal-bootstrap-password-reset-required!' AS password_hash,
-    'System Admin' AS full_name,
-    'admin' AS role,
-    1 AS is_active
-WHERE NOT EXISTS (SELECT 1 FROM pal_users LIMIT 1);

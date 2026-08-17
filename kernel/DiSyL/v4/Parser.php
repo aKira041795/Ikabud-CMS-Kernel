@@ -1418,10 +1418,18 @@ final class Parser
             }
         }
 
-        // Quoted string
+        // Quoted string — only when the ENTIRE expression is a single quoted
+        // token. A filter chain like 'now'|date:'Y-m-d' starts and ends with a
+        // quote too, but must be parsed as a literal piped through filters, not
+        // collapsed into one mangled literal.
         if (($expr[0] === '"' || $expr[0] === "'") && strlen($expr) >= 2) {
             $quote = $expr[0];
-            if ($expr[strlen($expr) - 1] === $quote) {
+            $closeQuote = -1;
+            for ($qi = 1, $ql = strlen($expr); $qi < $ql; $qi++) {
+                if ($expr[$qi] === '\\') { $qi++; continue; }
+                if ($expr[$qi] === $quote) { $closeQuote = $qi; break; }
+            }
+            if ($closeQuote === strlen($expr) - 1) {
                 return new LiteralNode([], substr($expr, 1, -1));
             }
         }

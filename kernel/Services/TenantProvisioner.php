@@ -343,6 +343,19 @@ class TenantProvisioner
             $vals = [':u'];
             $params = [':u' => $user];
 
+            // Tenant-scoped users tables (e.g. pal_users) must be seeded with
+            // the provisioned tenant's real id — not a hardcoded placeholder —
+            // otherwise auth lookups (username + tenant_id) can never match.
+            $tenantIdColumn = trim((string)($spec['tenant_id_column'] ?? ''));
+            if ($tenantIdColumn !== '') {
+                $provisionedTenantId = (int)(app()->tenant()->current() ?? 0);
+                if ($provisionedTenantId > 0) {
+                    $cols[] = '`' . $tenantIdColumn . '`';
+                    $vals[] = ':tid';
+                    $params[':tid'] = $provisionedTenantId;
+                }
+            }
+
             if ($emailCol !== '' && $emailCol !== $usernameCol) {
                 $cols[] = '`' . $emailCol . '`';
                 $vals[] = ':e';

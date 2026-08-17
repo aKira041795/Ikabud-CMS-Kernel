@@ -41,7 +41,7 @@ class palMaterialReturnService
             $uid = $this->userId;
 
             $stmt = $this->db->prepare(
-                "INSERT INTO pal_material_returns (tenant_id, project_id, issuance_id, material_id, quantity_returned, condition, reason, return_date, received_by, created_by)
+                "INSERT INTO pal_material_returns (tenant_id, project_id, issuance_id, material_id, quantity_returned, `condition`, reason, return_date, received_by, created_by)
                  VALUES (:t, :pj, :ii, :mi, :qr, :cond, :rsn, :rd, :rb, :cb)"
             );
             $stmt->execute([

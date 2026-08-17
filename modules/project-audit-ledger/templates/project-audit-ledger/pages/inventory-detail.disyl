@@ -37,7 +37,6 @@
 
         <div class="col-span-2 flex gap-2 mt-2"><button type="submit" class="wb-btn wb-btn--primary">Save Changes</button><a href="/admin/project-audit-ledger/inventory" class="wb-btn wb-btn--secondary">← Back to Inventory</a></div>
     </form>
-    <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.detail-cat-select,.detail-unit-select,.detail-conv-select,.detail-supplier-select').forEach(function(e){if(e)makeCreatable(e);});});</script>
 
     <hr class="my-6">
     <h3 class="font-semibold text-gray-900 mb-2">Adjust Stock</h3>

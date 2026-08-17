@@ -16,7 +16,7 @@
             <div class="col-span-3"><span class="wb-label">Total</span></div>
             <div class="col-span-1"></div>
         </div>
-        {if purchase}{if purchase.items}
+        {if purchase && purchase.items}
         {for item in purchase.items}
         <div class="grid grid-cols-12 gap-2 items-end mb-2 po-row">
             <div class="col-span-4"><select name="material_id[]" required class="wb-select po-mat-select" data-creatable="material">{for m in materials}<option value="{m.id}"{if item.material_id==m.id} selected{/if}>{m.name}</option>{/for}</select></div>
@@ -35,10 +35,8 @@
             <div class="col-span-1"><button type="button" onclick="this.closest('.po-row').remove()" class="text-xs text-red-500">✕</button></div>
         </div>
         {/if}
-        {/if}
         </div>
         <button type="button" onclick="addPoRow()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Item</button>
-        <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.po-mat-select').forEach(function(e){makeCreatable(e);});});</script>
         <div class="flex gap-3 pt-2"><button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create'}</button> <a href="/admin/project-audit-ledger/purchases" class="wb-btn wb-btn--secondary">Cancel</a></div>
     </form>
 </div>

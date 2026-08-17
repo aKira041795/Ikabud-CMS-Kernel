@@ -1929,6 +1929,7 @@ function validateModuleCapabilities(array $manifest): array
  *     "name_column":                "full_name",                 // optional, default 'full_name'
  *     "active_column":              "is_active",                 // optional, default 'is_active'
  *     "deleted_column":             null,                        // optional, default null
+ *     "tenant_id_column":           "tenant_id",                 // optional, default null. When set, the tenant provisioner seeds this column with the provisioned tenant's id so auth_owned users are tenant-scoped correctly.
  *     "admin_roles":                ["admin"],                   // required, non-empty
  *     "default_admin_role":         "admin",                     // optional, default first admin_roles entry
  *     "requires_named_admin_on_provision": true,                 // optional, default false
@@ -1950,7 +1951,7 @@ function validateAuthOwnedSpec(mixed $raw, bool $strictReservedRoles = false): a
         return ['ok' => false, 'error' => 'module.json field auth_owned.users_table must be a valid identifier'];
     }
 
-    foreach (['username_column', 'email_column', 'password_column', 'name_column', 'active_column', 'deleted_column'] as $colField) {
+    foreach (['username_column', 'email_column', 'password_column', 'name_column', 'active_column', 'deleted_column', 'tenant_id_column'] as $colField) {
         if (!array_key_exists($colField, $raw) || $raw[$colField] === null) {
             continue;
         }
@@ -2037,6 +2038,7 @@ function kernelNormalizeAuthOwnedSpec(string $moduleId, array $raw): array
         'name_column'                        => (string)($raw['name_column'] ?? 'full_name'),
         'active_column'                      => isset($raw['active_column']) && $raw['active_column'] !== null ? (string)$raw['active_column'] : 'is_active',
         'deleted_column'                     => isset($raw['deleted_column']) && $raw['deleted_column'] !== null ? (string)$raw['deleted_column'] : null,
+        'tenant_id_column'                   => isset($raw['tenant_id_column']) && $raw['tenant_id_column'] !== null ? (string)$raw['tenant_id_column'] : null,
         'admin_roles'                        => $adminRoles,
         'default_admin_role'                 => $defaultRole,
         'requires_named_admin_on_provision'  => !empty($raw['requires_named_admin_on_provision']),
