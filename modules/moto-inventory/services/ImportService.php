@@ -535,6 +535,66 @@ final class ImportService
         return 0;
     }
 
+    /**
+     * Remove mapped columns that have no populated cell across the data range.
+     * Supplier pricelists carry annotation columns that are blank for every
+     * row (e.g. "DATE OF GIVEN PRICE"); importing them only produces empty
+     * custom fields / null values, so they are dropped for a cleaner result.
+     *
+     * Identity columns are always kept:
+     *   - the part_number column,
+     *   - the description column when the template derives the part number
+     *     from the description,
+     *   - the composite part-number columns when the template builds the part
+     *     number by joining columns.
+     *
+     * @param array<int, array<int, string>> $grid
+     * @param array<string,int> $mapping field → column index
+     * @return array<string,int>
+     */
+    private static function pruneEmptyMappingColumns(array $grid, array $mapping, int $dataStartRow, ?int $dataEndRow, ?array $template): array
+    {
+        $keep = [];
+        if (isset($mapping['part_number'])) {
+            $keep[(int)$mapping['part_number']] = true;
+        }
+        if ($template !== null) {
+            $pnSource = (string)($template['part_number_source'] ?? 'column');
+            if ($pnSource === 'description' && isset($mapping['description'])) {
+                $keep[(int)$mapping['description']] = true;
+            } elseif ($pnSource === 'composite') {
+                foreach ((array)($template['part_number_cols'] ?? []) as $c) {
+                    $keep[(int)$c] = true;
+                }
+            }
+        }
+
+        $gridRows = array_values($grid);
+        $rowCount = count($gridRows);
+        $dataEnd = $dataEndRow === null ? $rowCount - 1 : max($dataStartRow, min($dataEndRow, $rowCount - 1));
+
+        $populated = [];
+        for ($i = $dataStartRow; $i <= $dataEnd; $i++) {
+            $row = $gridRows[$i] ?? [];
+            foreach ($mapping as $field => $col) {
+                $col = (int)$col;
+                if (isset($row[$col]) && trim((string)$row[$col]) !== '') {
+                    $populated[$col] = true;
+                }
+            }
+        }
+
+        $pruned = [];
+        foreach ($mapping as $field => $col) {
+            $col = (int)$col;
+            if (isset($keep[$col]) || isset($populated[$col])) {
+                $pruned[$field] = $col;
+            }
+        }
+
+        return $pruned;
+    }
+
     // ── Staging ─────────────────────────────────────────────────────
 
     /**
@@ -660,6 +720,14 @@ final class ImportService
         if (isset($seen['code']) && isset($seen['code_attr'])) {
             throw new \InvalidArgumentException("A column cannot be both a Code Price and a stored code — pick one");
         }
+
+        // Drop fully-empty columns from the import: a mapped column with no
+        // populated cell across the data range contributes nothing (empty
+        // custom fields, null price/qty) — pruning keeps the staged data and
+        // the product's extra JSON clean. Identity columns (the part-number
+        // column, or the description/composite part-number sources) are always
+        // kept so the part identity survives.
+        $mapping = self::pruneEmptyMappingColumns($grid, $mapping, $dataStartRow, $dataEndRow, $template);
 
         $built = self::buildRows($ctx, $branchId, $brandId, $grid, $mapping, $headerRow, $dataStartRow, $dataEndRow, $template);
         if ($built['rows'] === []) {

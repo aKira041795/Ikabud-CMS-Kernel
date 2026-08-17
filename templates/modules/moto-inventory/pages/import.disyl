@@ -148,7 +148,7 @@
 
 {block scripts}
 <script type="application/json" id="mi-imp-templates-json">{templates_json|raw}</script>
-<script src="/moto-inventory/assets/import-wizard.js?v=2026-08-17-3"></script>
+<script src="/moto-inventory/assets/import-wizard.js?v=2026-08-17-4"></script>
 <script>
 (function () {
     const S = window.MOTO_INVENTORY;

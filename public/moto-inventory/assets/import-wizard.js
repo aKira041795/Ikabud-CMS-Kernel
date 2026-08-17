@@ -201,7 +201,7 @@
         headerRow: 0, dataStartRow: 1, dataEndRow: null,
         cols: [], mappings: [], pendingRows: [],
         brandId: 0, branchId: 0, file: null,
-        templateMode: '__auto__', template: null
+        templateMode: '__auto__', template: null, droppedEmptyCols: 0
     };
 
     // ── Brand template support ──
@@ -278,6 +278,20 @@
         });
         return bestScore >= 80 ? best : 0;
     }
+    // Column indices that carry at least one non-empty cell across the current
+    // data range. Used to drop fully-empty columns from the mapping.
+    function populatedColumnSet() {
+        var set = {};
+        for (var r = st.dataStartRow; r <= st.dataEndRow; r++) {
+            var row = st.grid[r];
+            if (!row) continue;
+            Object.keys(row).forEach(function (c) {
+                var v = row[c];
+                if (v != null && String(v).trim() !== '') set[c] = true;
+            });
+        }
+        return set;
+    }
     // Turn a template's mapping (col → field, tolerant of field → col) into the
     // wizard's st.mappings rows. Returns true when applied.
     function applyTemplateMappings(tmpl) {
@@ -290,7 +304,24 @@
             if (!isNaN(col) && typeof v === 'string') { colToField[col] = v; }
             else if (/^\d+$/.test(String(k)) === false && (typeof v === 'number' || /^\d+$/.test(String(v)))) { colToField[parseInt(v, 10)] = k; }
         });
-        var cols = Object.keys(colToField).map(Number).filter(function (c) { return c >= 0 && c <= st.maxCol; }).sort(function (a, b) { return a - b; });
+        // Identity columns (part number + its synthesis sources) always stay.
+        var identity = {};
+        Object.keys(colToField).forEach(function (c) {
+            if (colToField[c] === 'part_number') identity[c] = true;
+            if (tmpl && tmpl.part_number_source === 'description' && colToField[c] === 'description') identity[c] = true;
+        });
+        if (tmpl && tmpl.part_number_source === 'composite') {
+            (tmpl.part_number_cols || []).forEach(function (c) { identity[c] = true; });
+        }
+        var populated = populatedColumnSet();
+        var dropped = 0;
+        var cols = Object.keys(colToField).map(Number).filter(function (c) {
+            if (!(c >= 0 && c <= st.maxCol)) return false;
+            if (identity[c] || populated[c]) return true;
+            dropped++;
+            return false;
+        }).sort(function (a, b) { return a - b; });
+        st.droppedEmptyCols = (st.droppedEmptyCols || 0) + dropped;
         if (!cols.length) return false;
         st.mappings = cols.map(function (c) {
             var header = (st.grid[st.headerRow] && st.grid[st.headerRow][c] != null) ? String(st.grid[st.headerRow][c]) : '';
@@ -523,6 +554,7 @@
         st.brandId = opts.brandId; st.branchId = opts.branchId; st.file = opts.file;
         st.templateMode = opts.templateMode || '__auto__';
         st.template = opts.template || null;
+        st.droppedEmptyCols = 0;
         var errBox = $('mi-imp-file-error') || null;
         function fail(msg) { if (errBox) { errBox.textContent = msg; errBox.style.display = 'block'; } else if (typeof S.toast === 'function') S.toast(msg, true); }
 
@@ -601,19 +633,36 @@
             // A template pre-fills the mapping; otherwise guess from headers.
             var applied = st.template ? applyTemplateMappings(st.template) : false;
             if (!applied) {
-                st.mappings = st.cols.map(function (c) {
+                var guessed = st.cols.map(function (c) {
                     var header = (st.grid[st.headerRow] && st.grid[st.headerRow][c] != null) ? String(st.grid[st.headerRow][c]) : '';
                     return { colIdx: c, header: header, label: guessImportLabel(header) };
                 });
+                // Drop fully-empty columns, but always keep the part-number column.
+                var populated = populatedColumnSet();
+                var partCol = null;
+                guessed.forEach(function (m) { if (partCol === null && resolveFieldType(m.label) === 'Part No.') partCol = m.colIdx; });
+                var dropped = 0;
+                st.mappings = guessed.filter(function (m) {
+                    if (m.colIdx === partCol || populated[m.colIdx]) return true;
+                    dropped++;
+                    return false;
+                });
+                st.droppedEmptyCols = (st.droppedEmptyCols || 0) + dropped;
             }
             // Show which template drove the mapping (useful for auto-match).
             var badge = $('mi-wiz-template-badge');
             if (badge) {
+                var parts = [];
                 if (st.template) {
+                    parts.push('Using template: ' + (st.template.name || st.template.key) +
+                        (st.templateMode === '__auto__' ? ' (auto-matched from sheet name)' : ''));
+                }
+                if (st.droppedEmptyCols) {
+                    parts.push('dropped ' + st.droppedEmptyCols + ' empty column(s) — no data in the selected rows (use "+ Add column" to include one)');
+                }
+                if (parts.length) {
                     badge.style.display = 'block';
-                    badge.textContent = 'Using template: ' + (st.template.name || st.template.key) +
-                        (st.templateMode === '__auto__' ? ' (auto-matched from sheet name)' : '') +
-                        ' — edit below if needed, then Save as template to keep changes.';
+                    badge.textContent = parts.join(' · ');
                 } else {
                     badge.style.display = 'none';
                 }

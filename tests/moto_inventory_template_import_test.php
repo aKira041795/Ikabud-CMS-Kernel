@@ -179,6 +179,27 @@ $h->test('fuzzy prefix sheet auto-selected (HONDA GEN 2026 PRICES)', count($fuzz
 $fuzzyTire = ImportService::stage($ctx, $branchId, $brandId, $fuzzyFile, 'fuzzy.xlsx', $mime, null, 0, 0, 1, null, 'tpl-fz-tire', $tire);
 $h->test('fuzzy prefix sheet auto-selected (Tire - All sizes)', count($fuzzyTire['rows'] ?? []) === 1 && str_contains((string)($fuzzyTire['rows'][0]['part_number'] ?? ''), '8X400-'));
 
+// ── Empty-column pruning ──────────────────────────────────────────
+$h->section('Empty-column pruning');
+
+// QTY STOCK (col 4) and DATE OF GIVEN PRICE (col 7) are blank in every data
+// row → the honda_gen template's custom fields for them must be dropped.
+// Unit Model (col 1) and CODE (col 5, row 2 = ASN) are populated → kept.
+$pruneFile = $tmpDir . '/prune.xlsx';
+moto_test_build_xlsx($pruneFile, [
+    ['DESCRIPTION', 'UNIT MODEL', 'PARTS NUMBER', 'QTY DISPLAY', 'QTY STOCK', 'CODE', 'PRICE', 'DATE OF GIVEN PRICE'],
+    ['ARM COMP CAM', 'XRM110', '14500-035-020', '8', '', '', '500', ''],
+    ['BRAKE PAD', 'CB125', '14500-KYY-900', '6', '', 'ASN', '650', ''],
+]);
+$pruneStage = ImportService::stage($ctx, $branchId, $brandId, $pruneFile, 'prune.xlsx', $mime, null, 0, 0, 1, null, 'tpl-prune', $honda);
+$pArm = $hondaRow($pruneStage['rows'] ?? [], '14500-035-020');
+$h->test('empty custom column dropped from extra', is_array($pArm) && !array_key_exists('Qty Stock', $pArm['extra']) && !array_key_exists('Date of Given Price', $pArm['extra']));
+$h->test('populated custom column kept in extra', is_array($pArm) && ($pArm['extra']['Unit Model'] ?? '') === 'XRM110');
+$h->test('part number column always kept', is_array($pArm) && ($pArm['part_number'] ?? '') === '14500-035-020');
+$h->test('partially populated code column kept', is_array($pArm) && ($pArm['code'] ?? '') === '');
+$pPad = $hondaRow($pruneStage['rows'] ?? [], '14500-KYY-900');
+$h->test('populated code preserved when column has any data', is_array($pPad) && ($pPad['code'] ?? '') === 'ASN');
+
 // ── Sell Price + Code Price (decode) still rejected ───────────────
 $h->section('Code semantics');
 
@@ -275,6 +296,7 @@ $h->test('unmatched template sheet stays on caller sheet', ($ghostStage['rows'][
 @unlink($momFile);
 @unlink($rusiFile);
 @unlink($fuzzyFile);
+@unlink($pruneFile);
 @rmdir($tmpDir);
 $tenant['cleanup']();
 $h->done();
