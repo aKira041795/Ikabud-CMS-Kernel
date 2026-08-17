@@ -21,6 +21,22 @@ define('PUBLIC_PATH', BASE_PATH . '/public');
 define('KERNEL_PATH', BASE_PATH . '/kernel');
 define('TEMPLATES_PATH', BASE_PATH . '/templates');
 
+/**
+ * @mysql57-compat no-op wrapper for imagedestroy().
+ *
+ * imagedestroy() has had no effect since PHP 8.0 and is deprecated since
+ * PHP 8.5 (its deprecation warning pollutes error.log and breaks tests that
+ * assert "no error.log errors"). GD releases the image when the resource is
+ * garbage-collected, so skipping the call on PHP 8.0+ is safe and correct;
+ * on legacy PHP (<8.0) it still frees the resource deterministically.
+ */
+function kernelImageDestroy(mixed $image): void
+{
+    if (PHP_VERSION_ID < 80000) {
+        imagedestroy($image);
+    }
+}
+
 function kernel_ensure_writable_session_path(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {

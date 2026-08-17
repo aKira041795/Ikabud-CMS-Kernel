@@ -279,8 +279,8 @@ function cmsImportMediaFromUrl(string $url, string $altText, int $uploadedBy, \I
                 }
                 ob_end_clean();
 
-                imagedestroy($dst);
-                imagedestroy($src);
+                kernelImageDestroy($dst);
+                kernelImageDestroy($src);
 
                 if (is_string($resized) && $resized !== '') {
                     $data = $resized;

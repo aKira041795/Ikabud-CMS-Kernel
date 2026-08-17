@@ -66,7 +66,7 @@ function cmsMediaFlipImageResource($image, int $mode): bool
     }
 
     imagecopy($image, $flipped, 0, 0, 0, 0, $width, $height);
-    imagedestroy($flipped);
+    kernelImageDestroy($flipped);
     return true;
 }
 
@@ -89,7 +89,7 @@ function cmsMediaApplyImageEdit(string $absolutePath, string $mime, string $oper
         $bg = imagecolorallocatealpha($source, 0, 0, 0, 127);
         $rotated = imagerotate($source, $degrees, $bg);
         if (!$rotated) {
-            imagedestroy($source);
+            kernelImageDestroy($source);
             return false;
         }
         imagealphablending($rotated, false);
@@ -107,14 +107,14 @@ function cmsMediaApplyImageEdit(string $absolutePath, string $mime, string $oper
         $sourceWidth = imagesx($source);
         $sourceHeight = imagesy($source);
         if ($targetWidth <= 0 || $targetHeight <= 0 || $sourceWidth <= 0 || $sourceHeight <= 0) {
-            imagedestroy($source);
+            kernelImageDestroy($source);
             return false;
         }
         $resized = cmsMediaCreateCanvas($targetWidth, $targetHeight, $mime);
         $success = imagecopyresampled($resized, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
         if (!$success) {
-            imagedestroy($resized);
-            imagedestroy($source);
+            kernelImageDestroy($resized);
+            kernelImageDestroy($source);
             return false;
         }
         $result = $resized;
@@ -129,37 +129,37 @@ function cmsMediaApplyImageEdit(string $absolutePath, string $mime, string $oper
         $outputHeight = max(0, (int)($options['output_height'] ?? 0));
 
         if ($sourceWidth <= 0 || $sourceHeight <= 0 || $cropWidth <= 0 || $cropHeight <= 0) {
-            imagedestroy($source);
+            kernelImageDestroy($source);
             return false;
         }
 
         if ($cropX >= $sourceWidth || $cropY >= $sourceHeight) {
-            imagedestroy($source);
+            kernelImageDestroy($source);
             return false;
         }
 
         $cropWidth = min($cropWidth, $sourceWidth - $cropX);
         $cropHeight = min($cropHeight, $sourceHeight - $cropY);
         if ($cropWidth <= 0 || $cropHeight <= 0) {
-            imagedestroy($source);
+            kernelImageDestroy($source);
             return false;
         }
 
         $cropped = cmsMediaCreateCanvas($cropWidth, $cropHeight, $mime);
         $success = imagecopy($cropped, $source, 0, 0, $cropX, $cropY, $cropWidth, $cropHeight);
         if (!$success) {
-            imagedestroy($cropped);
-            imagedestroy($source);
+            kernelImageDestroy($cropped);
+            kernelImageDestroy($source);
             return false;
         }
 
         if ($outputWidth > 0 && $outputHeight > 0 && ($outputWidth !== $cropWidth || $outputHeight !== $cropHeight)) {
             $resampled = cmsMediaCreateCanvas($outputWidth, $outputHeight, $mime);
             $success = imagecopyresampled($resampled, $cropped, 0, 0, 0, 0, $outputWidth, $outputHeight, $cropWidth, $cropHeight);
-            imagedestroy($cropped);
+            kernelImageDestroy($cropped);
             if (!$success) {
-                imagedestroy($resampled);
-                imagedestroy($source);
+                kernelImageDestroy($resampled);
+                kernelImageDestroy($source);
                 return false;
             }
             $cropped = $resampled;
@@ -167,21 +167,21 @@ function cmsMediaApplyImageEdit(string $absolutePath, string $mime, string $oper
 
         $result = $cropped;
     } else {
-        imagedestroy($source);
+        kernelImageDestroy($source);
         return false;
     }
 
     if (!$success) {
-        imagedestroy($source);
+        kernelImageDestroy($source);
         return false;
     }
 
     $saved = cmsMediaSaveImageResource($result, $absolutePath, $mime);
 
     if ($result !== $source) {
-        imagedestroy($result);
+        kernelImageDestroy($result);
     }
-    imagedestroy($source);
+    kernelImageDestroy($source);
 
     return $saved;
 }

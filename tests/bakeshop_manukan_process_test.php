@@ -334,15 +334,27 @@ try {
     $inventoryTotals = bakeshopInventorySnapshotTotals($inventoryRows);
     $expectedDeliveredTotal = array_sum($expectedDelivered);
     $expectedConsumedTotal = array_sum($expectedConsumed);
-    $expectedVarianceTotal = $expectedDeliveredTotal - $expectedConsumedTotal;
+
+    // The app stores each ingredient's variance rounded to usage_decimal_places
+    // (2) and then sums those per-row values. Summing raw delivered/consumed and
+    // rounding once can differ by 0.01 when per-row roundings accumulate across
+    // ingredients (surfaces on PHP 8.5). Mirror the app's model so the totals
+    // assertion is version-independent.
+    $expectedPerRowVariance = [];
+    foreach (array_keys($expectedDelivered) as $ingredientKey) {
+        $expectedPerRowVariance[] = round(
+            (float)($expectedDelivered[$ingredientKey] ?? 0.0) - (float)($expectedConsumed[$ingredientKey] ?? 0.0),
+            2
+        );
+    }
+    $roundedExpectedVarianceTotal = round(array_sum($expectedPerRowVariance), 2);
     $roundedExpectedDeliveredTotal = round($expectedDeliveredTotal, 2);
     $roundedExpectedConsumedTotal = round($expectedConsumedTotal, 2);
-    $roundedExpectedVarianceTotal = round($expectedVarianceTotal, 2);
 
     btManukan('usage totals delivered base match fixture', abs((float)($usageTotals['delivered_qty_base'] ?? 0) - $roundedExpectedDeliveredTotal) < 0.0001, json_encode($usageTotals, JSON_UNESCAPED_SLASHES));
     btManukan('usage totals consumed base match fixture', abs((float)($usageTotals['consumed_qty_base'] ?? 0) - $roundedExpectedConsumedTotal) < 0.0001, json_encode($usageTotals, JSON_UNESCAPED_SLASHES));
-    btManukan('usage totals variance base match fixture', abs((float)($usageTotals['variance_qty_base'] ?? 0) - $roundedExpectedVarianceTotal) < 0.0001, json_encode($usageTotals, JSON_UNESCAPED_SLASHES));
-    btManukan('inventory totals on-hand base match fixture', abs((float)($inventoryTotals['on_hand_qty_base'] ?? 0) - $roundedExpectedVarianceTotal) < 0.0001, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
+    btManukan('usage totals variance base match fixture', abs((float)($usageTotals['variance_qty_base'] ?? 0) - $roundedExpectedVarianceTotal) < 0.0001, json_encode(['actual' => $usageTotals['variance_qty_base'] ?? null, 'expected' => $roundedExpectedVarianceTotal, 'delivered_total' => $roundedExpectedDeliveredTotal, 'consumed_total' => $roundedExpectedConsumedTotal], JSON_UNESCAPED_SLASHES));
+    btManukan('inventory totals on-hand base match fixture', abs((float)($inventoryTotals['on_hand_qty_base'] ?? 0) - $roundedExpectedVarianceTotal) < 0.0001, json_encode(['actual' => $inventoryTotals['on_hand_qty_base'] ?? null, 'expected' => $roundedExpectedVarianceTotal, 'item_count' => $inventoryTotals['item_count'] ?? null], JSON_UNESCAPED_SLASHES));
     btManukan('inventory totals count tracked ingredient lines', (int)($inventoryTotals['item_count'] ?? 0) === count((array)($fixture['ingredients'] ?? [])), json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
 
     $actualFactualSummary = [

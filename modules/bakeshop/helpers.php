@@ -1034,8 +1034,8 @@ function bakeshopNormalizeStoredLogoImage(string $absolutePath, string $mimeType
     imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
 
     $saved = bakeshopStoreLogoSaveImageResource($canvas, $absolutePath, $mimeType);
-    imagedestroy($canvas);
-    imagedestroy($source);
+    kernelImageDestroy($canvas);
+    kernelImageDestroy($source);
 
     if (!$saved) {
         throw new InvalidArgumentException('Uploaded logo image could not be normalized.');

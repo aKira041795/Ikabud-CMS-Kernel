@@ -78,11 +78,11 @@ function cmsGenerateThumbnails(string $absolutePath, string $relativeDir, string
             case 'image/webp': imagewebp($dst, $thumbPath, 82); break;
         }
 
-        imagedestroy($dst);
+        kernelImageDestroy($dst);
         $generated[$name] = $relativeDir . '/' . $thumbFilename;
     }
 
-    imagedestroy($src);
+    kernelImageDestroy($src);
     return $generated;
 }
 

@@ -60,7 +60,7 @@ try {
         imagefilledrectangle($image, 0, 0, $sourceWidth, $sourceHeight, $background);
         imagefilledrectangle($image, 80, 120, 1520, 520, $accent);
         imagepng($image, $tmpPath);
-        imagedestroy($image);
+        kernelImageDestroy($image);
     } else {
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s1nXKQAAAAASUVORK5CYII=');
         if ($png === false) {
