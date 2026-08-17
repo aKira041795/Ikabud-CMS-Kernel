@@ -93,6 +93,10 @@ release-manifest.json
 # Runtime/test artifacts (regenerate on every run, must never be committed)
 /storage/cache_www*/
 /storage/report-archive/rpt_*
+# Runtime CMS theme symlink — recreated on demand by cmsApplyThemeSymlinkState()
+/templates/_cms_active_theme
+# Runtime scheduler state — written by kernel/Services/ReportManager.php
+/storage/scheduled-reports.json
 # Manual HTTP load-testing tool — deliberately excluded from the default
 # composer test suite (scripts/run-tests.php); keep it out of discovery.
 /tests/load_test.php
