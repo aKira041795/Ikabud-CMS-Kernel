@@ -194,8 +194,10 @@ ok('make:module creates dir', is_dir(__DIR__ . '/../modules/cli-test-tmp'));
 ok('make:module creates module.json', is_file(__DIR__ . '/../modules/cli-test-tmp/module.json'));
 ok('make:module creates handlers.php', is_file(__DIR__ . '/../modules/cli-test-tmp/handlers.php'));
 ok('make:module creates template', is_file(__DIR__ . '/../templates/modules/cli-test-tmp/pages/home.disyl'));
-// cleanup
+// cleanup — also remove the generated tests/cli_test_tmp_module_test.php so the
+// scaffolder does not leave an untracked test file behind (dirty CI tree guard).
 shell_exec("rm -rf {$base}/modules/cli-test-tmp {$base}/templates/modules/cli-test-tmp");
+@unlink(__DIR__ . '/cli_test_tmp_module_test.php');
 
 heading('CLI Tool — Grouped module paths');
 
