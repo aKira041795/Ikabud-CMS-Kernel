@@ -51,29 +51,41 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        db:
+        include:
           - name: mysql-8
             image: mysql:8.0
             root_password: ci_root_pass
             database: baronbakeshop_ci
+            php: '8.3'
           - name: mysql-5.7
             image: mysql:5.7
             root_password: ci_root_pass
             database: baronbakeshop_ci
             label: "production target"
+            php: '8.3'
           - name: mariadb-10.6
             image: mariadb:10.6
             root_password: ci_root_pass
             database: baronbakeshop_ci
+            php: '8.3'
+          # PHP 8.5 axis — catches version-only failures (e.g. PHP 8.5 deprecations
+          # like ReflectionProperty::setAccessible()) that used to surface only on
+          # local dev, not CI. One DB is enough for version drift coverage.
+          - name: mariadb-10.6-php-8.5
+            image: mariadb:10.6
+            root_password: ci_root_pass
+            database: baronbakeshop_ci
+            label: "php 8.5"
+            php: '8.5'
 
     services:
       mysql:
-        image: ${{ matrix.db.image }}
+        image: ${{ matrix.image }}
         env:
-          MYSQL_ROOT_PASSWORD: ${{ matrix.db.root_password }}
-          MARIADB_ROOT_PASSWORD: ${{ matrix.db.root_password }}
-          MYSQL_DATABASE: ${{ matrix.db.database }}
-          MARIADB_DATABASE: ${{ matrix.db.database }}
+          MYSQL_ROOT_PASSWORD: ${{ matrix.root_password }}
+          MARIADB_ROOT_PASSWORD: ${{ matrix.root_password }}
+          MYSQL_DATABASE: ${{ matrix.database }}
+          MARIADB_DATABASE: ${{ matrix.database }}
         ports:
           - 3306:3306
         options: >-
@@ -87,12 +99,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: CI target database
-        run: echo "Running matrix for ${{ matrix.db.name }}"
+        run: echo "Running matrix for ${{ matrix.name }}"
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php }}
           extensions: pdo, pdo_mysql, mbstring, json, openssl, zip
           coverage: none
 
@@ -206,8 +218,17 @@ jobs:
       - name: Run test suite
         run: composer test
 
-      - name: Composer audit (dependency vulnerability scan)
-        run: composer audit --no-interaction
+      # Guard: tests must not regenerate tracked source/artifact files. Without
+      # this, a test that writes into the working tree (test_results/*.json,
+      # storage caches, report-archive, etc.) silently dirties the repo and the
+      # noise resurfaces on every run.
+      - name: Verify working tree is clean after test suite
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Working tree is dirty after running the test suite:"
+            git status --porcelain
+            exit 1
+          fi
 
       - name: Generate release manifest
         run: php scripts/generate-release-manifest.php
@@ -266,3 +287,34 @@ jobs:
       - name: PHP-CS-Fixer coding standards
         continue-on-error: true
         run: composer lint -- --show-progress=dots
+
+      # MySQL 5.7 compatibility guard — blocks SQL constructs that are syntax
+      # errors on the Bluehost MySQL 5.7 production target (window functions,
+      # CTEs, JSON_TABLE, EXCEPT/INTERSECT, CHECK constraints, and bare
+      # FOR UPDATE SKIP LOCKED). Prevents the class of failure that broke
+      # platform_tier1 on the mysql-5.7 CI axis.
+      - name: MySQL 5.7 compatibility guard
+        run: php scripts/guard-mysql57-compat.php
+
+  dependency-audit:
+    name: Composer audit (dependency vulnerability scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, mbstring, json, openssl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # Isolated from the DB test matrix so a stale/vulnerable package (e.g. the
+      # dompdf v3.1.5 advisories) fails this job alone instead of turning every
+      # test job red after all tests already passed.
+      - name: Composer audit
+        run: composer audit --no-interaction

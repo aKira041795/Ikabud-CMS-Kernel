@@ -1314,24 +1314,34 @@ function kernelDispatchJob(string $handler, array $payload = [], string $queue =
 }
 
 /**
- * @mysql57-compat Whether the connected DB supports `FOR UPDATE SKIP LOCKED`.
+ * @mysql57-compat Whether a server version string supports `FOR UPDATE SKIP LOCKED`.
  * MySQL 8.0.1+ and MariaDB 10.6+ support it; MySQL 5.7 / MariaDB <10.6 do not
- * (the clause is a syntax error there). The kernel job queue worker and the
- * push delivery worker fall back to plain `FOR UPDATE` on such servers, which
- * is safe for the single-worker case and correct on the Bluehost MySQL 5.7
- * production target.
+ * (the clause is a syntax error there). Pure function — unit-testable without
+ * a live connection; see tests/mysql57_skip_locked_compat_test.php.
+ */
+function kernelDbVersionSupportsSkipLocked(string $version): bool
+{
+    $version = trim($version);
+    if ($version === '') {
+        return false;
+    }
+    if (stripos($version, 'MariaDB') !== false) {
+        // e.g. "10.6.18-MariaDB" — SKIP LOCKED added in 10.6.
+        return version_compare((string)preg_replace('/[^0-9.].*$/', '', $version), '10.6', '>=');
+    }
+    // MySQL — SKIP LOCKED added in 8.0.1 (8.0.0 introduced, 8.0.1 usable).
+    return version_compare($version, '8.0.1', '>=');
+}
+
+/**
+ * @mysql57-compat Whether the connected DB supports `FOR UPDATE SKIP LOCKED`.
+ * Delegates to kernelDbVersionSupportsSkipLocked() for the version comparison.
  */
 function kernelDbSupportsSkipLocked(?\PDO $db = null): bool
 {
     try {
         $db = $db ?? app()->db();
-        $version = (string)$db->getAttribute(\PDO::ATTR_SERVER_VERSION);
-        if (stripos($version, 'MariaDB') !== false) {
-            // e.g. "10.6.18-MariaDB" — SKIP LOCKED added in 10.6.
-            return version_compare((string)preg_replace('/[^0-9.].*$/', '', $version), '10.6', '>=');
-        }
-        // MySQL — SKIP LOCKED added in 8.0.1 (8.0.0 introduced, 8.0.1 usable).
-        return version_compare($version, '8.0.1', '>=');
+        return kernelDbVersionSupportsSkipLocked((string)$db->getAttribute(\PDO::ATTR_SERVER_VERSION));
     } catch (\Throwable $e) {
         return false;
     }

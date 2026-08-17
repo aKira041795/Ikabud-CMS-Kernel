@@ -89,3 +89,10 @@ test_results/browser/runs/
 /storage/workbench/runs/
 /storage/academic_similarity/
 release-manifest.json
+
+# Runtime/test artifacts (regenerate on every run, must never be committed)
+/storage/cache_www*/
+/storage/report-archive/rpt_*
+# Manual HTTP load-testing tool — deliberately excluded from the default
+# composer test suite (scripts/run-tests.php); keep it out of discovery.
+/tests/load_test.php
