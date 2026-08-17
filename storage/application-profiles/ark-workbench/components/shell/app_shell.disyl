@@ -80,7 +80,7 @@
     {* Toast container *}
     <div id="wb-toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
-    <script src="/assets/workbench/workbench-core.js?v=6"></script>
+    <script src="/assets/workbench/workbench-core.js?v=7"></script>
     {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="{script}"></script>{/for}{/if}
     <script>
     /* ajaxSubmit — handles form submission via fetch with toast feedback.

@@ -142,7 +142,7 @@
                 if (d.ok) {
                     if (d.redirect) { window.location.href = d.redirect; return; }
                     window.showToast(successMsg || 'Saved');
-                    setTimeout(function () { location.reload(); }, 600);
+                    setTimeout(function () { location.reload(); }, 1500);
                 } else {
                     window.showToast(d.error || 'Request failed', 'error');
                     if (d.errors && typeof d.errors === 'object') {
@@ -179,7 +179,7 @@
         fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                if (d.ok) { window.showToast(msg || 'Saved'); setTimeout(function () { location.reload(); }, 400); }
+                if (d.ok) { window.showToast(msg || 'Saved'); setTimeout(function () { location.reload(); }, 1500); }
                 else { window.showToast(d.error || 'Failed', 'error'); }
             })
             .catch(function () { window.showToast('Request failed', 'error'); });
@@ -351,7 +351,7 @@
         })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                if (d.ok) { window.showToast(decision === 'approved' ? 'Approved' : 'Rejected'); setTimeout(function () { location.reload(); }, 600); }
+                if (d.ok) { window.showToast(decision === 'approved' ? 'Approved' : 'Rejected'); setTimeout(function () { location.reload(); }, 1500); }
                 else { window.showToast(d.error || 'Failed', 'error'); }
             })
             .catch(function () { window.showToast('Request failed', 'error'); });
@@ -386,7 +386,7 @@
                 })
                     .then(function (r) { return r.json(); })
                     .then(function (d) {
-                        if (d.ok) { window.showToast(d.action === 'restored' ? 'User reactivated' : 'User deactivated'); setTimeout(function () { location.reload(); }, 600); }
+                        if (d.ok) { window.showToast(d.action === 'restored' ? 'User reactivated' : 'User deactivated'); setTimeout(function () { location.reload(); }, 1500); }
                         else { window.showToast(d.error || 'Failed', 'error'); }
                     })
                     .catch(function () { window.showToast('Request failed', 'error'); });
@@ -429,7 +429,7 @@
                 })
                     .then(function (r) { return r.json(); })
                     .then(function (d) {
-                        if (d.ok) { window.showToast('Deleted'); setTimeout(function () { location.reload(); }, 400); }
+                        if (d.ok) { window.showToast('Deleted'); setTimeout(function () { location.reload(); }, 1500); }
                         else { window.showToast(d.error || 'Failed', 'error'); }
                     })
                     .catch(function () { window.showToast('Request failed', 'error'); });
@@ -446,7 +446,7 @@
         fetch(window.PalRoutes.action('attachment.upload'), { method: 'POST', body: data })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                if (d.ok) { window.showToast('File uploaded'); setTimeout(function () { location.reload(); }, 600); }
+                if (d.ok) { window.showToast('File uploaded'); setTimeout(function () { location.reload(); }, 1500); }
                 else { window.showToast(d.error || 'Upload failed', 'error'); btn.disabled = false; btn.textContent = orig; }
             })
             .catch(function () { window.showToast('Upload failed', 'error'); btn.disabled = false; btn.textContent = orig; });

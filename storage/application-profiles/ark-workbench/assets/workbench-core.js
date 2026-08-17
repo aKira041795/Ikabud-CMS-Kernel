@@ -121,7 +121,10 @@
     }
 
     // ── cms-toast listener — bridges ajaxSubmit CustomEvent to wbToast ──
-    document.addEventListener('cms-toast', function (e) {
+    // Dispatchers use window.dispatchEvent(new CustomEvent('cms-toast', ...)); a
+    // non-bubbling CustomEvent dispatched on window never reaches a listener
+    // registered on document, so this must listen on window.
+    window.addEventListener('cms-toast', function (e) {
         var detail = e.detail || {};
         var variant = detail.type === 'error' || detail.type === 'danger' ? 'danger'
                     : detail.type === 'success' ? 'success'

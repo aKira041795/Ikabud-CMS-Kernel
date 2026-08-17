@@ -308,3 +308,27 @@
 [role="dialog"] .bg-white {
     box-sizing: border-box;
 }
+
+/* ── Toast notifications ─────────────────────────────────────
+   The workbench shell ships a #wb-toast-container div with NO positioning
+   CSS, and the compiled Tailwind CSS is missing the `fixed` and `z-[9999]`
+   utilities, so toasts rendered inline in document flow instead of floating
+   top-right. Pin both toast containers (workbench + PAL fallback) so every
+   showToast()/wbToast() notification appears fixed in the top-right corner. */
+#toast-container,
+#wb-toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+    pointer-events: none;
+}
+
+#toast-container > *,
+#wb-toast-container > * {
+    pointer-events: auto;
+}
