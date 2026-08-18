@@ -63,6 +63,13 @@ final class ModuleBackupService
             : '';
         $retentionDays = max(1, min(90, (int) ($options['retention_days'] ?? self::DEFAULT_RETENTION_DAYS)));
         $downloadPath = rtrim((string) ($options['download_path'] ?? ''), '/');
+        // Acting user: prefer explicit option, else resolve from the module
+        // context (supports both 'id' and 'user_id' key conventions).
+        $byUser = (int) ($options['by_user'] ?? 0);
+        if ($byUser <= 0) {
+            $ctxUser = $ctx->user();
+            $byUser = (int) (is_array($ctxUser) ? ($ctxUser['id'] ?? $ctxUser['user_id'] ?? 0) : 0);
+        }
 
         // Enumerate from the module manifest (owns_tables) — SHOW TABLES is
         // blocked by ModuleDB enforcement, and the manifest is the authoritative
@@ -165,7 +172,7 @@ final class ModuleBackupService
             'total_rows' => $totalRows,
             'retention_days' => $retentionDays,
             'deleted_old_backups' => $deletedOld,
-            'by_user' => (int) ($options['by_user'] ?? 0),
+            'by_user' => $byUser,
         ];
 
         self::audit($moduleId, (string) ($options['event'] ?? $moduleId . '.backup.created'), $reason, $result);

@@ -713,7 +713,7 @@ function dl_generateDatabaseBackup(array $user, string $reason, ?bool $includeUs
         'retention_days' => (int) $backupSettings['backup_retention_days'],
         'download_path' => '/daily-ledger/admin/settings/backup-download',
         'event' => 'daily_ledger.backup.created',
-        'by_user' => (int) ($user['user_id'] ?? 0),
+        'by_user' => (int) ($user['id'] ?? $user['user_id'] ?? 0),
     ]);
 
     // Keep daily-ledger's existing return contract for the settings UI.
