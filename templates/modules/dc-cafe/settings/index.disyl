@@ -196,6 +196,36 @@
             </div>
         </div>
 
+        {* Database Backup *}
+        <div class="mt-8 border rounded-xl p-5 bg-white">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-gray-800">Database Backup</h3>
+                <button @click="generateBackup()"
+                        :disabled="backingUp"
+                        class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+                    <span x-show="!backingUp">Generate Backup</span>
+                    <span x-show="backingUp">Generating…</span>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-3">
+                Creates a data-only SQL dump of all DC Cafe tables (kept 14 days) that you can download
+                and restore into a clean install.
+            </p>
+            <div x-show="backupMessage" class="text-sm mb-3" :class="backupError ? 'text-red-600' : 'text-green-600'" x-text="backupMessage"></div>
+            <div x-show="backups.length === 0" class="text-center text-gray-400 py-4 text-sm">No backups yet.</div>
+            <div class="space-y-2">
+                <template x-for="b in backups" :key="b.file_name">
+                    <div class="flex items-center justify-between border rounded px-3 py-2 text-sm bg-gray-50">
+                        <div>
+                            <div class="font-mono text-xs" x-text="b.file_name"></div>
+                            <div class="text-xs text-gray-400" x-text="b.created_at + ' · ' + (b.file_size_bytes/1024).toFixed(1) + ' KB'"></div>
+                        </div>
+                        <a :href="b.download_url" class="text-blue-600 hover:underline text-xs font-semibold">Download</a>
+                    </div>
+                </template>
+            </div>
+        </div>
+
         {* Danger Zone — Reset Product Inventory (keeps catalog, wipes stock + movements) *}
         <div class="mt-8 border-2 border-red-200 rounded-xl p-5 bg-red-50/50">
             <h3 class="font-semibold text-red-700 mb-1">Danger Zone — Reset Product Inventory</h3>
@@ -735,6 +765,10 @@ function settingsApp(initialData) {
         toppings: initialData.toppings || [],
         addons: initialData.addons || [],
         stores: initialData.stores || [],
+        backups: initialData.backups || [],
+        backingUp: false,
+        backupMessage: '',
+        backupError: false,
         users: initialData.users || [],
         ledgerGroups: initialLedgerGroups,
         categories: initialCategories,
@@ -893,6 +927,25 @@ function settingsApp(initialData) {
                     else { this.onError(d.error); }
                 })
                 .finally(() => { this.resetting = false; });
+        },
+
+        generateBackup() {
+            if (!confirm('Generate a full database backup of all DC Cafe data?\n\nThis creates a downloadable SQL file (kept for 14 days).')) return;
+            this.backingUp = true;
+            this.backupError = false;
+            this.api('/dc-cafe/api/v1/backup/generate', 'POST', { confirm: 1 })
+                .then(d => {
+                    if (d.ok) {
+                        this.backups = d.backups || [];
+                        this.backupMessage = d.message || 'Backup created';
+                        this.backupError = false;
+                    } else {
+                        this.backupMessage = d.error || 'Backup failed';
+                        this.backupError = true;
+                    }
+                })
+                .catch(() => { this.backupMessage = 'Connection error'; this.backupError = true; })
+                .finally(() => { this.backingUp = false; });
         },
 
         createPayment() {

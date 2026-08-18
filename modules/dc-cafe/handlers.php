@@ -16,6 +16,7 @@ require_once __DIR__ . '/handlers-orders.php';
 require_once __DIR__ . '/handlers-inventory.php';
 require_once __DIR__ . '/handlers-customers.php';
 require_once __DIR__ . '/handlers-products.php';
+require_once __DIR__ . '/handlers-backup.php';
 
 // Load DiSyL entity view configs
 if (is_dir(__DIR__ . '/helpers/views')) {
@@ -1140,6 +1141,7 @@ function pageDcCafeSettings(array $params = []): void
         'addons' => $addons,
         'ledgerGroups' => $ledgerGroups,
         'categories' => $categories,
+        'backups' => \Ikabud\Kernel\Services\ModuleBackupService::list('dc-cafe', dc_backupDownloadPath()),
         'currentUserId' => (int) ($ctx->user()['user_id'] ?? 0),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 

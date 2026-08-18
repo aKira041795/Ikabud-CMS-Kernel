@@ -747,27 +747,22 @@ function apiResetProductInventory(array $params = []): void
         dcJsonError('Type RESET to confirm.', 422);
     }
 
-    $db = dcDb();
-    $db->execute('SET FOREIGN_KEY_CHECKS = 0');
-    try {
-        // Product-level inventory
-        $db->execute('DELETE FROM dc_product_stock_movements');
-        $db->execute('UPDATE dc_product_store_stock SET on_hand_qty = 0, reserved_qty = 0');
-        $db->execute('UPDATE dc_products SET current_stock = 0');
-        // Ingredient-level inventory
-        $db->execute('DELETE FROM dc_inventory_movements');
-        $db->execute('UPDATE dc_ingredients SET current_stock = 0');
-    } finally {
-        $db->execute('SET FOREIGN_KEY_CHECKS = 1');
-    }
-
-    write_log('dc_cafe.inventory.reset', 'info', [
+    // Standard reset via the shared kernel service: wipe movement history and
+    // zero stock, keeping the catalog (names, prices, categories, suppliers).
+    $tables = \Ikabud\Kernel\Services\ModuleDataResetService::reset(dcDb(), [
+        ['table' => 'dc_product_stock_movements', 'mode' => 'truncate'],
+        ['table' => 'dc_inventory_movements',     'mode' => 'truncate'],
+        ['table' => 'dc_product_store_stock',     'mode' => 'set_zero', 'columns' => ['on_hand_qty', 'reserved_qty']],
+        ['table' => 'dc_products',                'mode' => 'set_zero', 'columns' => ['current_stock']],
+        ['table' => 'dc_ingredients',             'mode' => 'set_zero', 'columns' => ['current_stock']],
+    ], [
+        'event'   => 'dc_cafe.inventory.reset',
         'by_user' => (int) ($ctx->user()['user_id'] ?? 0),
-        'scope'   => 'all_products_and_ingredients',
     ]);
 
     dcJsonResponse([
         'ok'      => true,
         'message' => 'Product inventory reset. All stock is now 0 and movement history is cleared.',
+        'tables'  => $tables,
     ]);
 }

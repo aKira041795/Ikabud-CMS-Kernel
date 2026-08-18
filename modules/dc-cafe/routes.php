@@ -98,6 +98,9 @@ return [
         // API: dashboard
         '/dc-cafe/api/v1/dashboard/today'     => 'dc-cafe:apiGetTodaySalesData',
 
+        // API: backup download
+        '/dc-cafe/api/v1/backup/download'     => 'dc-cafe:handleBackupDownload',
+
         // API: settings / ledger groups
         '/dc-cafe/api/v1/settings/ledger-groups' => 'dc-cafe:apiListLedgerGroups',
 
@@ -167,6 +170,9 @@ return [
 
         // Vouchers
         '/dc-cafe/api/v1/vouchers/validate'   => 'dc-cafe:apiValidateVoucher',
+
+        // Backup
+        '/dc-cafe/api/v1/backup/generate'     => 'dc-cafe:apiGenerateBackup',
     ],
     'PUT' => [
         '/dc-cafe/api/v1/suppliers/{id}'      => 'dc-cafe:apiUpdateSupplier',
