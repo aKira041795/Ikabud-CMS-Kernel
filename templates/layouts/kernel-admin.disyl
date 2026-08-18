@@ -309,7 +309,10 @@
   </div>
 
   <!-- Toast container -->
-  <div id="cms-toast-container" x-data="cmsToast()" x-init="init()" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
+  <!-- NOTE: no x-init here — cmsToast() returns an object with an init() method,
+       which Alpine auto-calls. Adding x-init="init()" would register the
+       window 'cms-toast' listener twice and render every toast duplicated. -->
+  <div id="cms-toast-container" x-data="cmsToast()" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
     <template x-for="toast in toasts" :key="toast.id">
       <div class="pointer-events-auto px-4 py-3 rounded-lg shadow-lg text-white text-sm transition-all duration-300"
            :class="toast.type === 'error' ? 'bg-red-600' : toast.type === 'warning' ? 'bg-amber-600' : 'bg-green-600'"
