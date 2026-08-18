@@ -677,86 +677,6 @@ function dl_resetSafeguardSettings(): array
     ];
 }
 
-function dl_backupDirectoryPath(): string
-{
-    return rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : (BASE_PATH . '/storage')), '/\\') . '/backups/daily-ledger';
-}
-
-function dl_ensureBackupDirectory(): string
-{
-    $dir = dl_backupDirectoryPath();
-    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
-        throw new RuntimeException('Failed to create backup directory.');
-    }
-
-    $htaccessPath = $dir . '/.htaccess';
-    if (!is_file($htaccessPath)) {
-        @file_put_contents($htaccessPath, "Require all denied\nDeny from all\n");
-        @chmod($htaccessPath, 0644);
-    }
-
-    return $dir;
-}
-
-function dl_cleanupOldBackupFiles(string $dir, int $retentionDays): int
-{
-    $deleted = 0;
-    $threshold = time() - ($retentionDays * 86400);
-    $items = @scandir($dir);
-    if (!is_array($items)) {
-        return 0;
-    }
-
-    foreach ($items as $item) {
-        if (!is_string($item) || $item === '.' || $item === '..') {
-            continue;
-        }
-        if (!preg_match('/^dl-db-backup-[0-9]{8}-[0-9]{6}\.sql$/', $item)) {
-            continue;
-        }
-
-        $path = $dir . '/' . $item;
-        if (!is_file($path)) {
-            continue;
-        }
-
-        $mtime = @filemtime($path);
-        if ($mtime !== false && $mtime < $threshold) {
-            if (@unlink($path)) {
-                $deleted++;
-            }
-        }
-    }
-
-    return $deleted;
-}
-
-function dl_sqlQuote($value): string
-{
-    if ($value === null) {
-        return 'NULL';
-    }
-
-    $string = (string)$value;
-    $string = str_replace(
-        ["\\", "\0", "\n", "\r", "\x1a", "'"],
-        ["\\\\", "\\0", "\\n", "\\r", "\\Z", "\\'"],
-        $string
-    );
-
-    return "'" . $string . "'";
-}
-
-function dl_safeIdentifier(string $name): string
-{
-    $safe = preg_replace('/[^a-z0-9_]+/i', '', $name);
-    if (!is_string($safe) || $safe === '' || $safe !== $name) {
-        throw new InvalidArgumentException('Invalid SQL identifier: ' . $name);
-    }
-
-    return $safe;
-}
-
 function dl_listDailyLedgerTables($db, bool $includeUsers): array
 {
     $tables = [];
@@ -783,128 +703,43 @@ function dl_generateDatabaseBackup(array $user, string $reason, ?bool $includeUs
         throw new RuntimeException('Module context unavailable');
     }
 
-    $db = $ctx->db();
     $backupSettings = dl_backupSettings();
     $includeUsersFlag = $includeUsers !== null ? $includeUsers : $backupSettings['backup_include_users'];
 
-    $tables = dl_listDailyLedgerTables($db, $includeUsersFlag);
-    if ($tables === []) {
-        throw new RuntimeException('No Daily Ledger tables found to back up.');
-    }
+    // Standard backup via the shared kernel service: enumerates dl_* tables
+    // from module.json owns_tables, data-only dump + secure download + retention.
+    $result = \Ikabud\Kernel\Services\ModuleBackupService::generate($ctx, 'dl_', $reason, [
+        'include_users_table' => $includeUsersFlag ? null : 'dl_users',
+        'retention_days' => (int) $backupSettings['backup_retention_days'],
+        'download_path' => '/daily-ledger/admin/settings/backup-download',
+        'event' => 'daily_ledger.backup.created',
+        'by_user' => (int) ($user['user_id'] ?? 0),
+    ]);
 
-    $dir = dl_ensureBackupDirectory();
-    $filename = 'dl-db-backup-' . date('Ymd-His') . '.sql';
-    $target = $dir . '/' . $filename;
-    $tmpTarget = $target . '.tmp';
+    // Keep daily-ledger's existing return contract for the settings UI.
+    $contract = [
+        'file_name' => $result['file_name'],
+        'file_size_bytes' => $result['file_size_bytes'],
+        'download_url' => $result['download_url'],
+        'tables' => $result['tables'],
+        'total_rows' => $result['total_rows'],
+        'include_users' => $includeUsersFlag,
+        'retention_days' => (int) $backupSettings['backup_retention_days'],
+        'deleted_old_backups' => $result['deleted_old_backups'],
+    ];
 
-    $fh = @fopen($tmpTarget, 'wb');
-    if (!is_resource($fh)) {
-        throw new RuntimeException('Failed to open backup file for writing.');
-    }
+    dl_auditLog('database_backup_created', null, 'module_settings', 'daily-ledger', null, [
+        'reason' => $reason,
+        'file_name' => $contract['file_name'],
+        'file_size_bytes' => $contract['file_size_bytes'],
+        'total_rows' => $contract['total_rows'],
+        'include_users' => $includeUsersFlag,
+        'deleted_old_backups' => $contract['deleted_old_backups'],
+        'performed_by_role' => (string) ($user['role'] ?? ''),
+        'performed_by_source' => (string) ($user['source'] ?? ''),
+    ]);
 
-    try {
-        fwrite($fh, "-- Daily Ledger SQL Backup\n");
-        fwrite($fh, '-- Generated at: ' . date('c') . "\n");
-        fwrite($fh, '-- Reason: ' . $reason . "\n");
-        fwrite($fh, '-- Include users: ' . ($includeUsersFlag ? 'yes' : 'no') . "\n");
-        fwrite($fh, "SET FOREIGN_KEY_CHECKS=0;\n\n");
-
-        $tableSummaries = [];
-        $totalRows = 0;
-
-        foreach ($tables as $table) {
-            $safeTable = dl_safeIdentifier($table);
-            $countStmt = $db->query('SELECT COUNT(*) FROM ' . $safeTable);
-            $rowCount = (int)($countStmt->fetchColumn() ?: 0);
-            $totalRows += $rowCount;
-
-            fwrite($fh, '-- ------------------------------------------------------------' . "\n");
-            fwrite($fh, '-- Table: ' . $safeTable . ' (rows: ' . $rowCount . ')' . "\n");
-            fwrite($fh, '-- Data-only backup (schema must already exist).' . "\n");
-            fwrite($fh, 'DELETE FROM `' . $safeTable . "`;\n");
-
-            if ($rowCount > 0) {
-                $dataStmt = $db->query('SELECT * FROM ' . $safeTable);
-                $batchRows = [];
-                $columnSql = null;
-
-                while ($row = $dataStmt->fetch(PDO::FETCH_ASSOC)) {
-                    if (!is_array($row)) {
-                        continue;
-                    }
-
-                    if ($columnSql === null) {
-                        $columns = array_map(static function ($col): string {
-                            return '`' . str_replace('`', '``', (string)$col) . '`';
-                        }, array_keys($row));
-                        $columnSql = implode(', ', $columns);
-                    }
-
-                    $vals = [];
-                    foreach ($row as $v) {
-                        $vals[] = dl_sqlQuote($v);
-                    }
-                    $batchRows[] = '(' . implode(', ', $vals) . ')';
-
-                    if (count($batchRows) >= 100) {
-                        fwrite($fh, 'INSERT INTO `' . $safeTable . '` (' . $columnSql . ") VALUES\n");
-                        fwrite($fh, implode(",\n", $batchRows) . ";\n");
-                        $batchRows = [];
-                    }
-                }
-
-                if ($batchRows !== []) {
-                    fwrite($fh, 'INSERT INTO `' . $safeTable . '` (' . $columnSql . ") VALUES\n");
-                    fwrite($fh, implode(",\n", $batchRows) . ";\n");
-                }
-            }
-
-            fwrite($fh, "\n");
-            $tableSummaries[] = [
-                'table' => $safeTable,
-                'rows' => $rowCount,
-            ];
-        }
-
-        fwrite($fh, "SET FOREIGN_KEY_CHECKS=1;\n");
-        fclose($fh);
-        @chmod($tmpTarget, 0640);
-        if (!@rename($tmpTarget, $target)) {
-            @unlink($tmpTarget);
-            throw new RuntimeException('Failed to finalize backup file.');
-        }
-
-        $deletedOld = dl_cleanupOldBackupFiles($dir, (int)$backupSettings['backup_retention_days']);
-
-        $downloadUrl = dlGetBaseUrl() . '/admin/settings/backup-download?file=' . rawurlencode($filename);
-        $result = [
-            'file_name' => $filename,
-            'file_size_bytes' => (int)@filesize($target),
-            'download_url' => $downloadUrl,
-            'tables' => $tableSummaries,
-            'total_rows' => $totalRows,
-            'include_users' => $includeUsersFlag,
-            'retention_days' => (int)$backupSettings['backup_retention_days'],
-            'deleted_old_backups' => $deletedOld,
-        ];
-
-        dl_auditLog('database_backup_created', null, 'module_settings', 'daily-ledger', null, [
-            'reason' => $reason,
-            'file_name' => $filename,
-            'file_size_bytes' => $result['file_size_bytes'],
-            'total_rows' => $totalRows,
-            'include_users' => $includeUsersFlag,
-            'deleted_old_backups' => $deletedOld,
-            'performed_by_role' => (string)($user['role'] ?? ''),
-            'performed_by_source' => (string)($user['source'] ?? ''),
-        ]);
-
-        return $result;
-    } catch (Throwable $e) {
-        fclose($fh);
-        @unlink($tmpTarget);
-        throw $e;
-    }
+    return $contract;
 }
 
 function dl_deploymentResetTables($db): array
@@ -6797,27 +6632,9 @@ function handleAdminBackupDownload(array $params = []): void
 
     dlCurrentUser(['admin']);
 
-    $file = trim((string)($_GET['file'] ?? ''));
-    if ($file === '' || !preg_match('/^dl-db-backup-[0-9]{8}-[0-9]{6}\.sql$/', $file)) {
-        http_response_code(400);
-        echo 'Invalid backup file name.';
-        return;
-    }
-
-    $dir = dl_backupDirectoryPath();
-    $path = $dir . '/' . $file;
-    $realDir = realpath($dir);
-    $realPath = realpath($path);
-    if ($realDir === false || $realPath === false || strpos($realPath, $realDir . DIRECTORY_SEPARATOR) !== 0 || !is_file($realPath)) {
-        http_response_code(404);
-        echo 'Backup file not found.';
-        return;
-    }
-
-    header('Content-Type: application/sql; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $file . '"');
-    header('Content-Length: ' . (string)filesize($realPath));
-    readfile($realPath);
+    // Standard secure download via the shared kernel service (validates the
+    // {slug}-db-backup-YYYYMMDD-HHMMSS.sql filename, guards path traversal).
+    \Ikabud\Kernel\Services\ModuleBackupService::download($ctx, 'dl_', (string) ($_GET['file'] ?? ''));
 }
 
 function apiUploadBrandingAsset(array $params = []): void
