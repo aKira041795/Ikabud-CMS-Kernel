@@ -34,6 +34,12 @@ function palOtpRateLimitKey(string $action, string $identifier): string
 
 function palOtpSendEmail(string $email, string $code, int $ttl): bool
 {
+    // sendEmail (SMTP) lives in src/helpers/email.php — the PHP mail() transport
+    // is not configured on the target host, so OTPs must go through SMTP.
+    if (!function_exists('sendEmail')) {
+        require_once __DIR__ . '/../../../src/helpers/email.php';
+    }
+
     $subject = 'Your ZAP-ARTS Team Lead Verification Code';
     $minutes = (int)ceil($ttl / 60);
     $body = "
@@ -51,9 +57,7 @@ function palOtpSendEmail(string $email, string $code, int $ttl): bool
     </div></body></html>";
 
     try {
-        $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
-        $headers .= "From: ZAP-ARTS <noreply@zap-arts.com>\r\n";
-        return mail($email, $subject, $body, $headers);
+        return sendEmail($email, $subject, $body);
     } catch (Throwable) {
         return false;
     }

@@ -25,7 +25,9 @@
         "attendance_group_members"
     ],
     "reads_tables": [
-        "audit_logs"
+        "audit_logs",
+        "kernel_tenants",
+        "kernel_tenant_domains"
     ],
     "routes": "routes.php",
     "handlers": "handlers.php",

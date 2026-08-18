@@ -328,7 +328,7 @@
     pointer-events: none;
 }
 
-#toast-container > *,
-#wb-toast-container > * {
+#toast-container>*,
+#wb-toast-container>* {
     pointer-events: auto;
 }

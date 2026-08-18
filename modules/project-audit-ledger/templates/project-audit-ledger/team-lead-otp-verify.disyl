@@ -29,7 +29,7 @@
                            placeholder="000000"
                            class="wb-input text-center text-2xl tracking-[8px] font-mono"
                            id="otp-code"
-                           oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value.length>=6)this.form.submit()">
+                           oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value.length>=6)verifyOtp(this.form)">
                 </div>
                 <button type="submit" id="tl-verify-btn" class="wb-btn wb-btn--primary wb-btn--lg" style="width:100%">
                     Verify & Sign In

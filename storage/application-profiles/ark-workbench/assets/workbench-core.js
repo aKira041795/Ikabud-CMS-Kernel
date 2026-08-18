@@ -127,8 +127,8 @@
     window.addEventListener('cms-toast', function (e) {
         var detail = e.detail || {};
         var variant = detail.type === 'error' || detail.type === 'danger' ? 'danger'
-                    : detail.type === 'success' ? 'success'
-                    : detail.type === 'warning' ? 'warning'
+            : detail.type === 'success' ? 'success'
+                : detail.type === 'warning' ? 'warning'
                     : 'informational';
         wbToast(detail.message || detail.title || '', variant);
     });
@@ -183,26 +183,26 @@
     }
 
     function normalizeResponsiveTable(table) {
-            if (!table || table.closest('.print-area')) return;
+        if (!table || table.closest('.print-area')) return;
 
-            table.classList.add('wb-table');
-            table.classList.add('wb-table--sticky');
+        table.classList.add('wb-table');
+        table.classList.add('wb-table--sticky');
 
-            var headers = [];
-            table.querySelectorAll('thead th').forEach(function (th) {
-                headers.push((th.textContent || '').replace(/\s+/g, ' ').trim());
-                if (!th.hasAttribute('scope')) th.setAttribute('scope', 'col');
+        var headers = [];
+        table.querySelectorAll('thead th').forEach(function (th) {
+            headers.push((th.textContent || '').replace(/\s+/g, ' ').trim());
+            if (!th.hasAttribute('scope')) th.setAttribute('scope', 'col');
+        });
+        table.querySelectorAll('tbody tr').forEach(function (tr) {
+            tr.querySelectorAll('td').forEach(function (td, index) {
+                if (!td.hasAttribute('data-label')) td.setAttribute('data-label', headers[index] || '');
             });
-            table.querySelectorAll('tbody tr').forEach(function (tr) {
-                tr.querySelectorAll('td').forEach(function (td, index) {
-                    if (!td.hasAttribute('data-label')) td.setAttribute('data-label', headers[index] || '');
-                });
-            });
+        });
 
-            var wrapper = table.parentElement;
-            if (wrapper && !wrapper.hasAttribute('data-wb-component') && wrapper.classList.contains('overflow-x-auto')) {
-                wrapper.setAttribute('data-wb-component', 'responsive-table');
-            }
+        var wrapper = table.parentElement;
+        if (wrapper && !wrapper.hasAttribute('data-wb-component') && wrapper.classList.contains('overflow-x-auto')) {
+            wrapper.setAttribute('data-wb-component', 'responsive-table');
+        }
     }
 
     function initWorkbenchSurfaces(root) {
