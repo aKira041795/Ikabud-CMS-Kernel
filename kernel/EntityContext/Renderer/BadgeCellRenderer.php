@@ -53,6 +53,25 @@ final class BadgeCellRenderer implements CellRendererInterface
             }
         }
 
+        // Pipe-pair map (renderer="badge:{pending|amber|approved|green|...}"):
+        // alternating value|color pairs. Each entry is rewritten as
+        // "value|color" so the shared label/color split below just works.
+        if (empty($colorMap) && is_string($arg) && $arg !== '') {
+            $trimmed = trim($arg);
+            if (str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}')) {
+                $inner = trim(substr($trimmed, 1, -1));
+                $parts = array_values(array_filter(array_map('trim', explode('|', $inner)), static fn ($p) => $p !== ''));
+                if (count($parts) >= 2 && count($parts) % 2 === 0) {
+                    $colorMap = [];
+                    for ($i = 0; $i < count($parts); $i += 2) {
+                        $key = $parts[$i];
+                        $color = $parts[$i + 1];
+                        $colorMap[$key] = $key . '|' . $color;
+                    }
+                }
+            }
+        }
+
         if (!empty($colorMap) && isset($colorMap[$str])) {
             $entry = $colorMap[$str];
             if (is_string($entry) && str_contains($entry, '|')) {

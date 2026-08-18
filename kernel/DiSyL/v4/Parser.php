@@ -788,11 +788,15 @@ final class Parser
             throw new \RuntimeException("Invalid {for} syntax: expected 'item in list' or 'init; condition; increment', got '{$expr}'");
         }
 
-        $body = $this->parseChildren(['{/for}', '{empty}', '{forelse}']);
+        $body = $this->parseChildren(['{/for}', '{empty}', '{forelse}', '{else}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}')) {
-            $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
+        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}') || $this->lookingAt('{else}')) {
+            if ($this->lookingAt('{else}')) {
+                $this->consumeExact('{else}');
+            } else {
+                $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
+            }
             $elseDoc = new DocumentNode([], $this->parseChildren(['{/for}']));
         }
 
@@ -833,11 +837,15 @@ final class Parser
             throw new \RuntimeException("Invalid {foreach} syntax: expected 'list as value' or 'list as key => value', got '{$expr}'");
         }
 
-        $body = $this->parseChildren(['{/foreach}', '{empty}', '{forelse}']);
+        $body = $this->parseChildren(['{/foreach}', '{empty}', '{forelse}', '{else}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}')) {
-            $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
+        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}') || $this->lookingAt('{else}')) {
+            if ($this->lookingAt('{else}')) {
+                $this->consumeExact('{else}');
+            } else {
+                $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
+            }
             $elseDoc = new DocumentNode([], $this->parseChildren(['{/foreach}']));
         }
 
@@ -872,11 +880,15 @@ final class Parser
             throw new \RuntimeException("Invalid {each} syntax: expected 'list as value' or 'list as key => value', got '{$expr}'");
         }
 
-        $body = $this->parseChildren(['{/each}', '{empty}', '{forelse}']);
+        $body = $this->parseChildren(['{/each}', '{empty}', '{forelse}', '{else}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}')) {
-            $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
+        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}') || $this->lookingAt('{else}')) {
+            if ($this->lookingAt('{else}')) {
+                $this->consumeExact('{else}');
+            } else {
+                $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
+            }
             $elseDoc = new DocumentNode([], $this->parseChildren(['{/each}']));
         }
 

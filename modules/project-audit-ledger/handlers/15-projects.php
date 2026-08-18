@@ -160,6 +160,8 @@ function palPageProjectDetail(array $rp = []): void
     $colRows->execute([':pid' => $id, ':tid' => $tid]);
     $poRows = $db->prepare("SELECT p.*, s.name AS supplier_name FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id WHERE p.project_id = :pid AND p.tenant_id = :tid ORDER BY p.created_at DESC LIMIT 20");
     $poRows->execute([':pid' => $id, ':tid' => $tid]);
+    $caRows = $db->prepare("SELECT ca.*, tl.name AS team_lead_name FROM pal_cash_advances ca LEFT JOIN pal_team_leads tl ON ca.team_lead_id = tl.id AND tl.tenant_id = ca.tenant_id WHERE ca.project_id = :pid AND ca.tenant_id = :tid ORDER BY ca.created_at DESC LIMIT 20");
+    $caRows->execute([':pid' => $id, ':tid' => $tid]);
 
     $fabAmount = 0;
     if (!empty($project['fabrication_alloc_pct']) && (float)$project['fabrication_alloc_pct'] > 0) {
@@ -239,6 +241,7 @@ function palPageProjectDetail(array $rp = []): void
         'expense_history' => $expRows->fetchAll(PDO::FETCH_ASSOC),
         'collection_history' => $colRows->fetchAll(PDO::FETCH_ASSOC),
         'purchase_history' => $poRows->fetchAll(PDO::FETCH_ASSOC),
+        'cash_advance_history' => $caRows->fetchAll(PDO::FETCH_ASSOC),
         'attachments_html' => palRenderAttachments('project', $id, $tid),
         'po_images_html' => palRenderPoImages($id, $tid),
         'mockup_url' => $mockupUrl,

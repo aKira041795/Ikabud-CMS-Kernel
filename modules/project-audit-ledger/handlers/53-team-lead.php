@@ -305,6 +305,85 @@ function palPageTeamLeadCashAdvanceForm(): void
 }
 
 /**
+ * Sync a team-lead cash advance to AW (attendance-wage) so the advance is also
+ * visible/processable in the wage module's cash-advance workflow.
+ *
+ * Maps PAL team lead → AW employee profile via
+ * pal_team_leads.email = attendance_groups.pal_team_lead_email → leader_profile_id.
+ * Best-effort: failures are logged and never break the PAL CA request.
+ */
+function palSyncTeamLeadCaToAw(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId, int $teamLeadId, int $projectId, float $amount, int $caId): void
+{
+    try {
+        $awTid = palResolveAwTenantId();
+        if ($awTid <= 0 || $awTid === $tenantId) {
+            return; // No separate AW tenant — nothing to sync to.
+        }
+        $awDb = app()->dbForTenant($awTid);
+        if (!$awDb) {
+            return;
+        }
+
+        // Team lead email from PAL (runs in the project-audit-ledger context).
+        $emailStmt = $db->prepare('SELECT email FROM pal_team_leads WHERE id = :tl AND tenant_id = :tid AND is_active = 1 LIMIT 1');
+        $emailStmt->execute([':tl' => $teamLeadId, ':tid' => $tenantId]);
+        $email = $emailStmt->fetchColumn();
+        if (!$email || $email === '') {
+            return;
+        }
+
+        // AW-side work runs inside the attendance-wage module context so the
+        // kernel DB guard enforces attendance-wage's declared tables
+        // (cash_advances, attendance_groups, employee_profiles).
+        if (!function_exists('moduleWithContext')) {
+            return;
+        }
+        moduleWithContext('attendance-wage', function () use ($awDb, $awTid, $email, $amount, $projectId, $caId): void {
+            // AW employee profile for this team lead (group leader).
+            $pStmt = $awDb->prepare("
+                SELECT ep.profile_id, ep.user_id
+                FROM attendance_groups ag
+                JOIN employee_profiles ep ON ag.leader_profile_id = ep.profile_id
+                    AND ag.tenant_id = ep.tenant_id
+                WHERE LOWER(ag.pal_team_lead_email) = :email
+                  AND ag.tenant_id = :awtid
+                  AND ag.is_active = 1
+                LIMIT 1
+            ");
+            $pStmt->execute([':email' => strtolower($email), ':awtid' => $awTid]);
+            $prof = $pStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$prof || empty($prof['profile_id'])) {
+                return;
+            }
+
+            $awDb->prepare("
+                INSERT INTO cash_advances
+                    (tenant_id, user_id, employee_profile_id, amount, balance, repayment_type,
+                     installment_amount, total_installments, status, request_date, notes, requested_by)
+                VALUES
+                    (:t, :uid, :pid, :amt, :bal, 'full_next_payroll', NULL, NULL, 'pending', NOW(), :notes, :rb)
+            ")->execute([
+                ':t' => (string)$awTid,
+                ':uid' => (int)($prof['user_id'] ?? 0),
+                ':pid' => (int)$prof['profile_id'],
+                ':amt' => $amount,
+                ':bal' => $amount,
+                ':notes' => "PAL cash advance #{$caId}" . ($projectId > 0 ? " (PAL JO #{$projectId})" : ''),
+                ':rb' => (int)($prof['user_id'] ?? 0),
+            ]);
+
+            if (function_exists('write_log')) {
+                write_log("pal.ca.sync_aw: PAL CA #{$caId} synced to AW tenant {$awTid} for profile {$prof['profile_id']}", 'info');
+            }
+        });
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('pal.ca.sync_aw: AW cash-advance sync failed: ' . $e->getMessage(), 'warning');
+        }
+    }
+}
+
+/**
  * API: Team Lead submits CA request
  * POST /api/v1/project-audit-ledger/tl/cash-advances
  */
@@ -348,10 +427,20 @@ function palApiTeamLeadCashAdvanceStore(): void
                 null, ['amount' => $amount, 'team_lead_id' => $tlId]);
             palFireEvent('pal.ca.requested', ['cash_advance_id' => $caId, 'amount' => $amount]);
 
+            // Sync the advance to AW (attendance-wage) so it is processed there too.
+            palSyncTeamLeadCaToAw($db, $tid, $tlId, $projectId, $amount, $caId);
+
             header('Content-Type: application/json');
             echo json_encode(['ok' => true, 'id' => $caId]);
         } catch (Throwable $e) {
-            $db->rollBack();
+            // Guard: if the transaction already committed, rollBack() throws
+            // "no active transaction" and masks the original error.
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            if (function_exists('write_log')) {
+                write_log('pal.ca.store: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine(), 'error');
+            }
             throw $e;
         }
     } catch (Throwable $e) {

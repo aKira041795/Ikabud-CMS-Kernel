@@ -31,6 +31,73 @@ function awGroupLogFailure(string $handler, Throwable $e): void
     }
 }
 
+/**
+ * Push a team lead to PAL (project-audit-ledger) when an AW attendance group
+ * is created/updated with a pal_team_lead_email.
+ *
+ * Resolves the PAL tenant via the control plane (same mechanism the AW→PAL
+ * mobilization link uses: the tenant whose entry module is
+ * project-audit-ledger) and upserts pal_team_leads (unique on tenant_id+email).
+ * Name is taken from the AW employee profile of the group leader.
+ *
+ * Failures are logged and never break the AW group save.
+ */
+function awSyncTeamLeadToPal(PDO $db, string $awTenantId, int $leaderProfileId, ?string $palEmail): void
+{
+    if ($palEmail === null || trim($palEmail) === '') {
+        return;
+    }
+    $palEmail = trim($palEmail);
+
+    try {
+        $cp = app()->controlDb();
+        $palTid = (int)$cp->query(
+            "SELECT id FROM kernel_tenants WHERE entry_module_id = 'project-audit-ledger' AND status = 'active' ORDER BY id LIMIT 1"
+        )->fetchColumn();
+        if ($palTid <= 0) {
+            return;
+        }
+        $palDb = app()->dbForTenant($palTid);
+        if (!$palDb) {
+            return;
+        }
+
+        // Leader display name from AW employee_profiles (attendance-wage context).
+        $name = $palEmail;
+        if ($leaderProfileId > 0) {
+            $nStmt = $db->prepare(
+                "SELECT CONCAT_WS(' ', NULLIF(first_name,''), NULLIF(last_name,'')) FROM employee_profiles WHERE profile_id = :pid AND tenant_id = :tid LIMIT 1"
+            );
+            $nStmt->execute([':pid' => $leaderProfileId, ':tid' => $awTenantId]);
+            $n = $nStmt->fetchColumn();
+            if ($n && $n !== '') {
+                $name = $n;
+            }
+        }
+
+        // PAL-side upsert runs inside the project-audit-ledger module context so
+        // the kernel DB guard enforces PAL's declared tables (pal_team_leads).
+        if (!function_exists('moduleWithContext')) {
+            return;
+        }
+        moduleWithContext('project-audit-ledger', function () use ($palDb, $palTid, $name, $palEmail): void {
+            $palDb->prepare("
+                INSERT INTO pal_team_leads (tenant_id, name, email, is_active, created_at)
+                VALUES (:t, :name, :email, 1, NOW())
+                ON DUPLICATE KEY UPDATE name = VALUES(name), is_active = 1
+            ")->execute([':t' => $palTid, ':name' => $name, ':email' => $palEmail]);
+        });
+
+        if (function_exists('write_log')) {
+            write_log("attendance_wage.groups: pushed team lead {$palEmail} to PAL tenant {$palTid}", 'info');
+        }
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('attendance_wage.groups: PAL team lead push failed: ' . $e->getMessage(), 'warning');
+        }
+    }
+}
+
 // ── Page Handlers ──
 
 function awPageAttendanceGroups(): void
@@ -173,6 +240,15 @@ function awApiGroupStore(): void
 
     $svc = awGroupService($user, $db, $tenantId);
     $id = $svc->create($data);
+
+    // Push the team lead to PAL so PAL JOs can assign it immediately.
+    awSyncTeamLeadToPal(
+        $db,
+        $tenantId,
+        (int)($data['leader_profile_id'] ?? 0),
+        $data['pal_team_lead_email'] ?? null
+    );
+
     header('Content-Type: application/json');
     echo json_encode(['ok' => true, 'group_id' => $id]);
 }
@@ -192,6 +268,23 @@ function awApiGroupUpdate(array $rp = []): void
 
     $svc = awGroupService($user, $db, $tenantId);
     $svc->update($groupId, $data);
+
+    // Push the (possibly updated) team lead to PAL.
+    $leaderId = (int)($data['leader_profile_id'] ?? 0);
+    $palEmail = $data['pal_team_lead_email'] ?? null;
+    if ($leaderId <= 0 || $palEmail === null) {
+        // Pull current values so an update that only changes name/description
+        // still keeps the PAL side in sync with the stored team lead email.
+        $cur = $db->prepare('SELECT leader_profile_id, pal_team_lead_email FROM attendance_groups WHERE group_id = :gid AND tenant_id = :tid LIMIT 1');
+        $cur->execute([':gid' => $groupId, ':tid' => $tenantId]);
+        $row = $cur->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $leaderId = (int)($row['leader_profile_id'] ?? 0);
+            $palEmail = $row['pal_team_lead_email'] ?? null;
+        }
+    }
+    awSyncTeamLeadToPal($db, $tenantId, $leaderId, $palEmail);
+
     header('Content-Type: application/json');
     echo json_encode(['ok' => true]);
 }

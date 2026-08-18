@@ -221,7 +221,7 @@ class palApprovalService
 
             case 'cash_advance':
                 $stmt = $this->db->prepare(
-                    "SELECT ca.id, ca.amount, ca.advance_number AS entity_label,
+                    "SELECT ca.id, ca.amount, CONCAT('Cash Advance #', ca.id) AS entity_label,
                             p.title AS project_title, p.id AS project_id
                      FROM pal_cash_advances ca
                      LEFT JOIN pal_projects p ON ca.project_id = p.id

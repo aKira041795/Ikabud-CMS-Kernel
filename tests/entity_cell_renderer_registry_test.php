@@ -167,6 +167,27 @@ $result = $badge->render(new CellRenderContext(
 t('map label without pipe defaults to gray', str_contains($result->html, 'bg-gray-100'));
 t('map label without pipe shows label', str_contains($result->html, 'Active'));
 
+// Pipe-pair arg (renderer="badge:{pending|amber|approved|green|...}"):
+// alternating value|color pairs — label is the value itself, color from pair.
+$result = $badge->render(new CellRenderContext(
+    value: 'approved',
+    field: 'status',
+    row: ['status' => 'approved'],
+    options: ['arg' => '{pending|amber|approved|green|settled|blue|voided|gray}'],
+));
+t('pipe-pair arg renders value as label', str_contains($result->html, 'approved'));
+t('pipe-pair arg uses mapped color', str_contains($result->html, 'bg-green-100'));
+t('pipe-pair arg text is value', $result->text === 'approved');
+
+$result = $badge->render(new CellRenderContext(
+    value: 'pending',
+    field: 'status',
+    row: ['status' => 'pending'],
+    options: ['arg' => '{pending|amber|approved|green|settled|blue|voided|gray}'],
+));
+t('pipe-pair arg pending uses amber', str_contains($result->html, 'bg-amber-100'));
+t('pipe-pair arg pending text', $result->text === 'pending');
+
 // ════════════════════════════════════════════
 // 4. MoneyCellRenderer
 // ════════════════════════════════════════════

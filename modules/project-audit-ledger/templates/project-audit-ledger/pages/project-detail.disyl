@@ -174,6 +174,22 @@
             {ikb_entity_list source="pal_expense" view="table" use="workbench" filter="project_id={project.id}" empty="No expenses recorded." /}
         </div>
         <div class="wb-panel p-6">
+            <h4 class="font-semibold text-gray-900 text-sm mb-3">Cash Advances ({cash_advance_history|count})</h4>
+            <div class="overflow-x-auto">
+            <table class="w-full text-sm wb-table wb-table--sticky">
+                <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Team Lead</th><th class="text-right py-2 px-3 font-semibold text-gray-600 text-xs">Amount</th><th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs">Status</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Description</th></tr></thead>
+                <tbody>
+                    {for ca in cash_advance_history}
+                    <tr class="border-b border-gray-100"><td class="py-2 px-3 text-xs text-gray-600">{ca.advance_date|default:ca.created_at}</td><td class="py-2 px-3 text-xs text-gray-700">{ca.team_lead_name|default:'—'}</td><td class="py-2 px-3 text-xs text-right font-medium">₱{ca.amount|number_format:2}</td><td class="py-2 px-3 text-center">{include "project-audit-ledger/components/pal_status_badge" _sb_status=ca.status|default:'pending'}</td><td class="py-2 px-3 text-xs text-gray-500">{ca.description|default:'—'}</td></tr>
+                    {/for}
+                    {if cash_advance_history|count == 0}
+                    <tr><td colspan="5" class="py-6 text-center text-gray-600 text-sm">No cash advances for this project.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+            </div>
+        </div>
+        <div class="wb-panel p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Purchase Orders ({purchase_history|count})</h4>
             <div class="overflow-x-auto">
             <table class="w-full text-sm wb-table wb-table--sticky">

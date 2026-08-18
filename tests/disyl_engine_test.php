@@ -2410,6 +2410,93 @@ if ($current_section && ($section_pass + $section_fail > 0)) {
     echo "   ({$section_pass}/{$total} passed)\n\n";
 }
 
+section('47. Loop {else} empty-fallback — for/foreach/each');
+
+// {for}...{else}...{/for} must treat a top-level {else} as the empty-collection
+// fallback (mirroring {forelse}/{empty}) — it must NOT render inside iterations
+// and a nested {if}...{else}...{/if} must not be mistaken for the loop else.
+$e47 = new TemplateEngine($tmpDir, '/tmp/disyl_forelse_test_' . getmypid(), false);
+$e47->enableCompiledMode(false); // interpreted path
+
+// 47.1 — Non-empty list: {else} content must NOT render
+check(
+    'for/else: non-empty skips else content',
+    'ab',
+    $e47->renderString('{for item in items}{item}{else}EMPTY{/for}', ['items' => ['a', 'b']])
+);
+
+// 47.2 — Empty list: {else} content renders
+check(
+    'for/else: empty list renders else content',
+    'EMPTY',
+    $e47->renderString('{for item in items}{item}{else}EMPTY{/for}', ['items' => []])
+);
+
+// 47.3 — Missing list treated as empty → else renders
+check(
+    'for/else: missing list renders else content',
+    'NONE',
+    $e47->renderString('{for item in missing}{item}{else}NONE{/for}', [])
+);
+
+// 47.4 — Nested {if}...{else}...{/if} inside loop body must not be split
+check(
+    'for/else: nested if/else preserved in body',
+    'AB',
+    $e47->renderString('{for item in items}{if item=="a"}A{else}B{/if}{/for}', ['items' => ['a', 'b']])
+);
+
+// 47.5 — Nested if/else + loop else: loop else fires only when empty
+check(
+    'for/else: nested if/else with loop else (empty)',
+    'NONE',
+    $e47->renderString('{for item in items}{if item=="a"}A{else}B{/if}{else}NONE{/for}', ['items' => []])
+);
+
+// 47.6 — {foreach}...{else}...{/foreach}
+check(
+    'foreach/else: empty list renders else content',
+    'EMPTY',
+    $e47->renderString('{foreach items as item}{item}{else}EMPTY{/foreach}', ['items' => []])
+);
+
+// 47.7 — {each}...{else}...{/each}
+check(
+    'each/else: empty list renders else content',
+    'EMPTY',
+    $e47->renderString('{each items as item}{item}{else}EMPTY{/each}', ['items' => []])
+);
+
+// 47.8 — Compiled path: parser produces the else branch and compiler emits it
+$e47c = new TemplateEngine($tmpDir, '/tmp/disyl_forelse_compiled_' . getmypid(), false);
+$e47c->enableCompiledMode(true); // compiled path
+check(
+    'compiled for/else: non-empty skips else content',
+    'ab',
+    $e47c->renderString('{for item in items}{item}{else}EMPTY{/for}', ['items' => ['a', 'b']])
+);
+check(
+    'compiled for/else: empty list renders else content',
+    'EMPTY',
+    $e47c->renderString('{for item in items}{item}{else}EMPTY{/for}', ['items' => []])
+);
+check(
+    'compiled foreach/else: empty list renders else content',
+    'EMPTY',
+    $e47c->renderString('{foreach items as item}{item}{else}EMPTY{/foreach}', ['items' => []])
+);
+check(
+    'compiled for/else: nested if/else preserved + loop else on empty',
+    'NONE',
+    $e47c->renderString('{for item in items}{if item=="a"}A{else}B{/if}{else}NONE{/for}', ['items' => []])
+);
+
+// Print final section stats
+if ($current_section && ($section_pass + $section_fail > 0)) {
+    $total = $section_pass + $section_fail;
+    echo "   ({$section_pass}/{$total} passed)\n\n";
+}
+
 echo "══════════════════════════════════════════════════════════\n";
 $total = $pass + $fail;
 if ($fail === 0) {

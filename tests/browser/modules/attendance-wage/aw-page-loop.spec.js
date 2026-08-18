@@ -51,7 +51,7 @@ test('AW admin page loop — all pages', async ({ page }) => {
     // Login once (single login avoids the AW login rate limiter)
     await page.goto(APP_URL + '/attendance-wage/login', { waitUntil: 'domcontentloaded' });
     var body = '';
-    try { body = await page.locator('body').innerText({ timeout: 2000 }); } catch (e) {}
+    try { body = await page.locator('body').innerText({ timeout: 2000 }); } catch (e) { }
     if (body && body.indexOf('Too many login') >= 0) {
         var m = body.match(/retry_after["':]\s*(\d+)/);
         var waitSec = m ? parseInt(m[1], 10) + 5 : 120;

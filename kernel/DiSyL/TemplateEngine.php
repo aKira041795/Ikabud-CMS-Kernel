@@ -3168,6 +3168,13 @@ class TemplateEngine
                 break;
             }
         }
+        // {for}...{else}...{/for} — treat a top-level {else} as the
+        // empty-collection fallback (mirrors {forelse}/{empty}). Depth-aware so
+        // a nested {if}...{else}...{/if} is not mistaken for the loop else.
+        if ($emptyContent === '' && ($elsePos = $this->findTopLevelForElse($body)) !== false) {
+            $emptyContent = substr($body, $elsePos + strlen('{else}'));
+            $body = substr($body, 0, $elsePos);
+        }
 
         $list = $this->resolveValue($listExpr, $context);
         if (!is_array($list)) {
@@ -3240,6 +3247,11 @@ class TemplateEngine
                 $body = substr($body, 0, $emptyTagPos);
                 break;
             }
+        }
+        // {foreach}...{else}...{/foreach} — see evaluateForBody note.
+        if ($emptyContent === '' && ($elsePos = $this->findTopLevelForElse($body)) !== false) {
+            $emptyContent = substr($body, $elsePos + strlen('{else}'));
+            $body = substr($body, 0, $elsePos);
         }
 
         $list = $this->resolveValue($listExpr, $context);
@@ -3349,6 +3361,11 @@ class TemplateEngine
                 break;
             }
         }
+        // {each}...{else}...{/each} — see evaluateForBody note.
+        if ($emptyContent === '' && ($elsePos = $this->findTopLevelForElse($body)) !== false) {
+            $emptyContent = substr($body, $elsePos + strlen('{else}'));
+            $body = substr($body, 0, $elsePos);
+        }
 
         $list = $this->resolveValue($listExpr, $context);
         if (!is_array($list)) {
@@ -3411,6 +3428,51 @@ class TemplateEngine
         }
 
         return [substr($content, 0, (int)$continuePos), 'continue'];
+    }
+
+    /**
+     * Locate a top-level {else} inside a loop body — the empty-collection
+     * fallback for {for}/{foreach}/{each}. Skips any {else} that lives inside a
+     * nested {if}/{for}/{foreach}/{each}/{while}/{with}/{apply}/{block} block,
+     * so a nested {if}...{else}...{/if} is never mistaken for the loop else.
+     *
+     * Returns the byte offset of the {else} token, or false if none found.
+     */
+    private function findTopLevelForElse(string $body): int|false
+    {
+        $openNames = ['if', 'for', 'foreach', 'each', 'while', 'with', 'apply', 'block', 'capture', 'verbatim', 'literal'];
+        $closeNames = ['if', 'for', 'foreach', 'each', 'while', 'with', 'apply', 'block', 'capture', 'verbatim', 'literal', 'cfor'];
+        $depth = 0;
+        $offset = 0;
+        $len = strlen($body);
+
+        while ($offset < $len && preg_match('/\{\s*(\/?)([a-z_][a-z_0-9]*)/i', $body, $m, PREG_OFFSET_CAPTURE, $offset)) {
+            $pos = $m[0][1];
+            $tokLen = strlen($m[0][0]);
+            $slash = strtolower($m[1][0]);
+            $name = strtolower($m[2][0]);
+
+            if ($slash === '/') {
+                if (in_array($name, $closeNames, true) && $depth > 0) {
+                    $depth--;
+                }
+                $offset = $pos + $tokLen;
+                continue;
+            }
+
+            // Top-level {else} (no arguments) → the loop empty-fallback.
+            if ($depth === 0 && $name === 'else' && substr($body, $pos + $tokLen, 1) === '}') {
+                return $pos;
+            }
+
+            if (in_array($name, $openNames, true)) {
+                $depth++;
+            }
+
+            $offset = $pos + $tokLen;
+        }
+
+        return false;
     }
 
     /**
