@@ -98,8 +98,11 @@ class ExpressionEvaluator
             }
         }
 
-        // String concatenation with ~ operator (skip if array literal)
-        if (str_contains($path, '~') && $path[0] !== '[' && !preg_match('/^["\'].*["\']$/', $path)) {
+        // String concatenation with ~ operator (skip if array literal).
+        // The quoted-token guard only excludes a SINGLE quoted literal (e.g.
+        // 'now') — a multi-part concat like '<a href="/x/" ~ id ~ '/edit">'
+        // starts AND ends with a quote but must still be concatenated.
+        if (str_contains($path, '~') && $path[0] !== '[' && !$this->isSingleQuotedLiteral($path)) {
             $result = $this->evaluateConcat($path, $context);
             if ($result !== null) {
                 $this->currentExpression = $prevExpr;
@@ -569,6 +572,29 @@ class ExpressionEvaluator
             $parts[] = $current;
         }
         return $parts;
+    }
+
+    /**
+     * Whether $expr is a SINGLE quoted string token (opening quote at the start
+     * and its matching closing quote as the last non-space char). A multi-part
+     * concatenation like '<a href="/x/" ~ id ~ '/edit">' starts and ends with a
+     * quote but is NOT a single token.
+     */
+    private function isSingleQuotedLiteral(string $expr): bool
+    {
+        $expr = trim($expr);
+        $len = strlen($expr);
+        if ($len < 2 || ($expr[0] !== "'" && $expr[0] !== '"')) {
+            return false;
+        }
+        $quote = $expr[0];
+        for ($i = 1; $i < $len; $i++) {
+            if ($expr[$i] === '\\') { $i++; continue; }
+            if ($expr[$i] === $quote) {
+                return trim(substr($expr, $i + 1)) === '';
+            }
+        }
+        return false;
     }
 
     // ── Comparison ───────────────────────────────────────────────────

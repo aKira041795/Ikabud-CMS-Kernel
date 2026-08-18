@@ -1,0 +1,123 @@
+{* Cash Advance Detail — admin view *}
+{set _dh_title = 'Cash Advance #' ~ ca.id}
+{set _dh_subtitle = ca.project_title|default:('Team Lead: ' ~ ca.team_lead_name|default:'—')|default:''}
+{set _dh_status = ca.status|default:'pending'}
+
+{set _dh_actions_raw = '<a href="/admin/project-audit-ledger/cash-advances" class="wb-btn wb-btn--secondary wb-btn--sm">Back to List</a>'}
+
+{if ca.status|default:'pending' == 'pending' || ca.status|default:'' == 'pending_approval'}
+    {set _dh_actions_raw = _dh_actions_raw ~ ' <button onclick="submitCaDecision(event)" data-action="/api/v1/project-audit-ledger/cash-advances/' ~ ca.id ~ '/approve" data-confirm="Approve this cash advance?" class="wb-btn wb-btn--success wb-btn--sm">Approve</button>'}
+    {set _dh_actions_raw = _dh_actions_raw ~ ' <button onclick="submitCaDecision(event)" data-action="/api/v1/project-audit-ledger/cash-advances/' ~ ca.id ~ '/void" data-confirm="Void this cash advance?" class="wb-btn wb-btn--danger wb-btn--sm">Void</button>'}
+{elseif ca.status|default:'' == 'approved'}
+    {set _dh_actions_raw = _dh_actions_raw ~ ' <button onclick="submitCaDecision(event)" data-action="/api/v1/project-audit-ledger/cash-advances/' ~ ca.id ~ '/settle" data-confirm="Mark as settled?" class="wb-btn wb-btn--primary wb-btn--sm">Mark Settled</button>'}
+{/if}
+
+{include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions_raw|default:''|raw}
+
+<div class="wb-panel p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-1">Advance Details</h3>
+        <dl class="divide-y divide-gray-100">
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Cash Advance ID</dt><dd class="text-sm font-medium">CA-{ca.id}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Status</dt><dd class="text-sm font-medium"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if ca.status|default:'pending' == 'approved'}bg-green-100 text-green-700{elseif ca.status|default:'' == 'settled'}bg-blue-100 text-blue-700{elseif ca.status|default:'' == 'voided'}bg-gray-100 text-gray-600{else}bg-amber-100 text-amber-700{/if}">{ca.status|default:'pending'}</span></dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Amount</dt><dd class="text-sm font-medium">₱{ca.amount|number_format:2}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Advance Date</dt><dd class="text-sm font-medium">{ca.advance_date|default:'—'}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Created</dt><dd class="text-sm font-medium">{ca.created_at|default:'—'}</dd></div>
+            {if ca.description|default:'' != ''}
+            <div class="py-2"><dt class="text-sm text-gray-600 mb-1">Description</dt><dd class="text-sm">{ca.description|nl2br}</dd></div>
+            {/if}
+        </dl>
+    </div>
+    <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-1">Related</h3>
+        <dl class="divide-y divide-gray-100">
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Team Lead</dt><dd class="text-sm font-medium">{ca.team_lead_name|default:'—'}</dd></div>
+            {if ca.team_lead_email|default:'' != ''}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Team Lead Email</dt><dd class="text-sm font-medium">{ca.team_lead_email}</dd></div>
+            {/if}
+            {if ca.project_id|default:0 > 0}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Project</dt><dd class="text-sm font-medium"><a href="/admin/project-audit-ledger/projects/{ca.project_id}" class="text-blue-600 hover:underline">{ca.project_title|default:'—'}</a>{if ca.job_order_number|default:'' != ''} <span class="text-gray-400">({ca.job_order_number})</span>{/if}</dd></div>
+            {/if}
+            {if ca.approval_id|default:0 > 0}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Approval</dt><dd class="text-sm font-medium">APR-{ca.approval_id} <span class="text-gray-400">({ca.approval_decision|default:'pending'})</span></dd></div>
+            {/if}
+            {if ca.approval_date|default:'' != ''}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Decision Date</dt><dd class="text-sm font-medium">{ca.approval_date}</dd></div>
+            {/if}
+            {if ca.reviewer_name|default:'' != ''}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Reviewed By</dt><dd class="text-sm font-medium">{ca.reviewer_name}</dd></div>
+            {/if}
+            {if ca.settled_at|default:'' != ''}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Settled At</dt><dd class="text-sm font-medium">{ca.settled_at}</dd></div>
+            {/if}
+        </dl>
+
+        {if aw_sync|default:null != null}
+        <h3 class="text-sm font-semibold text-gray-500 uppercase mt-4 mb-1">Attendance &amp; Wage Sync</h3>
+        <dl class="divide-y divide-gray-100">
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">AW Advance ID</dt><dd class="text-sm font-medium">{aw_sync.advance_id}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">AW Status</dt><dd class="text-sm font-medium"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if aw_sync.status == 'approved'}bg-green-100 text-green-700{elseif aw_sync.status == 'active'}bg-blue-100 text-blue-700{elseif aw_sync.status == 'paid'}bg-teal-100 text-teal-700{else}bg-amber-100 text-amber-700{/if}">{aw_sync.status|default:'pending'}</span></dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">AW Amount</dt><dd class="text-sm font-medium">₱{aw_sync.amount|number_format:2}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">AW Balance</dt><dd class="text-sm font-medium">₱{aw_sync.balance|number_format:2}</dd></div>
+        </dl>
+        {/if}
+    </div>
+</div>
+
+<div class="wb-panel p-6 mt-4">
+    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Audit Trail ({audit_entries|count})</h3>
+    {if audit_entries|count > 0}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm wb-table wb-table--sticky">
+            <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Action</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Actor</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Details</th></tr></thead>
+            <tbody>
+                {for a in audit_entries}
+                <tr class="border-b border-gray-100">
+                    <td class="py-2 px-3 text-xs text-gray-600">{a.created_at}</td>
+                    <td class="py-2 px-3 text-xs font-medium text-gray-800">{a.action}</td>
+                    <td class="py-2 px-3 text-xs text-gray-700">{a.actor_name|default:('User #' ~ a.actor_user_id|default:0)}</td>
+                    <td class="py-2 px-3 text-xs text-gray-500">{a.metadata_json|default:'—'}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+    {else}
+    <p class="text-sm text-gray-500">No audit entries recorded for this cash advance.</p>
+    {/if}
+</div>
+
+<script>
+function submitCaDecision(event) {
+    event.preventDefault();
+    var button = event.currentTarget;
+    var action = button.getAttribute('data-action') || '';
+    var message = button.getAttribute('data-confirm') || 'Continue?';
+    if (!action || !window.confirm(message)) return false;
+
+    var formData = new FormData();
+    var csrf = document.querySelector('input[name="_token"], input[name="_csrf_token"]');
+    if (csrf) formData.append('_token', csrf.value);
+
+    button.disabled = true;
+    fetch(action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function (r) { return r.json().catch(function () { return {}; }); })
+    .then(function (d) {
+        if (d.ok) {
+            if (window.showToast) showToast('Saved.', 'success');
+            setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+            if (window.showToast) showToast(d.error || 'Failed.', 'error');
+            button.disabled = false;
+        }
+    })
+    .catch(function () {
+        if (window.showToast) showToast('Failed.', 'error');
+        button.disabled = false;
+    });
+}
+</script>

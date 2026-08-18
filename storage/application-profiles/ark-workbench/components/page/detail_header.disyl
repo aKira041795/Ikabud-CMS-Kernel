@@ -1,6 +1,7 @@
 {* workbench:detail_header — Entity detail header with identity, status, metrics, and tabs.
    Pass: title, subtitle?, status_badge? (pre-rendered workbench:status_badge include),
-         metrics? ({label,value,variant}[]), actions? (ActionValue[]), tabs? ({label,url,active}[]) *}
+         metrics? ({label,value,variant}[]), actions? (ActionValue[] | raw HTML string),
+         tabs? ({label,url,active}[]) *}
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6"
      data-wb-component="detail-header">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -13,9 +14,13 @@
         </div>
         {if actions|default:[]}
         <div class="flex items-center gap-2">
-            {for action in actions}
-                <a href="{action.url}" class="wb-btn wb-btn--{action.variant|default:'primary'}">{action.label}</a>
-            {/for}
+            {if is_array(actions)}
+                {for action in actions}
+                    <a href="{action.url}" class="wb-btn wb-btn--{action.variant|default:'primary'}">{action.label}</a>
+                {/for}
+            {else}
+                {actions|raw}
+            {/if}
         </div>
         {/if}
     </div>

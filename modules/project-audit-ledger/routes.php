@@ -69,6 +69,7 @@ return [
         '/admin/project-audit-ledger/collections/{id}' => 'project-audit-ledger:palPageCollectionDetail',
         '/admin/project-audit-ledger/cash-advances' => 'project-audit-ledger:palPageCashAdvanceList',
         '/admin/project-audit-ledger/cash-advances/create' => 'project-audit-ledger:palPageCashAdvanceForm',
+        '/admin/project-audit-ledger/cash-advances/{id}' => 'project-audit-ledger:palPageCashAdvanceDetail',
         '/admin/project-audit-ledger/approvals' => 'project-audit-ledger:palPageApprovalQueue',
         '/admin/project-audit-ledger/quotations' => 'project-audit-ledger:palPageQuotationList',
         '/admin/project-audit-ledger/quotations/create' => 'project-audit-ledger:palPageQuotationForm',

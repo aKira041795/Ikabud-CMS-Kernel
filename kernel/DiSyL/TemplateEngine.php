@@ -1388,9 +1388,20 @@ class TemplateEngine
             return $this->coerceType($result, $varType, '');
         }
 
-        // Try quoted string literal
-        if (preg_match('/^["\'](.*)["\']\s*$/', $expr, $qm)) {
-            return $this->coerceType($qm[1], $varType, '');
+        // Try quoted string literal (single token only). A multi-part concat
+        // like '<a href="/x/" ~ id ~ '/edit">' also starts/ends with a quote
+        // but must NOT be collapsed into one mangled literal.
+        if ($this->isSingleQuotedToken($expr)) {
+            $inner = trim($expr);
+            return $this->coerceType(substr($inner, 1, -1), $varType, '');
+        }
+
+        // String concatenation with ~ operator (quote-aware split).
+        if (str_contains($expr, '~')) {
+            $concat = $this->evaluator()->evaluateConcat($expr, $context);
+            if ($concat !== null) {
+                return $this->coerceType($concat, $varType, '');
+            }
         }
 
         // Try numeric literal
@@ -1401,6 +1412,29 @@ class TemplateEngine
         // Fall back to variable with filters
         $value = $this->resolveValueWithFilters($expr, $context);
         return $this->coerceType($value, $varType, '');
+    }
+
+    /**
+     * Whether $expr is a SINGLE quoted string token (opening quote at the start
+     * and its matching closing quote as the last non-space char). A multi-part
+     * concatenation like '<a href="/x/" ~ id ~ '/edit">' starts and ends with a
+     * quote but is NOT a single token.
+     */
+    private function isSingleQuotedToken(string $expr): bool
+    {
+        $expr = trim($expr);
+        $len = strlen($expr);
+        if ($len < 2 || ($expr[0] !== "'" && $expr[0] !== '"')) {
+            return false;
+        }
+        $quote = $expr[0];
+        for ($i = 1; $i < $len; $i++) {
+            if ($expr[$i] === '\\') { $i++; continue; }
+            if ($expr[$i] === $quote) {
+                return trim(substr($expr, $i + 1)) === '';
+            }
+        }
+        return false;
     }
 
     /**

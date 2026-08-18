@@ -2491,6 +2491,42 @@ check(
     $e47c->renderString('{for item in items}{if item=="a"}A{else}B{/if}{else}NONE{/for}', ['items' => []])
 );
 
+section('48. String concatenation (~) with quoted segments');
+
+// {set} value with ~ concat where a quoted segment contains " (HTML attrs).
+$e48 = new TemplateEngine($tmpDir, '/tmp/disyl_concat_test_' . getmypid(), false);
+$e48->enableCompiledMode(false);
+
+check(
+    'concat: quoted segments with embedded double quotes',
+    '<a href="/admin/exp/39/edit">Edit</a>',
+    $e48->renderString("{set x = '<a href=\"/admin/exp/' ~ id ~ '/edit\">Edit</a>'}{x|raw}", ['id' => 39])
+);
+
+check(
+    'concat: plain string ~ variable',
+    'CA-29',
+    $e48->renderString("{set x = 'CA-' ~ id}{x}", ['id' => 29])
+);
+
+check(
+    'concat: two quoted segments',
+    'ab',
+    $e48->renderString("{set x = 'a' ~ 'b'}{x}", [])
+);
+
+check(
+    'concat: single-quoted literal with inner tilde preserved',
+    'a~b',
+    $e48->renderString("{set x = 'a~b'}{x}", [])
+);
+
+check(
+    'concat: quoted literal alone still works',
+    'now',
+    $e48->renderString("{set x = 'now'}{x}", [])
+);
+
 // Print final section stats
 if ($current_section && ($section_pass + $section_fail > 0)) {
     $total = $section_pass + $section_fail;
