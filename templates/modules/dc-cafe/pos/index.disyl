@@ -1,7 +1,9 @@
 {extends "modules/dc-cafe/layouts/app.disyl"}
 
 {block "content"}
-<div x-data="posApp()" x-init="init()" class="flex flex-col h-[calc(100vh-3.5rem)]">
+{* NOTE: no x-init here — posApp() returns an object with an init() method,
+     which Alpine auto-calls. x-init="init()" would run init twice (dup fetches). *}
+<div x-data="posApp()" class="flex flex-col h-[calc(100vh-3.5rem)]">
     {* Top: Session Bar + Config Load Status *}
     <div class="bg-amber-100 px-4 py-2 rounded-lg mb-4 flex items-center justify-between text-sm">
         <div class="flex items-center space-x-4">
@@ -189,17 +191,21 @@
             </div>
         </div>
     </div>
-</div>
 
-{* Print Receipt Modal *}
-<div x-show="showPrintModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
-     x-cloak @click.away="showPrintModal = false">
+    {* Print Receipt Modal — must stay INSIDE the x-data="posApp()" root so
+       showPrintModal / lastOrder resolve *}
+    <div x-show="showPrintModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+         x-cloak @click.away="showPrintModal = false">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
         <div class="text-center mb-4">
             <h2 class="text-lg font-bold text-amber-800">DC Cafe</h2>
             <p class="text-xs text-gray-500">Point of Sale — Receipt</p>
         </div>
-        <div class="border-t border-b py-3 space-y-1 text-sm" x-show="lastOrder">
+        {* Wrap in <template x-if> (not x-show) so lastOrder.* children aren't
+           evaluated while lastOrder is null — x-show still evaluates child
+           x-text/x-for and logs Alpine "Cannot read properties of null" on load *}
+        <template x-if="lastOrder">
+        <div class="border-t border-b py-3 space-y-1 text-sm">
             <div class="flex justify-between text-gray-600">
                 <span>Order #</span>
                 <span class="font-semibold" x-text="lastOrder.order_id"></span>
@@ -227,6 +233,7 @@
                 <span x-text="lastOrder.points_earned"></span>
             </div>
         </div>
+        </template>
         <div class="flex gap-2 mt-4">
             <button @click="window.print()"
                     class="flex-1 bg-amber-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-amber-700">
@@ -310,7 +317,7 @@
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <div class="text-sm text-gray-500">
-                        <span x-show="custBase" x-text="custBase.name"></span>
+                        <span x-show="custBase" x-text="custBase ? custBase.name : ''"></span>
                         <span x-show="custSauces.length"> · Sauces: <span x-text="custSauces.length"></span></span>
                         <span x-show="custToppings.length"> · Toppings: <span x-text="custToppings.length"></span></span>
                         <span x-show="custAddons.length"> · Addons: <span x-text="custAddons.length"></span></span>
@@ -323,6 +330,7 @@
             </button>
         </div>
     </div>
+</div>
 </div>
 
 <script>
@@ -444,8 +452,8 @@ function posApp() {
 
         confirmCustomization() {
             const p = this.customizingProduct;
-            const basePrice = p.price;
-            const addonTotal = this.custAddons.reduce((s, a) => s + (a.price || 0), 0);
+            const basePrice = parseFloat(p.price) || 0;
+            const addonTotal = this.custAddons.reduce((s, a) => s + (parseFloat(a.price) || 0), 0);
             const totalPrice = basePrice + addonTotal;
 
             const cust = {
@@ -485,8 +493,8 @@ function posApp() {
         },
 
         get custTotal() {
-            const base = this.customizingProduct ? this.customizingProduct.price : 0;
-            const addons = this.custAddons.reduce((s, a) => s + (a.price || 0), 0);
+            const base = parseFloat(this.customizingProduct ? this.customizingProduct.price : 0) || 0;
+            const addons = this.custAddons.reduce((s, a) => s + (parseFloat(a.price) || 0), 0);
             return base + addons;
         },
 

@@ -69,11 +69,14 @@ function ingredientManager() {
         formData: {name:'', unit:'', cost_per_unit:0, reorder_level:0, supplier_id:''},
         message: '', error: false,
         load() {
+            // NOTE: must fetch /api/v1/ingredients (returns ingredient_id,
+            // current_stock, supplier_name) — NOT /api/v1/inventory, whose
+            // shape (id, stock, supplier) breaks this page's x-for key + cells.
             Promise.all([
-                fetch('/dc-cafe/api/v1/inventory').then(r => r.json()),
+                fetch('/dc-cafe/api/v1/ingredients').then(r => r.json()),
                 fetch('/dc-cafe/api/v1/suppliers').then(r => r.json()),
-            ]).then(([inv, sup]) => {
-                if (inv.ok) this.ingredients = inv.inventory;
+            ]).then(([ing, sup]) => {
+                if (ing.ok) this.ingredients = ing.ingredients;
                 if (sup.ok) this.suppliers = sup.suppliers;
             });
         },

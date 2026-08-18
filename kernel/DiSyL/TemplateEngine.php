@@ -1141,7 +1141,33 @@ class TemplateEngine
      */
     private function processScriptVariables(string $content, array $context): string
     {
-        // First pass: ternary expressions
+        // First pass: null-coalescing {var ?? fallback} (e.g. {sales_count ?? 0},
+        // {session.starting_cash ?? 0}). The HTML/v4 paths resolve `??`, but the
+        // script-block path did not, so these stayed raw and broke the JS.
+        if (str_contains($content, '??')) {
+            $content = preg_replace_callback(
+                '/\{((?:[a-zA-Z_][\w.]*)\s*\?\?\s*[^}]+)\}/',
+                function ($match) use ($context) {
+                    $expr = trim($match[1]);
+                    $parts = explode('??', $expr, 2);
+                    $varPath = trim($parts[0]);
+                    $fallback = trim($parts[1]);
+                    $value = $this->resolveValue($varPath, $context);
+                    // Only fall back on null (missing), not on ''/0 which are
+                    // legitimate values in `??` semantics.
+                    if ($value === null) {
+                        return $fallback;
+                    }
+                    if (!is_scalar($value)) {
+                        return $match[0];
+                    }
+                    return (string) $value;
+                },
+                $content
+            );
+        }
+
+        // Second pass: ternary expressions
         if (str_contains($content, '?') && str_contains($content, ':')) {
             $content = preg_replace_callback(
                 '/\{([^}]+\?[^}]+:[^}]+)\}/',

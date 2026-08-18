@@ -57,7 +57,10 @@ function pageDcCafeLogin(array $params = []): void
     $ctx = dcCtx();
     $user = $ctx->user();
     if ($user) {
-        header('Location: /dc-cafe/pos');
+        // Role-aware: auditor cannot access /dc-cafe/pos (redirect loop
+        // otherwise). Send auditor to the dashboard.
+        $role = (string) ($user['role'] ?? '');
+        header('Location: ' . (in_array($role, ['admin', 'supervisor', 'cashier'], true) ? '/dc-cafe/pos' : '/dc-cafe/dashboard'));
         exit;
     }
 
@@ -124,7 +127,11 @@ function handleAuthLogin(array $params = []): void
 
     echo json_encode([
         'ok' => true,
-        'redirect' => '/dc-cafe/pos',
+        // Role-aware post-login redirect. Auditor cannot access /dc-cafe/pos
+        // (requireAnyRole excludes it); sending them there bounces to '/' →
+        // back to /dc-cafe/pos → ERR_TOO_MANY_REDIRECTS. Auditor lands on the
+        // dashboard instead.
+        'redirect' => in_array($role, ['admin', 'supervisor', 'cashier'], true) ? '/dc-cafe/pos' : '/dc-cafe/dashboard',
         'user' => [
             'id' => $userId,
             'username' => (string) ($userRow['username'] ?? ''),

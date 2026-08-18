@@ -1321,6 +1321,24 @@ check(
     $engine->renderString('<script>const cfg = { label: "{name}", nested: { ok: true } };</script>', ['name' => 'Alice'])
 );
 
+check(
+    'null-coalescing ?? resolved in script block (dot-path + numeric fallback)',
+    '<script>const sc = 1000; const n = 0;</script>',
+    $engine->renderString('<script>const sc = {session.starting_cash ?? 0}; const n = {sales_count ?? 0};</script>', ['session' => ['starting_cash' => 1000], 'sales_count' => 0])
+);
+
+check(
+    'null-coalescing ?? falls back to literal when variable is missing',
+    '<script>const x = "morning";</script>',
+    $engine->renderString('<script>const x = {missing_var ?? "morning"};</script>', [])
+);
+
+check(
+    'null-coalescing ?? keeps a zero value (does not fall back on 0)',
+    '<script>const z = 0;</script>',
+    $engine->renderString('<script>const z = {sales_total ?? 99};</script>', ['sales_total' => 0])
+);
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 section('22. Template Inheritance (extends/block)');

@@ -1,4 +1,4 @@
-{extends 'modules/dc-cafe/layouts/app.disyl'}
+{extends "modules/dc-cafe/layouts/app.disyl"}
 
 {block content}
 <div class="max-w-5xl mx-auto" x-data="settingsApp()">
@@ -1016,7 +1016,13 @@ function settingsApp(initialData) {
             this.api('/dc-cafe/api/v1/settings/ledger-groups/' + g.ledger_group_id, 'PUT', body).then(d => { if (d.ok) this.onSuccess('Group saved'); else this.onError(d.error); });
         },
         toggleLedgerGroupActive(g) {
-            this.api('/dc-cafe/api/v1/settings/ledger-groups/' + g.ledger_group_id, 'PUT', {is_active: g.is_active ? 0 : 1, version: g.version}).then(d => { if (d.ok) this.onSuccess('Group updated'); else this.onError(d.error); });
+            // Build body via property assignment: an inline object literal with a
+            // ternary ({is_active: g.is_active ? 0 : 1, ...}) is mangled by DiSyL
+            // script-block interpolation (strips the braces -> syntax error).
+            const body = {};
+            body.is_active = g.is_active ? 0 : 1;
+            body.version = g.version;
+            this.api('/dc-cafe/api/v1/settings/ledger-groups/' + g.ledger_group_id, 'PUT', body).then(d => { if (d.ok) this.onSuccess('Group updated'); else this.onError(d.error); });
         },
         remapCategoryGroup(categoryId) {
             const category = this.categories.find(c => c.category_id == categoryId);
