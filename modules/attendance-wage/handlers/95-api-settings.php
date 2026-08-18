@@ -29,6 +29,12 @@ function wagePageSettings(array $params = []): void
     $allUsers = $db->query('SELECT id, username, email, full_name, role, is_active FROM attendance_wage_users ORDER BY full_name ASC')
         ->fetchAll(PDO::FETCH_ASSOC);
 
+    // Data-reset group catalog (Danger Zone panel)
+    $resetGroups = [];
+    foreach (awResetGroups() as $key => $def) {
+        $resetGroups[] = ['key' => $key, 'label' => $def['label']];
+    }
+
     $vars = [
         'app_name'             => $moduleSettings['app_name'] ?? 'ZAP',
         'logo_url'             => $moduleSettings['logo_url'] ?? '',
@@ -54,6 +60,7 @@ function wagePageSettings(array $params = []): void
         'csrf_token' => app()->csrfToken(),
         'users'           => $allUsers,
         'current_user_id' => aw_currentUserId(),
+        'reset_groups'    => $resetGroups,
     ];
 
     echo app()->render('modules/attendance-wage/wage/settings', $vars);
@@ -204,5 +211,143 @@ function wageApiSettingsSave(array $params = []): void
     }
 
     echo json_encode(['ok' => true, 'message' => 'Settings saved successfully.']);
+    exit;
+}
+
+/**
+ * Data-reset group catalog for the Attendance & Wage tenant database.
+ * Mirrors PAL's palResetGroups() so the same logical groups can be wiped
+ * granularly. Configuration (payroll_settings) is intentionally NOT a reset
+ * group — it is always preserved, like PAL preserves its settings.
+ */
+function awResetGroups(): array
+{
+    return [
+        'employees'     => ['label' => 'Employees & Profiles',               'tables' => ['employee_profiles', 'employee_schedules']],
+        'attendance'    => ['label' => 'Attendance Records',                 'tables' => ['attendance_records']],
+        'groups'        => ['label' => 'Teams / Groups & Members',           'tables' => ['attendance_groups', 'attendance_group_members']],
+        'payroll'       => ['label' => 'Payroll & Salary Computations',      'tables' => ['payroll_periods', 'salary_computations', 'salary_adjustments', 'employee_deductions']],
+        'cash_advances' => ['label' => 'Cash Advances & Repayments',         'tables' => ['cash_advances', 'cash_advance_repayments']],
+        'benefits'      => ['label' => 'Benefits Contribution Rates',        'tables' => ['benefits_contribution_rates']],
+        'holidays'      => ['label' => 'Holidays',                           'tables' => ['holidays']],
+        'locations'     => ['label' => 'Office Locations',                   'tables' => ['office_locations']],
+    ];
+}
+
+/**
+ * Wipe the selected data groups for the active tenant.
+ * - Tenant-scoped tables (have tenant_id) are filtered by tenant id.
+ * - cash_advance_repayments has no tenant_id (per-tenant DB) → full delete.
+ * - Full mode also wipes all user accounts except the logged-in admin.
+ * - payroll_settings (config) is always preserved.
+ */
+function awResetTenantData(\PDO $db, string $tenantId, int $uid, array $groups, bool $full): void
+{
+    // Tables that carry a tenant_id column → scoped delete.
+    $scopedTables = [
+        'employee_profiles', 'employee_schedules', 'attendance_records',
+        'attendance_groups', 'attendance_group_members', 'payroll_periods',
+        'salary_computations', 'salary_adjustments', 'employee_deductions',
+        'benefits_contribution_rates', 'holidays', 'cash_advances',
+        'office_locations',
+    ];
+    // Tables that are inherently per-tenant (no tenant_id column) → full delete.
+    $unscopedTables = ['cash_advance_repayments'];
+
+    $db->exec('SET FOREIGN_KEY_CHECKS = 0');
+    try {
+        foreach ($groups as $key) {
+            $def = awResetGroups()[$key] ?? null;
+            if (!$def) {
+                continue;
+            }
+            foreach ($def['tables'] as $table) {
+                if (in_array($table, $scopedTables, true)) {
+                    $stmt = $db->prepare("DELETE FROM `{$table}` WHERE tenant_id = :tid");
+                    $stmt->execute([':tid' => $tenantId]);
+                } elseif (in_array($table, $unscopedTables, true)) {
+                    $db->exec("DELETE FROM `{$table}`");
+                }
+            }
+        }
+        if ($full) {
+            $stmt = $db->prepare('DELETE FROM attendance_wage_users WHERE id <> :uid');
+            $stmt->execute([':uid' => $uid]);
+            $db->prepare('DELETE FROM attendance_wage_password_resets WHERE user_id <> :uid')
+                ->execute([':uid' => $uid]);
+        }
+    } finally {
+        $db->exec('SET FOREIGN_KEY_CHECKS = 1');
+    }
+}
+
+/**
+ * POST /api/v1/wage/settings/data-reset
+ *
+ * Full or granular data reset for the active tenant (admin only).
+ * Mirrors PAL's palApiSettingsDataReset(): mode=full wipes all groups + all
+ * users except the logged-in admin; mode=granular wipes the selected groups.
+ */
+function wageApiSettingsDataReset(array $params = []): void
+{
+    attendanceWageGuard('attendance_wage.admin@1');
+    $uid = aw_currentUserId();
+
+    $mode = (string)($_POST['mode'] ?? '');
+    $requested = array_values(array_filter(array_map('strval', (array)($_POST['groups'] ?? []))));
+
+    $catalog = awResetGroups();
+    if ($mode === 'full') {
+        $resetGroups = array_keys($catalog);
+    } elseif ($mode === 'granular') {
+        $resetGroups = array_values(array_intersect($requested, array_keys($catalog)));
+        if ($resetGroups === []) {
+            http_response_code(422);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Select at least one data group to reset.']);
+            exit;
+        }
+    } else {
+        http_response_code(422);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Invalid reset mode.']);
+        exit;
+    }
+
+    $tenantId = (string)aw_tenant_id();
+    try {
+        awResetTenantData(aw_db(), $tenantId, $uid, $resetGroups, $mode === 'full');
+    } catch (\Throwable $e) {
+        write_log('attendance_wage_data_reset_error', 'error', ['error' => $e->getMessage()]);
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Failed to reset data.']);
+        exit;
+    }
+
+    write_log('attendance_wage.data.reset', 'info', [
+        'tenant_id' => $tenantId,
+        'mode'      => $mode,
+        'groups'    => $resetGroups,
+        'by_user'   => $uid,
+    ]);
+
+    // Invalidate cached settings page so the next visitor gets fresh content.
+    if (class_exists(\Ikabud\Kernel\DiSyL\Cache\FragmentStore::class)) {
+        try {
+            $store = new \Ikabud\Kernel\DiSyL\Cache\FragmentStore();
+            $store->invalidate(['attendance_settings'], app()->tenant()->current() ?? '_global');
+        } catch (\Throwable $e) {
+            // Non-fatal: cache invalidation is best-effort
+        }
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok'      => true,
+        'message' => $mode === 'full'
+            ? 'All tenant data has been reset.'
+            : 'Selected data groups have been reset.',
+    ]);
     exit;
 }

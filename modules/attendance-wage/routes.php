@@ -128,6 +128,7 @@ return [
         '/api/v1/wage/settings/add-user'        => 'attendance-wage:wageApiAddUser',
         '/api/v1/wage/settings/update-role'     => 'attendance-wage:wageApiUpdateRole',
         '/api/v1/wage/settings/toggle-user'     => 'attendance-wage:wageApiToggleUser',
+        '/api/v1/wage/settings/data-reset'      => 'attendance-wage:wageApiSettingsDataReset',
         '/api/v1/wage/profile/change-password'  => 'attendance-wage:wageApiProfileChangePassword',
         '/api/v1/wage/profile/update'           => 'attendance-wage:wageApiProfileUpdate',
         '/api/v1/wage/benefits/calculate'     => 'attendance-wage:wageApiBenefitsCalculate',

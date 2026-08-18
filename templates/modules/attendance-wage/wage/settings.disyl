@@ -268,7 +268,102 @@
             </div>
         </div>
 
+        <!-- Danger Zone: Data Reset -->
+        <div class="bg-white rounded-xl shadow-sm border border-red-200 p-6 space-y-5">
+            <h2 class="text-lg font-bold text-red-700">⚠️ Danger Zone — Data Reset</h2>
+            <p class="text-sm text-gray-500">Permanently deletes selected data for this workspace. This cannot be undone. Your login account and payroll settings (config) are preserved.</p>
+
+            <div class="border border-red-200 rounded-lg p-4">
+                <h3 class="text-sm font-semibold text-gray-800 mb-1">Full Reset</h3>
+                <p class="text-xs text-gray-500 mb-3">Deletes ALL business data (employees &amp; profiles, attendance records, teams/groups, payroll &amp; salary computations, cash advances &amp; repayments, benefits rates, holidays, office locations) and all user accounts except the currently logged-in admin.</p>
+                <form id="aw-full-reset-form" action="/api/v1/wage/settings/data-reset" method="POST">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+                    <input type="hidden" name="mode" value="full">
+                    <button type="button" onclick="awConfirmFullReset()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">Reset All Data</button>
+                </form>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-semibold text-gray-800 mb-1">Granular Reset</h3>
+                <p class="text-xs text-gray-500 mb-3">Select the data groups to delete.</p>
+                <form id="aw-granular-reset-form" action="/api/v1/wage/settings/data-reset" method="POST">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+                    <input type="hidden" name="mode" value="granular">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                        {for g in reset_groups}
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                            <input type="checkbox" name="groups[]" value="{g.key}" data-label="{g.label}" class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            {g.label}
+                        </label>
+                        {/for}
+                    </div>
+                    <button type="button" onclick="awConfirmGranularReset()" class="px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold rounded-lg transition-colors">Reset Selected</button>
+                </form>
+            </div>
+        </div>
+
     </div>
 </div>
 {/cache}
+
+<script>
+    window.awConfirmFullReset = function () {
+        var form = document.getElementById('aw-full-reset-form');
+        if (!form) return;
+        var key = window.prompt('Type RESET to confirm full data reset. This permanently deletes ALL business data and non-admin user accounts.');
+        if (key === null) return;
+        if (String(key).trim().toUpperCase() !== 'RESET') {
+            window.showToast('Reset cancelled — confirmation text did not match.', 'error', 'Cancelled');
+            return;
+        }
+        var body = new URLSearchParams(new FormData(form));
+        fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            body: body
+        }).then(function (r) {
+            return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+        }).then(function (res) {
+            if (res.ok && res.d.ok) {
+                window.showToast(res.d.message || 'All data reset.', 'success', 'Data Reset');
+                setTimeout(function () { window.location.reload(); }, 1200);
+            } else {
+                window.showToast((res.d && res.d.error) || 'Reset failed.', 'error', 'Reset Failed');
+            }
+        }).catch(function (e) {
+            window.showToast('Reset request failed: ' + e.message, 'error', 'Reset Failed');
+        });
+    };
+
+    window.awConfirmGranularReset = function () {
+        var form = document.getElementById('aw-granular-reset-form');
+        if (!form) return;
+        var checks = form.querySelectorAll('input[name="groups[]"]:checked');
+        if (!checks.length) {
+            window.showToast('Select at least one data group to reset.', 'error', 'No Selection');
+            return;
+        }
+        var labels = Array.prototype.map.call(checks, function (c) { return c.getAttribute('data-label'); });
+        if (!window.confirm('Reset these groups?\n\n- ' + labels.join('\n- ') + '\n\nThis cannot be undone.')) return;
+        var body = new URLSearchParams(new FormData(form));
+        fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            body: body
+        }).then(function (r) {
+            return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+        }).then(function (res) {
+            if (res.ok && res.d.ok) {
+                window.showToast(res.d.message || 'Selected data reset.', 'success', 'Data Reset');
+                setTimeout(function () { window.location.reload(); }, 1200);
+            } else {
+                window.showToast((res.d && res.d.error) || 'Reset failed.', 'error', 'Reset Failed');
+            }
+        }).catch(function (e) {
+            window.showToast('Reset request failed: ' + e.message, 'error', 'Reset Failed');
+        });
+    };
+</script>
 {/block}
