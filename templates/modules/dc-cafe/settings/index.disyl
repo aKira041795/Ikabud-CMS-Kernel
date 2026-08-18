@@ -195,6 +195,27 @@
                 </div>
             </div>
         </div>
+
+        {* Danger Zone — Reset Product Inventory (keeps catalog, wipes stock + movements) *}
+        <div class="mt-8 border-2 border-red-200 rounded-xl p-5 bg-red-50/50">
+            <h3 class="font-semibold text-red-700 mb-1">Danger Zone — Reset Product Inventory</h3>
+            <p class="text-xs text-gray-600 mb-4">
+                Zeroes all product &amp; ingredient stock and clears all inventory movement history.
+                Product names, prices, categories, suppliers, and reorder levels are <strong>kept</strong>.
+                This cannot be undone.
+            </p>
+            <div class="flex flex-wrap items-center gap-3">
+                <input type="text" x-model="resetConfirm" placeholder="Type RESET to confirm"
+                       class="border rounded px-3 py-2 text-sm w-48 uppercase"
+                       :class="resetConfirm === 'RESET' ? 'border-red-400' : 'border-gray-300'">
+                <button @click="resetProductInventory()"
+                        :disabled="resetting || resetConfirm !== 'RESET'"
+                        class="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+                    <span x-show="!resetting">Reset Inventory</span>
+                    <span x-show="resetting">Resetting…</span>
+                </button>
+            </div>
+        </div>
     </div>
 
     {* ── User Accounts Tab ── *}
@@ -704,6 +725,7 @@ function settingsApp(initialData) {
         editAddonName, editAddonPrice, editAddonType,
         editStoreName, editStoreAddress, editStoreContact, editStoreLat, editStoreLng,
         showAddStore: false, newStoreName: '', newStoreAddress: '', newStoreContact: '', newStoreLat: '', newStoreLng: '',
+        resetConfirm: '', resetting: false,
         showAddUser: false, showEditUser: false,
         editUserData: {user_id: 0, full_name: '', email: '', role: 'cashier', store_id: null, password: ''},
         newUser: {username: '', password: '', full_name: '', email: '', role: 'cashier', store_id: null},
@@ -859,6 +881,18 @@ function settingsApp(initialData) {
         },
         onError(msg) {
             this.showToast(msg || 'Operation failed', 'error');
+        },
+
+        resetProductInventory() {
+            if (this.resetConfirm !== 'RESET') { this.showToast('Type RESET to confirm', 'error'); return; }
+            if (!confirm('Reset ALL product and ingredient stock to 0 and clear movement history?\n\nProduct names, prices, categories, suppliers and reorder levels are kept. This cannot be undone.')) return;
+            this.resetting = true;
+            this.api('/dc-cafe/api/v1/products/reset-inventory', 'POST', { confirm: this.resetConfirm })
+                .then(d => {
+                    if (d.ok) { this.resetConfirm = ''; this.onSuccess(d.message || 'Product inventory reset'); }
+                    else { this.onError(d.error); }
+                })
+                .finally(() => { this.resetting = false; });
         },
 
         createPayment() {

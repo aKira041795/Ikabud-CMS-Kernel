@@ -124,6 +124,7 @@ return [
         // Products
         '/dc-cafe/api/v1/products/receive/batch'  => 'dc-cafe:apiReceiveProductsBatch',
         '/dc-cafe/api/v1/products/stock'          => 'dc-cafe:apiGetProductStockLevels',
+        '/dc-cafe/api/v1/products/reset-inventory' => 'dc-cafe:apiResetProductInventory',
 
         // Inventory
         '/dc-cafe/api/v1/inventory/receive/batch' => 'dc-cafe:apiReceiveStockBatch',

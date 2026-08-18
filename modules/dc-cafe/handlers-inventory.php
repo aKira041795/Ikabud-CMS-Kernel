@@ -724,3 +724,50 @@ function apiUpdateInventoryStock(array $params = []): void
 
     dcJsonResponse(['ok' => true]);
 }
+
+/**
+ * POST /dc-cafe/api/v1/products/reset-inventory
+ *
+ * Danger-zone reset (Settings → Store Profile → Reset Product Inventory).
+ * Keeps the product/ingredient CATALOG (names, prices, categories, suppliers,
+ * reorder levels) but wipes all inventory data:
+ *   - zeroes product stock (dc_product_store_stock + dc_products.current_stock)
+ *   - clears product stock movements (dc_product_stock_movements)
+ *   - zeroes ingredient stock (dc_ingredients.current_stock)
+ *   - clears ingredient movements (dc_inventory_movements)
+ * Requires the caller to confirm by sending confirm=RESET.
+ */
+function apiResetProductInventory(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $confirm = (string) (dcInput('confirm') ?? '');
+    if (strtoupper($confirm) !== 'RESET') {
+        dcJsonError('Type RESET to confirm.', 422);
+    }
+
+    $db = dcDb();
+    $db->execute('SET FOREIGN_KEY_CHECKS = 0');
+    try {
+        // Product-level inventory
+        $db->execute('DELETE FROM dc_product_stock_movements');
+        $db->execute('UPDATE dc_product_store_stock SET on_hand_qty = 0, reserved_qty = 0');
+        $db->execute('UPDATE dc_products SET current_stock = 0');
+        // Ingredient-level inventory
+        $db->execute('DELETE FROM dc_inventory_movements');
+        $db->execute('UPDATE dc_ingredients SET current_stock = 0');
+    } finally {
+        $db->execute('SET FOREIGN_KEY_CHECKS = 1');
+    }
+
+    write_log('dc_cafe.inventory.reset', 'info', [
+        'by_user' => (int) ($ctx->user()['user_id'] ?? 0),
+        'scope'   => 'all_products_and_ingredients',
+    ]);
+
+    dcJsonResponse([
+        'ok'      => true,
+        'message' => 'Product inventory reset. All stock is now 0 and movement history is cleared.',
+    ]);
+}
