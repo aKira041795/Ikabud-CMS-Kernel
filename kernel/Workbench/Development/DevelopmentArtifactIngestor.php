@@ -253,6 +253,23 @@ final class DevelopmentArtifactIngestor
         $scope = $this->classifyScope((array) ($task['approved_scope'] ?? []), $changedPaths);
         $targetState = $this->mapResultToState((string) ($task['state'] ?? ''), $stage, $result, $scope['unexpected'] !== []);
 
+        // Phase 2: a /review finding may only cite evidence present in the task
+        // timeline. Unresolved or fabricated references fail closed instead of
+        // being recorded as a durable finding that cites nothing.
+        if ($stage === 'review') {
+            $missing = $this->unresolvedFindingRefs($task, $envelope);
+            if ($missing !== []) {
+                return [
+                    'ok' => false,
+                    'task_id' => $taskId,
+                    'state' => $task['state'] ?? null,
+                    'reason' => 'review stage result cites evidence not present in the task timeline',
+                    'blockers' => [],
+                    'errors' => array_map(static fn (string $r): string => 'unresolved evidence citation: ' . $r, $missing),
+                ];
+            }
+        }
+
         $projection = $this->projectionUpdates($task, $envelope, $scope, $gitEvidence);
         $evidence = $this->evidenceRefs($envelope);
 
@@ -398,8 +415,13 @@ final class DevelopmentArtifactIngestor
         if ($decodedSha === '' || $decodedSha !== $gitHead) {
             return ['verified' => false, 'errors' => ['Release-gate artifact git SHA is missing or does not match the implementation head']];
         }
-        if ((string) ($decoded['decision'] ?? '') !== 'approved') {
-            return ['verified' => false, 'errors' => ['Release-gate artifact decision is not approved']];
+        // Phase 3: decisions are approve/block/condition. Only an approved gate
+        // requires a clean check matrix; a blocked/condition gate records the
+        // authoritative negative/conditional decision and must not be forced to
+        // fabricate PASS checks.
+        $decision = (string) ($decoded['decision'] ?? '');
+        if (!in_array($decision, ['approved', 'blocked', 'condition'], true)) {
+            return ['verified' => false, 'errors' => ['Release-gate artifact decision is invalid: ' . $decision]];
         }
         $checks = (array) ($decoded['checks'] ?? []);
         if ($checks === []) {
@@ -411,19 +433,46 @@ final class DevelopmentArtifactIngestor
             $name = (string) ($check['name'] ?? '?');
             $status = (string) ($check['status'] ?? 'NOT_RUN');
             $byName[$name] = $check;
-            if ($status !== 'PASS' && $status !== 'NOT_REQUIRED') {
+            if ($decision === 'approved' && $status !== 'PASS' && $status !== 'NOT_REQUIRED') {
                 $checkErrors[] = "Gate check '{$name}' is {$status}";
             }
         }
-        // The mandatory layers must be executed (PASS), not waived, in the gate.
-        foreach (DevelopmentLifecycle::REQUIRED_VERIFICATION_LAYERS as $required) {
-            $check = $byName[$required] ?? null;
-            if ($check === null) {
-                $checkErrors[] = "Gate is missing mandatory check '{$required}'";
-                continue;
+        if ($decision === 'approved') {
+            // The mandatory layers must be executed (PASS), not waived, in the gate.
+            foreach (DevelopmentLifecycle::REQUIRED_VERIFICATION_LAYERS as $required) {
+                $check = $byName[$required] ?? null;
+                if ($check === null) {
+                    $checkErrors[] = "Gate is missing mandatory check '{$required}'";
+                    continue;
+                }
+                if ((string) ($check['status'] ?? '') !== 'PASS') {
+                    $checkErrors[] = "Gate mandatory check '{$required}' is not PASS";
+                }
             }
-            if ((string) ($check['status'] ?? '') !== 'PASS') {
-                $checkErrors[] = "Gate mandatory check '{$required}' is not PASS";
+        }
+        // A condition gate must declare conditions, and every condition must
+        // carry an owner and an evidence reference that resolves to evidence
+        // present in the task timeline (P2-4: parity with review findings).
+        $conditions = array_values((array) ($decoded['conditions'] ?? []));
+        if ($decision === 'condition') {
+            if ($conditions === []) {
+                $checkErrors[] = 'Release-gate decision is condition but no conditions are declared';
+            }
+            $knownEvidence = $this->knownEvidenceRefs($task, (string) ($task['task_id'] ?? ''));
+            foreach ($conditions as $i => $condition) {
+                if (!is_array($condition)) {
+                    $checkErrors[] = "Gate condition #{$i} is not an object";
+                    continue;
+                }
+                if ((string) ($condition['owner'] ?? '') === '') {
+                    $checkErrors[] = "Gate condition #{$i} is missing an owner";
+                }
+                $ref = (string) ($condition['evidence_ref'] ?? '');
+                if ($ref === '') {
+                    $checkErrors[] = "Gate condition #{$i} is missing an evidence_ref";
+                } elseif (!isset($knownEvidence[$ref])) {
+                    $checkErrors[] = "Gate condition #{$i} evidence_ref does not resolve to task evidence: {$ref}";
+                }
             }
         }
         if ($checkErrors !== []) {
@@ -434,7 +483,8 @@ final class DevelopmentArtifactIngestor
             'verified' => true,
             'artifact' => realpath($path) ?: $path,
             'hash' => $hash,
-            'decision' => 'approved',
+            'decision' => $decision,
+            'conditions' => $conditions,
             'task_id' => (string) ($task['task_id'] ?? ''),
             'contract_revision' => (string) ($decoded['contract_revision'] ?? ''),
             'git_sha' => $decodedSha,
@@ -548,6 +598,35 @@ final class DevelopmentArtifactIngestor
     {
         $projection = [];
 
+        // Phase 2: durable evidence projection. Every /implement envelope links
+        // normalized observations, browser artifacts, and issue-ledger findings
+        // as {kind, ref, hash}. Citations resolve against this projection and
+        // the append-only timeline by id.
+        $knownEvidence = (array) ($task['evidence'] ?? []);
+        $evidenceIndex = [];
+        foreach ($knownEvidence as $entry) {
+            if (!is_array($entry) || empty($entry['ref'])) {
+                continue;
+            }
+            $evidenceIndex[(string) $entry['ref']] = [
+                'kind' => (string) ($entry['kind'] ?? 'artifact'),
+                'ref' => (string) $entry['ref'],
+                'hash' => (string) ($entry['hash'] ?? ''),
+            ];
+        }
+        foreach ((array) ($envelope['evidence'] ?? []) as $entry) {
+            if (!is_array($entry) || empty($entry['ref'])) {
+                continue;
+            }
+            $ref = (string) $entry['ref'];
+            $evidenceIndex[$ref] = [
+                'kind' => (string) ($entry['kind'] ?? 'artifact'),
+                'ref' => $ref,
+                'hash' => (string) ($entry['hash'] ?? ''),
+            ];
+        }
+        $projection['evidence'] = array_values($evidenceIndex);
+
         // Implement results carry Git-verified evidence on the task: the head and
         // changed paths were resolved from the repository, never taken verbatim
         // from the envelope.
@@ -629,6 +708,16 @@ final class DevelopmentArtifactIngestor
                 $findings[] = [
                     'severity' => (string) ($finding['severity'] ?? 'P2'),
                     'summary' => (string) ($finding['summary'] ?? 'Review finding'),
+                    // Phase 2: evidence ids this finding cites (validated above).
+                    'evidence_refs' => array_values(array_filter(array_map('strval', (array) ($finding['evidence_refs'] ?? [])))),
+                    // Phase 3: flaky/environment_only findings do not block
+                    // release without a verified reproduction.
+                    'classification' => in_array((string) ($finding['classification'] ?? 'normal'), ['flaky', 'environment_only'], true)
+                        ? (string) $finding['classification']
+                        : 'normal',
+                    'verified_reproduction' => (string) ($finding['verified_reproduction'] ?? '') !== ''
+                        ? (string) $finding['verified_reproduction']
+                        : null,
                     'resolved' => false,
                 ];
             }
@@ -655,13 +744,23 @@ final class DevelopmentArtifactIngestor
                     $gitErrors = $stability['errors'];
                 }
             }
-            $releaseOk = $verified['verified'] && $gitErrors === [];
+            // Phase 3: verified_gate means the artifact is structurally genuine
+            // and Git-stable. A blocked/condition decision is still a legitimate,
+            // recorded gate, but only an approved decision releases.
+            $gitStable = $verified['verified'] && $gitErrors === [];
+            $releaseOk = $gitStable && ($verified['decision'] ?? '') === 'approved';
+            // P2-5: persist only a verified decision. An unverified/fabricated
+            // gate must never leave a misleading 'approved' decision on the
+            // ledger; its errors surface in blockers and verified_gate=false.
+            $decision = $verified['verified'] ? (string) ($verified['decision'] ?? '') : '';
             $projection['release'] = [
-                'gate_artifact' => $releaseOk ? (string) $verified['artifact'] : (string) ($gate['artifact'] ?? ''),
-                'gate_hash' => $releaseOk ? (string) $verified['hash'] : '',
-                'decision' => (string) ($gate['decision'] ?? ''),
+                'gate_artifact' => $gitStable ? (string) $verified['artifact'] : (string) ($gate['artifact'] ?? ''),
+                'gate_hash' => $gitStable ? (string) $verified['hash'] : '',
+                'decision' => $decision,
+                // Phase 3: validated conditions (owner + evidence_ref required).
+                'conditions' => array_values((array) ($verified['conditions'] ?? [])),
                 'blockers' => $verified['verified'] ? ($gitErrors !== [] ? $gitErrors : []) : ($verified['errors'] ?? []),
-                'verified_gate' => $releaseOk,
+                'verified_gate' => $gitStable,
                 'verified_at' => (string) ($verified['verified_at'] ?? ''),
             ];
         }
@@ -761,6 +860,64 @@ final class DevelopmentArtifactIngestor
         $base = trim($base);
 
         return preg_match('/^[0-9a-fA-F]{7,64}$/', $base) === 1 ? $base : '';
+    }
+
+    /**
+     * Phase 2: collect every evidence id a /review finding cites (evidence_refs
+     * plus verified_reproduction) and return the ones not present in the task's
+     * durable evidence projection or append-only timeline. Unresolved citations
+     * fail closed so a finding can never cite evidence that does not exist.
+     *
+     * @param array<string,mixed> $task
+     * @param array<string,mixed> $envelope
+     * @return list<string>
+     */
+    private function unresolvedFindingRefs(array $task, array $envelope): array
+    {
+        $known = $this->knownEvidenceRefs($task, (string) ($task['task_id'] ?? ''));
+        $missing = [];
+        foreach ((array) ($envelope['unresolved_findings'] ?? []) as $finding) {
+            if (!is_array($finding)) {
+                continue;
+            }
+            $refs = array_merge(
+                array_values(array_filter(array_map('strval', (array) ($finding['evidence_refs'] ?? [])))),
+                [(string) ($finding['verified_reproduction'] ?? '')]
+            );
+            foreach ($refs as $ref) {
+                if ($ref !== '' && !isset($known[$ref])) {
+                    $missing[] = $ref;
+                }
+            }
+        }
+
+        return array_values(array_unique($missing));
+    }
+
+    /**
+     * @param array<string,mixed> $task
+     * @return array<string,bool>
+     */
+    private function knownEvidenceRefs(array $task, string $taskId): array
+    {
+        $known = [];
+        foreach ((array) ($task['evidence'] ?? []) as $entry) {
+            if (is_array($entry) && !empty($entry['ref'])) {
+                $known[(string) $entry['ref']] = true;
+                if (!empty($entry['hash'])) {
+                    $known[(string) $entry['ref'] . '#' . (string) $entry['hash']] = true;
+                }
+            }
+        }
+        foreach ($this->repo->timeline($taskId) as $event) {
+            foreach ((array) ($event['evidence'] ?? []) as $ref) {
+                if (is_string($ref) && $ref !== '') {
+                    $known[$ref] = true;
+                }
+            }
+        }
+
+        return $known;
     }
 
     /** @param array<string,mixed> $envelope @return list<string> */

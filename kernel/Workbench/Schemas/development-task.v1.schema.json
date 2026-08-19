@@ -331,6 +331,28 @@
                             "summary": {
                                 "type": "string"
                             },
+                            "evidence_refs": {
+                                "description": "Phase 2: evidence ids this finding cites; resolved against the task evidence projection/timeline.",
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "classification": {
+                                "description": "Phase 3: normal | flaky | environment_only.",
+                                "enum": [
+                                    "normal",
+                                    "flaky",
+                                    "environment_only"
+                                ]
+                            },
+                            "verified_reproduction": {
+                                "description": "Phase 3: evidence id of a verified reproduction; a flaky/environment_only finding only blocks release when present.",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
                             "resolved": {
                                 "type": [
                                     "boolean",
@@ -354,10 +376,48 @@
                     ]
                 },
                 "decision": {
+                    "description": "Phase 3: approved | blocked | condition.",
                     "type": [
                         "string",
                         "null"
                     ]
+                },
+                "conditions": {
+                    "description": "Phase 3: validated gate conditions (owner + evidence_ref required per condition).",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "id",
+                            "description",
+                            "owner",
+                            "evidence_ref"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "owner": {
+                                "type": "string"
+                            },
+                            "evidence_ref": {
+                                "type": "string"
+                            },
+                            "resolved": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "verified_gate": {
+                    "type": "boolean"
+                },
+                "verified_at": {
+                    "type": "string"
                 },
                 "blockers": {
                     "type": "array",
@@ -367,6 +427,30 @@
                 }
             },
             "additionalProperties": false
+        },
+        "evidence": {
+            "description": "Phase 2: durable evidence projection linked by /implement envelopes; citations resolve by id.",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "kind",
+                    "ref",
+                    "hash"
+                ],
+                "properties": {
+                    "kind": {
+                        "type": "string"
+                    },
+                    "ref": {
+                        "type": "string"
+                    },
+                    "hash": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
         },
         "created_at": {
             "type": "string"

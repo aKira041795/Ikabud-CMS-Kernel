@@ -398,6 +398,8 @@ the artifact or task ledger.
 
 ### Phase 2 — Evidence
 
+**Status: IMPLEMENTED (2026-08-19).**
+
 **Scope:** make every task stage evidence-complete (one line): each `/implement`
 envelope links normalized observations, browser artifacts, and issue-ledger findings,
 and each `/review` finding cites only evidence present in the task timeline.
@@ -405,7 +407,23 @@ and each `/review` finding cites only evidence present in the task timeline.
 is computed and rendered for task stages; evidence citations are verifiable by id;
 no surface removed.
 
+**Implemented:**
+
+- Every `/implement` envelope's `evidence[]` (kind/ref/hash — observations, browser
+  artifacts, test results, issue-ledger findings) persists a durable `evidence`
+  projection on the task; citations resolve by id via `DevelopmentTaskRepository::resolveEvidence()`.
+- A `/review` finding's `evidence_refs` (and `verified_reproduction`) must resolve to
+  evidence present in the task record/timeline; unresolved or fabricated citations
+  fail closed and reject the review envelope.
+- Layered verification renders each of the six statuses
+  (PASS/FAIL/FLAKY/SKIPPED/NOT_REQUIRED/NOT_RUN) with distinct styling plus the
+  computed aggregate status in the Development Task Ledger detail view.
+- Evidence citations are verifiable by id from the task detail and timeline; no
+  surface removed.
+
 ### Phase 3 — Governance
+
+**Status: IMPLEMENTED (2026-08-19).**
 
 **Scope:** deterministic release governance on top of tasks (one line): `/release-gate`
 decisions (approve/block/condition) become the authoritative release input consumed
@@ -413,6 +431,26 @@ by certification and CI, with owner/evidence required for every condition.
 **Later gate:** release decisions are immutable and auditable; flaky/environment-only
 findings cannot block release without verified reproduction; exports (ARK/JUnit/SARIF)
 carry task + decision provenance; no surface removed.
+
+**Implemented:**
+
+- Release-gate artifacts declare `decision: approved|blocked|condition`. A
+  condition gate is structurally verified only when every condition carries an
+  `owner` and an `evidence_ref`; it records the authoritative conditional decision
+  and lands the task in `RELEASE_BLOCKED` until conditions resolve. A blocked gate
+  records the negative decision as `RELEASE_BLOCKED`. Decisions are immutable and
+  auditable (append-only events, verified gate hash).
+- `RELEASE_BLOCKED` is reachable from review states so blocked/condition decisions
+  persist as durable, audit-clean records instead of being lost on a failed
+  transition.
+- Flaky/environment-only review findings do not block release unless they carry a
+  `verified_reproduction` evidence id; normal unresolved P0/P1 findings still block.
+- ARK/JUnit/SARIF exports (`RunExporter`) attach task + release-decision provenance
+  (task_id, contract_revision, state, decision, verified_gate, conditions) when a
+  task projection is supplied; legacy single-argument exports are unchanged.
+- New `kernel/Workbench/Schemas/development-release-gate.v1.schema.json` declares
+  the gate artifact contract.
+- No surface removed.
 
 ### Phase 4 — Orchestration (explicitly later, not scheduled)
 

@@ -206,6 +206,37 @@ $h->test('task detail renders baseline and working-tree fingerprint evidence',
     && str_contains($template, 'git.fingerprint'));
 $h->test('task detail renders why a verification layer is unverified',
     str_contains($template, "l.reason ? ': ' + escHtml(l.reason)"));
+$h->test('Phase 2: layered verification renders all six statuses distinctly',
+    str_contains($template, "'PASS': 'text-green-700'")
+    && str_contains($template, "'FAIL': 'wb-fail'")
+    && str_contains($template, "'FLAKY': 'text-amber-600'")
+    && str_contains($template, "'SKIPPED': 'text-orange-500 line-through'")
+    && str_contains($template, "'NOT_REQUIRED': 'text-slate-500'")
+    && str_contains($template, "'NOT_RUN': 'text-gray-400'")
+    && str_contains($template, "'SKIPPED': 'text-orange-500 line-through'")
+    && !str_contains($template, "'SKIPPED': 'text-slate-500'"));
+$h->test('Phase 2: task detail renders the linked evidence projection',
+    str_contains($template, 'var evidence = t.evidence || []')
+    && str_contains($template, "escHtml(e.kind || 'artifact')")
+    && str_contains($template, "Evidence (' + evidence.length + ')"));
+$h->test('Phase 2: review findings render evidence citations and classification',
+    str_contains($template, 'f.evidence_refs')
+    && str_contains($template, 'f.classification')
+    && str_contains($template, 'f.verified_reproduction'));
+$h->test('Phase 3: task detail renders release conditions with owner + evidence',
+    str_contains($template, 'var conditionsHtml = (release.conditions || []).map')
+    && str_contains($template, "escHtml(c.owner || '?')")
+    && str_contains($template, "escHtml(c.evidence_ref || '')"));
+$gateSchema = (string) file_get_contents($root . '/kernel/Workbench/Schemas/development-release-gate.v1.schema.json');
+$h->test('Phase 3: release-gate schema declares approve/block/condition decisions',
+    str_contains($gateSchema, '"approved"')
+    && str_contains($gateSchema, '"blocked"')
+    && str_contains($gateSchema, '"condition"')
+    && str_contains($gateSchema, '"owner"')
+    && str_contains($gateSchema, '"evidence_ref"'));
+$h->test('migration document names the Phase 2 and Phase 3 gates',
+    str_contains($migration, '### Phase 2 — Evidence')
+    && str_contains($migration, '### Phase 3 — Governance'));
 $h->test('detail API re-verifies the working tree with a git resolver',
     str_contains($handler, 'GitEvidenceResolver')
     && str_contains($handler, "defined('BASE_PATH') ? BASE_PATH : null"));

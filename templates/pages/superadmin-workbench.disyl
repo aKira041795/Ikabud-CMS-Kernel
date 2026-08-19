@@ -877,8 +877,11 @@ async function wbViewDevelopmentTask(taskId) {
         }).join('<br>') || '<span class="text-gray-400">none recorded</span>';
 
         // Per-layer verification evidence: state + artifact + hash + verified.
+        // Phase 2: every status (PASS/FAIL/FLAKY/SKIPPED/NOT_REQUIRED/NOT_RUN)
+        // renders distinctly so a computed verification is never ambiguous.
+        var layerStatusCls = { 'PASS': 'text-green-700', 'FAIL': 'wb-fail', 'FLAKY': 'text-amber-600', 'SKIPPED': 'text-orange-500 line-through', 'NOT_REQUIRED': 'text-slate-500', 'NOT_RUN': 'text-gray-400' };
         var layerHtml = (verif.layers || []).map(function(l){
-            var statusCls = l.status === 'PASS' ? 'text-green-700' : (l.status === 'FAIL' ? 'wb-fail' : 'text-amber-600');
+            var statusCls = layerStatusCls[l.status] || 'text-amber-600';
             var hashShort = (l.hash || '').slice(0, 12) + ((l.hash || '').length > 12 ? '\u2026' : '');
             var pathTitle = l.path ? ' title="' + escHtml(l.path) + '"' : '';
             var verifiedCell = l.verified === true
@@ -887,10 +890,12 @@ async function wbViewDevelopmentTask(taskId) {
             return '<tr><td class="font-mono">' + escHtml(l.name) + '</td><td class="' + statusCls + ' font-semibold">' + escHtml(l.status || 'NOT_RUN') + '</td><td class="font-mono">' + escHtml(hashShort || '\u2014') + '</td><td class="font-mono max-w-[220px] truncate"' + pathTitle + '>' + escHtml(l.path || '\u2014') + '</td><td>' + verifiedCell + '</td></tr>';
         }).join('') || '<tr><td colspan="5" class="text-gray-400">no layers recorded</td></tr>';
 
-        // Review findings with severity + summary + resolution state.
+        // Review findings with severity + summary + evidence citations + classification + resolution state.
         var findingsHtml = (review.findings || []).map(function(f){
             var sevCls = (f.severity === 'P0' || f.severity === 'P1') ? 'wb-fail' : 'text-amber-600';
-            return '<div class="text-xs py-1 border-b border-slate-100"><span class="' + sevCls + ' font-semibold">' + escHtml(f.severity || 'P2') + '</span> ' + escHtml(f.summary || '') + ' <span class="' + (f.resolved ? 'text-green-700' : 'wb-fail') + '">[' + (f.resolved ? 'resolved' : 'open') + ']</span></div>';
+            var refs = (f.evidence_refs || []).map(function(r){ return '<span class="font-mono text-blue-700 border border-blue-200 bg-blue-50 rounded px-1 mr-1">' + escHtml(r) + '</span>'; }).join('');
+            var clsTag = f.classification && f.classification !== 'normal' ? ' <span class="text-slate-500">[' + escHtml(f.classification) + (f.verified_reproduction ? ' repro ' + escHtml(f.verified_reproduction) : '') + ']</span>' : '';
+            return '<div class="text-xs py-1 border-b border-slate-100"><span class="' + sevCls + ' font-semibold">' + escHtml(f.severity || 'P2') + '</span> ' + escHtml(f.summary || '') + clsTag + ' <span class="' + (f.resolved ? 'text-green-700' : 'wb-fail') + '">[' + (f.resolved ? 'resolved' : 'open') + ']</span>' + (refs ? '<div class="mt-1">' + refs + '</div>' : '') + '</div>';
         }).join('') || '<div class="text-xs text-gray-400">no findings</div>';
 
         // Release blockers in full, plus deterministic live re-evaluated blockers.
@@ -926,6 +931,13 @@ async function wbViewDevelopmentTask(taskId) {
         // Git evidence (resolved + fingerprint, re-verified at release).
         html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Git evidence (verified)</div><div class="text-xs font-mono">head ' + escHtml((git.head || '').slice(0, 12)) + (git.base ? ' \u00b7 base ' + escHtml((git.base || '').slice(0, 12)) : '') + ' \u00b7 ' + (git.changed_paths || []).length + ' task path(s) \u00b7 ' + ((git.baseline_changed_paths || []).length) + ' baseline \u00b7 fp ' + escHtml((git.fingerprint || '').slice(0, 12)) + '</div></div>';
 
+        // Phase 2: linked evidence projection (observations, browser artifacts, issue-ledger findings).
+        var evidence = t.evidence || [];
+        var evidenceHtml = evidence.map(function(e){
+            return '<div class="text-xs py-1 border-b border-slate-100"><span class="text-gray-500 uppercase text-[10px]">' + escHtml(e.kind || 'artifact') + '</span> <span class="font-mono text-blue-700">' + escHtml(e.ref || '') + '</span>' + (e.hash ? ' <span class="font-mono text-gray-400">#' + escHtml((e.hash || '').slice(0, 10)) + '</span>' : '') + '</div>';
+        }).join('') || '<div class="text-xs text-gray-400">no linked evidence</div>';
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Evidence (' + evidence.length + ')</div>' + evidenceHtml + '</div>';
+
         // Approved vs actual scope.
         html += '<div class="grid grid-cols-2 gap-3 mb-2"><div class="wb-panel p-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Approved scope</div><div class="text-xs font-mono max-h-32 overflow-auto">' + allowedHtml + '<div class="text-xs font-semibold text-gray-500 uppercase mt-1">Forbidden</div><div class="font-mono">' + forbiddenHtml + '</div></div></div><div class="wb-panel p-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Actual scope (' + (t.actual_scope || []).length + ')</div><div class="text-xs font-mono max-h-32 overflow-auto">' + actualHtml + '</div></div></div>';
 
@@ -935,8 +947,11 @@ async function wbViewDevelopmentTask(taskId) {
         // Review findings detail.
         html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Review <span class="text-gray-400">(' + escHtml(review.status || 'not_reviewed') + ')</span></div>' + findingsHtml + '</div>';
 
-        // Release detail.
-        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Release</div><div class="text-xs mb-1">decision <span class="font-mono">' + escHtml(release.decision || '\u2014') + '</span> \u00b7 verified gate ' + (release.verified_gate === true ? '<span class="text-green-700">yes</span>' : '<span class="wb-fail">no</span>') + (release.gate_artifact ? ' \u00b7 <span class="font-mono">' + escHtml(release.gate_artifact) + '</span>' : '') + '</div><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Blockers</div>' + blockerList + '</div>';
+        // Release detail + Phase 3 conditions.
+        var conditionsHtml = (release.conditions || []).map(function(c){
+            return '<div class="text-xs py-1 border-b border-slate-100"><span class="font-mono text-blue-700">' + escHtml(c.id || '?') + '</span> ' + escHtml(c.description || '') + ' \u00b7 owner <span class="font-mono">' + escHtml(c.owner || '?') + '</span> \u00b7 evidence <span class="font-mono text-blue-700">' + escHtml(c.evidence_ref || '') + '</span> <span class="' + (c.resolved ? 'text-green-700' : 'wb-fail') + '">[' + (c.resolved ? 'resolved' : 'open') + ']</span></div>';
+        }).join('') || '';
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Release</div><div class="text-xs mb-1">decision <span class="font-mono">' + escHtml(release.decision || '\u2014') + '</span> \u00b7 verified gate ' + (release.verified_gate === true ? '<span class="text-green-700">yes</span>' : '<span class="wb-fail">no</span>') + (release.gate_artifact ? ' \u00b7 <span class="font-mono">' + escHtml(release.gate_artifact) + '</span>' : '') + '</div>' + (conditionsHtml ? '<div class="text-xs font-semibold text-gray-500 uppercase mb-1">Conditions</div>' + conditionsHtml : '') + '<div class="text-xs font-semibold text-gray-500 uppercase mb-1">Blockers</div>' + blockerList + '</div>';
 
         // Architecture impact placeholders.
         html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Architecture impact</div>' + impactHtml + '</div>';

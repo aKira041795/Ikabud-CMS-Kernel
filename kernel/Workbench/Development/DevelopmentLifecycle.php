@@ -86,6 +86,7 @@ final class DevelopmentLifecycle
             self::REVIEW_PASSED => true,
             self::CHANGES_REQUIRED => true,
             self::REVIEW_REQUIRED => true,
+            self::RELEASE_BLOCKED => true,
             self::FAILED => true,
             self::BLOCKED => true,
         ],
@@ -98,6 +99,9 @@ final class DevelopmentLifecycle
         self::REVIEW_PASSED => [
             self::RELEASE_GATE => true,
             self::READY_FOR_RELEASE => true,
+            // Phase 3: a blocked/condition gate is a legitimate recorded decision
+            // that must persist as RELEASE_BLOCKED (auditable, immutable).
+            self::RELEASE_BLOCKED => true,
             self::BLOCKED => true,
             self::REVIEWING => true,
         ],
@@ -266,7 +270,22 @@ final class DevelopmentLifecycle
         } elseif (!is_file($gateArtifact) || hash_file('sha256', $gateArtifact) !== $gateHash) {
             $blockers[] = 'Release-gate artifact is missing or its content hash does not match';
         }
-        if ((string) ($release['decision'] ?? '') !== 'approved') {
+        // Phase 3: decisions are approve/block/condition. A condition gate is a
+        // legitimate recorded gate but release stays blocked until every
+        // condition is resolved (owner + evidence required per condition).
+        $decision = (string) ($release['decision'] ?? '');
+        if ($decision === 'condition') {
+            $unresolved = [];
+            foreach ((array) ($release['conditions'] ?? []) as $condition) {
+                if (($condition['resolved'] ?? false) !== true) {
+                    $unresolved[] = (string) ($condition['id'] ?? '?') . ' (owner ' . (string) ($condition['owner'] ?? '?') . ')';
+                }
+            }
+            $blockers[] = 'Release-gate decision is condition with ' . count($unresolved) . ' unresolved condition(s) requiring owner + evidence'
+                . ($unresolved !== [] ? ': ' . implode(', ', $unresolved) : '');
+        } elseif ($decision === 'blocked') {
+            $blockers[] = 'Release-gate decision is blocked';
+        } elseif ($decision !== 'approved') {
             $blockers[] = 'Release-gate decision is not approved';
         }
         foreach ((array) ($release['blockers'] ?? []) as $blocker) {
@@ -282,6 +301,15 @@ final class DevelopmentLifecycle
         }
         foreach ((array) ($review['findings'] ?? []) as $finding) {
             if (($finding['resolved'] ?? false) !== true && in_array((string) ($finding['severity'] ?? ''), ['P0', 'P1'], true)) {
+                // Phase 3: a flaky or environment-only finding cannot block
+                // release without a verified reproduction. It remains visible in
+                // the ledger but is not a deterministic release blocker; with a
+                // verified_reproduction evidence id it blocks.
+                $classification = (string) ($finding['classification'] ?? 'normal');
+                $verifiedReproduction = (string) ($finding['verified_reproduction'] ?? '');
+                if (in_array($classification, ['flaky', 'environment_only'], true) && $verifiedReproduction === '') {
+                    continue;
+                }
                 $blockers[] = 'Unresolved blocking review finding: ' . (string) ($finding['summary'] ?? '');
             }
         }

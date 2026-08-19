@@ -320,6 +320,41 @@ final class DevelopmentTaskRepository
     }
 
     /**
+     * Phase 2: resolve an evidence citation by id against the task's durable
+     * evidence projection (and, as a fallback, the append-only timeline event
+     * evidence). Returns the matching evidence entry or null when the citation
+     * is not present. Citations are verifiable by id; fabricated/cross-task
+     * references fail closed.
+     *
+     * @return array{kind:string,ref:string,hash:string}|null
+     */
+    public function resolveEvidence(string $taskId, string $ref): ?array
+    {
+        $this->assertId($taskId);
+        $task = $this->getTask($taskId);
+
+        foreach ((array) ($task['evidence'] ?? []) as $entry) {
+            if (is_array($entry) && (string) ($entry['ref'] ?? '') === $ref) {
+                return [
+                    'kind' => (string) ($entry['kind'] ?? 'artifact'),
+                    'ref' => $ref,
+                    'hash' => (string) ($entry['hash'] ?? ''),
+                ];
+            }
+        }
+        // Fallback: timeline event evidence may carry `ref` or `ref#hash`.
+        foreach ($this->timeline($taskId) as $event) {
+            foreach ((array) ($event['evidence'] ?? []) as $entry) {
+                if (is_string($entry) && ($entry === $ref || str_starts_with($entry, $ref . '#'))) {
+                    return ['kind' => 'timeline', 'ref' => $ref, 'hash' => ''];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<string,string> $filters
      * @return list<array<string,mixed>>
      */
@@ -358,7 +393,7 @@ final class DevelopmentTaskRepository
             // stage result's release-gate, review, and verification evidence.
             $preview = $task;
             foreach ((array) ($context['projection'] ?? []) as $key => $value) {
-                if (in_array($key, ['actual_scope', 'verification', 'review', 'release'], true)) {
+                if (in_array($key, ['actual_scope', 'verification', 'review', 'release', 'evidence'], true)) {
                     $preview[$key] = $value;
                 }
             }
@@ -406,7 +441,7 @@ final class DevelopmentTaskRepository
             $task['updated_at'] = $now;
             $task['sequence'] = $seq;
             foreach ((array) ($context['projection'] ?? []) as $key => $value) {
-                if (in_array($key, ['actual_scope', 'verification', 'review', 'release', 'actor', 'git'], true)) {
+                if (in_array($key, ['actual_scope', 'verification', 'review', 'release', 'evidence', 'actor', 'git'], true)) {
                     $task[$key] = $value;
                 }
             }

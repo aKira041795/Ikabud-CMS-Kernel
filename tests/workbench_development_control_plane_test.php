@@ -16,6 +16,7 @@ require_once __DIR__ . '/../kernel/Workbench/Development/DevelopmentTaskReposito
 require_once __DIR__ . '/../kernel/Workbench/Development/GitEvidenceResolver.php';
 require_once __DIR__ . '/../kernel/Workbench/Development/DevelopmentVerificationArtifact.php';
 require_once __DIR__ . '/../kernel/Workbench/Development/DevelopmentArtifactIngestor.php';
+require_once __DIR__ . '/../kernel/Workbench/Runs/RunExporter.php';
 
 use Ikabud\Kernel\Workbench\Development\DevelopmentArtifactIngestor;
 use Ikabud\Kernel\Workbench\Development\DevelopmentLifecycle;
@@ -23,6 +24,7 @@ use Ikabud\Kernel\Workbench\Development\DevelopmentTaskContract;
 use Ikabud\Kernel\Workbench\Development\DevelopmentTaskRepository;
 use Ikabud\Kernel\Workbench\Development\DevelopmentVerificationArtifact;
 use Ikabud\Kernel\Workbench\Development\GitEvidenceResolver;
+use Ikabud\Kernel\Workbench\Runs\RunExporter;
 
 // Self-invocation mode: a concurrent writer appends transitions to a shared task.
 if (in_array('--concurrent-writer', $argv ?? [], true)) {
@@ -168,8 +170,9 @@ MD;
 /**
  * Write a schema-valid, task-bound release-gate artifact under a storage root
  * and return its sha256 content hash (which the envelope must provide).
+ * Phase 3: $conditions are included when provided (decision: condition).
  */
-function writeDevGate(string $storageRoot, array $task, string $gitSha, string $name = 'release-gate.json', string $decision = 'approved', ?array $checks = null): string
+function writeDevGate(string $storageRoot, array $task, string $gitSha, string $name = 'release-gate.json', string $decision = 'approved', ?array $checks = null, ?array $conditions = null): string
 {
     $checks = $checks ?? [
         ['name' => 'unit', 'status' => 'PASS'],
@@ -180,7 +183,7 @@ function writeDevGate(string $storageRoot, array $task, string $gitSha, string $
     if (!is_dir($dir)) {
         mkdir($dir, 0775, true);
     }
-    $json = json_encode([
+    $gate = [
         'schema' => 'ark.workbench-development-release-gate.v1',
         'task_id' => $task['task_id'],
         'contract_revision' => $task['contract_revision'],
@@ -188,7 +191,11 @@ function writeDevGate(string $storageRoot, array $task, string $gitSha, string $
         'decision' => $decision,
         'checks' => $checks,
         'created_at' => gmdate(DATE_ATOM),
-    ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+    ];
+    if ($conditions !== null) {
+        $gate['conditions'] = $conditions;
+    }
+    $json = json_encode($gate, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
     file_put_contents($dir . '/' . $name, $json);
 
     return hash('sha256', $json);
@@ -1536,6 +1543,276 @@ $h->test('changed architecture creates a new immutable revision via import',
 $revSame = $ing->importArchitecture($mdFn('rev-changed'), $actor, ['source_path' => '.ai/rev-task.md']);
 $h->test('unchanged re-import via the same source path is idempotent',
     ($revSame['idempotent'] ?? false) === true && ($revSame['task_id'] ?? '') === $revTask);
+
+$h->section('Phase 2: evidence linking and citations');
+$taskE = $importTask($mdFn('evidence'), 'ev');
+$implE = $ing->ingestStageResult($taskE, [
+    'stage' => 'implement', 'task_id' => $taskE, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'git' => ['base' => $gitBase, 'head' => $gitHead, 'changed_paths' => ['src/a.php']],
+    'verification' => $makeVerif($taskE),
+    'evidence' => [
+        ['kind' => 'observation', 'ref' => 'obs:checkout', 'hash' => 'aa11'],
+        ['kind' => 'browser_artifact', 'ref' => 'browser:checkout-01', 'hash' => 'bb22'],
+        ['kind' => 'issue_ledger', 'ref' => 'issue:ledger-7', 'hash' => 'cc33'],
+    ],
+], []);
+$taskEPost = $repo->getTask($taskE);
+$h->test('implement envelope persists a durable evidence projection',
+    ($implE['ok'] ?? false) === true
+    && count($taskEPost['evidence'] ?? []) === 3
+    && ($taskEPost['evidence'][0]['ref'] ?? '') === 'obs:checkout');
+$h->test('evidence citations resolve by id via the repository',
+    ($repo->resolveEvidence($taskE, 'browser:checkout-01')['kind'] ?? '') === 'browser_artifact'
+    && $repo->resolveEvidence($taskE, 'missing:ref') === null);
+
+$taskR = $importTask($mdFn('evidence-review'), 'evr');
+$ing->ingestStageResult($taskR, [
+    'stage' => 'implement', 'task_id' => $taskR, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'git' => ['base' => $gitBase, 'head' => $gitHead, 'changed_paths' => ['src/a.php']],
+    'verification' => $makeVerif($taskR),
+    'evidence' => [['kind' => 'observation', 'ref' => 'obs:real', 'hash' => 'dd44']],
+], []);
+$rReviewBad = $ing->ingestStageResult($taskR, [
+    'stage' => 'review', 'task_id' => $taskR, 'result' => 'changes_required',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'unresolved_findings' => [
+        ['severity' => 'P1', 'summary' => 'cites nothing real', 'evidence_refs' => ['obs:ghost']],
+    ],
+], []);
+$h->test('review finding citing absent evidence is rejected (fail closed)',
+    ($rReviewBad['ok'] ?? false) === false
+    && in_array('unresolved evidence citation: obs:ghost', $rReviewBad['errors'] ?? [], true));
+$rReviewGood = $ing->ingestStageResult($taskR, [
+    'stage' => 'review', 'task_id' => $taskR, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'unresolved_findings' => [
+        ['severity' => 'P2', 'summary' => 'cites real evidence', 'evidence_refs' => ['obs:real']],
+    ],
+], []);
+$rFindings = $repo->getTask($taskR)['review']['findings'] ?? [];
+$h->test('review finding citing present evidence is accepted and persists refs',
+    ($rReviewGood['ok'] ?? false) === true
+    && ($rFindings[0]['evidence_refs'] ?? []) === ['obs:real']
+    && ($rFindings[0]['classification'] ?? 'normal') === 'normal');
+
+$h->section('Phase 3: condition and blocked gate decisions are recorded');
+// Each gate scenario uses its own task so the negative decisions are recorded
+// on independent, audit-clean tasks rather than stacking states on one task.
+$driveToReviewPassed = static function (string $tid, array $evidence = []) use ($ing, $actor, $gitBase, $gitHead, $makeVerif): void {
+    $implement = [
+        'stage' => 'implement', 'task_id' => $tid, 'result' => 'passed',
+        'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+        'git' => ['base' => $gitBase, 'head' => $gitHead, 'changed_paths' => ['src/a.php']],
+        'verification' => $makeVerif($tid),
+    ];
+    if ($evidence !== []) {
+        $implement['evidence'] = $evidence;
+    }
+    $ing->ingestStageResult($tid, $implement, []);
+    $ing->ingestStageResult($tid, [
+        'stage' => 'review', 'task_id' => $tid, 'result' => 'passed',
+        'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    ], []);
+};
+
+$taskC = $importTask($mdFn('condition'), 'cond');
+$driveToReviewPassed($taskC, [['kind' => 'observation', 'ref' => 'obs:staging', 'hash' => 'ab12']]);
+$condGateHash = writeDevGate($root, $repo->getTask($taskC), $gitHead, 'cond-gate.json', 'condition', null, [
+    ['id' => 'c1', 'description' => 're-run on staging', 'owner' => 'sre', 'evidence_ref' => 'obs:staging', 'resolved' => false],
+]);
+$rCond = $ing->ingestStageResult($taskC, [
+    'stage' => 'release-gate', 'task_id' => $taskC, 'result' => 'blocked',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'release_gate' => ['artifact' => 'gates/cond-gate.json', 'hash' => $condGateHash, 'decision' => 'condition'],
+], []);
+$condTask = $repo->getTask($taskC);
+$h->test('condition gate is a recorded decision that lands in RELEASE_BLOCKED',
+    ($rCond['ok'] ?? false) === true
+    && $condTask['state'] === DevelopmentLifecycle::RELEASE_BLOCKED
+    && ($condTask['release']['decision'] ?? '') === 'condition'
+    && ($condTask['release']['verified_gate'] ?? false) === true
+    && ($condTask['release']['conditions'][0]['owner'] ?? '') === 'sre'
+    && ($condTask['release']['conditions'][0]['evidence_ref'] ?? '') === 'obs:staging');
+
+$taskC2 = $importTask($mdFn('condition-owner'), 'cond2');
+$driveToReviewPassed($taskC2);
+$badCondHash = writeDevGate($root, $repo->getTask($taskC2), $gitHead, 'cond-bad.json', 'condition', null, [
+    ['id' => 'c2', 'description' => 'missing owner', 'evidence_ref' => 'obs:x'],
+]);
+$rCondBad = $ing->ingestStageResult($taskC2, [
+    'stage' => 'release-gate', 'task_id' => $taskC2, 'result' => 'blocked',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'release_gate' => ['artifact' => 'gates/cond-bad.json', 'hash' => $badCondHash, 'decision' => 'condition'],
+], []);
+$condBadTask = $repo->getTask($taskC2);
+$h->test('condition without an owner is not a verified gate (fail closed)',
+    ($rCondBad['ok'] ?? false) === true
+    && $condBadTask['state'] === DevelopmentLifecycle::RELEASE_BLOCKED
+    && ($condBadTask['release']['verified_gate'] ?? false) === false
+    && in_array('Gate condition #0 is missing an owner', $condBadTask['release']['blockers'] ?? [], true));
+
+$taskC3 = $importTask($mdFn('blocked'), 'cond3');
+$driveToReviewPassed($taskC3);
+$blockGateHash = writeDevGate($root, $repo->getTask($taskC3), $gitHead, 'block-gate.json', 'blocked', [
+    ['name' => 'unit', 'status' => 'FAIL'],
+]);
+$rBlock = $ing->ingestStageResult($taskC3, [
+    'stage' => 'release-gate', 'task_id' => $taskC3, 'result' => 'blocked',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'release_gate' => ['artifact' => 'gates/block-gate.json', 'hash' => $blockGateHash, 'decision' => 'blocked'],
+], []);
+$blockTask = $repo->getTask($taskC3);
+$h->test('blocked gate decision is recorded as RELEASE_BLOCKED',
+    ($rBlock['ok'] ?? false) === true
+    && $blockTask['state'] === DevelopmentLifecycle::RELEASE_BLOCKED
+    && ($blockTask['release']['decision'] ?? '') === 'blocked'
+    && ($blockTask['release']['verified_gate'] ?? false) === true);
+
+$h->section('Phase 3: flaky/environment-only finding governance');
+$taskF = $importTask($mdFn('flaky'), 'flk');
+$ing->ingestStageResult($taskF, [
+    'stage' => 'implement', 'task_id' => $taskF, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'git' => ['base' => $gitBase, 'head' => $gitHead, 'changed_paths' => ['src/a.php']],
+    'verification' => $makeVerif($taskF),
+], []);
+$ing->ingestStageResult($taskF, [
+    'stage' => 'review', 'task_id' => $taskF, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'unresolved_findings' => [
+        ['severity' => 'P1', 'summary' => 'flaky cypress test', 'classification' => 'flaky'],
+    ],
+], []);
+$flakyTask = $repo->getTask($taskF);
+$flakyFinding0 = $flakyTask['review']['findings'][0] ?? [];
+$h->test('flaky finding classification persists on the task',
+    ($flakyFinding0['classification'] ?? '') === 'flaky'
+    && array_key_exists('verified_reproduction', $flakyFinding0)
+    && $flakyFinding0['verified_reproduction'] === null);
+$flakyGateHash = writeDevGate($root, $flakyTask, $gitHead, 'flaky-gate.json');
+$rFlaky = $ing->ingestStageResult($taskF, [
+    'stage' => 'release-gate', 'task_id' => $taskF, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'release_gate' => ['artifact' => 'gates/flaky-gate.json', 'hash' => $flakyGateHash, 'decision' => 'approved'],
+], []);
+$h->test('flaky finding without verified reproduction does not block release',
+    ($rFlaky['ok'] ?? false) === true
+    && $repo->getTask($taskF)['state'] === DevelopmentLifecycle::READY_FOR_RELEASE);
+
+$taskR2 = $importTask($mdFn('flaky-repro'), 'flr');
+$ing->ingestStageResult($taskR2, [
+    'stage' => 'implement', 'task_id' => $taskR2, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'git' => ['base' => $gitBase, 'head' => $gitHead, 'changed_paths' => ['src/a.php']],
+    'verification' => $makeVerif($taskR2),
+    'evidence' => [['kind' => 'observation', 'ref' => 'obs:repro', 'hash' => 'ee55']],
+], []);
+$ing->ingestStageResult($taskR2, [
+    'stage' => 'review', 'task_id' => $taskR2, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'unresolved_findings' => [
+        ['severity' => 'P1', 'summary' => 'flaky reproduced', 'classification' => 'flaky', 'verified_reproduction' => 'obs:repro'],
+    ],
+], []);
+$reproGateHash = writeDevGate($root, $repo->getTask($taskR2), $gitHead, 'repro-gate.json');
+$rRepro = $ing->ingestStageResult($taskR2, [
+    'stage' => 'release-gate', 'task_id' => $taskR2, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'release_gate' => ['artifact' => 'gates/repro-gate.json', 'hash' => $reproGateHash, 'decision' => 'approved'],
+], []);
+$h->test('flaky finding with verified reproduction blocks release',
+    ($rRepro['ok'] ?? false) === false
+    && in_array('Unresolved blocking review finding: flaky reproduced', $rRepro['blockers'] ?? [], true));
+
+// P2-4: a condition gate must cite evidence that resolves to the task timeline.
+$taskC4 = $importTask($mdFn('condition-evidence'), 'cond4');
+$driveToReviewPassed($taskC4);
+$badCondEvidenceHash = writeDevGate($root, $repo->getTask($taskC4), $gitHead, 'cond-evidence.json', 'condition', null, [
+    ['id' => 'c1', 'description' => 'cites ghost evidence', 'owner' => 'sre', 'evidence_ref' => 'obs:ghost-condition'],
+]);
+$rCondEvidence = $ing->ingestStageResult($taskC4, [
+    'stage' => 'release-gate', 'task_id' => $taskC4, 'result' => 'blocked',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'release_gate' => ['artifact' => 'gates/cond-evidence.json', 'hash' => $badCondEvidenceHash, 'decision' => 'condition'],
+], []);
+$condEvidenceTask = $repo->getTask($taskC4);
+$h->test('condition evidence_ref must resolve to task evidence (fail closed)',
+    ($rCondEvidence['ok'] ?? false) === true
+    && ($condEvidenceTask['release']['verified_gate'] ?? false) === false
+    && in_array('Gate condition #0 evidence_ref does not resolve to task evidence: obs:ghost-condition', $condEvidenceTask['release']['blockers'] ?? [], true));
+// P2-5: an unverified gate must not persist a fabricated decision on the ledger.
+$h->test('unverified gate does not record a decision on the ledger',
+    ($condEvidenceTask['release']['decision'] ?? 'x') === '');
+
+// A normal (unclassified) unresolved P0/P1 still blocks release at the gate.
+$taskN2 = $importTask($mdFn('normal-p1'), 'norm');
+$ing->ingestStageResult($taskN2, [
+    'stage' => 'implement', 'task_id' => $taskN2, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'git' => ['base' => $gitBase, 'head' => $gitHead, 'changed_paths' => ['src/a.php']],
+    'verification' => $makeVerif($taskN2),
+], []);
+$ing->ingestStageResult($taskN2, [
+    'stage' => 'review', 'task_id' => $taskN2, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'unresolved_findings' => [
+        ['severity' => 'P1', 'summary' => 'normal unresolved P1'],
+    ],
+], []);
+$normGateHash = writeDevGate($root, $repo->getTask($taskN2), $gitHead, 'normal-gate.json');
+$rNorm = $ing->ingestStageResult($taskN2, [
+    'stage' => 'release-gate', 'task_id' => $taskN2, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'release_gate' => ['artifact' => 'gates/normal-gate.json', 'hash' => $normGateHash, 'decision' => 'approved'],
+], []);
+$h->test('a normal unclassified unresolved P1 still blocks release',
+    ($rNorm['ok'] ?? false) === false
+    && in_array('Unresolved blocking review finding: normal unresolved P1', $rNorm['blockers'] ?? [], true));
+
+// A fabricated verified_reproduction citation is rejected (fail closed).
+$taskN3 = $importTask($mdFn('repro-ghost'), 'repro');
+$ing->ingestStageResult($taskN3, [
+    'stage' => 'implement', 'task_id' => $taskN3, 'result' => 'passed',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'git' => ['base' => $gitBase, 'head' => $gitHead, 'changed_paths' => ['src/a.php']],
+    'verification' => $makeVerif($taskN3),
+], []);
+$rReproGhost = $ing->ingestStageResult($taskN3, [
+    'stage' => 'review', 'task_id' => $taskN3, 'result' => 'changes_required',
+    'actor' => $actor, 'recorded_at' => gmdate(DATE_ATOM),
+    'unresolved_findings' => [
+        ['severity' => 'P1', 'summary' => 'fabricated reproduction', 'classification' => 'flaky', 'verified_reproduction' => 'obs:ghost-repro'],
+    ],
+], []);
+$h->test('fabricated verified_reproduction citation is rejected (fail closed)',
+    ($rReproGhost['ok'] ?? false) === false
+    && in_array('unresolved evidence citation: obs:ghost-repro', $rReproGhost['errors'] ?? [], true));
+
+// A condition/blocked gate can never auto-unlock to READY_FOR_RELEASE.
+$h->test('RELEASE_BLOCKED cannot transition directly to READY_FOR_RELEASE',
+    DevelopmentLifecycle::canTransition(DevelopmentLifecycle::RELEASE_BLOCKED, DevelopmentLifecycle::READY_FOR_RELEASE) === false);
+
+$h->section('Phase 3: export provenance');
+$expRun = ['module' => 'bakeshop', 'issues' => [['fingerprint' => 'f1', 'message' => 'issue', 'category' => 'db', 'severity' => 'major']]];
+$expTask = ['task_id' => 'task-exp-1', 'contract_revision' => str_repeat('b', 16), 'state' => 'READY_FOR_RELEASE', 'release' => ['decision' => 'condition', 'verified_gate' => true, 'conditions' => [['id' => 'c1', 'owner' => 'sre', 'resolved' => false]]]];
+$exporter = new RunExporter();
+$arkExport = json_decode($exporter->ark($expRun, $expTask), true);
+$junitExport = $exporter->junit($expRun, $expTask);
+$sarifExport = json_decode($exporter->sarif($expRun, $expTask), true);
+$h->test('ARK export carries task + release-decision provenance',
+    ($arkExport['task']['task_id'] ?? '') === 'task-exp-1'
+    && ($arkExport['task']['release']['decision'] ?? '') === 'condition'
+    && ($arkExport['task']['release']['conditions'][0]['owner'] ?? '') === 'sre');
+$h->test('JUnit export carries task + release-decision properties',
+    str_contains($junitExport, 'task_id') && str_contains($junitExport, 'task-exp-1')
+    && str_contains($junitExport, 'release_decision') && str_contains($junitExport, 'condition'));
+$h->test('SARIF export carries task + release-decision provenance',
+    ($sarifExport['runs'][0]['properties']['ark_workbench_task']['release']['decision'] ?? '') === 'condition');
+$arkLegacy = json_decode($exporter->ark($expRun), true);
+$h->test('legacy single-argument export is unchanged (no task block)',
+    !isset($arkLegacy['task']) && ($arkLegacy['schema'] ?? '') === 'ark.workbench-run-export.v1');
 
 // Cleanup.
 foreach (glob($root . '*') ?: [] as $d) {

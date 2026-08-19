@@ -1,0 +1,99 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:ikabud:workbench:development-release-gate:v1",
+    "title": "Workbench Development Release Gate",
+    "description": "Deterministic /release-gate artifact. Phase 3: decisions are approve/block/condition; every condition requires an owner and an evidence reference.",
+    "type": "object",
+    "required": [
+        "schema",
+        "task_id",
+        "contract_revision",
+        "git_sha",
+        "decision",
+        "checks"
+    ],
+    "properties": {
+        "schema": {
+            "const": "ark.workbench-development-release-gate.v1"
+        },
+        "task_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "contract_revision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8,64}$"
+        },
+        "git_sha": {
+            "type": "string"
+        },
+        "decision": {
+            "enum": [
+                "approved",
+                "blocked",
+                "condition"
+            ]
+        },
+        "checks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "status"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "PASS",
+                            "FAIL",
+                            "FLAKY",
+                            "SKIPPED",
+                            "NOT_REQUIRED",
+                            "NOT_RUN"
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "conditions": {
+            "description": "Required when decision is 'condition'. Release stays blocked until every condition is resolved; each condition needs an owner and an evidence reference.",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "description",
+                    "owner",
+                    "evidence_ref"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "owner": {
+                        "type": "string"
+                    },
+                    "evidence_ref": {
+                        "type": "string"
+                    },
+                    "resolved": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "created_at": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

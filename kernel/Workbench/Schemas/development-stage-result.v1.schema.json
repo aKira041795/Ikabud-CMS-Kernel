@@ -202,6 +202,28 @@
                     },
                     "summary": {
                         "type": "string"
+                    },
+                    "evidence_refs": {
+                        "description": "Phase 2: evidence ids in the task timeline this finding cites. Every ref must resolve to evidence present in the task record/timeline, else the envelope is rejected (fail closed).",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "classification": {
+                        "description": "Phase 3: how the finding is classified. flaky/environment_only findings do not block release without verified_reproduction.",
+                        "enum": [
+                            "normal",
+                            "flaky",
+                            "environment_only"
+                        ]
+                    },
+                    "verified_reproduction": {
+                        "description": "Phase 3: evidence id proving a verified reproduction; required for a flaky/environment_only finding to block release.",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "additionalProperties": false
@@ -223,13 +245,45 @@
                 "decision": {
                     "enum": [
                         "approved",
-                        "blocked"
+                        "blocked",
+                        "condition"
                     ]
                 },
                 "checks": {
                     "type": "array",
                     "items": {
                         "type": "object"
+                    }
+                },
+                "conditions": {
+                    "description": "Phase 3: required when decision is 'condition'. Every condition needs an owner and an evidence reference; release stays blocked until all conditions are resolved.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "id",
+                            "description",
+                            "owner",
+                            "evidence_ref"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "owner": {
+                                "type": "string"
+                            },
+                            "evidence_ref": {
+                                "type": "string"
+                            },
+                            "resolved": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
                     }
                 }
             },
