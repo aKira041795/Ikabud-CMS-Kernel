@@ -6561,6 +6561,7 @@ function handleAdminProductionOutput(array $params = []): void
         'dl_user_id' => $actorId > 0 ? $actorId : '',
         'tenant_scope' => $tenantScope,
         'ledger_date' => $ledgerDate,
+        'date' => $ledgerDate,
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
         'branches' => $branches,
