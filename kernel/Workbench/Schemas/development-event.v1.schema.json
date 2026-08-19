@@ -1,0 +1,108 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:ikabud:workbench:development-event:v1",
+    "title": "Workbench Development Event (append-only lifecycle event)",
+    "type": "object",
+    "required": [
+        "schema",
+        "schema_version",
+        "event_id",
+        "task_id",
+        "sequence",
+        "timestamp",
+        "actor",
+        "prior_state",
+        "new_state",
+        "reason"
+    ],
+    "properties": {
+        "schema": {
+            "const": "ark.workbench-development-event.v1"
+        },
+        "schema_version": {
+            "const": "1.0"
+        },
+        "event_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8,64}$"
+        },
+        "task_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "sequence": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "timestamp": {
+            "type": "string"
+        },
+        "actor": {
+            "type": "object",
+            "required": [
+                "role",
+                "model",
+                "harness",
+                "context_governor"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "harness": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "context_governor": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "prior_state": {
+            "type": "string"
+        },
+        "new_state": {
+            "type": "string"
+        },
+        "reason": {
+            "type": "string"
+        },
+        "evidence": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "scope": {
+            "type": "object",
+            "properties": {
+                "approved_changed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unexpected_changed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

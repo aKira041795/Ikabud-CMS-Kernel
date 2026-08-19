@@ -45,6 +45,7 @@ function wbSwitchTab(tab) {
     if (tab === 'coverage' && !window._wbCoverageLoaded) { wbLoadCoverage(); }
     if (tab === 'steward' && !window._wbStewardLoaded) { wbLoadSteward(); }
     if (tab === 'map' && !window._wbMapLoaded) { wbLoadProcessMap(); }
+    if (tab === 'tasks' && !window._wbTasksLoaded) { wbLoadDevelopmentTasks(); }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -799,6 +800,169 @@ async function wbLoadProcessMap() {
         el.innerHTML=html;
     } catch(e) { el.textContent='Map error: '+e.message; }
 }
+
+// ════════════════════════════════════════════════════════════════
+// G. DEVELOPMENT TASKS (Development Control Plane - observe)
+// ════════════════════════════════════════════════════════════════
+async function wbLoadDevelopmentTasks() {
+    window._wbTasksLoaded = true;
+    var el = document.getElementById('wb-tasks-body');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse p-4">Loading development tasks...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/tasks');
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'API error') + '</div>'; return; }
+        var tasks = data.tasks || [];
+        if (tasks.length === 0) {
+            el.innerHTML = '<div class="empty-state"><h3>No Development Tasks</h3><p>Import an architecture contract with <code class="bg-slate-100 px-1 rounded">php ikabud workbench:task:ingest</code> to seed the ledger.</p></div>';
+            return;
+        }
+        var inFlight = tasks.filter(function(t){ return t.state === 'IMPLEMENTING' || t.state === 'READY_FOR_REVIEW' || t.state === 'REVIEWING' || t.state === 'CHANGES_REQUIRED' || t.state === 'REVIEW_REQUIRED'; }).length;
+        var ready = tasks.filter(function(t){ return t.state === 'READY_FOR_RELEASE'; }).length;
+        var blocked = tasks.filter(function(t){ return t.state.indexOf('BLOCKED') >= 0 || t.state.indexOf('FAILED') >= 0; }).length;
+        var html = '';
+        html += '<div class="grid grid-cols-4 gap-4 mb-4">';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + tasks.length + '</div><div class="wb-stat-label">Tasks</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + inFlight + '</div><div class="wb-stat-label">In flight</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat wb-pass">' + ready + '</div><div class="wb-stat-label">Release ready</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat ' + (blocked > 0 ? 'wb-fail' : 'text-gray-500') + '">' + blocked + '</div><div class="wb-stat-label">Blocked</div></div>';
+        html += '</div>';
+        html += '<div class="overflow-x-auto"><table class="data w-full text-xs">';
+        html += '<thead><tr><th>Task</th><th>State</th><th>Objective</th><th>Revision</th><th>Verification</th><th>Scope drift</th><th>Release</th><th></th></tr></thead><tbody>';
+        tasks.forEach(function(t) {
+            var drift = t.unexpected_scope_count > 0;
+            html += '<tr class="' + (drift ? 'bg-red-50' : '') + '">';
+            html += '<td class="font-mono">' + escHtml(t.task_id) + '</td>';
+            html += '<td><span class="badge text-xs" style="' + wbStateStyle(t.state) + '">' + escHtml(t.state) + '</span></td>';
+            html += '<td class="max-w-xs">' + escHtml(t.objective) + '</td>';
+            html += '<td class="font-mono">' + escHtml(t.contract_revision) + '</td>';
+            html += '<td>' + escHtml(t.verification_status) + '</td>';
+            html += '<td>' + (drift ? '<span class="wb-fail font-semibold">' + t.unexpected_scope_count + '</span>' : '0') + '</td>';
+            html += '<td>' + escHtml(t.release_decision || '\u2014') + '</td>';
+            html += '<td><button onclick="wbViewDevelopmentTask(\'' + escHtml(t.task_id) + '\')" class="kernel-btn kernel-btn-outline text-xs">Detail</button></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+function wbStateStyle(state) {
+    if (state === 'READY_FOR_RELEASE') return 'color:#059669;border-color:#059669';
+    if (state === 'READY_FOR_IMPLEMENTATION') return 'color:#2563eb;border-color:#2563eb';
+    if (state.indexOf('BLOCKED') >= 0 || state.indexOf('FAILED') >= 0) return 'color:#e03131;border-color:#e03131';
+    if (state.indexOf('REVIEW') >= 0 || state === 'REVIEWING') return 'color:#9333ea;border-color:#9333ea';
+    if (state.indexOf('IMPLEMENT') >= 0 || state === 'CHANGES_REQUIRED') return 'color:#b45309;border-color:#b45309';
+    return 'color:#475569;border-color:#cbd5e1';
+}
+
+async function wbViewDevelopmentTask(taskId) {
+    var el = document.getElementById('wb-task-detail');
+    el.classList.remove('hidden');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse p-4">Loading task...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/task?id=' + encodeURIComponent(taskId));
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'Not found') + '</div>'; return; }
+        var t = data.task || {};
+        var scope = t.approved_scope || {};
+        var actor = t.actor || {}, git = t.git || {}, review = t.review || {}, release = t.release || {};
+        var verif = t.verification || {};
+
+        var allowedHtml = (scope.allowed || []).map(function(s){ return escHtml(s.path) + ' <span class="text-gray-400">(' + escHtml(s.kind || 'file') + ')</span>'; }).join('<br>') || '<span class="text-gray-400">none</span>';
+        var forbiddenHtml = (scope.forbidden || []).map(function(s){ return escHtml(s.path); }).join('<br>') || '<span class="text-gray-400">none</span>';
+        var actualHtml = (t.actual_scope || []).map(function(s){
+            var note = s.justification ? ' <span class="text-gray-400">(' + escHtml(s.justification) + ')</span>' : '';
+            return '<span class="' + (s.status === 'unexpected' ? 'wb-fail' : '') + '">' + escHtml(s.path) + '</span> <span class="text-gray-400">[' + escHtml(s.status || '?') + ']</span>' + note;
+        }).join('<br>') || '<span class="text-gray-400">none recorded</span>';
+
+        // Per-layer verification evidence: state + artifact + hash + verified.
+        var layerHtml = (verif.layers || []).map(function(l){
+            var statusCls = l.status === 'PASS' ? 'text-green-700' : (l.status === 'FAIL' ? 'wb-fail' : 'text-amber-600');
+            var hashShort = (l.hash || '').slice(0, 12) + ((l.hash || '').length > 12 ? '\u2026' : '');
+            var pathTitle = l.path ? ' title="' + escHtml(l.path) + '"' : '';
+            var verifiedCell = l.verified === true
+                ? '<span class="text-green-700">verified</span>'
+                : '<span class="wb-fail">unverified' + (l.reason ? ': ' + escHtml(l.reason) : '') + '</span>';
+            return '<tr><td class="font-mono">' + escHtml(l.name) + '</td><td class="' + statusCls + ' font-semibold">' + escHtml(l.status || 'NOT_RUN') + '</td><td class="font-mono">' + escHtml(hashShort || '\u2014') + '</td><td class="font-mono max-w-[220px] truncate"' + pathTitle + '>' + escHtml(l.path || '\u2014') + '</td><td>' + verifiedCell + '</td></tr>';
+        }).join('') || '<tr><td colspan="5" class="text-gray-400">no layers recorded</td></tr>';
+
+        // Review findings with severity + summary + resolution state.
+        var findingsHtml = (review.findings || []).map(function(f){
+            var sevCls = (f.severity === 'P0' || f.severity === 'P1') ? 'wb-fail' : 'text-amber-600';
+            return '<div class="text-xs py-1 border-b border-slate-100"><span class="' + sevCls + ' font-semibold">' + escHtml(f.severity || 'P2') + '</span> ' + escHtml(f.summary || '') + ' <span class="' + (f.resolved ? 'text-green-700' : 'wb-fail') + '">[' + (f.resolved ? 'resolved' : 'open') + ']</span></div>';
+        }).join('') || '<div class="text-xs text-gray-400">no findings</div>';
+
+        // Release blockers in full, plus deterministic live re-evaluated blockers.
+        var blockers = release.blockers || [];
+        var liveBlockers = t.live_blockers || [];
+        var allBlockers = {};
+        blockers.concat(liveBlockers).forEach(function(b){ allBlockers[b] = true; });
+        var blockerList = Object.keys(allBlockers).map(function(b){ return '<div class="text-xs text-red-700 py-0.5">\u2022 ' + escHtml(b) + '</div>'; }).join('') || '<div class="text-xs text-gray-400">none</div>';
+
+        // Architecture impact placeholders from the immutable contract revision.
+        var contract = t.contract || {};
+        var impactHtml = '';
+        var contractFields = [
+            ['Constraints', (contract.constraints || [])],
+            ['Acceptance criteria', (contract.acceptance || [])],
+            ['Required tests', (contract.required_tests || [])],
+            ['Risks', (contract.risks || [])],
+            ['Files affected', (contract.files_affected || [])]
+        ];
+        contractFields.forEach(function(pair){
+            var lines = pair[1].map(function(l){ return '<li>' + escHtml(l) + '</li>'; }).join('');
+            impactHtml += '<div class="mb-1"><div class="text-xs font-semibold text-gray-500 uppercase">' + escHtml(pair[0]) + '</div><ul class="text-xs text-gray-700 list-disc list-inside pl-1">' + (lines || '<li class="text-gray-400">\u2014</li>') + '</ul></div>';
+        });
+        impactHtml += '<div class="text-xs text-blue-700 italic mt-2">Architecture impact (modules/capabilities/integration): pending \u2014 populated in a later Evidence/Governance phase. Immutable revision <span class="font-mono">' + escHtml(t.contract_revision || '') + '</span>.</div>';
+
+        var html = '';
+        html += '<div class="flex items-center justify-between mb-2"><h3 class="text-sm font-semibold text-slate-700">' + escHtml(t.task_id) + '</h3><div><span class="badge text-xs mr-2" style="' + wbStateStyle(t.state || '') + '">' + escHtml(t.state || '') + '</span><span class="text-xs text-gray-400 font-mono">rev ' + escHtml(t.contract_revision || '') + '</span></div></div>';
+        html += '<p class="text-xs text-gray-600 mb-2">' + escHtml(t.objective || '') + '</p>';
+
+        // Actor / harness / context governor identity.
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Identity</div><div class="text-xs">actor <span class="font-mono">' + escHtml(actor.role || '?') + '</span>' + (actor.model ? ' \u00b7 model <span class="font-mono">' + escHtml(actor.model) + '</span>' : '') + ' \u00b7 harness <span class="font-mono">' + escHtml(actor.harness || '?') + '</span>' + (actor.context_governor ? ' \u00b7 governor <span class="font-mono">' + escHtml(actor.context_governor) + '</span>' : '') + '</div></div>';
+
+        // Git evidence (resolved + fingerprint, re-verified at release).
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Git evidence (verified)</div><div class="text-xs font-mono">head ' + escHtml((git.head || '').slice(0, 12)) + (git.base ? ' \u00b7 base ' + escHtml((git.base || '').slice(0, 12)) : '') + ' \u00b7 ' + (git.changed_paths || []).length + ' task path(s) \u00b7 ' + ((git.baseline_changed_paths || []).length) + ' baseline \u00b7 fp ' + escHtml((git.fingerprint || '').slice(0, 12)) + '</div></div>';
+
+        // Approved vs actual scope.
+        html += '<div class="grid grid-cols-2 gap-3 mb-2"><div class="wb-panel p-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Approved scope</div><div class="text-xs font-mono max-h-32 overflow-auto">' + allowedHtml + '<div class="text-xs font-semibold text-gray-500 uppercase mt-1">Forbidden</div><div class="font-mono">' + forbiddenHtml + '</div></div></div><div class="wb-panel p-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Actual scope (' + (t.actual_scope || []).length + ')</div><div class="text-xs font-mono max-h-32 overflow-auto">' + actualHtml + '</div></div></div>';
+
+        // Verification per-layer.
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Verification <span class="text-gray-400">(' + escHtml(verif.status || 'NOT_RUN') + ')</span></div><table class="data w-full text-xs"><thead><tr><th>Layer</th><th>Status</th><th>Hash</th><th>Artifact</th><th>Verified</th></tr></thead><tbody>' + layerHtml + '</tbody></table></div>';
+
+        // Review findings detail.
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Review <span class="text-gray-400">(' + escHtml(review.status || 'not_reviewed') + ')</span></div>' + findingsHtml + '</div>';
+
+        // Release detail.
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Release</div><div class="text-xs mb-1">decision <span class="font-mono">' + escHtml(release.decision || '\u2014') + '</span> \u00b7 verified gate ' + (release.verified_gate === true ? '<span class="text-green-700">yes</span>' : '<span class="wb-fail">no</span>') + (release.gate_artifact ? ' \u00b7 <span class="font-mono">' + escHtml(release.gate_artifact) + '</span>' : '') + '</div><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Blockers</div>' + blockerList + '</div>';
+
+        // Architecture impact placeholders.
+        html += '<div class="wb-panel p-2 mb-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Architecture impact</div>' + impactHtml + '</div>';
+
+        html += '<div class="flex gap-2"><button onclick="wbViewDevelopmentTimeline(\'' + escHtml(t.task_id) + '\')" class="kernel-btn kernel-btn-outline text-xs">Timeline</button><button onclick="document.getElementById(\'wb-task-detail\').classList.add(\'hidden\')" class="kernel-btn kernel-btn-outline text-xs">Close</button></div>';
+        html += '<div id="wb-task-timeline" class="mt-2"></div>';
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+async function wbViewDevelopmentTimeline(taskId) {
+    var el = document.getElementById('wb-task-timeline');
+    if (!el) return;
+    el.innerHTML = '<div class="text-xs text-gray-500 animate-pulse p-2">Loading timeline...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/task/timeline?id=' + encodeURIComponent(taskId));
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-xs text-red-600">' + escHtml(data.error || 'Error') + '</div>'; return; }
+        var html = '<div class="border border-slate-200 rounded-lg p-2 mt-2"><div class="text-xs font-semibold text-gray-500 uppercase mb-1">Timeline</div><div class="max-h-64 overflow-auto">';
+        (data.events || []).forEach(function(ev) {
+            html += '<div class="text-xs font-mono py-1 border-b border-slate-100">#' + ev.sequence + ' <span class="text-gray-500">' + escHtml(ev.prior_state) + '</span> \u2192 <span class="font-semibold">' + escHtml(ev.new_state) + '</span> <span class="text-gray-400">' + escHtml(ev.reason || '') + '</span></div>';
+        });
+        html += '</div></div>';
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-xs text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
 {/verbatim}
 </script>
 {/block}
@@ -818,7 +982,10 @@ async function wbLoadProcessMap() {
     <!-- ════════════ TAB NAVIGATION ════════════ -->
     <div class="border-b border-slate-200">
         <nav class="flex gap-1 -mb-px">
-            <button data-tab="runs" class="wb-tab wb-tab-active px-4 py-2 text-xs font-medium border-b-2 border-blue-600 text-blue-700" onclick="wbSwitchTab('runs')">
+            <button data-tab="tasks" class="wb-tab wb-tab-active px-4 py-2 text-xs font-medium border-b-2 border-blue-600 text-blue-700" onclick="wbSwitchTab('tasks')">
+                G. Development Tasks
+            </button>
+            <button data-tab="runs" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('runs')">
                 A. Run Overview
             </button>
             <button data-tab="failures" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('failures')">
@@ -843,8 +1010,30 @@ async function wbLoadProcessMap() {
         <div class="wb-panel"><div class="wb-panel-header"><h2 class="text-sm font-semibold text-slate-700">Canonical Process Map</h2><div class="flex gap-2"><select id="wb-map-module" onchange="wbLoadProcessMap()" class="input text-xs"></select><button onclick="wbLoadProcessMap()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button></div></div><div class="wb-panel-body"><p class="text-xs text-gray-500 mb-3">Resolved through the ARK Comprehension provider registry. Nodes and edges expose provenance; inferred facts are never presented as verified.</p><div id="wb-map-body">Switch to this tab to build the map.</div></div></div>
     </div>
 
+    <!-- ════════════ PANEL G: DEVELOPMENT TASKS (task-first health) ════════════ -->
+    <div id="wb-panel-tasks" class="wb-tab-panel">
+        {if development_ledger_error}
+        <div class="p-3 border border-red-200 rounded-lg bg-red-50 mb-3">
+            <div class="text-xs font-semibold text-red-700">Development Task Ledger Unavailable</div>
+            <p class="text-xs text-red-600 mt-1">{development_ledger_error}</p>
+        </div>
+        {/if}
+        <div class="wb-panel">
+            <div class="wb-panel-header">
+                <h2 class="text-sm font-semibold text-slate-700">Development Task Ledger</h2>
+                <button onclick="wbLoadDevelopmentTasks()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
+            </div>
+            <div class="wb-panel-body">
+                <div id="wb-tasks-body">
+                    <div class="text-sm text-gray-500 animate-pulse p-4">Loading development tasks...</div>
+                </div>
+                <div id="wb-task-detail" class="hidden mt-4"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- ════════════ PANEL A: RUN OVERVIEW ════════════ -->
-    <div id="wb-panel-runs" class="wb-tab-panel">
+    <div id="wb-panel-runs" class="wb-tab-panel hidden">
         <div class="wb-panel">
             <div class="wb-panel-header">
                 <h2 class="text-sm font-semibold text-slate-700">Run Overview</h2>
@@ -1131,6 +1320,7 @@ async function wbLoadProcessMap() {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    wbLoadDevelopmentTasks();
     wbLoadRuns();
     wbLoadArkModules();
 });

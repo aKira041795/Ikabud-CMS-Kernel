@@ -688,6 +688,18 @@ switch ($handler) {
         kernelHandleApiSuperadminWorkbenchProcessMap();
         exit;
 
+    case 'apiSuperadminWorkbenchTasks':
+        kernelHandleApiSuperadminWorkbenchTasks();
+        exit;
+
+    case 'apiSuperadminWorkbenchTaskDetail':
+        kernelHandleApiSuperadminWorkbenchTaskDetail();
+        exit;
+
+    case 'apiSuperadminWorkbenchTaskTimeline':
+        kernelHandleApiSuperadminWorkbenchTaskTimeline();
+        exit;
+
     case 'apiSuperadminWorkbenchRunDetail':
         kernelHandleApiSuperadminWorkbenchRunDetail();
         exit;

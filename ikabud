@@ -1169,6 +1169,10 @@ switch ($command) {
         out('    ' . green('workbench:doctor') . ' <module> [--url=] [--user=] [--pass=] [--json]   Run the pre-browser release gate with optional env readiness');
         out('    ' . green('workbench:run') . ' <module> [--gate=...] Record a gated run');
         out('    ' . green('workbench:explain') . ' <run-id> [--json] Explain a durable run');
+        out('    ' . green('workbench:task:ingest') . ' [--file=.ai/current-task.md] [--task-id=...] [--json]  Import architecture into a development task');
+        out('    ' . green('workbench:task:record') . ' <task-id> --stage=... --result=... [--envelope=file.json] [--git-root=...] [--json]  Record a stage result envelope (implement git evidence is verified against the repository; verification artifacts must be fully task-bound result JSON: schema, task_id, contract_revision, git_head, fingerprint, layer, runner)');
+        out('    ' . green('workbench:task:show') . ' [<task-id>] [--json]  List development tasks or show one task with its timeline');
+        out('    ' . green('workbench:task:sign') . ' --file=<result.json>  Sign a verification result artifact with the configured WORKBENCH_EVIDENCE_HMAC_KEY');
         out('');
         out('  ' . bold('Debug'));
         out('    ' . green('event:list') . '                  List registered event listeners');
@@ -6132,6 +6136,209 @@ MD;
             if (($result['ok'] ?? true) === false || ($result['outcome'] ?? '') === 'blocked') exit(1);
         } catch (Throwable $e) {
             out(red('  Workbench contract error: ' . $e->getMessage()));
+            exit(2);
+        }
+        break;
+
+    // ── Workbench Development Control Plane (Phase 1: Observe) ──
+    case 'workbench:task:ingest':
+    case 'workbench:task:record':
+    case 'workbench:task:show':
+    case 'workbench:task:sign':
+        require_once __DIR__ . '/kernel/Workbench/Development/DevelopmentLifecycle.php';
+        require_once __DIR__ . '/kernel/Workbench/Development/DevelopmentTaskContract.php';
+        require_once __DIR__ . '/kernel/Workbench/Development/DevelopmentTaskRepository.php';
+        require_once __DIR__ . '/kernel/Workbench/Development/GitEvidenceResolver.php';
+        require_once __DIR__ . '/kernel/Workbench/Development/DevelopmentVerificationArtifact.php';
+        require_once __DIR__ . '/kernel/Workbench/Development/DevelopmentArtifactIngestor.php';
+        $taskRepo = new \Ikabud\Kernel\Workbench\Development\DevelopmentTaskRepository(
+            __DIR__ . '/storage/workbench/development/tasks'
+        );
+        // Implement-stage git evidence is resolved and verified against the real
+        // repository (default: this checkout). --git-root overrides for tooling
+        // that records against a different working copy.
+        $gitRoot = getFlagValue('--git-root=');
+        $taskGit = new \Ikabud\Kernel\Workbench\Development\GitEvidenceResolver(
+            ($gitRoot !== null && $gitRoot !== '') ? $gitRoot : __DIR__
+        );
+        $taskIngestor = new \Ikabud\Kernel\Workbench\Development\DevelopmentArtifactIngestor($taskRepo, $taskGit);
+        $taskActor = [
+            'role' => 'cli',
+            'model' => getFlagValue('--model=') ?? null,
+            'harness' => getFlagValue('--harness=') ?? 'cli',
+            'context_governor' => getFlagValue('--governor=') ?? 'lean-ctx',
+        ];
+        try {
+            $result = match ($command) {
+                'workbench:task:ingest' => (static function () use ($taskIngestor, $taskActor): array {
+                    $file = getFlagValue('--file=') ?? '.ai/current-task.md';
+                    if (!is_file($file)) {
+                        return ['ok' => false, 'reason' => "Architecture source not found: {$file}"];
+                    }
+                    $options = ['source_path' => $file];
+                    $explicit = getFlagValue('--task-id=');
+                    if ($explicit !== null && $explicit !== '') {
+                        $options['task_id'] = $explicit;
+                    }
+
+                    return $taskIngestor->importArchitecture((string) file_get_contents($file), $taskActor, $options);
+                })(),
+                'workbench:task:record' => (static function () use ($taskIngestor, $taskActor, $params): array {
+                    $taskId = paramsWithoutFlags($params)[0] ?? '';
+                    if ($taskId === '') {
+                        return ['ok' => false, 'reason' => 'Usage: php ikabud workbench:task:record <task-id> --stage=... --result=... [--envelope=file.json]'];
+                    }
+                    $stage = getFlagValue('--stage=') ?? '';
+                    $res = getFlagValue('--result=') ?? '';
+                    $envelopeFile = getFlagValue('--envelope=');
+                    if ($envelopeFile !== null) {
+                        if (!is_file($envelopeFile)) {
+                            return ['ok' => false, 'reason' => "Envelope file not found: {$envelopeFile}"];
+                        }
+                        $envelope = json_decode((string) file_get_contents($envelopeFile), true);
+                        if (!is_array($envelope)) {
+                            return ['ok' => false, 'reason' => 'Envelope file is not valid JSON'];
+                        }
+                        $envelope['task_id'] = $taskId;
+                        $envelope['stage'] = (string) ($envelope['stage'] ?? $stage);
+                        $envelope['result'] = (string) ($envelope['result'] ?? $res);
+                        $envelope['actor'] = $envelope['actor'] ?? $taskActor;
+                        $envelope['recorded_at'] = (string) ($envelope['recorded_at'] ?? gmdate(DATE_ATOM));
+                    } else {
+                        $paths = getFlagValue('--paths=');
+                        $envelope = [
+                            'stage' => $stage,
+                            'task_id' => $taskId,
+                            'result' => $res,
+                            'actor' => $taskActor,
+                            'git' => [
+                                'base' => getFlagValue('--base='),
+                                'head' => getFlagValue('--head='),
+                                'changed_paths' => $paths === null
+                                    ? []
+                                    : array_values(array_filter(array_map('trim', explode(',', $paths)))),
+                            ],
+                            'evidence' => [],
+                            'verification' => [],
+                            'summary' => getFlagValue('--summary=') ?? '',
+                            'recorded_at' => gmdate(DATE_ATOM),
+                        ];
+                        $gateArtifact = getFlagValue('--gate-artifact=');
+                        if ($gateArtifact !== null && $gateArtifact !== '') {
+                            $envelope['release_gate'] = [
+                                'artifact' => $gateArtifact,
+                                'hash' => getFlagValue('--gate-hash=') ?? '',
+                                'decision' => getFlagValue('--gate-decision=') ?? 'approved',
+                            ];
+                        }
+                        $verificationJson = getFlagValue('--verification=');
+                        if ($verificationJson !== null && $verificationJson !== '') {
+                            $decoded = json_decode($verificationJson, true);
+                            if (!is_array($decoded)) {
+                                return ['ok' => false, 'reason' => '--verification must be a JSON array of verification layers'];
+                            }
+                            $envelope['verification'] = $decoded;
+                        }
+                    }
+
+                    // Implement results must declare durable git evidence so scope
+                    // review cannot be based on an unverifiable claim. The head
+                    // must equal `git rev-parse HEAD` and --paths must list the
+                    // actual working-tree changes; Workbench verifies both against
+                    // the repository before recording anything.
+                    if (($envelope['stage'] ?? '') === 'implement') {
+                        $gitHead = (string) ($envelope['git']['head'] ?? '');
+                        $gitChanged = $envelope['git']['changed_paths'] ?? [];
+                        if ($gitHead === '' || !is_array($gitChanged) || $gitChanged === []) {
+                            return ['ok' => false, 'reason' => 'implement requires --head=<sha> and --paths=<files> (git evidence, verified against the repository)'];
+                        }
+                    }
+
+                    return $taskIngestor->ingestStageResult($taskId, $envelope);
+                })(),
+                'workbench:task:show' => (static function () use ($taskRepo, $params): array {
+                    $taskId = paramsWithoutFlags($params)[0] ?? '';
+                    if ($taskId === '') {
+                        return ['ok' => true, 'tasks' => $taskRepo->listTasks()];
+                    }
+
+                    return [
+                        'ok' => true,
+                        'task' => $taskRepo->getTask($taskId),
+                        'timeline' => $taskRepo->timeline($taskId),
+                    ];
+                })(),
+                'workbench:task:sign' => (static function (): array {
+                    $file = getFlagValue('--file=') ?? '';
+                    if ($file === '' || !is_file($file)) {
+                        return ['ok' => false, 'reason' => 'Usage: php ikabud workbench:task:sign --file=<result.json>'];
+                    }
+                    $decoded = json_decode((string) file_get_contents($file), true);
+                    if (!is_array($decoded)) {
+                        return ['ok' => false, 'reason' => 'Verification artifact is not valid JSON'];
+                    }
+                    $decoded['signature_algorithm'] = \Ikabud\Kernel\Workbench\Development\DevelopmentVerificationArtifact::SIGNATURE_ALGORITHM;
+                    $decoded['attestation_key_id'] = \Ikabud\Kernel\Workbench\Development\DevelopmentVerificationArtifact::trustedKeyId();
+                    $decoded['signature'] = \Ikabud\Kernel\Workbench\Development\DevelopmentVerificationArtifact::sign($decoded);
+                    $tmp = $file . '.' . getmypid() . '.tmp';
+                    $encoded = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+                    if (file_put_contents($tmp, $encoded, LOCK_EX) === false || !rename($tmp, $file)) {
+                        @unlink($tmp);
+
+                        return ['ok' => false, 'reason' => 'Unable to write signed artifact'];
+                    }
+
+                    return [
+                        'ok' => true,
+                        'file' => $file,
+                        'attestation_key_id' => (string) $decoded['attestation_key_id'],
+                        'signature_algorithm' => (string) $decoded['signature_algorithm'],
+                        'signature' => (string) $decoded['signature'],
+                    ];
+                })(),
+            };
+            if (hasFlag('--json')) {
+                out(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            } elseif ($command === 'workbench:task:show' && !isset($result['task']) && isset($result['tasks'])) {
+                $tasks = $result['tasks'];
+                if ($tasks === []) {
+                    out('  No development tasks yet. Run ' . cyan('php ikabud workbench:task:ingest') . ' to import an architecture contract.');
+                } else {
+                    out('');
+                    foreach ($tasks as $row) {
+                        out('  ' . bold($row['task_id']) . '  ' . $row['state'] . '  rev=' . $row['contract_revision'] . '  ' . ((string) ($row['updated_at'] ?? '')));
+                    }
+                }
+            } else {
+                out('');
+                out('  ' . bold(str_replace('workbench:task:', 'Development task ', $command)) . ($result['task_id'] ?? ''));
+                if (isset($result['idempotent']) && $result['idempotent']) out('  Idempotent: unchanged architecture re-imported');
+                if (isset($result['created'])) out('  Created: ' . ($result['created'] ? 'yes' : 'no'));
+                if (isset($result['revision'])) out('  Contract revision: ' . $result['revision']);
+                if (isset($result['state'])) out('  State: ' . $result['state']);
+                if (isset($result['new_state'])) out('  New state: ' . $result['new_state']);
+                if (isset($result['reason'])) out('  ' . $result['reason']);
+                if (isset($result['file'])) out('  Signed artifact: ' . $result['file'] . ' (key ' . ($result['attestation_key_id'] ?? '') . ')');
+                foreach (($result['blockers'] ?? []) as $blocker) out('  ' . red('✗') . ' ' . $blocker);
+                foreach (($result['errors'] ?? []) as $error) out('  ' . red('✗') . ' ' . $error);
+                if (isset($result['task'])) {
+                    $t = $result['task'];
+                    out('  Objective: ' . mb_strimwidth((string) ($t['objective'] ?? ''), 0, 90, '…'));
+                    $actual = $t['actual_scope'] ?? [];
+                    $unexpected = array_values(array_filter($actual, static fn(array $e): bool => ($e['status'] ?? '') === 'unexpected'));
+                    out('  Actual scope: ' . count($actual) . ' (' . count($unexpected) . ' unexpected)');
+                }
+                if (isset($result['timeline'])) {
+                    out('  Events: ' . count($result['timeline']));
+                    foreach ($result['timeline'] as $event) {
+                        out('    #' . $event['sequence'] . ' ' . $event['prior_state'] . ' -> ' . $event['new_state'] . '  ' . ($event['reason'] ?? ''));
+                    }
+                }
+                out('');
+            }
+            if (($result['ok'] ?? true) === false) exit(1);
+        } catch (Throwable $e) {
+            out(red('  Development task error: ' . $e->getMessage()));
             exit(2);
         }
         break;

@@ -35,6 +35,9 @@ function createWorkbenchTest(config) {
     var landingPath = config.landingPath;
     var adminUser = config.adminUser || 'admin';
     var adminPass = config.adminPass || 'password';
+    // Kernel-admin pages (e.g. /superadmin/workbench) do not emit the module
+    // app-shell component, so allow adapters to declare their own landing selector.
+    var landingSelector = config.landingSelector || '[data-wb-component="app-shell"]';
 
     var fixture = base.test.extend({
         appUrl: [appUrl, { option: true }],
@@ -106,7 +109,7 @@ function createWorkbenchTest(config) {
             await page.fill('input[name="password"]', adminPass);
             await page.click('button[type="submit"]');
             await page.waitForURL('**' + landingPath);
-            await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
+            await page.waitForSelector(landingSelector, { timeout: 10000 });
             await use(page);
 
             // Flush captured diagnostics as structured issues
@@ -130,7 +133,7 @@ function createWorkbenchTest(config) {
                 await page.fill('input[name="password"]', password);
                 await page.click('button[type="submit"]');
                 await page.waitForURL('**' + landingPath);
-                await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
+                await page.waitForSelector(landingSelector, { timeout: 10000 });
             });
         }, { auto: false }],
 

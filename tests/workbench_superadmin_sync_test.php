@@ -132,4 +132,91 @@ $h->test('saved AI secrets have persistent configured feedback without secret va
     && !str_contains($template, 'm.key_masked')
     && !str_contains($handler, "'key_masked'"));
 
+$h->section('Development Control Plane surfaces');
+$routes = (string) file_get_contents($root . '/src/http/core-routes.php');
+$migration = (string) file_get_contents($root . '/docs/workbench/development-control-plane-migration.md');
+$h->test('task list API route is registered',
+    str_contains($routes, "'/api/v1/superadmin/workbench/tasks' => 'apiSuperadminWorkbenchTasks'"));
+$h->test('task detail and timeline APIs are registered',
+    str_contains($routes, "'/api/v1/superadmin/workbench/task' => 'apiSuperadminWorkbenchTaskDetail'")
+    && str_contains($routes, "'/api/v1/superadmin/workbench/task/timeline' => 'apiSuperadminWorkbenchTaskTimeline'"));
+$h->test('task API handlers are defined with the superadmin guard',
+    str_contains($handler, 'function kernelHandleApiSuperadminWorkbenchTasks()')
+    && str_contains($handler, 'function kernelHandleApiSuperadminWorkbenchTaskTimeline()')
+    && str_contains($handler, 'Superadmin only'));
+$h->test('page handler exposes the development task ledger context',
+    str_contains($handler, 'development_task_count')
+    && str_contains($handler, 'DevelopmentTaskRepository'));
+$h->test('cockpit template leads with a Development Task Ledger panel',
+    str_contains($template, 'Development Task Ledger')
+    && str_contains($template, 'wbLoadDevelopmentTasks')
+    && str_contains($template, 'wb-panel-tasks')
+    && str_contains($template, 'G. Development Tasks'));
+$h->test('retained cockpit panels remain after the task-first addition',
+    str_contains($template, 'A. Run Overview')
+    && str_contains($template, 'wb-panel-runs')
+    && str_contains($template, 'wbRunArkHybrid'));
+$h->test('migration document inventories and classifies every surface',
+    str_contains($migration, 'Classification Matrix')
+    && str_contains($migration, 'KEEP')
+    && str_contains($migration, 'Phase 1'));
+$h->test('migration document documents the HMAC runner attestation setup',
+    str_contains($migration, 'WORKBENCH_EVIDENCE_HMAC_KEY')
+    && str_contains($migration, 'workbench:task:sign')
+    && str_contains($migration, 'openssl rand -hex 32'));
+$validator = (string) file_get_contents($root . '/kernel/Workbench/Development/DevelopmentVerificationArtifact.php');
+$h->test('verification artifacts are HMAC-attested with a trusted key id',
+    str_contains($validator, "public const SIGNATURE_ALGORITHM = 'hmac-sha256'")
+    && str_contains($validator, 'WORKBENCH_EVIDENCE_HMAC_KEY')
+    && str_contains($validator, 'public static function trustedKeyId()'));
+$cli = (string) file_get_contents($root . '/ikabud');
+$h->test('CLI registers a task artifact signing helper',
+    str_contains($cli, "case 'workbench:task:sign'")
+    && str_contains($cli, 'Signed artifact:'));
+$h->test('ledger corruption is surfaced instead of an empty ledger',
+    str_contains($template, 'development_ledger_error')
+    && str_contains($handler, "'corrupt' => true")
+    && str_contains($handler, 'Development task ledger is unreadable'));
+$h->test('task detail API attaches the immutable contract revision and live blockers',
+    str_contains($handler, "\$task['live_blockers'] = \\Ikabud\\Kernel\\Workbench\\Development\\DevelopmentLifecycle::releaseBlockers(")
+    && str_contains($handler, "GitEvidenceResolver(")
+    && str_contains($handler, "getRevision(\$taskId")
+    && str_contains($handler, "\$task['contract'] = \$revision['contract'] ?? null"));
+$h->test('task detail renders per-layer verification state and evidence',
+    str_contains($template, "var layerHtml = (verif.layers || [])")
+    && str_contains($template, "var verifiedCell = l.verified === true")
+    && str_contains($template, "'<span class=\"text-green-700\">verified</span>'")
+    && str_contains($template, "escHtml(l.status || 'NOT_RUN')"));
+$h->test('task detail renders unresolved finding severity and resolution state',
+    str_contains($template, "f.severity === 'P0' || f.severity === 'P1'")
+    && str_contains($template, "f.resolved ? 'resolved' : 'open'"));
+$h->test('task detail renders full release-blocker details',
+    str_contains($template, 'var liveBlockers = t.live_blockers || []')
+    && str_contains($template, 'blockers.concat(liveBlockers)'));
+$h->test('task detail renders actor, harness, and context-governor identity',
+    str_contains($template, 'actor.role')
+    && str_contains($template, 'actor.harness')
+    && str_contains($template, 'actor.context_governor'));
+$h->test('task detail renders architecture-impact placeholders from the revision',
+    str_contains($template, 'Architecture impact (modules/capabilities/integration): pending')
+    && str_contains($template, 'contract.files_affected')
+    && str_contains($template, 'contract.risks'));
+$h->test('task detail renders baseline and working-tree fingerprint evidence',
+    str_contains($template, 'git.baseline_changed_paths')
+    && str_contains($template, 'git.fingerprint'));
+$h->test('task detail renders why a verification layer is unverified',
+    str_contains($template, "l.reason ? ': ' + escHtml(l.reason)"));
+$h->test('detail API re-verifies the working tree with a git resolver',
+    str_contains($handler, 'GitEvidenceResolver')
+    && str_contains($handler, "defined('BASE_PATH') ? BASE_PATH : null"));
+$h->test('detail API working-tree re-verification is informational (non-strict)',
+    str_contains($handler, 'DevelopmentLifecycle::releaseBlockers(')
+    && str_contains($handler, 'GitEvidenceResolver(')
+    && str_contains($handler, "releaseBlockers(\n            \$task,"));
+$taskSchema = (string) file_get_contents($root . '/kernel/Workbench/Schemas/development-task.v1.schema.json');
+$h->test('task schema documents baseline content hashes and drifted baseline files',
+    str_contains($taskSchema, '"covered_paths"')
+    && str_contains($taskSchema, '"hashes"')
+    && str_contains($taskSchema, '"baseline_drifted"'));
+
 $h->done();

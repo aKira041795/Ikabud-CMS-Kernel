@@ -1,0 +1,383 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:ikabud:workbench:development-task:v1",
+    "title": "Workbench Development Task (projection)",
+    "type": "object",
+    "required": [
+        "schema",
+        "schema_version",
+        "task_id",
+        "state",
+        "objective",
+        "approved_scope",
+        "actor",
+        "contract_revision",
+        "created_at",
+        "updated_at",
+        "sequence"
+    ],
+    "properties": {
+        "schema": {
+            "const": "ark.workbench-development-task.v1"
+        },
+        "schema_version": {
+            "const": "1.0"
+        },
+        "task_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "state": {
+            "type": "string"
+        },
+        "objective": {
+            "type": "string"
+        },
+        "approved_scope": {
+            "type": "object",
+            "required": [
+                "allowed",
+                "forbidden"
+            ],
+            "properties": {
+                "allowed": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "path",
+                            "kind"
+                        ],
+                        "properties": {
+                            "path": {
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "file",
+                                    "directory"
+                                ]
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "forbidden": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "path",
+                            "kind"
+                        ],
+                        "properties": {
+                            "path": {
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "file",
+                                    "directory"
+                                ]
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "actual_scope": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "path",
+                    "status"
+                ],
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "approved",
+                            "unexpected"
+                        ]
+                    },
+                    "justification": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "source": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "contract_revision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8,64}$"
+        },
+        "source": {
+            "type": "object",
+            "required": [
+                "path",
+                "hash",
+                "imported_at"
+            ],
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "imported_at": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "actor": {
+            "type": "object",
+            "required": [
+                "role",
+                "model",
+                "harness",
+                "context_governor"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "harness": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "context_governor": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "verification": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                },
+                "layers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "status"
+                        ],
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "enum": [
+                                    "PASS",
+                                    "FAIL",
+                                    "FLAKY",
+                                    "SKIPPED",
+                                    "NOT_REQUIRED",
+                                    "NOT_RUN"
+                                ]
+                            },
+                            "evidence": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "path": {
+                                "description": "Resolved absolute path of the referenced test artifact (computed at ingest).",
+                                "type": "string"
+                            },
+                            "hash": {
+                                "description": "sha256 content hash of the referenced artifact, computed at ingest from disk.",
+                                "type": "string"
+                            },
+                            "verified": {
+                                "description": "true only when the artifact exists, its hash and task/Git/layer bindings match, and its configured runner attestation verifies.",
+                                "type": "boolean"
+                            },
+                            "reason": {
+                                "description": "Why the layer could not be verified (missing/invalid artifact path).",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "git": {
+            "type": "object",
+            "properties": {
+                "base": {
+                    "type": "string"
+                },
+                "head": {
+                    "type": "string"
+                },
+                "changed_paths": {
+                    "description": "Task-attributable changed paths (Git-resolved, excluding the approved baseline).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "baseline_changed_paths": {
+                    "description": "Approved baseline paths captured at import; excluded from task scope.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "baseline_drifted": {
+                    "description": "Baseline files whose content changed after import and therefore entered task scope.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "fingerprint": {
+                    "description": "sha256 working-tree fingerprint (path + content) recorded at implementation; re-verified at release.",
+                    "type": "string"
+                },
+                "verified_at": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "baseline": {
+            "type": "object",
+            "properties": {
+                "changed_paths": {
+                    "description": "Pre-existing working-tree changes captured at import (declared Baseline section or Git).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "covered_paths": {
+                    "description": "Concrete dirty files covered by the baseline entries at import.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "hashes": {
+                    "description": "Per-file sha256 content hashes captured at import for baseline drift detection.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "captured_at": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "review": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "severity",
+                            "summary"
+                        ],
+                        "properties": {
+                            "severity": {
+                                "enum": [
+                                    "P0",
+                                    "P1",
+                                    "P2",
+                                    "info"
+                                ]
+                            },
+                            "summary": {
+                                "type": "string"
+                            },
+                            "resolved": {
+                                "type": [
+                                    "boolean",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "release": {
+            "type": "object",
+            "properties": {
+                "gate_artifact": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "decision": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "blockers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "created_at": {
+            "type": "string"
+        },
+        "updated_at": {
+            "type": "string"
+        },
+        "sequence": {
+            "type": "integer",
+            "minimum": 1
+        }
+    },
+    "additionalProperties": false
+}

@@ -1767,10 +1767,62 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
         // Discoverable tests — dynamically scan tests/ for *_test.php files
         $discoverableTests = workbenchDiscoverTestFiles();
 
+        // Development Task Ledger (Phase 1: observe-only task-first health)
+        $developmentTasks = [];
+        $developmentLedgerError = '';
+        try {
+            require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentLifecycle.php';
+            require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskContract.php';
+            require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskRepository.php';
+            $devRepo = new \Ikabud\Kernel\Workbench\Development\DevelopmentTaskRepository(
+                dirname(__DIR__, 2) . '/storage/workbench/development/tasks'
+            );
+            foreach ($devRepo->listTasks() as $devRow) {
+                $devTaskId = (string) $devRow['task_id'];
+                try {
+                    $devTask = $devRepo->getTask($devTaskId);
+                } catch (\Throwable $e) {
+                    $developmentTasks[] = [
+                        'task_id' => $devTaskId,
+                        'state' => 'CORRUPT',
+                        'objective' => 'Task record is unreadable (corrupt or missing projection)',
+                        'contract_revision' => (string) $devRow['contract_revision'],
+                        'updated_at' => (string) $devRow['updated_at'],
+                        'unexpected_scope_count' => 0,
+                        'verification_status' => 'NOT_RUN',
+                        'release_decision' => '',
+                        'corrupt' => true,
+                    ];
+                    continue;
+                }
+                $devActual = (array) ($devTask['actual_scope'] ?? []);
+                $developmentTasks[] = [
+                    'task_id' => $devTaskId,
+                    'state' => (string) $devRow['state'],
+                    'objective' => (string) ($devTask['objective'] ?? ''),
+                    'contract_revision' => (string) $devRow['contract_revision'],
+                    'updated_at' => (string) $devRow['updated_at'],
+                    'unexpected_scope_count' => count(array_filter(
+                        $devActual,
+                        static fn(array $e): bool => ($e['status'] ?? '') === 'unexpected'
+                    )),
+                    'verification_status' => (string) ($devTask['verification']['status'] ?? 'NOT_RUN'),
+                    'release_decision' => (string) ($devTask['release']['decision'] ?? ''),
+                    'corrupt' => false,
+                ];
+            }
+        } catch (\Throwable $e) {
+            $developmentTasks = [];
+            $developmentLedgerError = 'Development task ledger is unreadable: ' . $e->getMessage();
+        }
+
         echo app()->render('pages/superadmin-workbench.disyl', array_merge(
             kernelAdminContext($user, 'workbench'),
             [
                 'page_title'         => 'ARK Workbench',
+                'development_tasks'  => $developmentTasks,
+                'development_task_count' => count($developmentTasks),
+                'development_ledger_error' => $developmentLedgerError,
                 'api_keys'           => $apiKeys,
                 'api_key_count'      => count($apiKeys),
                 'models'             => $models,
@@ -1789,6 +1841,190 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
                 'workbench_ai_max_tokens' => (int)($aiSettings['workbench_ai_max_tokens'] ?? 2000),
             ]
         ));
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchTasks')) {
+    function kernelHandleApiSuperadminWorkbenchTasks(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentLifecycle.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskContract.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskRepository.php';
+        $repo = new \Ikabud\Kernel\Workbench\Development\DevelopmentTaskRepository(
+            dirname(__DIR__, 2) . '/storage/workbench/development/tasks'
+        );
+
+        $tasks = [];
+        try {
+            foreach ($repo->listTasks() as $row) {
+                $taskId = (string) $row['task_id'];
+                try {
+                    $task = $repo->getTask($taskId);
+                } catch (\Throwable $e) {
+                    // Surface unreadable records in the health view instead of hiding them.
+                    $tasks[] = [
+                        'task_id' => $taskId,
+                        'state' => 'CORRUPT',
+                        'objective' => 'Task record is unreadable (corrupt or missing projection)',
+                        'contract_revision' => (string) ($row['contract_revision'] ?? ''),
+                        'actor_role' => (string) ($row['actor_role'] ?? ''),
+                        'created_at' => (string) ($row['created_at'] ?? ''),
+                        'updated_at' => (string) ($row['updated_at'] ?? ''),
+                        'verification_status' => 'NOT_RUN',
+                        'review_status' => 'not_reviewed',
+                        'release_decision' => '',
+                        'release_blockers' => 0,
+                        'actual_scope_count' => 0,
+                        'unexpected_scope_count' => 0,
+                        'corrupt' => true,
+                    ];
+                    continue;
+                }
+                $actual = (array) ($task['actual_scope'] ?? []);
+                $unexpected = count(array_filter($actual, static fn(array $e): bool => ($e['status'] ?? '') === 'unexpected'));
+                $tasks[] = [
+                    'task_id' => $taskId,
+                    'state' => (string) $row['state'],
+                    'objective' => (string) ($task['objective'] ?? ''),
+                    'contract_revision' => (string) $row['contract_revision'],
+                    'actor_role' => (string) $row['actor_role'],
+                    'created_at' => (string) $row['created_at'],
+                    'updated_at' => (string) $row['updated_at'],
+                    'verification_status' => (string) ($task['verification']['status'] ?? 'NOT_RUN'),
+                    'review_status' => (string) ($task['review']['status'] ?? 'not_reviewed'),
+                    'release_decision' => (string) ($task['release']['decision'] ?? ''),
+                    'release_blockers' => count((array) ($task['release']['blockers'] ?? [])),
+                    'actual_scope_count' => count($actual),
+                    'unexpected_scope_count' => $unexpected,
+                    'corrupt' => false,
+                ];
+            }
+        } catch (\Throwable $e) {
+            // A corrupt ledger index must surface as corruption, never as "no tasks".
+            http_response_code(500);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Development task ledger is unreadable: ' . $e->getMessage(),
+                'corrupt' => true,
+            ]);
+            exit;
+        }
+
+        echo json_encode(['ok' => true, 'tasks' => $tasks, 'count' => count($tasks)]);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchTaskDetail')) {
+    function kernelHandleApiSuperadminWorkbenchTaskDetail(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentLifecycle.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskContract.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskRepository.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/GitEvidenceResolver.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentVerificationArtifact.php';
+        $repo = new \Ikabud\Kernel\Workbench\Development\DevelopmentTaskRepository(
+            dirname(__DIR__, 2) . '/storage/workbench/development/tasks'
+        );
+
+        $taskId = (string) ($_GET['id'] ?? '');
+        if ($taskId === '') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Missing task id']);
+            exit;
+        }
+
+        try {
+            $task = $repo->getTask($taskId);
+        } catch (\Throwable $e) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Task not found']);
+            exit;
+        }
+
+        $task['approved_scope'] = $task['approved_scope'] ?? ['allowed' => [], 'forbidden' => []];
+        $task['actual_scope'] = array_values((array) ($task['actual_scope'] ?? []));
+        $task['timeline'] = $repo->timeline($taskId);
+        // Deterministically re-evaluated release blockers (tampered gate or
+        // verification artifact, working-tree drift since implementation) so the
+        // UI never shows stale release health. Informational: an environment
+        // that cannot run git (web worker) reports unverifiable rather than
+        // fabricating drift blockers — the authoritative re-verification happens
+        // at gate ingest.
+        $task['live_blockers'] = \Ikabud\Kernel\Workbench\Development\DevelopmentLifecycle::releaseBlockers(
+            $task,
+            new \Ikabud\Kernel\Workbench\Development\GitEvidenceResolver(
+                defined('BASE_PATH') ? BASE_PATH : null
+            ),
+            false
+        );
+        // Attach the immutable architecture revision for contract/impact detail.
+        try {
+            $revision = $repo->getRevision($taskId, (string) ($task['contract_revision'] ?? ''));
+            $task['contract'] = $revision['contract'] ?? null;
+        } catch (\Throwable $e) {
+            $task['contract'] = null;
+        }
+
+        echo json_encode(['ok' => true, 'task' => $task]);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchTaskTimeline')) {
+    function kernelHandleApiSuperadminWorkbenchTaskTimeline(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentLifecycle.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskContract.php';
+        require_once dirname(__DIR__, 2) . '/kernel/Workbench/Development/DevelopmentTaskRepository.php';
+        $repo = new \Ikabud\Kernel\Workbench\Development\DevelopmentTaskRepository(
+            dirname(__DIR__, 2) . '/storage/workbench/development/tasks'
+        );
+
+        $taskId = (string) ($_GET['id'] ?? '');
+        if ($taskId === '') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Missing task id']);
+            exit;
+        }
+
+        try {
+            $events = $repo->timeline($taskId);
+        } catch (\Throwable $e) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Task not found']);
+            exit;
+        }
+
+        echo json_encode(['ok' => true, 'task_id' => $taskId, 'events' => $events]);
         exit;
     }
 }

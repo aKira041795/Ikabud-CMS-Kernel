@@ -1,0 +1,243 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:ikabud:workbench:development-stage-result:v1",
+    "title": "Workbench Development Stage Result (external agent/harness envelope)",
+    "description": "Normalized boundary between external agents/harnesses and Workbench. Agent text is a claim, not authoritative evidence.",
+    "type": "object",
+    "required": [
+        "schema",
+        "schema_version",
+        "stage",
+        "task_id",
+        "actor",
+        "result",
+        "recorded_at"
+    ],
+    "properties": {
+        "schema": {
+            "const": "ark.workbench-development-stage-result.v1"
+        },
+        "schema_version": {
+            "const": "1.0"
+        },
+        "stage": {
+            "enum": [
+                "architect",
+                "implement",
+                "review",
+                "release-gate"
+            ]
+        },
+        "task_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "result": {
+            "enum": [
+                "passed",
+                "failed",
+                "flaky",
+                "skipped",
+                "not_required",
+                "not_run",
+                "blocked",
+                "review_required",
+                "changes_required",
+                "architecture_decision_required"
+            ]
+        },
+        "actor": {
+            "type": "object",
+            "required": [
+                "role",
+                "model",
+                "harness",
+                "context_governor"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "harness": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "context_governor": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "git": {
+            "type": "object",
+            "properties": {
+                "base": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "head": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "changed_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "evidence": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "kind",
+                    "ref",
+                    "hash"
+                ],
+                "properties": {
+                    "kind": {
+                        "type": "string"
+                    },
+                    "ref": {
+                        "type": "string"
+                    },
+                    "hash": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "run_ids": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "verification": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "status"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "PASS",
+                            "FAIL",
+                            "FLAKY",
+                            "SKIPPED",
+                            "NOT_REQUIRED",
+                            "NOT_RUN"
+                        ]
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "hash": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "description": "Repository-relative path to a signed task-bound verification result artifact.",
+                        "type": "string"
+                    },
+                    "critical": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "summary": {
+            "type": "string"
+        },
+        "risks": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "unresolved_findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "severity",
+                    "summary"
+                ],
+                "properties": {
+                    "severity": {
+                        "enum": [
+                            "P0",
+                            "P1",
+                            "P2",
+                            "info"
+                        ]
+                    },
+                    "summary": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "release_gate": {
+            "type": "object",
+            "required": [
+                "artifact",
+                "hash"
+            ],
+            "properties": {
+                "artifact": {
+                    "type": "string"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "decision": {
+                    "enum": [
+                        "approved",
+                        "blocked"
+                    ]
+                },
+                "checks": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "recorded_at": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

@@ -87,6 +87,7 @@ test_results/browser/runs/
 /test_results/ai/runs/
 /storage/workbench/ci/
 /storage/workbench/runs/
+/storage/workbench/development/
 /storage/academic_similarity/
 release-manifest.json
 
