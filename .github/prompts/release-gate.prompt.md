@@ -8,6 +8,7 @@ Act as final architecture and release gate.
 Read only:
 
 - AGENTS.md
+- .github/instructions/ai-development-execution-handoff.instructions.md
 - .ai/current-task.md
 - git diff against HEAD;
 - tests changed by the current task.

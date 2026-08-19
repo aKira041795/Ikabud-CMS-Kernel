@@ -4,6 +4,24 @@ This file defines the available custom agents, their assigned models, and delega
 
 > **Token budget reference**: See `.github/token-budget.md` for model context windows, optimization rules, and the delegation decision tree.
 
+## Execution Harness — Pi
+
+Pi (MutableAI, `@earendil-works/pi-coding-agent` v0.84.2) is the configured
+execution harness per the AI Development Execution & Handoff Directive
+(`.github/instructions/ai-development-execution-handoff.instructions.md`). It
+provides the files, commands, execution, and agent-runtime tooling for the
+`/implement` stage.
+
+**Install location** (user-local, no root required):
+- Package: `~/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent`
+- Launcher: `~/.local/bin/pi` — runs the package CLI with a user-local Node 22
+  (`~/.local/node-v22.23.2-linux-x64/bin/node`) because the system Node is v18
+  and Pi requires Node >= 22.19.0.
+- Verify with `pi --version`.
+
+**Usage**: `pi --print "..."` for non-interactive execution, or `pi` for the
+interactive TUI. Configure providers/credentials with `pi auth` and `pi config`.
+
 ## Agent Roster
 
 | Agent | Model | Context | Tools | Token strategy |

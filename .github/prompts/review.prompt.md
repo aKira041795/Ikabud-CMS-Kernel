@@ -8,6 +8,7 @@ Act as a senior implementation reviewer.
 Read:
 
 - AGENTS.md
+- .github/instructions/ai-development-execution-handoff.instructions.md
 - .ai/current-task.md
 - the current uncommitted Git diff
 

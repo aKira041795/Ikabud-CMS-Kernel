@@ -10,8 +10,9 @@ Task supplied by the user:
 
 ${input:task:Describe the task}
 
-Read AGENTS.md and inspect only the repository areas necessary to understand
-this task.
+Read AGENTS.md and the AI development execution directive
+(.github/instructions/ai-development-execution-handoff.instructions.md), then
+inspect only the repository areas necessary to understand this task.
 
 Do not edit production code.
 Do not run the full test suite.

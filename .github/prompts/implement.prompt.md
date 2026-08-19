@@ -9,6 +9,7 @@ Read:
 
 - AGENTS.md
 - .github/copilot-instructions.md
+- .github/instructions/ai-development-execution-handoff.instructions.md
 - .ai/current-task.md
 
 Implement the current task.
