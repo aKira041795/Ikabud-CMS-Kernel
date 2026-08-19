@@ -643,6 +643,112 @@ if (is_array($insertedRow)) {
         'id' => 555501, 'sub' => 'cashier:555501', 'role' => 'cashier', 'source' => 'daily-ledger', 'username' => 'no-access', 'name' => 'No Access',
     ];
     $h->test('unsynced-devices query is branch-scoped', dl_offlineUnsyncedDevices($noAccessUser, 20) === []);
+
+    // ─── Phase 4: late-ending reconcile bridge (closed day + PM recovery) ──
+    $h->section('Phase 4: late-ending recovery bridge');
+    // Cashier bound to the test branch + PM shift, for the cashier-only path.
+    $lateCashierId = 999997;
+    $db->execute('DELETE FROM dl_user_branches WHERE user_id = :id', [':id' => $lateCashierId]);
+    $db->execute('DELETE FROM dl_users WHERE id = :id', [':id' => $lateCashierId]);
+    dl_t_seedUser($db, $lateCashierId, 'offline-late-cashier', 'cashier', 1);
+    $db->execute("UPDATE dl_users SET shift = 'PM' WHERE id = :id", [':id' => $lateCashierId]);
+    $db->execute(
+        'INSERT INTO dl_user_branches (user_id, branch_id) VALUES (:uid, :bid)',
+        [':uid' => $lateCashierId, ':bid' => $branchId]
+    );
+    $lateCashier = [
+        'id' => $lateCashierId, 'sub' => 'cashier:' . $lateCashierId, 'role' => 'cashier',
+        'source' => 'daily-ledger', 'username' => 'offline-late-cashier', 'name' => 'Late Cashier',
+    ];
+    // Mint a real module JWT so the cashier's branch/shift resolve from request
+    // context (dl_getUserBranchId → dlUserFromRequest), like a live PWA sync.
+    $prevAuthHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? null;
+    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . app()->jwt()->generate($lateCashier + ['token_type' => 'access']);
+    $lateDate = '2030-02-11';
+
+    // Seed: day CLOSED + PM shift OPEN (not finalized) — the recoverable state.
+    $db->execute(
+        "INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_at)
+         VALUES (:b, :d, 'closed', NOW())
+         ON DUPLICATE KEY UPDATE status = 'closed', closed_at = NOW()",
+        [':b' => $branchId, ':d' => $lateDate]
+    );
+    $db->execute(
+        "INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status)
+         VALUES (:b, :d, 'PM', 'open')
+         ON DUPLICATE KEY UPDATE status = 'open', finalized_at = NULL",
+        [':b' => $branchId, ':d' => $lateDate]
+    );
+
+    // A: eligible late PM bal_end reconcile → applied, day reopened to pending-PM.
+    $lateApply = null;
+    try {
+        $lateApply = dl_offlineApplyLedgerSave($lateCashier, [
+            'type' => 'ledger_save',
+            'payload' => ['branch_id' => $branchId, 'product_id' => $productId, 'field' => 'bal_end', 'value' => 22, 'date' => $lateDate, 'shift' => 'PM'],
+        ], true);
+    } catch (Throwable $e) {
+        $lateApply = ['error' => $e->getMessage()];
+    }
+    $h->test('late PM bal_end on a closed day applies (bridge)', is_array($lateApply) && !empty($lateApply['ok']));
+    $lateDayStatus = (string)$db->query("SELECT status FROM dl_ledger_day_status WHERE branch_id = " . (int)$branchId . " AND ledger_date = '" . $lateDate . "'")->fetchColumn();
+    $h->test('late-ending bridge reopens the day to open/pending-PM', $lateDayStatus === 'open');
+    $lateEndVal = $db->prepare('SELECT bal_end FROM dl_daily_ledger WHERE branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = :s');
+    $lateEndVal->execute([':b' => $branchId, ':p' => $productId, ':d' => $lateDate, ':s' => 'PM']);
+    $h->test('late ending persisted after reopen', (int)($lateEndVal->fetchColumn() ?: 0) === 22);
+    $lateReopenAudit = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'late_ending_reopen' AND branch_id = :b");
+    $lateReopenAudit->execute([':b' => $branchId]);
+    $h->test('late-ending reopen is audited', (int)$lateReopenAudit->fetchColumn() >= 1);
+
+    // B: PM shift FINALIZED → the ending is immutable; rejected, day stays closed.
+    $db->execute(
+        "UPDATE dl_ledger_shift_status SET status = 'finalized', finalized_at = NOW()
+          WHERE branch_id = :b AND ledger_date = :d AND shift = 'PM'",
+        [':b' => $branchId, ':d' => $lateDate]
+    );
+    $db->execute(
+        "UPDATE dl_ledger_day_status SET status = 'closed', closed_at = NOW()
+          WHERE branch_id = :b AND ledger_date = :d",
+        [':b' => $branchId, ':d' => $lateDate]
+    );
+    $finalizedApply = null;
+    try {
+        $finalizedApply = dl_offlineApplyLedgerSave($lateCashier, [
+            'type' => 'ledger_save',
+            'payload' => ['branch_id' => $branchId, 'product_id' => $productId, 'field' => 'bal_end', 'value' => 30, 'date' => $lateDate, 'shift' => 'PM'],
+        ], true);
+    } catch (RuntimeException $e) {
+        $finalizedApply = ['error' => $e->getMessage(), 'code' => $e->getCode()];
+    }
+    $h->test('late bal_end on a finalized PM shift is rejected (immutable)', is_array($finalizedApply) && !empty($finalizedApply['error']) && (int)($finalizedApply['code'] ?? 0) === 403);
+    $finalizedDayStatus = (string)$db->query("SELECT status FROM dl_ledger_day_status WHERE branch_id = " . (int)$branchId . " AND ledger_date = '" . $lateDate . "'")->fetchColumn();
+    $h->test('finalized-shift rejection leaves the day closed', $finalizedDayStatus === 'closed');
+
+    // C: non-ending field (beg_bal) on a closed+open-PM day → still rejected.
+    $db->execute(
+        "UPDATE dl_ledger_shift_status SET status = 'open', finalized_at = NULL
+          WHERE branch_id = :b AND ledger_date = :d AND shift = 'PM'",
+        [':b' => $branchId, ':d' => $lateDate]
+    );
+    $begApply = null;
+    try {
+        $begApply = dl_offlineApplyLedgerSave($lateCashier, [
+            'type' => 'ledger_save',
+            'payload' => ['branch_id' => $branchId, 'product_id' => $productId, 'field' => 'beg_bal', 'value' => 5, 'date' => $lateDate, 'shift' => 'PM'],
+        ], true);
+    } catch (RuntimeException $e) {
+        $begApply = ['error' => $e->getMessage(), 'code' => $e->getCode()];
+    }
+    $h->test('non-ending field on a closed day is still rejected', is_array($begApply) && !empty($begApply['error']));
+    $begDayStatus = (string)$db->query("SELECT status FROM dl_ledger_day_status WHERE branch_id = " . (int)$branchId . " AND ledger_date = '" . $lateDate . "'")->fetchColumn();
+    $h->test('non-ending rejection leaves the day closed', $begDayStatus === 'closed');
+
+    // Restore the previous request auth state (CLI test hygiene).
+    if ($prevAuthHeader === null) {
+        unset($_SERVER['HTTP_AUTHORIZATION']);
+    } else {
+        $_SERVER['HTTP_AUTHORIZATION'] = $prevAuthHeader;
+    }
 }
 
 // ─── Cleanup (every seeded / created row) ──────────────────────────────
@@ -656,9 +762,11 @@ $db->execute('DELETE FROM dl_branch_receiving_items WHERE receiving_id IN (SELEC
 $db->execute('DELETE FROM dl_deliveries WHERE destination_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_receivings WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $productId]);
-$db->execute('DELETE FROM dl_users WHERE id IN (999998, 999999)');
+$db->execute('DELETE FROM dl_user_branches WHERE user_id = :uid', [':uid' => 999997]);
+$db->execute('DELETE FROM dl_users WHERE id IN (999998, 999999, 999997)');
 
 $h->done();

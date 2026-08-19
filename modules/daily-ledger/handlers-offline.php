@@ -338,6 +338,52 @@ function dl_offlineInsertEnrollment(array $user, string $deviceId, int $branchId
  *
  * @throws RuntimeException with an HTTP status code (422/403/500) on failure
  */
+/**
+ * Whether a cashier's late PM ending (bal_end) may be recovered onto a CLOSED
+ * day through the prior-pending-PM flow, instead of being hard-quarantined.
+ *
+ * FAIL-CLOSED: only while the PM shift is still recoverable (NOT finalized).
+ * A finalized PM shift means every ending was recorded and locked — immutable,
+ * so the late value must be rejected (never reopen a finalized shift). The day
+ * must actually be closed. Only cashier actors reach this path.
+ */
+function dl_lateEndingReopenEligible(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, string $date): bool
+{
+    if (dl_shiftIsFinalized($db, $branchId, $date, 'PM')) {
+        return false;
+    }
+    if (dl_getDayStatus($branchId, $date) !== 'closed') {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Reopens a closed day into the open/pending-PM recovery state so a late PM
+ * ending captured offline can be recorded. Official sales stay PROVISIONAL
+ * (unfinalized) until the PM shift is finalized through the normal flow; the
+ * day then re-closes at the next auto-close pass. Audited for traceability.
+ *
+ * MUST be called inside the caller's transaction (the day-status row is locked
+ * by dl_lockDayStatusRow).
+ */
+function dl_reopenDayForLateEnding(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, string $date, int $userId): void
+{
+    $stmt = $db->prepare(
+        "UPDATE dl_ledger_day_status
+            SET status = 'open', closed_by = NULL, closed_at = NULL, updated_at = CURRENT_TIMESTAMP
+          WHERE branch_id = :bid AND ledger_date = :d AND status = 'closed'"
+    );
+    $stmt->execute([':bid' => $branchId, ':d' => $date]);
+    if ($stmt->rowCount() > 0) {
+        dl_auditLog('late_ending_reopen', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", ['status' => 'closed'], [
+            'status' => 'open',
+            'source' => 'offline_reconcile_late_ending',
+            'by_user_id' => $userId,
+        ]);
+    }
+}
+
 function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): array
 {
     $ctx = module();
@@ -404,7 +450,13 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
         }
     }
 
-    if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), dl_getDayStatus($branchId, $date))) {
+    // Phase 4 late-ending bridge: a cashier's pending PM ending may be recovered
+    // onto a closed day while the PM shift is still open (prior-pending-PM flow).
+    $lateEndingEligible = ($role === 'cashier' && $column === 'bal_end' && $shift === 'PM'
+        && dl_lateEndingReopenEligible($ctx->db(), $branchId, $date));
+
+    if ($role === 'cashier' && !$lateEndingEligible
+        && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), dl_getDayStatus($branchId, $date))) {
         throw new RuntimeException('Reference only', 403);
     }
 
@@ -414,7 +466,17 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
     try {
         $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
         if ($dayStatus === 'closed' && $role === 'cashier') {
-            throw new RuntimeException('Day is closed', 403);
+            if ($lateEndingEligible) {
+                // Re-verify under the day-status lock: the day/shift may have
+                // changed between the pre-check and the lock (fail closed).
+                if (dl_lateEndingReopenEligible($ctx->db(), $branchId, $date)) {
+                    dl_reopenDayForLateEnding($ctx->db(), $branchId, $date, $userId);
+                } else {
+                    throw new RuntimeException('Day is closed', 403);
+                }
+            } else {
+                throw new RuntimeException('Day is closed', 403);
+            }
         }
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
