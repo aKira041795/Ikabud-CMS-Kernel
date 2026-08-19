@@ -817,6 +817,69 @@
         },
 
         /**
+         * Counts the ACTIVE enrollment's pending operations WITHOUT requiring
+         * the data key / an unlocked vault. Operation records store
+         * client_op_id / type / state / created_at in plaintext (only the
+         * `envelope` is encrypted), so a locked vault can still report how much
+         * work is waiting to sync — enabling the online ledger to prompt the
+         * cashier to unlock and sync. Never decrypts; never reveals values.
+         */
+        countPendingLocked: function () {
+            var self = this;
+            return openDb().then(function (db) {
+                return self.getStoredEnrollmentId().then(function (enId) {
+                    if (!enId) return 0;
+                    return new Promise(function (resolve) {
+                        var n = 0;
+                        var req = db.transaction('operations', 'readonly').objectStore('operations').index('enrollment_id')
+                            .openCursor(IDBKeyRange.only(enId));
+                        req.onsuccess = function () {
+                            var c = req.result;
+                            if (!c) { resolve(n); return; }
+                            if (c.value && c.value.state === 'pending') n++;
+                            c.continue();
+                        };
+                        req.onerror = function () { resolve(0); };
+                    });
+                });
+            });
+        },
+
+        /**
+         * Returns { count, since } for the ACTIVE enrollment's pending ops
+         * WITHOUT requiring the data key / unlock. since is the earliest
+         * pending op's created_at. Only plaintext record metadata is read —
+         * never decrypted values. Used to report a non-decrypting pending
+         * marker to the server (admin visibility) and to drive the online
+         * page's unlock-and-sync prompt.
+         */
+        pendingSummaryLocked: function () {
+            var self = this;
+            return openDb().then(function (db) {
+                return self.getStoredEnrollmentId().then(function (enId) {
+                    if (!enId) return { count: 0, since: null };
+                    return new Promise(function (resolve) {
+                        var n = 0;
+                        var since = null;
+                        var req = db.transaction('operations', 'readonly').objectStore('operations').index('enrollment_id')
+                            .openCursor(IDBKeyRange.only(enId));
+                        req.onsuccess = function () {
+                            var c = req.result;
+                            if (!c) { resolve({ count: n, since: since }); return; }
+                            if (c.value && c.value.state === 'pending') {
+                                n++;
+                                var t = c.value.created_at || null;
+                                if (t && (!since || t < since)) since = t;
+                            }
+                            c.continue();
+                        };
+                        req.onerror = function () { resolve({ count: 0, since: null }); };
+                    });
+                });
+            });
+        },
+
+        /**
          * Removes the active enrollment's vault data (used by "Remove offline
          * access"). Pending work must be surfaced by the caller BEFORE this is
          * invoked — this is the explicit user-confirmed removal path.

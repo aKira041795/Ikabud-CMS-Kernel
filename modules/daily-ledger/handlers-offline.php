@@ -990,6 +990,80 @@ function dl_offlineLoadReceipt(string $enrollmentId, string $clientOpId): ?array
     ];
 }
 
+/**
+ * Persists a client-reported (non-decrypting) pending-work marker on the
+ * enrollment row. This is a VISIBILITY signal only — the server DB stays the
+ * single source of truth and never trusts it as a gate. The client counts its
+ * own plaintext operation records (state=en 'pending') — ledger values, PINs,
+ * and keys never leave the device.
+ */
+function dl_offlineRecordPendingReport(array $row, int $count, ?string $since = null, ?string $fields = null): void
+{
+    $ctx = module();
+    if (!$ctx || (int)($row['id'] ?? 0) <= 0) {
+        return;
+    }
+    $count = max(0, min(9999, $count));
+    $since = (string)$since;
+    if ($since !== '' && preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/', $since)) {
+        $since = substr($since, 0, 19);
+    } else {
+        $since = null; // empty/unknown → NULL so MySQL never sees '' for a DATETIME
+    }
+    $fields = ($fields !== null && $fields !== '') ? substr((string)$fields, 0, 255) : null;
+
+    $stmt = $ctx->db()->prepare(
+        'UPDATE dl_offline_device_enrollments
+            SET last_reported_pending_count = :cnt,
+                pending_since = :since,
+                pending_fields = :fields,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = :id'
+    );
+    $stmt->execute([
+        ':cnt' => $count,
+        ':since' => $since,
+        ':fields' => $fields,
+        ':id' => (int)$row['id'],
+    ]);
+}
+
+/**
+ * Active enrollments (scoped to the actor's accessible branches) that last
+ * reported unsynced work. Used by the admin dashboard to surface devices that
+ * still hold data which has not reached the cloud, so "the cashier entered it"
+ * is always actionable instead of silently stuck.
+ */
+function dl_offlineUnsyncedDevices(array $user, int $limit = 20): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        return [];
+    }
+    $accessible = dl_accessibleBranchIds($user);
+    if (count($accessible) === 0) {
+        $accessible = [0];
+    }
+    $placeholders = implode(',', array_fill(0, count($accessible), '?'));
+    $stmt = $ctx->db()->prepare(
+        "SELECT e.id, e.enrollment_id, e.device_id, e.actor_user_id, e.branch_id,
+                e.last_reported_pending_count, e.pending_since, e.pending_fields,
+                e.last_sync_at, e.status, e.shift, e.expires_at,
+                b.name AS branch_name,
+                COALESCE(NULLIF(u.full_name, ''), u.username, CONCAT('User #', e.actor_user_id)) AS cashier_name
+           FROM dl_offline_device_enrollments e
+           LEFT JOIN dl_branches b ON b.id = e.branch_id
+           LEFT JOIN dl_users u ON u.id = e.actor_user_id
+          WHERE e.status = 'active'
+            AND e.branch_id IN ({$placeholders})
+            AND e.last_reported_pending_count > 0
+          ORDER BY e.last_reported_pending_count DESC, e.pending_since ASC
+          LIMIT " . (int)$limit
+    );
+    $stmt->execute($accessible);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 // ─── API handlers ─────────────────────────────────────────────────────
 
 /**
@@ -1150,6 +1224,17 @@ function apiOfflineStatus(array $params = []): void
         return;
     }
 
+    // Visibility marker: persist the client-reported non-decrypting pending
+    // summary so admins can see devices that still hold unsynced work.
+    if (isset($input['pending_count'])) {
+        dl_offlineRecordPendingReport(
+            $row,
+            (int)$input['pending_count'],
+            (string)($input['pending_since'] ?? ''),
+            (string)($input['pending_fields'] ?? '')
+        );
+    }
+
     dlJson([
         'ok' => true,
         'enrollment' => dl_offlineEnrollmentDescriptor($row),
@@ -1258,6 +1343,18 @@ function apiOfflineReconcile(array $params = []): void
     if (count($operations) > 200) {
         dlJson(['ok' => false, 'error' => 'Batch too large. Sync in smaller batches.'], 422);
         return;
+    }
+
+    // Visibility marker: record the client-reported non-decrypting pending
+    // summary even if this batch is interrupted, so the admin dashboard can
+    // show devices that still hold unsynced work.
+    if (isset($input['pending_count'])) {
+        dl_offlineRecordPendingReport(
+            $row,
+            (int)$input['pending_count'],
+            (string)($input['pending_since'] ?? ''),
+            (string)($input['pending_fields'] ?? '')
+        );
     }
 
     $results = [];

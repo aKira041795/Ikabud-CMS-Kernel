@@ -92,6 +92,9 @@ $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $productId]);
+// Self-heal: an earlier aborted run may have left the reserved seed users
+// behind, which would make dl_t_seedUser() hit a duplicate-key error.
+$db->execute('DELETE FROM dl_users WHERE id IN (999998, 999999)');
 
 $branchStmt = $db->prepare(
     'INSERT INTO dl_branches (id, code, name, address, default_supply_mode, is_commissary, is_active)
@@ -575,6 +578,71 @@ if (is_array($insertedRow)) {
     $h->test('reconcile-style atomic apply works for the withdrawal worker', is_array($wdAtomic) && !empty($wdAtomic['ok']));
     $wdAtomicReceipt = dl_offlineLoadReceipt((string)$insertedRow['enrollment_id'], $withdrawalOpId);
     $h->test('atomic withdrawal recorded its receipt in the same commit', is_array($wdAtomicReceipt) && ($wdAtomicReceipt['status'] ?? '') === 'applied');
+
+    // ─── Migration 053: offline pending-work marker ────────────────────
+    $h->section('Migration 053 (pending marker)');
+    $mig053 = (string) file_get_contents($base . '/modules/daily-ledger/database/migrations/053_offline_pending_marker.sql');
+    $h->test('053 adds the pending visibility columns', str_contains($mig053, 'last_reported_pending_count') && str_contains($mig053, 'pending_since') && str_contains($mig053, 'pending_fields'));
+    $h->test('053 adds the sync-request columns (future use)', str_contains($mig053, 'sync_requested_at') && str_contains($mig053, 'sync_requested_by_user_id'));
+    // Rerun-safety by construction: every ADD COLUMN / ADD INDEX is guarded by
+    // an INFORMATION_SCHEMA existence check + PREPARE pattern (same as 052).
+    // The CLI MigrationRunner applies 053 in production/CI (the ModuleDB
+    // contract blocks PREPARE, so the test verifies structure + presence).
+    $guardedCount = preg_match_all('/SET\s+@\w+\s*=\s*IF\(/i', $mig053);
+    $prepCount = preg_match_all('/\bPREPARE\b/i', $mig053);
+    $h->test('053 guards every DDL with an existence check (rerun-safe)', $guardedCount >= 5 && $prepCount >= 10);
+    $h->test('053 never stores credentials', !preg_match('/\b(?:pin|wrapping_key|data_key|password)\b/i', preg_replace('/--.*$/m', '', $mig053)));
+    $enr053 = [];
+    foreach ($db->query('SHOW COLUMNS FROM dl_offline_device_enrollments') as $c) {
+        $enr053[strtolower((string)$c['Field'])] = true;
+    }
+    $h->test('053 columns present on the enrollment table', isset($enr053['last_reported_pending_count']) && isset($enr053['pending_since']) && isset($enr053['pending_fields']) && isset($enr053['sync_requested_at']) && isset($enr053['sync_requested_by_user_id']));
+    // Index presence is checked structurally (SHOW INDEX / information_schema
+    // are denied on the ModuleDB; the index is defined in the migration SQL).
+    $h->test('053 defines the pending index', str_contains($mig053, 'idx_dl_oe_pending'));
+    $h->test('053 registered in module.json', in_array('database/migrations/053_offline_pending_marker.sql', $manifest['migrations'] ?? [], true));
+
+    // ─── Pending marker helpers ─────────────────────────────────────────
+    $h->section('Offline pending marker (visibility, non-decrypting)');
+    dl_offlineRecordPendingReport($insertedRow, 3, '2030-02-10 08:00:00', 'bal_end,beg_bal');
+    $marker = $db->prepare('SELECT last_reported_pending_count, pending_since, pending_fields FROM dl_offline_device_enrollments WHERE id = :id');
+    $marker->execute([':id' => (int)$insertedRow['id']]);
+    $markerRow = $marker->fetch(PDO::FETCH_ASSOC);
+    $h->test('recordPendingReport persists count/since/fields', (int)($markerRow['last_reported_pending_count'] ?? 0) === 3 && ($markerRow['pending_since'] ?? '') === '2030-02-10 08:00:00' && ($markerRow['pending_fields'] ?? '') === 'bal_end,beg_bal');
+    dl_offlineRecordPendingReport($insertedRow, 0, '', '');
+    $marker0 = $db->prepare('SELECT last_reported_pending_count, pending_since, pending_fields FROM dl_offline_device_enrollments WHERE id = :id');
+    $marker0->execute([':id' => (int)$insertedRow['id']]);
+    $markerRow0 = $marker0->fetch(PDO::FETCH_ASSOC);
+    $h->test('recordPendingReport clears the marker on a clean report', (int)($markerRow0['last_reported_pending_count'] ?? -1) === 0 && ($markerRow0['pending_since'] ?? null) === null && ($markerRow0['pending_fields'] ?? null) === null);
+
+    // Unsynced-devices query: flag the enrollment, then confirm it shows up and
+    // a clean enrollment does not.
+    dl_offlineRecordPendingReport($insertedRow, 2, '2030-02-10 08:00:00', 'bal_end');
+    $unsynced = dl_offlineUnsyncedDevices($adminUser, 20);
+    $flagFound = false;
+    $cleanCount = 0;
+    foreach ($unsynced as $u) {
+        if ((string)($u['enrollment_id'] ?? '') === (string)$insertedRow['enrollment_id']) {
+            $flagFound = true;
+            $cleanCount = (int)($u['last_reported_pending_count'] ?? 0);
+        }
+    }
+    $h->test('unsynced-devices query surfaces the flagged enrollment', $flagFound);
+    $h->test('unsynced-devices query carries the reported count', $cleanCount === 2);
+    dl_offlineRecordPendingReport($insertedRow, 0, '', '');
+    $unsyncedAfter = dl_offlineUnsyncedDevices($adminUser, 20);
+    $stillFlagged = false;
+    foreach ($unsyncedAfter as $u) {
+        if ((string)($u['enrollment_id'] ?? '') === (string)$insertedRow['enrollment_id']) {
+            $stillFlagged = true;
+        }
+    }
+    $h->test('unsynced-devices query excludes a clean enrollment', !$stillFlagged);
+    // Branch scoping: a supervisor with no access to the test branch sees nothing.
+    $noAccessUser = [
+        'id' => 555501, 'sub' => 'cashier:555501', 'role' => 'cashier', 'source' => 'daily-ledger', 'username' => 'no-access', 'name' => 'No Access',
+    ];
+    $h->test('unsynced-devices query is branch-scoped', dl_offlineUnsyncedDevices($noAccessUser, 20) === []);
 }
 
 // ─── Cleanup (every seeded / created row) ──────────────────────────────

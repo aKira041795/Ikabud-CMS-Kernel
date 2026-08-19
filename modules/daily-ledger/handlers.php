@@ -5877,6 +5877,19 @@ function handleAdminDashboard(array $params = []): void
         ];
     }
 
+    // Devices with unsynced offline work — admin visibility so a cashier's
+    // captured-but-unsynced ending is never silently stuck. Branch-scoped.
+    $unsyncedDevices = [];
+    if (in_array($role, ['admin', 'supervisor', 'auditor'], true)) {
+        try {
+            $unsyncedDevices = dl_offlineUnsyncedDevices($user, 20);
+        } catch (\Throwable $e) {
+            // Column may be missing until migration 053 runs; degrade to empty.
+            write_log('daily-ledger unsynced-devices query failed', 'warning', ['message' => $e->getMessage()]);
+            $unsyncedDevices = [];
+        }
+    }
+
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
 
     $clockLabel = dl_operatingClockLabel();
@@ -5900,6 +5913,7 @@ function handleAdminDashboard(array $params = []): void
         'branch_provisional_amount' => $scopeProvisionalAmount,
         'unreviewed_variances'  => $unreviewedVariances,
         'recent_activity'       => $recentActivity,
+        'unsynced_devices'      => $unsyncedDevices,
         'total_units_today'     => array_reduce($todaySales, static fn(int $carry, array $row): int => $carry + (int)($row['total_units'] ?? 0), 0),
         'total_amount_today'    => array_reduce($todaySales, static fn(float $carry, array $row): float => $carry + (float)($row['total_amount'] ?? 0), 0.0),
         'provisional_units_today' => array_reduce($todaySales, static fn(int $carry, array $row): int => $carry + (int)($row['provisional_units'] ?? 0), 0),

@@ -217,6 +217,27 @@ class TestHarness
         }
     }
 
+    /**
+     * Record a free-form diagnostic detail (e.g. the message from a caught
+     * exception inside a try/catch). Does NOT count as an assertion — it is a
+     * visibility aid so a caught failure is never silently swallowed.
+     */
+    public function detail(string $detail): void
+    {
+        $detail = trim((string)$detail);
+        if ($detail === '') {
+            return;
+        }
+        $this->results[] = [
+            'section' => $this->currentSection,
+            'label' => 'detail',
+            'status' => 'detail',
+            'detail' => $detail,
+            'time' => round((microtime(true) - $this->sectionStart) * 1000, 1),
+        ];
+        echo "  ℹ detail: {$detail}\n";
+    }
+
     public function assertSame(mixed $expected, mixed $actual, string $label = ''): void
     {
         $label = $label ?: "Expected " . $this->export($expected) . ", got " . $this->export($actual);

@@ -664,11 +664,21 @@
         }).then(function (ctx) {
             if (!ctx.enrollment_id) { syncing = false; return; }
 
-            return fetch('/daily-ledger/api/v1/offline/status?enrollment_id=' + encodeURIComponent(ctx.enrollment_id) + '&device_id=' + encodeURIComponent(ctx.device_id), {
-                method: 'GET',
-                credentials: 'same-origin',
-                cache: 'no-store',
-                headers: { 'Accept': 'application/json' }
+            // Report a NON-decrypting pending marker (plaintext op metadata)
+            // so the server/admin can see that this device still holds
+            // unsynced work even before/while it syncs.
+            return V.pendingSummaryLocked().then(function (summary) {
+                var qs = 'enrollment_id=' + encodeURIComponent(ctx.enrollment_id) + '&device_id=' + encodeURIComponent(ctx.device_id);
+                if (summary && summary.count > 0) {
+                    qs += '&pending_count=' + summary.count;
+                    if (summary.since) qs += '&pending_since=' + encodeURIComponent(summary.since);
+                }
+                return fetch('/daily-ledger/api/v1/offline/status?' + qs, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: { 'Accept': 'application/json' }
+                });
             }).then(function (r) { return r.json().catch(function () { return {}; }); })
                 .then(function (status) {
                     if (!status.ok) {
@@ -720,6 +730,22 @@
             };
         });
 
+        // Non-decrypting pending marker from the ops being synced (decrypted
+        // here because syncBatch only runs when the vault is unlocked).
+        var fields = [];
+        var since = null;
+        ops.forEach(function (op) {
+            if (op.created_at && (!since || op.created_at < since)) since = op.created_at;
+            if (op.type === 'ledger_save' && op.payload && op.payload.field && fields.indexOf(op.payload.field) === -1) {
+                fields.push(op.payload.field);
+            }
+        });
+        var pendingReport = {
+            pending_count: ops.length,
+            pending_since: since || null,
+            pending_fields: fields.slice(0, 8).join(',')
+        };
+
         return fetch('/daily-ledger/api/v1/offline/reconcile', {
             method: 'POST',
             credentials: 'same-origin',
@@ -727,7 +753,10 @@
             body: JSON.stringify({
                 enrollment_id: ctx.enrollment_id,
                 device_id: ctx.device_id,
-                operations: payload
+                operations: payload,
+                pending_count: pendingReport.pending_count,
+                pending_since: pendingReport.pending_since,
+                pending_fields: pendingReport.pending_fields
             })
         }).then(function (r) { return r.json().catch(function () { return {}; }); })
             .then(function (res) {

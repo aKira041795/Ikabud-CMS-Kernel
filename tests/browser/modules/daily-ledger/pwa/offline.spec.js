@@ -53,6 +53,22 @@ test.describe('Daily Ledger PWA offline vault', () => {
         expect(readyState.enrolled).toBe(true);
         expect(readyState.unlocked).toBe(true);
 
+        // Non-decrypting pending-vault API: lets the ONLINE ledger detect
+        // unsynced work while the vault is locked (no data key required).
+        var pendingApi = await page.evaluate(async () => ({
+            countPendingLocked: typeof window.DLOfflineVault.countPendingLocked === 'function',
+            pendingSummaryLocked: typeof window.DLOfflineVault.pendingSummaryLocked === 'function',
+            // The online ledger's unlock-and-sync prompt is wired (hidden when nothing pending).
+            promptExists: !!document.getElementById('offline-pending-sync'),
+            promptHidden: (function () { var el = document.getElementById('offline-pending-sync'); return el ? el.classList.contains('hidden') : null; })(),
+            unlockFn: typeof window.dlUnlockVaultAndSync === 'function'
+        }));
+        expect(pendingApi.countPendingLocked).toBe(true);
+        expect(pendingApi.pendingSummaryLocked).toBe(true);
+        expect(pendingApi.promptExists).toBe(true);
+        expect(pendingApi.promptHidden).toBe(true);
+        expect(pendingApi.unlockFn).toBe(true);
+
         await page.evaluate(() => navigator.serviceWorker.ready);
         // A freshly registered worker only controls a page AFTER a reload, so
         // reload first, then wait for control (skipWaiting/claim make it active).

@@ -110,6 +110,23 @@
     <input type="text" class="form-input max-w-xs" id="ledger-search" placeholder="Search product..." oninput="filterLedgerRows(this.value)">
 </div>
 
+<div id="offline-pending-sync" class="hidden mb-4 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm text-indigo-900" role="status" aria-live="polite">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <div class="font-semibold">Offline entries not yet synced.</div>
+            <p id="offline-pending-sync-text" class="mt-1 text-xs text-indigo-800">This device has entries saved while offline that have not reached the cloud. Enter your offline PIN to sync them now.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <input type="password" id="offline-pin-input" inputmode="numeric" maxlength="6" autocomplete="off"
+                   placeholder="PIN" class="form-input mt-0 w-28 text-center"
+                   onkeydown="if(event.key === 'Enter') window.dlUnlockVaultAndSync()">
+            <button type="button" class="btn btn-primary btn-sm" id="offline-sync-btn" onclick="window.dlUnlockVaultAndSync()">Sync now</button>
+            <button type="button" class="btn btn-outline btn-sm" id="offline-sync-later" onclick="dlDismissPendingSync()">Later</button>
+        </div>
+    </div>
+    <p id="offline-pin-msg" class="mt-1 text-xs text-rose-600 hidden"></p>
+</div>
+
 <div id="pending-save-warning" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -582,6 +599,21 @@
                 var payload = ops.map(function(op) {
                     return { client_op_id: op.client_op_id, type: op.type, base_version: op.base_version, payload: op.payload };
                 });
+                // Non-decrypting pending marker so the server/admin can see this
+                // device's unsynced work even if the batch is interrupted.
+                var fields = [];
+                var since = null;
+                ops.forEach(function(op) {
+                    if (op.created_at && (!since || op.created_at < since)) since = op.created_at;
+                    if (op.type === 'ledger_save' && op.payload && op.payload.field && fields.indexOf(op.payload.field) === -1) {
+                        fields.push(op.payload.field);
+                    }
+                });
+                var pendingReport = {
+                    pending_count: ops.length,
+                    pending_since: since || null,
+                    pending_fields: fields.slice(0, 8).join(',')
+                };
                 return fetch(BASE + '/api/v1/offline/reconcile', {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -590,7 +622,8 @@
                         'X-CSRF-Token': (window.DL_CSRF || ''),
                         'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
                     },
-                    body: JSON.stringify({ enrollment_id: ctx.enId, device_id: ctx.deviceId, operations: payload })
+                    body: JSON.stringify({ enrollment_id: ctx.enId, device_id: ctx.deviceId, operations: payload,
+                        pending_count: pendingReport.pending_count, pending_since: pendingReport.pending_since, pending_fields: pendingReport.pending_fields })
                 }).then(function(r) { return r.json(); }).then(function(res) {
                     if (!res.ok) { cloudOnline = false; return; }
                     var remove = [];
@@ -1222,6 +1255,78 @@
         window.dlOpenOfflineAccess();
     };
 
+    // ── Locked-vault pending sync prompt ───────────────────────────────
+    // When the encrypted vault is LOCKED (in-memory data key lost on browser
+    // close / reload), pending ops queued while offline never sync — the online
+    // page must not require the cashier to remember to open the offline shell.
+    // We count pending ops from the plaintext op records (no unlock needed) and
+    // prompt the cashier to enter their PIN to unlock and drain the vault.
+    function dlShowPendingSyncPrompt(count) {
+        var box = document.getElementById('offline-pending-sync');
+        var text = document.getElementById('offline-pending-sync-text');
+        if (!box) return;
+        if (!count) {
+            box.classList.add('hidden');
+            return;
+        }
+        if (text) {
+            text.textContent = 'This device has ' + count + ' saved-while-offline entr' + (count === 1 ? 'y' : 'ies') + ' that have not reached the cloud. Enter your offline PIN to sync them now.';
+        }
+        box.classList.remove('hidden');
+    }
+
+    function dlDismissPendingSync() {
+        var box = document.getElementById('offline-pending-sync');
+        if (box) box.classList.add('hidden');
+    }
+
+    window.dlDismissPendingSync = dlDismissPendingSync;
+
+    window.dlUnlockVaultAndSync = function() {
+        var pin = (document.getElementById('offline-pin-input') || {}).value || '';
+        var msg = document.getElementById('offline-pin-msg');
+        var btn = document.getElementById('offline-sync-btn');
+        var showMsg = function(t) {
+            if (!msg) return;
+            msg.textContent = t;
+            msg.classList.toggle('hidden', !t);
+        };
+        if (!window.DLOfflineVault) { showMsg('Offline vault is unavailable on this device.'); return; }
+        if (!/^\d{4,6}$/.test(pin)) { showMsg('Enter a 4–6 digit PIN.'); return; }
+        showMsg('');
+        if (btn) btn.disabled = true;
+        window.DLOfflineVault.unlock(pin).then(function(res) {
+            if (!res || !res.ok) {
+                if (btn) btn.disabled = false;
+                var reasons = {
+                    'bad-pin': 'Incorrect PIN.', 'locked': 'Too many attempts. Try again in a few minutes.',
+                    'corrupt': 'The offline vault is unreadable. Remove offline access online and re-enroll.',
+                    'expired': 'Offline access expired. Re-enroll online.', 'revoked': 'Offline access was revoked. Re-enroll online.',
+                    'storage': 'Device storage is unavailable.'
+                };
+                showMsg(reasons[(res && res.reason)] || 'Unable to unlock.');
+                return;
+            }
+            vaultQueueActive = true;
+            return window.DLOfflineVault.migrateLegacy().catch(function() { return null; })
+                .then(function() {
+                    return window.DLOfflineVault.countPending().then(function(n) { vaultPendingCount = n; });
+                })
+                .then(function() {
+                    renderOfflineReadyBadge(true);
+                    return drainVault();
+                })
+                .then(function() {
+                    dlShowPendingSyncPrompt(0);
+                    renderConnectivityBanner();
+                    if (window.showToast) window.showToast('Synced. Offline entries sent to the cloud.', 'success');
+                });
+        }).catch(function() {
+            if (btn) btn.disabled = false;
+            showMsg('Unable to unlock on this device.');
+        });
+    };
+
     function initializePendingQueue() {
         syncPendingStorage();
         renderConnectivityBanner();
@@ -1239,6 +1344,11 @@
                             vaultPendingCount = n;
                             updateGlobalStatus('saved');
                             renderConnectivityBanner();
+                        }).catch(function() {});
+                    } else {
+                        // Locked vault: surface unsynced work so it is never stuck.
+                        window.DLOfflineVault.countPendingLocked().then(function(n) {
+                            if (n > 0) dlShowPendingSyncPrompt(n);
                         }).catch(function() {});
                     }
                 }

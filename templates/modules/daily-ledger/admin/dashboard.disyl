@@ -139,6 +139,50 @@
     </div>
 </div>
 
+<!-- Devices with unsynced offline work -->
+<div class="card">
+    <div class="card-header">
+        <span>Devices with Unsynced Entries</span>
+        {if unsynced_devices | count > 0}
+        <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">{unsynced_devices | count} device{if unsynced_devices | count > 1}s{/if}</span>
+        {/if}
+    </div>
+    <div class="card-body p-0">
+        {if unsynced_devices | count == 0}
+        <div class="px-4 py-8 text-center text-sm text-gray-500">No devices are holding unsynced entries.</div>
+        {/if}
+        {if unsynced_devices | count > 0}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Cashier</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Branch</th>
+                        <th class="px-4 py-3 text-right font-semibold text-slate-700">Pending</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Since</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Fields</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Last Sync</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 bg-white">
+                    {foreach unsynced_devices as dev}
+                    <tr>
+                        <td class="px-4 py-3 font-semibold text-gray-900">{dev.cashier_name}</td>
+                        <td class="px-4 py-3 text-gray-600">{dev.branch_name}</td>
+                        <td class="px-4 py-3 text-right font-semibold text-amber-700">{dev.last_reported_pending_count}</td>
+                        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{dev.pending_since}</td>
+                        <td class="px-4 py-3 text-xs text-gray-600">{dev.pending_fields}</td>
+                        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{if dev.last_sync_at}{dev.last_sync_at}{else}Never{/if}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        <div class="px-4 py-3 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">Ask the cashier to open the ledger (or offline shell) and sync so these entries reach the cloud.</div>
+        {/if}
+    </div>
+</div>
+
 <!-- Recent activity -->
 <div class="card">
     <div class="card-header">
