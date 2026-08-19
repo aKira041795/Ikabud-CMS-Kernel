@@ -1041,9 +1041,14 @@
     // quantity. The inline onfocus="this.select()" handles touch; this
     // delegated mouseup guard stops the desktop click from collapsing that
     // selection back to a caret.
+    // NOTE: native number inputs are excluded. preventDefault() on mouseup
+    // breaks the native up/down spin button's release, so the value keeps
+    // auto-incrementing after the mouse is released (rapid "fast add").
+    // select() also throws for number inputs, so the guard adds no value there.
     document.addEventListener('mouseup', function(e) {
         var target = e.target;
         if (!target || !target.classList || !target.classList.contains('ledger-input')) return;
+        if (target.type === 'number') return;
         e.preventDefault();
         try { target.select(); } catch (err) { /* number input */ }
     });
