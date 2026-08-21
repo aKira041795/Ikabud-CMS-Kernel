@@ -1837,8 +1837,22 @@ switch ($command) {
             // 4. Set tenant context so app()->db() returns tenant DB for downstream code
             app()->tenant()->setTenantId($tenantId);
 
-            // 5. Run tenant-appropriate module migrations against the tenant database
-            out('  Running migrations...');
+            // 5. Run tenant-safe kernel migrations FIRST so the tenant DB has
+            // the base kernel tables (users, audit_logs, rate_limits,
+            // refresh_tokens, workflow_*, tenant_module_settings) before
+            // entry-module migrations that CREATE or ALTER those tables run
+            // (e.g. daily-ledger's 019_audit_logs_actor_columns.sql ALTERs audit_logs).
+            $kernelApplied = tenantSyncKernelMigrations($tenantPdo, null, $entryModule !== '' ? $entryModule : null);
+            if (!empty($kernelApplied)) {
+                out('  Running kernel migrations...');
+                out('    ' . bold('kernel'));
+                foreach ($kernelApplied as $artifactName) {
+                    out('      ' . green('✓') . " {$artifactName}");
+                }
+            }
+
+            // 6. Run tenant-appropriate module migrations against the tenant database
+            out('  Running module migrations...');
             $runner = new MigrationRunner($tenantPdo);
             $modulePlan = tenantProvisionModulePlan($entryModule !== '' ? $entryModule : null);
             $results = [];
@@ -1863,25 +1877,38 @@ switch ($command) {
                 out('  ' . green('✓') . bold(" {$totalCount} migration(s) executed across " . count($results) . ' module(s).'));
             }
 
-            // 6. Run tenant-safe kernel migrations only (never control-plane schema)
-            $kernelApplied = tenantSyncKernelMigrations($tenantPdo, null, $entryModule !== '' ? $entryModule : null);
-            if (!empty($kernelApplied)) {
-                out('    ' . bold('kernel'));
-                foreach ($kernelApplied as $artifactName) {
-                    out('      ' . green('✓') . " {$artifactName}");
-                }
-            }
-
             // 7. Seed admin user when the entry module owns authentication.
             if ($adminUser !== '' && $adminPass !== '') {
                 out('');
                 out('  Seeding admin user...');
 
-                $usersTable = 'users';
-                if ($entryModule === 'cms') {
+                // Resolve the admin users table + role. Auth-owned entry modules
+                // (e.g. daily-ledger -> dl_users) seed into their own table; the
+                // manifest is consulted even during provisioning where the
+                // tenant-aware enabled lookup may hide the module.
+                $seedRole  = 'admin';
+                $authSpec  = null;
+                if ($entryModule !== '' && function_exists('kernelAuthOwnedSpecForModule')) {
+                    $authSpec = kernelAuthOwnedSpecForModule($entryModule);
+                }
+                if (!is_array($authSpec) && $entryModule !== '' && function_exists('discoverModules')) {
+                    $allMods = discoverModules();
+                    $vm = $allMods[$entryModule] ?? null;
+                    $rawAo = is_array($vm) ? ($vm['auth_owned'] ?? null) : null;
+                    if (is_array($rawAo) && function_exists('validateAuthOwnedSpec') && function_exists('kernelNormalizeAuthOwnedSpec')) {
+                        $aoCheck = validateAuthOwnedSpec($rawAo);
+                        if (!empty($aoCheck['ok'])) {
+                            $authSpec = kernelNormalizeAuthOwnedSpec($entryModule, $rawAo);
+                        }
+                    }
+                }
+                if (is_array($authSpec)) {
+                    $usersTable = (string)($authSpec['users_table'] ?? 'users');
+                    $seedRole   = (string)($authSpec['default_admin_role'] ?? 'admin');
+                } elseif ($entryModule === 'cms') {
                     $usersTable = 'cms_users';
-                } elseif ($entryModule === 'bakeshop') {
-                    $usersTable = 'bakeshop_users';
+                } else {
+                    $usersTable = 'users';
                 }
 
                 // Check if users table exists
@@ -1921,16 +1948,17 @@ switch ($command) {
                                 ':n' => $adminName,
                             ]);
                         } else {
-                            // Kernel users table (password_hash / is_active columns)
+                            // Kernel / auth-owned users table (password_hash / is_active columns)
                             $insertStmt = $tenantPdo->prepare(
-                                "INSERT INTO `users` (username, email, password_hash, full_name, role, is_active) "
-                                . "VALUES (:u, :e, :p, :n, 'admin', 1)"
+                                "INSERT INTO `{$usersTable}` (username, email, password_hash, full_name, role, is_active) "
+                                . "VALUES (:u, :e, :p, :n, :r, 1)"
                             );
                             $insertStmt->execute([
                                 ':u' => $adminUser,
                                 ':e' => $adminUser . '@localhost',
                                 ':p' => $hash,
                                 ':n' => $adminName,
+                                ':r' => $seedRole,
                             ]);
                         }
                         out('  ' . green('✓') . " Admin user '{$adminUser}' created in {$usersTable}");
@@ -2140,12 +2168,13 @@ switch ($command) {
             out('');
             out('  ' . bold('5. Migrations'));
 
-            if (isset($tableSet['kernel_migrations'])) {
-                $mStmt = $vPdo->query('SELECT COUNT(*) FROM kernel_migrations');
+            if (isset($tableSet['_migrations'])) {
+                $mStmt = $vPdo->prepare('SELECT COUNT(*) FROM _migrations WHERE module = :mod');
+                $mStmt->execute([':mod' => '_kernel']);
                 $mCount = (int)$mStmt->fetchColumn();
-                $verifyPass('kernel_migrations: ' . $mCount . ' recorded');
+                $verifyPass('kernel migrations tracked (_migrations/_kernel): ' . $mCount . ' recorded');
             } else {
-                $verifyWarn('kernel_migrations table missing — kernel migrations not tracked');
+                $verifyWarn('_migrations table missing — kernel migrations not tracked');
             }
 
             // Check tenant_module_settings has records for this tenant
@@ -2231,6 +2260,30 @@ switch ($command) {
             // ── 8. Admin user exists ──────────────────────────────────
             out('');
             out('  ' . bold('8. Admin User'));
+
+            // Auth-owned entry modules seed admins into their own users
+            // table (e.g. daily-ledger -> dl_users). Resolve it from the
+            // manifest so verify checks the correct table/columns.
+            $authSpec = null;
+            if ($vEntryModule !== '' && function_exists('kernelAuthOwnedSpecForModule')) {
+                $authSpec = kernelAuthOwnedSpecForModule($vEntryModule);
+            }
+            if (!is_array($authSpec) && $vEntryModule !== '' && function_exists('discoverModules')) {
+                $all = discoverModules();
+                $vm = $all[$vEntryModule] ?? null;
+                $raw = is_array($vm) ? ($vm['auth_owned'] ?? null) : null;
+                if (is_array($raw) && function_exists('validateAuthOwnedSpec') && function_exists('kernelNormalizeAuthOwnedSpec')) {
+                    $vCheck = validateAuthOwnedSpec($raw);
+                    if (!empty($vCheck['ok'])) {
+                        $authSpec = kernelNormalizeAuthOwnedSpec($vEntryModule, $raw);
+                    }
+                }
+            }
+
+            $adminTable = is_array($authSpec) ? (string)($authSpec['users_table'] ?? 'users') : 'users';
+            $activeCol  = is_array($authSpec) ? (string)($authSpec['active_column'] ?? 'is_active') : 'is_active';
+            $roleCol    = is_array($authSpec) ? (string)($authSpec['role_column'] ?? 'role') : 'role';
+
             if ($vEntryModule === 'cms' && isset($tableSet['cms_users'])) {
                 $uStmt = $vPdo->query(
                     "SELECT id, username, role, is_active FROM cms_users WHERE role IN ('administrator','superadmin') AND is_active = 1 LIMIT 5"
@@ -2243,18 +2296,24 @@ switch ($command) {
                 } else {
                     $verifyFail('No active admin users found in cms_users — cannot log in');
                 }
-            } elseif (isset($tableSet['users'])) {
-                $uStmt = $vPdo->query(
-                    "SELECT id, username, role, status FROM users WHERE role = 'admin' AND status = 'active' LIMIT 5"
-                );
-                $admins = $uStmt->fetchAll(PDO::FETCH_ASSOC);
-                if (!empty($admins)) {
-                    foreach ($admins as $adm) {
-                        $verifyPass('Admin: ' . $adm['username'] . ' (role=' . $adm['role'] . ', id=' . $adm['id'] . ')');
+            } elseif (isset($tableSet[$adminTable])) {
+                try {
+                    $uStmt = $vPdo->query(
+                        "SELECT id, username, {$roleCol} AS role FROM {$adminTable} WHERE {$roleCol} = 'admin' AND {$activeCol} = 1 LIMIT 5"
+                    );
+                    $admins = $uStmt->fetchAll(PDO::FETCH_ASSOC);
+                    if (!empty($admins)) {
+                        foreach ($admins as $adm) {
+                            $verifyPass('Admin: ' . $adm['username'] . ' (role=' . $adm['role'] . ', id=' . $adm['id'] . ')');
+                        }
+                    } else {
+                        $verifyFail('No active admin users found in ' . $adminTable);
                     }
-                } else {
-                    $verifyFail('No active admin users found in users table');
+                } catch (Throwable $e) {
+                    $verifyWarn('Admin check on ' . $adminTable . ' failed: ' . $e->getMessage());
                 }
+            } else {
+                $verifyWarn('No admin users table (' . $adminTable . ') present');
             }
 
             // ── 9. Cross-tenant DB isolation ──────────────────────────

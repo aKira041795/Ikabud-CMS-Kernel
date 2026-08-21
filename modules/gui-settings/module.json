@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "description": "Customize frontend appearance \u2014 colors, fonts, app name, and visual styling",
   "author": "Noah C. Omamalin",
+  "icon": "palette",
+  "kernel_companion": true,
   "owns_tables": [],
   "reads_tables": [
     "users",

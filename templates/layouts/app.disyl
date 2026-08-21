@@ -110,6 +110,8 @@
         .app-nav .nav-link.active { background: var(--primary-light); color: var(--primary); box-shadow: inset 0 1px 0 rgba(255,255,255,.9); }
         .nav-link svg { width: 16px; height: 16px; flex-shrink: 0; }
         .nav-sep { width: 1px; height: 20px; background: var(--border); margin: 0 6px; flex-shrink: 0; }
+        .nav-section { display: block; padding: 8px 14px 2px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
+        .app-nav .nav-section { padding: 4px 10px; }
 
         /* ── Sidebar nav ───────────────────────────────────── */
         .app-sidebar {
@@ -130,6 +132,7 @@
         .app-sidebar .nav-link:hover { background: rgba(255,255,255,.06); color: var(--shell-text); }
         .app-sidebar .nav-link.active { background: linear-gradient(180deg, rgba(37,99,235,.28), rgba(37,99,235,.18)); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 18px rgba(2,6,23,.18); }
         .app-sidebar .nav-sep { width: 100%; height: 1px; margin: 12px 0; background: rgba(255,255,255,.08); }
+        .app-sidebar .nav-section { color: var(--shell-text-muted); }
 
         /* Mobile: scroll nav, hamburger menu */
         .menu-toggle { display: none; background: rgba(255,255,255,.82); border: 1px solid var(--header-btn-border); cursor: pointer; padding: 8px; border-radius: var(--radius); box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
@@ -148,6 +151,7 @@
         .canvas-menu .nav-link:hover { background: rgba(255,255,255,.06); color: var(--shell-text); }
         .canvas-menu .nav-link.active { background: linear-gradient(180deg, rgba(37,99,235,.28), rgba(37,99,235,.18)); color: #fff; }
         .canvas-menu .nav-sep { width: 100%; height: 1px; margin: 10px 0; background: rgba(255,255,255,.08); }
+        .canvas-menu .nav-section { color: var(--shell-text-muted); }
         body.canvas-open .canvas-backdrop { display: block; }
         body.canvas-open .canvas-menu { display: block; }
         body.canvas-open .canvas-menu.left { transform: translateX(0); }
@@ -331,6 +335,8 @@
                 {foreach nav_items as nav}
                 {if nav.label == '---'}
                 <div class="nav-sep"></div>
+                {elseif nav.section}
+                <div class="nav-section">{nav.section}</div>
                 {else}
                 <a href="{base_url}{nav.url}" class="nav-link" {if nav.target}target="{nav.target}"{/if} hx-boost="{if nav.target}false{else}true{/if}" onclick="closeCanvasMenu()">{nav.label}</a>
                 {/if}
@@ -348,6 +354,8 @@
             {foreach nav_items as nav}
             {if nav.label == '---'}
             <div class="nav-sep"></div>
+            {elseif nav.section}
+            <div class="nav-section">{nav.section}</div>
             {else}
             <a href="{base_url}{nav.url}" class="nav-link" {if nav.target}target="{nav.target}"{/if} hx-boost="{if nav.target}false{else}true{/if}">{nav.label}</a>
             {/if}
@@ -358,6 +366,8 @@
             {foreach nav_items as nav}
             {if nav.label == '---'}
             <div class="nav-sep"></div>
+            {elseif nav.section}
+            <div class="nav-section">{nav.section}</div>
             {else}
             <a href="{base_url}{nav.url}" class="nav-link" {if nav.target}target="{nav.target}"{/if} hx-boost="{if nav.target}false{else}true{/if}">{nav.label}</a>
             {/if}

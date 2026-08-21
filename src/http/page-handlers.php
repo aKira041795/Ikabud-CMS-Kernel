@@ -583,8 +583,13 @@ function kernelHandlePageAdminModules(): void
             }
         }
 
-        $editableSettingsFields = moduleEditableSettingsFields($m);
-        $settingsContextNotice = null;
+        // Module settings are tenant-owned: the tenant admin configures them
+        // on the tenant domain. The kernel module manager only manages
+        // enable/disable + access, so no inline config is offered here.
+        $editableSettingsFields = [];
+        $settingsContextNotice = !empty($m['settings_fields']) && is_array($m['settings_fields'])
+            ? 'Module settings are configured by the admin on the tenant domain.'
+            : null;
 
         // Compute entity authority UI indicators
         $entitiesOwned = [];
@@ -595,9 +600,23 @@ function kernelHandlePageAdminModules(): void
                 }
             }
         }
-        if (empty($editableSettingsFields) && !empty($m['settings_fields']) && moduleTenantSettingsModeEnabled()) {
-            $settingsContextNotice = 'Feature settings are managed by the Superadmin on the tenant domain.';
-        }
+
+        // The kernel-admin access opt-in applies only to modules DECLARED as
+        // kernel companions (kernel_companion: true, e.g. gui-settings, which
+        // customizes the kernel admin shell). Standalone, entity, and suite
+        // extension/adapter modules have their own auth surface (or none at
+        // all), so the toggle is not shown for them.
+        $showAllowKernelAdmin = !empty($m['kernel_companion'] ?? false);
+
+        // Modules authenticating against the kernel users table are always
+        // reachable by the kernel admin (the route gate is bypassed), so the
+        // opt-in is locked on for those companions.
+        $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers')
+            && tenantEntryModuleUsesKernelUsers($moduleId);
+        $kernelAdminGuaranteed = $showAllowKernelAdmin && $usesKernelUsers;
+        $allowKernelAdmin = $kernelAdminGuaranteed
+            ? true
+            : (bool)($modSettings['allow_kernel_admin'] ?? false);
 
         $moduleList[] = [
             'id' => $m['id'],
@@ -605,8 +624,11 @@ function kernelHandlePageAdminModules(): void
             'version' => $m['version'] ?? '0.0.0',
             'description' => $m['description'] ?? '',
             'author' => $m['author'] ?? '',
+            'icon' => trim((string) ($m['icon'] ?? '')),
             'enabled' => !empty($m['_enabled']),
-            'allow_kernel_admin' => (bool)($modSettings['allow_kernel_admin'] ?? false),
+            'allow_kernel_admin' => $allowKernelAdmin,
+            'kernel_admin_guaranteed' => $kernelAdminGuaranteed,
+            'show_allow_kernel_admin' => $showAllowKernelAdmin,
             'nav_count' => count($m['nav'] ?? []),
             'route_count' => $routeCount,
             'settings_url' => $settingsUrl,

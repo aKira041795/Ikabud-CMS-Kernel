@@ -82,6 +82,38 @@ try {
     $assert($missingResult['ok'] === false, 'missing required key is rejected');
     $assert(($missingDiagnostic['severity'] ?? '') === 'fatal', 'missing required key is fatal');
     $assert(($missingDiagnostic['field'] ?? '') === '/id', 'missing required diagnostic identifies field');
+
+    // Optional `icon` field: must be non-empty kebab-case when provided.
+    $withIcon = $base;
+    $withIcon['icon'] = 'palette';
+    $iconOk = validateModuleManifestV1($withIcon, ['module_path' => $tempDir]);
+    $assert($iconOk['ok'] === true, 'valid kebab-case icon passes');
+
+    $badIcon = $base;
+    $badIcon['icon'] = 'Not An Icon!';
+    $badIconResult = validateModuleManifestV1($badIcon, ['module_path' => $tempDir]);
+    $badIconDiagnostic = $badIconResult['diagnostics'][0] ?? [];
+    $assert($badIconResult['ok'] === false, 'invalid icon is rejected');
+    $assert(($badIconDiagnostic['rule'] ?? '') === 'manifest.v1.icon', 'invalid icon cites schema rule');
+    $assert(str_contains((string)($badIconDiagnostic['message'] ?? ''), 'kebab-case'), 'invalid icon message requires kebab-case');
+
+    $emptyIcon = $base;
+    $emptyIcon['icon'] = '';
+    $emptyIconResult = validateModuleManifestV1($emptyIcon, ['module_path' => $tempDir]);
+    $assert($emptyIconResult['ok'] === false, 'empty icon is rejected');
+
+    // Optional `kernel_companion` field: must be a boolean when provided.
+    $companion = $base;
+    $companion['kernel_companion'] = true;
+    $companionOk = validateModuleManifestV1($companion, ['module_path' => $tempDir]);
+    $assert($companionOk['ok'] === true, 'valid boolean kernel_companion passes');
+
+    $badCompanion = $base;
+    $badCompanion['kernel_companion'] = 'yes';
+    $badCompanionResult = validateModuleManifestV1($badCompanion, ['module_path' => $tempDir]);
+    $badCompanionDiagnostic = $badCompanionResult['diagnostics'][0] ?? [];
+    $assert($badCompanionResult['ok'] === false, 'non-boolean kernel_companion is rejected');
+    $assert(($badCompanionDiagnostic['rule'] ?? '') === 'manifest.v1.kernel-companion', 'invalid kernel_companion cites schema rule');
 } finally {
     @unlink($tempDir . '/routes.php');
     @rmdir($tempDir);

@@ -455,6 +455,7 @@ $expectedTenantKernelMigrations = [
     '006_kernel_job_queue.sql',
     '006_kernel_workflow_tables.sql',
     '007_kernel_runtime_tables.sql',
+    '007_tenant_module_settings.sql',
     '010_integration_bridge.sql',
     '011_integration_bridge_hardening.sql',
     '012_kernel_trigger_execution_history.sql',
@@ -465,7 +466,7 @@ $expectedTenantKernelMigrations = [
     '018_audit_logs_actor_columns_ensure.sql',
     '019_kernel_password_resets.sql',
 ];
-ok($tenantKernelMigrations === $expectedTenantKernelMigrations, 'Tenant-safe kernel migrations include runtime and bridge kernel tables and exclude control-plane schema');
+ok($tenantKernelMigrations === $expectedTenantKernelMigrations, 'Tenant-safe kernel migrations include runtime, module-settings, and bridge kernel tables and exclude control-plane schema');
 
 $cmsProvisionPlan = tenantProvisionModulePlan('cms');
 sort($cmsProvisionPlan);

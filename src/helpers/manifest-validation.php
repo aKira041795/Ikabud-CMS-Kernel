@@ -99,6 +99,19 @@ function validateModuleManifestV1(array $manifest, array $context = []): array
         $fatal('manifest_invalid_version', 'manifest.v1.version', '/version', 'Module version must follow semantic versioning.', 'Use a version such as 1.0.0 or 1.0.0-beta.1.');
     }
 
+    if (array_key_exists('icon', $manifest)) {
+        $icon = is_string($manifest['icon']) ? trim($manifest['icon']) : '';
+        if ($icon === '' || preg_match('/^[a-z0-9][a-z0-9-]*$/', $icon) !== 1) {
+            $fatal('manifest_invalid_icon', 'manifest.v1.icon', '/icon', "module.json field 'icon' must be a non-empty kebab-case string when provided.", 'Use a kebab-case icon name such as palette or box.');
+        }
+    }
+
+    if (array_key_exists('kernel_companion', $manifest)) {
+        if (!is_bool($manifest['kernel_companion'])) {
+            $fatal('manifest_invalid_kernel_companion', 'manifest.v1.kernel-companion', '/kernel_companion', "module.json field 'kernel_companion' must be a boolean when provided.", 'Use true or false.');
+        }
+    }
+
     foreach (['owns_tables', 'co_owns_tables', 'reads_tables', 'requires_tables'] as $field) {
         if (!array_key_exists($field, $manifest)) {
             continue;

@@ -87,12 +87,16 @@ class TenantProvisioner
             // Step 5: Set tenant context
             app()->tenant()->setTenantId($tenantId);
 
-            // Step 6: Run module migrations
-            $migrationCount = $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
-
-            // Step 7: Run kernel migrations
+            // Step 6: Run kernel migrations FIRST so the tenant DB has the base
+            // kernel tables (users, audit_logs, rate_limits, refresh_tokens,
+            // workflow_*, tenant_module_settings) before entry-module migrations
+            // that CREATE or ALTER those tables run (e.g. daily-ledger's
+            // 019_audit_logs_actor_columns.sql ALTERs audit_logs).
             $kernelCount = $this->runKernelMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
             $migrationCount += $kernelCount;
+
+            // Step 7: Run module migrations
+            $migrationCount += $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
 
             // Step 8: Seed admin user
             $adminUser = trim((string)($options['admin_user'] ?? ''));
@@ -251,6 +255,23 @@ class TenantProvisioner
         $spec = function_exists('kernelAuthOwnedSpecForModule')
             ? kernelAuthOwnedSpecForModule($entryModule)
             : null;
+
+        // During tenant provisioning the tenant context is already active, so
+        // getEnabledModules() may read the empty tenant DB and hide the entry
+        // module. Resolve the auth_owned spec from the on-disk manifest as a
+        // fallback so auth-owned modules (e.g. daily-ledger -> dl_users) seed
+        // into their own users table rather than the legacy `users` table.
+        if (!is_array($spec) && function_exists('discoverModules')) {
+            $all = discoverModules();
+            $manifest = $all[$entryModule] ?? null;
+            $raw = is_array($manifest) ? ($manifest['auth_owned'] ?? null) : null;
+            if (is_array($raw) && function_exists('validateAuthOwnedSpec') && function_exists('kernelNormalizeAuthOwnedSpec')) {
+                $check = validateAuthOwnedSpec($raw);
+                if (!empty($check['ok'])) {
+                    $spec = kernelNormalizeAuthOwnedSpec($entryModule, $raw);
+                }
+            }
+        }
 
         if (is_array($spec)) {
             $this->seedAdminUserFromAuthOwnedSpec($tenantPdo, $spec, $user, $pass, $name);

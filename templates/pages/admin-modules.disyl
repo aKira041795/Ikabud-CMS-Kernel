@@ -2,24 +2,36 @@
 
 {block head}
 <style>
-    .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
-    .module-card { background: #fff; border: 1px solid var(--kernel-panel-border); border-radius: var(--radius); padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.04); transition: box-shadow .15s; }
+    .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+    .module-card { background: #fff; border: 1px solid var(--kernel-panel-border); border-radius: var(--radius); padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.05); transition: box-shadow .15s; }
     .module-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+    .module-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .module-card-title { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+    .module-icon { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 9px; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; }
+    .module-icon svg { width: 20px; height: 20px; }
+    .module-title-text { min-width: 0; }
+    .module-name { font-size: 16px; font-weight: 700; color: #0f172a; line-height: 1.25; word-break: break-word; }
+    .module-id { font-size: 12px; color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 2px; }
+    .module-head-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .module-version { font-size: 11px; color: #475569; background: #f1f5f9; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
     .status-dot { width: 6px; height: 6px; border-radius: 2px; display: inline-block; }
+    .status-pill { font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; }
+    .status-pill.enabled { color: #047857; background: #ecfdf5; }
     .status-pill.enabled .status-dot { background: #059669; }
+    .status-pill.disabled { color: #b91c1c; background: #fef2f2; }
     .status-pill.disabled .status-dot { background: #dc2626; }
-    .config-modal { position: fixed; inset: 0; z-index: 1200; display: none; }
-    .config-modal.show { display: block; }
-    .config-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); }
-    .config-modal-dialog { position: absolute; top: 8vh; left: 50%; transform: translateX(-50%); width: min(720px, 95vw); max-height: 84vh; background: #fff; border: 1px solid var(--kernel-panel-border); border-radius: var(--radius); box-shadow: 0 14px 30px rgba(2, 6, 23, .25); overflow: hidden; display: flex; flex-direction: column; }
-    .config-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
-    .config-modal-title { font-size: 13px; font-weight: 700; color: #1e293b; }
-    .config-modal-body { padding: 14px; overflow-y: auto; }
-    .cap-panel { background: #fff; border: 1px solid var(--kernel-panel-border); border-radius: var(--radius); padding: 14px 16px; font-size: 12px; color: #1e293b; min-height: 48px; }
-    .cap-panel-loading { color: #64748b; }
-    .cap-panel-error { color: #dc2626; }
-    .cap-cap-list { display: flex; flex-wrap: wrap; gap: 4px; }
-    .caller-cap-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .module-desc { font-size: 13px; color: #475569; line-height: 1.55; }
+    .module-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: #64748b; }
+    .entity-authority-badge { font-size: 11px; font-weight: 600; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; }
+    .cap-warning { font-size: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 10px; }
+    .module-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 2px; }
+    .btn-enable { background: var(--primary); color: #fff; border: 1px solid var(--primary); }
+    .btn-enable:hover { opacity: .92; }
+    .btn-enable.btn-disabled { background: #cbd5e1; border-color: #cbd5e1; color: #fff; cursor: not-allowed; opacity: 1; }
+    .btn-disable { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
+    .btn-disable:hover { background: #fef2f2; border-color: #f87171; }
+    .optin-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; margin-top: 2px; padding-top: 12px; border-top: 1px solid #f1f5f9; }
+    .optin-hint { color: #94a3b8; font-size: 11px; }
 </style>
 <script>
     var BASE = '{base_url}';
@@ -116,124 +128,6 @@
             showToast('Network error', 'error');
         });
     }
-
-    var _configModuleId = null;
-
-    function openModuleConfig(moduleId) {
-        _configModuleId = moduleId;
-        var title = document.getElementById('module-config-title');
-        if (title) title.textContent = 'Config — ' + moduleId;
-
-        var form = document.getElementById('module-config-form');
-        var status = document.getElementById('module-config-status');
-        if (form) {
-            form.innerHTML = '<div class="cap-panel-loading">Loading settings…</div>';
-        }
-        if (status) status.textContent = '';
-
-        var modal = document.getElementById('module-config-modal');
-        if (modal) modal.classList.add('show');
-
-        fetch(BASE + '/api/v1/admin/modules/settings?module_id=' + encodeURIComponent(moduleId))
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-                if (!form) return;
-                if (!res.ok) {
-                    form.innerHTML = '<div class="cap-panel-error">' + (res.error || 'Failed to load') + '</div>';
-                    return;
-                }
-                var settings = res.settings || {};
-                var fields = res.fields || [];
-                if (fields.length === 0) {
-                    form.innerHTML = '<div class="muted">No configurable settings for this module.</div>';
-                    return;
-                }
-                var html = '';
-                fields.forEach(function(f) {
-                    var val = settings[f.key] !== undefined ? settings[f.key] : (f.default || '');
-                    if (f.type === 'checkbox' || f.is_checkbox) {
-                        var checked = val === true || val === '1' || val === 1 ? 'checked' : '';
-                        html += '<label class="config-field config-field-checkbox"><input type="checkbox" name="' + f.key + '" ' + checked + '> <span>' + escapeHtml(f.label || f.key) + '</span></label>';
-                    } else if (f.type === 'select' || f.is_select) {
-                        html += '<div class="config-field"><label>' + escapeHtml(f.label || f.key) + '</label><select class="form-input" name="' + f.key + '">';
-                        (f.options || []).forEach(function(o) {
-                            var optVal = typeof o === 'object' ? (o.value || o) : o;
-                            var optLabel = typeof o === 'object' ? (o.label || o) : o;
-                            var sel = String(optVal) === String(val) ? ' selected' : '';
-                            html += '<option value="' + escapeHtml(optVal) + '"' + sel + '>' + escapeHtml(optLabel) + '</option>';
-                        });
-                        html += '</select></div>';
-                    } else {
-                        html += '<div class="config-field"><label>' + escapeHtml(f.label || f.key) + '</label><input class="form-input" type="text" name="' + f.key + '" value="' + escapeHtml(String(val)) + '"></div>';
-                    }
-                    if (f.description) {
-                        html += '<div class="hint">' + escapeHtml(f.description) + '</div>';
-                    }
-                });
-                form.innerHTML = html;
-            })
-            .catch(function() {
-                if (form) form.innerHTML = '<div class="cap-panel-error">Network error loading settings</div>';
-            });
-    }
-
-    function closeModuleConfig() {
-        var modal = document.getElementById('module-config-modal');
-        if (modal) modal.classList.remove('show');
-        _configModuleId = null;
-    }
-
-    function saveModuleConfig() {
-        if (!_configModuleId) { showToast('No module selected', 'error'); return; }
-
-        var form = document.getElementById('module-config-form');
-        var status = document.getElementById('module-config-status');
-        if (!form) return;
-
-        var inputs = form.querySelectorAll('input, select');
-        var fd = new FormData();
-        fd.append('module_id', _configModuleId);
-        fd.append('_token', CSRF);
-
-        inputs.forEach(function(input) {
-            if (input.type === 'checkbox') {
-                fd.append('settings[' + input.name + ']', input.checked ? '1' : '0');
-            } else {
-                fd.append('settings[' + input.name + ']', input.value);
-            }
-        });
-
-        if (status) status.textContent = 'Saving…';
-        var saveBtn = document.getElementById('module-config-save');
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
-
-        fetch('/api/v1/admin/modules/settings', {
-            method: 'POST',
-            body: fd
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-            if (res.ok) {
-                showToast('Settings saved', 'success');
-                closeModuleConfig();
-            } else {
-                showToast(res.error || 'Save failed', 'error');
-                if (status) status.textContent = res.error || 'Error';
-            }
-            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
-        })
-        .catch(function() {
-            showToast('Network error', 'error');
-            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
-            if (status) status.textContent = 'Network error';
-        });
-    }
-
-    function escapeHtml(str) {
-        var div = document.createElement('div');
-        div.appendChild(document.createTextNode(str));
-        return div.innerHTML;
-    }
 </script>
 {/block}
 
@@ -241,7 +135,7 @@
 <div class="page-header">
     <div>
         <h2>Module Manager</h2>
-        <div class="page-desc">Install, enable, and configure modules. Manage capability wiring and access policies between modules.</div>
+        <div class="page-desc">Install, enable, and manage module access. Module settings are configured by the tenant admin on the tenant domain.</div>
     </div>
 </div>
 
@@ -267,11 +161,14 @@
         {foreach modules as mod}
         <div class="module-card" id="mod-{mod.id}">
             <div class="module-card-header">
-                <div>
-                    <div class="module-name">{mod.name}</div>
-                    <div class="module-id">{mod.id}</div>
+                <div class="module-card-title">
+                    <span class="module-icon">{include "layouts/kernel-admin-icon.disyl" with {icon: mod.icon|default:'box'}}</span>
+                    <div class="module-title-text">
+                        <div class="module-name">{mod.name}</div>
+                        <div class="module-id">{mod.id}</div>
+                    </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;">
+                <div class="module-head-right">
                     <span class="module-version">v{mod.version}</span>
                     {if mod.enabled}
                     <span class="status-pill enabled"><span class="status-dot"></span> Enabled</span>
@@ -323,9 +220,6 @@
             {/if}
 
             <div class="module-actions">
-                {if mod.settings_fields | count > 0}
-                <button class="btn-sm btn-config" onclick="openModuleConfig('{mod.id}')">Config</button>
-                {/if}
                 {if mod.enabled}
                 <button class="btn-sm btn-disable" onclick="toggleModule('{mod.id}', false)">Disable</button>
                 {else}
@@ -341,54 +235,16 @@
             <div style="margin-top:10px;font-size:12px;color:var(--text-muted);">{mod.settings_context_notice}</div>
             {/if}
 
+            {if mod.show_allow_kernel_admin}
             <div class="optin-row">
-                <input type="checkbox" id="optin-{mod.id}" {if mod.allow_kernel_admin}checked{/if} onchange="toggleAdminOptin('{mod.id}', this.checked)">
-                <label for="optin-{mod.id}">Allow kernel admin access</label>
+                <input type="checkbox" id="optin-{mod.id}" {if mod.kernel_admin_guaranteed}disabled{/if} {if mod.allow_kernel_admin}checked{/if} onchange="toggleAdminOptin('{mod.id}', this.checked)">
+                <label for="optin-{mod.id}">Allow kernel admin access{if mod.kernel_admin_guaranteed} <span class="optin-hint">(always allowed — module uses kernel auth)</span>{/if}</label>
             </div>
+            {/if}
         </div>
         {/foreach}
     </div>
     {/if}
 </div>
 
-<!-- Capability insights -->
-<div class="cap-section">
-    <div class="cap-section-header">
-        <h3>Capability Insights</h3>
-        <span>Providers, latency/breakers, and which modules are allowed to call each capability.</span>
-    </div>
-    <div id="capabilities-panel" class="cap-panel cap-panel-loading">
-        Loading capability data...
-    </div>
-</div>
-
-<!-- Caller wiring (per-module capability depends) -->
-<div class="cap-section">
-    <div class="cap-section-header">
-        <h3>Caller Wiring</h3>
-        <span>Pick a module and choose which capabilities it depends on.</span>
-    </div>
-    <div id="caller-panel" class="cap-panel cap-panel-loading">
-        Loading caller wiring...
-    </div>
-</div>
-
-<div id="module-config-modal" class="config-modal" aria-hidden="true">
-    <div class="config-modal-backdrop" onclick="closeModuleConfig()"></div>
-    <div class="config-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="module-config-title">
-        <div class="config-modal-header">
-            <div id="module-config-title" class="config-modal-title">Module Config</div>
-            <button type="button" class="config-modal-close" onclick="closeModuleConfig()">Close</button>
-        </div>
-        <div class="config-modal-body">
-            <div id="module-config-status" class="config-status"></div>
-            <form id="module-config-form" class="config-form-grid"></form>
-            <div class="config-actions">
-                <button type="button" class="btn-muted" onclick="closeModuleConfig()">Cancel</button>
-                <button type="button" id="module-config-save" class="btn-save" onclick="saveModuleConfig()">Save</button>
-            </div>
-        </div>
-    </div>
-</div>
 {/block}
-

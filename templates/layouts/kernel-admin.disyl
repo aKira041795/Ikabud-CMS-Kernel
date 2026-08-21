@@ -124,6 +124,15 @@
       letter-spacing: .06em;
       color: #475569;
     }
+    .kernel-sidebar nav .nav-section {
+      display: block;
+      padding: 10px 12px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #64748b;
+    }
     .kernel-btn {
       display: inline-flex;
       align-items: center;
@@ -220,6 +229,8 @@
           {foreach nav_items as item}
             {if item.label == '---'}
               <hr class="border-slate-700/50 my-2 mx-2">
+            {elseif item.section}
+              <span class="nav-section">{item.section}</span>
             {else}
               <a href="{item.url}" class="{if current_page == item.module}active{/if}" {if item.target && item.target != '' && item.target != '_self'}target="{item.target}"{/if}>
                 {include "layouts/kernel-admin-icon.disyl" with {icon: item.icon|default:'box'}}
@@ -264,6 +275,8 @@
             {foreach nav_items as item}
               {if item.label == '---'}
                 <hr class="border-slate-700/50 my-2 mx-2">
+              {elseif item.section}
+                <span class="nav-section">{item.section}</span>
               {else}
                 <a href="{item.url}" class="{if current_page == item.module}active{/if}" {if item.target && item.target != '' && item.target != '_self'}target="{item.target}"{/if}>
                   {include "layouts/kernel-admin-icon.disyl" with {icon: item.icon|default:'box'}}

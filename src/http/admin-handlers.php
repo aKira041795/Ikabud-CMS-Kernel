@@ -251,31 +251,25 @@ if (!function_exists('kernelHandleApiTenantCreate')) {
             $pdo->commit();
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
 
-            // Auto-create a shared-DB connection record if none exists (development mode)
+            // The shared-DB capability is discontinued: a module-as-tenant must
+            // use its OWN database. We no longer auto-create a connection record
+            // pointing at the kernel/base app DB (DB_DATABASE). A dedicated
+            // tenant DB connection must be configured (via the tenant DB upsert
+            // handler or `php ikabud tenant:db:set`) before the module is
+            // usable as a tenant; until then, migration sync is deferred.
             $connCheck = $pdo->prepare('SELECT id FROM kernel_tenant_db_connections WHERE tenant_id = :tid LIMIT 1');
             $connCheck->execute([':tid' => $tenantId]);
-            if (!$connCheck->fetchColumn()) {
-                $dbHost = $_ENV['DB_HOST'] ?? 'localhost';
-                $dbPort = $_ENV['DB_PORT'] ?? '3306';
-                $dbName = $_ENV['DB_DATABASE'] ?? '';
-                $dbUser = $_ENV['DB_USERNAME'] ?? 'root';
-                $dbPass = $_ENV['DB_PASSWORD'] ?? '';
-                $crypto = new \Ikabud\Kernel\Crypto();
-                $enc = $crypto->encryptString($dbPass);
-                $insConn = $pdo->prepare(
-                    'INSERT INTO kernel_tenant_db_connections '
-                    . '(tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, db_pass_ciphertext, db_pass_iv, db_pass_tag) '
-                    . 'VALUES (:tid, :drv, :host, :port, :name, :user, NULL, :charset, :cipher, :iv, :tag)'
-                );
-                $insConn->execute([
-                    ':tid' => $tenantId, ':drv' => 'mysql',
-                    ':host' => $dbHost, ':port' => $dbPort,
-                    ':name' => $dbName, ':user' => $dbUser,
-                    ':charset' => 'utf8mb4',
-                    ':cipher' => $enc['ciphertext'] ?? null,
-                    ':iv' => $enc['iv'] ?? null,
-                    ':tag' => $enc['tag'] ?? null,
+            $hasDedicatedDb = (bool)$connCheck->fetchColumn();
+
+            if (!$hasDedicatedDb) {
+                echo json_encode([
+                    'ok' => true,
+                    'tenant_id' => $tenantId,
+                    'db_configured' => false,
+                    'notice' => 'Tenant created. Configure a dedicated database connection (tenant DB upsert / `php ikabud tenant:db:set`) before the module is usable as a tenant.',
+                    'request_id' => request_id(),
                 ]);
+                return;
             }
 
             $sync = kernelTenantScopedMigrationSync($tenantId, $entryModuleId !== '' ? $entryModuleId : null);
@@ -298,7 +292,7 @@ if (!function_exists('kernelHandleApiTenantCreate')) {
                 return;
             }
 
-            echo json_encode(['ok' => true, 'tenant_id' => $tenantId, 'migration_sync' => $sync, 'request_id' => request_id()]);
+            echo json_encode(['ok' => true, 'tenant_id' => $tenantId, 'db_configured' => true, 'migration_sync' => $sync, 'request_id' => request_id()]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

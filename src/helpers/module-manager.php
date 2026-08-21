@@ -2942,9 +2942,21 @@ function getModuleNavItems(?string $role = null, ?array $user = null): array
         }
 
         // Kernel admin should not see module links unless the module opts in.
+        // The opt-in bypass applies only to modules DECLARED as kernel
+        // companions (kernel_companion: true, e.g. gui-settings) that
+        // authenticate against the kernel users table: their admins ARE kernel
+        // admins, so the opt-in is redundant. Standalone, entity, and suite
+        // extension/adapter modules (even those using the kernel users table)
+        // still require an explicit allow_kernel_admin opt-in before their nav
+        // links appear for the kernel admin.
         if ($isKernelAdmin) {
             $settings = $module['_settings'] ?? [];
-            $allowKernelAdmin = (bool)($settings['allow_kernel_admin'] ?? false);
+            $declaredCompanion = !empty($module['kernel_companion'] ?? false);
+            $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers')
+                && tenantEntryModuleUsesKernelUsers($moduleId);
+            $allowKernelAdmin = ($declaredCompanion && $usesKernelUsers)
+                ? true
+                : (bool)($settings['allow_kernel_admin'] ?? false);
             if (!$allowKernelAdmin) {
                 continue;
             }
@@ -2973,6 +2985,11 @@ function getModuleNavItems(?string $role = null, ?array $user = null): array
                 ];
             }
         }
+    }
+
+    // Group kernel-accessible companion module links under a labeled section.
+    if ($isKernelAdmin && $navItems !== []) {
+        array_unshift($navItems, ['label' => '__section__', 'url' => '#', 'icon' => 'separator', 'module' => '_kernel', 'section' => 'Companion Modules']);
     }
 
     // Kernel-level nav: Modules page (always available to admin, even if no modules enabled)
