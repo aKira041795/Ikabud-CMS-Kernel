@@ -1,4 +1,4 @@
-{extends "layouts/app.disyl"}
+{extends "layouts/kernel-admin.disyl"}
 
 {block head}
 <style>
@@ -315,6 +315,105 @@
     // Collect all setting field IDs — driven from handler context
     var settingKeys = {setting_keys | json};
 
+    // Maps GUI setting keys to their CSS custom properties on :root —
+    // mirrors guiCssOverrides() in modules/gui-settings/helpers.php so the
+    // admin shell updates live after a save (no full page reload needed).
+    var guiCssVarMap = {
+        'color_bg': '--bg',
+        'color_surface': '--surface',
+        'color_border': '--border',
+        'color_text': '--text',
+        'color_text_muted': '--text-muted',
+        'color_text_light': '--text-light',
+        'color_primary': '--primary',
+        'color_primary_hover': '--primary-hover',
+        'color_primary_light': '--primary-light',
+        'color_success': '--success',
+        'color_success_light': '--success-light',
+        'color_warning': '--warning',
+        'color_warning_light': '--warning-light',
+        'color_danger': '--danger',
+        'color_danger_light': '--danger-light',
+        'color_header_bg': '--header-bg',
+        'color_header_text': '--header-text',
+        'color_header_accent': '--header-accent',
+        'border_radius': '--radius',
+        'header_height': '--header-h',
+        'nav_height': '--nav-h',
+        'font_size_base': '--font-size-base',
+        'font_size_small': '--font-size-small',
+        'font_size_nav': '--font-size-nav',
+        'font_size_h1': '--font-size-h1',
+        'font_size_h2': '--font-size-h2',
+        'max_width': '--max-width',
+        'font_family': '--font-family'
+    };
+
+    /**
+     * Apply the current form values to the live admin shell:
+     *  - CSS custom properties on :root (colors, sizes, font)
+     *  - header app-name text
+     *  - Google Fonts <link>
+     *  - document title
+     * This avoids a full page reload after saving GUI settings.
+     */
+    function applyGuiOverrides() {
+        var root = document.documentElement;
+        for (var key in guiCssVarMap) {
+            if (!guiCssVarMap.hasOwnProperty(key)) continue;
+            var val = getVal(key);
+            if (val === '') continue;
+            root.style.setProperty(guiCssVarMap[key], val);
+        }
+
+        // Header app name (logo accent + rest). The settings page renders in
+        // the kernel-admin shell; the overrides also flow to the tenant app
+        // shell header on the next visit. Update whichever header is live.
+        var accent = getVal('app_name_accent') || 'Ikabud';
+        var rest = getVal('app_name_rest') || '';
+        var logo = document.querySelector('.app-header .logo');
+        if (logo) {
+            logo.innerHTML = '<span>' + accent + '</span>' + (rest ? ' ' + rest : '');
+        }
+        var klogo = document.querySelector('.kernel-admin header .font-bold');
+        if (klogo) {
+            klogo.innerHTML = '<span style="color: var(--header-accent, #60a5fa)">' + accent + '</span>' + (rest ? ' ' + rest : ' OS');
+        }
+
+        // Google Fonts link
+        var fontUrl = getVal('font_url');
+        var fontLink = document.querySelector('link[data-gui-font]');
+        if (fontUrl) {
+            if (!fontLink) {
+                fontLink = document.createElement('link');
+                fontLink.rel = 'stylesheet';
+                fontLink.setAttribute('data-gui-font', '1');
+                document.head.appendChild(fontLink);
+            }
+            fontLink.href = fontUrl;
+        } else if (fontLink) {
+            fontLink.remove();
+        }
+
+        // Document title (rebuild from captured prefix + live app name)
+        var title = document.querySelector('title');
+        if (title) {
+            var appName = (accent + ' ' + rest).trim() || 'Ikabud';
+            title.textContent = (title.getAttribute('data-base-title') || '') + appName;
+        }
+    }
+
+    // Capture the pre-save title prefix (e.g. "GUI Settings — ") so the
+    // title can be rebuilt from the live app name.
+    (function () {
+        var title = document.querySelector('title');
+        if (title && !title.getAttribute('data-base-title')) {
+            var current = title.textContent || '';
+            var idx = current.lastIndexOf('—');
+            title.setAttribute('data-base-title', idx >= 0 ? current.substring(0, idx + 2) : '');
+        }
+    })();
+
     function getVal(key) {
         var el = document.getElementById('s-' + key);
         return el ? el.value : '';
@@ -422,8 +521,10 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res.ok) {
-                showToast('Settings saved! Reloading...');
-                setTimeout(function() { window.location.reload(); }, 600);
+                // Apply the new overrides to the live shell — no reload needed.
+                applyGuiOverrides();
+                document.getElementById('save-status').textContent = 'Settings saved and applied';
+                showToast('Settings saved!');
             } else {
                 document.getElementById('save-status').textContent = res.error || 'Save failed';
                 showToast(res.error || 'Save failed');
@@ -446,8 +547,14 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res.ok) {
-                showToast('Reset to defaults! Reloading...');
-                setTimeout(function() { window.location.reload(); }, 600);
+                // Refresh form fields to the returned defaults, then apply to
+                // the live shell — no reload needed.
+                var defaults = res.settings || {};
+                Object.keys(defaults).forEach(function(key) { setVal(key, defaults[key]); });
+                applyGuiOverrides();
+                updatePreview();
+                document.getElementById('save-status').textContent = 'Reset to defaults and applied';
+                showToast('Reset to defaults!');
             } else {
                 showToast(res.error || 'Reset failed');
             }

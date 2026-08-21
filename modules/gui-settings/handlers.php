@@ -61,14 +61,24 @@ function handleGuiSettings(array $params = []): void
         ],
     ];
 
-    echo guiSettingsRender('modules/gui-settings/settings.disyl', [
-        'page_title'    => 'GUI Settings',
-        'settings'      => $settings,
-        'defaults'      => $defaults,
-        'setting_keys'  => array_keys($defaults),
-        'font_presets'  => $fontPresets,
-        'color_presets' => $colorPresets,
-    ]);
+    // GUI Settings is a kernel companion rendered inside the kernel-admin
+    // shell. Merge the kernel-admin layout context so navigation stays within
+    // the same htmx-boost layout (avoids cross-layout head/Alpine breakage).
+    $kernelAdminCtx = function_exists('kernelAdminContext')
+        ? kernelAdminContext($user, 'gui-settings')
+        : [];
+
+    echo guiSettingsRender('modules/gui-settings/settings.disyl', array_merge(
+        $kernelAdminCtx,
+        [
+            'page_title'    => 'GUI Settings',
+            'settings'      => $settings,
+            'defaults'      => $defaults,
+            'setting_keys'  => array_keys($defaults),
+            'font_presets'  => $fontPresets,
+            'color_presets' => $colorPresets,
+        ]
+    ));
 }
 
 // ─── API: Save Settings ───────────────────────────────────────────────────
