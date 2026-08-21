@@ -136,6 +136,20 @@ $excludePrefixes = [
     'storage/locks/',
     'storage/backups/',
     'storage/module-exports/',
+    // Module-owned / full-repo runtime state — a barebones OS installer ships
+    // an EMPTY storage tree, never another app's data or module artifacts.
+    'storage/academic_similarity/',
+    'storage/application-profiles/',
+    'storage/cms-themes/',
+    'storage/cms-installed-modules.json',
+    'storage/database.sqlite',
+    'storage/digital/',
+    'storage/private/',
+    'storage/report-archive/',
+    'storage/scheduled-reports.json',
+    'storage/uploads/',
+    'storage/workbench/',
+    'storage/modules.json.bak',
     // Module-owned public web assets
     'public/admin/',
     'public/assets/cms/',

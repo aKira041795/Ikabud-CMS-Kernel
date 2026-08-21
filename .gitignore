@@ -9,6 +9,8 @@ android/
 # CMS installer ownership markers are runtime artifacts, not source
 # Compiled builder assets (rebuild with npm run build)
 /config/vhosts/juliesbakeshop.test.conf
+# Local dev vhost for the barebones kernel install (ikabudsix) — not source
+/config/vhosts/ikabudsix.test.conf
 /contact-form/
 contact-form.bak*
 /database/*.sqlite

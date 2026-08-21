@@ -142,7 +142,7 @@
       "key": "font_family",
       "type": "text",
       "label": "Font Family",
-      "default": "'Inter', system-ui, sans-serif"
+      "default": "Inter, system-ui, sans-serif"
     },
     {
       "key": "font_url",
@@ -281,7 +281,10 @@
     "policy": {
       "capabilities": {
         "gui_settings.apply@1": {
-          "allow_callers": ["kernel", "gui-settings"]
+          "allow_callers": [
+            "kernel",
+            "gui-settings"
+          ]
         }
       }
     }

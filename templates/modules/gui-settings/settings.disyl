@@ -263,6 +263,7 @@
                 <label class="field-label">Mobile / Tablet Menu</label>
                 <select class="font-select" id="s-mobile_menu">
                     <option value="canvas" {if settings.mobile_menu == 'canvas'}selected{/if}>Off-canvas (slide-in)</option>
+                    <option value="dropdown" {if settings.mobile_menu == 'dropdown'}selected{/if}>Dropdown</option>
                 </select>
                 <div class="field-hint">Applies on tablet and mobile screen widths.</div>
             </div>

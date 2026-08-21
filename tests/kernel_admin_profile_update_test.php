@@ -127,8 +127,16 @@ kapDisplay('profile handler refreshes JWT token_version after password change', 
 kapDisplay('kernel auth payload includes email on login', str_contains($kernelAppSource, 'SELECT id, username, email, password_hash, full_name, role'));
 
 $db = app()->db();
+// The barebones installer lets the admin choose their username (e.g. 'admin'
+// or 'ikabud6'), so resolve the actual kernel admin rather than hardcoding
+// 'admin'. Any active admin row satisfies the profile-update contract.
+$kernelAdminRow = $db->query(
+    "SELECT username FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY id LIMIT 1"
+)->fetch(PDO::FETCH_ASSOC);
+$kernelAdminUsername = is_array($kernelAdminRow) ? (string)($kernelAdminRow['username'] ?? 'admin') : 'admin';
+
 $userStmt = $db->prepare('SELECT id, username, email, full_name, password_hash, role, is_active, COALESCE(token_version, 0) AS token_version FROM users WHERE username = :username LIMIT 1');
-$userStmt->execute([':username' => 'admin']);
+$userStmt->execute([':username' => $kernelAdminUsername]);
 $original = $userStmt->fetch(PDO::FETCH_ASSOC);
 
 kapDisplay('kernel admin user exists', is_array($original), is_array($original) ? '' : 'missing users.admin row');
@@ -192,7 +200,7 @@ try {
         json_encode($htmlFallbackResponse, JSON_UNESCAPED_SLASHES)
     );
 
-    $userStmt->execute([':username' => 'admin']);
+    $userStmt->execute([':username' => $kernelAdminUsername]);
     $updated = $userStmt->fetch(PDO::FETCH_ASSOC);
     kapDisplay('full_name persisted from profile update', is_array($updated) && ($updated['full_name'] ?? '') === $temporaryFullName, json_encode($updated, JSON_UNESCAPED_SLASHES));
     kapDisplay('email persisted from profile update', is_array($updated) && ($updated['email'] ?? '') === $temporaryEmail, json_encode($updated, JSON_UNESCAPED_SLASHES));
@@ -217,7 +225,7 @@ try {
 
     kapDisplay('profile revert request returns ok=true', !empty(($revertResponse['json'] ?? [])['ok']), $revertResponse['raw']);
 
-    $userStmt->execute([':username' => 'admin']);
+    $userStmt->execute([':username' => $kernelAdminUsername]);
     $reverted = $userStmt->fetch(PDO::FETCH_ASSOC);
     kapDisplay('full_name reverts after profile revert', is_array($reverted) && ($reverted['full_name'] ?? '') === $originalFullName, json_encode($reverted, JSON_UNESCAPED_SLASHES));
     kapDisplay('email reverts after profile revert', is_array($reverted) && ($reverted['email'] ?? '') === $revertEmail, json_encode($reverted, JSON_UNESCAPED_SLASHES));

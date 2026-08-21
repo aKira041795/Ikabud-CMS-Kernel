@@ -160,7 +160,11 @@ function apiSaveGuiSettings(array $params = []): void
         $merged['app_name_rest'] = $parts[1] ?? '';
     }
 
-    saveGuiSettings($merged);
+    if (!saveGuiSettings($merged)) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to persist GUI settings. Check storage file permissions.']);
+        exit;
+    }
 
     // Clear template cache so changes take effect
     $cacheDir = STORAGE_PATH . '/cache/disyl';
@@ -192,7 +196,11 @@ function apiResetGuiSettings(array $params = []): void
         exit;
     }
 
-    saveGuiSettings(guiSettingsDefaults());
+    if (!saveGuiSettings(guiSettingsDefaults())) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to persist GUI settings. Check storage file permissions.']);
+        exit;
+    }
 
     // Clear template cache
     $cacheDir = STORAGE_PATH . '/cache/disyl';

@@ -129,7 +129,7 @@ function readGuiSettings(): array
  * registry (may be blocked in tenant mode when no tenant is resolved). The
  * legacy file is the durable store; the registry is a best-effort overlay.
  */
-function saveGuiSettings(array $settings): void
+function saveGuiSettings(array $settings): bool
 {
     // Always persist to legacy JSON file — survives tenant-mode blocks
     $path = guiSettingsPath();
@@ -146,10 +146,17 @@ function saveGuiSettings(array $settings): void
         }
     }
     $merged = array_merge($existing, $settings);
-    file_put_contents($path, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+    $written = @file_put_contents($path, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
 
     // Best-effort: also write to module registry
     saveModuleSettings('gui-settings', $settings);
+
+    if ($written === false) {
+        write_log('Failed to persist GUI settings to ' . $path . ' — check file permissions for the web server user.', 'error', ['channel' => 'gui-settings']);
+        return false;
+    }
+
+    return true;
 }
 
 /**
@@ -254,7 +261,9 @@ function gui_settings_cap_apply_1(mixed $payload, string $resolvedCapabilityId =
         return ['ok' => false, 'error' => 'At least one recognized GUI setting is required.'];
     }
 
-    saveGuiSettings($settings);
+    if (!saveGuiSettings($settings)) {
+        return ['ok' => false, 'error' => 'Failed to persist GUI settings. Check storage file permissions.'];
+    }
     return ['ok' => true, 'settings' => readGuiSettings()];
 }
 
