@@ -734,8 +734,9 @@ function wms_cap_wms_return_create_1(mixed $payload, string $capabilityId = '', 
                 ? (string)$item['condition']
                 : 'unknown';
 
-            // Live schema requires location_id (no default). Resolve a
-            // warehouse location when the caller did not supply one.
+            // Live schema requires location_id on wms_return_items (NOT NULL).
+            // Resolve a warehouse location when the caller did not supply one,
+            // or fail clearly rather than inserting null.
             $locationId = isset($item['location_id']) ? (int)$item['location_id'] : 0;
             if ($locationId <= 0) {
                 $loc = $db->query(
@@ -746,6 +747,9 @@ function wms_cap_wms_return_create_1(mixed $payload, string $capabilityId = '', 
                     $locationId = (int)$loc['id'];
                 }
             }
+            if ($locationId <= 0) {
+                throw new \RuntimeException('Return item requires a warehouse location (wms_return_items.location_id is NOT NULL).');
+            }
 
             $db->execute(
                 'INSERT INTO wms_return_items (return_id, product_id, location_id, batch_id, qty_returned, `condition`, notes)
@@ -753,7 +757,7 @@ function wms_cap_wms_return_create_1(mixed $payload, string $capabilityId = '', 
                 [
                     ':rid' => $returnId,
                     ':pid' => $productId,
-                    ':lid' => $locationId > 0 ? $locationId : null,
+                    ':lid' => $locationId,
                     ':bid' => isset($item['batch_id']) && (int)$item['batch_id'] > 0 ? (int)$item['batch_id'] : null,
                     ':qty' => $qtyReturned,
                     ':cond' => $condition,
@@ -840,8 +844,9 @@ function wmsRender(string $template, array $context = []): string
     return app()->render($template, $context);
 }
 
-function wmsJsonOk(array $extra = []): void
+function wmsJsonOk(array $extra = [], int $status = 200): void
 {
+    http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(array_merge(['ok' => true], $extra));
     exit;

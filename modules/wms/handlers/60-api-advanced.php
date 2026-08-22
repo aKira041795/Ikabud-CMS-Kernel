@@ -321,44 +321,77 @@ function wmsApiReturnCreate(): void
     if ($warehouseId <= 0) wmsJsonError('warehouse_id is required.');
     if (!is_array($items) || count($items) === 0) wmsJsonError('At least one item is required.');
 
-    $returnNumber = 'RMA-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+    $referenceNumber = 'RMA-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+
+    // The live wms_returns header has no return_type/customer_email/disposition
+    // columns (migration 007's CREATE TABLE IF NOT EXISTS never upgraded the
+    // pre-existing tables). Preserve those fields in the meta JSON instead.
+    $meta = [];
+    if ($returnType !== '' && $returnType !== 'customer') {
+        $meta['return_type'] = $returnType;
+    }
+    if ($customerEmail !== '') {
+        $meta['customer_email'] = $customerEmail;
+    }
+    if ($disposition !== '') {
+        $meta['disposition'] = $disposition;
+    }
 
     wmsDb()->beginTransaction();
     try {
         wmsDb()->execute(
-            'INSERT INTO wms_returns (return_number, order_id, warehouse_id, return_type, status, customer_name, customer_email, reason, disposition, notes, created_by)
-             VALUES (:rn, :oid, :wid, :rt, :status, :cn, :ce, :reason, :disp, :notes, :uid)',
+            'INSERT INTO wms_returns (reference_number, order_id, customer_name, warehouse_id, status, reason, received_at, notes, meta, created_by, created_at, updated_at)
+             VALUES (:rn, :oid, :cn, :wid, :status, :reason, NOW(), :notes, :meta, :uid, NOW(), NOW())',
             [
-                ':rn' => $returnNumber, ':oid' => $orderId, ':wid' => $warehouseId,
-                ':rt' => $returnType, ':status' => 'pending',
-                ':cn' => $customerName ?: null, ':ce' => $customerEmail ?: null,
-                ':reason' => $reason ?: null, ':disp' => $disposition ?: null,
-                ':notes' => $notes ?: null, ':uid' => (int)$user['id'],
+                ':rn' => $referenceNumber, ':oid' => $orderId, ':cn' => $customerName ?: null,
+                ':wid' => $warehouseId, ':status' => 'pending',
+                ':reason' => $reason ?: null, ':notes' => $notes ?: null,
+                ':meta' => $meta !== [] ? json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+                ':uid' => (int)$user['id'],
             ]
         );
         $returnId = (int)wmsDb()->lastInsertId();
 
         foreach ($items as $item) {
             $pid = (int)($item['product_id'] ?? 0);
-            $qty = (float)($item['quantity'] ?? 0);
+            $qty = (float)($item['qty_returned'] ?? $item['quantity'] ?? $item['qty'] ?? 0);
             $cond = trim((string)($item['condition'] ?? ''));
-            $disp = trim((string)($item['disposition'] ?? ''));
-            if ($pid <= 0 || $qty <= 0) continue;
+            if ($pid <= 0 || $qty <= 0) {
+                continue;
+            }
+
+            // Live schema requires location_id on wms_return_items (NOT NULL).
+            // Fall back to the first active warehouse location, or fail clearly.
+            $locationId = isset($item['location_id']) ? (int)$item['location_id'] : 0;
+            if ($locationId <= 0) {
+                $loc = wmsDb()->query(
+                    'SELECT id FROM wms_locations WHERE warehouse_id = :wid AND is_active = 1 ORDER BY sort_order ASC, id ASC LIMIT 1',
+                    [':wid' => $warehouseId]
+                )->fetch(\PDO::FETCH_ASSOC);
+                if (is_array($loc) && (int)($loc['id'] ?? 0) > 0) {
+                    $locationId = (int)$loc['id'];
+                }
+            }
+            if ($locationId <= 0) {
+                throw new \RuntimeException('Return item requires a warehouse location (wms_return_items.location_id is NOT NULL).');
+            }
 
             wmsDb()->execute(
-                'INSERT INTO wms_return_items (return_id, product_id, batch_id, quantity, `condition`, disposition, notes)
-                 VALUES (:rid, :pid, :bid, :qty, :cond, :disp, :notes)',
+                'INSERT INTO wms_return_items (return_id, product_id, location_id, batch_id, qty_returned, `condition`, notes)
+                 VALUES (:rid, :pid, :lid, :bid, :qty, :cond, :notes)',
                 [
                     ':rid' => $returnId, ':pid' => $pid,
+                    ':lid' => $locationId,
                     ':bid' => isset($item['batch_id']) ? (int)$item['batch_id'] : null,
-                    ':qty' => $qty, ':cond' => $cond ?: null,
-                    ':disp' => $disp ?: null, ':notes' => $item['notes'] ?? null,
+                    ':qty' => $qty,
+                    ':cond' => in_array($cond, ['good', 'damaged', 'expired', 'unknown'], true) ? $cond : ($cond !== '' ? $cond : null),
+                    ':notes' => trim((string)($item['notes'] ?? '')) !== '' ? trim((string)$item['notes']) : null,
                 ]
             );
         }
 
         wmsDb()->commit();
-        wmsJsonOk(['return_id' => $returnId, 'return_number' => $returnNumber], 201);
+        wmsJsonOk(['return_id' => $returnId, 'return_number' => $referenceNumber, 'reference_number' => $referenceNumber], 201);
     } catch (\Throwable $e) {
         wmsDb()->rollBack();
         throw $e;
@@ -383,66 +416,76 @@ function wmsApiReturnProcess(array $params): void
 
     wmsDb()->beginTransaction();
     try {
-        if ($action === 'approve') {
+        if ($action === 'approve' || $action === 'reject') {
+            // Live wms_returns.status is enum(pending, inspecting, restocked,
+            // disposed, cancelled) — there is no approved/rejected state. Map
+            // approve → inspecting, reject → cancelled to stay in the enum.
             wmsDb()->execute(
-                'UPDATE wms_returns SET status = :status, inspected_by = :uid, inspected_at = NOW() WHERE id = :id',
-                [':status' => 'approved', ':uid' => (int)$user['id'], ':id' => $id]
-            );
-        } elseif ($action === 'reject') {
-            wmsDb()->execute(
-                'UPDATE wms_returns SET status = :status, inspected_by = :uid, inspected_at = NOW() WHERE id = :id',
-                [':status' => 'rejected', ':uid' => (int)$user['id'], ':id' => $id]
+                'UPDATE wms_returns SET status = :status WHERE id = :id',
+                [':status' => $action === 'approve' ? 'inspecting' : 'cancelled', ':id' => $id]
             );
         } elseif ($action === 'restock' || $action === 'scrap') {
             $items = wmsDb()->query('SELECT * FROM wms_return_items WHERE return_id = :rid', [':rid' => $id])->fetchAll(\PDO::FETCH_ASSOC);
             $warehouseId = (int)$ret['warehouse_id'];
 
             foreach ($items as $item) {
-                $qty = (float)$item['quantity'];
+                $qty = (float)($item['qty_returned'] ?? 0);
+                if ($qty <= 0) {
+                    continue;
+                }
+
+                $itemLocationId = (int)($item['location_id'] ?? 0);
+                if ($itemLocationId <= 0 && $locationId > 0) {
+                    $itemLocationId = $locationId;
+                }
 
                 if ($action === 'restock') {
                     $stock = wmsDb()->query(
-                        'SELECT id, qty_on_hand FROM wms_stock WHERE product_id = :pid AND warehouse_id = :wid
-                         AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
-                         AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
-                        [':pid' => $item['product_id'], ':wid' => $warehouseId, ':lid' => $locationId, ':lid_null' => $locationId, ':bid' => $item['batch_id'], ':bid_null' => $item['batch_id']]
+                        'SELECT id, qty_on_hand FROM wms_stock
+                         WHERE product_id = :pid AND warehouse_id = :wid
+                           AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+                           AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+                        [':pid' => $item['product_id'], ':wid' => $warehouseId, ':lid' => $itemLocationId, ':lid_null' => $itemLocationId, ':bid' => $item['batch_id'], ':bid_null' => $item['batch_id']]
                     )->fetch(\PDO::FETCH_ASSOC);
 
+                    $prevQty = 0.0;
                     if ($stock) {
                         $prevQty = (float)$stock['qty_on_hand'];
                         $newQty = $prevQty + $qty;
                         wmsDb()->execute('UPDATE wms_stock SET qty_on_hand = :qty, last_movement_at = NOW() WHERE id = :id', [':qty' => $newQty, ':id' => $stock['id']]);
                     } else {
-                        $prevQty = 0;
                         $newQty = $qty;
                         wmsDb()->execute(
                             'INSERT INTO wms_stock (product_id, warehouse_id, location_id, batch_id, qty_on_hand, last_movement_at)
                              VALUES (:pid, :wid, :lid, :bid, :qty, NOW())',
-                            [':pid' => $item['product_id'], ':wid' => $warehouseId, ':lid' => $locationId, ':bid' => $item['batch_id'], ':qty' => $qty]
+                            [':pid' => $item['product_id'], ':wid' => $warehouseId, ':lid' => $itemLocationId ?: null, ':bid' => $item['batch_id'], ':qty' => $qty]
                         );
                     }
 
                     wmsDb()->execute(
-                        'INSERT INTO wms_stock_movements (product_id, warehouse_id, to_location_id, batch_id, movement_type, quantity, prev_qty_on_hand, new_qty_on_hand, reference_type, reference_id, notes, created_by)
-                         VALUES (:pid, :wid, :lid, :bid, :type, :qty, :prev, :new, :rtype, :rid, :notes, :uid)',
+                        'INSERT INTO wms_stock_movements (product_id, warehouse_id, from_location_id, to_location_id, batch_id, movement_type, quantity, prev_qty_on_hand, new_qty_on_hand, reference_type, reference_id, notes, created_by)
+                         VALUES (:pid, :wid, :fl, :tl, :bid, :type, :qty, :prev, :new, :rtype, :rid, :notes, :uid)',
                         [
-                            ':pid' => $item['product_id'], ':wid' => $warehouseId, ':lid' => $locationId,
+                            ':pid' => $item['product_id'], ':wid' => $warehouseId,
+                            ':fl' => null, ':tl' => $itemLocationId ?: null,
                             ':bid' => $item['batch_id'], ':type' => 'return_in', ':qty' => $qty,
                             ':prev' => $prevQty, ':new' => $newQty,
                             ':rtype' => 'return', ':rid' => $id,
                             ':notes' => 'Return restock', ':uid' => (int)$user['id'],
                         ]
                     );
-                }
+                    $movementId = (int)wmsDb()->lastInsertId();
 
-                $disp = $action === 'restock' ? 'restock' : 'scrap';
-                wmsDb()->execute('UPDATE wms_return_items SET disposition = :disp WHERE id = :id', [':disp' => $disp, ':id' => $item['id']]);
+                    wmsDb()->execute(
+                        'UPDATE wms_return_items SET qty_restocked = :q, restock_movement_id = :mid WHERE id = :id',
+                        [':q' => $qty, ':mid' => $movementId, ':id' => $item['id']]
+                    );
+                }
             }
 
             wmsDb()->execute(
-                'UPDATE wms_returns SET status = :status, disposition = :disp, inspected_by = :uid, inspected_at = NOW() WHERE id = :id',
-                [':status' => $action === 'restock' ? 'restocked' : 'disposed', ':disp' => $action,
-                 ':uid' => (int)$user['id'], ':id' => $id]
+                'UPDATE wms_returns SET status = :status WHERE id = :id',
+                [':status' => $action === 'restock' ? 'restocked' : 'disposed', ':id' => $id]
             );
         }
 
