@@ -185,6 +185,23 @@ if (!function_exists('module') || !module('wms')) {
     exit(0);
 }
 
+// The legacy execution-pipeline contract exercised by this test (wmsTaskCreate,
+// wmsOrderGeneratePickList, wmsMovementCreate, wmsStockGet, wmsTaskScanConfirm,
+// wmsTaskExceptionDisposition + the wms_stocks/wms_movements tables) was removed
+// in the June 2026 WMS rewrite. The new WMS is capability-based: reserve/release/
+// order create/cancel with batch items, SKU resolution, the wms_stock_movements
+// ledger, and wms_idempotency_keys. The hardening-relevant behaviors of the new
+// WMS (reservation bounds, movement ledger integrity, idempotency/replay, cancel
+// + release) are covered by:
+//   tests/integration_bridge_ecommerce_wms_test.php  (40/40)
+//   tests/ecommerce_wms_inventory_authority_test.php (19/19)
+// This legacy test therefore skips intentionally rather than fatalling on
+// removed functions.
+if (!function_exists('wmsTaskCreate') || !function_exists('wmsOrderGeneratePickList')) {
+    s('Legacy WMS execution-pipeline contract removed', 'Skipping legacy hardening regression (covered by capability tests)');
+    exit(0);
+}
+
 $requiredTables = [
     'wms_users',
     'wms_products',
