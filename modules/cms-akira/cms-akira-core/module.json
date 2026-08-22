@@ -9,6 +9,10 @@
     "depends": [
         "cms"
     ],
+    "application_profile": {
+        "id": "ark.workbench",
+        "version": "^0.1"
+    },
     "product": {
         "id": "cms-akira",
         "name": "CMS Akira"

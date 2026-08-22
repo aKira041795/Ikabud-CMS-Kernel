@@ -84,7 +84,7 @@
     "routes": "routes.php",
     "events": [],
     "migrations": [
-        "001_create_theme_presets.sql"
+        "database/migrations/001_create_theme_presets.sql"
     ],
     "capabilities": {
         "exposes": [

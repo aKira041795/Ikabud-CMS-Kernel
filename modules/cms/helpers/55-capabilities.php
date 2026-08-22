@@ -23,6 +23,10 @@ function cms_capability_handlers(): array
         'kernel.auth.authenticate@1' => 'cms_cap_kernel_auth_authenticate_1',
         'cms.media.list@1' => 'cms_cap_cms_media_list_1',
         'cms.media.upload@1' => 'cms_cap_cms_media_upload_1',
+        'cms.media.get@1' => 'cms_cap_cms_media_get_1',
+        'cms.menus.get@1' => 'cms_cap_cms_menus_get_1',
+        'cms.menus.tree@1' => 'cms_cap_cms_menus_tree_1',
+        'cms.seo.resolve@1' => 'cms_cap_cms_seo_resolve_1',
         'cms.builder.get@1' => 'cms_cap_cms_builder_get_1',
         'cms.builder.render@1' => 'cms_cap_cms_builder_render_1',
         'cms.settings.get@1' => 'cms_cap_cms_settings_get_1',
@@ -760,6 +764,211 @@ function cms_cap_cms_media_upload_1(mixed $payload, string $capabilityId, string
         write_log('cms_media_upload_error', 'WARN', ['error' => $e->getMessage()]);
         return ['ok' => false, 'error' => 'Upload failed'];
     }
+}
+
+/**
+ * cms.media.get@1 — resolve CMS media records by id (scalar) or id list (batch).
+ *
+ * SCALAR: payload {id: int} → one record or not_found (code 404).
+ * BATCH:  payload {ids: [int]} → ordered array matching INPUT order, missing
+ *         omitted, duplicate ids yield one entry per position (no dedup).
+ *         Empty batch → []. Max 100 ids → code 422 when exceeded.
+ * Malformed input → code 422. Caller must be an authenticated tenant with the
+ * named capability (caller policy is enforced at the bus); unauthenticated or
+ * unauthorized → code 401/403 (distinct from 404).
+ *
+ * Record: {id, filename, url, mime_type, alt, width, height, size, created_at}
+ */
+function cms_cap_cms_media_get_1(mixed $payload, string $capabilityId = 'cms.media.get@1', string $providerId = ''): array
+{
+    // Authz gate: an authenticated tenant caller is required (401 when absent,
+    // 403 when present but not permitted) — distinct from 404 not_found.
+    $callerUser = cmsCapabilityCallerUser();
+    if (!is_array($callerUser)) {
+        return ['ok' => false, 'code' => 401, 'error' => 'auth required'];
+    }
+    if (!cmsCapCanReadMedia($callerUser)) {
+        return ['ok' => false, 'code' => 403, 'error' => 'permission denied'];
+    }
+
+    if (!is_array($payload)) {
+        return ['ok' => false, 'code' => 422, 'error' => 'payload must be an object'];
+    }
+
+    // Scalar mode
+    if (array_key_exists('id', $payload)) {
+        $id = filter_var($payload['id'] ?? null, FILTER_VALIDATE_INT);
+        if ($id === false || $id <= 0) {
+            return ['ok' => false, 'code' => 422, 'error' => 'id must be a positive integer'];
+        }
+        $ctx = module('cms');
+        if (!$ctx) {
+            return ['ok' => false, 'code' => 422, 'error' => 'Module context unavailable'];
+        }
+        try {
+            $stmt = $ctx->db()->prepare(
+                "SELECT id, filename, original_name, mime_type, file_size, file_path, alt_text, title,
+                        image_width, image_height, created_at
+                 FROM cms_media
+                 WHERE id = :id AND deleted_at IS NULL LIMIT 1"
+            );
+            $stmt->execute([':id' => $id]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!is_array($row)) {
+                return ['ok' => false, 'code' => 404, 'error' => 'not_found'];
+            }
+            return ['ok' => true, 'data' => cmsCapMediaRecord($row)];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'code' => 422, 'error' => 'Database error'];
+        }
+    }
+
+    // Batch mode
+    $ids = $payload['ids'] ?? null;
+    if (!is_array($ids)) {
+        return ['ok' => false, 'code' => 422, 'error' => 'payload must include id (scalar) or ids (array)'];
+    }
+    if (count($ids) > 100) {
+        return ['ok' => false, 'code' => 422, 'error' => 'batch limit is 100 ids'];
+    }
+    if ($ids === []) {
+        return ['ok' => true, 'data' => []];
+    }
+
+    $clean = [];
+    foreach ($ids as $raw) {
+        $v = filter_var($raw, FILTER_VALIDATE_INT);
+        if ($v === false || $v <= 0) {
+            return ['ok' => false, 'code' => 422, 'error' => 'ids must be positive integers'];
+        }
+        $clean[] = $v;
+    }
+
+    $ctx = module('cms');
+    if (!$ctx) {
+        return ['ok' => false, 'code' => 422, 'error' => 'Module context unavailable'];
+    }
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($clean), '?'));
+        $stmt = $ctx->db()->prepare(
+            "SELECT id, filename, original_name, mime_type, file_size, file_path, alt_text, title,
+                    image_width, image_height, created_at
+             FROM cms_media
+             WHERE id IN ({$placeholders}) AND deleted_at IS NULL"
+        );
+        $stmt->execute($clean);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        // Preserve input order and duplicates: map by id, then walk the input list.
+        $byId = [];
+        foreach ($rows as $r) {
+            $byId[(int)$r['id']] = $r;
+        }
+        $out = [];
+        foreach ($clean as $id) {
+            if (isset($byId[$id])) {
+                $out[] = cmsCapMediaRecord($byId[$id]);
+            }
+        }
+        return ['ok' => true, 'data' => $out];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'code' => 422, 'error' => 'Database error'];
+    }
+}
+
+/**
+ * Normalize a cms_media row into the cms.media.get@1 record shape.
+ */
+function cmsCapMediaRecord(array $row): array
+{
+    $filePath = (string)($row['file_path'] ?? '');
+    return [
+        'id' => (int)($row['id'] ?? 0),
+        'filename' => (string)($row['filename'] ?? ($row['original_name'] ?? '')),
+        'url' => $filePath !== '' ? cmsResolveUploadUrl($filePath) : '',
+        'mime_type' => (string)($row['mime_type'] ?? ''),
+        'alt' => (string)($row['alt_text'] ?? ''),
+        'width' => ($row['image_width'] ?? null) !== null ? (int)$row['image_width'] : null,
+        'height' => ($row['image_height'] ?? null) !== null ? (int)$row['image_height'] : null,
+        'size' => (int)($row['file_size'] ?? 0),
+        'created_at' => (string)($row['created_at'] ?? ''),
+    ];
+}
+
+/**
+ * cms.menus.get@1 — list or fetch CMS menus.
+ * No params → all menus with item counts. {id: int} → one menu.
+ * {location: string} → the menu assigned to that location (or null).
+ */
+function cms_cap_cms_menus_get_1(mixed $payload, string $capabilityId = 'cms.menus.get@1', string $providerId = ''): array
+{
+    if (!is_array($payload) || $payload === []) {
+        return ['ok' => true, 'data' => function_exists('cmsGetMenus') ? cmsGetMenus() : []];
+    }
+    if (isset($payload['id'])) {
+        $id = filter_var($payload['id'], FILTER_VALIDATE_INT);
+        if ($id === false || $id <= 0) {
+            return ['ok' => false, 'code' => 422, 'error' => 'id must be a positive integer'];
+        }
+        $menu = function_exists('cmsGetMenu') ? cmsGetMenu($id) : null;
+        return $menu === null
+            ? ['ok' => false, 'code' => 404, 'error' => 'not_found']
+            : ['ok' => true, 'data' => $menu];
+    }
+    if (isset($payload['location'])) {
+        $loc = trim((string)$payload['location']);
+        $menu = $loc !== '' && function_exists('cmsGetMenuByLocation') ? cmsGetMenuByLocation($loc) : null;
+        return ['ok' => true, 'data' => $menu];
+    }
+    return ['ok' => false, 'code' => 422, 'error' => 'payload must include id or location (or be empty)'];
+}
+
+/**
+ * cms.menus.tree@1 — nested menu item tree.
+ * {id: int} (menu id) or {location: string} (resolves the assigned menu).
+ */
+function cms_cap_cms_menus_tree_1(mixed $payload, string $capabilityId = 'cms.menus.tree@1', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'code' => 422, 'error' => 'payload must be an object'];
+    }
+    $menuId = 0;
+    if (isset($payload['id'])) {
+        $menuId = filter_var($payload['id'], FILTER_VALIDATE_INT) ?: 0;
+    } elseif (isset($payload['location'])) {
+        $loc = trim((string)$payload['location']);
+        $menu = $loc !== '' && function_exists('cmsGetMenuByLocation') ? cmsGetMenuByLocation($loc) : null;
+        $menuId = is_array($menu) ? (int)($menu['id'] ?? 0) : 0;
+    }
+    if ($menuId <= 0) {
+        return ['ok' => false, 'code' => 422, 'error' => 'payload must include id or a resolvable location'];
+    }
+    return ['ok' => true, 'data' => function_exists('cmsGetMenuItemsTree') ? cmsGetMenuItemsTree($menuId) : []];
+}
+
+/**
+ * cms.seo.resolve@1 — resolve SEO title + default head HTML + JSON-LD for content.
+ * payload: {content: [...]} (a CMS content row with meta).
+ */
+function cms_cap_cms_seo_resolve_1(mixed $payload, string $capabilityId = 'cms.seo.resolve@1', string $providerId = ''): array
+{
+    if (!is_array($payload) || !is_array($payload['content'] ?? null)) {
+        return ['ok' => false, 'code' => 422, 'error' => 'payload must include a content object'];
+    }
+    $content = $payload['content'];
+    $title = function_exists('cmsResolveSeoTitle') ? cmsResolveSeoTitle($content) : (string)($content['title'] ?? '');
+    $head = function_exists('cmsDefaultSeoHeadHtml') ? cmsDefaultSeoHeadHtml($content) : '';
+    $jsonLd = function_exists('cmsStructuredDataJsonLd') ? cmsStructuredDataJsonLd($content) : '';
+    return [
+        'ok' => true,
+        'data' => [
+            'title' => $title,
+            'head_html' => $head,
+            'json_ld' => $jsonLd,
+            'provider' => 'cms',
+        ],
+    ];
 }
 
 function cms_cap_cms_builder_get_1(mixed $payload, string $capabilityId, string $providerId): array

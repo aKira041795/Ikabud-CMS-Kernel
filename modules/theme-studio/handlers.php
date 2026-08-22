@@ -261,6 +261,7 @@ function handleBlockDefinitionEditor(array $params = []): void
 function apiSaveTokens(array $params = []): void
 {
     $user = cmsRequireCap('theme.tokens@1');
+    app()->csrfEnforce();
     $tokens = is_array($params['tokens'] ?? null) ? $params['tokens'] : [];
     $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
     $themeSlug = trim((string)($params['theme_slug'] ?? ''));
@@ -278,6 +279,7 @@ function apiSaveTokens(array $params = []): void
 function apiResetTokens(array $params = []): void
 {
     $user = cmsRequireCap('theme.tokens@1');
+    app()->csrfEnforce();
     $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
     $themeSlug = trim((string)($params['theme_slug'] ?? ''));
 
@@ -294,6 +296,7 @@ function apiResetTokens(array $params = []): void
 function apiSavePreset(array $params = []): void
 {
     $user = cmsRequireCap('theme.presets@1');
+    app()->csrfEnforce();
     $slug = trim((string)($params['slug'] ?? ''));
     $label = trim((string)($params['label'] ?? $slug));
     $description = trim((string)($params['description'] ?? ''));
@@ -328,6 +331,7 @@ function apiSavePreset(array $params = []): void
 function apiDeletePreset(array $params = []): void
 {
     $user = cmsRequireCap('theme.presets@1');
+    app()->csrfEnforce();
     $slug = trim((string)($params['slug'] ?? ''));
 
     if ($slug === '') {
@@ -343,6 +347,7 @@ function apiDeletePreset(array $params = []): void
 function apiApplyPreset(array $params = []): void
 {
     $user = cmsRequireCap('theme.presets@1');
+    app()->csrfEnforce();
     $slug = trim((string)($params['slug'] ?? ''));
 
     if ($slug === '') {
@@ -359,6 +364,7 @@ function apiApplyPreset(array $params = []): void
 function apiExportPreset(array $params = []): void
 {
     $user = cmsRequireCap('theme.presets@1');
+    app()->csrfEnforce();
     $slug = trim((string)($params['slug'] ?? ''));
     $presets = themeStudioPresets();
 
@@ -389,6 +395,7 @@ function apiExportPreset(array $params = []): void
 function apiImportPreset(array $params = []): void
 {
     $user = cmsRequireCap('theme.presets@1');
+    app()->csrfEnforce();
 
     $body = file_get_contents('php://input');
     $payload = json_decode($body, true);
@@ -424,6 +431,7 @@ function apiImportPreset(array $params = []): void
 function apiSaveElement(array $params = []): void
 {
     $user = cmsRequireCap('theme.elements@1');
+    app()->csrfEnforce();
 
     $componentAttrs = $params['component_attrs'] ?? [];
     if (is_string($componentAttrs)) {
@@ -462,6 +470,7 @@ function apiSaveElement(array $params = []): void
 function apiDeleteElement(array $params = []): void
 {
     $user = cmsRequireCap('theme.elements@1');
+    app()->csrfEnforce();
     $slug = trim((string)($params['slug'] ?? ''));
 
     if ($slug === '') {

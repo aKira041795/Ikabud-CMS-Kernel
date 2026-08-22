@@ -27,7 +27,9 @@
             }
         ],
         "depends": [
-            "akira.content.get@1"
+            "akira.content.get@1",
+            "cms.menus.get@1",
+            "cms.menus.tree@1"
         ]
     },
     "routes": true,

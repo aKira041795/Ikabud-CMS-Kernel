@@ -2408,9 +2408,10 @@ if ($p2Type instanceof ReflectionNamedType) {
     assert_true($p2Type->getName() === 'string', 'themeSlug is typed as string');
 }
 
-// Verify NO return type declaration (void — no explicit return)
+// Verify the return type is `: void` (declared, returns nothing)
 $syncReturn = $syncRef->getReturnType();
-assert_true($syncReturn === null, 'themeStudioSyncOverridesToCustomizer has no return type (void)');
+$isVoid = $syncReturn instanceof ReflectionNamedType && $syncReturn->getName() === 'void';
+assert_true($isVoid, 'themeStudioSyncOverridesToCustomizer declares void return type');
 
 // Verify the function body calls function_exists() guards for cmsCustomizerSave/cmsDb/cmsActiveCustomizerScope
 $helpersContent = file_get_contents(__DIR__ . '/../helpers.php');

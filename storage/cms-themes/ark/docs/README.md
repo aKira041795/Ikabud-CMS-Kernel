@@ -82,24 +82,30 @@ ARK defines the governed slot vocabulary. These slot IDs are stable — modules 
 
 | Slot | Purpose | Accepts | Multiple | Ordering | Since |
 |---|---|---|---|---|---|
-| `site.before` | Content before the document shell | component, pattern | yes | priority | 1.0 |
-| `site.after` | Content after the document shell | component, pattern | yes | priority | 1.0 |
-| `header.before` | Above the header bar | component, badge | yes | priority | 1.0 |
-| `header.main` | Inside the header, alongside branding | component, nav | yes | priority | 1.0 |
-| `header.after` | Below the header bar | component, hero | yes | priority | 1.0 |
-| `hero` | Hero section below header | component, pattern | yes | priority | 1.0 |
-| `breadcrumbs` | Breadcrumb navigation row | component, nav | no | priority | 1.0 |
-| `content.before` | Above the main content block | component, alert | yes | priority | 1.0 |
-| `content` | The primary content area | component, entity-view | no | - | 1.0 |
-| `content.after` | Below the main content block | component, entity-list | yes | priority | 1.0 |
-| `sidebar.primary` | Primary sidebar column | component, widget | yes | priority | 1.0 |
-| `sidebar.secondary` | Secondary sidebar column | component, widget | yes | priority | 1.0 |
-| `footer.before` | Above the footer grid | component, nav | yes | priority | 1.0 |
-| `footer.main` | Inside the footer grid columns | component, nav | yes | priority | 1.0 |
-| `footer.after` | Below the footer grid | component, legal | yes | priority | 1.0 |
-| `notifications` | Toast/alert overlay area | component, alert | yes | priority | 1.0 |
+| `site.before` | Content before the document shell | component, badge, notification | yes | priority | 1.0 |
+| `site.after` | Content after the document shell | component, badge, notification | yes | priority | 1.0 |
+| `header.before` | Above the header bar | component, badge, notification | yes | priority | 1.0 |
+| `header.main` | Inside the header, alongside branding | component | no | priority | 1.0 |
+| `header.after` | Below the header bar | component, badge, notification | yes | priority | 1.0 |
+| `hero` | Hero section below header | component, banner, slideshow | no | priority | 1.0 |
+| `breadcrumbs` | Breadcrumb navigation row | component | no | priority | 1.0 |
+| `content.before` | Above the main content block | component, badge, notification | yes | priority | 1.0 |
+| `content` | The primary content area | component, entity_list, entity_detail | no | - | 1.0 |
+| `content.after` | Below the main content block | component, badge, notification | yes | priority | 1.0 |
+| `sidebar.primary` | Primary sidebar column | widget, component | yes | priority | 1.0 |
+| `sidebar.secondary` | Secondary sidebar column | widget, component | yes | priority | 1.0 |
+| `footer.before` | Above the footer grid | component, badge | yes | priority | 1.0 |
+| `footer.main` | Inside the footer grid columns | widget, component | no | priority | 1.0 |
+| `footer.after` | Below the footer grid | component, badge | yes | priority | 1.0 |
+| `notifications` | Toast/alert overlay area | notification, toast | yes | priority | 1.0 |
 
-**Stability guarantee**: These slot IDs will not be renamed or removed without a deprecation cycle across at least one minor Kernel OS version. Modules may rely on them as a stable public API.
+**Slot stability & deprecation policy**: `slots.json` is the single source of
+truth for the governed slot vocabulary (16 slots). Slot IDs are a stable public
+API and will not be renamed or removed without a deprecation cycle:
+(1) keep the ID for at least one minor Kernel OS release, (2) register a
+deprecated alias resolving to the new ID, (3) remove the old ID only after the
+deprecation window closes. Multiplicity and accepts-type changes follow the
+same cycle. Modules must not rely on undocumented slots.
 
 ## Component Variant Semantics
 

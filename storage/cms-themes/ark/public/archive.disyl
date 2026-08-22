@@ -26,13 +26,13 @@
         </div>
         {if categories}
         <div class="ark-form-group">
-            <label for="ark-category-select" class="ark-label">Category</label>
-            <select id="ark-category-select" class="ark-select" onchange="window.location.href=this.value">
-                <option value="{all_items_url|default:'?'}">All</option>
+            <span class="ark-label" id="ark-category-label">Category</span>
+            <div class="ark-filter-list" role="group" aria-labelledby="ark-category-label">
+                <a href="{all_items_url|default:'?'}" class="ark-button">All</a>
                 {for cat in categories}
-                <option value="{cat.url}"{if cat.active} selected{/if}>{cat.label} ({cat.count})</option>
+                <a href="{cat.url}" class="ark-button"{if cat.active} aria-current="page"{/if}>{cat.label} ({cat.count})</a>
                 {/for}
-            </select>
+            </div>
         </div>
         {/if}
     </div>

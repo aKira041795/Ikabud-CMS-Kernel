@@ -44,23 +44,46 @@ modules/cms-akira/
 ## Provider Adapters (Phase B)
 
 Provider capabilities are **true adapters** over the canonical owners — they
-delegate, they do not re-implement:
+delegate via the capability bus, they do not re-implement. Since the CMS
+Akira boundary hardening (slice 1), delegation uses **capability-only calls** —
+no direct foreign-table SQL and no named foreign-helper calls in Akira provider
+code:
 
-| Provider | Delegates to |
+| Provider | Delegates to (capability) |
 |---|---|
-| `akira.theme.resolve@1` | CMS theme authority (`cmsThemeRuntimeDiagnostics`, active theme, customizer scope, assets) |
-| `akira.navigation.resolve@1` | CMS menus/locations (`cmsGetMenus`, `cmsGetMenuItemsTree`, `cmsGetMenuLocations`) |
-| `akira.seo.meta.build@1` | CMS SEO head builder (`cmsResolveSeoTitle`, `cmsDefaultSeoHeadHtml`, `cmsStructuredDataJsonLd`) |
+| `akira.theme.resolve@1` | CMS theme authority (active theme, customizer scope, assets) — currently via `cmsThemeRuntimeDiagnostics`; TARGET: `cms.themes.list@1` + `theme.token.apply@1` after a CMS runtime-diagnostics capability lands |
+| `akira.navigation.resolve@1` | `cms.menus.get@1` + `cms.menus.tree@1` (via `app()->cap()->call(...)`) |
+| `akira.seo.meta.build@1` | `cms.seo.resolve@1` (via capability bus) |
 | `editor.normalize/sanitize@1` | CMS editor contracts (`cmsEditorNormalizeHtml`, `cmsEditorSanitizeHtml` → `tinymce.html.*`) |
 | `editor.assets@1` | CMS TinyMCE resolver (`cmsTinyMceAssets` → `tinymce.assets.get@1`) |
-| `akira.media.resolve@1` | CMS media resolution (`cmsResolveUploadUrl`, `cms_media` read) |
+| `akira.media.resolve@1` | `cms.media.get@1` (ID-based; URL derivation flows through the capability, no `cmsDb()`/`cms_media` SQL/`cmsResolveUploadUrl`) |
 | `akira.workflow.evaluate@1` | Kernel workflow (`workflow.state.get@1` under the CMS module context) |
-| `akira.search.document.build@1` | Search indexer document contract (`searchStrip`, optional `search.index.upsert@1`) |
+| `akira.search.document.build@1` | Search indexer document contract (`searchStrip`, optional `search.index.upsert@1`) — mode `first` |
 
 Each adapter returns `resolved_from` (`cms` / `kernel` / `search`) and keeps a
-minimal derived fallback so the provider boundary degrades gracefully when the
-canonical source is unavailable. Ownership of the underlying data stays with
+minimal derived fallback (`resolved_from: fallback`) so the provider boundary
+degrades gracefully when the canonical source is unavailable. `resolved_from:
+fallback` is a **selection-failure output, never a provider mode** — provider
+modes stay `first` per manifest. Ownership of the underlying data stays with
 the canonical module until the Phase 6+ handoffs.
+
+## Capability Contract & Caller Policy
+
+- CMS exposes four Akira interop capabilities additively: `cms.media.get@1`,
+  `cms.menus.get@1`, `cms.menus.tree@1`, `cms.seo.resolve@1`.
+- `cms.content.get/list/create/update@1` `allow_callers` include the exact id
+  `cms-akira-core` (additive, no wildcard). Provider modules consume via
+  `app()->cap()->call(...)` only.
+
+## Theme Editor Integration
+
+- `cms-akira-theme` declares EXACTLY ONE `admin_contributions` `cms.sidebar`
+  deep-link to `/admin/theme-studio` (permission `theme.customize@1`,
+  guidance included). No per-route duplicates; Theme Studio top-level nav is
+  retained.
+- All `/api/v1/theme-studio/*` POST mutations enforce CSRF in-handler
+  (`app()->csrfEnforce()`); admin-form `/admin/theme-studio/*/save` routes are
+  covered by the global CSRF gate. No forced JWT on session-backed routes.
 
 ## Standalone Modules
 

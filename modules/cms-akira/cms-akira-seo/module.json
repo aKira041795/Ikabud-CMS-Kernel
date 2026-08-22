@@ -37,7 +37,8 @@
             }
         ],
         "depends": [
-            "akira.content.get@1"
+            "akira.content.get@1",
+            "cms.seo.resolve@1"
         ]
     },
     "routes": true,

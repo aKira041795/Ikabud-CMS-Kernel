@@ -57,38 +57,27 @@ function cam_cap_akira_media_resolve_1(mixed $payload, string $capabilityId = 'a
 
     $mediaId = isset($payload['media_id']) ? (int)$payload['media_id'] : null;
     $rawUrl = trim((string)($payload['featured_image_url'] ?? $payload['url'] ?? ''));
-    $featuredPath = trim((string)($payload['featured_image'] ?? ''));
     $alt = trim((string)($payload['featured_image_alt'] ?? $payload['alt'] ?? ''));
     $url = $rawUrl;
     $resolvedFrom = 'fallback';
 
-    // Delegate to the canonical CMS media authority (modules/cms): resolve a
-    // stored media row to its public URL + alt, or resolve a featured_image path.
-    if (function_exists('cmsResolveUploadUrl')) {
+    // Delegate to the canonical CMS media authority (modules/cms) via the
+    // cms.media.get@1 capability contract. Capability delegation is the ONLY
+    // cross-module path — no direct cmsDb(), no cms_media SQL, no named
+    // foreign-helper calls (cmsResolveUploadUrl etc.). When the payload carries
+    // an explicit media_id the record (URL + alt) is resolved by the CMS
+    // provider; otherwise the caller-supplied featured_image_url is passed
+    // through unchanged.
+    if ($mediaId !== null && $mediaId > 0) {
         try {
-            if ($featuredPath !== '') {
-                $url = cmsResolveUploadUrl($featuredPath);
+            $cmsResult = app()->cap()->call('cms.media.get@1', ['id' => $mediaId]);
+            if (is_array($cmsResult) && ($cmsResult['ok'] ?? false) === true && is_array($cmsResult['data'] ?? null)) {
+                $record = $cmsResult['data'];
+                $url = trim((string)($record['url'] ?? ''));
+                if ($alt === '') {
+                    $alt = trim((string)($record['alt'] ?? ''));
+                }
                 $resolvedFrom = 'cms';
-            } elseif ($mediaId !== null && $mediaId > 0) {
-                $row = null;
-                if (function_exists('cmsDb')) {
-                    try {
-                        $stmt = cmsDb()->prepare('SELECT file_path, alt_text FROM cms_media WHERE id = ? LIMIT 1');
-                        $stmt->execute([$mediaId]);
-                        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-                    } catch (Throwable $e) {
-                    }
-                }
-                if (is_array($row)) {
-                    $filePath = trim((string)($row['file_path'] ?? ''));
-                    if ($filePath !== '') {
-                        $url = cmsResolveUploadUrl($filePath);
-                    }
-                    if ($alt === '') {
-                        $alt = trim((string)($row['alt_text'] ?? ''));
-                    }
-                    $resolvedFrom = 'cms';
-                }
             }
         } catch (Throwable $e) {
             // fall through to fallback

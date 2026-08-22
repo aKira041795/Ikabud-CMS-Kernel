@@ -186,54 +186,20 @@
                 {if mod.author}<span>By {mod.author}</span>{/if}
                 <span>{mod.route_count} routes</span>
                 <span>{mod.nav_count} nav items</span>
-                <span>{mod.capability_exposes_count} exposes</span>
-                <span>{mod.capability_depends_count} depends</span>
             </div>
-
-            {if mod.entities_owned_count > 0}
-            <div style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 4px;">
-                <span class="entity-authority-badge" title="This module is the authoritative owner for these entities">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                    Authority
-                </span>
-                {foreach mod.entities_owned as entity}
-                    <span style="font-size: 11px; padding: 2px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 2px; color: var(--text-light); font-family: monospace;">{entity}</span>
-                {/foreach}
-            </div>
-            {/if}
-
-            {if mod.capability_manifest_error}
-            <div class="cap-warning">
-                <strong>Capabilities:</strong> {mod.capability_manifest_error}
-            </div>
-            {/if}
-
-            {if (mod.capability_missing_depends | count) > 0}
-            <div class="cap-warning">
-                <strong>Missing capabilities:</strong>
-                <div style="margin-top:6px;">
-                    {foreach mod.capability_missing_depends as cap}
-                        <div style="font-family: monospace; font-size: 11px;">{cap}</div>
-                    {/foreach}
-                </div>
-            </div>
-            {/if}
 
             <div class="module-actions">
                 {if mod.enabled}
                 <button class="btn-sm btn-disable" onclick="toggleModule('{mod.id}', false)">Disable</button>
                 {else}
-                    {if mod.capability_ready_to_enable}
-                    <button class="btn-sm btn-enable" onclick="toggleModule('{mod.id}', true)">Enable</button>
-                    {else}
-                    <button class="btn-sm btn-enable btn-disabled" disabled>Enable</button>
-                    {/if}
+                <button class="btn-sm btn-enable" onclick="toggleModule('{mod.id}', true)">Enable</button>
+                {/if}
+                {if mod.tenant_admin_url}
+                <a class="btn-sm btn-outline" href="{mod.tenant_admin_url}" style="margin-left:auto;">Tenant settings</a>
                 {/if}
             </div>
 
-            {if mod.settings_context_notice}
-            <div style="margin-top:10px;font-size:12px;color:var(--text-muted);">{mod.settings_context_notice}</div>
-            {/if}
+            <div style="margin-top:10px;font-size:12px;color:var(--text-muted);">Module settings are configured by the admin on the tenant domain.</div>
 
             {if mod.show_allow_kernel_admin}
             <div class="optin-row">

@@ -10,6 +10,24 @@
     "depends": [
         "cms-akira-core"
     ],
+    "admin_contributions": [
+        {
+            "id": "cms-akira-theme.sidebar",
+            "host": "cms",
+            "location": "cms.sidebar",
+            "group": "Themes",
+            "label": "Theme Studio",
+            "icon": "paint-brush",
+            "route": "/admin/theme-studio",
+            "permission": "theme.customize@1",
+            "roles": [
+                "admin"
+            ],
+            "order": 60,
+            "active_key": "theme-studio",
+            "guidance": "Open the ARK Theme Studio — token editor, presets, theme elements, display contracts, and block definitions."
+        }
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

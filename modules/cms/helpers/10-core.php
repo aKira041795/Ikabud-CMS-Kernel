@@ -165,6 +165,25 @@ function cmsCapabilityCallerUser(): ?array
 }
 
 /**
+ * Permission gate for capability-level media reads (cms.media.get@1).
+ * Kernel admins and CMS editors+ may read media records; any authenticated
+ * CMS user may read public media metadata.
+ */
+function cmsCapCanReadMedia(array $user): bool
+{
+    $source = (string)($user['source'] ?? '');
+    $role   = (string)($user['role'] ?? '');
+
+    if ($source === 'kernel' && $role === 'admin') {
+        return true;
+    }
+    if ($source !== 'cms') {
+        return false;
+    }
+    return cmsRoleAtLeast($role, 'subscriber');
+}
+
+/**
  * Returns the author scope for content queries.
  * Non-editor CMS users are restricted to their own authored content.
  */

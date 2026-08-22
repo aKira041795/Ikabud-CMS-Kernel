@@ -9,7 +9,7 @@
     {# ARK Reference Theme — demonstrates every Kernel OS concept
        Manifest: theme.manifest.json, Tokens: tokens.json
        Shell: layouts/public.disyl, Style: style.css
-       Slots: 17 governed {ikb_slot} markers
+       Slots: 16 governed {ikb_slot} markers
        Entity views: public/entity.view.disyl, public/entity.list.disyl
        Blocks: public/blocks/ (pricing, inventory, action, progress, list-card)
        Partials: public/partials/ (header, footer, navigation, breadcrumbs, pagination)

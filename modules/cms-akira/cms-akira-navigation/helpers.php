@@ -63,23 +63,32 @@ function can_cap_akira_navigation_resolve_1(mixed $payload, string $capabilityId
         $trail[] = ['label' => ucfirst(str_replace('-', ' ', $slug)), 'url' => '/content/' . $slug];
     }
 
-    // Delegate to the canonical CMS navigation/menu authority (modules/cms):
-    // real menus, menu locations, and the menu item trees.
-    if (function_exists('cmsGetMenus') && function_exists('cmsGetMenuLocations')) {
-        try {
-            $menus = cmsGetMenus();
-            $locations = cmsGetMenuLocations();
+    // Delegate to the canonical CMS navigation/menu authority (modules/cms) via
+    // the cms.menus.get@1 and cms.menus.tree@1 capability contracts. Capability
+    // delegation is the ONLY cross-module path — no named foreign-helper calls
+    // (cmsGetMenus, cmsGetMenuLocations, cmsGetMenuItemsTree).
+    try {
+        $menusResult = app()->cap()->call('cms.menus.get@1', []);
+        if (is_array($menusResult) && ($menusResult['ok'] ?? false) === true) {
+            $menus = is_array($menusResult['data'] ?? null) ? $menusResult['data'] : [];
             $menuTree = [];
-            if (function_exists('cmsGetMenuItemsTree') && is_array($menus)) {
-                foreach ($menus as $menu) {
-                    $menuId = (int)($menu['id'] ?? 0);
-                    $menuTree[] = [
-                        'id' => $menuId,
-                        'name' => (string)($menu['name'] ?? ''),
-                        'location' => (string)($menu['location'] ?? ''),
-                        'item_count' => (int)($menu['item_count'] ?? 0),
-                        'items' => $menuId > 0 ? cmsGetMenuItemsTree($menuId) : [],
-                    ];
+            $menuLocations = [];
+            foreach ($menus as $menu) {
+                $menuId = (int)($menu['id'] ?? 0);
+                $treeResult = app()->cap()->call('cms.menus.tree@1', ['id' => $menuId]);
+                $treeItems = (is_array($treeResult) && ($treeResult['ok'] ?? false) === true && is_array($treeResult['data'] ?? null))
+                    ? $treeResult['data']
+                    : [];
+                $menuTree[] = [
+                    'id' => $menuId,
+                    'name' => (string)($menu['name'] ?? ''),
+                    'location' => (string)($menu['location'] ?? ''),
+                    'item_count' => (int)($menu['item_count'] ?? 0),
+                    'items' => $treeItems,
+                ];
+                $loc = (string)($menu['location'] ?? '');
+                if ($loc !== '') {
+                    $menuLocations[] = ['slug' => $loc, 'menu_id' => $menuId];
                 }
             }
 
@@ -88,15 +97,15 @@ function can_cap_akira_navigation_resolve_1(mixed $payload, string $capabilityId
                 'data' => [
                     'breadcrumb' => $trail,
                     'menus' => $menus,
-                    'menu_locations' => $locations,
+                    'menu_locations' => $menuLocations,
                     'menu_tree' => $menuTree,
                     'provider' => 'cms-akira-navigation',
                     'resolved_from' => 'cms',
                 ],
             ];
-        } catch (Throwable $e) {
-            // fall through to fallback
         }
+    } catch (Throwable $e) {
+        // fall through to fallback
     }
 
     return [

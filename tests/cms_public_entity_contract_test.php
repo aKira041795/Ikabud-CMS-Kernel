@@ -73,6 +73,20 @@ $tagId = 0;
 $nativeEntityPresentationExisted = cmsCustomizerSectionExists($db, 'entity_presentation', 'native');
 $nativeEntityPresentationSettings = cmsCustomizerGet($db, 'entity_presentation', 'native')['settings'] ?? cmsEntityPresentationSectionDefaults('native');
 
+// This test exercises the CANONICAL CMS public contract under the default
+// native customizer scope. Pin the active theme to native-default so the
+// render resolves the same scope the test upserts into (a polluted tenant
+// setting like entity-commerce-poc would otherwise force the ecommerce scope
+// and hide the entity_taxonomies.tags block).
+$pinnedCmsSettings = function_exists('getModuleSettings') ? getModuleSettings('cms') : [];
+$pinnedPrevActiveTheme = (string)($pinnedCmsSettings['active_theme'] ?? '');
+if (function_exists('saveModuleSettings')) {
+    saveModuleSettings('cms', array_merge($pinnedCmsSettings, ['active_theme' => 'native-default']));
+}
+if (function_exists('cmsResetThemeRuntimeCache')) {
+    cmsResetThemeRuntimeCache();
+}
+
 $singleHtml = '';
 $pageHtml = '';
 $builderHtml = '';
@@ -396,6 +410,14 @@ try {
         }
     }
 } finally {
+    // Restore the pinned active theme (if changed) and its runtime cache.
+    if (function_exists('saveModuleSettings')) {
+        saveModuleSettings('cms', array_merge($pinnedCmsSettings, ['active_theme' => $pinnedPrevActiveTheme]));
+    }
+    if (function_exists('cmsResetThemeRuntimeCache')) {
+        cmsResetThemeRuntimeCache();
+    }
+
     if ($nativeEntityPresentationExisted) {
         cmsUpsertCustomizerSection(
             $db,

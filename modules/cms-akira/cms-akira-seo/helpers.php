@@ -70,44 +70,36 @@ function cas_cap_akira_seo_meta_build_1(mixed $payload, string $capabilityId = '
         'featured_image' => (string)($payload['featured_image'] ?? ''),
     ];
 
-    // Delegate to the canonical CMS SEO authority (modules/cms): settings-aware
-    // title/description resolution, full head HTML, and JSON-LD structured data.
-    if (function_exists('cmsResolveSeoTitle') && function_exists('cmsDefaultSeoHeadHtml')) {
-        try {
-            $seoTitle = cmsResolveSeoTitle($content);
-            $headHtml = cmsDefaultSeoHeadHtml($content);
-            $structured = function_exists('cmsStructuredDataJsonLd') ? cmsStructuredDataJsonLd($content) : '';
-            $settings = function_exists('readCmsSettings') ? readCmsSettings() : [];
-            $siteDesc = trim((string)($settings['seo_meta_description'] ?? ''));
+    // Delegate to the canonical CMS SEO authority (modules/cms) via the
+    // cms.seo.resolve@1 capability contract. Capability delegation is the ONLY
+    // cross-module path — no named foreign-helper calls (cmsResolveSeoTitle,
+    // cmsDefaultSeoHeadHtml, cmsStructuredDataJsonLd, readCmsSettings, cmsSeoStrip).
+    try {
+        $cmsResult = app()->cap()->call('cms.seo.resolve@1', ['content' => $content]);
+        if (is_array($cmsResult) && ($cmsResult['ok'] ?? false) === true && is_array($cmsResult['data'] ?? null)) {
+            $resolved = $cmsResult['data'];
+            $seoTitle = (string)($resolved['title'] ?? '');
+            $headHtml = (string)($resolved['head_html'] ?? '');
+            $structured = (string)($resolved['json_ld'] ?? '');
 
             $metaDesc = trim((string)($content['meta']['seo_description'] ?? ''));
             if ($metaDesc === '') {
                 $metaDesc = trim((string)$content['excerpt']);
             }
             if ($metaDesc === '') {
-                $metaDesc = function_exists('cmsSeoStrip') ? cmsSeoStrip($content['body']) : trim(strip_tags($content['body']));
-            }
-            if ($metaDesc === '') {
-                $metaDesc = $siteDesc;
+                $metaDesc = trim(strip_tags($content['body']));
             }
             $metaDesc = mb_substr($metaDesc, 0, 160);
 
             $canonical = trim((string)($payload['canonical_path'] ?? ''));
             $slug = trim((string)$content['slug']);
             if ($canonical === '' && $slug !== '') {
-                $appUrl = function_exists('external_base_url')
-                    ? rtrim((string)external_base_url((string)app()->config('app.url', '')), '/')
-                    : '';
-                $path = '';
                 if ($content['type'] === 'post') {
-                    $path = '/cms/blog/' . $slug;
+                    $canonical = '/cms/blog/' . $slug;
                 } elseif ($content['type'] === 'page') {
-                    $path = '/cms/page/' . $slug;
+                    $canonical = '/cms/page/' . $slug;
                 } elseif ($content['type'] === 'product') {
-                    $path = '/ecommerce/shop/' . $slug;
-                }
-                if ($appUrl !== '' && $path !== '') {
-                    $canonical = $appUrl . $path;
+                    $canonical = '/ecommerce/shop/' . $slug;
                 } else {
                     $canonical = '/content/' . $slug;
                 }
@@ -125,9 +117,9 @@ function cas_cap_akira_seo_meta_build_1(mixed $payload, string $capabilityId = '
                     'resolved_from' => 'cms',
                 ],
             ];
-        } catch (Throwable $e) {
-            // fall through to fallback
         }
+    } catch (Throwable $e) {
+        // fall through to fallback
     }
 
     $excerpt = trim((string)($payload['excerpt'] ?? ''));

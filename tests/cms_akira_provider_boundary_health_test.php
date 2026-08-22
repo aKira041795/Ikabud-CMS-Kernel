@@ -10,6 +10,12 @@ require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms-akira/cms-akira-core/helpers.php';
 require_once __DIR__ . '/../modules/cms-akira/cms-akira-core/handlers.php';
 
+// Outer buffering: the provider health handler calls header()/http_response_code().
+// If any PASS/FAIL output has already been flushed, those header calls emit
+// "Cannot modify header information" warnings into error.log. Buffering the whole
+// test keeps the handler's header() calls valid and the log clean.
+ob_start();
+
 $pass = 0;
 $fail = 0;
 $errors = [];

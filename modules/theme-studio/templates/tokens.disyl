@@ -83,7 +83,7 @@
             saveTokens() {
                 fetch('/api/v1/theme-studio/tokens/save', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF},
                     body: JSON.stringify({
                         tokens: this.tokens,
                         theme_slug: '{active_theme}'
@@ -97,7 +97,7 @@
                 if (!confirm('Reset all token overrides to theme defaults?')) return;
                 fetch('/api/v1/theme-studio/tokens/reset', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF},
                     body: JSON.stringify({ theme_slug: '{active_theme}' })
                 }).then(r => r.json()).then(d => {
                     if (d.ok) { this.tokens = {}; alert('Tokens reset!'); }

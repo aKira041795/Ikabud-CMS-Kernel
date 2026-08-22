@@ -100,7 +100,8 @@
         "database/migrations/022_cms_entity_progress.sql",
         "database/migrations/023_rename_capability_ids.sql",
         "database/migrations/024_cms_auth_verifications.sql",
-        "database/migrations/025_cms_user_services.sql"
+        "database/migrations/025_cms_user_services.sql",
+        "database/migrations/027_cms_theme_registry.sql"
     ],
     "seeds": [
         "database/seeds/001_cms_baseline_content_types.sql"
@@ -197,6 +198,38 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "cms.media.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Resolve CMS media records by id (scalar) or id list (batch); returns URL + alt + dimensions. Additive Akira interop contract."
+            },
+            {
+                "id": "cms.menus.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List or fetch CMS menus (all, by id, or by location). Additive Akira interop contract."
+            },
+            {
+                "id": "cms.menus.tree@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Build a nested menu item tree for a CMS menu (by menu id or location). Additive Akira interop contract."
+            },
+            {
+                "id": "cms.seo.resolve@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Resolve CMS SEO title + default head HTML + structured data for content. Additive Akira interop contract."
             },
             {
                 "id": "entity.capability.pricing.data@1",
@@ -302,7 +335,8 @@
                         "media",
                         "search",
                         "users",
-                        "workflow"
+                        "workflow",
+                        "cms-akira-core"
                     ]
                 },
                 "cms.content.update@1": {
@@ -311,21 +345,24 @@
                         "media",
                         "search",
                         "users",
-                        "workflow"
+                        "workflow",
+                        "cms-akira-core"
                     ]
                 },
                 "cms.content.get@1": {
                     "allow_callers": [
                         "media",
                         "search",
-                        "workflow"
+                        "workflow",
+                        "cms-akira-core"
                     ]
                 },
                 "cms.content.list@1": {
                     "allow_callers": [
                         "media",
                         "search",
-                        "workflow"
+                        "workflow",
+                        "cms-akira-core"
                     ]
                 },
                 "cms.settings.get@1": {

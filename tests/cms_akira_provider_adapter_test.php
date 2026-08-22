@@ -130,10 +130,30 @@ t('editor assets delegate to CMS resolver', ($ead['resolved_from'] ?? '') === 'c
 t('editor assets expose js_urls array', is_array($ead['js_urls'] ?? null));
 
 echo "\n=== MEDIA ADAPTER ===\n";
-$me = app()->cap()->call('akira.media.resolve@1', ['featured_image' => 'uploads/probe.png', 'alt' => 'Probe']);
-$med = $me['data'] ?? [];
-t('media adapter delegates to CMS', ($med['resolved_from'] ?? '') === 'cms', json_encode($med));
-t('media adapter resolves public URL', is_string($med['url'] ?? null) && str_contains($med['url'], 'uploads/probe.png'));
+// New contract: akira.media.resolve@1 delegates ONLY via cms.media.get@1
+// (ID-based capability). A payload with a real media_id resolves via the CMS
+// capability → resolved_from 'cms'. A raw-path-only payload (no id) cannot be
+// resolved by the ID-based capability → fallback (URL passed through).
+$existingMediaId = 0;
+try {
+    $existingMediaId = (int) (app()->db()->query("SELECT id FROM cms_media WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 0);
+} catch (Throwable $e) {
+    $existingMediaId = 0;
+}
+
+if ($existingMediaId > 0) {
+    $me = app()->cap()->call('akira.media.resolve@1', ['media_id' => $existingMediaId, 'alt' => 'Probe']);
+    $med = $me['data'] ?? [];
+    t('media adapter delegates to CMS via cms.media.get@1', ($med['resolved_from'] ?? '') === 'cms', json_encode($med));
+    t('media adapter resolves public URL', is_string($med['url'] ?? null) && $med['url'] !== '');
+} else {
+    // No media rows seeded: verify capability delegation is attempted and the
+    // ID-less payload correctly falls back (never calls banned direct helpers).
+    $me = app()->cap()->call('akira.media.resolve@1', ['media_id' => 0, 'featured_image' => 'uploads/probe.png', 'alt' => 'Probe']);
+    $med = $me['data'] ?? [];
+    t('media adapter fallback for id-less payload (no direct helpers)', ($med['resolved_from'] ?? '') === 'fallback', json_encode($med));
+    t('media adapter passes through url string', is_string($med['url'] ?? null), json_encode($med));
+}
 
 echo "\n=== WORKFLOW ADAPTER ===\n";
 // No entity id -> no kernel workflow instance -> adapter falls back.
