@@ -22,6 +22,50 @@ provides the files, commands, execution, and agent-runtime tooling for the
 **Usage**: `pi --print "..."` for non-interactive execution, or `pi` for the
 interactive TUI. Configure providers/credentials with `pi auth` and `pi config`.
 
+**Model assignment** (defaults in `~/.pi/agent/settings.json`; provider
+`deepseek`, default model `deepseek-v4-flash`):
+- `deepseek-v4-pro` and Codex `gpt-5.6-sol` — reasoning, architecture,
+  `/release-gate`. Invoke explicitly: `pi --model deepseek-v4-pro ...` or
+  `pi --model openai-codex/gpt-5.6-sol ...`.
+- `deepseek-v4-flash` — `/implement` and `/review` (also the default).
+  `pi --model deepseek-v4-flash ...` or omit `--model`.
+- Codex is the ChatGPT Pro subscription provider (`openai-codex`, OAuth via
+  `/login`); subscription models include `gpt-5.6-sol`, `gpt-5.6-terra`,
+  `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark`.
+- Cycle between models in the TUI with Ctrl+P (`enabledModels`).
+- Ox Alpha (`stealth/ox-alpha` via OpenRouter) is registered in
+  `~/.pi/agent/models.json` but the free route is unreliable for agentic
+  multi-turn work — experimental only; prefer DeepSeek/Codex.
+
+**Architecture peer review workflow** (part of the harness — see
+`tools/pi-arch-review.sh`):
+- Runs **DeepSeek Pro** + **Codex Sol** (`openai-codex/gpt-5.6-sol`) as
+  independent peer reviewers/architects on a task contract, so a "firm task
+  generation" is cross-checked by two strong models before implementation.
+- Usage: `bash tools/pi-arch-review.sh [task-file] [outdir]`
+  (default task `.ai/current-task.md`, default outdir `test_results`).
+- Wired into the harness CLI: `tools/ai-task "<task>"` now prints the
+  peer-review step between `/architect` and `/implement`.
+- Outputs: `<outdir>/arch-dspro.txt` and `<outdir>/arch-codexsol.txt`
+  (plus raw `.jsonl` traces). Merge both reviews into the task contract
+  before handing off to `/implement`.
+- **Debate mode** (`python3 tools/pi-arch-debate.py "<intent>"`): DeepSeek Pro
+  drafts the architecture from your intent, Codex Sol critiques it, and the
+  loop converges on **APPROVED**, then writes the agreed contract to
+  `.ai/current-task.md`. Cap rounds with `DEBATE_MAX_ROUNDS` (default 3);
+  artifacts land in `.ai/debate/`. This is the two-model "discuss -> agree ->
+  create current-task" workflow.
+  - `--preflight "<short intent>"` — firm up a fuzzy/short intent first via a
+    cheap DeepSeek Flash brief (also auto-triggered for intents < 120 chars).
+  - `--fast "<intent>"` — single-round triage.
+  - `--approve` — chair-approve the last saved draft (no API calls, no
+    re-debate) and write it as the task.
+  - `--first codex|deepseek` — chair picks which model drafts first. Default is
+    **auto**: intent-based (Codex opens for security/correctness/gap-hunting;
+    DeepSeek opens for broad build/exploration), with the reason printed.
+  - `DEBATE_AUTO_APPROVE=1` — auto-approve the last draft (scripted use); a
+    convergence check stops early when the draft stops changing.
+
 ## Agent Roster
 
 | Agent | Model | Context | Tools | Token strategy |

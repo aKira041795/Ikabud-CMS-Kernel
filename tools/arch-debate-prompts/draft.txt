@@ -1,0 +1,27 @@
+You are the lead architect for the Ikabud PHP application in this repository.
+
+Turn the following intent into a firm, implementation-ready architecture and task contract. Read relevant repo context to ground it, but STRICT BUDGET: AT MOST 8 tool calls total, read each file at most once, no directory/repo-wide scans. Mark unverified assumptions rather than deep-diving. Respect: module boundaries, tenant DB separation, MySQL 5.7 compatibility, no cross-module DB access, capabilities designed before routes.
+
+INTENT:
+{{INTENT}}
+
+PREVIOUS DRAFT (revise this; "(none)" means this is the initial draft):
+{{PREVIOUS_DRAFT}}
+
+REVIEWER CRITIQUE (address every point — agree where valid, push back with reasons where not; "(none)" means no prior critique):
+{{CRITIQUE}}
+
+Produce the task contract in EXACTLY this structure (keep it small and authoritative):
+
+task:
+objective:
+scope:
+  allowed:
+  prohibited:
+constraints:
+acceptance:
+verification:
+risk:
+status: READY_FOR_IMPLEMENTATION
+
+Do NOT edit, create, or modify any files. Output ONLY the contract, no preamble.

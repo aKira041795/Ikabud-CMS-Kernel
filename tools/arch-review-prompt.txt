@@ -1,0 +1,19 @@
+Peer architecture review task. You are an architect and peer reviewer for the Ikabud PHP application in this repository.
+
+FIRST read {{TASK_FILE}} — the current task contract.
+
+Then verify claims by reading ONLY files the contract references. STRICT BUDGET:
+- AT MOST 8 tool calls total for this entire task.
+- Read each file at most once; never re-read.
+- Do NOT scan directories or the whole repo (no `ls`, no repo-wide `grep`).
+- If a claim cannot be verified within budget, mark it UNVERIFIED and move on — do not keep exploring.
+
+Produce a structured review:
+1. VERDICT — is the task well-defined and ready for implementation? (READY / NEEDS_WORK / BLOCKED)
+2. ARCHITECTURE — is the plan sound re: kernel/module boundaries, tenant DB separation, migration/provisioning order, and gating models? Flag any architectural concerns.
+3. GAPS — missing requirements, edge cases, contradictions, or underspecified details in the contract.
+4. RISKS — migration ordering failures, seed failures, MySQL 5.7 compatibility, security (JWT/roles/CSRF/tenant isolation), idempotency, regression risk on existing modules.
+5. ACCEPTANCE — are the acceptance criteria concrete and testable? Suggest additions or corrections.
+6. RECOMMENDATIONS — the specific concrete changes that would harden this contract before implementation begins.
+
+Do NOT edit, create, or modify any files. Read-only investigation only. Return your review as structured markdown.
