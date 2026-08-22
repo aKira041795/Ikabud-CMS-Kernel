@@ -144,6 +144,18 @@
                         "kernel"
                     ]
                 }
+            },
+            {
+                "id": "wms.return.create@1",
+                "priority": 50,
+                "mode": "first",
+                "policy": {
+                    "allow_callers": [
+                        "wms",
+                        "ecommerce",
+                        "kernel"
+                    ]
+                }
             }
         ],
         "depends": [

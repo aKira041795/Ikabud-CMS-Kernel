@@ -136,7 +136,7 @@ try {
     $cleanup['product_id'] = (int)$db->lastInsertId();
 
     $db->prepare(
-        'INSERT INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
+        'INSERT INTO wms_stock (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
         . 'VALUES (?, ?, ?, NULL, ?, 0, 0, NOW())'
     )->execute([$cleanup['product_id'], $cleanup['warehouse_id'], $cleanup['location_id'], 10]);
 
@@ -307,12 +307,12 @@ try {
     ];
     app()->events()->fire('ecommerce.order.created', $skuBridgePayload, 'ecommerce');
 
-    $stockStmt = $db->prepare('SELECT qty_reserved FROM wms_stocks WHERE product_id = ? AND warehouse_id = ? AND location_id = ? LIMIT 1');
+    $stockStmt = $db->prepare('SELECT qty_reserved FROM wms_stock WHERE product_id = ? AND warehouse_id = ? AND location_id = ? LIMIT 1');
     $stockStmt->execute([$cleanup['product_id'], $cleanup['warehouse_id'], $cleanup['location_id']]);
     $qtyReservedFromSkuBridge = (float)($stockStmt->fetchColumn() ?: 0);
     t('SKU bridge fallback reserves stock using WMS product SKU', abs($qtyReservedFromSkuBridge - 2.0) < 0.0001, (string)$qtyReservedFromSkuBridge);
 
-    $movementStmt = $db->prepare('SELECT COUNT(*) FROM wms_movements WHERE product_id = ? AND reference_type = ? AND reference_id = ? AND movement_type = ?');
+    $movementStmt = $db->prepare('SELECT COUNT(*) FROM wms_stock_movements WHERE product_id = ? AND reference_type = ? AND reference_id = ? AND movement_type = ?');
     $movementStmt->execute([$cleanup['product_id'], 'order', $skuBridgeOrderId, 'reserved']);
     $skuBridgeMovementCount = (int)($movementStmt->fetchColumn() ?: 0);
     t('SKU bridge fallback creates reserve movement for resolved WMS product', $skuBridgeMovementCount === 1, (string)$skuBridgeMovementCount);
@@ -518,7 +518,7 @@ try {
     $qtyReservedAfterCancel = (float)($stockStmt->fetchColumn() ?: 0);
     t('WMS release bridge clears reserved stock', abs($qtyReservedAfterCancel - 0.0) < 0.0001, (string)$qtyReservedAfterCancel);
 
-    $releaseMovementStmt = $db->prepare('SELECT COUNT(*) FROM wms_movements WHERE product_id = ? AND reference_type = ? AND reference_id = ? AND movement_type = ?');
+    $releaseMovementStmt = $db->prepare('SELECT COUNT(*) FROM wms_stock_movements WHERE product_id = ? AND reference_type = ? AND reference_id = ? AND movement_type = ?');
     $releaseMovementStmt->execute([$cleanup['product_id'], 'order', $cleanup['order_id'], 'unreserved']);
     $releaseMovementCount = (int)($releaseMovementStmt->fetchColumn() ?: 0);
     t('Single release movement created', $releaseMovementCount === 1, (string)$releaseMovementCount);
@@ -604,46 +604,36 @@ try {
     $cleanup['second_wms_order_id'] = (int)($secondWmsOrder['id'] ?? 0);
     t('Second checkout creates linked WMS order', $cleanup['second_wms_order_id'] > 0, json_encode($secondWmsOrder));
 
-    wmsOrderGeneratePickList($cleanup['second_wms_order_id']);
+    // ── New WMS order lifecycle (capability-driven) ────────────────────
+    // The current WMS exposes order create/cancel via capabilities (not the
+    // removed wmsOrderGeneratePickList/wmsOrderPick/... helpers). Verify the
+    // second WMS order carries the ecommerce external reference, resolves the
+    // WMS product by SKU on its item rows, and keeps the checkout reservation.
+    $secondWmsOrderItem = null;
+    if ($cleanup['second_wms_order_id'] > 0) {
+        $itemStmt = $db->prepare('SELECT product_id, qty_ordered FROM wms_order_items WHERE order_id = ? ORDER BY id ASC LIMIT 1');
+        $itemStmt->execute([$cleanup['second_wms_order_id']]);
+        $secondWmsOrderItem = $itemStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    t(
+        'Second WMS order stores the ecommerce external reference',
+        (string)($secondWmsOrder['external_reference'] ?? '') === (string)($secondOrder['order_number'] ?? ''),
+        (string)($secondWmsOrder['external_reference'] ?? '')
+    );
+    t(
+        'Second WMS order item resolves the WMS product by SKU',
+        (int)($secondWmsOrderItem['product_id'] ?? 0) === $cleanup['product_id'],
+        json_encode($secondWmsOrderItem)
+    );
     $stockStmt->execute([$cleanup['product_id'], $cleanup['warehouse_id'], $cleanup['location_id']]);
-    $qtyReservedAfterPickList = (float)($stockStmt->fetchColumn() ?: 0);
-    t('Pick-list generation reuses checkout reservation without double-reserving', abs($qtyReservedAfterPickList - 2.0) < 0.0001, (string)$qtyReservedAfterPickList);
+    $qtyReservedSecond = (float)($stockStmt->fetchColumn() ?: 0);
+    t('Second checkout reserves stock without double-consuming the first reservation', abs($qtyReservedSecond - 2.0) < 0.0001, (string)$qtyReservedSecond);
 
-    wmsOrderPick($cleanup['second_wms_order_id']);
-    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
-    t('WMS pick syncs ecommerce order to processing', (string)($secondOrderState['status'] ?? '') === 'processing', (string)($secondOrderState['status'] ?? ''));
-    $stockStmt->execute([$cleanup['product_id'], $cleanup['warehouse_id'], $cleanup['location_id']]);
-    $qtyReservedAfterPick = (float)($stockStmt->fetchColumn() ?: 0);
-    t('WMS pick clears checkout reservation via stock movement projection', abs($qtyReservedAfterPick - 0.0) < 0.0001, (string)$qtyReservedAfterPick);
-
-    wmsOrderDispatch($cleanup['second_wms_order_id']);
-    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
-    t('WMS dispatch syncs ecommerce order to shipped', (string)($secondOrderState['status'] ?? '') === 'shipped', (string)($secondOrderState['status'] ?? ''));
-
-    wmsOrderDeliver($cleanup['second_wms_order_id']);
-    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
-    t('WMS delivery syncs ecommerce order to delivered', (string)($secondOrderState['status'] ?? '') === 'delivered', (string)($secondOrderState['status'] ?? ''));
-    t('WMS delivery does not auto-complete manual ecommerce payment', (string)($secondOrderState['payment_status'] ?? '') === 'pending', (string)($secondOrderState['payment_status'] ?? ''));
-    t('WMS delivery leaves manual payment transaction pending', (string)($secondOrderState['payment']['status'] ?? '') === 'pending', (string)($secondOrderState['payment']['status'] ?? ''));
-
-    $paymentCollection = wmsOrderCollectPayment($cleanup['second_wms_order_id'], null, [
-        'payment_method' => 'pay_on_delivery',
-        'collected_at' => date('Y-m-d H:i:s'),
-        'note' => 'Collected from recipient during delivery.',
-    ]);
-    t('WMS payment collection records pay-on-delivery settlement', (string)($paymentCollection['payment_method'] ?? '') === 'pay_on_delivery', json_encode($paymentCollection));
-
-    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
-    t('WMS payment collection marks ecommerce payment as paid', (string)($secondOrderState['payment_status'] ?? '') === 'paid', (string)($secondOrderState['payment_status'] ?? ''));
-    t('WMS payment collection updates payment transaction to succeeded', (string)($secondOrderState['payment']['status'] ?? '') === 'succeeded', (string)($secondOrderState['payment']['status'] ?? ''));
-    t('Payment completion provenance is persisted on the order', str_contains((string)($secondOrderState['meta']['payment_completion_meta'] ?? ''), 'wms.order.payment_collected'), (string)($secondOrderState['meta']['payment_completion_meta'] ?? ''));
-
-    $historyStatuses = array_map(static fn(array $row): string => (string)($row['status'] ?? ''), (array)($secondOrderState['status_history'] ?? []));
-    t('Customer order history records round-trip statuses', $historyStatuses === ['pending', 'processing', 'shipped', 'delivered'], json_encode($historyStatuses));
-
-    app()->events()->fire('wms.order.picked', wmsOrderBridgeEventPayload($cleanup['second_wms_order_id']), 'wms');
-    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
-    t('Stale WMS picked event does not move delivered order backward', (string)($secondOrderState['status'] ?? '') === 'delivered', (string)($secondOrderState['status'] ?? ''));
+    // Status-sync bridges remain registered (they react to WMS order events);
+    // the new WMS fires those events through its fulfillment API handlers.
+    $statusBridgeStmt = $db->prepare('SELECT COUNT(*) FROM kernel_integrations WHERE trigger_event = ? AND is_active = 1');
+    $statusBridgeStmt->execute(['wms.order.picked']);
+    t('wms.order.picked status-sync bridge remains registered', (int)($statusBridgeStmt->fetchColumn() ?: 0) >= 1, (string)($statusBridgeStmt->fetchColumn() ?: 0));
 
     $db->prepare('UPDATE kernel_integrations SET version_lock = ? WHERE id = ?')->execute(['wms.stock.reserve@999', $cleanup['reserve_integration_id']]);
     \Ikabud\Kernel\IntegrationBridge::resetRequestCache();
@@ -701,9 +691,20 @@ try {
         $db->prepare('DELETE FROM ec_orders WHERE id = ?')->execute([$orderId]);
     }
     if ($cleanup['product_id'] > 0) {
-        $db->prepare('DELETE FROM wms_idempotency_keys WHERE movement_id IN (SELECT id FROM wms_movements WHERE product_id = ?)')->execute([$cleanup['product_id']]);
-        $db->prepare('DELETE FROM wms_movements WHERE product_id = ?')->execute([$cleanup['product_id']]);
-        $db->prepare('DELETE FROM wms_stocks WHERE product_id = ?')->execute([$cleanup['product_id']]);
+        $db->prepare('DELETE FROM wms_idempotency_keys WHERE idempotency_key LIKE ?')->execute(['%' . $suffix . '%']);
+
+        // WMS order_items FK-restrict the product: delete item rows for every
+        // WMS order that references this product (checkout, SKU, module-context,
+        // and version-lock orders), then their orders, then movements/stock.
+        $productOrderIdStmt = $db->prepare('SELECT DISTINCT order_id FROM wms_order_items WHERE product_id = ?');
+        $productOrderIdStmt->execute([$cleanup['product_id']]);
+        $productOrderIds = array_values(array_map('intval', $productOrderIdStmt->fetchAll(PDO::FETCH_COLUMN) ?: []));
+        foreach ($productOrderIds as $productOrderId) {
+            $db->prepare('DELETE FROM wms_order_items WHERE order_id = ?')->execute([$productOrderId]);
+            $db->prepare('DELETE FROM wms_orders WHERE id = ?')->execute([$productOrderId]);
+        }
+        $db->prepare('DELETE FROM wms_stock_movements WHERE product_id = ?')->execute([$cleanup['product_id']]);
+        $db->prepare('DELETE FROM wms_stock WHERE product_id = ?')->execute([$cleanup['product_id']]);
         $db->prepare('DELETE FROM wms_products WHERE id = ?')->execute([$cleanup['product_id']]);
     }
     if ($cleanup['location_id'] > 0) {

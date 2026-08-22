@@ -387,13 +387,13 @@ function ecWmsInventorySnapshotMapForSkus(array $skus): array
 
     if ($missingSkus !== []) {
         try {
-            if (!function_exists('wms_cap_wms_stock_query_1')) {
+            if (!function_exists('wms_cap_stock_query_1')) {
                 foreach ($missingSkus as $missingSku) {
                     $cache[$warehouseKey][$missingSku] = [];
                 }
             } else {
                 $result = moduleWithContext('wms', static function () use ($missingSkus, $warehouseId): array {
-                    return wms_cap_wms_stock_query_1([
+                    return wms_cap_stock_query_1([
                         'warehouse_id' => $warehouseId,
                         'filters' => ['skus' => $missingSkus],
                     ]);

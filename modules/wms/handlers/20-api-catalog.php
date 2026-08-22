@@ -300,3 +300,33 @@ function wmsApiBatchGet(array $params): void
     if (!$row) wmsJsonError('Batch not found.', 404);
     wmsJsonOk(['batch' => $row]);
 }
+
+function wmsApiBatchUpdate(array $params): void
+{
+    $user = wmsCurrentUser(['admin', 'supervisor']);
+    $id = (int)($params['id'] ?? 0);
+    $input = wmsInput();
+
+    $existing = wmsDb()->query('SELECT id FROM wms_batches WHERE id = :id LIMIT 1', [':id' => $id])->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) wmsJsonError('Batch not found.', 404);
+
+    $productId = (int)($input['product_id'] ?? 0);
+    $batchNumber = trim((string)($input['batch_number'] ?? ''));
+    if ($productId <= 0 || $batchNumber === '') wmsJsonError('product_id and batch_number are required.');
+
+    wmsDb()->execute(
+        'UPDATE wms_batches
+         SET product_id = :pid, batch_number = :bn, lot_number = :lot,
+             manufactured_at = :mfg, expires_at = :exp, updated_at = NOW()
+         WHERE id = :id',
+        [
+            ':pid' => $productId,
+            ':bn' => $batchNumber,
+            ':lot' => isset($input['lot_number']) ? $input['lot_number'] : null,
+            ':mfg' => isset($input['manufactured_at']) ? $input['manufactured_at'] : null,
+            ':exp' => isset($input['expires_at']) ? $input['expires_at'] : null,
+            ':id' => $id,
+        ]
+    );
+    wmsJsonOk(['batch_id' => $id]);
+}

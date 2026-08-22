@@ -137,12 +137,12 @@ try {
     $secondWmsProductId = (int)$db->lastInsertId();
 
     $db->prepare(
-        'INSERT INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
+        'INSERT INTO wms_stock (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
         . 'VALUES (?, ?, ?, NULL, ?, ?, ?, NOW())'
     )->execute([$wmsProductId, $warehouseId, $locationId, 10, 3, 0]);
 
     $db->prepare(
-        'INSERT INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
+        'INSERT INTO wms_stock (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
         . 'VALUES (?, ?, ?, NULL, ?, ?, ?, NOW())'
     )->execute([$secondWmsProductId, $warehouseId, $locationId, 5, 3, 0]);
 
@@ -279,11 +279,11 @@ try {
         $db->prepare('DELETE FROM cms_content WHERE id = ?')->execute([$productId]);
     }
     if ($secondWmsProductId > 0) {
-        $db->prepare('DELETE FROM wms_stocks WHERE product_id = ?')->execute([$secondWmsProductId]);
+        $db->prepare('DELETE FROM wms_stock WHERE product_id = ?')->execute([$secondWmsProductId]);
         $db->prepare('DELETE FROM wms_products WHERE id = ?')->execute([$secondWmsProductId]);
     }
     if ($wmsProductId > 0) {
-        $db->prepare('DELETE FROM wms_stocks WHERE product_id = ?')->execute([$wmsProductId]);
+        $db->prepare('DELETE FROM wms_stock WHERE product_id = ?')->execute([$wmsProductId]);
         $db->prepare('DELETE FROM wms_products WHERE id = ?')->execute([$wmsProductId]);
     }
     if ($locationId > 0) {
