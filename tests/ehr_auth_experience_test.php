@@ -820,6 +820,47 @@ foreach ($workspaceTemplateCases as $case) {
 // Phase 5/6/7 capability smoke tests
 // ---------------------------------------------------------------------------
 
+// The healthcare capability providers (hospital-adt, interoperability-bridge,
+// analytics-cds) register their handlers via loadModuleRoutes() over
+// getEnabledModules(). They must ALSO be explicitly active for the current
+// tenant (the smoke test JWT resolves tenant_id 426); otherwise the capability
+// bus's "activation before participation" gate skips them as providers.
+// Re-run loadModuleRoutes() (idempotent) and persist per-tenant activation so
+// the smoke calls below have permitted providers.
+try {
+    $hcSmokeTenantId = 426;
+    foreach (['hospital-adt', 'interoperability-bridge', 'analytics-cds'] as $hcModule) {
+        if (function_exists('enableModuleForTenant')) {
+            enableModuleForTenant($hcModule, $hcSmokeTenantId);
+        }
+    }
+} catch (\Throwable $e) {
+    // Non-fatal — the assertions below will surface any real failure.
+}
+
+// The CDS rule.add smoke test appends a new rule per run; accumulated smoke
+// rules slow ehr.cds.evaluate@1 (it loops over every active rule, inserting an
+// evaluation + firing events per rule) past the bus's default timeout. Remove
+// prior smoke-rule rows (and their evaluations/alerts) before adding a fresh one.
+try {
+    if (function_exists('cdsDb')) {
+        $cdsCleanupDb = cdsDb();
+        $cdsCleanupDb->execute('DELETE e FROM ehr_cds_alerts e INNER JOIN ehr_cds_rules r ON r.id = e.rule_id WHERE r.code LIKE :prefix', [':prefix' => 'smoke-rule-%']);
+        $cdsCleanupDb->execute('DELETE e FROM ehr_cds_evaluations e INNER JOIN ehr_cds_rules r ON r.id = e.rule_id WHERE r.code LIKE :prefix', [':prefix' => 'smoke-rule-%']);
+        $cdsCleanupDb->execute('DELETE FROM ehr_cds_rules WHERE code LIKE :prefix', [':prefix' => 'smoke-rule-%']);
+    }
+} catch (\Throwable $e) {
+    // Non-fatal — the assertions below will surface any real failure.
+}
+
+try {
+    if (function_exists('loadModuleRoutes')) {
+        loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+    }
+} catch (\Throwable $e) {
+    // Non-fatal — the assertions below will surface any real failure.
+}
+
 try {
     $cap = app()->cap();
 

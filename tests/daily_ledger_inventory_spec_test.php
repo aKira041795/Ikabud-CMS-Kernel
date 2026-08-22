@@ -261,6 +261,14 @@ try {
     )->execute([':r' => $rcvId, ':di' => $delItemId, ':p' => $productBId]);
 
     dl_applyLedgerDelta($branchId, $productBId, $today, 95, 0, 'addtl');
+    // Finalize the ledger row (bal_end set) so the consolidated summary counts
+    // it as official: (beg 0 + addtl 95 - withdraw 0 - bal_end 0) * 50 = 4750.
+    // Rows with bal_end NULL are provisional and intentionally excluded.
+    $pdo->prepare(
+        'UPDATE dl_daily_ledger
+            SET bal_end = 0, price_snapshot = 50.00
+          WHERE branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "AM"'
+    )->execute([':b' => $branchId, ':p' => $productBId, ':d' => $today]);
     dl_recordReceivingVariances($rcvId);
 
     $vRow = $pdo->prepare(

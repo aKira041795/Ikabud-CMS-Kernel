@@ -135,7 +135,16 @@ try {
     // ═══════════════════════════════════════════════════════════════════
     echo "\n── S1: Pricing groups ──\n";
 
+    // Self-ensure a default price group exists. The tenant DB may not carry
+    // the migration seed ("Regular Branch Pricing") — create it idempotently
+    // so the default-group resolution contract is exercised deterministically.
     $defaultGroupId = dl_defaultPriceGroupId();
+    if ($defaultGroupId === null || $defaultGroupId <= 0) {
+        $pdo->prepare('INSERT INTO dl_price_groups (name, type, is_default, is_active) VALUES (:n, "branch", 1, 1)')
+            ->execute([':n' => 'Regular Branch Pricing-' . $suffix]);
+        $defaultGroupId = (int)$pdo->lastInsertId();
+        $trackedPriceGroupIds[] = $defaultGroupId;
+    }
     fp('default price group exists', $defaultGroupId !== null && $defaultGroupId > 0,
         "got " . var_export($defaultGroupId, true));
 
@@ -146,9 +155,25 @@ try {
     $trackedPriceGroupIds[] = $stressMallGroupId;
     fp('create stress-mall price group', $stressMallGroupId > 0);
 
-    // Use PANDESAL (id=10) and MONAY (id=11) as test products
-    $productAId = 10; // PANDESAL  — current_price 30.00
-    $productBId = 11; // MONAY     — current_price 25.00
+    // Seed the two test products (PANDESAL @ 30.00, MONAY @ 25.00) instead of
+    // assuming fixed fixture ids 10/11 — the base DB may not carry them.
+    foreach ([
+        ['sku' => 'PANDESAL-' . $suffix, 'name' => 'PANDESAL ' . $suffix, 'price' => 30.00],
+        ['sku' => 'MONAY-' . $suffix,    'name' => 'MONAY ' . $suffix,    'price' => 25.00],
+    ] as $idx => $prod) {
+        $pdo->prepare(
+            'INSERT INTO dl_products (sku, name, current_price, sort_order, is_active)
+             VALUES (:sku, :n, :p, :so, 1)'
+        )->execute([
+            ':sku' => $prod['sku'],
+            ':n'   => $prod['name'],
+            ':p'   => $prod['price'],
+            ':so'  => $idx,
+        ]);
+        $trackedProductIds[] = (int)$pdo->lastInsertId();
+    }
+    $productAId = $trackedProductIds[0]; // PANDESAL — current_price 30.00
+    $productBId = $trackedProductIds[1]; // MONAY    — current_price 25.00
 
     // Assign mall-specific price: PANDESAL @ 45.00 for the stress-mall group
     $pdo->prepare(
@@ -156,7 +181,6 @@ try {
          VALUES (:p, :g, 45.00, "2020-01-01", 1)
          ON DUPLICATE KEY UPDATE selling_price = 45.00, is_active = 1'
     )->execute([':p' => $productAId, ':g' => $stressMallGroupId]);
-    $trackedProductIds[] = $productAId; // will clean product_prices only
 
     $priceDefault = dl_resolveProductPrice($productAId, $defaultGroupId, $today);
     $priceMall    = dl_resolveProductPrice($productAId, $stressMallGroupId, $today);
@@ -891,6 +915,15 @@ try {
 
     // Remove product price rows created for stress price group
     $pdo->prepare('DELETE FROM dl_product_prices WHERE price_group_id IN (' . implode(',', array_map('intval', $trackedPriceGroupIds ?: [0])) . ')')->execute();
+
+    // Remove self-seeded products (dependent commissary ledger + prices first,
+    // then the products)
+    if ($trackedProductIds !== []) {
+        $productIds = implode(',', array_map('intval', $trackedProductIds));
+        $pdo->prepare('DELETE FROM dl_commissary_product_ledger WHERE product_id IN (' . $productIds . ')')->execute();
+        $pdo->prepare('DELETE FROM dl_product_prices WHERE product_id IN (' . $productIds . ')')->execute();
+        $pdo->prepare('DELETE FROM dl_products WHERE id IN (' . $productIds . ')')->execute();
+    }
 
     // Remove price groups
     foreach ($trackedPriceGroupIds as $pgid) {
