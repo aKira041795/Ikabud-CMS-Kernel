@@ -88,8 +88,8 @@ t(
 // ── 3. Admin seeding resolves auth_owned from the on-disk manifest ────────
 t(
     'TenantProvisioner falls back to on-disk manifest auth_owned spec',
-    str_contains($provisioner, 'discoverModules')
-        && str_contains($provisioner, 'kernelNormalizeAuthOwnedSpec'),
+    str_contains($provisioner, 'resolveAuthOwnedSpec')
+        && str_contains($provisioner, 'kernelAuthOwnedSpecFromDisk'),
     'provisioner must resolve auth_owned spec from the on-disk manifest'
 );
 t(
@@ -139,8 +139,8 @@ t(
 $moduleManager = (string)file_get_contents(BASE_PATH . '/src/helpers/module-manager.php');
 t(
     'getModuleNavItems scopes bypass to declared kernel_companion modules',
-    str_contains($moduleManager, '$declaredCompanion = !empty($module[\'kernel_companion\'] ?? false)')
-        && str_contains($moduleManager, '($declaredCompanion && $usesKernelUsers)'),
+    str_contains($moduleManager, 'function isDeclaredKernelCompanion')
+        && str_contains($moduleManager, 'kernelAdminAccessGranted($user, $moduleId)'),
     'nav gate must only bypass the stored opt-in for declared kernel companions'
 );
 t(
@@ -149,6 +149,11 @@ t(
     'kernel-admin companion nav must be grouped under a labeled section'
 );
 
+// The canonical kernel-admin access predicate resolves the tenant from the
+// request context; establish a concrete tenant so the companion bypass can be
+// exercised (fail-closed when no tenant binding is resolvable).
+$previousTenantId = app()->tenant()->current();
+app()->tenant()->setTenantId(670);
 $previousUser = app()->user();
 app()->setUser([
     'id' => 999901,
@@ -157,6 +162,7 @@ app()->setUser([
 ]);
 $kernelAdminNav = getModuleNavItems();
 app()->setUser(is_array($previousUser) ? $previousUser : []);
+app()->tenant()->setTenantId($previousTenantId);
 
 $navModuleIds = array_values(array_filter(array_map(static fn(array $i): string => (string)($i['module'] ?? ''), $kernelAdminNav), static fn(string $m): bool => $m !== '_kernel'));
 
@@ -185,13 +191,14 @@ t(
 $pageHandlers = (string)file_get_contents(BASE_PATH . '/src/http/page-handlers.php');
 t(
     'kernelHandlePageAdminModules offers no inline config fields',
-    str_contains($pageHandlers, '$editableSettingsFields = [];'),
-    'page handler must force editable settings fields empty (tenant-owned config)'
+    !str_contains($pageHandlers, "'settings_fields' =>"),
+    'page handler must not pass editable settings fields (tenant-owned config)'
 );
 t(
     'kernelHandlePageAdminModules explains settings are tenant-configured',
-    str_contains($pageHandlers, 'Module settings are configured by the admin on the tenant domain'),
-    'page handler must show the tenant-domain settings notice'
+    str_contains($pageHandlers, 'kernelAdminContext')
+        && str_contains($pageHandlers, "'tenant_admin_url' =>"),
+    'page handler must point to the tenant-domain settings surface'
 );
 t(
     'kernelHandlePageAdminModules passes manifest icon',

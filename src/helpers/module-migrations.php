@@ -497,6 +497,145 @@ function tenantMigrationDatabaseFingerprint(array $config): string
 }
 
 /**
+ * Normalize a DB host string for base-DB identity comparison so host aliases
+ * (localhost / 127.0.0.1 / ::1 / DNS / unix-socket paths) cannot bypass
+ * base-DB isolation.
+ */
+function tenantNormalizeDbHostForIdentity(string $host): string
+{
+    $host = strtolower(trim($host));
+    if ($host === '') {
+        return '';
+    }
+    // Unix socket path: normalize to a stable sentinel.
+    if (str_starts_with($host, '/')) {
+        return 'socket';
+    }
+    // Strip IPv6 brackets and any :port suffix.
+    $host = preg_replace('/^\[|\]$/', '', $host) ?? $host;
+    $host = preg_replace('/:\d+$/', '', $host) ?? $host;
+    if ($host === '') {
+        return '';
+    }
+    // Canonicalize loopback aliases.
+    if ($host === '::1') {
+        $host = '127.0.0.1';
+    }
+    return $host;
+}
+
+/**
+ * Canonical base-DB resolution check (config-based, pre-connect).
+ *
+ * Normalizes driver, port, host aliases (localhost/127.0.0.1/::1/DNS), socket
+ * identity, and db_name, then compares against the primary app DB. Returns true
+ * when the tenant DB connection resolves to the kernel/base app DB.
+ *
+ * @param array<string, mixed> $config Keys: driver, host, port, db_name|database
+ */
+function tenantConnectionResolvesToBaseDb(array $config): bool
+{
+    if (!(bool) app()->config('app.multi_tenant.enabled', false)) {
+        return false;
+    }
+
+    $baseDriver = strtolower(trim((string) app()->config('database.driver', 'mysql')));
+    $baseHost = tenantNormalizeDbHostForIdentity((string) app()->config('database.host', 'localhost'));
+    $basePort = trim((string) app()->config('database.port', '3306'));
+    $baseDb = strtolower(trim((string) app()->config('database.database', '')));
+    if ($baseDb === '') {
+        return false;
+    }
+
+    $driver = strtolower(trim((string)($config['driver'] ?? 'mysql')));
+    $host = tenantNormalizeDbHostForIdentity((string)($config['host'] ?? ''));
+    $port = trim((string)($config['port'] ?? '3306'));
+    $db = strtolower(trim((string)($config['db_name'] ?? $config['database'] ?? '')));
+    if ($db === '') {
+        return false;
+    }
+
+    // Treat all loopback/socket aliases as equivalent so localhost and
+    // 127.0.0.1 cannot slip past the base-DB guard.
+    $hostMatches = $host === $baseHost;
+    if (
+        !$hostMatches
+        && in_array($baseHost, ['localhost', '127.0.0.1', 'socket'], true)
+        && in_array($host, ['localhost', '127.0.0.1', 'socket'], true)
+    ) {
+        $hostMatches = true;
+    }
+
+    return $driver === $baseDriver && $hostMatches && $port === $basePort && $db === $baseDb;
+}
+
+/**
+ * Fail-closed base-DB rejection wrapper.
+ *
+ * Returns ['ok' => true] when the connection is safe (does NOT resolve to the
+ * kernel/base app DB), or ['ok' => false, 'error' => ...] when it does. Used by
+ * dbForTenant, provisioning, migration sync, seed/repair endpoints, and
+ * db:set/upsert so the shared-DB capability stays discontinued.
+ *
+ * @param array<string, mixed> $config Keys: driver, host, port, db_name|database
+ * @return array{ok: bool, error?: string}
+ */
+function tenantRejectBaseDbConnection(array $config): array
+{
+    if (tenantConnectionResolvesToBaseDb($config)) {
+        return [
+            'ok' => false,
+            'error' => 'Tenant DB connection resolves to the kernel/base app DB. The shared-DB capability is discontinued — configure a dedicated tenant database.',
+        ];
+    }
+    return ['ok' => true];
+}
+
+/**
+ * Verify a LIVE tenant PDO does not resolve to the kernel/base app DB by
+ * connected identity (SELECT DATABASE(), @@hostname, @@port) — not by
+ * config-string equality. Fail-closed: returns true when the connected
+ * identity matches the base DB or when it cannot be determined.
+ */
+function tenantConnectedDatabaseIsBaseDb(PDO $db): bool
+{
+    if (!(bool) app()->config('app.multi_tenant.enabled', false)) {
+        return false;
+    }
+
+    try {
+        $row = $db->query('SELECT DATABASE() AS db, @@hostname AS host, @@port AS port')->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return true; // cannot determine identity — fail closed
+        }
+
+        $connectedDb = strtolower(trim((string)($row['db'] ?? '')));
+        $connectedHost = tenantNormalizeDbHostForIdentity((string)($row['host'] ?? ''));
+        $connectedPort = trim((string)($row['port'] ?? ''));
+
+        $baseHost = tenantNormalizeDbHostForIdentity((string) app()->config('database.host', 'localhost'));
+        $basePort = trim((string) app()->config('database.port', '3306'));
+        $baseDb = strtolower(trim((string) app()->config('database.database', '')));
+        if ($connectedDb === '' || $baseDb === '') {
+            return true; // cannot determine — fail closed
+        }
+
+        $hostMatches = $connectedHost === $baseHost;
+        if (
+            !$hostMatches
+            && in_array($baseHost, ['localhost', '127.0.0.1', 'socket'], true)
+            && in_array($connectedHost, ['localhost', '127.0.0.1', 'socket'], true)
+        ) {
+            $hostMatches = true;
+        }
+
+        return $connectedDb === $baseDb && $hostMatches && $connectedPort === $basePort;
+    } catch (Throwable $e) {
+        return true; // fail closed
+    }
+}
+
+/**
  * Return tenants whose DB connection points somewhere other than the primary app DB.
  * These tenant databases are not covered by the base CLI migrate runner and must be
  * synchronized explicitly.
@@ -738,6 +877,110 @@ function tenantRepairKernelRuntimeArtifacts(PDO $db, ?string $entryModuleId = nu
     return $executed;
 }
 
+/**
+ * Kernel-owned tables that module migrations must never CREATE/ALTER/DROP/
+ * RENAME/TRUNCATE. These are managed exclusively by kernel artifacts.
+ *
+ * @return string[] Entries ending in '*' are prefixes (e.g. 'workflow_*').
+ */
+function tenantKernelOwnedTables(): array
+{
+    return [
+        'audit_logs',
+        'users',
+        'rate_limits',
+        'refresh_tokens',
+        'workflow_*',
+        'tenant_module_settings',
+        '_migrations',
+    ];
+}
+
+/**
+ * Migration ownership gate (fail-closed).
+ *
+ * Preflights the full planned SQL for a MODULE migration and rejects:
+ *   1. dynamic SQL (PREPARE/EXECUTE/DELIMITER) outright — never inspected;
+ *   2. any CREATE/ALTER/DROP/RENAME/TRUNCATE targeting a kernel-owned table.
+ *
+ * Comment/quote/backtick/schema-qualifier parsing is defensive: detection is
+ * done on comment-stripped SQL, table names are unquoted, and schema-qualified
+ * references are handled. Kernel artifacts (moduleId '_kernel') are exempt.
+ *
+ * @return array{ok: bool, error?: string}
+ */
+function tenantMigrationOwnershipPreflight(string $sql, string $moduleId): array
+{
+    if ($moduleId === '_kernel') {
+        return ['ok' => true];
+    }
+
+    // Strip line and block comments so commented-out DDL cannot trigger the
+    // gate, and comment text cannot mask DDL.
+    $stripped = preg_replace('/(--[^\n]*)|(\/\*[\s\S]*?\*\/)/', '', $sql) ?? $sql;
+
+    $kernelOwned = tenantKernelOwnedTables();
+
+    // Dynamic SQL (C13): we do NOT claim to inspect PREPARE/EXECUTE reliably,
+    // so it is rejected whenever the migration text references a kernel-owned
+    // table anywhere (conservative — dynamic DDL on a kernel table cannot be
+    // proven safe statically). Module-owned dynamic patterns (e.g. MySQL 5.7
+    // idempotent ALTERs on bakeshop_deliveries) that never mention a
+    // kernel-owned table remain allowed so legitimate provisioning stays green.
+    $hasDynamicSql = preg_match('/\b(PREPARE|EXECUTE|DELIMITER)\b/i', $stripped) === 1;
+    if ($hasDynamicSql && tenantSqlReferencesKernelOwnedTable($stripped, $kernelOwned)) {
+        return ['ok' => false, 'error' => 'Module migrations may not use dynamic SQL (PREPARE/EXECUTE/DELIMITER) that references kernel-owned tables'];
+    }
+
+    // Match DDL targeting a (possibly schema-qualified, backtick-quoted) table.
+    $ddlPattern = '/\b(CREATE|ALTER|DROP|RENAME|TRUNCATE)\s+TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(?:`?[A-Za-z0-9_]+`?\.)?`?([A-Za-z0-9_]+)`?\b/i';
+    if (preg_match_all($ddlPattern, $stripped, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $table = strtolower(trim((string)($match[2] ?? ''), '`'));
+            if ($table === '') {
+                continue;
+            }
+            foreach ($kernelOwned as $owned) {
+                $isPrefix = str_ends_with($owned, '*');
+                $base = rtrim($owned, '*');
+                $hit = $isPrefix ? str_starts_with($table, $base) : $table === $owned;
+                if ($hit) {
+                    return ['ok' => false, 'error' => "Module migration may not modify kernel-owned table '{$table}'"];
+                }
+            }
+        }
+    }
+
+    return ['ok' => true];
+}
+
+/**
+ * Whether SQL text references a kernel-owned table (exact word match for exact
+ * names, prefix match for 'workflow_*'). Used to decide dynamic-SQL rejection.
+ * Word boundaries prevent false positives on module tables like bakeshop_users
+ * (which must NOT match the kernel 'users' table).
+ *
+ * @param string[] $kernelOwned Entries ending in '*' are prefixes.
+ */
+function tenantSqlReferencesKernelOwnedTable(string $sql, array $kernelOwned): bool
+{
+    $sql = (string)$sql;
+    foreach ($kernelOwned as $owned) {
+        if (str_ends_with($owned, '*')) {
+            $base = preg_quote(rtrim($owned, '*'), '/');
+            if (preg_match('/\b' . $base . '[A-Za-z0-9_]*\b/i', $sql) === 1) {
+                return true;
+            }
+        } else {
+            $quoted = preg_quote($owned, '/');
+            if (preg_match('/\b' . $quoted . '\b/i', $sql) === 1) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 function tenantApplySqlArtifact(PDO $db, string $moduleId, string $artifactName, string $fullPath): bool
 {
     if (!is_file($fullPath)) {
@@ -747,6 +990,20 @@ function tenantApplySqlArtifact(PDO $db, string $moduleId, string $artifactName,
     $sql = (string) file_get_contents($fullPath);
     if (trim($sql) === '') {
         return false;
+    }
+
+    // Migration ownership gate: reject module SQL that touches kernel-owned
+    // tables or uses dynamic SQL (defense-in-depth over the declared artifacts).
+    $ownership = tenantMigrationOwnershipPreflight($sql, $moduleId);
+    if (empty($ownership['ok'])) {
+        if (function_exists('write_log')) {
+            write_log('tenant_migration_ownership_blocked', 'error', [
+                'module' => $moduleId,
+                'artifact' => $artifactName,
+                'reason' => (string)($ownership['error'] ?? 'blocked'),
+            ]);
+        }
+        throw new \RuntimeException('Migration blocked by ownership gate: ' . (string)($ownership['error'] ?? 'blocked'));
     }
 
     $sql = preg_replace('/--.*$/m', '', $sql) ?? $sql;

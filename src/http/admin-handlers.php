@@ -2,17 +2,55 @@
 
 declare(strict_types=1);
 
+if (!function_exists('kernelRequestIsBearerAuthenticated')) {
+    /**
+     * True when the current request was authenticated via an Authorization:
+     * Bearer header (replay-safe) rather than a session cookie. Used to keep
+     * CSRF enforcement on cookie/session mutations while skipping the
+     * meaningless CSRF check for bearer-authenticated API calls.
+     */
+    function kernelRequestIsBearerAuthenticated(): bool
+    {
+        $authHeader = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+        return preg_match('/Bearer\s+.+$/i', trim($authHeader)) === 1;
+    }
+}
+
 if (!function_exists('kernelPrepareTenantAdminJsonRequest')) {
-    function kernelPrepareTenantAdminJsonRequest(bool $enforceCsrf = true): bool
+    /**
+     * Shared guard for kernel control-plane JSON endpoints.
+     *
+     * Requires a kernel-origin admin identity (source === 'kernel', role ===
+     * 'admin'); module-issued admin identities are denied even if an outer gate
+     * is missed. When $targetTenantId is provided, the JWT tenant claim must
+     * match the endpoint's target tenant (not the ambient host tenant), so a
+     * cross-tenant token cannot drive control-plane mutations.
+     *
+     * CSRF is enforced on every cookie/session-authenticated mutation;
+     * bearer-authenticated requests use replay-safe bearer handling instead.
+     *
+     * @param int|null $targetTenantId Endpoint target tenant (0/null = no check)
+     */
+    function kernelPrepareTenantAdminJsonRequest(bool $enforceCsrf = true, ?int $targetTenantId = null): bool
     {
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
 
         $user = app()->user();
-        if (!$user || ($user['role'] ?? '') !== 'admin') {
+        if (!is_array($user) || ($user['role'] ?? '') !== 'admin' || ($user['source'] ?? '') !== 'kernel') {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            echo json_encode(['ok' => false, 'error' => 'Kernel admin only']);
             return false;
+        }
+
+        // Validate the JWT tenant claim against the endpoint's target tenant.
+        if ($targetTenantId !== null && $targetTenantId > 0) {
+            $jwtTenant = isset($user['tenant_id']) && $user['tenant_id'] !== '' ? (int) $user['tenant_id'] : 0;
+            if ($jwtTenant > 0 && $jwtTenant !== (int) $targetTenantId) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'error' => 'Tenant identity mismatch']);
+                return false;
+            }
         }
 
         $input = app()->input();
@@ -27,7 +65,7 @@ if (!function_exists('kernelPrepareTenantAdminJsonRequest')) {
             return false;
         }
 
-        if ($enforceCsrf) {
+        if ($enforceCsrf && !kernelRequestIsBearerAuthenticated()) {
             app()->csrfEnforce();
         }
 
@@ -238,8 +276,11 @@ if (!function_exists('kernelHandleApiTenantCreate')) {
             $pdo->beginTransaction();
 
             $adminEmailValue = $adminEmail !== '' ? $adminEmail : null;
+            // CAS state machine: a new tenant enters as 'pending' and stays
+            // non-routable until a dedicated DB is validated, migrated, and
+            // seeded by provisioning (which transitions it to 'active').
             $stmt = $pdo->prepare('INSERT INTO kernel_tenants (tenant_key, status, entry_module_id, admin_email) VALUES (:k, :s, :e, :ae)');
-            $stmt->execute([':k' => $tenantKey, ':s' => 'active', ':e' => $entryModuleId, ':ae' => $adminEmailValue]);
+            $stmt->execute([':k' => $tenantKey, ':s' => 'pending', ':e' => $entryModuleId, ':ae' => $adminEmailValue]);
             $tenantId = (int)$pdo->lastInsertId();
             if ($tenantId <= 0) {
                 throw new RuntimeException('Failed to create tenant');
@@ -312,12 +353,13 @@ if (!function_exists('kernelHandleApiTenantCreate')) {
 if (!function_exists('kernelHandleApiTenantEntryModuleSet')) {
     function kernelHandleApiTenantEntryModuleSet(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $entryModuleNorm = normalizeTenantEntryModuleId($input['entry_module_id'] ?? '', true);
         $entryModuleId = $entryModuleNorm['value'];
 
@@ -399,12 +441,13 @@ if (!function_exists('kernelHandleApiTenantEntryModuleSet')) {
 if (!function_exists('kernelHandleApiTenantDomainAdd')) {
     function kernelHandleApiTenantDomainAdd(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $domain = strtolower(trim((string)($input['domain'] ?? '')));
         if ($tenantId <= 0 || $domain === '' || !preg_match('/^[a-z0-9\-\.]+$/', $domain)) {
             http_response_code(422);
@@ -440,12 +483,13 @@ if (!function_exists('kernelHandleApiTenantDomainAdd')) {
 if (!function_exists('kernelHandleApiTenantDomainRemove')) {
     function kernelHandleApiTenantDomainRemove(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $domain = strtolower(trim((string)($input['domain'] ?? '')));
         if ($tenantId <= 0 || $domain === '') {
             http_response_code(422);
@@ -474,12 +518,13 @@ if (!function_exists('kernelHandleApiTenantDomainRemove')) {
 if (!function_exists('kernelHandleApiTenantCanonicalDomainSet')) {
     function kernelHandleApiTenantCanonicalDomainSet(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $domain = strtolower(trim((string)($input['domain'] ?? '')));
         if ($tenantId <= 0) {
             http_response_code(422);
@@ -528,12 +573,15 @@ if (!function_exists('kernelHandleApiTenantCanonicalDomainSet')) {
 if (!function_exists('kernelHandleApiTenantDbUpsert')) {
     function kernelHandleApiTenantDbUpsert(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        // Target-tenant JWT validation: the token's tenant claim must match the
+        // endpoint's target tenant (not the ambient host tenant).
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $dbHost = trim((string)($input['db_host'] ?? ''));
         $dbPort = trim((string)($input['db_port'] ?? '3306'));
         $dbName = trim((string)($input['db_name'] ?? ''));
@@ -549,6 +597,26 @@ if (!function_exists('kernelHandleApiTenantDbUpsert')) {
             http_response_code(422);
             echo json_encode(['ok' => false, 'error' => 'Invalid db_port']);
             return;
+        }
+
+        // Shared-DB capability is discontinued: reject any connection that
+        // resolves to the kernel/base app DB (normalized host/port/db_name).
+        if (function_exists('tenantRejectBaseDbConnection')) {
+            $isolation = tenantRejectBaseDbConnection([
+                'driver' => 'mysql',
+                'host' => $dbHost,
+                'port' => $dbPort,
+                'db_name' => $dbName,
+            ]);
+            if (empty($isolation['ok'])) {
+                http_response_code(422);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => (string)($isolation['error'] ?? 'Base DB connection rejected'),
+                    'request_id' => request_id(),
+                ]);
+                return;
+            }
         }
 
         $pdo = app()->controlDb();
@@ -680,12 +748,13 @@ if (!function_exists('kernelHandleApiTenantRepairScope')) {
      */
     function kernelHandleApiTenantRepairScope(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $entryModuleId = trim((string)($input['entry_module_id'] ?? ''));
         $destructive = !empty($input['destructive']);
         $confirmationPhrase = trim((string)($input['confirmation'] ?? ''));
@@ -749,17 +818,39 @@ if (!function_exists('kernelHandleApiTenantRepairScope')) {
 if (!function_exists('kernelHandleApiTenantStatusSet')) {
     function kernelHandleApiTenantStatusSet(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $status = strtolower(trim((string)($input['status'] ?? '')));
         if ($tenantId <= 0 || !in_array($status, ['active', 'suspended'], true)) {
             http_response_code(422);
             echo json_encode(['ok' => false, 'error' => 'tenant_id and valid status are required']);
             return;
+        }
+
+        // Manual status APIs must not activate an unverified tenant: a tenant
+        // can only become 'active' once it has a dedicated DB connection
+        // (validated + migrated + seeded by provisioning). Pending tenants
+        // without a dedicated DB stay non-routable.
+        if ($status === 'active') {
+            $connStmt = app()->controlDb()->prepare(
+                'SELECT id FROM kernel_tenant_db_connections WHERE tenant_id = :tid LIMIT 1'
+            );
+            $connStmt->execute([':tid' => $tenantId]);
+            $hasDedicatedDb = (bool)$connStmt->fetchColumn();
+            if (!$hasDedicatedDb) {
+                http_response_code(422);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Cannot activate an unverified tenant: no dedicated DB connection configured. Provision the tenant first.',
+                    'request_id' => request_id(),
+                ]);
+                return;
+            }
         }
 
         try {
@@ -783,12 +874,13 @@ if (!function_exists('kernelHandleApiTenantStatusSet')) {
 if (!function_exists('kernelHandleApiTenantSeedData')) {
     function kernelHandleApiTenantSeedData(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $seedId = trim((string)($input['seed_id'] ?? ''));
 
         if ($tenantId <= 0) {
@@ -919,12 +1011,13 @@ if (!function_exists('kernelHandleApiTenantSeedData')) {
 if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
     function kernelHandleApiTenantAdminEmailPush(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $adminEmail = trim((string)($input['admin_email'] ?? ''));
         if ($tenantId <= 0) {
             http_response_code(422);
@@ -1166,12 +1259,13 @@ if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
 if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
     function kernelHandleApiTenantAdminPasswordPush(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         $newPassword = (string)($input['admin_password'] ?? '');
 
         if ($tenantId <= 0) {
@@ -1352,12 +1446,13 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
 if (!function_exists('kernelHandleApiTenantDelete')) {
     function kernelHandleApiTenantDelete(): void
     {
-        if (!kernelPrepareTenantAdminJsonRequest()) {
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+
+        if (!kernelPrepareTenantAdminJsonRequest(true, $tenantId > 0 ? $tenantId : null)) {
             return;
         }
 
-        $input = app()->input();
-        $tenantId = (int)($input['tenant_id'] ?? 0);
         if ($tenantId <= 0) {
             http_response_code(422);
             echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
@@ -2682,7 +2777,34 @@ function kernelHandleApiUpdateModuleSettings(): void
     }
 
     if (array_key_exists('allow_kernel_admin', $settingsIn)) {
-        $newSettings['allow_kernel_admin'] = (bool)$settingsIn['allow_kernel_admin'];
+        // Companion-only write restriction: allow_kernel_admin may only be set
+        // for modules DECLARED as kernel companions (on-disk manifest).
+        $declaredCompanion = function_exists('isDeclaredKernelCompanion') && isDeclaredKernelCompanion($modId);
+        if (!$declaredCompanion) {
+            http_response_code(422);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'allow_kernel_admin is only available for declared kernel-companion modules',
+                'module_id' => $modId,
+            ]);
+            exit;
+        }
+
+        // The kernel-users guarantee cannot be disabled: companions whose admins
+        // ARE kernel admins stay always-allowed.
+        $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers') && tenantEntryModuleUsesKernelUsers($modId);
+        $wantEnable = (bool)$settingsIn['allow_kernel_admin'];
+        if ($usesKernelUsers && !$wantEnable) {
+            http_response_code(422);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Kernel-users companion modules always allow kernel admin and cannot be disabled',
+                'module_id' => $modId,
+            ]);
+            exit;
+        }
+
+        $newSettings['allow_kernel_admin'] = $wantEnable;
     }
 
     foreach ($allowedKeys as $key => $field) {

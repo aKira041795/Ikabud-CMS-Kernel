@@ -1800,6 +1800,34 @@ switch ($command) {
             out('    ' . dim('db: ') . $dbUser . '@' . $dbHost . ':' . $dbPort . '/' . $dbName);
             out('');
 
+            // CAS state machine: enter 'provisioning' before any migration work.
+            try {
+                $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
+                    ->execute([':s' => 'provisioning', ':tid' => $tenantId]);
+            } catch (\Throwable $e) {
+                out('  ' . yellow('!') . ' Could not update tenant status to provisioning: ' . $e->getMessage());
+            }
+
+            // Shared-DB capability is discontinued: reject base-DB connections.
+            if (function_exists('tenantRejectBaseDbConnection')) {
+                $isolation = tenantRejectBaseDbConnection([
+                    'driver' => 'mysql',
+                    'host' => $dbHost,
+                    'port' => $dbPort,
+                    'db_name' => $dbName,
+                ]);
+                if (empty($isolation['ok'])) {
+                    out('  ' . red('✗') . ' ' . ($isolation['error'] ?? 'Base DB connection rejected'));
+                    try {
+                        $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
+                            ->execute([':s' => 'pending', ':tid' => $tenantId]);
+                    } catch (\Throwable $ignored) {
+                    }
+                    out('');
+                    exit(1);
+                }
+            }
+
             // 2. Create database (unless --skip-db-create)
             if (!$skipDbCreate) {
                 out('  Creating database...');
@@ -1851,13 +1879,16 @@ switch ($command) {
                 }
             }
 
-            // 6. Run tenant-appropriate module migrations against the tenant database
+            // 6. Run tenant-appropriate module migrations against the tenant
+            // database through the canonical guarded executor (manifest-declared
+            // artifacts + ownership gate), NOT bare MigrationRunner::migrate().
             out('  Running module migrations...');
-            $runner = new MigrationRunner($tenantPdo);
             $modulePlan = tenantProvisionModulePlan($entryModule !== '' ? $entryModule : null);
             $results = [];
             foreach ($modulePlan as $moduleId) {
-                $moduleResult = $runner->migrate($moduleId);
+                $moduleResult = function_exists('tenantSyncModuleMigrations')
+                    ? tenantSyncModuleMigrations($tenantPdo, $moduleId)
+                    : [];
                 if (!empty($moduleResult)) {
                     $results[$moduleId] = $moduleResult;
                 }
@@ -1882,25 +1913,12 @@ switch ($command) {
                 out('');
                 out('  Seeding admin user...');
 
-                // Resolve the admin users table + role. Auth-owned entry modules
-                // (e.g. daily-ledger -> dl_users) seed into their own table; the
-                // manifest is consulted even during provisioning where the
-                // tenant-aware enabled lookup may hide the module.
+                // Resolve the admin users table + role via the canonical
+                // on-disk manifest resolver (shared with seeding/verification).
                 $seedRole  = 'admin';
                 $authSpec  = null;
-                if ($entryModule !== '' && function_exists('kernelAuthOwnedSpecForModule')) {
-                    $authSpec = kernelAuthOwnedSpecForModule($entryModule);
-                }
-                if (!is_array($authSpec) && $entryModule !== '' && function_exists('discoverModules')) {
-                    $allMods = discoverModules();
-                    $vm = $allMods[$entryModule] ?? null;
-                    $rawAo = is_array($vm) ? ($vm['auth_owned'] ?? null) : null;
-                    if (is_array($rawAo) && function_exists('validateAuthOwnedSpec') && function_exists('kernelNormalizeAuthOwnedSpec')) {
-                        $aoCheck = validateAuthOwnedSpec($rawAo);
-                        if (!empty($aoCheck['ok'])) {
-                            $authSpec = kernelNormalizeAuthOwnedSpec($entryModule, $rawAo);
-                        }
-                    }
+                if ($entryModule !== '' && function_exists('kernelAuthOwnedSpecFromDisk')) {
+                    $authSpec = kernelAuthOwnedSpecFromDisk($entryModule);
                 }
                 if (is_array($authSpec)) {
                     $usersTable = (string)($authSpec['users_table'] ?? 'users');
@@ -1964,10 +1982,25 @@ switch ($command) {
                         out('  ' . green('✓') . " Admin user '{$adminUser}' created in {$usersTable}");
                     }
                 } else {
-                    out('  ' . yellow('!') . " Table '{$usersTable}' does not exist yet — skip user seed");
+                    out('  ' . red('✗') . " Required users table '{$usersTable}' does not exist — admin seed failed.");
+                    try {
+                        $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
+                            ->execute([':s' => 'pending', ':tid' => $tenantId]);
+                    } catch (\Throwable $ignored) {
+                    }
+                    out('');
+                    exit(1);
                 }
             } elseif ($adminUser !== '' && $adminPass === '') {
                 out('  ' . yellow('!') . ' --admin-user provided but --admin-pass missing — skipping user seed');
+            }
+
+            // CAS: activation is the final control-DB write after verification.
+            try {
+                $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
+                    ->execute([':s' => 'active', ':tid' => $tenantId]);
+            } catch (\Throwable $e) {
+                out('  ' . yellow('!') . ' Could not update tenant status to active: ' . $e->getMessage());
             }
 
             out('');
@@ -1975,6 +2008,11 @@ switch ($command) {
             out('');
         } catch (\Throwable $e) {
             out('  ' . red('✗ Provisioning failed: ') . $e->getMessage());
+            try {
+                $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
+                    ->execute([':s' => 'pending', ':tid' => $tenantId]);
+            } catch (\Throwable $ignored) {
+            }
             if (app()->config('app.debug', false)) {
                 out('  ' . dim($e->getFile() . ':' . $e->getLine()));
             }

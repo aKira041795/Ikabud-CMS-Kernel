@@ -29,6 +29,22 @@ use Ikabud\Kernel\EntityContext\RowRenderContext;
  */
 final class DefaultEntityRenderer implements EntityRendererInterface
 {
+    /**
+     * Centrally governed presentation-safe fields for '*' fallback rendering.
+     *
+     * Implements the ARK safe-fallback doctrine: unknown entity types are
+     * supported, unknown fields are hidden. When a view contract uses a
+     * wildcard '*' field list and declares no explicit visible_fields, only
+     * these fields may be rendered — never arbitrary row keys (tenant_id,
+     * cost, notes, tokens, provider metadata, etc.).
+     *
+     * @var list<string>
+     */
+    public const SAFE_FALLBACK_FIELDS = [
+        'id', 'title', 'name', 'label', 'excerpt', 'description',
+        'url', 'image', 'status', 'price', 'published_at', 'created_at', 'author_name',
+    ];
+
     private CellRendererRegistryInterface $cellRenderers;
     private EntityConditionEvaluator $conditionEvaluator;
 
@@ -120,15 +136,17 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         // Visible fields whitelist — declares which fields are safe for public display
         $visibleFields = $view['visible_fields'] ?? [];
 
-        // Expand '*' to actual keys from first row, filtered by visible_fields whitelist
+        // Expand '*' safely (fail-closed): never derive display fields from row keys.
+        // When visible_fields is present it is the source of truth (an explicit []
+        // renders no fields). Otherwise '*' resolves only to the centrally governed
+        // safe-fallback allowlist — internal fields (tenant_id, cost, notes, tokens,
+        // provider metadata) are never rendered.
         if ($fields === ['*'] || $fields === '*') {
-            $allKeys = array_keys($rows[0]);
-            // If visible_fields is explicitly declared, intersect with it
-            if (!empty($visibleFields)) {
+            $allKeys = !empty($rows) ? array_keys($rows[0]) : [];
+            if (array_key_exists('visible_fields', $view)) {
                 $fields = array_values(array_intersect($allKeys, $visibleFields));
             } else {
-                // Fallback: only exclude underscore-prefixed internal keys
-                $fields = array_values(array_filter($allKeys, fn(string $k): bool => !str_starts_with($k, '_')));
+                $fields = array_values(array_intersect($allKeys, self::SAFE_FALLBACK_FIELDS));
             }
         }
 
@@ -274,11 +292,11 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     public function renderDetail(array $entity, array $view, array $attrs, array $context = []): string
     {
         $class = (string)($attrs['class'] ?? '');
-        $rawFields = $attrs['fields'] ?? ($view['fields'] ?? array_keys($entity));
+        $rawFields = $attrs['fields'] ?? ($view['fields'] ?? '*');
         $fields = is_array($rawFields) ? $rawFields : array_map('trim', explode(',', (string)$rawFields));
         if ($fields === ['*'] || $fields === '*') {
-            $fields = array_keys($entity);
-            $fields = array_values(array_filter($fields, fn(string $k): bool => !str_starts_with($k, '_')));
+            $safe = $view['visible_fields'] ?? self::SAFE_FALLBACK_FIELDS;
+            $fields = array_values(array_intersect(array_keys($entity), $safe));
         }
 
         $rows = '';

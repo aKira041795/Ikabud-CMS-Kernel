@@ -366,7 +366,7 @@ final class EntityViewResolver
             'rows' => $rows,
             'total' => $total,
             'view' => $contract,
-            'display_fields' => is_array($displayFields) ? $displayFields : ($rows[0] ?? [] ? array_keys($rows[0]) : []),
+            'display_fields' => is_array($displayFields) ? $displayFields : ($rows[0] ?? [] ? array_values(array_intersect(array_keys($rows[0]), \Ikabud\Kernel\EntityContext\DefaultEntityRenderer::SAFE_FALLBACK_FIELDS)) : []),
             'source' => $parsed,
             'error' => null,
         ];

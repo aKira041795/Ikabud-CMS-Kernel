@@ -336,6 +336,7 @@ function kernelContributionNormalize(array $raw, string $moduleId): array
         'roles'      => is_array($raw['roles'] ?? null) ? array_values(array_filter(array_map('strval', $raw['roles']))) : [],
         'order'      => is_int($raw['order'] ?? null) ? $raw['order'] : 0,
         'active_key' => trim((string)($raw['active_key'] ?? '')),
+        'guidance'   => trim((string)($raw['guidance'] ?? '')),
         'module'     => $moduleId,
     ];
 }
@@ -2111,6 +2112,58 @@ function kernelAuthOwnedSpecForModule(string $moduleId): ?array
 }
 
 /**
+ * Canonical on-disk auth_owned resolver.
+ *
+ * Resolves + validates the auth_owned spec from the module's on-disk module.json
+ * (moduleManifestPathForId + json_decode + validateAuthOwnedSpec +
+ * kernelNormalizeAuthOwnedSpec). This is the SINGLE resolver shared by
+ * requiresSeededAdminCredentials, admin seeding, verification, and repair — it
+ * never trusts the enriched/mutable discovery array, so CLI provisioning (where
+ * request-context tenant resolution differs from HTTP) and HTTP seeding behave
+ * identically.
+ */
+function kernelAuthOwnedSpecFromDisk(string $moduleId): ?array
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '') {
+        return null;
+    }
+
+    $path = moduleManifestPathForId($moduleId);
+    if ($path === null || !is_file($path)) {
+        return null;
+    }
+
+    try {
+        $manifest = json_decode((string)file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        return null;
+    }
+    if (!is_array($manifest)) {
+        return null;
+    }
+
+    $raw = $manifest['auth_owned'] ?? null;
+    if (!is_array($raw)) {
+        return null;
+    }
+
+    if (!function_exists('validateAuthOwnedSpec') || !function_exists('kernelNormalizeAuthOwnedSpec')) {
+        return null;
+    }
+
+    $check = validateAuthOwnedSpec($raw);
+    if (empty($check['ok'])) {
+        if (function_exists('write_log')) {
+            write_log('auth_owned on-disk manifest invalid for module ' . $moduleId . ': ' . (string)($check['error'] ?? 'invalid'), 'warning');
+        }
+        return null;
+    }
+
+    return kernelNormalizeAuthOwnedSpec($moduleId, $raw);
+}
+
+/**
  * Validate optional entity_contexts block in a module manifest.
  * Returns:
  *  - ['ok' => true, 'definitions' => array, 'extensions' => array, 'bindings' => array, 'capability_metadata' => array]
@@ -2619,6 +2672,117 @@ function buildModuleContext(string $moduleId, array $manifest): \Ikabud\Kernel\C
     );
 }
 
+// ─── Kernel Companion + Kernel Admin Access Predicates ────────────────────
+// These two predicates are the SINGLE source of truth for kernel-admin access
+// to module surfaces. They are used by the page handler, the nav builder, and
+// the route gate in parity — nav-only parity without the route gate would be a
+// vulnerability, so every call site must go through kernelAdminAccessGranted().
+
+/**
+ * Canonical kernel-companion predicate (fail-closed).
+ *
+ * A module is a kernel companion ONLY when its validated on-disk module.json
+ * declares `kernel_companion: true`. The enriched discovery array
+ * (`$module['kernel_companion']`) and stored settings are never trusted here:
+ * the on-disk manifest is the single source of truth so mutable runtime state
+ * cannot grant or revoke companion status.
+ */
+function isDeclaredKernelCompanion(string $moduleId): bool
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '') {
+        return false;
+    }
+
+    $path = moduleManifestPathForId($moduleId);
+    if ($path === null || !is_file($path)) {
+        return false;
+    }
+
+    // Validate the on-disk manifest (skip filesystem checks; we only need the
+    // structural + field validation here). Invalid manifests fail closed.
+    $check = function_exists('validateModuleManifestFileV1')
+        ? validateModuleManifestFileV1($path, ['check_filesystem' => false])
+        : ['ok' => false, 'manifest' => null];
+    if (empty($check['ok'])) {
+        return false;
+    }
+
+    $manifest = is_array($check['manifest'] ?? null) ? $check['manifest'] : null;
+    if ($manifest === null) {
+        return false;
+    }
+
+    return !empty($manifest['kernel_companion']);
+}
+
+/**
+ * Canonical kernel-admin access predicate (fail-closed).
+ *
+ * A kernel admin may reach a module's routes/nav ONLY when every condition
+ * below holds. Any single failure denies access; non-companions are ALWAYS
+ * denied regardless of legacy stored allow_kernel_admin settings.
+ *
+ * Required conditions:
+ *   1. $user is a non-empty array
+ *   2. source === 'kernel'
+ *   3. role === 'admin'
+ *   4. tenant binding resolves when multi-tenancy is enabled
+ *   5. the module is enabled for the resolved tenant
+ *   6. the validated on-disk manifest declares kernel_companion
+ *   7. the companion uses kernel users auth OR stored allow_kernel_admin === true
+ *
+ * @param array<string, mixed> $user
+ */
+function kernelAdminAccessGranted(array $user, string $moduleId): bool
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '' || $user === []) {
+        return false;
+    }
+
+    // 2. Kernel-origin identity is required — module-issued admin identities
+    // are denied even if an outer gate is missed.
+    if ((string)($user['source'] ?? '') !== 'kernel') {
+        return false;
+    }
+
+    // 3. Only the admin role is granted kernel-admin module access.
+    if ((string)($user['role'] ?? '') !== 'admin') {
+        return false;
+    }
+
+    // 4. When multi-tenancy is enabled the kernel user must have a concrete
+    // tenant binding; an unresolvable tenant fails closed.
+    $tenantResolver = app()->tenant();
+    if ($tenantResolver->isEnabled()) {
+        $tenantId = $tenantResolver->resolve($user);
+        if ($tenantId === null || $tenantId <= 0) {
+            return false;
+        }
+    }
+
+    // 5. The module must be enabled for the resolved tenant.
+    $enabledModules = getEnabledModules();
+    if (!isset($enabledModules[$moduleId]) || empty($enabledModules[$moduleId]['_enabled'])) {
+        return false;
+    }
+
+    // 6. Non-companions are ALWAYS denied.
+    if (!isDeclaredKernelCompanion($moduleId)) {
+        return false;
+    }
+
+    // 7. Kernel-users companions are always allowed (their admins ARE kernel
+    // admins); other companions require the stored allow_kernel_admin opt-in.
+    if (function_exists('tenantEntryModuleUsesKernelUsers') && tenantEntryModuleUsesKernelUsers($moduleId)) {
+        return true;
+    }
+
+    $settings = getModuleSettings($moduleId);
+    return (bool)($settings['allow_kernel_admin'] ?? false);
+}
+
 // ─── Handler Execution ────────────────────────────────────────────────────
 
 /**
@@ -2647,7 +2811,10 @@ function executeModuleHandler(string $handler, array $params = []): void
         || $requestUri === '/' . $moduleId . '/logout';
 
     // ── Kernel admin opt-in gate ───────────────────────────────────
-    // Policy: kernel admin cannot access module routes unless explicitly opted-in.
+    // Policy: a kernel admin can only reach module routes when the canonical
+    // access predicate grants it (declared companion + kernel-users auth OR an
+    // explicit allow_kernel_admin opt-in). Non-companions are always denied.
+    // Module-login routes are exempt so companion/auth surfaces stay reachable.
     $user = app()->user();
     $moduleCookieName = (string)($modules[$moduleId]['auth_cookie'] ?? '');
     if ($moduleCookieName !== '') {
@@ -2664,17 +2831,8 @@ function executeModuleHandler(string $handler, array $params = []): void
     }
     $role = $user ? (string)($user['role'] ?? '') : '';
     $source = $user ? (string)($user['source'] ?? 'kernel') : '';
-    if ($role === 'admin' && $source === 'kernel' && !$isModuleLoginRoute) {
-        // Modules that authenticate against the kernel `users` table have no
-        // separate auth surface: their administrators ARE kernel admins, so the
-        // opt-in gate is redundant and would lock out the module's own admin
-        // users. Only apply it to modules with module-owned auth.
-        $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers')
-            && tenantEntryModuleUsesKernelUsers($moduleId);
-
-        $settings = $usesKernelUsers ? ['allow_kernel_admin' => true] : getModuleSettings($moduleId);
-        $allowKernelAdmin = (bool)($settings['allow_kernel_admin'] ?? false);
-        if (!$allowKernelAdmin) {
+    if ($role === 'admin' && $source === 'kernel' && !$isModuleLoginRoute && is_array($user)) {
+        if (!kernelAdminAccessGranted($user, $moduleId)) {
             $isApiRoute = \Ikabud\Kernel\Http\ContentNegotiator::isApiRoute();
 
             if (!headers_sent()) {
@@ -2941,23 +3099,15 @@ function getModuleNavItems(?string $role = null, ?array $user = null): array
             continue;
         }
 
-        // Kernel admin should not see module links unless the module opts in.
-        // The opt-in bypass applies only to modules DECLARED as kernel
-        // companions (kernel_companion: true, e.g. gui-settings) that
-        // authenticate against the kernel users table: their admins ARE kernel
-        // admins, so the opt-in is redundant. Standalone, entity, and suite
-        // extension/adapter modules (even those using the kernel users table)
-        // still require an explicit allow_kernel_admin opt-in before their nav
-        // links appear for the kernel admin.
+        // Kernel admin should not see module links unless the canonical access
+        // predicate grants them. This mirrors the route gate exactly — the
+        // bypass applies only to modules DECLARED as kernel companions
+        // (kernel_companion: true, e.g. gui-settings) that authenticate against
+        // the kernel users table (always allowed) or have stored the
+        // allow_kernel_admin opt-in. Standalone, entity, and suite
+        // extension/adapter modules are always excluded for the kernel admin.
         if ($isKernelAdmin) {
-            $settings = $module['_settings'] ?? [];
-            $declaredCompanion = !empty($module['kernel_companion'] ?? false);
-            $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers')
-                && tenantEntryModuleUsesKernelUsers($moduleId);
-            $allowKernelAdmin = ($declaredCompanion && $usesKernelUsers)
-                ? true
-                : (bool)($settings['allow_kernel_admin'] ?? false);
-            if (!$allowKernelAdmin) {
+            if (!is_array($user) || !kernelAdminAccessGranted($user, $moduleId)) {
                 continue;
             }
         }

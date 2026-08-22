@@ -4552,6 +4552,23 @@ class TemplateEngine
             return false;
         }
 
+        // JS statement blocks inside HTML attributes ({let ...}, {const ...},
+        // {var ...}, {function ...}, {return ...}, etc.) are raw JavaScript, not
+        // DiSyL expressions. They commonly appear in Alpine @click/@input/...
+        // handlers where the block body contains arithmetic or function calls
+        // (e.g. {let c=...;parseInt(c.slice(1,3),16)...}), which would otherwise
+        // be misclassified as a processable arithmetic expression and then
+        // stripped to '' when evaluation fails — corrupting the handler.
+        // {set ...} is the DiSyL assignment form and is unaffected.
+        //
+        // Guarded to statement form only: the keyword must be followed by
+        // whitespace, '=', or '(' — NOT a '.' — so valid DiSyL dotted variable
+        // paths like {case.status} (or {default.value}, {if_active} as a plain
+        // identifier) are never misclassified as JS statements.
+        if (preg_match('/^(?:let|const|var|function|return|new|typeof|delete|void|yield|debugger|class|import|export|try|catch|finally|throw|switch|case|default|do|if|else|for|while|with|instanceof|in|of|async|await)(?=[\s=(])/', $expr)) {
+            return false;
+        }
+
         // keyof expression
         if (str_starts_with($expr, 'keyof ')) {
             return true;

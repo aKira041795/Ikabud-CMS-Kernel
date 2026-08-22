@@ -140,6 +140,7 @@ class ApplicationProfileRegistry
         }
 
         self::register($instance);
+        self::$manifestPaths[$instance->id()] = $manifestPath;
     }
 
     /**
@@ -169,11 +170,82 @@ class ApplicationProfileRegistry
     }
 
     /**
+     * Sync every discovered profile into the global artifact registry
+     * (kernel_application_profile_registry, base/control DB).
+     *
+     * Uses the digest-conflict contract from ArtifactRegistry: identical
+     * identity + digest is a no-op; a changed digest yields an explicit
+     * CONFLICT (never a silent overwrite). This is a separate, explicit
+     * operation from in-memory discovery — it is NOT called from the hot
+     * discover() path.
+     *
+     * @return array{registered:int,idempotent:int,conflicts:array<int,string>}
+     */
+    public static function syncGlobalRegistry(?\PDO $db = null): array
+    {
+        $outcome = ['registered' => 0, 'idempotent' => 0, 'conflicts' => []];
+
+        if (self::$profiles === []) {
+            return $outcome;
+        }
+
+        if ($db === null) {
+            if (!function_exists('app')) {
+                return $outcome;
+            }
+            try {
+                $db = \app()->controlDb();
+            } catch (\Throwable $e) {
+                return $outcome;
+            }
+        }
+
+        foreach (self::$profiles as $provider) {
+            $name = $provider->id();
+            $version = $provider->version();
+            $manifestPath = self::$manifestPaths[$name] ?? '';
+
+            $manifest = [];
+            if ($manifestPath !== '' && is_file($manifestPath)) {
+                $decoded = json_decode((string)file_get_contents($manifestPath), true);
+                if (is_array($decoded)) {
+                    $manifest = $decoded;
+                }
+            }
+            $digest = ArtifactRegistry::canonicalDigest($manifest);
+
+            $result = ArtifactRegistry::register(
+                $db,
+                'kernel_application_profile_registry',
+                'profile',
+                $name,
+                $version,
+                $digest,
+                $manifestPath
+            );
+
+            if (($result['status'] ?? '') === 'registered') {
+                $outcome['registered']++;
+            } elseif (($result['status'] ?? '') === 'idempotent') {
+                $outcome['idempotent']++;
+            } elseif (($result['status'] ?? '') === 'conflict') {
+                $outcome['conflicts'][] = $name . '@' . $version;
+            }
+        }
+
+        return $outcome;
+    }
+
+    /**
      * Clear the registry (primarily for testing).
      */
     public static function reset(): void
     {
         self::$profiles = [];
+        self::$manifestPaths = [];
         self::$loaded = false;
     }
+
+    /** @var array<string, string> Profile id => manifest path (for digest sync). */
+    private static array $manifestPaths = [];
 }

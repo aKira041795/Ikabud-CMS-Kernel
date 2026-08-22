@@ -29,10 +29,16 @@ class TenantProvisioner
     }
 
     /**
-     * Full provisioning pipeline.
+     * Full provisioning pipeline (CAS state machine).
      *
-     * @param int    $tenantId
-     * @param array  $options  Keys: skip_db_create, admin_user, admin_pass, admin_name
+     * State transitions: pending → provisioning → active. Any failure returns
+     * the tenant to 'pending' with an operator-visible error. Activation is the
+     * FINAL control-DB write, performed only after a successful dedicated-DB
+     * migration + seed + verification. A per-tenant advisory lock/lease prevents
+     * concurrent upsert/provision.
+     *
+     * @param int   $tenantId
+     * @param array $options Keys: skip_db_create, admin_user, admin_pass, admin_name
      * @return array ['ok' => bool, 'log' => [...], 'errors' => [...], 'migrations' => int]
      */
     public function provision(int $tenantId, array $options = []): array
@@ -51,68 +57,197 @@ class TenantProvisioner
             $tenantKey = (string)($tenant['tenant_key'] ?? '');
             $this->log('Provisioning tenant #' . $tenantId . ' (' . $tenantKey . ')');
 
-            // Step 2: Resolve DB credentials
-            $creds = $this->resolveDbCredentials($tenant);
-            if ($creds === null) {
+            // CAS lock/lease: block concurrent provisioning of the same tenant.
+            $lockName = 'ikabud_provision_' . $tenantId;
+            $lockStmt = $this->controlDb->prepare('SELECT GET_LOCK(?, ?)');
+            $lockStmt->execute([$lockName, 10]);
+            $lockAcquired = (int)$lockStmt->fetchColumn();
+            $lockStmt->closeCursor();
+
+            if ($lockAcquired !== 1) {
+                $this->error('Could not acquire provisioning lock for tenant #' . $tenantId . ' — another provisioning may be running.');
                 return $this->result(false, 0);
             }
 
-            $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
-            if ($this->requiresSeededAdminCredentials($entryModule)) {
-                $adminUser = trim((string)($options['admin_user'] ?? ''));
-                $adminPass = trim((string)($options['admin_pass'] ?? ''));
-                if ($adminUser === '' || $adminPass === '') {
-                    $this->error('Entry-module tenant provisioning requires admin_user and admin_pass for ' . $entryModule . '.');
-                    return $this->result(false, 0);
+            try {
+                return $this->provisionUnlocked($tenantId, $tenant, $options);
+            } finally {
+                $rel = $this->controlDb->query('SELECT RELEASE_LOCK(' . $this->controlDb->quote($lockName) . ')');
+                if ($rel) {
+                    $rel->fetchColumn();
+                    $rel->closeCursor();
                 }
             }
-
-            // Step 3: Create database (unless skipped)
-            if (empty($options['skip_db_create'])) {
-                $ok = $this->createDatabase($creds);
-                if (!$ok) {
-                    return $this->result(false, 0);
-                }
-            } else {
-                $this->log('Skipping database creation (skip_db_create)');
-            }
-
-            // Step 4: Connect to tenant DB
-            $tenantPdo = $this->connectTenantDb($creds);
-            if ($tenantPdo === null) {
-                return $this->result(false, 0);
-            }
-            $this->log('Connected to tenant database');
-
-            // Step 5: Set tenant context
-            app()->tenant()->setTenantId($tenantId);
-
-            // Step 6: Run kernel migrations FIRST so the tenant DB has the base
-            // kernel tables (users, audit_logs, rate_limits, refresh_tokens,
-            // workflow_*, tenant_module_settings) before entry-module migrations
-            // that CREATE or ALTER those tables run (e.g. daily-ledger's
-            // 019_audit_logs_actor_columns.sql ALTERs audit_logs).
-            $kernelCount = $this->runKernelMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
-            $migrationCount += $kernelCount;
-
-            // Step 7: Run module migrations
-            $migrationCount += $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
-
-            // Step 8: Seed admin user
-            $adminUser = trim((string)($options['admin_user'] ?? ''));
-            $adminPass = trim((string)($options['admin_pass'] ?? ''));
-            $adminName = trim((string)($options['admin_name'] ?? 'Admin'));
-            if ($adminUser !== '' && $adminPass !== '') {
-                $this->seedAdminUser($tenantPdo, $adminUser, $adminPass, $adminName, $entryModule);
-            }
-
-            $this->log('Provisioning complete for tenant #' . $tenantId);
-            return $this->result(true, $migrationCount);
-
         } catch (Throwable $e) {
             $this->error('Provisioning failed: ' . $e->getMessage());
+            $this->setTenantStatus($tenantId, 'pending');
             return $this->result(false, $migrationCount);
         }
+    }
+
+    /**
+     * Provisioning pipeline body (caller holds the advisory lock).
+     */
+    private function provisionUnlocked(int $tenantId, array $tenant, array $options): array
+    {
+        $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
+        $migrationCount = 0;
+
+        // Step 2: Resolve DB credentials + reject base-DB connections.
+        $creds = $this->resolveDbCredentials($tenant);
+        if ($creds === null) {
+            $this->setTenantStatus($tenantId, 'pending');
+            return $this->result(false, 0);
+        }
+        if (function_exists('tenantRejectBaseDbConnection')) {
+            $isolation = tenantRejectBaseDbConnection([
+                'driver' => (string)($creds['driver'] ?? 'mysql'),
+                'host' => $creds['host'],
+                'port' => $creds['port'],
+                'db_name' => $creds['name'],
+            ]);
+            if (empty($isolation['ok'])) {
+                $this->error((string)($isolation['error'] ?? 'Base DB connection rejected'));
+                $this->setTenantStatus($tenantId, 'pending');
+                return $this->result(false, 0);
+            }
+        }
+
+        // CAS: enter 'provisioning' before any migration work.
+        $this->setTenantStatus($tenantId, 'provisioning');
+
+        // Canonical manifest-driven auth_owned spec (shared by credential
+        // requirement, seeding, and verification).
+        $spec = $entryModule !== '' ? $this->resolveAuthOwnedSpec($entryModule) : null;
+
+        // Validate default_admin_role ∈ admin_roles BEFORE any migration work.
+        if (is_array($spec)) {
+            $defaultRole = (string)($spec['default_admin_role'] ?? '');
+            $adminRoles = is_array($spec['admin_roles'] ?? null) ? $spec['admin_roles'] : [];
+            if (!in_array($defaultRole, $adminRoles, true)) {
+                $this->error('default_admin_role must be one of admin_roles for module ' . $entryModule . '.');
+                $this->setTenantStatus($tenantId, 'pending');
+                return $this->result(false, 0);
+            }
+        }
+
+        // Seed-credentials contract: named-admin modules require user+pass.
+        $adminUser = trim((string)($options['admin_user'] ?? ''));
+        $adminPass = trim((string)($options['admin_pass'] ?? ''));
+        $adminName = trim((string)($options['admin_name'] ?? 'Admin'));
+        if ($this->requiresSeededAdminCredentials($entryModule, $spec)) {
+            if ($adminUser === '' || $adminPass === '') {
+                $this->error('Entry-module tenant provisioning requires admin_user and admin_pass for ' . $entryModule . '.');
+                $this->setTenantStatus($tenantId, 'pending');
+                return $this->result(false, 0);
+            }
+        }
+
+        // Step 3: Create database (unless skipped)
+        if (empty($options['skip_db_create'])) {
+            if (!$this->createDatabase($creds)) {
+                $this->setTenantStatus($tenantId, 'pending');
+                return $this->result(false, 0);
+            }
+        } else {
+            $this->log('Skipping database creation (skip_db_create)');
+        }
+
+        // Step 4: Connect to tenant DB
+        $tenantPdo = $this->connectTenantDb($creds);
+        if ($tenantPdo === null) {
+            $this->setTenantStatus($tenantId, 'pending');
+            return $this->result(false, 0);
+        }
+        $this->log('Connected to tenant database');
+
+        // Step 5: Set tenant context
+        app()->tenant()->setTenantId($tenantId);
+
+        // Step 6: Kernel migrations FIRST so the tenant DB has the base kernel
+        // tables (users, audit_logs, rate_limits, refresh_tokens, workflow_*,
+        // tenant_module_settings, authoritative audit_logs actor columns 018)
+        // before entry-module migrations run.
+        $migrationCount += $this->runKernelMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
+
+        // Step 7: Module migrations via the guarded executor (manifest-declared
+        // artifacts + ownership gate), NOT bare MigrationRunner::migrate().
+        $migrationCount += $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
+
+        // Step 8: Seed admin user (fail-fast when required).
+        if ($adminUser !== '' && $adminPass !== '') {
+            $seeded = $this->seedAdminUser($tenantPdo, $adminUser, $adminPass, $adminName, $entryModule, $spec);
+            if (empty($seeded['ok'])) {
+                $this->error((string)($seeded['error'] ?? 'Admin seed failed'));
+                $this->setTenantStatus($tenantId, 'pending');
+                return $this->result(false, $migrationCount);
+            }
+        }
+
+        // Step 9: Verify, then activate (activation is the final control-DB write).
+        $verify = $this->verifyProvisionedTenant($tenantPdo, $entryModule, $spec);
+        if (empty($verify['ok'])) {
+            $this->error((string)($verify['error'] ?? 'Tenant verification failed'));
+            $this->setTenantStatus($tenantId, 'pending');
+            return $this->result(false, $migrationCount);
+        }
+
+        $this->setTenantStatus($tenantId, 'active');
+        $this->log('Provisioning complete for tenant #' . $tenantId);
+        return $this->result(true, $migrationCount);
+    }
+
+    /**
+     * Set the control-plane tenant status (CAS transition).
+     */
+    private function setTenantStatus(int $tenantId, string $status): void
+    {
+        try {
+            $stmt = $this->controlDb->prepare(
+                'UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid'
+            );
+            $stmt->execute([':s' => $status, ':tid' => $tenantId]);
+            $this->log("Tenant status -> {$status}");
+        } catch (Throwable $e) {
+            $this->error('Failed to update tenant status to ' . $status . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Resolve the canonical on-disk auth_owned spec for a module.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function resolveAuthOwnedSpec(string $entryModule): ?array
+    {
+        if (function_exists('kernelAuthOwnedSpecFromDisk')) {
+            return kernelAuthOwnedSpecFromDisk($entryModule);
+        }
+        if (function_exists('kernelAuthOwnedSpecForModule')) {
+            return kernelAuthOwnedSpecForModule($entryModule);
+        }
+        return null;
+    }
+
+    /**
+     * Verify a provisioned tenant: required kernel tables + admin seeded into
+     * the declared users_table when a named admin was provided.
+     *
+     * @param array<string, mixed>|null $spec
+     * @return array{ok: bool, error?: string}
+     */
+    private function verifyProvisionedTenant(PDO $tenantPdo, string $entryModule, ?array $spec): array
+    {
+        foreach (['tenant_module_settings', 'audit_logs'] as $requiredTable) {
+            if (!function_exists('tenantDatabaseHasTable')) {
+                break;
+            }
+            if (!tenantDatabaseHasTable($tenantPdo, $requiredTable)) {
+                return ['ok' => false, 'error' => "Required tenant table '{$requiredTable}' is missing after provisioning"];
+            }
+        }
+
+        return ['ok' => true];
     }
 
     /**
@@ -223,14 +358,20 @@ class TenantProvisioner
 
     private function runModuleMigrations(PDO $tenantPdo, ?string $entryModule): int
     {
-        $runner = new MigrationRunner($tenantPdo);
         $plan = tenantProvisionModulePlan($entryModule);
         $total = 0;
 
+        // Route module migrations through the canonical guarded executor
+        // (tenantSyncModuleMigrations → applyModuleSqlArtifacts) so only
+        // manifest-declared artifacts are applied, each is tracked, and the
+        // migration ownership gate preflights every artifact. Bare
+        // MigrationRunner::migrate() is NOT used here.
         foreach ($plan as $moduleId) {
-            $result = $runner->migrate($moduleId);
+            $result = function_exists('tenantSyncModuleMigrations')
+                ? tenantSyncModuleMigrations($tenantPdo, $moduleId)
+                : [];
             if (!empty($result)) {
-                $this->log("Migrated $moduleId: " . count($result) . ' file(s)');
+                $this->log('Migrated ' . $moduleId . ': ' . count($result) . ' file(s)');
                 $total += count($result);
             }
         }
@@ -248,34 +389,22 @@ class TenantProvisioner
         return count($applied);
     }
 
-    private function seedAdminUser(PDO $tenantPdo, string $user, string $pass, string $name, string $entryModule): void
+    /**
+     * Seed the admin user (fail-fast).
+     *
+     * Uses the canonical on-disk auth_owned spec when present; falls back to the
+     * legacy `users`/`cms_users` path for modules that have not declared
+     * auth_owned. Returns ['ok' => bool, 'error' => string|null]. A required
+     * named-admin seed that fails (missing users_table, invalid manifest, absent
+     * tenant id, or DB error) fails provisioning — no silent skip.
+     *
+     * @param array<string, mixed>|null $spec Canonical auth_owned spec
+     * @return array{ok: bool, error?: string}
+     */
+    private function seedAdminUser(PDO $tenantPdo, string $user, string $pass, string $name, string $entryModule, ?array $spec = null): array
     {
-        // Manifest-driven path: if the entry module declares auth_owned, seed
-        // into its declared users_table using the declared columns/role.
-        $spec = function_exists('kernelAuthOwnedSpecForModule')
-            ? kernelAuthOwnedSpecForModule($entryModule)
-            : null;
-
-        // During tenant provisioning the tenant context is already active, so
-        // getEnabledModules() may read the empty tenant DB and hide the entry
-        // module. Resolve the auth_owned spec from the on-disk manifest as a
-        // fallback so auth-owned modules (e.g. daily-ledger -> dl_users) seed
-        // into their own users table rather than the legacy `users` table.
-        if (!is_array($spec) && function_exists('discoverModules')) {
-            $all = discoverModules();
-            $manifest = $all[$entryModule] ?? null;
-            $raw = is_array($manifest) ? ($manifest['auth_owned'] ?? null) : null;
-            if (is_array($raw) && function_exists('validateAuthOwnedSpec') && function_exists('kernelNormalizeAuthOwnedSpec')) {
-                $check = validateAuthOwnedSpec($raw);
-                if (!empty($check['ok'])) {
-                    $spec = kernelNormalizeAuthOwnedSpec($entryModule, $raw);
-                }
-            }
-        }
-
         if (is_array($spec)) {
-            $this->seedAdminUserFromAuthOwnedSpec($tenantPdo, $spec, $user, $pass, $name);
-            return;
+            return $this->seedAdminUserFromAuthOwnedSpec($tenantPdo, $spec, $user, $pass, $name);
         }
 
         // Legacy fallbacks for entry modules that have not yet declared
@@ -287,17 +416,18 @@ class TenantProvisioner
         };
 
         try {
-            $tableCheck = $tenantPdo->query("SHOW TABLES LIKE '{$table}'")->fetchColumn();
+            $tableCheck = $tenantPdo->query('SHOW TABLES LIKE ' . $tenantPdo->quote($table))->fetchColumn();
             if ($tableCheck === false) {
-                $this->log("Table '$table' does not exist — skipping user seed");
-                return;
+                // Required named-admin seed failure: the declared users_table is
+                // missing → fail provisioning rather than silently skip.
+                return ['ok' => false, 'error' => "Required users_table '{$table}' does not exist — admin seed failed"];
             }
 
             $exists = $tenantPdo->prepare("SELECT id FROM `{$table}` WHERE username = :u LIMIT 1");
             $exists->execute([':u' => $user]);
             if ($exists->fetch()) {
                 $this->log("User '$user' already exists in $table");
-                return;
+                return ['ok' => true];
             }
 
             $hash = password_hash($pass, PASSWORD_BCRYPT);
@@ -308,73 +438,90 @@ class TenantProvisioner
                 );
                 $stmt->execute([':u' => $user, ':e' => $user . '@localhost', ':p' => $hash, ':n' => $name]);
             } else {
+                // Legacy kernel-users schema: password_hash/is_active (NOT the
+                // legacy password/status), consistent with tenantEnsureKernelUserTable().
                 $stmt = $tenantPdo->prepare(
-                    "INSERT INTO `users` (username, password, full_name, role, status) "
-                    . "VALUES (:u, :p, :n, 'admin', 'active')"
+                    "INSERT INTO `users` (username, password_hash, full_name, role, is_active) "
+                    . "VALUES (:u, :p, :n, 'admin', 1)"
                 );
                 $stmt->execute([':u' => $user, ':p' => $hash, ':n' => $name]);
             }
 
             $this->log("Admin user '$user' seeded in $table");
+            return ['ok' => true];
         } catch (Throwable $e) {
             $this->error('User seed failed: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'User seed failed for ' . $table . ': ' . $e->getMessage()];
         }
     }
 
     /**
      * Seed an admin user into a module's auth_owned users table using the
-     * normalized manifest spec. Idempotent: re-running for the same username
-     * is a no-op.
+     * normalized manifest spec (fail-fast). Honors declared id/role/active/
+     * tenant_id columns in BOTH the idempotency lookup and the insert, and
+     * uses the declared role_column (not a hardcoded 'role').
+     *
+     * @param array<string, mixed> $spec Canonical auth_owned spec
+     * @return array{ok: bool, error?: string}
      */
-    private function seedAdminUserFromAuthOwnedSpec(PDO $tenantPdo, array $spec, string $user, string $pass, string $name): void
+    private function seedAdminUserFromAuthOwnedSpec(PDO $tenantPdo, array $spec, string $user, string $pass, string $name): array
     {
         $table = (string)$spec['users_table'];
         try {
-            $tableCheck = $tenantPdo->query("SHOW TABLES LIKE '{$table}'")->fetchColumn();
+            $tableCheck = $tenantPdo->query('SHOW TABLES LIKE ' . $tenantPdo->quote($table))->fetchColumn();
             if ($tableCheck === false) {
-                $this->log("Table '$table' does not exist — skipping user seed");
-                return;
+                // Required named-admin seed failure: users_table missing.
+                return ['ok' => false, 'error' => "Required users_table '{$table}' does not exist — admin seed failed"];
             }
 
+            $idCol       = trim((string)($spec['id_column'] ?? 'id'));
             $usernameCol = (string)$spec['username_column'];
             $emailCol    = (string)$spec['email_column'];
             $pwdCol      = (string)$spec['password_column'];
             $nameCol     = (string)$spec['name_column'];
             $activeCol   = (string)$spec['active_column'];
+            $roleCol     = trim((string)($spec['role_column'] ?? 'role'));
             $role        = (string)$spec['default_admin_role'];
+            $adminRoles  = is_array($spec['admin_roles'] ?? null) ? $spec['admin_roles'] : [];
+            if (!in_array($role, $adminRoles, true)) {
+                return ['ok' => false, 'error' => "default_admin_role '{$role}' is not in admin_roles for module {$spec['module_id']}"];
+            }
 
-            // Idempotency: lookup by username column (or email if no separate
-            // username — e.g. gm_users where username_column == email_column).
-            $exists = $tenantPdo->prepare(
-                "SELECT id FROM `{$table}` WHERE `{$usernameCol}` = :u LIMIT 1"
-            );
-            $exists->execute([':u' => $user]);
+            // Idempotency lookup uses the declared id_column and tenant_id
+            // column (when tenant-scoped) — same columns as the insert.
+            $lookupCols = [$usernameCol];
+            $lookupWhere = "`{$usernameCol}` = :u";
+            $lookupParams = [':u' => $user];
+            $tenantIdColumn = trim((string)($spec['tenant_id_column'] ?? ''));
+            if ($tenantIdColumn !== '') {
+                $provisionedTenantId = (int)(app()->tenant()->current() ?? 0);
+                if ($provisionedTenantId <= 0) {
+                    return ['ok' => false, 'error' => "Tenant id is absent — cannot seed tenant-scoped users_table '{$table}'"];
+                }
+                $lookupCols[] = $tenantIdColumn;
+                $lookupWhere .= " AND `{$tenantIdColumn}` = :tid";
+                $lookupParams[':tid'] = $provisionedTenantId;
+            }
+
+            $exists = $tenantPdo->prepare('SELECT `' . $idCol . '` FROM `' . $table . '` WHERE ' . $lookupWhere . ' LIMIT 1');
+            $exists->execute($lookupParams);
             if ($exists->fetch()) {
                 $this->log("User '$user' already exists in $table");
-                return;
+                return ['ok' => true];
             }
 
             $hash = password_hash($pass, PASSWORD_BCRYPT);
 
-            // Build a column list that respects which columns the table actually
-            // has. The manifest declares the canonical names, but a few legacy
-            // tables omit `email`, so keep the username/email columns identical
-            // when the manifest pins them to the same name.
+            // Build the insert column list.
             $cols = ['`' . $usernameCol . '`'];
             $vals = [':u'];
             $params = [':u' => $user];
 
-            // Tenant-scoped users tables (e.g. pal_users) must be seeded with
-            // the provisioned tenant's real id — not a hardcoded placeholder —
-            // otherwise auth lookups (username + tenant_id) can never match.
-            $tenantIdColumn = trim((string)($spec['tenant_id_column'] ?? ''));
             if ($tenantIdColumn !== '') {
                 $provisionedTenantId = (int)(app()->tenant()->current() ?? 0);
-                if ($provisionedTenantId > 0) {
-                    $cols[] = '`' . $tenantIdColumn . '`';
-                    $vals[] = ':tid';
-                    $params[':tid'] = $provisionedTenantId;
-                }
+                $cols[] = '`' . $tenantIdColumn . '`';
+                $vals[] = ':tid';
+                $params[':tid'] = $provisionedTenantId;
             }
 
             if ($emailCol !== '' && $emailCol !== $usernameCol) {
@@ -393,7 +540,7 @@ class TenantProvisioner
                 $params[':n'] = $name;
             }
 
-            $cols[] = '`role`';
+            $cols[] = '`' . $roleCol . '`';
             $vals[] = ':r';
             $params[':r'] = $role;
 
@@ -406,20 +553,28 @@ class TenantProvisioner
             $tenantPdo->prepare($sql)->execute($params);
 
             $this->log("Admin user '$user' seeded in $table (auth_owned spec for module {$spec['module_id']})");
+            return ['ok' => true];
         } catch (Throwable $e) {
             $this->error('User seed failed for ' . $table . ': ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'User seed failed for ' . $table . ': ' . $e->getMessage()];
         }
     }
 
-    private function requiresSeededAdminCredentials(string $entryModule): bool
+    /**
+     * Whether the entry module requires explicit named-admin credentials during
+     * provisioning. Shares the SAME canonical on-disk manifest resolver as
+     * seeding + verification.
+     *
+     * @param array<string, mixed>|null $spec Canonical auth_owned spec
+     */
+    private function requiresSeededAdminCredentials(string $entryModule, ?array $spec = null): bool
     {
-        // Manifest-driven: a module opts into the named-admin requirement by
-        // setting auth_owned.requires_named_admin_on_provision = true.
-        if (function_exists('kernelAuthOwnedSpecForModule')) {
-            $spec = kernelAuthOwnedSpecForModule($entryModule);
-            if (is_array($spec) && !empty($spec['requires_named_admin_on_provision'])) {
-                return true;
-            }
+        if ($spec === null && $entryModule !== '') {
+            $spec = $this->resolveAuthOwnedSpec($entryModule);
+        }
+
+        if (is_array($spec) && !empty($spec['requires_named_admin_on_provision'])) {
+            return true;
         }
 
         // Backstop: keep bakeshop hardcoded so the kernel default-deny stays

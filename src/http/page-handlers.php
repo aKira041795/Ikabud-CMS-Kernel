@@ -532,7 +532,12 @@ if (!function_exists('kernelHandlePageAdminModules')) {
 function kernelHandlePageAdminModules(): void
 {
     $user = app()->requireAuth();
-    if (($user['role'] ?? '') !== 'admin') {
+    // Kernel-identity guard: only a kernel-origin admin may manage the module
+    // fleet. Module-issued admin identities are denied even if an outer gate is
+    // missed.
+    $role = (string)($user['role'] ?? '');
+    $source = (string)($user['source'] ?? '');
+    if ($role !== 'admin' || $source !== 'kernel') {
         app()->redirect('/');
         exit;
     }
@@ -540,14 +545,8 @@ function kernelHandlePageAdminModules(): void
     $allModules = discoverModules();
     $moduleList = [];
     foreach ($allModules as $m) {
-        $modSettings = getModuleSettings((string)($m['id'] ?? ''));
-        $capCheck = validateModuleCapabilities($m);
-        $capError = empty($capCheck['ok']) ? ($capCheck['error'] ?? 'Invalid capability manifest') : null;
-        $capDepends = (!empty($capCheck['ok']) && is_array($capCheck['depends'] ?? null)) ? $capCheck['depends'] : [];
-        $capExposes = (!empty($capCheck['ok']) && is_array($capCheck['exposes'] ?? null)) ? $capCheck['exposes'] : [];
-        $capMissing = [];
         $routeCount = 0;
-        $settingsUrl = '';
+        $tenantAdminUrl = '';
 
         $moduleId = (string)($m['id'] ?? '');
         $rf = ($m['_path'] ?? '') . '/routes.php';
@@ -560,13 +559,13 @@ function kernelHandlePageAdminModules(): void
                     }
                     $routeCount += count($routes_arr);
 
-                    if ($settingsUrl === '' && strtoupper((string)$method) === 'GET') {
+                    if ($tenantAdminUrl === '' && strtoupper((string)$method) === 'GET') {
                         foreach ($routes_arr as $path => $handler) {
                             if (!is_string($path)) {
                                 continue;
                             }
                             if (preg_match('#^/' . preg_quote($moduleId, '#') . '/admin/settings$#', $path)) {
-                                $settingsUrl = $path;
+                                $tenantAdminUrl = $path;
                                 break;
                             }
                         }
@@ -575,48 +574,24 @@ function kernelHandlePageAdminModules(): void
             }
         }
 
-        if ($capError === null) {
-            foreach ($capDepends as $capId) {
-                if (!app()->capabilities()->has((string)$capId)) {
-                    $capMissing[] = (string)$capId;
-                }
-            }
-        }
-
-        // Module settings are tenant-owned: the tenant admin configures them
-        // on the tenant domain. The kernel module manager only manages
-        // enable/disable + access, so no inline config is offered here.
-        $editableSettingsFields = [];
-        $settingsContextNotice = !empty($m['settings_fields']) && is_array($m['settings_fields'])
-            ? 'Module settings are configured by the admin on the tenant domain.'
-            : null;
-
-        // Compute entity authority UI indicators
-        $entitiesOwned = [];
-        if (!empty($m['entities']) && is_array($m['entities'])) {
-            foreach ($m['entities'] as $eType => $eDef) {
-                if (!empty($eDef['authority']) && $eDef['authority'] === true) {
-                    $entitiesOwned[] = $eType;
-                }
-            }
-        }
-
         // The kernel-admin access opt-in applies only to modules DECLARED as
         // kernel companions (kernel_companion: true, e.g. gui-settings, which
-        // customizes the kernel admin shell). Standalone, entity, and suite
-        // extension/adapter modules have their own auth surface (or none at
-        // all), so the toggle is not shown for them.
-        $showAllowKernelAdmin = !empty($m['kernel_companion'] ?? false);
+        // customizes the kernel admin shell) — resolved from the validated
+        // on-disk manifest. Suite extension/adapter inference is rejected:
+        // standalone, entity, and extension modules are never shown the toggle.
+        $declaredCompanion = function_exists('isDeclaredKernelCompanion')
+            ? isDeclaredKernelCompanion($moduleId)
+            : !empty($m['kernel_companion'] ?? false);
 
         // Modules authenticating against the kernel users table are always
         // reachable by the kernel admin (the route gate is bypassed), so the
         // opt-in is locked on for those companions.
         $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers')
             && tenantEntryModuleUsesKernelUsers($moduleId);
-        $kernelAdminGuaranteed = $showAllowKernelAdmin && $usesKernelUsers;
+        $kernelAdminGuaranteed = $declaredCompanion && $usesKernelUsers;
         $allowKernelAdmin = $kernelAdminGuaranteed
             ? true
-            : (bool)($modSettings['allow_kernel_admin'] ?? false);
+            : (bool)(getModuleSettings($moduleId)['allow_kernel_admin'] ?? false);
 
         $moduleList[] = [
             'id' => $m['id'],
@@ -624,24 +599,14 @@ function kernelHandlePageAdminModules(): void
             'version' => $m['version'] ?? '0.0.0',
             'description' => $m['description'] ?? '',
             'author' => $m['author'] ?? '',
-            'icon' => trim((string) ($m['icon'] ?? '')),
+            'icon' => trim((string)($m['icon'] ?? '')),
             'enabled' => !empty($m['_enabled']),
             'allow_kernel_admin' => $allowKernelAdmin,
             'kernel_admin_guaranteed' => $kernelAdminGuaranteed,
-            'show_allow_kernel_admin' => $showAllowKernelAdmin,
+            'show_allow_kernel_admin' => $declaredCompanion,
             'nav_count' => count($m['nav'] ?? []),
             'route_count' => $routeCount,
-            'settings_url' => $settingsUrl,
-            'settings_fields' => $editableSettingsFields,
-            'settings' => is_array($modSettings) ? $modSettings : [],
-            'settings_context_notice' => $settingsContextNotice,
-            'capability_exposes_count' => is_array($capExposes) ? count($capExposes) : 0,
-            'capability_depends_count' => is_array($capDepends) ? count($capDepends) : 0,
-            'capability_missing_depends' => $capMissing,
-            'capability_manifest_error' => $capError,
-            'capability_ready_to_enable' => ($capError === null && empty($capMissing)),
-            'entities_owned' => $entitiesOwned,
-            'entities_owned_count' => count($entitiesOwned),
+            'tenant_admin_url' => $tenantAdminUrl,
         ];
     }
     echo app()->render('pages/admin-modules.disyl', array_merge(

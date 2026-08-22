@@ -568,11 +568,37 @@ class DatabaseManager
 
             $dbConfig = array_merge($this->config['database'] ?? [], $dbConfig);
 
+            // Shared-DB capability is discontinued: reject any tenant connection
+            // whose normalized config resolves to the kernel/base app DB.
+            if (function_exists('tenantRejectBaseDbConnection')) {
+                $isolation = tenantRejectBaseDbConnection($dbConfig);
+                if (empty($isolation['ok'])) {
+                    ($this->logger)(
+                        (string)($isolation['error'] ?? 'Tenant DB connection resolves to the base app DB'),
+                        'error',
+                        $this->tenantDbFailureContext($tenantId, ['reason' => 'base_db_rejected'])
+                    );
+                    return null;
+                }
+            }
+
             $dsn = $this->buildDsn($dbConfig);
             $options = $this->normalizedPdoOptions($dbConfig);
 
             $pdoClass = '\\Ikabud\\Kernel\\Database\\KernelPDO';
             $pdo = new $pdoClass($dsn, $dbConfig['username'], $dbConfig['password'], $options);
+
+            // Post-connect verification by live connected identity (not config
+            // equality) so host/DNS/socket aliases cannot bypass isolation.
+            if (function_exists('tenantConnectedDatabaseIsBaseDb') && tenantConnectedDatabaseIsBaseDb($pdo)) {
+                ($this->logger)(
+                    'Tenant DB connected identity resolves to the base app DB',
+                    'error',
+                    $this->tenantDbFailureContext($tenantId, ['reason' => 'base_db_connected_identity'])
+                );
+                return null;
+            }
+
             $this->incrementCounter('tenant_connects');
             $this->trimTenantDbPool($tenantId);
             $this->tenantDbPool[$tenantId] = [

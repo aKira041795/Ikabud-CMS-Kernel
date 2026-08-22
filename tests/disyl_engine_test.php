@@ -2204,6 +2204,42 @@ check(
 );
 
 check(
+    'JS let blocks with arithmetic survive inside attribute handlers',
+    '<input type="text" @input="if(/^#[0-9a-fA-F]{6}$/.test(_mobileBgHex)){let c=_mobileBgHex;let r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);headerSettings.mobile_bg_color=\'rgba(\'+r+\',\'+g+\',\'+b+\',\'+(_mobileBgOpacity/100)+\')\';}">',
+    $engine->renderString('<input type="text" @input="if(/^#[0-9a-fA-F]{6}$/.test(_mobileBgHex)){let c=_mobileBgHex;let r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);headerSettings.mobile_bg_color=\'rgba(\'+r+\',\'+g+\',\'+b+\',\'+(_mobileBgOpacity/100)+\')\';}">', [])
+);
+
+check(
+    'JS const/var blocks with function calls survive inside attribute handlers',
+    '<div @input="const c=foo(1,2);let x=c+1;headerSettings.v=\'x\'+x;"></div>',
+    $engine->renderString('<div @input="const c=foo(1,2);let x=c+1;headerSettings.v=\'x\'+x;"></div>', [])
+);
+
+check(
+    'set statements still resolve normally after JS-block guard',
+    '<div data-n="4"></div>',
+    $engine->renderString('<div data-n="{set n = 3}{n + 1}"></div>', [])
+);
+
+check(
+    'dotted variable paths with JS-like keyword roots still resolve',
+    '<span>Open</span>',
+    $engine->renderString('<span>{case.status | title}</span>', ['case' => ['status' => 'open']])
+);
+
+check(
+    'plain identifier with keyword-like prefix still resolves',
+    '<div data-v="1"></div>',
+    $engine->renderString('<div data-v="{default.value}"></div>', ['default' => ['value' => 1]])
+);
+
+check(
+    'JS statement blocks still survive the guarded keyword check',
+    '<div @input="const c=foo(1,2);let x=c+1;h.v=\'x\'+x;"></div>',
+    $engine->renderString('<div @input="const c=foo(1,2);let x=c+1;h.v=\'x\'+x;"></div>', [])
+);
+
+check(
     'control structures still resolve inside quoted attributes',
     '<div data-state="open"></div>',
     $engine->renderString('<div data-state="{if ready}open{else}closed{/if}"></div>', ['ready' => true])

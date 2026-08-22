@@ -272,14 +272,16 @@ class TenantResolver
     }
 
     /**
-     * Check whether a tenant ID is currently active in the control plane.
-     * Returns true if active, false if the tenant is known but missing or
-     * suspended, and null if the control DB is unavailable (cannot verify).
+     * Check whether a tenant ID is currently ACTIVE in the control plane.
+     * Fail-closed: returns true ONLY for status 'active'. Everything else —
+     * pending, provisioning, suspended, missing, or a control-DB failure
+     * (cannot verify) — returns false, so an unverifiable tenant is never
+     * resolved.
      *
-     * Used to prevent stale/deactivated tenant contexts from being resolved
-     * via the session or header strategies.
+     * Used to prevent stale/deactivated/pending tenant contexts from being
+     * resolved via the host, header, or session strategies.
      */
-    public static function tenantIsActive(int $tenantId): ?bool
+    public static function tenantIsActive(int $tenantId): bool
     {
         if ($tenantId <= 0) {
             return false;
@@ -294,7 +296,7 @@ class TenantResolver
             }
             return strtolower((string)$status) === 'active';
         } catch (\Throwable $e) {
-            return null; // cannot verify — availability over strictness
+            return false; // cannot verify — fail closed
         }
     }
 
@@ -341,9 +343,10 @@ class TenantResolver
                     && ($user['source'] ?? '') === 'kernel';
                 if ($isSuperadmin) {
                     $headerTenantId = (int) $_SERVER[$headerKey];
-                    // Validate the header value points at a real, active tenant
-                    // (fail-open only when the control DB is unavailable).
-                    if (self::tenantIsActive($headerTenantId) !== false) {
+                    // Validate the header value points at a real, active tenant.
+                    // Fail CLOSED: pending/provisioning/suspended tenants AND
+                    // control-DB failures are all rejected.
+                    if (self::tenantIsActive($headerTenantId) === true) {
                         return $headerTenantId;
                     }
                 }
@@ -355,7 +358,8 @@ class TenantResolver
             $host = self::normalizeHost((string) ($_SERVER['HTTP_HOST'] ?? ''));
             if ($host !== '') {
                 $row = self::lookupControlHostRecord($host);
-                if (is_array($row) && isset($row['tenant_id'])) {
+                // Fail closed: only an active tenant may be resolved via host.
+                if (is_array($row) && isset($row['tenant_id']) && self::tenantIsActive((int) $row['tenant_id']) === true) {
                     return (int) $row['tenant_id'];
                 }
             }
@@ -377,9 +381,9 @@ class TenantResolver
             if ($host !== '') {
                 // 5a. Try the full host via the control-plane domain mapping
                 //     first (covers canonical_domain records like
-                //     "shop1.bakeshop.com").
+                //     "shop1.bakeshop.com"). Fail closed on non-active tenants.
                 $row = self::lookupControlHostRecord($host);
-                if (is_array($row) && isset($row['tenant_id'])) {
+                if (is_array($row) && isset($row['tenant_id']) && self::tenantIsActive((int) $row['tenant_id']) === true) {
                     return (int) $row['tenant_id'];
                 }
                 // 5b. Fall back: treat the first subdomain segment as a
@@ -396,14 +400,15 @@ class TenantResolver
         }
 
         // Strategy 6: Session — validate the stored tenant is still active so
-        // a deactivated/suspended tenant can no longer be resolved from the
-        // session. Fail-open (accept) only when the control DB is unavailable.
+        // a deactivated/suspended/pending tenant can no longer be resolved from
+        // the session. Fail CLOSED on control-DB failure.
         if (isset($_SESSION['tenant_id'])) {
             $sessionTenantId = (int) $_SESSION['tenant_id'];
-            if (self::tenantIsActive($sessionTenantId) !== false) {
+            if (self::tenantIsActive($sessionTenantId) === true) {
                 return $sessionTenantId;
             }
-            // Known to be missing or suspended — do not trust the session.
+            // Known to be missing, non-active, or unverifiable — do not trust
+            // the session.
             unset($_SESSION['tenant_id']);
         }
 
