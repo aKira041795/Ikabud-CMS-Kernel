@@ -185,7 +185,7 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 
 > **Resolved (2026-08-05):** `{json_encode(...)}` and `{json_decode(...)}` **function calls** are now supported at the engine level (previously only the `|json` filter existed). `json_encode` mirrors `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`; `json_decode` returns an associative array and supports dot-path access (`json_decode(...).key`). The 2 remaining limitations above stay intact.
 
-> **Resolved (2026-08-23):** the `{math equation="..."}` tag is now a **supported DiSyL tag** (previously documented as "does not exist"; it was never implemented and TD-D1 removed its only template usage). `{math equation="(price * qty)"}`, `{math equation="(a + b) | round:2"}`, `format="decimals"`, and `assign="var"` work in both interpreted and compiled modes; a missing `equation` emits a visible error marker + log. The same expression surface and pipe-binding caveat as `{(...) }` apply.
+> **Resolved (2026-08-23):** the `{math equation="..."}` tag is now a **supported DiSyL tag**. `{math equation="(price * qty)"}`, `{math equation="(a + b) | round:2"}`, `format="decimals"`, and `assign="var"` work in both interpreted and compiled modes; a missing `equation` emits a visible error marker + log. The same expression surface and pipe-binding caveat as `{(...) }` apply.
 
 > All `{set}` logical operator, ternary-with-filter, `isset()`/`empty()`, and array literal `{['a','b']}` issues that were listed here previously are **fixed as of 2026-06-29 / 2026-07-05** and no longer restrictions.
 

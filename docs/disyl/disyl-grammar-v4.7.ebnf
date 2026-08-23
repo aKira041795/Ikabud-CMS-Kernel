@@ -6,6 +6,11 @@
   It is extracted from the parser implementation in:
     kernel/DiSyL/TemplateEngine.php (v4.7.0)
     kernel/DiSyL/v4/Parser.php
+
+  Note: this file retains its v4.7 identity as the canonical baseline grammar.
+  Clearly marked v4.8 additions shipped in the verified 2026-08-23 engine state
+  are documented inline below and cross-referenced in:
+    docs/kernel/disyl-language-reference.md
   
   Notation: ISO/IEC 14977 Extended BNF
     =     definition
@@ -25,13 +30,13 @@
 (* ── Top-level ─────────────────────────────────────────────────────────── *)
 
 template       = { fragment } ;
-fragment       = text | expression | control | component_tag | comment ;
+fragment       = text | expression | control | component_tag | math_tag | comment ;
 text           = ? [^{]+ | '{{' | '{!' ? ;          (* any text except opening braces, verbatim is pre-extracted *)
 
 (* ── Expressions ──────────────────────────────────────────────────────── *)
 
 expression     = '{' , [ whitespace ] , expr_body , [ whitespace ] , '}' ;
-expr_body      = ternary | arithmetic | set_stmt | variable ;
+expr_body      = ternary | arithmetic | set_stmt | postfix_stmt | variable ;
 variable       = path , { filter } ;
 path           = IDENT , { '.' , IDENT } ;
 filter         = '|' , IDENT , [ ':' , filter_arg ] ;
@@ -52,8 +57,13 @@ condition      = expr_body , comp_op , expr_body ;
 comp_op        = '==' | '!=' | '>=' | '<=' | '>' | '<' | '&&' | '||' | 'and' | 'or' ;
 
 (* ── Set ──────────────────────────────────────────────────────────────── *)
+(* v4.8 additions: typed {set}, compound assignment, and postfix increment/decrement *)
 
-set_stmt       = 'set' , whitespace , IDENT , [ whitespace ] , '=' , [ whitespace ] , expr_body ;
+set_stmt       = 'set' , whitespace , IDENT , [ [ whitespace ] , ':' , [ whitespace ] , type_ref ] , [ whitespace ] , ( compound_assign , [ whitespace ] , expr_body | '=' , [ whitespace ] , expr_body | postfix_incr ) ;
+postfix_stmt   = IDENT , postfix_incr ;
+type_ref       = 'string' | 'number' | 'bool' | 'boolean' | 'int' | 'float' | IDENT ;
+compound_assign = '+=' | '-=' | '*=' | '/=' ;
+postfix_incr   = '++' | '--' ;
 
 (* ── Control Structures ───────────────────────────────────────────────────── *)
 
@@ -100,6 +110,10 @@ block_open     = '{block' , whitespace , IDENT , [ whitespace ] , '}' ;
 block_close    = '{/block}' ;
 extends_stmt   = '{extends' , whitespace , STRING , [ whitespace ] , '}' ;
 include_stmt   = '{include' , whitespace , STRING , [ whitespace ] , '}' ;
+
+(* ── Math Tag (v4.8 addition) ─────────────────────────────────────────── *)
+
+math_tag       = '{math' , whitespace , 'equation' , '=' , STRING , [ whitespace , 'format' , '=' , STRING ] , [ whitespace , 'assign' , '=' , IDENT ] , [ whitespace ] , '}' ;
 
 (* ── Macro ────────────────────────────────────────────────────────────── *)
 

@@ -96,7 +96,7 @@ applyTo: "**/*.php **/*.disyl"
 | `yield` / generators | Not applicable |
 | `include` / `require` | DiSyL has its own `{include}` — different semantics |
 | Namespace resolution | No `\` in expressions |
-| Type declarations | Only `{@var type $name}` supported, no full type system |
+| Type declarations | Typed `{set name: type = expr}` is supported in DiSyL 4.8; there is still no broader full type system beyond typed assignment and `{@var type $name}` annotations |
 | Nullsafe `?->` | No support |
 | Named arguments | No support |
 | `enum` (PHP 8.1) | No support |
