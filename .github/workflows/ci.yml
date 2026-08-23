@@ -301,6 +301,9 @@ jobs:
       - name: MySQL 5.7 compatibility guard
         run: php scripts/guard-mysql57-compat.php
 
+      - name: DiSyL conformance + jurisdiction gate (strict proof lane)
+        run: php tools/disyl-conformance-check.php
+
   dependency-audit:
     name: Composer audit (dependency vulnerability scan)
     runs-on: ubuntu-latest

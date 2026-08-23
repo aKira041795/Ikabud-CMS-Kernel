@@ -84,10 +84,10 @@
     "renderable": true,
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-constructs",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#control",
-    "lsp": true,
+    "lsp": false,
     "test_template": "{while 1}A{break}{/while}",
     "expected": "A",
-    "notes": "Representative loop break behavior."
+    "notes": "Representative loop break behavior; lsp not-applicable: LSP validator has no break surface (loop-control keywords are not structurally validated)."
   },
   {
     "id": "comment-strip",
@@ -98,10 +98,10 @@
     "renderable": true,
     "docs_ref": "docs/kernel/disyl-language-reference.md#comments",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#comment",
-    "lsp": true,
+    "lsp": false,
     "test_template": "A{!-- hidden --}B",
     "expected": "AB",
-    "notes": "Comment constructs strip from output."
+    "notes": "Comment constructs strip from output; lsp not-applicable: LSP validator has no comment-strip surface and does not structurally validate comment tags."
   },
   {
     "id": "component-tag",
@@ -140,10 +140,10 @@
     "renderable": true,
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-constructs",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#control",
-    "lsp": true,
+    "lsp": false,
     "test_template": "{for i = 0; i < 4; i++}{if i == 2}{continue}{/if}{i}{/for}",
     "expected": "013",
-    "notes": "Representative loop continue behavior."
+    "notes": "Representative loop continue behavior; lsp not-applicable: LSP validator has no continue surface (loop-control keywords are not structurally validated)."
   },
   {
     "id": "expression-output",
@@ -308,8 +308,8 @@
     "renderable": false,
     "docs_ref": "docs/kernel/disyl-language-reference.md#entity-view-field-reflection--keyof--v47",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
-    "lsp": true,
-    "notes": "Entity view field reflection is shipped; standalone compiled parity is skipped in this slice."
+    "lsp": false,
+    "notes": "Entity view field reflection is shipped; standalone compiled parity is skipped in this slice; lsp not-applicable: LSP validator has no keyof surface and generic expression validation does not structurally recognize it."
   },
   {
     "id": "literal-block",
@@ -389,7 +389,7 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#php-syntax-not-supported-gaps",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#template",
     "lsp": false,
-    "notes": "Arbitrary PHP execution is outside DiSyL jurisdiction."
+    "notes": "Arbitrary PHP execution is outside DiSyL jurisdiction; lsp not-applicable: validator must not bless raw PHP entrypoints."
   },
   {
     "id": "prohibited-error-suppression",
@@ -401,7 +401,7 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": false,
-    "notes": "PHP error suppression is prohibited in declarative templates."
+    "notes": "PHP error suppression is prohibited in declarative templates; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
   },
   {
     "id": "prohibited-instanceof",
@@ -413,7 +413,7 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": false,
-    "notes": "Runtime type inspection belongs in governed application code, not DiSyL templates."
+    "notes": "Runtime type inspection belongs in governed application code, not DiSyL templates; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
   },
   {
     "id": "prohibited-nullsafe-property",
@@ -425,7 +425,7 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#variable",
     "lsp": false,
-    "notes": "Nullsafe property access is rejected; use DiSyL null-coalescing instead."
+    "notes": "Nullsafe property access is rejected; use DiSyL null-coalescing instead; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
   },
   {
     "id": "prohibited-php-concat-dot",
@@ -437,7 +437,7 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#variable",
     "lsp": false,
-    "notes": "PHP dot concatenation conflicts with DiSyL path access; use ~ instead."
+    "notes": "PHP dot concatenation conflicts with DiSyL path access; use ~ instead; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
   },
   {
     "id": "prohibited-spaceship",
@@ -449,7 +449,7 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": false,
-    "notes": "Spaceship comparison is explicitly outside shipped DiSyL support."
+    "notes": "Spaceship comparison is explicitly outside shipped DiSyL support; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
   },
   {
     "id": "set-basic",

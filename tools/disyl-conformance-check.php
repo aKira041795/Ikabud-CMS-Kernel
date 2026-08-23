@@ -46,11 +46,42 @@ if (!function_exists('write_log')) {
 }
 
 const INVENTORY_PATH = __DIR__ . '/../config/disyl-feature-inventory.json';
+const LSP_VALIDATOR_PATH = __DIR__ . '/../extensions/disyl-lsp/src/validator.ts';
 const VALID_KINDS = [
     'declarative_core',
     'governed_extension',
     'compatibility_only',
     'prohibited_application_logic',
+];
+const LSP_BLOCK_OPEN_BY_ID = [
+    'block-define' => '{block ',
+    'foreach-basic' => '{foreach ',
+    'foreach-else' => '{else}',
+    'for-c-style' => '{for ',
+    'for-in' => '{for ',
+    'if-elseif-else' => '{if ',
+    'literal-block' => '{literal}',
+    'macro-def' => '{macro ',
+    'verbatim-block' => '{verbatim}',
+    'while-loop' => '{while ',
+];
+const LSP_KEYWORD_BY_ID = [
+    'extends-stmt' => 'extends',
+    'include-stmt' => 'include',
+    'math-tag' => 'math',
+    'set-basic' => 'set',
+    'set-typed' => 'set',
+];
+const LSP_COMPONENT_BY_ID = [
+    'component-tag' => 'ikb_text',
+];
+const PROHIBITED_LSP_TOKEN_BY_ID = [
+    'prohibited-arbitrary-php' => '<?php',
+    'prohibited-error-suppression' => '@',
+    'prohibited-instanceof' => 'instanceof',
+    'prohibited-nullsafe-property' => '?->',
+    'prohibited-php-concat-dot' => '.',
+    'prohibited-spaceship' => '<=>',
 ];
 
 function fail(array &$disagreements, string $message): void
@@ -74,6 +105,160 @@ function inventoryData(): array
         throw new RuntimeException('Inventory JSON must decode to an array.');
     }
     return $decoded;
+}
+
+function parseLspSurface(): array
+{
+    $source = (string) file_get_contents(LSP_VALIDATOR_PATH);
+
+    preg_match_all("/open:\s*'([^']+)'/", $source, $blockMatches);
+    preg_match('/const GOV_COMPONENTS = \[(.*?)\];/s', $source, $componentMatch);
+    $keywordLine = '';
+    if (preg_match('/^\s*const keywordRe = .*$/m', $source, $keywordLineMatch) === 1) {
+        $keywordLine = $keywordLineMatch[0];
+    }
+
+    $components = [];
+    if (isset($componentMatch[1])) {
+        preg_match_all("/'([^']+)'/", $componentMatch[1], $componentNames);
+        $components = $componentNames[1] ?? [];
+    }
+
+    $keywords = [];
+    $start = strpos($keywordLine, '{(');
+    $end = strpos($keywordLine, ')([^\\s}])');
+    if ($start !== false && $end !== false && $end > $start + 2) {
+        $keywords = explode('|', substr($keywordLine, $start + 2, $end - ($start + 2)));
+    }
+    $blockOpens = $blockMatches[1] ?? [];
+
+    return [
+        'block_opens' => array_values(array_unique($blockOpens)),
+        'block_tokens' => array_values(array_unique(array_map(static fn(string $open): string => trim($open, "{} "), $blockOpens))),
+        'components' => array_values(array_unique($components)),
+        'keywords' => array_values(array_unique($keywords)),
+    ];
+}
+
+function hasLspJustification(array $entry): bool
+{
+    $notes = strtolower((string) ($entry['notes'] ?? ''));
+    return str_contains($notes, 'not-applicable')
+        || str_contains($notes, 'lsp not-applicable')
+        || preg_match('/\blsp\s*:/', $notes) === 1;
+}
+
+function expressionTokenForEntry(array $entry): string
+{
+    return match ((string) $entry['id']) {
+        'arithmetic-basic' => '+',
+        'bitwise-and' => '&',
+        'bitwise-shift-left' => '<<',
+        'bitwise-shift-right' => '>>',
+        'bitwise-xor' => '^',
+        'compound-assignment' => '+=',
+        'expression-output' => 'name',
+        'filter-chain' => 'upper',
+        'json-decode' => 'json_decode',
+        'json-encode' => 'json_encode',
+        'null-coalesce' => '??',
+        'postfix-stmt' => '++',
+        'string-concat' => '~',
+        'ternary-basic' => '?',
+        'variable-path' => 'user',
+        default => '',
+    };
+}
+
+function checkLspSurface(array $inventory, array &$disagreements): array
+{
+    $surface = parseLspSurface();
+    $blockOpenSet = array_fill_keys($surface['block_opens'], true);
+    $blockTokenSet = array_fill_keys($surface['block_tokens'], true);
+    $keywordSet = array_fill_keys($surface['keywords'], true);
+    $componentSet = array_fill_keys($surface['components'], true);
+
+    $summary = [
+        'block' => 0,
+        'keyword' => 0,
+        'component' => 0,
+        'expression' => 0,
+        'prohibited_not_blessed' => 0,
+        'not_applicable' => 0,
+        'disagreements' => 0,
+    ];
+
+    foreach ($inventory as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $id = (string) ($entry['id'] ?? '');
+        $kind = (string) ($entry['kind'] ?? '');
+        $lsp = (bool) ($entry['lsp'] ?? false);
+
+        if (!$lsp) {
+            $summary['not_applicable']++;
+            if (!hasLspJustification($entry)) {
+                fail($disagreements, $id . ' lsp=false requires explicit not-applicable justification in notes');
+            }
+
+            if ($kind === 'prohibited_application_logic') {
+                $token = PROHIBITED_LSP_TOKEN_BY_ID[$id] ?? (string) ($entry['syntax'] ?? '');
+                if (isset($blockOpenSet[$token]) || isset($blockTokenSet[$token]) || isset($keywordSet[$token]) || isset($componentSet[$token])) {
+                    fail($disagreements, $id . ' prohibited token unexpectedly recognized by LSP surface: ' . $token);
+                } else {
+                    $summary['prohibited_not_blessed']++;
+                }
+            }
+            continue;
+        }
+
+        if ($kind === 'prohibited_application_logic') {
+            fail($disagreements, $id . ' lsp=true prohibited entry is invalid');
+            continue;
+        }
+
+        if (isset(LSP_BLOCK_OPEN_BY_ID[$id])) {
+            $summary['block']++;
+            $open = LSP_BLOCK_OPEN_BY_ID[$id];
+            if (!isset($blockOpenSet[$open])) {
+                fail($disagreements, $id . ' missing LSP block surface ' . $open);
+            }
+            continue;
+        }
+
+        if (isset(LSP_KEYWORD_BY_ID[$id])) {
+            $summary['keyword']++;
+            $keyword = LSP_KEYWORD_BY_ID[$id];
+            if (!isset($keywordSet[$keyword])) {
+                fail($disagreements, $id . ' missing LSP keyword surface ' . $keyword);
+            }
+            continue;
+        }
+
+        if (isset(LSP_COMPONENT_BY_ID[$id])) {
+            $summary['component']++;
+            $component = LSP_COMPONENT_BY_ID[$id];
+            if (!isset($componentSet[$component])) {
+                fail($disagreements, $id . ' missing LSP component surface ' . $component);
+            }
+            continue;
+        }
+
+        $summary['expression']++;
+        $token = expressionTokenForEntry($entry);
+        if ($token === '') {
+            fail($disagreements, $id . ' lsp=true entry has no deterministic LSP surface resolution');
+            continue;
+        }
+        if (isset($blockOpenSet[$token]) || isset($blockTokenSet[$token]) || isset($keywordSet[$token]) || isset($componentSet[$token])) {
+            fail($disagreements, $id . ' expression token collides with structured LSP surface: ' . $token);
+        }
+    }
+
+    $summary['disagreements'] = count($disagreements);
+    return $summary;
 }
 
 function createEngine(string $templateDir, string $cacheDir, bool $compiled): TemplateEngine
@@ -235,11 +420,23 @@ foreach ($inventory as $index => $entry) {
     }
 }
 
+$lspSummary = checkLspSurface($inventory, $disagreements);
+
 echo 'counts: '
     . 'declarative_core=' . $counts['declarative_core']
     . ' governed_extension=' . $counts['governed_extension']
     . ' compatibility_only=' . $counts['compatibility_only']
     . ' prohibited_application_logic=' . $counts['prohibited_application_logic']
+    . PHP_EOL;
+
+echo 'lsp: '
+    . 'block=' . $lspSummary['block']
+    . ' keyword=' . $lspSummary['keyword']
+    . ' component=' . $lspSummary['component']
+    . ' expression=' . $lspSummary['expression']
+    . ' prohibited_not_blessed=' . $lspSummary['prohibited_not_blessed']
+    . ' not_applicable=' . $lspSummary['not_applicable']
+    . ' disagreements=' . $lspSummary['disagreements']
     . PHP_EOL;
 
 if ($disagreements !== []) {
