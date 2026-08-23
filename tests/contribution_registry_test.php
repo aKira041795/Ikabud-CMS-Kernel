@@ -155,6 +155,33 @@ $assert($ctxTenantNone === null || is_int($ctxTenantNone), 'no tenant context yi
 $tenantNav = kernelContributionsForHostLocation('cms', 'sidebar', $tenantFleet, ['tenant_id' => 42]);
 $assert(is_array($tenantNav), 'tenant-context query returns array without error');
 
+// ── host-prefixed location convention (cms.sidebar == host cms + loc sidebar) ──
+// Both bare ('sidebar') and host-prefixed ('cms.sidebar') locations must match
+// a query for host='cms', location='sidebar'. This closes the drift where a
+// manifest declared 'cms.sidebar' but the CMS sidebar bridge queries 'sidebar'.
+$hostPrefixFleet = [
+    'cms-akira-theme' => [
+        'id' => 'cms-akira-theme', 'name' => 'Theme', 'version' => '1.0.0', '_enabled' => true,
+        'admin_contributions' => [
+            ['id' => 'cms-akira-theme.sidebar', 'host' => 'cms', 'location' => 'cms.sidebar', 'label' => 'Theme Studio', 'route' => '/admin/theme-studio', 'order' => 60],
+        ],
+    ],
+    'cms-akira-core' => [
+        'id' => 'cms-akira-core', 'name' => 'Core', 'version' => '1.0.0', '_enabled' => true,
+        'admin_contributions' => [
+            ['id' => 'cms-akira-core.ark-panel', 'host' => 'cms', 'location' => 'dashboard.widgets', 'label' => 'ARK Status', 'route' => '/admin/ark-status', 'order' => 80],
+        ],
+    ],
+];
+$prefixedNav = kernelContributionsForHostLocation('cms', 'sidebar', $hostPrefixFleet);
+$prefixedLabels = array_column($prefixedNav, 'label');
+$assert(in_array('Theme Studio', $prefixedLabels, true), 'host-prefixed location cms.sidebar matches query (cms, sidebar)', json_encode($prefixedLabels));
+$widgetNav = kernelContributionsForHostLocation('cms', 'dashboard.widgets', $hostPrefixFleet);
+$widgetLabels = array_column($widgetNav, 'label');
+$assert(in_array('ARK Status', $widgetLabels, true), 'bare location dashboard.widgets matches query (cms, dashboard.widgets)');
+$wrongLoc = kernelContributionsForHostLocation('cms', 'dashboard', $hostPrefixFleet);
+$assert(count($wrongLoc) === 0, 'query (cms, dashboard) does NOT match dashboard.widgets (no prefix false-positive)');
+
 // ── live hook registration sanity ────────────────────────────────────────
 $hooks = app()->hooks();
 if (function_exists('cmsGetExtensionNavItems')) {

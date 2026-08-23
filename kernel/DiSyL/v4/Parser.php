@@ -272,6 +272,9 @@ final class Parser
         if (preg_match('/^set\s/', $peek)) {
             return $this->recoverableParse($this->parseSetTag(...), 'set', $savedPos);
         }
+        if (preg_match('/^math\s/', $peek)) {
+            return $this->recoverableParse($this->parseMathTag(...), 'math', $savedPos);
+        }
         if (preg_match('/^include\s/', $peek)) {
             return $this->recoverableParse($this->parseIncludeTag(...), 'include', $savedPos);
         }
@@ -956,6 +959,59 @@ final class Parser
         }
 
         return new ControlNode([], 'set', $attrs);
+    }
+
+    /** {math equation="..." [format="decimals"] [assign="var"]} — self-closing math tag. */
+    private function parseMathTag(): ControlNode
+    {
+        $tag = $this->readTagContent();
+        $inner = trim(substr($tag, 4)); // strip "math"
+
+        $attrs = $this->parseMathAttributes($inner);
+
+        $equation = trim((string)($attrs['equation'] ?? ''));
+        if ($equation === '') {
+            // Missing equation: emit an error-annotated node so the compiled
+            // output is a visible marker (never a silent drop). The parser's
+            // error recovery would otherwise swallow a thrown exception.
+            $node = [
+                'equation' => new LiteralNode([], ''),
+                'error' => 'missing equation attribute',
+            ];
+            if (isset($attrs['assign']) && trim((string)$attrs['assign']) !== '') {
+                $node['assign'] = trim((string)$attrs['assign']);
+            }
+            return new ControlNode([], 'math', $node);
+        }
+
+        $node = [
+            'equation' => $this->buildExpressionNode($equation),
+        ];
+        if (isset($attrs['format']) && trim((string)$attrs['format']) !== '') {
+            $node['format'] = $this->parseExprValue(trim((string)$attrs['format']));
+        }
+        if (isset($attrs['assign']) && trim((string)$attrs['assign']) !== '') {
+            $node['assign'] = trim((string)$attrs['assign']);
+        }
+
+        return new ControlNode([], 'math', $node);
+    }
+
+    /**
+     * Parse named attributes from a {math} tag inner body: key="value",
+     * key='value', or bare key=value (single token). Returns key => raw value.
+     */
+    private function parseMathAttributes(string $inner): array
+    {
+        $attrs = [];
+        if (preg_match_all('/([\w-]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s]+))/', $inner, $m, PREG_SET_ORDER)) {
+            foreach ($m as $match) {
+                $key = $match[1];
+                $val = ($match[2] ?? '') !== '' ? $match[2] : (($match[3] ?? '') !== '' ? $match[3] : ($match[4] ?? ''));
+                $attrs[$key] = $val;
+            }
+        }
+        return $attrs;
     }
 
     /** {include "template" [key=val ...]}  —  supports key=value and with {k:v} syntax.

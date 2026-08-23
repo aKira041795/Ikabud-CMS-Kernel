@@ -29,6 +29,24 @@
         {ikb_stat_card label="Users" value="{user_count}" icon="users" variant="elevated" /}
     </section>
 
+    {if dashboard_widgets}
+    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {foreach dashboard_widgets as widget}
+        <a href="{widget.route}" class="group rounded-[20px] border border-slate-200 bg-white/92 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:shadow-[0_14px_36px_rgba(15,23,42,0.08)]">
+            <div class="flex items-center justify-between">
+                <span class="text-xs uppercase tracking-wider text-slate-400">{widget.group|default:'Widget'}</span>
+                <span class="h-2 w-2 rounded-full bg-blue-500"></span>
+            </div>
+            <div class="mt-2 text-sm font-semibold text-slate-900">{widget.label}</div>
+            {if widget.guidance}
+            <p class="mt-1 text-xs text-slate-500">{widget.guidance}</p>
+            {/if}
+            <div class="mt-3 text-xs font-medium text-blue-600 group-hover:underline">Open &rarr;</div>
+        </a>
+        {/foreach}
+    </section>
+    {/if}
+
     <section class="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)]">
         <div class="rounded-[30px] border border-slate-200 bg-white/92 p-6 shadow-[0_22px_44px_rgba(15,23,42,0.05)]">
             <div class="flex items-center justify-between gap-3">

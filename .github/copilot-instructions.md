@@ -179,12 +179,13 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 - **Fix for production**: `TemplateCache::needsRecompile()` now (2026-06-29) scans for `{extends}` and recursively checks all ancestor mtimes. If you encounter stale caches after a layout edit, restart PHP-FPM to clear APCu.
 - **APCu** persists across FPM graceful restarts. Use `apcu_clear_cache()` via a web endpoint or `sudo systemctl restart phpX.X-fpm` (force stop, not graceful) to clear it.
 
-## Known DiSyL limitations (current as of 2026-07-05)
-1. **`{math equation="..."}` tag does not exist** — it is referenced in a template but was never implemented. Use DiSyL arithmetic directly: `{(value)|round}` or `{a * b}`. See TD-D1 in `docs/reviews/system-review-2026-07-05.md`.
-2. **Tight pipe/filter binding**: `{a + b | filter}` applies the filter to `b` only, not `a + b`. Always parenthesize: `{(a + b) | filter}`.
-3. **Typed `{set}` syntax (`{set name: string = ...}`) is planned for DiSyL 4.8** and is NOT active in the current 4.7 runtime. Do not use typed assignment syntax in production templates.
+## Known DiSyL limitations (current as of 2026-08-23)
+1. **Tight pipe/filter binding**: `{a + b | filter}` applies the filter to `b` only, not `a + b`. Always parenthesize: `{(a + b) | filter}`. This applies identically to `{math equation="..."}`.
+2. **Typed `{set}` syntax (`{set name: string = ...}`) is planned for DiSyL 4.8** and is NOT active in the current 4.7 runtime. Do not use typed assignment syntax in production templates.
 
-> **Resolved (2026-08-05):** `{json_encode(...)}` and `{json_decode(...)}` **function calls** are now supported at the engine level (previously only the `|json` filter existed). `json_encode` mirrors `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`; `json_decode` returns an associative array and supports dot-path access (`json_decode(...).key`). The 3 remaining limitations above stay intact.
+> **Resolved (2026-08-05):** `{json_encode(...)}` and `{json_decode(...)}` **function calls** are now supported at the engine level (previously only the `|json` filter existed). `json_encode` mirrors `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`; `json_decode` returns an associative array and supports dot-path access (`json_decode(...).key`). The 2 remaining limitations above stay intact.
+
+> **Resolved (2026-08-23):** the `{math equation="..."}` tag is now a **supported DiSyL tag** (previously documented as "does not exist"; it was never implemented and TD-D1 removed its only template usage). `{math equation="(price * qty)"}`, `{math equation="(a + b) | round:2"}`, `format="decimals"`, and `assign="var"` work in both interpreted and compiled modes; a missing `equation` emits a visible error marker + log. The same expression surface and pipe-binding caveat as `{(...) }` apply.
 
 > All `{set}` logical operator, ternary-with-filter, `isset()`/`empty()`, and array literal `{['a','b']}` issues that were listed here previously are **fixed as of 2026-06-29 / 2026-07-05** and no longer restrictions.
 

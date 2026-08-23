@@ -547,6 +547,7 @@ ComponentRegistry
 | ExpressionEvaluator extraction (7,698L → 7,021L) | ✅ |
 | ControlNode return type mismatch in v4 Parser | ✅ |
 | `++`/`--`, `+=`/`-=`, array literals, bitwise operators | ✅ |
+| `{math equation="..."}` tag (interpreted + compiled; `format`/`assign`; visible error on missing equation) | ✅ (2026-08-23) |
 
 ---
 

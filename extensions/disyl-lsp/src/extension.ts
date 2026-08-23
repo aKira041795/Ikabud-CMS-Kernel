@@ -178,6 +178,18 @@ export function activate(context: vscode.ExtensionContext) {
                     });
                 }
 
+                // Close-tag auto-insertion (after an opening tag, suggest the matching close)
+                const openTagMatch = lineBefore.match(/\{(\/?)([a-z_]+)?$/);
+                if (openTagMatch && openTagMatch[1] !== '/') {
+                    const tagName = openTagMatch[2] || '';
+                    if (tagName && CLOSE_TAG_MAP[tagName]) {
+                        const item = new vscode.CompletionItem('/' + tagName, vscode.CompletionItemKind.Keyword);
+                        item.insertText = '/' + tagName + '}';
+                        item.filterText = '/' + tagName;
+                        return [item];
+                    }
+                }
+
                 return [];
             }
         }, '{', '|', ' ')
@@ -249,22 +261,9 @@ export function activate(context: vscode.ExtensionContext) {
                     return resolveTemplatePath(document, target);
                 }
 
-                // Close-tag auto-insertion
-                const precedingText = line.substring(0, position.character);
-                const openTagMatch = precedingText.match(/\{(\/?)([a-z_]+)?$/);
-                if (openTagMatch && openTagMatch[1] !== '/') {
-                    const tagName = openTagMatch[2] || '';
-                    if (tagName && CLOSE_TAG_MAP[tagName]) {
-                        const item = new vscode.CompletionItem('/' + tagName, vscode.CompletionItemKind.Keyword);
-                        item.insertText = '/' + tagName + '}';
-                        item.filterText = '/' + tagName;
-                        return [item];
-                    }
-                }
-
                 return null;
             }
-        }, '|') // Trigger after pipe for filters
+        })
     );
 
     // ── Hover: show docs for block keywords & components ──
@@ -521,6 +520,7 @@ const BLOCK_KEYWORDS: string[] = [
     'if', 'elseif', 'else', '/if',
     'foreach', '/foreach', 'for', '/for', 'empty',
     'include', 'set',
+    'math',
     'component', '/component', 'slot', '/slot',
     'verbatim', '/verbatim', 'literal', '/literal',
     'match', '/match', 'when', '/when', 'default',
@@ -552,6 +552,7 @@ const BLOCK_KEYWORD_DOCS: Record<string, string> = {
     'catch': 'Renders on error. Optional `let=e` binds error: `{catch let=e}{e}{/catch}`',
     'debug': 'Pretty-print any variable (v4.8): `{debug myVar}`',
     'set': 'Assign variable: `{set name = value}` or typed (v4.8): `{set name: type = value}`',
+    'math': 'Evaluate a DiSyL arithmetic expression: `{math equation="price * qty"}` with optional `format="decimals"` and `assign="var"`. Same expression surface + pipe-binding caveat as `{(...) }` — parenthesize before filters: `{math equation="(a + b) | round:2"}`',
     'extends': 'Template inheritance: `{extends "layouts/main.disyl"}`',
     'block': 'Named block for inheritance: `{block name}...{/block}`',
     'include': 'Include another template: `{include "partials/header.disyl"}`',

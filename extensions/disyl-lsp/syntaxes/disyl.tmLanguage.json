@@ -45,6 +45,9 @@
         },
         {
           "include": "#set-statements"
+        },
+        {
+          "include": "#math-tag"
         }
       ]
     },
@@ -183,6 +186,14 @@
         {
           "name": "variable.other.disyl",
           "match": "(?<=\\{set\\s)[a-zA-Z_][\\w]*(?=\\s*=)"
+        }
+      ]
+    },
+    "math-tag": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{math\\s+[^}]*\\}"
         }
       ]
     }

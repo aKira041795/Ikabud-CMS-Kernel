@@ -2581,6 +2581,99 @@ check(
     $e48->renderString("{set x = 'now'}{x}", [])
 );
 
+section('49. {math} tag — interpreted + compiled parity');
+
+// Interpreted
+$e49 = new TemplateEngine($tmpDir, '/tmp/disyl_math_test_' . getmypid(), false);
+$e49->enableCompiledMode(false);
+
+check(
+    'math: basic arithmetic',
+    '37.5',
+    $e49->renderString('{math equation="price * qty"}', ['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math: arithmetic with filter (parenthesized)',
+    '38',
+    $e49->renderString('{math equation="(price * qty) | round"}', ['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math: format attribute',
+    '37.50',
+    $e49->renderString('{math equation="price * qty" format="2"}', ['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math: assign attribute',
+    '37.5',
+    $e49->renderString('{math equation="price * qty" assign="total"}{total}', ['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math: format + assign combined',
+    '37.50',
+    $e49->renderString('{math equation="price * qty" format="2" assign="total"}{total}', ['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math: missing equation emits visible error marker',
+    '<!-- DiSyL math error: missing equation attribute -->',
+    $e49->renderString('{math equation=""}', [])
+);
+
+check(
+    'math: pipe-binding parity with {expr} (no parens)',
+    $e49->renderString('{a + b | round}', ['a' => 2.6, 'b' => 1.2]),
+    $e49->renderString('{math equation="a + b | round"}', ['a' => 2.6, 'b' => 1.2])
+);
+
+// Compiled
+$c49 = new \Ikabud\Kernel\DiSyL\Compiler\TemplateCache('/tmp/disyl_math_compiled_' . getmypid(), true);
+
+check(
+    'math (compiled): basic arithmetic',
+    '37.5',
+    $c49->compileSource('{math equation="price * qty"}', 'm_basic')->execute(['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math (compiled): arithmetic with filter',
+    '38',
+    $c49->compileSource('{math equation="(price * qty) | round"}', 'm_round')->execute(['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math (compiled): format attribute',
+    '37.50',
+    $c49->compileSource('{math equation="price * qty" format="2"}', 'm_format')->execute(['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math (compiled): assign attribute',
+    '37.5',
+    $c49->compileSource('{math equation="price * qty" assign="total"}{total}', 'm_assign')->execute(['price' => 12.5, 'qty' => 3])
+);
+
+check(
+    'math (compiled): missing equation emits visible error marker',
+    '<!-- DiSyL math error: missing equation attribute -->',
+    $c49->compileSource('{math equation=""}', 'm_missing')->execute([])
+);
+
+check(
+    'math (compiled): pipe-binding parity with {expr} (no parens)',
+    $c49->compileSource('{a + b | round}', 'e_parity')->execute(['a' => 2.6, 'b' => 1.2]),
+    $c49->compileSource('{math equation="a + b | round"}', 'm_parity')->execute(['a' => 2.6, 'b' => 1.2])
+);
+
+check(
+    'math (compiled): format + assign combined',
+    '37.50',
+    $c49->compileSource('{math equation="price * qty" format="2" assign="total"}{total}', 'm_fa')->execute(['price' => 12.5, 'qty' => 3])
+);
+
 // Print final section stats
 if ($current_section && ($section_pass + $section_fail > 0)) {
     $total = $section_pass + $section_fail;

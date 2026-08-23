@@ -55,9 +55,14 @@ applyTo: "**/*.php **/*.disyl"
 
 | Gap | Usage found in | DiSyL limitation |
 |---|---|---|
-| `{math equation="..."}` helper | `templates/modules/cms/admin/weather.disyl` | **NEVER IMPLEMENTED** — `{math}` was put into templates but has no parser rule, no component registration, and no evaluator. Renders as empty string or broken output. Use DiSyL expressions directly: `{(current.temperature_c)|round}` instead. |
 | `eq()` custom helper | `modules/wms/templates/pages/movements.disyl:7` | **NOW REGISTERED** — `eq()` was never in `FunctionRegistry` (always returned null, so `selected` was never applied). Added to `FunctionRegistry::init()` as `eq(a, b) => a == b`. Fixes `<option selected>` in WMS filter dropdowns. |
 | `json_encode()` / `json_decode()` function calls | `templates/modules/cms-akira-search-adapter/pages/home.disyl` | **NOW REGISTERED (2026-08-05)** — `json_encode`/`json_decode` were not in `FunctionRegistry`, so `{json_encode(data)}` compiled to empty and broke Alpine `x-for` attributes (logged `[strict] Undefined variable`). Added both to `FunctionRegistry::init()` (`json_encode` mirrors the `|json` filter flags: `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`). Also fixed function-call argument resolution in `ExpressionEvaluator` to use `resolveValueWithFilters()` so args can be quoted strings, nested calls, or filter chains. Use `{json_encode(data)|raw}` when emitting into JS/attribute context. |
+
+### Fixed 2026-08-23 — `{math equation="..."}` tag implemented
+
+| Gap | Status | Fix |
+|---|---|---|
+| `{math equation="..."}` helper | **NOW IMPLEMENTED** | `{math}` was placed into templates but had no parser rule, no component registration, and no evaluator (TD-D1). Now a first-class self-closing tag: `equation` (required), `format="decimals"` (optional, `number_format`), `assign="var"` (optional, context store). Interpreted via `TemplateEngine::processMathTags()`, compiled via v4 `Parser::parseMathTag()` + `TemplateCompiler::compileMath()`. Same expression surface + pipe-binding caveat as `{(...) }`. Missing `equation` emits a visible `<!-- DiSyL math error: ... -->` marker + log in both modes. Tests: `disyl_engine_test.php` section 49 (interpreted + compiled parity). |
 
 ### Missing PHP operators
 
@@ -65,10 +70,10 @@ applyTo: "**/*.php **/*.disyl"
 |---|---|---|
 | `.` (PHP concat) | String concat in PHP | Conflicts with dot-path property access — can't be added directly. Use `~` instead (Twig-style, now supported) |
 | `??` (nullsafe) | Nullsafe property access | **GAP — only `??` (coalesce) is supported** |
-| `++` / `--` | Increment/decrement | **GAP — not supported** |
-| `+=` / `-=` / `*=` / `/=` | Assignment operators | **GAP — `{set}` only supports `=`** |
+| `++` / `--` | Increment/decrement | **SUPPORTED** — postfix `{set x++}`/`{x++}` and C-style `{for}` init/increment (v4 Parser + TemplateCompiler) |
+| `+=` / `-=` / `*=` / `/=` | Assignment operators | **SUPPORTED** — compound assignment `{set x += 1}` (v4 Parser + TemplateCompiler) |
 | `<=>` | Spaceship | **GAP — not supported** |
-| `&`, `\|`, `^`, `<<`, `>>` | Bitwise operators | **GAP — not supported** |
+| `&`, `^`, `<<`, `>>` | Bitwise operators | **SUPPORTED** — `compileBinaryOp` emits `&`, `^`, `<<`, `>>`. (`\|` remains filter syntax, so bitwise OR is not an operator.) |
 | `@` | Error suppression | **GAP — not supported** |
 | `instanceof` | Type checking | **GAP — not supported** |
 | `...` | Spread operator | **GAP — planned in Grammar\Planned.php** |
@@ -77,7 +82,7 @@ applyTo: "**/*.php **/*.disyl"
 
 | Construct | Details |
 |---|---|
-| C-style `{for}` | `{for i = 0; i < 10; i++}` mentioned in grammar doc but **no parser code exists** — only `{for x in list}` iteration works |
+| C-style `{for}` | **SUPPORTED** — `{for i = 0; i < 10; i++}` parsed by v4 `Parser` (`parseFor` C-style branch) and compiled by `compileCFor` (init/condition/increment + `MAX_LOOP_ITERATIONS` guard) |
 | `{while}` | ~~No parser or evaluator code~~ — **FIXED**: parser + interpreted evaluator + compiled codegen are implemented |
 | `{break}` / `{continue}` | ~~Not supported~~ — **FIXED (2026-07-05)** in both interpreted and compiled loops (`for`/`foreach`/`each`/`while`) |
 | Array literals | ~~No `{['a', 'b']}` syntax~~ — **FIXED (2026-07-05)**: `{['a','b']}`, `{set items = ['a','b']}`, `{for item in ['a','b']}`, and `{['a','b'] \| filter}` all work in both interpreted and compiled modes |
@@ -108,7 +113,7 @@ applyTo: "**/*.php **/*.disyl"
 
 3. **Chained ternary without parentheses**: `{a ? b : c ? d : e}` is parsed left-to-right. PHP parses it as `{a ? b : (c ? d : e)}`. Use explicit parentheses: `{a ? b : (c ? d : e)}`.
 
-4. **`{for}` with C-style syntax is documented but unimplemented**: The grammar doc mentions `{for i = 0; i < 10; i++}` but the parser only supports `{for x in list}` iteration. Any template using C-style `{for}` will silently output raw text.
+4. ~~**`{for}` with C-style syntax is documented but unimplemented**~~ **RESOLVED**: The grammar doc mentions `{for i = 0; i < 10; i++}`; v4 `Parser` + `TemplateCompiler::compileCFor()` implement it (init/condition/increment), so C-style `{for}` no longer silently outputs raw text.
 
 5. **Compiled mode does not track `{extends}` ancestors**: `TemplateCache::needsRecompile()` only checks the requested template's mtime. When a layout file is edited, child templates are not recompiled because their cache key only depends on the child's mtime. **FIXED 2026-06-29**: `needsRecompile()` now scans for `{extends}` directives and recursively checks all ancestor template mtimes.
 
@@ -121,10 +126,10 @@ applyTo: "**/*.php **/*.disyl"
 3. ~~**HIGH**: Fix `evaluateComparison()` to handle `===`/`!==` (currently only `evaluateCondition()` does).~~ ✅ **DONE** (2026-06-26)
 4. ~~**HIGH**: Fix ternary `{a ? b : c}` when filter `|` appears in condition — guard in `buildExpressionNode()` blocked detection. Added `findTernaryColon()` to handle filter-arg `:` vs ternary `:`.~~ ✅ **DONE** (2026-06-29)
 5. ~~**HIGH**: Fix `{set var = a or b}` evaluating to null — `resolveSetValue()` lacked logical operator support.~~ ✅ **DONE** (2026-06-29)
-6. **MEDIUM**: Fix pipe/filter binding precedence so `{a + b \| filter}` works without parentheses.
-7. **MEDIUM**: Implement C-style `{for}` loop syntax matching the documented grammar.
-8. **LOW**: Add increment/decrement (`++`/`--`) support.
-9. **LOW**: Implement `{while}` loop control structure.
+6. **MEDIUM**: Fix pipe/filter binding precedence so `{a + b \| filter}` works without parentheses. (Decision 2026-08-23: keep the documented caveat — `{math equation="..."}` inherits it; parenthesized form is the contract.)
+7. ~~**MEDIUM**: Implement C-style `{for}` loop syntax matching the documented grammar.~~ ✅ **DONE** (v4 Parser + `compileCFor`)
+8. ~~**LOW**: Add increment/decrement (`++`/`--`) support.~~ ✅ **DONE** (postfix + compound assignment + C-style `{for}`)
+9. ~~**LOW**: Implement `{while}` loop control structure.~~ ✅ **DONE**
 
 ## When to improve DiSyL vs. when to fix a template
 

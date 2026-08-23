@@ -11,6 +11,7 @@ declare(strict_types=1);
 return [
     'GET' => [
         '/admin/cms-akira-core' => 'cms-akira-core:pageCmsAkiraCoreHome',
+        '/admin/ark-status' => 'cms-akira-core:pageAkiraArkStatus',
         '/api/v1/cms-akira-core/health' => 'cms-akira-core:apiCmsAkiraCoreHealth',
         '/api/v1/cms-akira-core/providers/health' => 'cms-akira-core:apiCmsAkiraCoreProvidersHealth',
     ],

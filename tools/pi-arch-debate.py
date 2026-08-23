@@ -27,17 +27,23 @@ Env:
   DEBATE_MAX_ROUNDS     max draft/critique cycles (default 3)
   PI_MODEL_TIMEOUT      per-model timeout in seconds (default 600)
   DEBATE_AUTO_APPROVE=1 auto-approve the last draft (scripted use)
+  DEBATE_CODEX_MODEL    provider-qualified Codex model
+  DEBATE_DEEPSEEK_MODEL provider-qualified DeepSeek model
+  DEBATE_FLASH_MODEL    provider-qualified preflight model
+  DEBATE_WORK_DIR       artifact directory override (tests/isolated runs)
+  DEBATE_TASK_FILE      approved task destination override
 
 Artifacts:
   .ai/debate/round-N-draft.jsonl|txt
   .ai/debate/round-N-critique.jsonl|txt
-  .ai/current-task.md            (agreed contract on approval / last draft)
+  .ai/current-task.md            (replaced atomically on approval only)
 """
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 from difflib import SequenceMatcher
 
@@ -46,12 +52,67 @@ QUIET = False
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
-WORK = ".ai/debate"
+def rooted_path(value: str) -> str:
+    return value if os.path.isabs(value) else os.path.join(ROOT, value)
+
+
+WORK = rooted_path(os.environ.get("DEBATE_WORK_DIR", ".ai/debate"))
+TASK_FILE = rooted_path(os.environ.get("DEBATE_TASK_FILE", ".ai/current-task.md"))
 os.makedirs(WORK, exist_ok=True)
 MAX_ROUNDS = int(os.environ.get("DEBATE_MAX_ROUNDS", "3"))
 
-DS_PRO = "deepseek-v4-pro"
-CODEX = "openai-codex/gpt-5.6-sol"
+DS_PRO = os.environ.get("DEBATE_DEEPSEEK_MODEL", "deepseek/deepseek-v4-pro")
+DS_FLASH = os.environ.get("DEBATE_FLASH_MODEL", "deepseek/deepseek-v4-flash")
+CODEX = os.environ.get("DEBATE_CODEX_MODEL", "openai-codex/gpt-5.6-sol")
+
+
+class DebateError(RuntimeError):
+    """A fail-closed debate error that must never replace the task contract."""
+
+
+def atomic_write(path: str, content: str) -> None:
+    """Replace a text artifact atomically without exposing a partial file."""
+    directory = os.path.dirname(path) or ROOT
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".debate-", dir=directory, text=True)
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def validate_draft(draft: str) -> None:
+    """Reject empty, truncated, or non-contract model output."""
+    if len(draft.strip()) < 100:
+        raise DebateError(f"draft is too short ({len(draft.strip())} chars)")
+    required = ("task:", "objective:", "status: ready_for_implementation")
+    lowered = draft.lower()
+    missing = [marker for marker in required if marker not in lowered]
+    if missing:
+        raise DebateError("draft is missing required contract markers: " + ", ".join(missing))
+
+
+def validate_critique(critique: str) -> None:
+    if len(critique.strip()) < 20:
+        raise DebateError(f"critique is too short ({len(critique.strip())} chars)")
+    first_line = critique.splitlines()[0].strip().upper()
+    if first_line not in ("VERDICT: APPROVED", "VERDICT: REVISIONS"):
+        raise DebateError("critique does not begin with a valid VERDICT line")
+
+
+def validate_model_name(model: str, setting: str) -> None:
+    """Pi requires provider/model to avoid ambiguous cross-provider aliases."""
+    provider, separator, name = model.partition("/")
+    if separator == "" or provider.strip() == "" or name.strip() == "":
+        raise DebateError(f"{setting} must be provider-qualified as provider/model; got {model!r}")
 
 
 def extract_text(jsonl_path: str) -> str:
@@ -81,6 +142,8 @@ def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
     jsonl = os.path.join(WORK, f"round-{round_no}-{tag}.jsonl")
     timeout_s = int(os.environ.get("PI_MODEL_TIMEOUT", "600"))
     parts: list[str] = []
+    diagnostics: list[str] = []
+    reader_errors: list[str] = []
 
     def banner() -> None:
         print()
@@ -88,10 +151,13 @@ def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
         print(f"  {label}")
         print("=" * 62, flush=True)
 
-    proc = subprocess.Popen(
-        ["pi", "--model", model, "--mode", "json", "--print", prompt],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-    )
+    try:
+        proc = subprocess.Popen(
+            ["pi", "--model", model, "--mode", "json", "--print", prompt],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+    except OSError as exc:
+        raise DebateError(f"unable to start Pi for {tag} with model {model}: {exc}") from exc
 
     def reader() -> None:
         try:
@@ -106,6 +172,7 @@ def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
                     try:
                         obj = json.loads(line)
                     except Exception:
+                        diagnostics.append(line)
                         continue
                     if obj.get("type") == "message_update":
                         ae = obj.get("assistantMessageEvent", {})
@@ -118,6 +185,7 @@ def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
                         if not QUIET:
                             print(f"\n[⌛ tool: {obj.get('name') or '?'} …]", flush=True)
         except Exception as exc:
+            reader_errors.append(str(exc))
             if not QUIET:
                 print(f"\n[stream error: {exc}]", flush=True)
 
@@ -125,17 +193,31 @@ def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
         banner()
     t = threading.Thread(target=reader, daemon=True)
     t.start()
+    timed_out = False
     try:
         proc.wait(timeout=timeout_s)
     except subprocess.TimeoutExpired:
+        timed_out = True
         proc.kill()
         proc.wait()
         if not QUIET:
-            print(f"\n[⚠ {tag} timed out after {timeout_s}s — using partial output]")
+            print(f"\n[⚠ {tag} timed out after {timeout_s}s]")
     t.join(timeout=5)
     text = "".join(parts).strip()
-    with open(os.path.join(WORK, f"round-{round_no}-{tag}.txt"), "w") as fh:
-        fh.write(text)
+    atomic_write(os.path.join(WORK, f"round-{round_no}-{tag}.txt"), text)
+
+    if timed_out:
+        raise DebateError(f"{tag} timed out after {timeout_s}s; partial output was not accepted")
+    if t.is_alive():
+        raise DebateError(f"{tag} output reader did not terminate cleanly")
+    if reader_errors:
+        raise DebateError(f"{tag} output reader failed: {reader_errors[-1]}")
+    if proc.returncode != 0:
+        detail = diagnostics[-1] if diagnostics else "no diagnostic output"
+        raise DebateError(f"{tag} model {model} exited {proc.returncode}: {detail}")
+    if not text:
+        detail = diagnostics[-1] if diagnostics else "no diagnostic output"
+        raise DebateError(f"{tag} model {model} returned no text: {detail}")
     return text
 
 
@@ -165,20 +247,20 @@ def chair_approve() -> None:
     if not src:
         print("No prior debate draft found in .ai/debate/ — run the debate first.")
         sys.exit(1)
-    draft = open(src).read()
-    dst = ".ai/current-task.md"
-    with open(dst, "w") as fh:
-        fh.write(draft + "\n")
-    with open(os.path.join(WORK, "approved.txt"), "w") as fh:
-        fh.write("chair-approved\n")
-    print(f"APPROVED (chair): wrote {dst} from {src} ({len(draft)} chars)")
+    with open(src) as fh:
+        draft = fh.read()
+    validate_draft(draft)
+    atomic_write(TASK_FILE, draft.rstrip() + "\n")
+    atomic_write(os.path.join(WORK, "approved.txt"), "chair-approved\n")
+    print(f"APPROVED (chair): wrote {TASK_FILE} from {src} ({len(draft)} chars)")
 
 
 def run_preflight(intent: str) -> str:
     tmpl = load_template("preflight.txt").replace("{{INTENT}}", intent)
-    out = run_pi("deepseek-v4-flash", tmpl, "preflight", 0, "🧭 Intent pre-flight (DeepSeek Flash)")
-    with open(os.path.join(WORK, "preflight.txt"), "w") as fh:
-        fh.write(out)
+    out = run_pi(DS_FLASH, tmpl, "preflight", 0, "🧭 Intent pre-flight (DeepSeek Flash)")
+    if len(out.strip()) < 40:
+        raise DebateError(f"preflight output is too short ({len(out.strip())} chars)")
+    atomic_write(os.path.join(WORK, "preflight.txt"), out)
     return out
 
 
@@ -234,6 +316,13 @@ def main() -> None:
         print(__doc__)
         sys.exit(1)
 
+    validate_model_name(CODEX, "DEBATE_CODEX_MODEL")
+    validate_model_name(DS_PRO, "DEBATE_DEEPSEEK_MODEL")
+    if PREFLIGHT or len(intent) < 120:
+        validate_model_name(DS_FLASH, "DEBATE_FLASH_MODEL")
+
+    atomic_write(os.path.join(WORK, "approved.txt"), "pending\n")
+
     rounds = 1 if FAST else MAX_ROUNDS
 
     # Pre-flight: firm up short/fuzzy intent with a cheap DeepSeek Flash call.
@@ -272,9 +361,8 @@ def main() -> None:
         dp = dp.replace("{{PREVIOUS_DRAFT}}", draft or "(none)")
         dp = dp.replace("{{CRITIQUE}}", critique or "(none)")
         draft = run_pi(DRAFTER, dp, "draft", r, f"{draft_label} — Round {r} draft/revise")
+        validate_draft(draft)
         print(f"\n    → draft len={len(draft)}")
-        if len(draft) < 100:
-            print("    WARN: draft suspiciously short")
 
         # Convergence check: if the draft stopped changing, stop to save cost.
         if prev_draft and SequenceMatcher(None, prev_draft, draft).ratio() > 0.9:
@@ -286,32 +374,44 @@ def main() -> None:
         cp = cp.replace("{{INTENT}}", intent)
         cp = cp.replace("{{DRAFT}}", draft)
         critique = run_pi(CRITIC, cp, "critique", r, f"{critic_label} — Round {r} critique")
+        validate_critique(critique)
         verdict = verdict_of(critique)
         print(f"    → verdict={verdict}  critique len={len(critique)}")
         if verdict == "APPROVED":
             break
         prev_draft = draft
 
-    if verdict != "APPROVED" and (AUTO or converged):
+    if verdict != "APPROVED" and AUTO:
         verdict = "APPROVED"
 
-    dst = ".ai/current-task.md"
-    with open(dst, "w") as fh:
-        fh.write(draft + "\n")
     if verdict == "APPROVED":
-        with open(os.path.join(WORK, "approved.txt"), "w") as fh:
-            fh.write("approved\n")
+        validate_draft(draft)
+        atomic_write(TASK_FILE, draft.rstrip() + "\n")
+        atomic_write(os.path.join(WORK, "approved.txt"), "approved\n")
+    else:
+        atomic_write(os.path.join(WORK, "approved.txt"), "revisions\n")
 
     print("=== DONE ===")
     print(f"verdict: {verdict} after {rounds_used} round(s)")
-    print(f"wrote: {dst} ({len(draft)} chars)")
     print(f"artifacts: {WORK}/")
+    if verdict == "APPROVED":
+        print(f"wrote: {TASK_FILE} ({len(draft)} chars)")
     if verdict != "APPROVED":
+        print(f"preserved: {TASK_FILE}")
         print("NOTE: not APPROVED. Options:")
         print("  arch-debate --approve                      # accept the last draft (chair-approved)")
         print("  DEBATE_MAX_ROUNDS=5 arch-debate …          # more rounds")
         print("  DEBATE_AUTO_APPROVE=1 arch-debate …        # auto-approve the last draft")
+        sys.exit(2)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except DebateError as exc:
+        try:
+            atomic_write(os.path.join(WORK, "approved.txt"), "failed\n")
+        except OSError:
+            pass
+        print(f"DEBATE_FAILED: {exc}", file=sys.stderr)
+        sys.exit(2)

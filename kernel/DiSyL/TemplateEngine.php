@@ -853,6 +853,12 @@ class TemplateEngine
             $content = $this->processDebugTags($content, $context);
         }
 
+        // 9d. Process {math equation="..."} tags (must run BEFORE processVariables
+        //     so the whole tag is consumed as a unit, not evaluated as a variable).
+        if (str_contains($content, '{math')) {
+            $content = $this->processMathTags($content, $context);
+        }
+
         // 10. Process remaining variables (including arithmetic and ternary expressions)
         if (str_contains($content, '{')) {
             $t = microtime(true);
@@ -935,7 +941,7 @@ class TemplateEngine
         // variables (letter/underscore start), filters, set, include, etc.
         $disylPattern = '/\{(?:'             // Opening brace followed by:
             . '\/(?:if|for|foreach|each|literal|verbatim)\}'  // Closing tags
-            . '|(?:if|elseif|for|foreach|each|set|include|literal|verbatim|else)\s' // Opening tags with space
+            . '|(?:if|elseif|for|foreach|each|set|math|include|literal|verbatim|else)\s' // Opening tags with space
             . '|else\}'                       // {else}
             . '|[a-zA-Z_][\w.]*'              // Variables: {name}, {user.email}
             . ')/s';
@@ -1253,6 +1259,55 @@ class TemplateEngine
      * cause the value capture to skip past the closing '}' and merge
      * adjacent {set} blocks.
      */
+    /**
+     * Process {math equation="..." [format="decimals"] [assign="var"]} tags.
+     *
+     * Evaluates the equation through the SAME expression engine as {(expr)}
+     * (arithmetic, variables, function calls, filters) so behavior is
+     * identical to the compiled path. Optionally formats the result with
+     * number_format, then either stores it into context (assign, no output)
+     * or emits it escaped (matching {expr} output semantics).
+     */
+    private function processMathTags(string $content, array &$context): string
+    {
+        return preg_replace_callback(
+            '/\{math\s+([^{}]*)\}/',
+            function ($match) use (&$context) {
+                $attrString = trim($match[1]);
+                $attrs = $this->parseAttributes($attrString, $context);
+
+                $equation = trim((string)($attrs['equation'] ?? ''));
+                if ($equation === '') {
+                    $this->logError("DiSyL {math}: missing required 'equation' attribute in '{math " . $attrString . "}'");
+                    return '<!-- DiSyL math error: missing equation attribute -->';
+                }
+
+                try {
+                    $value = $this->resolveValueWithFilters($equation, $context);
+                } catch (\Throwable $e) {
+                    $msg = $e->getMessage();
+                    $this->logError("DiSyL {math} failed for equation '{$equation}': {$msg}");
+                    $safe = str_replace(['{', '}'], '', htmlspecialchars($msg, ENT_QUOTES, 'UTF-8'));
+                    return '<!-- DiSyL math error: ' . $safe . ' -->';
+                }
+
+                $format = trim((string)($attrs['format'] ?? ''));
+                if ($format !== '') {
+                    $value = number_format((float)$value, (int)$format);
+                }
+
+                $assign = trim((string)($attrs['assign'] ?? ''));
+                if ($assign !== '') {
+                    $context[$assign] = $value;
+                    return '';
+                }
+
+                return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+            },
+            $content
+        );
+    }
+
     private function processSetStatements(string $content, array &$context): string
     {
         // Normalize shorthand {var++} and {var--}

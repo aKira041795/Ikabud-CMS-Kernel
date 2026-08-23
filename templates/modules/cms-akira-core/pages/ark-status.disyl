@@ -1,0 +1,105 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">ARK Status</h1>
+            <p class="mt-0.5 text-sm text-slate-500">Read-only POC status panel — ARK theme + Workbench profile registration/selection. This panel never mutates selection or registries.</p>
+        </div>
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            Read-only
+        </span>
+    </div>
+
+    <!-- Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="rounded-[24px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+            <div class="text-xs uppercase tracking-wider text-slate-400">Source</div>
+            <div class="mt-1 text-sm font-medium text-slate-700">cms.dashboard.widgets</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+            <div class="text-xs uppercase tracking-wider text-slate-400">Profile registered</div>
+            <div class="mt-1 text-2xl font-bold {if ark.profile.registered}text-emerald-600{else}text-amber-600{/if}">{if ark.profile.registered}Yes{else}No{/if}</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+            <div class="text-xs uppercase tracking-wider text-slate-400">Theme registered</div>
+            <div class="mt-1 text-2xl font-bold {if ark.theme.registered}text-emerald-600{else}text-amber-600{/if}">{if ark.theme.registered}Yes{else}No{/if}</div>
+        </div>
+    </div>
+
+    <div class="grid gap-4 xl:grid-cols-2">
+        <!-- Workbench profile -->
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8">
+            <h2 class="text-base font-bold text-slate-900 mb-4">ARK Workbench Profile</h2>
+            <dl class="grid gap-3 text-sm">
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Identity</dt>
+                    <dd class="font-medium text-slate-900">{ark.profile.name}</dd>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Registered</dt>
+                    <dd class="font-medium {if ark.profile.registered}text-emerald-600{else}text-amber-600{/if}">{if ark.profile.registered}Yes{else}No{/if}</dd>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Version</dt>
+                    <dd class="font-medium text-slate-900">{ark.profile.version|default:'—'}</dd>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Canonical digest</dt>
+                    <dd class="font-mono text-xs text-slate-500">{ark.profile.digest|default:'—'}</dd>
+                </div>
+                <div class="flex justify-between pb-2">
+                    <dt class="text-slate-500">Manifest</dt>
+                    <dd class="max-w-[60%] break-all text-right font-mono text-xs text-slate-500">{ark.profile.manifest_path|default:'—'}</dd>
+                </div>
+                {if ark.profile.error}
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{ark.profile.error|escape:'html'}</div>
+                {/if}
+            </dl>
+        </div>
+
+        <!-- ARK theme -->
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-8">
+            <h2 class="text-base font-bold text-slate-900 mb-4">ARK Theme</h2>
+            <dl class="grid gap-3 text-sm">
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Identity</dt>
+                    <dd class="font-medium text-slate-900">{ark.theme.name}</dd>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Registered</dt>
+                    <dd class="font-medium {if ark.theme.registered}text-emerald-600{else}text-amber-600{/if}">{if ark.theme.registered}Yes{else}No{/if}</dd>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Version</dt>
+                    <dd class="font-medium text-slate-900">{ark.theme.version|default:'—'}</dd>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Active</dt>
+                    <dd class="font-medium {if ark.theme.is_active}text-emerald-600{else}text-slate-500{/if}">{if ark.theme.is_active}Yes{else}No{/if}</dd>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Manifest present</dt>
+                    <dd class="font-medium {if ark.theme.manifest_present}text-emerald-600{else}text-amber-600{/if}">{if ark.theme.manifest_present}Yes{else}No{/if}</dd>
+                </div>
+                <div class="flex justify-between pb-2">
+                    <dt class="text-slate-500">Registry source</dt>
+                    <dd class="font-medium text-slate-500">cms.themes.list@1</dd>
+                </div>
+                {if ark.theme.error}
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{ark.theme.error|escape:'html'}</div>
+                {/if}
+            </dl>
+        </div>
+    </div>
+
+    {if not ark_ok}
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        ARK status capability did not resolve. The panel renders with degraded data.
+    </div>
+    {/if}
+</div>
+{/block}

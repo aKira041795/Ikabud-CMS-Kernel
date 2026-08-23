@@ -59,7 +59,7 @@ Check for **template anti-patterns**:
 - Missing `|default:` fallbacks on all variables
 - `{extends}` targeting stale versioned layouts (`.v2`, `.v3` copies identical to `.v1`)
 - Raw `$var` PHP syntax where DiSyL dot-path works
-- `{math equation="..."}` — **does not exist** in DiSyL, use direct expressions
+- `{math equation="..."}` — supported DiSyL tag (2026-08-23); evaluates a DiSyL expression with optional `format="decimals"` / `assign="var"`; same pipe-binding caveat as `{(a + b) | filter}`
 - Unparenthesized arithmetic before pipes: `{(a + b) | filter}` not `{a + b | filter}`
 
 ### Phase 4 — Layout Shell Review (10 min)

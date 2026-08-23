@@ -254,7 +254,7 @@ function checkMalformedExpressions(text, lines, diagnostics) {
             diagnostics.push(diag(i, match.index, match.index + match[0].length, 'Empty expression {} — remove or add content', vscode.DiagnosticSeverity.Warning));
         }
         // Missing space after {if, {foreach, {for, {while
-        const keywordRe = /\{(if|elseif|foreach|for|while|set|block|extends|include)([^\s}])/g;
+        const keywordRe = /\{(if|elseif|foreach|for|while|set|math|block|extends|include)([^\s}])/g;
         while ((match = keywordRe.exec(line)) !== null) {
             if (match[2] !== ' ' && match[2] !== '}') {
                 diagnostics.push(diag(i, match.index, match.index + match[0].length, `Missing space after {${match[1]} — should be '{${match[1]} ...'`, vscode.DiagnosticSeverity.Warning));

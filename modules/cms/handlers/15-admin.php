@@ -6,6 +6,13 @@ function cmsAdminDashboard(array $params = []): void
 {
     $user = cmsRequireCap('dashboard.view');
 
+    // Read-only dashboard widgets from the cms.dashboard.widgets extension
+    // point (e.g. the ARK Status panel). Computed fresh so contribution
+    // enablement changes are reflected immediately.
+    $dashboardWidgets = function_exists('kernelContributionsForHostLocation')
+        ? kernelContributionsForHostLocation('cms', 'dashboard.widgets', null, ['user' => $user])
+        : [];
+
     $cacheKey = 'cms.dashboard';
     $cached = adminViewCacheGet($cacheKey, $user);
     if (is_array($cached)) {
@@ -16,7 +23,7 @@ function cmsAdminDashboard(array $params = []): void
         echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(
             cmsAdminContext($user, 'dashboard', []),
             $cached,
-            ['welcome_headline' => $greeting]
+            ['welcome_headline' => $greeting, 'dashboard_widgets' => $dashboardWidgets]
         ));
         return;
     }
@@ -212,6 +219,8 @@ function cmsAdminDashboard(array $params = []): void
         'recent_content' => $recentContent,
         'activity_feed'  => $activityFeed,
     ];
+
+    $payload['dashboard_widgets'] = $dashboardWidgets;
 
     adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:dashboard'], $user);
     echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(

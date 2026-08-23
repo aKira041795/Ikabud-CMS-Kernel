@@ -86,16 +86,42 @@
                     "first"
                 ],
                 "description": "CMS Akira provider boundary runtime status and fallback map"
+            },
+            {
+                "id": "akira.ark.status@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Read-only ARK status: Workbench profile + ARK theme registration/selection state. Never mutates."
             }
         ],
         "depends": [
             "cms.content.get@1",
             "cms.content.list@1",
             "cms.content.create@1",
-            "cms.content.update@1"
+            "cms.content.update@1",
+            "cms.themes.list@1"
         ]
     },
     "routes": true,
+    "admin_contributions": [
+        {
+            "id": "cms-akira-core.ark-panel",
+            "host": "cms",
+            "location": "dashboard.widgets",
+            "group": "System",
+            "label": "ARK Status",
+            "icon": "sparkles",
+            "route": "/admin/ark-status",
+            "permission": "dashboard.view",
+            "roles": [
+                "admin"
+            ],
+            "order": 80,
+            "guidance": "Read-only ARK POC status: Workbench profile + ARK theme registration. Never mutates selection."
+        }
+    ],
     "events": [],
     "nav": [
         {

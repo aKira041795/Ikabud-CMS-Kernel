@@ -13,11 +13,12 @@ $projectRoot = dirname(__DIR__);
 $testDir = $projectRoot . '/tests';
 $resultsDir = $projectRoot . '/test_results';
 
-$options = getopt('', ['module:', 'list', 'failed-only', 'help']);
+$options = getopt('', ['module:', 'list', 'failed-only', 'help', 'filter:']);
 
 if (isset($options['help'])) {
     echo "Usage: php tests/discover.php [options]\n";
     echo "  --module=NAME     Run only tests in tests/NAME/\n";
+    echo "  --filter=SUBSTR   Run only tests whose basename contains SUBSTR (e.g. --filter=bakeshop)\n";
     echo "  --list            List all discovered tests\n";
     echo "  --failed-only     Re-run only previously failed tests\n";
     echo "  --help            Show this help\n";
@@ -28,6 +29,23 @@ if (isset($options['help'])) {
 $discovered = [];
 $moduleFilter = $options['module'] ?? null;
 $failedOnly = isset($options['failed-only']);
+
+// Scan flat tests/ root as the 'core' suite group (module suites like
+// bakeshop/wms/cms live flat at tests root). Grouped under core/ so the
+// subdir suites remain distinct and --filter can target any basename.
+// Skipped when --module=NAME is active so that flag keeps its subdir-only
+// semantics (run only tests in tests/NAME/).
+if (!$moduleFilter) {
+    foreach (glob($testDir . '/*_test.php') ?: [] as $file) {
+        $base = basename($file);
+        if (str_contains($base, '_seed_') || str_contains($base, '_interactive') || str_contains($base, '_helper')) {
+            continue;
+        }
+        $rel = str_replace($projectRoot . '/', '', $file);
+        $key = 'core/' . basename($file, '.php');
+        $discovered[$key] = ['file' => $file, 'rel' => $rel];
+    }
+}
 
 // Dynamically scan tests/ subdirectories for *_test.php files
 $skipDirs = ['harness', 'browser', 'ai', 'test_results', 'bench'];
@@ -47,6 +65,16 @@ foreach ($testSubdirs as $subdir) {
         $rel = str_replace($projectRoot . '/', '', $file);
         $key = $dir . '/' . basename($file, '.php');
         $discovered[$key] = ['file' => $file, 'rel' => $rel];
+    }
+}
+
+// Apply name filter (matches test basenames across core + subdir suites)
+$nameFilter = $options['filter'] ?? null;
+if ($nameFilter !== null && $nameFilter !== '') {
+    foreach ($discovered as $key => $info) {
+        if (!str_contains(basename($info['file']), $nameFilter)) {
+            unset($discovered[$key]);
+        }
     }
 }
 

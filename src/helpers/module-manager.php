@@ -520,7 +520,13 @@ function kernelContributionsForHost(string $host, ?string $location = null, ?arr
             continue;
         }
         if ($location !== null && $candidateLocation !== $location) {
-            continue;
+            // Both location conventions are accepted: bare ('sidebar') and
+            // host-prefixed ('cms.sidebar' for host 'cms'). This closes the
+            // drift where a manifest declared location 'cms.sidebar' but the
+            // consumer queried 'sidebar' (e.g. the CMS sidebar bridge).
+            if ($candidateLocation !== $host . '.' . $location) {
+                continue;
+            }
         }
         foreach ($items as $item) {
             $result[] = $item;

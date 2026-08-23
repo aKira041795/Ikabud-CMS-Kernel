@@ -47,6 +47,30 @@ function pageCmsAkiraCoreHome(array $params = []): void
 }
 
 /**
+ * GET /admin/ark-status — Read-only ARK POC status panel.
+ *
+ * Surfaces ARK theme + Workbench profile registration/selection status via
+ * akira.ark.status@1 (capability-bus, read-only). The panel never mutates
+ * selection or the registries.
+ */
+function pageAkiraArkStatus(array $params = []): void
+{
+    $user = cmsRequireCap('dashboard.view');
+
+    $result = cac_cap_akira_ark_status_1([], 'akira.ark.status@1', 'cms-akira-core');
+    $status = $result['data'] ?? [];
+
+    echo cmsRender('modules/cms-akira-core/pages/ark-status.disyl', array_merge(cmsAdminContext($user, 'ark-status', [
+        ['label' => 'CMS Akira Core', 'url' => '/admin/cms-akira-core'],
+        ['label' => 'ARK Status', 'url' => ''],
+    ]), [
+        'page_title' => 'ARK Status',
+        'ark'        => $status,
+        'ark_ok'     => (bool)($result['ok'] ?? false),
+    ]));
+}
+
+/**
  * GET /api/v1/cms-akira-core/health — Dependency-free lifecycle smoke endpoint.
  */
 function apiCmsAkiraCoreHealth(array $params = []): void

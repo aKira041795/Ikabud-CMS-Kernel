@@ -307,6 +307,7 @@ PHP;
             'break' => $this->line('break;'),
             'continue' => $this->line('continue;'),
             'set' => $this->compileSet($node),
+            'math' => $this->compileMath($node),
             'with' => $this->compileWith($node),
             'apply' => $this->compileApply($node),
             'query' => $this->compileQuery($node),
@@ -522,7 +523,36 @@ PHP;
         }
         return $this->line("\$ctx->set({$name}, {$value});");
     }
-    
+
+    /** {math equation="..." [format="decimals"] [assign="var"]} — self-closing math tag. */
+    private function compileMath(ControlNode $node): string
+    {
+        // Missing/invalid equation: emit a visible marker + log, never silent.
+        $error = $node->getAttribute('error');
+        if ($error !== null) {
+            $msg = 'DiSyL {math} error: ' . $error;
+            $comment = '<!-- DiSyL math error: ' . $error . ' -->';
+            $log = "if (function_exists('write_log')) { \\write_log(" . var_export($msg, true) . '); }';
+            return $this->line($log)
+                 . $this->line('$output .= ' . var_export($comment, true) . ';');
+        }
+
+        $equation = $this->compileExpressionValue($node->getAttribute('equation'));
+
+        $format = $node->getAttribute('format');
+        if ($format !== null) {
+            $formatExpr = $this->compileExpressionValue($format);
+            $equation = "number_format((float)({$equation}), (int)({$formatExpr}))";
+        }
+
+        $assign = $node->getAttribute('assign');
+        if ($assign !== null) {
+            return $this->line("\$ctx->set(" . var_export($assign, true) . ", {$equation});");
+        }
+
+        return $this->line("\$output .= (string)(\$this->escape({$equation}));");
+    }
+
     private function compileWith(ControlNode $node): string
     {
         $variables = $node->getAttribute('variables') ?? [];
