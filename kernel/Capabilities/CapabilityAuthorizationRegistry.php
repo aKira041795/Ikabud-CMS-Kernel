@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ikabud\Kernel\Capabilities;
 
 use PDO;
+use PDOException;
 use Throwable;
 
 final class CapabilityAuthorizationRegistry
@@ -136,7 +137,6 @@ final class CapabilityAuthorizationRegistry
      */
     public function seedPolicy(array $rows): void
     {
-        $db = $this->db();
         $sql = 'INSERT INTO capability_authorization_policies '
             . '(policy_version, capability_id, capability_version, provider, caller_module, allowed_roles, provider_activation_required, requires_protocol, is_active, updated_at) '
             . 'VALUES (:policy_version, :capability_id, :capability_version, :provider, :caller_module, :allowed_roles, :provider_activation_required, :requires_protocol, :is_active, NOW()) '
@@ -149,23 +149,25 @@ final class CapabilityAuthorizationRegistry
             . 'updated_at = NOW()';
 
         try {
-            $stmt = $db->prepare($sql);
-            foreach ($rows as $row) {
-                if (!is_array($row)) {
-                    continue;
+            $this->withKernelTableAccess(function () use ($rows, $sql): void {
+                $stmt = $this->db()->prepare($sql);
+                foreach ($rows as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $stmt->execute([
+                        ':policy_version' => (int)($row['policy_version'] ?? 0),
+                        ':capability_id' => trim((string)($row['capability_id'] ?? '')),
+                        ':capability_version' => trim((string)($row['capability_version'] ?? '')),
+                        ':provider' => trim((string)($row['provider'] ?? '')),
+                        ':caller_module' => $this->nullableString($row['caller_module'] ?? null),
+                        ':allowed_roles' => $this->nullableString($row['allowed_roles'] ?? null),
+                        ':provider_activation_required' => !array_key_exists('provider_activation_required', $row) || (bool)$row['provider_activation_required'] ? 1 : 0,
+                        ':requires_protocol' => trim((string)($row['requires_protocol'] ?? 'v1')),
+                        ':is_active' => !array_key_exists('is_active', $row) || (bool)$row['is_active'] ? 1 : 0,
+                    ]);
                 }
-                $stmt->execute([
-                    ':policy_version' => (int)($row['policy_version'] ?? 0),
-                    ':capability_id' => trim((string)($row['capability_id'] ?? '')),
-                    ':capability_version' => trim((string)($row['capability_version'] ?? '')),
-                    ':provider' => trim((string)($row['provider'] ?? '')),
-                    ':caller_module' => $this->nullableString($row['caller_module'] ?? null),
-                    ':allowed_roles' => $this->nullableString($row['allowed_roles'] ?? null),
-                    ':provider_activation_required' => !array_key_exists('provider_activation_required', $row) || (bool)$row['provider_activation_required'] ? 1 : 0,
-                    ':requires_protocol' => trim((string)($row['requires_protocol'] ?? 'v1')),
-                    ':is_active' => !array_key_exists('is_active', $row) || (bool)$row['is_active'] ? 1 : 0,
-                ]);
-            }
+            });
             self::invalidate();
         } catch (Throwable $e) {
             throw new CapabilityAuthorizationRegistryUnavailableException('capability authorization registry seed failed: ' . $e->getMessage(), 0, $e);
@@ -222,12 +224,19 @@ final class CapabilityAuthorizationRegistry
         }
 
         try {
-            $stmt = $this->db()->prepare('SELECT policy_version, capability_id, capability_version, provider, caller_module, allowed_roles, provider_activation_required, requires_protocol, is_active FROM capability_authorization_policies WHERE is_active = 1 AND policy_version = :policy_version ORDER BY capability_id ASC, capability_version ASC, provider ASC');
-            $stmt->execute([':policy_version' => $policyVersion]);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            self::$policyCache[$policyVersion] = is_array($rows) ? $rows : [];
+            $rows = $this->withKernelTableAccess(function () use ($policyVersion): array {
+                $stmt = $this->db()->prepare('SELECT policy_version, capability_id, capability_version, provider, caller_module, allowed_roles, provider_activation_required, requires_protocol, is_active FROM capability_authorization_policies WHERE is_active = 1 AND policy_version = :policy_version ORDER BY capability_id ASC, capability_version ASC, provider ASC');
+                $stmt->execute([':policy_version' => $policyVersion]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                return is_array($rows) ? $rows : [];
+            });
+            self::$policyCache[$policyVersion] = $rows;
             return self::$policyCache[$policyVersion];
         } catch (Throwable $e) {
+            if ($this->isMissingTableError($e)) {
+                self::$policyCache[$policyVersion] = [];
+                return self::$policyCache[$policyVersion];
+            }
             throw new CapabilityAuthorizationRegistryUnavailableException('capability authorization registry query failed: ' . $e->getMessage(), 0, $e);
         }
     }
@@ -240,22 +249,74 @@ final class CapabilityAuthorizationRegistry
         }
 
         try {
-            $db = $this->db();
-            if ($override !== null) {
-                $stmt = $db->prepare('SELECT policy_version FROM capability_authorization_policies WHERE policy_version = :policy_version AND is_active = 1 ORDER BY id DESC LIMIT 1');
-                $stmt->execute([':policy_version' => $override]);
-                $found = $stmt->fetchColumn();
-                self::$activeVersionCache[$cacheKey] = $found === false ? null : (int)$found;
-                return self::$activeVersionCache[$cacheKey];
-            }
+            $resolved = $this->withKernelTableAccess(function () use ($override): ?int {
+                $db = $this->db();
+                if ($override !== null) {
+                    $stmt = $db->prepare('SELECT policy_version FROM capability_authorization_policies WHERE policy_version = :policy_version AND is_active = 1 ORDER BY id DESC LIMIT 1');
+                    $stmt->execute([':policy_version' => $override]);
+                    $found = $stmt->fetchColumn();
+                    return $found === false ? null : (int)$found;
+                }
 
-            $stmt = $db->query('SELECT MAX(policy_version) FROM capability_authorization_policies WHERE is_active = 1');
-            $value = $stmt === false ? false : $stmt->fetchColumn();
-            self::$activeVersionCache[$cacheKey] = $value === false || $value === null ? null : (int)$value;
+                $stmt = $db->query('SELECT MAX(policy_version) FROM capability_authorization_policies WHERE is_active = 1');
+                $value = $stmt === false ? false : $stmt->fetchColumn();
+                return $value === false || $value === null ? null : (int)$value;
+            });
+            self::$activeVersionCache[$cacheKey] = $resolved;
             return self::$activeVersionCache[$cacheKey];
         } catch (Throwable $e) {
+            if ($this->isMissingTableError($e)) {
+                self::$activeVersionCache[$cacheKey] = null;
+                return self::$activeVersionCache[$cacheKey];
+            }
             throw new CapabilityAuthorizationRegistryUnavailableException('capability authorization registry version lookup failed: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    /**
+     * Kernel services that read KERNEL-OWNED tables from within a module request MUST route those
+     * reads through kernel escalation (KernelPDO::kernelEscalationEnter/Leave); never query a
+     * kernel-owned table via app()->db() in an active module context, or the ModuleDB ownership gate
+     * will deny it. This is the same contract moduleCatalogWithKernelDbEscalation() implements for
+     * module-manager catalog reads.
+     */
+    private function withKernelTableAccess(callable $fn): mixed
+    {
+        $kernelPdoClass = '\\Ikabud\\Kernel\\Database\\KernelPDO';
+        $canEscalate = class_exists($kernelPdoClass)
+            && method_exists($kernelPdoClass, 'kernelEscalationEnter')
+            && method_exists($kernelPdoClass, 'kernelEscalationLeave');
+
+        if (!$canEscalate) {
+            if (function_exists('write_log')) {
+                write_log('CapabilityAuthorizationRegistry: kernel DB escalation unavailable; continuing without escalation', 'warning');
+            }
+            return $fn();
+        }
+
+        $kernelPdoClass::kernelEscalationEnter();
+        try {
+            return $fn();
+        } finally {
+            $kernelPdoClass::kernelEscalationLeave();
+        }
+    }
+
+    private function isMissingTableError(Throwable $e): bool
+    {
+        if ($e instanceof PDOException) {
+            if ((string)$e->getCode() === '42S02') {
+                return true;
+            }
+
+            $errorInfo = $e->errorInfo;
+            if (is_array($errorInfo) && isset($errorInfo[1]) && (int)$errorInfo[1] === 1146) {
+                return true;
+            }
+        }
+
+        $previous = $e->getPrevious();
+        return $previous instanceof Throwable ? $this->isMissingTableError($previous) : false;
     }
 
     private function db(): PDO

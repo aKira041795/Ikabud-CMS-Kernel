@@ -248,6 +248,8 @@ Operational notes:
 - all four are additive release migrations
 - MySQL 5.7 compatibility remains required
 - existing v1 ServiceProxy paths remain present; v2 is enforced where the policy/handler requires it
+- after deploying this kernel batch, run `php ikabud tenant:migrate <tenant_id|tenant_key|domain>` for each existing tenant so `023_kernel_workflow_retention.sql`, `024_kernel_service_proxy_v2_nonce.sql`, and `025_kernel_capability_authorization_policies.sql` are applied per-tenant
+- until an existing tenant is re-migrated, the authorization registry treats an absent `capability_authorization_policies` table as "no policies": ungoverned v1 flows keep working, while v2-requiring capabilities default-deny
 
 ---
 

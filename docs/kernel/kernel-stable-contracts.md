@@ -64,6 +64,10 @@ These behaviors are stable and must be preserved:
 - centralized security-header application
 - module manifest validation before load
 
+### Kernel-owned table access
+
+Kernel services that read or write kernel-owned tables during an active module request must wrap those queries in kernel DB escalation (`KernelPDO::kernelEscalationEnter()` / `kernelEscalationLeave()`). Do not query kernel-owned tables via `app()->db()` without escalation while `_activeModuleContext` is set, or the ModuleDB ownership gate will deny the access.
+
 ### 6. Module settings and entitlement helpers
 
 These helpers are effectively part of the platform surface while modules depend on them:
