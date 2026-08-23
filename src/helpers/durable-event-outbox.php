@@ -119,3 +119,180 @@ if (!function_exists('durableEventOutboxFind')) {
         return is_array($row) ? $row : null;
     }
 }
+
+if (!function_exists('durableOutboxClaim')) {
+    function durableOutboxClaim(PDO $pdo, string $tenantId, string $workerId, int $leaseSeconds = 60, int $maxAttempts = 5, int $limit = 1): array
+    {
+        $tenantId = trim($tenantId);
+        $workerId = trim($workerId);
+        $leaseSeconds = max(1, $leaseSeconds);
+        $maxAttempts = max(1, $maxAttempts);
+        $limit = max(1, $limit);
+
+        if ($tenantId === '') {
+            throw new InvalidArgumentException('tenantId is required.');
+        }
+        if ($workerId === '') {
+            throw new InvalidArgumentException('workerId is required.');
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $updateSql = 'UPDATE `kernel_durable_event_outbox` '
+            . 'SET `status` = \'claimed\', `lease_owner` = :worker, `lease_token` = :token, '
+            . '`lease_expires_at` = DATE_ADD(NOW(), INTERVAL ' . $leaseSeconds . ' SECOND), '
+            . '`attempt_count` = `attempt_count` + 1 '
+            . 'WHERE `tenant_id` = :tenant '
+            . 'AND `status` = \'pending\' '
+            . 'AND (`available_at` IS NULL OR `available_at` <= NOW()) '
+            . 'AND `attempt_count` < :max '
+            . 'ORDER BY `id` LIMIT 1';
+
+        $stmt = $pdo->prepare($updateSql);
+        $stmt->execute([
+            ':worker' => $workerId,
+            ':token' => $token,
+            ':tenant' => $tenantId,
+            ':max' => $maxAttempts,
+        ]);
+
+        if ($stmt->rowCount() !== 1) {
+            return [];
+        }
+
+        $selectSql = 'SELECT * FROM `kernel_durable_event_outbox` '
+            . 'WHERE `tenant_id` = :tenant AND `lease_owner` = :worker AND `lease_token` = :token '
+            . 'ORDER BY `id` LIMIT ' . $limit;
+        $select = $pdo->prepare($selectSql);
+        $select->execute([
+            ':tenant' => $tenantId,
+            ':worker' => $workerId,
+            ':token' => $token,
+        ]);
+
+        $rows = $select->fetchAll(PDO::FETCH_ASSOC);
+        return is_array($rows) ? $rows : [];
+    }
+}
+
+if (!function_exists('durableOutboxRelease')) {
+    function durableOutboxRelease(PDO $pdo, int $id, string $tenantId, string $status = 'processed'): bool
+    {
+        $allowed = ['pending', 'claimed', 'processed', 'failed', 'dead_letter'];
+        if (!in_array($status, $allowed, true)) {
+            throw new InvalidArgumentException('Invalid outbox status.');
+        }
+
+        $stmt = $pdo->prepare(
+            'UPDATE `kernel_durable_event_outbox` '
+            . 'SET `status` = :status, `lease_owner` = NULL, `lease_token` = NULL, `lease_expires_at` = NULL '
+            . 'WHERE `id` = :id AND `tenant_id` = :tenant_id'
+        );
+        $stmt->execute([
+            ':status' => $status,
+            ':id' => $id,
+            ':tenant_id' => $tenantId,
+        ]);
+
+        return $stmt->rowCount() === 1;
+    }
+}
+
+if (!function_exists('durableOutboxSweepExpired')) {
+    function durableOutboxSweepExpired(PDO $pdo, string $tenantId): int
+    {
+        $stmt = $pdo->prepare(
+            'UPDATE `kernel_durable_event_outbox` '
+            . 'SET `status` = \'pending\', `lease_owner` = NULL, `lease_token` = NULL, `lease_expires_at` = NULL '
+            . 'WHERE `tenant_id` = :tenant_id AND `status` = \'claimed\' AND `lease_expires_at` < NOW()'
+        );
+        $stmt->execute([':tenant_id' => $tenantId]);
+
+        return (int) $stmt->rowCount();
+    }
+}
+
+if (!function_exists('durableOutboxDeadLetter')) {
+    function durableOutboxDeadLetter(PDO $pdo, int $id, string $tenantId): bool
+    {
+        return durableOutboxRelease($pdo, $id, $tenantId, 'dead_letter');
+    }
+}
+
+if (!function_exists('durableOutboxRetry')) {
+    function durableOutboxRetry(PDO $pdo, int $id, string $tenantId, int $backoffSeconds = 5): bool
+    {
+        $backoffSeconds = max(1, $backoffSeconds);
+        $stmt = $pdo->prepare(
+            'UPDATE `kernel_durable_event_outbox` '
+            . 'SET `status` = \'pending\', `lease_owner` = NULL, `lease_token` = NULL, `lease_expires_at` = NULL, '
+            . '`available_at` = DATE_ADD(NOW(), INTERVAL ' . $backoffSeconds . ' SECOND) '
+            . 'WHERE `id` = :id AND `tenant_id` = :tenant_id'
+        );
+        $stmt->execute([
+            ':id' => $id,
+            ':tenant_id' => $tenantId,
+        ]);
+
+        return $stmt->rowCount() === 1;
+    }
+}
+
+if (!function_exists('durableOutboxProcess')) {
+    function durableOutboxProcess(PDO $pdo, string $tenantId, string $workerId, callable $handler, array $opts = []): array
+    {
+        $leaseSeconds = isset($opts['leaseSeconds']) ? (int) $opts['leaseSeconds'] : 60;
+        $maxAttempts = isset($opts['maxAttempts']) ? (int) $opts['maxAttempts'] : 5;
+        $limit = isset($opts['limit']) ? (int) $opts['limit'] : 1;
+        $backoffSeconds = isset($opts['backoffSeconds']) ? (int) $opts['backoffSeconds'] : 5;
+
+        $summary = [
+            'claimed' => 0,
+            'processed' => 0,
+            'failed' => 0,
+            'dead_letter' => 0,
+        ];
+
+        $remaining = max(1, $limit);
+        $claimedRows = [];
+        while ($remaining > 0) {
+            $rows = durableOutboxClaim($pdo, $tenantId, $workerId, $leaseSeconds, $maxAttempts, 1);
+            if ($rows === []) {
+                break;
+            }
+            $claimedRows[] = $rows[0];
+            $remaining--;
+        }
+
+        $summary['claimed'] = count($claimedRows);
+
+        foreach ($claimedRows as $row) {
+            try {
+                if (!$pdo->inTransaction()) {
+                    $pdo->beginTransaction();
+                }
+                $handler($row, $pdo);
+                durableOutboxRelease($pdo, (int) $row['id'], $tenantId, 'processed');
+                if ($pdo->inTransaction()) {
+                    $pdo->commit();
+                }
+                $summary['processed']++;
+            } catch (Throwable $e) {
+                $summary['failed']++;
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+
+                $pdo->beginTransaction();
+                if ((int) ($row['attempt_count'] ?? 0) >= $maxAttempts) {
+                    durableOutboxDeadLetter($pdo, (int) $row['id'], $tenantId);
+                    $summary['dead_letter']++;
+                } else {
+                    durableOutboxRetry($pdo, (int) $row['id'], $tenantId, $backoffSeconds);
+                }
+                $pdo->commit();
+            }
+        }
+
+        return $summary;
+    }
+}
