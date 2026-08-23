@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Ikabud\Kernel\Services;
 
 use Ikabud\Kernel\Crypto;
-use Ikabud\Kernel\Database\MigrationRunner;
 use PDO;
 use Throwable;
 
@@ -22,6 +21,7 @@ class TenantProvisioner
     private PDO $controlDb;
     private array $log = [];
     private array $errors = [];
+    private array $migrationDetails = [];
 
     public function __construct(PDO $controlDb)
     {
@@ -45,6 +45,7 @@ class TenantProvisioner
     {
         $this->log = [];
         $this->errors = [];
+        $this->migrationDetails = [];
         $migrationCount = 0;
 
         try {
@@ -80,7 +81,7 @@ class TenantProvisioner
             }
         } catch (Throwable $e) {
             $this->error('Provisioning failed: ' . $e->getMessage());
-            $this->setTenantStatus($tenantId, 'pending');
+            $this->setTenantStatus($tenantId, 'provisioning', 'pending');
             return $this->result(false, $migrationCount);
         }
     }
@@ -91,12 +92,19 @@ class TenantProvisioner
     private function provisionUnlocked(int $tenantId, array $tenant, array $options): array
     {
         $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
+        $initialStatus = trim((string)($tenant['status'] ?? ''));
         $migrationCount = 0;
+
+        // CAS: enter 'provisioning' before any migration work.
+        if (!$this->setTenantStatus($tenantId, $initialStatus !== '' ? $initialStatus : 'pending', 'provisioning')) {
+            $this->error('Failed to enter provisioning state for tenant #' . $tenantId . '.');
+            return $this->result(false, 0);
+        }
 
         // Step 2: Resolve DB credentials + reject base-DB connections.
         $creds = $this->resolveDbCredentials($tenant);
         if ($creds === null) {
-            $this->setTenantStatus($tenantId, 'pending');
+            $this->setTenantStatus($tenantId, 'provisioning', 'pending');
             return $this->result(false, 0);
         }
         if (function_exists('tenantRejectBaseDbConnection')) {
@@ -108,13 +116,10 @@ class TenantProvisioner
             ]);
             if (empty($isolation['ok'])) {
                 $this->error((string)($isolation['error'] ?? 'Base DB connection rejected'));
-                $this->setTenantStatus($tenantId, 'pending');
+                $this->setTenantStatus($tenantId, 'provisioning', 'pending');
                 return $this->result(false, 0);
             }
         }
-
-        // CAS: enter 'provisioning' before any migration work.
-        $this->setTenantStatus($tenantId, 'provisioning');
 
         // Canonical manifest-driven auth_owned spec (shared by credential
         // requirement, seeding, and verification).
@@ -126,7 +131,7 @@ class TenantProvisioner
             $adminRoles = is_array($spec['admin_roles'] ?? null) ? $spec['admin_roles'] : [];
             if (!in_array($defaultRole, $adminRoles, true)) {
                 $this->error('default_admin_role must be one of admin_roles for module ' . $entryModule . '.');
-                $this->setTenantStatus($tenantId, 'pending');
+                $this->setTenantStatus($tenantId, 'provisioning', 'pending');
                 return $this->result(false, 0);
             }
         }
@@ -138,7 +143,7 @@ class TenantProvisioner
         if ($this->requiresSeededAdminCredentials($entryModule, $spec)) {
             if ($adminUser === '' || $adminPass === '') {
                 $this->error('Entry-module tenant provisioning requires admin_user and admin_pass for ' . $entryModule . '.');
-                $this->setTenantStatus($tenantId, 'pending');
+                $this->setTenantStatus($tenantId, 'provisioning', 'pending');
                 return $this->result(false, 0);
             }
         }
@@ -146,7 +151,7 @@ class TenantProvisioner
         // Step 3: Create database (unless skipped)
         if (empty($options['skip_db_create'])) {
             if (!$this->createDatabase($creds)) {
-                $this->setTenantStatus($tenantId, 'pending');
+                $this->setTenantStatus($tenantId, 'provisioning', 'pending');
                 return $this->result(false, 0);
             }
         } else {
@@ -156,7 +161,7 @@ class TenantProvisioner
         // Step 4: Connect to tenant DB
         $tenantPdo = $this->connectTenantDb($creds);
         if ($tenantPdo === null) {
-            $this->setTenantStatus($tenantId, 'pending');
+            $this->setTenantStatus($tenantId, 'provisioning', 'pending');
             return $this->result(false, 0);
         }
         $this->log('Connected to tenant database');
@@ -164,22 +169,17 @@ class TenantProvisioner
         // Step 5: Set tenant context
         app()->tenant()->setTenantId($tenantId);
 
-        // Step 6: Kernel migrations FIRST so the tenant DB has the base kernel
-        // tables (users, audit_logs, rate_limits, refresh_tokens, workflow_*,
-        // tenant_module_settings, authoritative audit_logs actor columns 018)
-        // before entry-module migrations run.
-        $migrationCount += $this->runKernelMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
-
-        // Step 7: Module migrations via the guarded executor (manifest-declared
-        // artifacts + ownership gate), NOT bare MigrationRunner::migrate().
-        $migrationCount += $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
+        // Step 6: Run the shared guarded migration coordinator.
+        $coordinated = $this->runCoordinatedMigrations($tenantPdo, $tenantId, $entryModule !== '' ? $entryModule : null);
+        $this->migrationDetails = $coordinated['details'];
+        $migrationCount += $coordinated['count'];
 
         // Step 8: Seed admin user (fail-fast when required).
         if ($adminUser !== '' && $adminPass !== '') {
             $seeded = $this->seedAdminUser($tenantPdo, $adminUser, $adminPass, $adminName, $entryModule, $spec);
             if (empty($seeded['ok'])) {
                 $this->error((string)($seeded['error'] ?? 'Admin seed failed'));
-                $this->setTenantStatus($tenantId, 'pending');
+                $this->setTenantStatus($tenantId, 'provisioning', 'pending');
                 return $this->result(false, $migrationCount);
             }
         }
@@ -188,11 +188,12 @@ class TenantProvisioner
         $verify = $this->verifyProvisionedTenant($tenantPdo, $entryModule, $spec);
         if (empty($verify['ok'])) {
             $this->error((string)($verify['error'] ?? 'Tenant verification failed'));
-            $this->setTenantStatus($tenantId, 'pending');
+            $this->setTenantStatus($tenantId, 'provisioning', 'pending');
             return $this->result(false, $migrationCount);
         }
 
-        $this->setTenantStatus($tenantId, 'active');
+        tenantSetModuleActivationState($tenantPdo, $tenantId, (array)($this->migrationDetails['plan'] ?? []), true);
+        $this->setTenantStatus($tenantId, 'provisioning', 'active');
         $this->log('Provisioning complete for tenant #' . $tenantId);
         return $this->result(true, $migrationCount);
     }
@@ -200,17 +201,20 @@ class TenantProvisioner
     /**
      * Set the control-plane tenant status (CAS transition).
      */
-    private function setTenantStatus(int $tenantId, string $status): void
+    private function setTenantStatus(int $tenantId, string $expectedStatus, string $status): bool
     {
         try {
-            $stmt = $this->controlDb->prepare(
-                'UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid'
-            );
-            $stmt->execute([':s' => $status, ':tid' => $tenantId]);
-            $this->log("Tenant status -> {$status}");
+            $updated = tenantCasStatus($this->controlDb, $tenantId, $expectedStatus, $status);
+            if ($updated) {
+                $this->log("Tenant status {$expectedStatus} -> {$status}");
+                return true;
+            }
+            $this->error('Failed tenant status CAS ' . $expectedStatus . ' -> ' . $status . ' for tenant #' . $tenantId . '.');
         } catch (Throwable $e) {
             $this->error('Failed to update tenant status to ' . $status . ': ' . $e->getMessage());
         }
+
+        return false;
     }
 
     /**
@@ -244,6 +248,14 @@ class TenantProvisioner
             }
             if (!tenantDatabaseHasTable($tenantPdo, $requiredTable)) {
                 return ['ok' => false, 'error' => "Required tenant table '{$requiredTable}' is missing after provisioning"];
+            }
+        }
+
+        if (isset($GLOBALS['tenant_provision_verify_override']) && is_callable($GLOBALS['tenant_provision_verify_override'])) {
+            $override = $GLOBALS['tenant_provision_verify_override'];
+            $result = $override($tenantPdo, $entryModule, $spec);
+            if (is_array($result)) {
+                return $result;
             }
         }
 
@@ -356,37 +368,29 @@ class TenantProvisioner
         }
     }
 
-    private function runModuleMigrations(PDO $tenantPdo, ?string $entryModule): int
+    private function runCoordinatedMigrations(PDO $tenantPdo, int $tenantId, ?string $entryModule): array
     {
-        $plan = tenantProvisionModulePlan($entryModule);
-        $total = 0;
+        $result = tenantRunCoordinatedProvisionMigrations($tenantPdo, $entryModule, null, null, $tenantId);
+        $kernelCount = count($result['kernel'] ?? []);
+        if ($kernelCount > 0) {
+            $this->log('Kernel migrations: ' . $kernelCount . ' applied');
+        }
 
-        // Route module migrations through the canonical guarded executor
-        // (tenantSyncModuleMigrations → applyModuleSqlArtifacts) so only
-        // manifest-declared artifacts are applied, each is tracked, and the
-        // migration ownership gate preflights every artifact. Bare
-        // MigrationRunner::migrate() is NOT used here.
-        foreach ($plan as $moduleId) {
-            $result = function_exists('tenantSyncModuleMigrations')
-                ? tenantSyncModuleMigrations($tenantPdo, $moduleId)
-                : [];
-            if (!empty($result)) {
-                $this->log('Migrated ' . $moduleId . ': ' . count($result) . ' file(s)');
-                $total += count($result);
+        $moduleCount = 0;
+        foreach (($result['modules'] ?? []) as $moduleId => $files) {
+            if (!is_array($files) || $files === []) {
+                continue;
             }
+            $this->log('Migrated ' . $moduleId . ': ' . count($files) . ' file(s)');
+            $moduleCount += count($files);
         }
 
-        $this->log("Module migrations: $total total");
-        return $total;
-    }
+        $this->log('Module migrations: ' . $moduleCount . ' total');
 
-    private function runKernelMigrations(PDO $tenantPdo, ?string $entryModule): int
-    {
-        $applied = tenantSyncKernelMigrations($tenantPdo, null, $entryModule);
-        if (!empty($applied)) {
-            $this->log('Kernel migrations: ' . count($applied) . ' applied');
-        }
-        return count($applied);
+        return [
+            'count' => $kernelCount + $moduleCount,
+            'details' => $result,
+        ];
     }
 
     /**
@@ -601,6 +605,7 @@ class TenantProvisioner
             'log' => $this->log,
             'errors' => $this->errors,
             'migrations' => $migrations,
+            'migration_details' => $this->migrationDetails,
         ];
     }
 

@@ -2,9 +2,41 @@
 
 declare(strict_types=1);
 
-function tenantEntryModuleUsesKernelUsers(?string $entryModuleId): bool
+function tenantResolveProvisionEntryModuleId(?string $entryModuleId = null, ?int $tenantId = null): ?string
 {
     $entryModuleId = trim((string)$entryModuleId);
+    if ($entryModuleId !== '') {
+        return $entryModuleId;
+    }
+
+    if ($tenantId !== null && $tenantId > 0) {
+        $resolved = tenantEntryModuleIdForTenant($tenantId);
+        $resolved = is_string($resolved) ? trim($resolved) : '';
+        if ($resolved !== '') {
+            return $resolved;
+        }
+    }
+
+    if (function_exists('app')) {
+        try {
+            $currentTenantId = (int)(app()->tenant()->current() ?? 0);
+            if ($currentTenantId > 0) {
+                $resolved = tenantEntryModuleIdForTenant($currentTenantId);
+                $resolved = is_string($resolved) ? trim($resolved) : '';
+                if ($resolved !== '') {
+                    return $resolved;
+                }
+            }
+        } catch (Throwable $ignored) {
+        }
+    }
+
+    return null;
+}
+
+function tenantEntryModuleUsesKernelUsers(?string $entryModuleId): bool
+{
+    $entryModuleId = trim((string)(tenantResolveProvisionEntryModuleId($entryModuleId) ?? ''));
     if ($entryModuleId === '') {
         return true;
     }
@@ -793,6 +825,171 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
     ]);
 }
 
+function tenantCasStatus(PDO $controlDb, int $tenantId, string $expectedStatus, string $newStatus): bool
+{
+    if ($tenantId <= 0 || $expectedStatus === '' || $newStatus === '') {
+        return false;
+    }
+
+    $stmt = $controlDb->prepare(
+        'UPDATE kernel_tenants SET status = :new_status, updated_at = NOW() WHERE id = :tid AND status = :expected_status'
+    );
+    $stmt->execute([
+        ':new_status' => $newStatus,
+        ':tid' => $tenantId,
+        ':expected_status' => $expectedStatus,
+    ]);
+
+    return $stmt->rowCount() === 1;
+}
+
+function tenantSetModuleActivationState(PDO $db, int $tenantId, array $moduleIds, bool $active): bool
+{
+    if ($tenantId <= 0 || $moduleIds === []) {
+        return false;
+    }
+
+    if (function_exists('moduleTenantSettingsEnsureTable') && !moduleTenantSettingsEnsureTable($db)) {
+        return false;
+    }
+
+    $sql = 'INSERT INTO tenant_module_settings '
+        . '(tenant_id, module_id, setting_key, setting_value, created_at, updated_at) '
+        . 'VALUES (:tid, :mid, :skey, :sval, NOW(), NOW()) '
+        . 'ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()';
+    $stmt = $db->prepare($sql);
+    $state = json_encode($active, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $written = false;
+    $seen = [];
+
+    foreach ($moduleIds as $moduleId) {
+        $moduleId = trim((string)$moduleId);
+        if ($moduleId === '' || $moduleId === '_kernel' || isset($seen[$moduleId])) {
+            continue;
+        }
+        $seen[$moduleId] = true;
+        $stmt->execute([
+            ':tid' => $tenantId,
+            ':mid' => $moduleId,
+            ':skey' => '_module_enabled',
+            ':sval' => $state,
+        ]);
+        $written = true;
+    }
+
+    return $written;
+}
+
+function tenantProvisioningPdoForTenant(int $tenantId): ?PDO
+{
+    if ($tenantId <= 0) {
+        return null;
+    }
+
+    $stmt = app()->controlDb()->prepare(
+        'SELECT c.db_host, c.db_port, c.db_name, c.db_user, c.db_pass, c.db_charset, '
+        . 'c.db_pass_ciphertext, c.db_pass_iv, c.db_pass_tag '
+        . 'FROM kernel_tenant_db_connections c WHERE c.tenant_id = :tid LIMIT 1'
+    );
+    $stmt->execute([':tid' => $tenantId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->closeCursor();
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $host = (string)($row['db_host'] ?? '');
+    $port = (string)($row['db_port'] ?? '3306');
+    $dbName = (string)($row['db_name'] ?? '');
+    $dbUser = (string)($row['db_user'] ?? '');
+    $dbPass = (string)($row['db_pass'] ?? '');
+    $dbCharset = (string)($row['db_charset'] ?? 'utf8mb4');
+    $cipher = (string)($row['db_pass_ciphertext'] ?? '');
+    $iv = (string)($row['db_pass_iv'] ?? '');
+    $tag = (string)($row['db_pass_tag'] ?? '');
+    if ($cipher !== '' && $iv !== '' && $tag !== '') {
+        $dbPass = (new \Ikabud\Kernel\Crypto())->decryptString($cipher, $iv, $tag);
+    }
+
+    if ($host === '' || $dbName === '' || $dbUser === '') {
+        return null;
+    }
+
+    $dsn = 'mysql:host=' . $host . ';port=' . $port . ';dbname=' . $dbName . ';charset=' . $dbCharset;
+    $initCommandAttr = class_exists('\\Ikabud\\Kernel\\Services\\PdoMysql')
+        ? \Ikabud\Kernel\Services\PdoMysql::attr('ATTR_INIT_COMMAND')
+        : (defined('\\Pdo\\Mysql::ATTR_INIT_COMMAND') ? \Pdo\Mysql::ATTR_INIT_COMMAND : PDO::MYSQL_ATTR_INIT_COMMAND);
+
+    return new PDO($dsn, $dbUser, $dbPass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+        $initCommandAttr => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
+    ]);
+}
+
+/**
+ * Designated tenant migration coordinator shared by service + CLI flows.
+ *
+ * Contract:
+ * - compute one manifest-driven module plan;
+ * - apply kernel artifacts first under the `_kernel` ledger key;
+ * - if a provisioning caller passes `$activationTenantId`, persist each planned
+ *   module's activation intent as inactive AFTER kernel bootstrap creates
+ *   `tenant_module_settings` but BEFORE any module SQL runs;
+ * - module activation must be flipped to active only after a later ownership /
+ *   provisioning verification step passes; failures leave these modules
+ *   inactive, so recovery never restores a stale `active`/`provisioning` state
+ *   or marks a partially migrated module active.
+ *
+ * @return array{kernel: array<int, string>, modules: array<string, array<int, string>>, plan: array<int, string>}
+ */
+function tenantRunCoordinatedProvisionMigrations(
+    PDO $tenantPdo,
+    ?string $entryModuleId = null,
+    ?array $preloadedApplied = null,
+    ?string $onlyModuleId = null,
+    ?int $activationTenantId = null
+): array {
+    $entryModuleId = trim((string)(tenantResolveProvisionEntryModuleId($entryModuleId, $activationTenantId) ?? ''));
+    $onlyModuleId = $onlyModuleId !== null ? trim($onlyModuleId) : '';
+    $plan = tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null);
+    $allModules = discoverModules();
+    $results = [
+        'kernel' => [],
+        'modules' => [],
+        'plan' => $plan,
+    ];
+
+    $kernelApplied = tenantSyncKernelMigrations($tenantPdo, $preloadedApplied, $entryModuleId !== '' ? $entryModuleId : null);
+    if ($kernelApplied !== []) {
+        $results['kernel'] = $kernelApplied;
+    }
+
+    if ($activationTenantId !== null && $activationTenantId > 0 && $onlyModuleId === '') {
+        tenantSetModuleActivationState($tenantPdo, $activationTenantId, $plan, false);
+    }
+
+    $targetModules = $onlyModuleId !== '' && $onlyModuleId !== '_kernel' ? [$onlyModuleId] : $plan;
+    foreach ($targetModules as $moduleId) {
+        $moduleId = trim((string)$moduleId);
+        if ($moduleId === '') {
+            continue;
+        }
+        $manifest = $allModules[$moduleId] ?? null;
+        if (!is_array($manifest)) {
+            continue;
+        }
+
+        $executed = tenantSyncModuleMigrations($tenantPdo, $moduleId, $manifest, $preloadedApplied);
+        if ($executed !== []) {
+            $results['modules'][$moduleId] = $executed;
+        }
+    }
+
+    return $results;
+}
+
 /**
  * Ensure a tenant DB has the kernel `users` table when its entry module relies
  * on kernel authentication (i.e. the module is NOT auth_owned).
@@ -808,6 +1005,7 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
  */
 function tenantEnsureKernelUserTable(PDO $db, ?string $entryModuleId = null): bool
 {
+    $entryModuleId = tenantResolveProvisionEntryModuleId($entryModuleId);
     if (!tenantEntryModuleUsesKernelUsers($entryModuleId)) {
         return false;
     }
@@ -838,6 +1036,8 @@ function tenantEnsureKernelUserTable(PDO $db, ?string $entryModuleId = null): bo
 
 function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null, ?string $entryModuleId = null): array
 {
+    $entryModuleId = tenantResolveProvisionEntryModuleId($entryModuleId);
+
     // Kernel-users-based tenants must have a users table before the
     // user-dependent artifacts (015/019) can be applied.
     tenantEnsureKernelUserTable($db, $entryModuleId);
@@ -863,6 +1063,7 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null, ?s
 
 function tenantRepairKernelRuntimeArtifacts(PDO $db, ?string $entryModuleId = null): array
 {
+    $entryModuleId = tenantResolveProvisionEntryModuleId($entryModuleId);
     $executed = [];
 
     tenantEnsureKernelUserTable($db, $entryModuleId);
@@ -1638,7 +1839,7 @@ function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = nul
         return ['ok' => false, 'error' => 'Invalid tenant ID'];
     }
 
-    $db = app()->dbForTenant($tenantId);
+    $db = tenantProvisioningPdoForTenant($tenantId);
     if ($db === null) {
         return ['ok' => false, 'error' => 'Tenant DB connection unavailable', 'tenant_id' => $tenantId];
     }
@@ -1646,33 +1847,12 @@ function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = nul
     $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
     $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : '';
     $requestedModuleId = $moduleId !== null ? trim($moduleId) : '';
-    $plannedModules = tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null);
-    $allModules = discoverModules();
     $results = [];
 
     try {
         $allApplied = tenantAllAppliedMigrations($db);
-
-        if ($requestedModuleId === '' || $requestedModuleId === '_kernel') {
-            $kernelApplied = tenantSyncKernelMigrations($db, $allApplied, $entryModuleId !== '' ? $entryModuleId : null);
-            if ($kernelApplied !== []) {
-                $results['_kernel'] = $kernelApplied;
-            }
-
-            if ($requestedModuleId === '_kernel') {
-                return [
-                    'ok' => true,
-                    'tenant_id' => $tenantId,
-                    'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
-                    'modules' => $results,
-                ];
-            }
-        }
-
-        if ($requestedModuleId !== '') {
-            // When a specific module is explicitly requested, bypass the
-            // dependency-resolved plan check — the user knows what they want.
-            // Just verify the module exists and has migrations.
+        if ($requestedModuleId !== '' && $requestedModuleId !== '_kernel') {
+            $allModules = discoverModules();
             $manifest = $allModules[$requestedModuleId] ?? null;
             if (!is_array($manifest)) {
                 return [
@@ -1683,29 +1863,21 @@ function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = nul
                     'modules' => $results,
                 ];
             }
-
-            $executed = tenantSyncModuleMigrations($db, $requestedModuleId, $manifest, $allApplied);
-            if ($executed !== []) {
-                $results[$requestedModuleId] = $executed;
-            }
-
-            return [
-                'ok' => true,
-                'tenant_id' => $tenantId,
-                'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
-                'modules' => $results,
-            ];
         }
 
-        foreach ($plannedModules as $plannedModuleId) {
-            $manifest = $allModules[$plannedModuleId] ?? null;
-            if (!is_array($manifest)) {
-                continue;
-            }
+        $coordinated = tenantRunCoordinatedProvisionMigrations(
+            $db,
+            $entryModuleId !== '' ? $entryModuleId : null,
+            $allApplied,
+            $requestedModuleId !== '' ? $requestedModuleId : null
+        );
 
-            $executed = tenantSyncModuleMigrations($db, $plannedModuleId, $manifest, $allApplied);
-            if ($executed !== []) {
-                $results[$plannedModuleId] = $executed;
+        if (($coordinated['kernel'] ?? []) !== []) {
+            $results['_kernel'] = $coordinated['kernel'];
+        }
+        foreach (($coordinated['modules'] ?? []) as $coordinatedModuleId => $files) {
+            if (is_array($files) && $files !== []) {
+                $results[(string)$coordinatedModuleId] = $files;
             }
         }
 

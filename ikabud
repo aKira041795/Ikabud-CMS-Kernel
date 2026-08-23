@@ -42,6 +42,9 @@ if (php_sapi_name() !== 'cli') {
     exit(1);
 }
 
+$_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'cmsnew.test';
+$_SERVER['REQUEST_URI'] = $_SERVER['REQUEST_URI'] ?? '/';
+
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/src/helpers/module-manager.php';
 require_once __DIR__ . '/src/helpers/architecture-check-fingerprint.php';
@@ -1803,12 +1806,11 @@ switch ($command) {
             out('    ' . dim('db: ') . $dbUser . '@' . $dbHost . ':' . $dbPort . '/' . $dbName);
             out('');
 
-            // CAS state machine: enter 'provisioning' before any migration work.
-            try {
-                $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
-                    ->execute([':s' => 'provisioning', ':tid' => $tenantId]);
-            } catch (\Throwable $e) {
-                out('  ' . yellow('!') . ' Could not update tenant status to provisioning: ' . $e->getMessage());
+            $initialStatus = trim((string)($tenant['status'] ?? ''));
+            if (!tenantCasStatus($controlPdo, $tenantId, $initialStatus !== '' ? $initialStatus : 'pending', 'provisioning')) {
+                out('  ' . red('✗') . ' Could not enter provisioning state for tenant #' . (string)$tenantId . '.');
+                out('');
+                exit(1);
             }
 
             // Shared-DB capability is discontinued: reject base-DB connections.
@@ -1822,8 +1824,7 @@ switch ($command) {
                 if (empty($isolation['ok'])) {
                     out('  ' . red('✗') . ' ' . ($isolation['error'] ?? 'Base DB connection rejected'));
                     try {
-                        $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
-                            ->execute([':s' => 'pending', ':tid' => $tenantId]);
+                        tenantCasStatus($controlPdo, $tenantId, 'provisioning', 'pending');
                     } catch (\Throwable $ignored) {
                     }
                     out('');
@@ -1845,6 +1846,10 @@ switch ($command) {
                 } catch (\Throwable $e) {
                     out('  ' . yellow('!') . ' Could not create database: ' . $e->getMessage());
                     out('  ' . dim('Use --skip-db-create if database was pre-created (e.g. cPanel).'));
+                    try {
+                        tenantCasStatus($controlPdo, $tenantId, 'provisioning', 'pending');
+                    } catch (\Throwable $ignored) {
+                    }
                     out('');
                     exit(1);
                 }
@@ -1868,12 +1873,16 @@ switch ($command) {
             // 4. Set tenant context so app()->db() returns tenant DB for downstream code
             app()->tenant()->setTenantId($tenantId);
 
-            // 5. Run tenant-safe kernel migrations FIRST so the tenant DB has
-            // the base kernel tables (users, audit_logs, rate_limits,
-            // refresh_tokens, workflow_*, tenant_module_settings) before
-            // entry-module migrations that CREATE or ALTER those tables run
-            // (e.g. daily-ledger's 019_audit_logs_actor_columns.sql ALTERs audit_logs).
-            $kernelApplied = tenantSyncKernelMigrations($tenantPdo, null, $entryModule !== '' ? $entryModule : null);
+            $coordinated = tenantRunCoordinatedProvisionMigrations(
+                $tenantPdo,
+                $entryModule !== '' ? $entryModule : null,
+                null,
+                null,
+                $tenantId
+            );
+            $modulePlan = is_array($coordinated['plan'] ?? null) ? $coordinated['plan'] : [];
+            $kernelApplied = is_array($coordinated['kernel'] ?? null) ? $coordinated['kernel'] : [];
+            $results = is_array($coordinated['modules'] ?? null) ? $coordinated['modules'] : [];
             if (!empty($kernelApplied)) {
                 out('  Running kernel migrations...');
                 out('    ' . bold('kernel'));
@@ -1882,21 +1891,8 @@ switch ($command) {
                 }
             }
 
-            // 6. Run tenant-appropriate module migrations against the tenant
-            // database through the canonical guarded executor (manifest-declared
-            // artifacts + ownership gate), NOT bare MigrationRunner::migrate().
             out('  Running module migrations...');
-            $modulePlan = tenantProvisionModulePlan($entryModule !== '' ? $entryModule : null);
-            $results = [];
-            foreach ($modulePlan as $moduleId) {
-                $moduleResult = function_exists('tenantSyncModuleMigrations')
-                    ? tenantSyncModuleMigrations($tenantPdo, $moduleId)
-                    : [];
-                if (!empty($moduleResult)) {
-                    $results[$moduleId] = $moduleResult;
-                }
-            }
-            $totalCount = 0;
+            $totalCount = count($kernelApplied);
             if (empty($results)) {
                 out('  ' . dim('  Nothing to migrate.'));
             } else {
@@ -1987,8 +1983,7 @@ switch ($command) {
                 } else {
                     out('  ' . red('✗') . " Required users table '{$usersTable}' does not exist — admin seed failed.");
                     try {
-                        $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
-                            ->execute([':s' => 'pending', ':tid' => $tenantId]);
+                        tenantCasStatus($controlPdo, $tenantId, 'provisioning', 'pending');
                     } catch (\Throwable $ignored) {
                     }
                     out('');
@@ -1998,12 +1993,20 @@ switch ($command) {
                 out('  ' . yellow('!') . ' --admin-user provided but --admin-pass missing — skipping user seed');
             }
 
-            // CAS: activation is the final control-DB write after verification.
-            try {
-                $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
-                    ->execute([':s' => 'active', ':tid' => $tenantId]);
-            } catch (\Throwable $e) {
-                out('  ' . yellow('!') . ' Could not update tenant status to active: ' . $e->getMessage());
+            foreach (['tenant_module_settings', 'audit_logs'] as $requiredTable) {
+                if (function_exists('tenantDatabaseHasTable') && !tenantDatabaseHasTable($tenantPdo, $requiredTable)) {
+                    tenantCasStatus($controlPdo, $tenantId, 'provisioning', 'pending');
+                    out('  ' . red('✗') . " Required tenant table '{$requiredTable}' is missing after provisioning.");
+                    out('');
+                    exit(1);
+                }
+            }
+
+            tenantSetModuleActivationState($tenantPdo, $tenantId, $modulePlan, true);
+            if (!tenantCasStatus($controlPdo, $tenantId, 'provisioning', 'active')) {
+                out('  ' . red('✗') . ' Could not update tenant status to active.');
+                out('');
+                exit(1);
             }
 
             out('');
@@ -2012,8 +2015,7 @@ switch ($command) {
         } catch (\Throwable $e) {
             out('  ' . red('✗ Provisioning failed: ') . $e->getMessage());
             try {
-                $controlPdo->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid')
-                    ->execute([':s' => 'pending', ':tid' => $tenantId]);
+                tenantCasStatus($controlPdo, $tenantId, 'provisioning', 'pending');
             } catch (\Throwable $ignored) {
             }
             if (app()->config('app.debug', false)) {
