@@ -44,6 +44,7 @@ if (php_sapi_name() !== 'cli') {
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/src/helpers/module-manager.php';
+require_once __DIR__ . '/src/helpers/architecture-check-fingerprint.php';
 
 use Ikabud\Kernel\Database\MigrationRunner;
 use Ikabud\Kernel\Capabilities\CapabilityTestRunner;
@@ -1120,8 +1121,10 @@ switch ($command) {
         out('    ' . green('module:uninstall') . ' <id>       Remove module files and disable it');
         out('    ' . green('module:validate') . ' <id>         Full compliance check (manifest, capabilities, auth routes, tables, migrations)');
         out('    ' . green('module:check-boundaries') . '     Validate module boundary rules');
-        out('    ' . green('architecture:check') . '         Cross-module table/capability/template audit');
+        out('    ' . green('architecture:check') . '         Cross-module table/capability/template audit + semantic baseline gate');
         out('    ' . dim('  └─ ') . '--strict-auth-routes  Fail on auth route warnings for non-entry auth modules');
+        out('    ' . dim('  └─ ') . '--baseline=FILE       Write/load semantic baseline (line/evidence stable)');
+        out('    ' . dim('  └─ ') . '--fail-on-new        Fail only on semantically new findings vs baseline');
         out('    ' . green('doctor') . '                      Environment health check');
         out('    ' . green('module:graph') . ' [id]           Dependency graph + impact analysis');
         out('');
@@ -4887,7 +4890,7 @@ MD;
     // ── architecture:check ──────────────────────────────────────────
     case 'architecture:check':
         banner();
-        out('  ' . bold('Architecture Check') . dim(' — boundary rules + cross-module audit'));
+        out('  ' . bold('Architecture Check') . dim(' — boundary rules + cross-module audit (semantic baseline gate)'));
         out('');
 
         $strictAuthRoutes = hasFlag('--strict-auth-routes');
@@ -4908,13 +4911,18 @@ MD;
 
         $findings = [];
         $normalizeFinding = static function (array $finding): array {
-            return [
+            $normalized = [
                 'rule' => (string)($finding['rule'] ?? ''),
                 'module' => (string)($finding['module'] ?? ''),
                 'path' => (string)($finding['path'] ?? ''),
                 'line' => (int)($finding['line'] ?? 0),
                 'evidence' => (string)($finding['evidence'] ?? ''),
             ];
+            $normalized['fingerprint'] = trim((string)($finding['fingerprint'] ?? ''));
+            if ($normalized['fingerprint'] === '') {
+                $normalized['fingerprint'] = boundaryFindingFingerprint($normalized);
+            }
+            return $normalized;
         };
         $addFinding = static function (array &$findings, array $finding) use ($normalizeFinding): void {
             $findings[] = $normalizeFinding($finding);
@@ -5367,17 +5375,7 @@ MD;
                 }
             }
             $sortFindings($baselineFindings);
-
-            $baselineIndex = [];
-            foreach ($baselineFindings as $item) {
-                $baselineIndex[json_encode($item, JSON_UNESCAPED_SLASHES)] = true;
-            }
-            foreach ($findings as $item) {
-                $key = json_encode($item, JSON_UNESCAPED_SLASHES);
-                if (!isset($baselineIndex[$key])) {
-                    $newFindings[] = $item;
-                }
-            }
+            $newFindings = boundaryNewFindings($findings, $baselineFindings);
         }
 
         // Summary
