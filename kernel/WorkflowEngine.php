@@ -7,6 +7,8 @@ namespace Ikabud\Kernel;
 use PDO;
 use Throwable;
 
+require_once __DIR__ . '/../src/helpers/workflow-retention.php';
+
 /**
  * Multi-step workflow engine — runs ordered capability steps with retry,
  * idempotency, event-triggered auto-start, and cancellation.
@@ -540,6 +542,7 @@ final class WorkflowEngine
 
             $db->beginTransaction();
             try {
+                $payloadJson = json_encode($payload);
                 $stmt = $db->prepare(
                     'INSERT INTO workflow_runs (workflow_key, module, entity_type, entity_id, definition_id, status, payload_json, context_json, started_at, created_at) '
                     . 'VALUES (:wk, :mod, :et, :eid, :did, :status, :pj, :cj, NOW(), NOW())'
@@ -551,10 +554,13 @@ final class WorkflowEngine
                     ':eid' => $entityId ?? '',
                     ':did' => $definition ? (int)($definition['id'] ?? 0) : null,
                     ':status' => $steps === [] ? 'completed' : 'running',
-                    ':pj'  => json_encode($payload),
+                    ':pj'  => $payloadJson,
                     ':cj'  => 'null',
                 ]);
                 $runId = (int)$db->lastInsertId();
+                if (is_string($payloadJson)) {
+                    \workflowRecordRunPayloadHash($db, $runId, $payloadJson);
+                }
 
                 // Create step records
                 foreach ($steps as $i => $step) {
