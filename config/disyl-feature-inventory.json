@@ -11,7 +11,8 @@
     "lsp": true,
     "test_template": "{a + b}",
     "expected": "5",
-    "notes": "Representative arithmetic output expression."
+    "notes": "Representative arithmetic output expression.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "bitwise-and",
@@ -23,7 +24,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": true,
-    "notes": "Governed bitwise AND surface is documented as supported; standalone render parity is skipped for this slice."
+    "notes": "Governed bitwise AND surface is documented as supported; standalone render parity is skipped for this slice.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "bitwise-shift-left",
@@ -35,7 +37,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": true,
-    "notes": "Governed bitwise left shift surface is documented as supported; standalone render parity is skipped for this slice."
+    "notes": "Governed bitwise left shift surface is documented as supported; standalone render parity is skipped for this slice.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "bitwise-shift-right",
@@ -47,7 +50,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": true,
-    "notes": "Governed bitwise right shift surface is documented as supported; standalone render parity is skipped for this slice."
+    "notes": "Governed bitwise right shift surface is documented as supported; standalone render parity is skipped for this slice.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "bitwise-xor",
@@ -59,7 +63,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": true,
-    "notes": "Governed bitwise XOR surface is documented as supported; standalone render parity is skipped for this slice."
+    "notes": "Governed bitwise XOR surface is documented as supported; standalone render parity is skipped for this slice.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "block-define",
@@ -73,7 +78,8 @@
     "lsp": true,
     "test_template": "{block sidebar}Hi{/block}",
     "expected": "Hi",
-    "notes": "Standalone block body render."
+    "notes": "Standalone block body render.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "break-stmt",
@@ -87,7 +93,8 @@
     "lsp": false,
     "test_template": "{while 1}A{break}{/while}",
     "expected": "A",
-    "notes": "Representative loop break behavior; lsp not-applicable: LSP validator has no break surface (loop-control keywords are not structurally validated)."
+    "notes": "Representative loop break behavior; lsp not-applicable: LSP validator has no break surface (loop-control keywords are not structurally validated).; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "comment-strip",
@@ -101,7 +108,8 @@
     "lsp": false,
     "test_template": "A{!-- hidden --}B",
     "expected": "AB",
-    "notes": "Comment constructs strip from output; lsp not-applicable: LSP validator has no comment-strip surface and does not structurally validate comment tags."
+    "notes": "Comment constructs strip from output; lsp not-applicable: LSP validator has no comment-strip surface and does not structurally validate comment tags.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "component-tag",
@@ -115,7 +123,8 @@
     "lsp": true,
     "test_template": "{ikb_text}Hi{/ikb_text}",
     "expected": "<p class=\"text-base font-normal   \">Hi</p>",
-    "notes": "Representative governed UI component render."
+    "notes": "Representative governed UI component render.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "compound-assignment",
@@ -129,7 +138,8 @@
     "lsp": true,
     "test_template": "{set x = 1}{set x += 2}{x}",
     "expected": "3",
-    "notes": "Governed stateful assignment sugar."
+    "notes": "Governed stateful assignment sugar.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "continue-stmt",
@@ -143,7 +153,8 @@
     "lsp": false,
     "test_template": "{for i = 0; i < 4; i++}{if i == 2}{continue}{/if}{i}{/for}",
     "expected": "013",
-    "notes": "Representative loop continue behavior; lsp not-applicable: LSP validator has no continue surface (loop-control keywords are not structurally validated)."
+    "notes": "Representative loop continue behavior; lsp not-applicable: LSP validator has no continue surface (loop-control keywords are not structurally validated).; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "expression-output",
@@ -157,7 +168,8 @@
     "lsp": true,
     "test_template": "{name}",
     "expected": "Alice",
-    "notes": "Canonical expression/output entry point."
+    "notes": "Canonical expression/output entry point.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "extends-stmt",
@@ -171,7 +183,8 @@
     "lsp": true,
     "test_template": "{extends \"layouts/admin.disyl\"}{block content}Child{/block}",
     "expected": "<html>Child</html>",
-    "notes": "Checker creates the parent layout fixture."
+    "notes": "Checker creates the parent layout fixture.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "filter-chain",
@@ -185,7 +198,8 @@
     "lsp": true,
     "test_template": "{name | upper}",
     "expected": "ALICE",
-    "notes": "Representative filter chain application."
+    "notes": "Representative filter chain application.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "for-c-style",
@@ -199,7 +213,8 @@
     "lsp": true,
     "test_template": "{for i = 0; i < 3; i++}{i}{/for}",
     "expected": "012",
-    "notes": "Governed C-style for loop."
+    "notes": "Governed C-style for loop.; resource_limit: interpreted 10000 / compiled 100000",
+    "resource_limit": "bounded"
   },
   {
     "id": "for-in",
@@ -213,7 +228,8 @@
     "lsp": true,
     "test_template": "{for item in items}{item}{/for}",
     "expected": "ab",
-    "notes": "Canonical collection iteration form used in docs and templates."
+    "notes": "Canonical collection iteration form used in docs and templates.; resource_limit: naturally bounded by iterable",
+    "resource_limit": "bounded"
   },
   {
     "id": "foreach-basic",
@@ -227,7 +243,8 @@
     "lsp": true,
     "test_template": "{foreach items as item}{item}{/foreach}",
     "expected": "ab",
-    "notes": "Canonical foreach iteration."
+    "notes": "Canonical foreach iteration.; resource_limit: naturally bounded by iterable",
+    "resource_limit": "bounded"
   },
   {
     "id": "foreach-else",
@@ -241,7 +258,8 @@
     "lsp": true,
     "test_template": "{foreach items as item}{item}{else}E{/foreach}",
     "expected": "E",
-    "notes": "Representative empty-branch foreach behavior."
+    "notes": "Representative empty-branch foreach behavior.; resource_limit: naturally bounded by iterable",
+    "resource_limit": "bounded"
   },
   {
     "id": "if-elseif-else",
@@ -255,7 +273,8 @@
     "lsp": true,
     "test_template": "{if a}A{elseif b}B{else}C{/if}",
     "expected": "B",
-    "notes": "Representative conditional branch chain."
+    "notes": "Representative conditional branch chain.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "include-stmt",
@@ -269,7 +288,8 @@
     "lsp": true,
     "test_template": "{include \"partials/header.disyl\"}",
     "expected": "<p>Hi</p>",
-    "notes": "Checker creates the partial fixture."
+    "notes": "Checker creates the partial fixture.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "json-decode",
@@ -283,7 +303,8 @@
     "lsp": true,
     "test_template": "{json_decode(payload)|json}",
     "expected": "{\"a\":1}",
-    "notes": "Representative function-call decode render."
+    "notes": "Representative function-call decode render.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "json-encode",
@@ -297,7 +318,8 @@
     "lsp": true,
     "test_template": "{json_encode(data)|raw}",
     "expected": "{\"a\":1}",
-    "notes": "Representative function-call encode render."
+    "notes": "Representative function-call encode render.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "keyof",
@@ -309,7 +331,8 @@
     "docs_ref": "docs/kernel/disyl-language-reference.md#entity-view-field-reflection--keyof--v47",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": false,
-    "notes": "Entity view field reflection is shipped; standalone compiled parity is skipped in this slice; lsp not-applicable: LSP validator has no keyof surface and generic expression validation does not structurally recognize it."
+    "notes": "Entity view field reflection is shipped; standalone compiled parity is skipped in this slice; lsp not-applicable: LSP validator has no keyof surface and generic expression validation does not structurally recognize it.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "literal-block",
@@ -323,7 +346,8 @@
     "lsp": true,
     "test_template": "{literal}{name}{/literal}",
     "expected": "{name}",
-    "notes": "Literal content is inert."
+    "notes": "Literal content is inert.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "macro-def",
@@ -337,7 +361,8 @@
     "lsp": true,
     "test_template": "{macro hi(name)}Hi {name}!{/macro}{call hi(\"A\")}",
     "expected": "Hi A!",
-    "notes": "Macro definition plus representative call."
+    "notes": "Macro definition plus representative call.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "math-tag",
@@ -351,7 +376,8 @@
     "lsp": true,
     "test_template": "{math equation=\"1+2\"}",
     "expected": "3",
-    "notes": "Self-closing math helper."
+    "notes": "Self-closing math helper.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "null-coalesce",
@@ -365,7 +391,8 @@
     "lsp": true,
     "test_template": "{missing ?? \"F\"}",
     "expected": "F",
-    "notes": "Null-coalescing surface."
+    "notes": "Null-coalescing surface.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "postfix-stmt",
@@ -377,7 +404,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#postfix_stmt",
     "lsp": true,
-    "notes": "Postfix increment/decrement is shipped, but standalone compiled parity is skipped in this slice to avoid known compiler write-context edge cases."
+    "notes": "Postfix increment/decrement is shipped, but standalone compiled parity is skipped in this slice to avoid known compiler write-context edge cases.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "prohibited-arbitrary-php",
@@ -389,7 +417,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#php-syntax-not-supported-gaps",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#template",
     "lsp": false,
-    "notes": "Arbitrary PHP execution is outside DiSyL jurisdiction; lsp not-applicable: validator must not bless raw PHP entrypoints."
+    "notes": "Arbitrary PHP execution is outside DiSyL jurisdiction; lsp not-applicable: validator must not bless raw PHP entrypoints.; resource_limit not-applicable: prohibited, not executed",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "prohibited-error-suppression",
@@ -401,7 +430,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": false,
-    "notes": "PHP error suppression is prohibited in declarative templates; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
+    "notes": "PHP error suppression is prohibited in declarative templates; lsp not-applicable: validator must not bless prohibited PHP operator surfaces.; resource_limit not-applicable: prohibited, not executed",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "prohibited-instanceof",
@@ -413,7 +443,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": false,
-    "notes": "Runtime type inspection belongs in governed application code, not DiSyL templates; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
+    "notes": "Runtime type inspection belongs in governed application code, not DiSyL templates; lsp not-applicable: validator must not bless prohibited PHP operator surfaces.; resource_limit not-applicable: prohibited, not executed",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "prohibited-nullsafe-property",
@@ -425,7 +456,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#variable",
     "lsp": false,
-    "notes": "Nullsafe property access is rejected; use DiSyL null-coalescing instead; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
+    "notes": "Nullsafe property access is rejected; use DiSyL null-coalescing instead; lsp not-applicable: validator must not bless prohibited PHP operator surfaces.; resource_limit not-applicable: prohibited, not executed",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "prohibited-php-concat-dot",
@@ -437,7 +469,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#variable",
     "lsp": false,
-    "notes": "PHP dot concatenation conflicts with DiSyL path access; use ~ instead; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
+    "notes": "PHP dot concatenation conflicts with DiSyL path access; use ~ instead; lsp not-applicable: validator must not bless prohibited PHP operator surfaces.; resource_limit not-applicable: prohibited, not executed",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "prohibited-spaceship",
@@ -449,7 +482,8 @@
     "docs_ref": ".github/instructions/disyl-grammar-gaps.instructions.md#missing-php-operators",
     "ebnf_ref": "docs/disyl/disyl-grammar-v4.7.ebnf#expression",
     "lsp": false,
-    "notes": "Spaceship comparison is explicitly outside shipped DiSyL support; lsp not-applicable: validator must not bless prohibited PHP operator surfaces."
+    "notes": "Spaceship comparison is explicitly outside shipped DiSyL support; lsp not-applicable: validator must not bless prohibited PHP operator surfaces.; resource_limit not-applicable: prohibited, not executed",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "set-basic",
@@ -463,7 +497,8 @@
     "lsp": true,
     "test_template": "{set x = 42}{x}",
     "expected": "42",
-    "notes": "Canonical assignment."
+    "notes": "Canonical assignment.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "set-typed",
@@ -477,7 +512,8 @@
     "lsp": true,
     "test_template": "{set name: string = \"A\"}{name}",
     "expected": "A",
-    "notes": "Typed set in default non-strict runtime mode."
+    "notes": "Typed set in default non-strict runtime mode.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "string-concat",
@@ -491,7 +527,8 @@
     "lsp": true,
     "test_template": "{a ~ b}",
     "expected": "AB",
-    "notes": "Twig-style string concatenation."
+    "notes": "Twig-style string concatenation.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "ternary-basic",
@@ -505,7 +542,8 @@
     "lsp": true,
     "test_template": "{active ? \"Yes\" : \"No\"}",
     "expected": "Yes",
-    "notes": "Canonical ternary output."
+    "notes": "Canonical ternary output.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "variable-path",
@@ -519,7 +557,8 @@
     "lsp": true,
     "test_template": "{user.name}",
     "expected": "Alice",
-    "notes": "Canonical dot-path variable access."
+    "notes": "Canonical dot-path variable access.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "verbatim-block",
@@ -533,7 +572,8 @@
     "lsp": true,
     "test_template": "{verbatim}{name}{/verbatim}",
     "expected": "{name}",
-    "notes": "Verbatim content is inert."
+    "notes": "Verbatim content is inert.; resource_limit not-applicable: no loop body",
+    "resource_limit": "not-applicable"
   },
   {
     "id": "while-loop",
@@ -547,6 +587,7 @@
     "lsp": true,
     "test_template": "{while 1}A{break}{/while}",
     "expected": "A",
-    "notes": "Representative while-loop execution with explicit break."
+    "notes": "Representative while-loop execution with explicit break.; resource_limit: interpreted 10000 / compiled 100000",
+    "resource_limit": "bounded"
   }
 ]
