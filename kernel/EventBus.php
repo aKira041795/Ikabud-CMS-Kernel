@@ -31,6 +31,10 @@
  * Deferred events:
  *   app()->events()->fireDeferred('order.placed', ['order_id' => 42]);
  *   // flushed automatically at shutdown or manually via flushDeferred()
+ *
+ * Durable events:
+ *   app()->events()->fireDurable('order.placed', ['order_id' => 42], $pdo, ['tenant_id' => 't1']);
+ *   // writes an outbox row in the caller's transaction for worker delivery
  * 
  * @package Ikabud\Kernel
  * @version 1.0.0
@@ -39,6 +43,7 @@
 namespace Ikabud\Kernel;
 
 use Ikabud\Kernel\Contracts\EventBusContract;
+use PDO;
 
 final class EventBus implements EventBusContract
 {
@@ -320,6 +325,81 @@ final class EventBus implements EventBusContract
         }
 
         return $called;
+    }
+
+    public function fireDurable(string $event, array $payload = [], ?PDO $pdo = null, array $opts = []): ?int
+    {
+        if (!$pdo instanceof PDO) {
+            throw new \InvalidArgumentException('A PDO instance is required.');
+        }
+
+        if (!\function_exists('writeDurableEventOutbox')) {
+            require_once dirname(__DIR__) . '/src/helpers/durable-event-outbox.php';
+        }
+
+        $tenantId = trim((string)($opts['tenant_id'] ?? ''));
+        if ($tenantId === '') {
+            throw new \InvalidArgumentException('tenant_id is required.');
+        }
+
+        $defaultSource = 'kernel';
+        if (isset($opts['module']) && trim((string)$opts['module']) !== '') {
+            $defaultSource = trim((string)$opts['module']);
+        } elseif (\function_exists('moduleCurrentId')) {
+            $resolvedModule = \moduleCurrentId();
+            if (\is_string($resolvedModule) && trim($resolvedModule) !== '') {
+                $defaultSource = trim($resolvedModule);
+            }
+        }
+
+        $source = trim((string)($opts['source'] ?? $defaultSource));
+        $eventData = [
+            'tenant_id' => $tenantId,
+            'event_name' => $event,
+            'source' => $source !== '' ? $source : 'kernel',
+            'actor_id' => $opts['actor_id'] ?? null,
+            'actor_role' => $opts['actor_role'] ?? null,
+            'request_id' => $opts['request_id'] ?? null,
+            'idempotency_key' => $opts['idempotency_key'] ?? null,
+            'payload' => $payload,
+        ];
+
+        if (isset($opts['event_id'])) {
+            $eventData['event_id'] = $opts['event_id'];
+        }
+
+        try {
+            $rowId = \writeDurableEventOutbox($pdo, $eventData);
+            if ($rowId > 0) {
+                return $rowId;
+            }
+        } catch (\Throwable $e) {
+            $isDuplicate = $e instanceof \PDOException
+                && (((string)$e->getCode() === '23000') || stripos($e->getMessage(), 'duplicate') !== false);
+            if ($isDuplicate) {
+                throw $e;
+            }
+
+            if (\function_exists('write_log')) {
+                \write_log('EventBus: durable outbox write returned recoverable failure', 'warning', [
+                    'event' => $event,
+                    'tenant_id' => $tenantId,
+                    'source' => $eventData['source'],
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            return null;
+        }
+
+        if (\function_exists('write_log')) {
+            \write_log('EventBus: durable outbox write returned no row id', 'warning', [
+                'event' => $event,
+                'tenant_id' => $tenantId,
+                'source' => $eventData['source'],
+            ]);
+        }
+
+        return null;
     }
 
     /**
