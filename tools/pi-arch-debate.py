@@ -93,11 +93,20 @@ def validate_draft(draft: str) -> None:
     """Reject empty, truncated, or non-contract model output."""
     if len(draft.strip()) < 100:
         raise DebateError(f"draft is too short ({len(draft.strip())} chars)")
-    required = ("task:", "objective:", "status: ready_for_implementation")
     lowered = draft.lower()
+    required = ("task:", "objective:")
+    # A contract must carry the structural markers plus a non-empty `status:` line.
+    # The status VALUE is deliverable-dependent (implementation contracts end
+    # READY_FOR_IMPLEMENTATION; roadmap/brief deliverables end READY_FOR_ARCHITECTURE_REVIEW
+    # or READY_FOR_AUTHORING), so validation stays structural rather than enumerating values.
+    # Fail-closed safety is preserved: empty/truncated/non-contract output is still rejected,
+    # and the critic remains the substantive quality gate.
+    status_ok = bool(re.search(r"^\s*status:\s*\S+", lowered, re.MULTILINE))
     missing = [marker for marker in required if marker not in lowered]
     if missing:
         raise DebateError("draft is missing required contract markers: " + ", ".join(missing))
+    if not status_ok:
+        raise DebateError("draft is missing a non-empty terminal status line")
 
 
 def validate_critique(critique: str) -> None:
