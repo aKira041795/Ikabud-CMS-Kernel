@@ -42,6 +42,7 @@ require_once __DIR__ . '/Component/IncludeResolver.php';
 require_once __DIR__ . '/Component/ExtendsProcessor.php';
 require_once __DIR__ . '/Cache/SourceCache.php';
 require_once __DIR__ . '/Renderer/TemplateRenderer.php';
+require_once __DIR__ . '/Types/TypeChecker.php';
 
 use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
 use Ikabud\Kernel\DiSyL\Cache\SourceCache;
@@ -65,8 +66,10 @@ class TemplateEngine
     private bool $compiledMode = true;
     /** Track whether eager compiled-cache init has been attempted this request. */
     private bool $compiledModeBooted = false;
-    /** Strict mode ON by default (v4.8+). Logs undefined vars, type mismatches, |raw usage. */
+    /** Strict mode ON by default (v4.8+). Logs undefined vars and |raw usage. */
     private bool $strictMode = true;
+    /** Typed {set} runtime validation is opt-in and defaults OFF for compatibility. */
+    private bool $strictTypes = false;
     /** Auto-convert HTML-style <ikb_> tags to DiSyL {ikb_...} syntax (default off). */
     private bool $autoConvertHtmlTags = false;
     /** @var array<string, array{params: array, body: string}> Registered {macro} definitions */
@@ -127,11 +130,12 @@ class TemplateEngine
     /** @var ExpressionEvaluator Lazy-instantiated expression evaluator */
     private ?ExpressionEvaluator $evaluator = null;
 
-    public function __construct(string $templateDir, string $cacheDir, bool $cacheEnabled = true)
+    public function __construct(string $templateDir, string $cacheDir, bool $cacheEnabled = true, bool $strictTypes = false)
     {
         $this->templateDir = rtrim($templateDir, '/');
         $this->cacheDir = rtrim($cacheDir, '/');
         $this->cacheEnabled = $cacheEnabled;
+        $this->strictTypes = $strictTypes;
         $this->extendsCacheDir = $this->cacheDir . '/disyl-extends';
 
         $this->registerDefaultFilters();
@@ -183,6 +187,15 @@ class TemplateEngine
         if ($this->evaluator !== null) {
             $this->evaluator->setStrictMode($enable);
         }
+    }
+
+    /**
+     * Enable strict runtime validation for typed {set} assignments.
+     * Defaults OFF so typed syntax stays additive unless the caller opts in.
+     */
+    public function enableStrictTypes(bool $enable = true): void
+    {
+        $this->strictTypes = $enable;
     }
 
     /**
@@ -440,7 +453,7 @@ class TemplateEngine
                 $compiled->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                 $compiled->setFilters($registry);
                 
-                $ctx_obj = new RenderContext($context);
+                $ctx_obj = new RenderContext($context + ['__disyl_strict_types' => $this->strictTypes]);
                 $result = $compiled->executeRaw($ctx_obj);
                 // Handle {extends} chain: child registers blocks, parent reads them
                 $maxExtendsDepth = 10;
@@ -1363,7 +1376,10 @@ class TemplateEngine
                         '/' => $current / $value,
                         default => $value,
                     };
-                    $value = $this->coerceType($value, $varType, $varName);
+                }
+
+                if ($marker = $this->validateTypedSetAssignment($varName, $varType, $value)) {
+                    $result .= $marker;
                 }
 
                 $context[$varName] = $value;
@@ -1529,7 +1545,7 @@ class TemplateEngine
      */
     private function coerceType(mixed $value, ?string $type, string $varName): mixed
     {
-        return $this->evaluator()->coerceType($value, $type, $varName);
+        return $value;
     }
 
     /**
@@ -4973,6 +4989,24 @@ class TemplateEngine
     /**
      * Log an error
      */
+    private function validateTypedSetAssignment(string $varName, ?string $type, mixed $value): string
+    {
+        if (!$this->strictTypes || $type === null || $type === '') {
+            return '';
+        }
+
+        $normalized = \Ikabud\Kernel\DiSyL\Types\TypeChecker::normalizeRuntimeType($type);
+        if ($normalized === null || \Ikabud\Kernel\DiSyL\Types\TypeChecker::matchesRuntimeType($value, $normalized)) {
+            return '';
+        }
+
+        $actualType = \Ikabud\Kernel\DiSyL\Types\TypeChecker::describeRuntimeType($value);
+        $message = "[strict] Type mismatch for \${$varName}: expected {$normalized}, got {$actualType}";
+        $this->logError($message);
+
+        return '[[DiSyL strict type mismatch: $' . $varName . ' expected ' . $normalized . ', got ' . $actualType . ']]';
+    }
+
     public function logError(string $message): void
     {
         // v4.8: always tag errors with template path + expression context

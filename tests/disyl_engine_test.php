@@ -45,6 +45,21 @@ require_once __DIR__ . '/../kernel/DiSyL/TemplateEngine.php';
 
 use Ikabud\Kernel\DiSyL\TemplateEngine;
 
+if (!function_exists('write_log')) {
+    function write_log(string $message, string $level = 'error', array $context = []): void
+    {
+        $logDir = dirname(__DIR__) . '/storage/logs';
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        $line = '[' . date('Y-m-d H:i:s') . '] [' . strtoupper($level) . '] ' . $message;
+        if ($context !== []) {
+            $line .= ' ' . json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+        file_put_contents($logDir . '/app.log', $line . PHP_EOL, FILE_APPEND);
+    }
+}
+
 // ── Test infrastructure ─────────────────────────────────
 
 $pass = 0;
@@ -2672,6 +2687,102 @@ check(
     'math (compiled): format + assign combined',
     '37.50',
     $c49->compileSource('{math equation="price * qty" format="2" assign="total"}{total}', 'm_fa')->execute(['price' => 12.5, 'qty' => 3])
+);
+
+section('50. Typed {set} assignment + strict type validation');
+
+$logDir50 = dirname(__DIR__) . '/storage/logs';
+$appLog50 = $logDir50 . '/app.log';
+@mkdir($logDir50, 0755, true);
+file_put_contents($appLog50, '');
+
+$typedTpl50 = '{set amount: number = 2 * 3}{amount}';
+$e50 = new TemplateEngine($tmpDir, '/tmp/disyl_typed_set_' . getmypid(), false);
+$e50->enableCompiledMode(false);
+$typedInterpreted50 = $e50->renderString($typedTpl50, []);
+
+check(
+    'typed set (interpreted): number assignment renders value',
+    '6',
+    $typedInterpreted50
+);
+
+$c50 = new \Ikabud\Kernel\DiSyL\Compiler\TemplateCache('/tmp/disyl_typed_set_compiled_' . getmypid(), true);
+$typedCompiled50 = $c50->compileSource($typedTpl50, 'typed_set_number')->execute([]);
+
+check(
+    'typed set (compiled): number assignment renders value',
+    '6',
+    $typedCompiled50
+);
+
+check(
+    'typed set: interpreted/compiled parity',
+    $typedInterpreted50,
+    $typedCompiled50
+);
+
+check(
+    'typed set: strict types OFF behaves like untyped set',
+    $e50->renderString('{set title: number = "abc"}{title}', []),
+    $e50->renderString('{set title = "abc"}{title}', [])
+);
+
+$strictTpl50 = '{set title: number = "abc"}{title}';
+$strictMarker50 = '[[DiSyL strict type mismatch: $title expected number, got string]]abc';
+
+$e50Strict = new TemplateEngine($tmpDir, '/tmp/disyl_typed_set_strict_' . getmypid(), false, true);
+$e50Strict->enableCompiledMode(false);
+$strictOut50 = $e50Strict->renderString($strictTpl50, []);
+check(
+    'typed set (interpreted): strict mismatch emits visible marker',
+    $strictMarker50,
+    $strictOut50
+);
+
+$strictLog50 = file_get_contents($appLog50) ?: '';
+check(
+    'typed set (interpreted): strict mismatch writes app log',
+    '1',
+    str_contains($strictLog50, 'disyl.strict.[strict] Type mismatch for $title') ? '1' : '0'
+);
+
+$strictPassTpl50 = '{set title: string = "abc"}{title}';
+check(
+    'typed set (interpreted): strict pass case has no marker',
+    'abc',
+    $e50Strict->renderString($strictPassTpl50, [])
+);
+
+$strictCompiled50 = $c50->compileSource($strictTpl50, 'typed_set_number_strict')->execute(['__disyl_strict_types' => true]);
+check(
+    'typed set (compiled): strict mismatch emits visible marker',
+    $strictMarker50,
+    $strictCompiled50
+);
+
+file_put_contents($appLog50, '');
+file_put_contents($tmpDir . '/typed_set_compiled_strict.disyl', $strictTpl50);
+$e50CompiledStrict = new TemplateEngine($tmpDir, '/tmp/disyl_typed_set_compiled_engine_' . getmypid(), false, true);
+$e50CompiledStrict->enableCompiledMode(true);
+$strictCompiledEngine50 = $e50CompiledStrict->render('typed_set_compiled_strict', []);
+check(
+    'typed set (compiled engine): strict mismatch emits visible marker',
+    $strictMarker50,
+    $strictCompiledEngine50
+);
+
+$strictLog50b = file_get_contents($appLog50) ?: '';
+check(
+    'typed set (compiled engine): strict mismatch writes app log',
+    '1',
+    str_contains($strictLog50b, 'disyl.strict.[strict] Type mismatch for $title') ? '1' : '0'
+);
+
+check(
+    'typed set (compiled): strict pass case has no marker',
+    'abc',
+    $c50->compileSource($strictPassTpl50, 'typed_set_string_strict')->execute(['__disyl_strict_types' => true])
 );
 
 // Print final section stats

@@ -1,8 +1,8 @@
 # DiSyL 4.7 — Language Reference
 
-> **Version:** 4.7.0 | **Engine:** TemplateEngine 6.1 | **Parser:** v4 | **Compiler:** v8  
-> **Last updated:** 2026-07-05  
-> **Note:** Typed `{set}` assignment syntax (`{set name: string = ...}`) documented in the Quick Start is planned for DiSyL 4.8 and is **not yet active** in the 4.7 runtime. Use standard `{set var = expr}` syntax in production templates.
+> **Version:** 4.8.0 | **Engine:** TemplateEngine 6.1 | **Parser:** v4 | **Compiler:** v8  
+> **Last updated:** 2026-08-23  
+> **Note:** Typed `{set}` assignment syntax (`{set name: string = ...}`) is active in the 4.8 runtime. Runtime type-mismatch validation is opt-in via strict typed-assignment mode; with strict typed assignment off, typed `{set}` behaves the same as untyped `{set}`.
 
 ---
 
@@ -50,22 +50,30 @@
 {set count: int = 42}
 {set price: float = 9.99}
 {set active: bool = true}
-{set tags: array = ["a", "b"]}
-{set nickname: ?string = null}       — nullable
-{set status: "open"|"closed" = "open"}  — literal union
+{set amount: number = price * qty}
 ```
 
-### Type Coercion Rules
+Typed `{set}` is additive. In the default runtime, the annotation is preserved for authoring clarity but assignment behaves the same as untyped `{set}`.
 
-| Type | Coercion |
-|------|----------|
-| `string` | Cast to string |
-| `int` / `integer` | Cast to int |
-| `float` / `number` | Cast to float |
-| `bool` / `boolean` | Truthy/falsy |
-| `array` | Wrap scalar in `[$value]` |
-| `mixed` | No coercion |
-| `?type` | Null bypasses coercion |
+To opt into runtime mismatch validation, enable strict typed assignment before rendering:
+
+```php
+$engine = new TemplateEngine($templateDir, $cacheDir, true, true);
+// or:
+$engine->enableStrictTypes(true);
+```
+
+When strict typed assignment is enabled, the interpreted and compiled runtimes validate the assigned PHP value against the declared type and emit a visible marker plus `write_log()` entry on mismatch.
+
+### Runtime Type Validation Vocabulary
+
+| Type | Accepted PHP values |
+|------|----------------------|
+| `string` | `string` |
+| `number` | `int` or `float` |
+| `bool` / `boolean` | `bool` |
+| `int` / `integer` | `int` |
+| `float` | `float` |
 
 ### Arithmetic
 

@@ -181,7 +181,7 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 
 ## Known DiSyL limitations (current as of 2026-08-23)
 1. **Tight pipe/filter binding**: `{a + b | filter}` applies the filter to `b` only, not `a + b`. Always parenthesize: `{(a + b) | filter}`. This applies identically to `{math equation="..."}`.
-2. **Typed `{set}` syntax (`{set name: string = ...}`) is planned for DiSyL 4.8** and is NOT active in the current 4.7 runtime. Do not use typed assignment syntax in production templates.
+2. **Typed `{set}` syntax (`{set name: string = ...}`) is active in DiSyL 4.8.** It is additive and works in interpreted and compiled modes. Runtime mismatch validation is opt-in via strict typed-assignment mode; with strict typed assignment off, typed `{set}` behaves like untyped `{set}`.
 
 > **Resolved (2026-08-05):** `{json_encode(...)}` and `{json_decode(...)}` **function calls** are now supported at the engine level (previously only the `|json` filter existed). `json_encode` mirrors `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`; `json_decode` returns an associative array and supports dot-path access (`json_decode(...).key`). The 2 remaining limitations above stay intact.
 

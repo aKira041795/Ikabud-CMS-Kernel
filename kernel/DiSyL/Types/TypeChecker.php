@@ -20,6 +20,17 @@ require_once __DIR__ . '/TypeAst.php';
  */
 final class TypeChecker
 {
+    /** @var array<string, string> */
+    private const RUNTIME_TYPE_ALIASES = [
+        'string' => 'string',
+        'int' => 'int',
+        'integer' => 'int',
+        'float' => 'float',
+        'number' => 'number',
+        'bool' => 'bool',
+        'boolean' => 'bool',
+    ];
+
     /** @var list<array{code:string, message:string, template:string, line:int}> */
     public array $diagnostics = [];
 
@@ -179,7 +190,7 @@ final class TypeChecker
             foreach ($m[1] as $k) if ($k !== '') $locals[] = $k;
             foreach ($m[2] as $v) $locals[] = $v;
         }
-        if (preg_match_all('/\{set\s+(\w+)\s*=/', $body, $m)) {
+        if (preg_match_all('/\{set\s+(\w+)(?:\s*:\s*[^=]+)?\s*=/', $body, $m)) {
             foreach ($m[1] as $name) $locals[] = $name;
         }
         return array_values(array_unique($locals));
@@ -219,6 +230,47 @@ final class TypeChecker
             $i++;
         }
         return $paths;
+    }
+
+    public static function normalizeRuntimeType(?string $type): ?string
+    {
+        if ($type === null) {
+            return null;
+        }
+
+        $type = strtolower(trim($type));
+        return self::RUNTIME_TYPE_ALIASES[$type] ?? null;
+    }
+
+    public static function matchesRuntimeType(mixed $value, ?string $type): bool
+    {
+        $type = self::normalizeRuntimeType($type);
+        if ($type === null) {
+            return true;
+        }
+
+        return match ($type) {
+            'string' => is_string($value),
+            'number' => is_int($value) || is_float($value),
+            'bool' => is_bool($value),
+            'int' => is_int($value),
+            'float' => is_float($value),
+            default => true,
+        };
+    }
+
+    public static function describeRuntimeType(mixed $value): string
+    {
+        return match (true) {
+            is_int($value) => 'int',
+            is_float($value) => 'float',
+            is_bool($value) => 'bool',
+            is_string($value) => 'string',
+            is_array($value) => 'array',
+            is_object($value) => 'object',
+            $value === null => 'null',
+            default => gettype($value),
+        };
     }
 
     /**
