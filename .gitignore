@@ -50,6 +50,7 @@ __pycache__/
 storage/backups/
 storage/cache/
 storage/cms-installed-modules.json
+/storage/perf-baseline.json
 storage/.installed
 storage/locks/
 storage/logs/
