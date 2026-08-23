@@ -5,20 +5,44 @@ declare(strict_types=1);
 /**
  * Test Discovery Runner
  *
- * Scans tests subdirectories for test files and runs each.
- * Usage: php tests/discover.php [--module=NAME] [--list] [--failed-only]
+ * Scans tests/ for test files and runs each.
+ *
+ * Canary convention:
+ *   - A test is classified as canary if its basename ends with
+ *     _canary_test.php, or if its contents contain @canary (case-insensitive).
+ *   - --offline is the default mode and excludes canary tests from discovery.
+ *   - --canary runs only canary tests. If both are passed, --canary wins.
+ *
+ * Usage: php tests/discover.php [--module=NAME] [--filter=SUBSTR] [--list]
+ *        [--failed-only] [--offline|--canary]
  */
 
 $projectRoot = dirname(__DIR__);
 $testDir = $projectRoot . '/tests';
 $resultsDir = $projectRoot . '/test_results';
 
-$options = getopt('', ['module:', 'list', 'failed-only', 'help', 'filter:']);
+$options = getopt('', ['module:', 'list', 'failed-only', 'help', 'filter:', 'offline', 'canary']);
+
+function isCanaryTest(string $file): bool
+{
+    $base = basename($file);
+    if (str_ends_with($base, '_canary_test.php')) {
+        return true;
+    }
+
+    $contents = @file_get_contents($file);
+    return is_string($contents) && stripos($contents, '@canary') !== false;
+}
+
+$canaryOnly = isset($options['canary']);
+$offlineMode = !$canaryOnly;
 
 if (isset($options['help'])) {
     echo "Usage: php tests/discover.php [options]\n";
     echo "  --module=NAME     Run only tests in tests/NAME/\n";
     echo "  --filter=SUBSTR   Run only tests whose basename contains SUBSTR (e.g. --filter=bakeshop)\n";
+    echo "  --offline         Exclude canary tests (default mode)\n";
+    echo "  --canary          Run only canary tests (*_canary_test.php or @canary)\n";
     echo "  --list            List all discovered tests\n";
     echo "  --failed-only     Re-run only previously failed tests\n";
     echo "  --help            Show this help\n";
@@ -41,6 +65,10 @@ if (!$moduleFilter) {
         if (str_contains($base, '_seed_') || str_contains($base, '_interactive') || str_contains($base, '_helper')) {
             continue;
         }
+        $isCanary = isCanaryTest($file);
+        if (($offlineMode && $isCanary) || ($canaryOnly && !$isCanary)) {
+            continue;
+        }
         $rel = str_replace($projectRoot . '/', '', $file);
         $key = 'core/' . basename($file, '.php');
         $discovered[$key] = ['file' => $file, 'rel' => $rel];
@@ -59,7 +87,11 @@ foreach ($testSubdirs as $subdir) {
     $files = glob($path . '/*_test.php');
     foreach ($files as $file) {
         $base = basename($file);
-        if (str_contains($base, '_seed_') || str_contains($base, '_interactive')) {
+        if (str_contains($base, '_seed_') || str_contains($base, '_interactive') || str_contains($base, '_helper')) {
+            continue;
+        }
+        $isCanary = isCanaryTest($file);
+        if (($offlineMode && $isCanary) || ($canaryOnly && !$isCanary)) {
             continue;
         }
         $rel = str_replace($projectRoot . '/', '', $file);
