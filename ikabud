@@ -4891,6 +4891,50 @@ MD;
         out('');
 
         $strictAuthRoutes = hasFlag('--strict-auth-routes');
+        $baselineFile = getFlagValue('--baseline=');
+        $failOnNew = hasFlag('--fail-on-new');
+        $strictBaseline = hasFlag('--strict');
+
+        if ($strictBaseline && !$failOnNew) {
+            out('  ' . red('✗') . ' --strict requires --fail-on-new');
+            out('');
+            exit(1);
+        }
+        if ($failOnNew && ($baselineFile === null || trim($baselineFile) === '')) {
+            out('  ' . red('✗') . ' --fail-on-new requires --baseline=FILE');
+            out('');
+            exit(1);
+        }
+
+        $findings = [];
+        $normalizeFinding = static function (array $finding): array {
+            return [
+                'rule' => (string)($finding['rule'] ?? ''),
+                'module' => (string)($finding['module'] ?? ''),
+                'path' => (string)($finding['path'] ?? ''),
+                'line' => (int)($finding['line'] ?? 0),
+                'evidence' => (string)($finding['evidence'] ?? ''),
+            ];
+        };
+        $addFinding = static function (array &$findings, array $finding) use ($normalizeFinding): void {
+            $findings[] = $normalizeFinding($finding);
+        };
+        $sortFindings = static function (array &$items): void {
+            usort($items, static function (array $a, array $b): int {
+                foreach (['rule', 'module', 'path', 'line', 'evidence'] as $key) {
+                    $left = $a[$key] ?? '';
+                    $right = $b[$key] ?? '';
+                    if ($left === $right) {
+                        continue;
+                    }
+                    if ($key === 'line') {
+                        return ((int)$left) <=> ((int)$right);
+                    }
+                    return strcmp((string)$left, (string)$right);
+                }
+                return 0;
+            });
+        };
 
         $failCount = 0;
         $totalChecks = 0;
@@ -4926,11 +4970,25 @@ MD;
             $failCount += count($manifestFailures) + count($manifestBlockers);
             foreach ($manifestFailures as $failure) {
                 $diagnostic = $failure['diagnostic'];
+                $addFinding($findings, [
+                    'rule' => 'manifest-schema-fatal',
+                    'module' => basename(dirname($failure['path'])),
+                    'path' => $failure['path'],
+                    'line' => 0,
+                    'evidence' => (string)($diagnostic['code'] . '|' . $diagnostic['rule'] . '|' . $diagnostic['message']),
+                ]);
                 out('  ' . red('✗') . ' ' . $failure['path'] . ': ' . $diagnostic['code'] . ' (' . $diagnostic['rule'] . ')');
                 out('      ' . $diagnostic['message'] . ' Correction: ' . $diagnostic['correction']);
             }
             foreach ($manifestBlockers as $failure) {
                 $diagnostic = $failure['diagnostic'];
+                $addFinding($findings, [
+                    'rule' => 'manifest-schema-cert-blocker',
+                    'module' => basename(dirname($failure['path'])),
+                    'path' => $failure['path'],
+                    'line' => 0,
+                    'evidence' => (string)($diagnostic['code'] . '|' . $diagnostic['rule'] . '|' . $diagnostic['message']),
+                ]);
                 out('  ' . yellow('⚠') . ' ' . $failure['path'] . ': ' . $diagnostic['code'] . ' (' . $diagnostic['rule'] . ')');
                 out('      ' . $diagnostic['message'] . ' Correction: ' . $diagnostic['correction']);
             }
@@ -4948,13 +5006,11 @@ MD;
             }
             $coOwns = (array)($manifest['co_owns_tables'] ?? []);
             foreach ($coOwns as $tbl) {
-                // co-owned: don't override if already owned by another module
                 if (!isset($allTables[$tbl])) {
                     $allTables[$tbl] = $mid;
                 }
             }
 
-            // Build capability exposes map
             $capSection = $manifest['capabilities'] ?? [];
             $exposes = (array)($capSection['exposes'] ?? []);
             foreach ($exposes as $cap) {
@@ -4996,9 +5052,7 @@ MD;
             $content = @file_get_contents($path);
             if (!is_string($content)) continue;
 
-            // Check for SQL FROM/JOIN referencing tables owned by other modules
             foreach (preg_split('/\R/', $content) as $lineNo => $line) {
-                // Look for SQL table references: FROM table, JOIN table, UPDATE table, INSERT INTO table
                 if (preg_match('/(?:FROM|JOIN|INTO|UPDATE)\s+`?(\w+)`?/i', $line, $tm)) {
                     $tbl = $tm[1];
                     if (isset($allTables[$tbl]) && $allTables[$tbl] !== $moduleId && !in_array($tbl, $allowedTables, true)) {
@@ -5007,6 +5061,7 @@ MD;
                             'line' => $lineNo + 1,
                             'table' => $tbl,
                             'owner' => $allTables[$tbl],
+                            'module' => $moduleId,
                             'snippet' => trim($line),
                         ];
                     }
@@ -5019,6 +5074,13 @@ MD;
             out('    ' . green('✓') . ' No cross-module table access violations');
         } else {
             foreach ($tableAccessViolations as $v) {
+                $addFinding($findings, [
+                    'rule' => 'cross-module-table-access',
+                    'module' => $v['module'],
+                    'path' => $v['file'],
+                    'line' => $v['line'],
+                    'evidence' => (string)($v['table'] . '|' . $v['owner'] . '|' . $v['snippet']),
+                ]);
                 $failCount++;
                 out('    ' . red('✗') . ' ' . $v['file'] . ':' . $v['line']);
                 out('      ' . yellow("Accesses table '{$v['table']}' owned by '{$v['owner']}' without reads_tables declaration"));
@@ -5030,7 +5092,6 @@ MD;
         out('');
         out('  ' . bold('Phase 2: Undeclared capability calls'));
         $undeclaredCaps = [];
-        $allCapIds = array_keys($allCapExposes);
 
         foreach ($iterator as $fileInfo) {
             if (!$fileInfo->isFile() || strtolower($fileInfo->getExtension()) !== 'php') continue;
@@ -5056,11 +5117,9 @@ MD;
             $content = @file_get_contents($path);
             if (!is_string($content)) continue;
 
-            // Check for app()->cap()->call('cap.id') patterns
             if (preg_match_all("/app\(\)\s*->\s*cap\s*\(\s*\)\s*->\s*call\s*\(\s*'([^']+)'/i", $content, $calls)) {
                 foreach ($calls[1] as $calledCap) {
                     if (!in_array($calledCap, $declaredDependsIds, true) && !str_starts_with($calledCap, 'kernel.')) {
-                        // Check if it's exposed by this module itself
                         $isSelfExposed = false;
                         foreach ((array)($capSection['exposes'] ?? []) as $exp) {
                             $eid = is_string($exp) ? $exp : ($exp['id'] ?? '');
@@ -5083,6 +5142,13 @@ MD;
             out('    ' . green('✓') . ' No undeclared capability calls');
         } else {
             foreach ($undeclaredCaps as $v) {
+                $addFinding($findings, [
+                    'rule' => 'undeclared-capability-call',
+                    'module' => $v['module'],
+                    'path' => $v['file'],
+                    'line' => 0,
+                    'evidence' => (string)$v['capability'],
+                ]);
                 $failCount++;
                 out('    ' . red('✗') . ' ' . $v['file']);
                 out('      ' . yellow("Calls capability '{$v['capability']}' not declared in capabilities.depends"));
@@ -5098,7 +5164,6 @@ MD;
         $templateViolations = [];
         $moduleEntitySources = [];
 
-        // Build entity source map per module
         foreach ($mods as $mid => $manifest) {
             $sources = [];
             $entitySection = $manifest['entity_sources'] ?? [];
@@ -5116,7 +5181,6 @@ MD;
             $path = (string) $fileInfo->getPathname();
             $rel = str_replace(BASE_PATH . '/', '', $path);
 
-            // Determine owning module from template path
             $moduleId = null;
             if (preg_match('#^templates/modules/([^/]+)/#', $rel, $mm)) {
                 $moduleId = $mm[1];
@@ -5126,13 +5190,10 @@ MD;
             $content = @file_get_contents($path);
             if (!is_string($content)) continue;
 
-            // Check for ikb_entity_list source usage
             if (preg_match_all('/\bikb_entity_list\b[^}]*\bsource\s*=\s*["\']([^"\']+)["\']/', $content, $srcMatches)) {
                 foreach ($srcMatches[1] as $srcVal) {
-                    // Check if source is in this module's entity_sources
                     $allowedSources = $moduleEntitySources[$moduleId] ?? [];
                     if ($allowedSources !== [] && !in_array($srcVal, $allowedSources, true)) {
-                        // Source may be from kernel or CMS (common cross-module sources)
                         $kernelSources = $moduleEntitySources['kernel'] ?? $moduleEntitySources['cms'] ?? [];
                         if (!in_array($srcVal, $kernelSources, true)) {
                             $templateViolations[] = [
@@ -5151,6 +5212,13 @@ MD;
             out('    ' . green('✓') . ' No template entity source violations');
         } else {
             foreach ($templateViolations as $v) {
+                $addFinding($findings, [
+                    'rule' => 'template-entity-source',
+                    'module' => $v['module'],
+                    'path' => $v['file'],
+                    'line' => 0,
+                    'evidence' => (string)$v['source'],
+                ]);
                 $failCount++;
                 out('    ' . red('✗') . ' ' . $v['file']);
                 out('      ' . yellow("Uses entity source '{$v['source']}' not declared in module's entity_sources"));
@@ -5210,6 +5278,13 @@ MD;
             out('    ' . green('✓') . ' Auth/entry modules satisfy route contract');
         } else {
             foreach ($authRouteViolations as $v) {
+                $addFinding($findings, [
+                    'rule' => 'auth-route-contract',
+                    'module' => $v['module'],
+                    'path' => 'modules/' . $v['module'] . '/module.json',
+                    'line' => 0,
+                    'evidence' => implode(',', $v['missing']),
+                ]);
                 $failCount++;
                 out('    ' . red('✗') . ' ' . $v['module'] . ' (provider: ' . $v['route_provider'] . ')');
                 out('      ' . yellow('Missing/invalid: ' . implode(', ', $v['missing'])));
@@ -5229,6 +5304,13 @@ MD;
 
             foreach ($authRouteWarnings as $v) {
                 if ($strictAuthRoutes) {
+                    $addFinding($findings, [
+                        'rule' => 'auth-route-contract-warning-strict',
+                        'module' => $v['module'],
+                        'path' => 'modules/' . $v['module'] . '/module.json',
+                        'line' => 0,
+                        'evidence' => implode(',', $v['missing']),
+                    ]);
                     $failCount++;
                     out('    ' . red('✗') . ' ' . $v['module'] . ' (provider: ' . $v['route_provider'] . ')');
                     out('      ' . yellow('Missing/invalid: ' . implode(', ', $v['missing']) . ' (strict auth route mode)'));
@@ -5239,8 +5321,84 @@ MD;
             }
         }
 
+        $sortFindings($findings);
+
+        if ($baselineFile !== null && !$failOnNew) {
+            $baselineDir = dirname($baselineFile);
+            if (!is_dir($baselineDir) && !@mkdir($baselineDir, 0777, true) && !is_dir($baselineDir)) {
+                out('');
+                out('  ' . red('✗') . ' Unable to create baseline directory: ' . $baselineDir);
+                out('');
+                exit(1);
+            }
+            $baselineJson = json_encode($findings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            if (!is_string($baselineJson) || @file_put_contents($baselineFile, $baselineJson . PHP_EOL) === false) {
+                out('');
+                out('  ' . red('✗') . ' Unable to write baseline file: ' . $baselineFile);
+                out('');
+                exit(1);
+            }
+            out('');
+            out('  ' . green('✓') . ' Wrote architecture baseline: ' . $baselineFile . ' (' . count($findings) . ' finding(s))');
+            out('');
+            exit(0);
+        }
+
+        $baselineFindings = [];
+        $newFindings = [];
+        if ($failOnNew) {
+            if (!is_file($baselineFile) || !is_readable($baselineFile)) {
+                out('');
+                out('  ' . red('✗') . ' Baseline file not readable: ' . $baselineFile);
+                out('');
+                exit(1);
+            }
+            $baselineRaw = @file_get_contents($baselineFile);
+            $baselineDecoded = is_string($baselineRaw) ? json_decode($baselineRaw, true) : null;
+            if (!is_array($baselineDecoded)) {
+                out('');
+                out('  ' . red('✗') . ' Invalid baseline JSON: ' . $baselineFile);
+                out('');
+                exit(1);
+            }
+            foreach ($baselineDecoded as $item) {
+                if (is_array($item)) {
+                    $baselineFindings[] = $normalizeFinding($item);
+                }
+            }
+            $sortFindings($baselineFindings);
+
+            $baselineIndex = [];
+            foreach ($baselineFindings as $item) {
+                $baselineIndex[json_encode($item, JSON_UNESCAPED_SLASHES)] = true;
+            }
+            foreach ($findings as $item) {
+                $key = json_encode($item, JSON_UNESCAPED_SLASHES);
+                if (!isset($baselineIndex[$key])) {
+                    $newFindings[] = $item;
+                }
+            }
+        }
+
         // Summary
         out('');
+        if ($failOnNew) {
+            if ($newFindings === [] && (!$strictBaseline || $findings === [])) {
+                out('  ' . green('✓') . " Architecture baseline gate passed ({$totalChecks} checks, " . count($findings) . ' current finding(s), ' . count($newFindings) . ' new)');
+                out('');
+                exit(0);
+            }
+
+            if ($strictBaseline && $findings !== []) {
+                out('  ' . red('✗') . ' Strict architecture baseline gate failed: ' . count($findings) . ' finding(s) present');
+            } else {
+                out('  ' . red('✗') . ' Architecture baseline gate failed: ' . count($newFindings) . ' new finding(s)');
+            }
+            out('  ' . yellow('Fix new violations before merge or refresh the baseline intentionally.'));
+            out('');
+            exit(1);
+        }
+
         if ($failCount === 0) {
             out('  ' . green('✓') . " All architecture checks passed ({$totalChecks} checks)");
             out('');

@@ -207,7 +207,12 @@ jobs:
         run: php _lint_disyl.php --ci
 
       - name: Architecture boundary check
-        run: php ikabud architecture:check
+        run: |
+          BASELINE=/tmp/architecture-check-baseline.json
+          if [ ! -f "$BASELINE" ]; then
+            php ikabud architecture:check --baseline="$BASELINE"
+          fi
+          php ikabud architecture:check --baseline="$BASELINE" --fail-on-new
 
       - name: ARK theme static a11y audit
         run: php tests/ark_a11y_audit_test.php
