@@ -1,0 +1,25 @@
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+    <div>
+        <h2 class="text-xl font-semibold text-gray-900">Async Rendering Demo</h2>
+        <p class="text-sm text-gray-600">Deterministic DiSyL async fixture rendered through the shipped PAL settings shell.</p>
+    </div>
+
+    {suspense fallback='Async fixture fallback'}
+    <div class="grid gap-4 md:grid-cols-2">
+        {parallel}
+            {await let=first src='Alpha Section Ready'}
+                <section class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <h3 class="font-medium text-blue-900">Async Section A</h3>
+                    <p class="text-sm text-blue-800">{first}</p>
+                </section>
+            {/await}
+            {await let=second src='Beta Section Ready'}
+                <section class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <h3 class="font-medium text-emerald-900">Async Section B</h3>
+                    <p class="text-sm text-emerald-800">{second}</p>
+                </section>
+            {/await}
+        {/parallel}
+    </div>
+    {/suspense}
+</div>

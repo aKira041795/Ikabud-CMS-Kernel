@@ -30,6 +30,7 @@ return [
         '/cms/admin/customize/{scope}'     => 'cms:cmsAdminCustomizer',
         '/cms/admin/redirects'             => 'cms:cmsAdminRedirects',
         '/cms/admin/import-export'         => 'cms:cmsAdminImportExport',
+        '/cms/admin/report-approvals'      => 'cms:cmsAdminReportApprovals',
         '/cms/admin/permissions'           => 'cms:cmsAdminPermissions',
         '/cms/admin/themes'                => 'cms:cmsAdminThemes',
         '/cms/admin/modules'               => 'cms:cmsAdminModules',
@@ -40,6 +41,7 @@ return [
         '/api/v1/export'                   => 'cms:cmsApiKernelExport',
         '/api/v1/cms/redirects'            => 'cms:cmsApiRedirectList',
         '/api/v1/cms/export'               => 'cms:cmsApiExport',
+        '/api/v1/cms/export/pending'       => 'cms:cmsApiExportPending',
         '/api/v1/cms/builder/components'   => 'cms:cmsApiBuilderComponents',
         '/api/v1/cms/builder/entity-sources' => 'cms:cmsApiBuilderEntitySources',
         '/api/v1/cms/builder/entity-views'   => 'cms:cmsApiBuilderEntityViews',
@@ -220,6 +222,8 @@ return [
 
         // ── Import / Export API ───────────────────────────────────
         '/api/v1/cms/import'                   => 'cms:cmsApiImport',
+        '/api/v1/cms/export/approve'           => 'cms:cmsApiExportApprove',
+        '/api/v1/cms/export/reject'            => 'cms:cmsApiExportReject',
 
         // ── Permissions API ────────────────────────────────────────
         '/api/v1/cms/permissions'               => 'cms:cmsApiPermissionsSave',

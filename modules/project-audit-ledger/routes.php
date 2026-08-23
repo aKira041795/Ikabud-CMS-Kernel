@@ -84,6 +84,7 @@ return [
         '/admin/project-audit-ledger/audit' => 'project-audit-ledger:palPageAuditTrail',
         '/admin/project-audit-ledger/audit-trail' => 'project-audit-ledger:palPageAuditTrail',
         '/admin/project-audit-ledger/settings' => 'project-audit-ledger:palPageSettings',
+        '/admin/project-audit-ledger/settings/async-rendering' => 'project-audit-ledger:palPageSettings',
         '/admin/project-audit-ledger/users' => 'project-audit-ledger:palPageUserList',
         '/admin/project-audit-ledger/attachments/{id}/download' => 'project-audit-ledger:palPageAttachmentDownload',
     ],

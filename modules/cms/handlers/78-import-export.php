@@ -163,18 +163,25 @@ function cmsAdminReportApprovals(array $params = []): void
 {
     $user = cmsRequireRole('administrator', 'superadmin');
 
-    $db = \app()->db();
-    $stmt = $db->query(
-        'SELECT ra.*, wr.status AS workflow_status '
-        . 'FROM report_approvals ra '
-        . 'LEFT JOIN workflow_runs wr ON wr.id = ra.workflow_run_id '
-        . 'ORDER BY ra.created_at DESC LIMIT 100'
-    );
-    $pending = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $pending = \function_exists('moduleCatalogWithKernelDbEscalation')
+        ? moduleCatalogWithKernelDbEscalation(static function (): array {
+            $db = \app()->db();
+            $stmt = $db->query(
+                'SELECT ra.*, wr.status AS workflow_status '
+                . 'FROM report_approvals ra '
+                . 'LEFT JOIN workflow_runs wr ON wr.id = ra.workflow_run_id '
+                . 'ORDER BY ra.created_at DESC LIMIT 100'
+            );
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        })
+        : [];
 
     echo cmsRender('modules/cms/admin/report-approvals.disyl', array_merge(
         cmsAdminContext($user, 'admin'),
-        ['pending_approvals' => is_array($pending) ? $pending : []]
+        [
+            'page_title' => 'Report Approval Queue',
+            'pending_approvals' => is_array($pending) ? $pending : [],
+        ]
     ));
 }
 
@@ -195,23 +202,25 @@ function cmsApiExportApprove(array $params = []): void
         return;
     }
 
-    $db = \app()->db();
-    $stmt = $db->prepare('SELECT * FROM report_approvals WHERE id = :id AND status = :st LIMIT 1');
-    $stmt->execute([':id' => $approvalId, ':st' => 'pending']);
-    $record = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-    if (!$record) {
-        http_response_code(404);
-        echo json_encode(['ok' => false, 'error' => 'Pending approval not found']);
-        return;
-    }
-
-    $actorId = (int)($user['id'] ?? 0);
-    $source = (string)($record['export_source'] ?? '');
-    $format = (string)($record['export_format'] ?? 'csv');
-
     try {
-        // Generate the export
+        $record = \function_exists('moduleCatalogWithKernelDbEscalation')
+            ? moduleCatalogWithKernelDbEscalation(static function () use ($approvalId): array|false {
+                $db = \app()->db();
+                $stmt = $db->prepare('SELECT * FROM report_approvals WHERE id = :id AND status = :st LIMIT 1');
+                $stmt->execute([':id' => $approvalId, ':st' => 'pending']);
+                return $stmt->fetch(\PDO::FETCH_ASSOC);
+            })
+            : false;
+
+        if (!$record) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Pending approval not found']);
+            return;
+        }
+
+        $actorId = (int)($user['id'] ?? 0);
+        $source = (string)($record['export_source'] ?? '');
+        $format = (string)($record['export_format'] ?? 'csv');
         $rows = [];
         $title = (string)($record['title'] ?? 'Export');
         if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
@@ -227,7 +236,6 @@ function cmsApiExportApprove(array $params = []): void
 
         $entityType = explode('.', $source)[0];
         $filename = $entityType . '-export-' . date('Y-m-d') . '.' . $format;
-
         $result = \Ikabud\Kernel\Services\KernelExport::export($entityType, $format, $rows, [
             'title' => $title,
             'filename' => $filename,
@@ -239,15 +247,18 @@ function cmsApiExportApprove(array $params = []): void
             return;
         }
 
-        // Update approval record
-        $db->prepare(
-            'UPDATE report_approvals SET status = :st, approved_by = :by, approved_at = NOW(), '
-            . 'result_path = :rp, result_size = :rs, result_mime = :rm, updated_at = NOW() WHERE id = :id'
-        )->execute([
-            ':st' => 'approved', ':by' => $actorId,
-            ':rp' => $result['path'], ':rs' => (int)($result['size'] ?? 0),
-            ':rm' => $result['mime'] ?? '', ':id' => $approvalId,
-        ]);
+        if (\function_exists('moduleCatalogWithKernelDbEscalation')) {
+            moduleCatalogWithKernelDbEscalation(static function () use ($actorId, $approvalId, $result): void {
+                \app()->db()->prepare(
+                    'UPDATE report_approvals SET status = :st, approved_by = :by, approved_at = NOW(), '
+                    . 'result_path = :rp, result_size = :rs, result_mime = :rm, updated_at = NOW() WHERE id = :id'
+                )->execute([
+                    ':st' => 'approved', ':by' => $actorId,
+                    ':rp' => $result['path'], ':rs' => (int)($result['size'] ?? 0),
+                    ':rm' => $result['mime'] ?? '', ':id' => $approvalId,
+                ]);
+            });
+        }
 
         echo json_encode(['ok' => true, 'status' => 'approved', 'message' => 'Export approved and generated']);
     } catch (\Throwable $e) {
@@ -275,12 +286,17 @@ function cmsApiExportReject(array $params = []): void
         return;
     }
 
-    $db = \app()->db();
-    $actorId = (int)($user['id'] ?? 0);
-    $stmt = $db->prepare('UPDATE report_approvals SET status = :st, rejected_by = :by, reject_reason = :rr, updated_at = NOW() WHERE id = :id AND status = :ps');
-    $stmt->execute([':st' => 'rejected', ':by' => $actorId, ':rr' => $reason, ':id' => $approvalId, ':ps' => 'pending']);
+    $updated = \function_exists('moduleCatalogWithKernelDbEscalation')
+        ? moduleCatalogWithKernelDbEscalation(static function () use ($approvalId, $reason, $user): int {
+            $db = \app()->db();
+            $actorId = (int)($user['id'] ?? 0);
+            $stmt = $db->prepare('UPDATE report_approvals SET status = :st, rejected_by = :by, reject_reason = :rr, updated_at = NOW() WHERE id = :id AND status = :ps');
+            $stmt->execute([':st' => 'rejected', ':by' => $actorId, ':rr' => $reason, ':id' => $approvalId, ':ps' => 'pending']);
+            return $stmt->rowCount();
+        })
+        : 0;
 
-    if ($stmt->rowCount() === 0) {
+    if ($updated === 0) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'error' => 'Pending approval not found']);
         return;
@@ -297,15 +313,19 @@ function cmsApiExportPending(array $params = []): void
     header('Content-Type: application/json');
     $user = cmsRequireCap('admin');
 
-    $db = \app()->db();
-    $stmt = $db->query(
-        'SELECT ra.id, ra.export_source, ra.export_format, ra.title, ra.status, ra.created_at, '
-        . 'wr.status AS workflow_status '
-        . 'FROM report_approvals ra '
-        . 'LEFT JOIN workflow_runs wr ON wr.id = ra.workflow_run_id '
-        . 'ORDER BY ra.created_at DESC LIMIT 50'
-    );
-    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $rows = \function_exists('moduleCatalogWithKernelDbEscalation')
+        ? moduleCatalogWithKernelDbEscalation(static function (): array {
+            $db = \app()->db();
+            $stmt = $db->query(
+                'SELECT ra.id, ra.export_source, ra.export_format, ra.title, ra.status, ra.created_at, '
+                . 'wr.status AS workflow_status '
+                . 'FROM report_approvals ra '
+                . 'LEFT JOIN workflow_runs wr ON wr.id = ra.workflow_run_id '
+                . 'ORDER BY ra.created_at DESC LIMIT 50'
+            );
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        })
+        : [];
 
     echo json_encode(['ok' => true, 'data' => is_array($rows) ? $rows : []]);
 }
