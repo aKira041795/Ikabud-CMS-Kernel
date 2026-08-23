@@ -1,0 +1,385 @@
+<?php
+
+declare(strict_types=1);
+
+function poc6_repo_root(): string
+{
+    return dirname(__DIR__);
+}
+
+function poc6_normalize_path(string $path): string
+{
+    $path = str_replace('\\', '/', $path);
+    return rtrim($path, '/');
+}
+
+function poc6_assert_allowed_write(string $path, string $repoRoot, array $allowedRepoPaths): void
+{
+    $normalized = poc6_normalize_path($path);
+    $repoRoot = poc6_normalize_path($repoRoot);
+
+    if (str_starts_with($normalized, $repoRoot . '/')) {
+        foreach ($allowedRepoPaths as $allowedPath) {
+            $allowed = poc6_normalize_path($allowedPath);
+            if ($normalized === $allowed || str_starts_with($normalized, $allowed . '/')) {
+                return;
+            }
+        }
+
+        throw new RuntimeException('Refusing to write inside repository outside allowed outputs: ' . $path);
+    }
+}
+
+function poc6_mkdir(string $path, string $repoRoot, array $allowedRepoPaths): void
+{
+    poc6_assert_allowed_write($path, $repoRoot, $allowedRepoPaths);
+    if (!is_dir($path) && !mkdir($path, 0777, true) && !is_dir($path)) {
+        throw new RuntimeException('Unable to create directory: ' . $path);
+    }
+}
+
+function poc6_copy_file(string $source, string $target, string $repoRoot, array $allowedRepoPaths): void
+{
+    $directory = dirname($target);
+    poc6_mkdir($directory, $repoRoot, $allowedRepoPaths);
+    poc6_assert_allowed_write($target, $repoRoot, $allowedRepoPaths);
+    if (!copy($source, $target)) {
+        throw new RuntimeException('Unable to copy file: ' . $source . ' -> ' . $target);
+    }
+}
+
+function poc6_write_file(string $path, string $content, string $repoRoot, array $allowedRepoPaths): void
+{
+    $directory = dirname($path);
+    poc6_mkdir($directory, $repoRoot, $allowedRepoPaths);
+    poc6_assert_allowed_write($path, $repoRoot, $allowedRepoPaths);
+    if (file_put_contents($path, $content) === false) {
+        throw new RuntimeException('Unable to write file: ' . $path);
+    }
+}
+
+function poc6_run(array $command, string $cwd): array
+{
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $process = proc_open($command, $descriptors, $pipes, $cwd);
+    if (!is_resource($process)) {
+        throw new RuntimeException('Unable to start command: ' . implode(' ', $command));
+    }
+
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+
+    return [
+        'command' => implode(' ', array_map('strval', $command)),
+        'exit_code' => $exitCode,
+        'stdout' => (string) $stdout,
+        'stderr' => (string) $stderr,
+        'output' => trim((string) $stdout . (($stderr ?? '') !== '' ? "\n" . $stderr : '')),
+    ];
+}
+
+function poc6_relative_path(string $absolutePath, string $root): string
+{
+    $absolutePath = poc6_normalize_path($absolutePath);
+    $root = poc6_normalize_path($root);
+    if ($absolutePath === $root) {
+        return '';
+    }
+    if (!str_starts_with($absolutePath, $root . '/')) {
+        throw new RuntimeException('Path is not inside root: ' . $absolutePath);
+    }
+    return substr($absolutePath, strlen($root) + 1);
+}
+
+function poc6_list_files(string $root): array
+{
+    $files = [];
+    if (!is_dir($root)) {
+        return $files;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $item) {
+        if ($item->isFile()) {
+            $files[] = poc6_relative_path($item->getPathname(), $root);
+        }
+    }
+
+    sort($files);
+    return $files;
+}
+
+function poc6_copy_tree(string $source, string $target, string $repoRoot, array $allowedRepoPaths): void
+{
+    if (is_file($source)) {
+        poc6_copy_file($source, $target, $repoRoot, $allowedRepoPaths);
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $relative = poc6_relative_path($item->getPathname(), $source);
+        $destination = $target . '/' . $relative;
+        if ($item->isDir()) {
+            poc6_mkdir($destination, $repoRoot, $allowedRepoPaths);
+            continue;
+        }
+        poc6_copy_file($item->getPathname(), $destination, $repoRoot, $allowedRepoPaths);
+    }
+}
+
+function poc6_render_status_doc(array $artifact): string
+{
+    $fingerprint = $artifact['fingerprint'];
+    $module = $artifact['module'];
+    $verdict = $artifact['verdict'];
+    $artifactPath = $artifact['artifact_path'];
+    $shadowRoot = $module['shadow_root'];
+
+    return "# POC6 clean-room shadow-build status\n\n"
+        . "This file is regenerated by `php tools/poc6-shadow-build.php`. It proves an outsider module scaffold can be generated from a disposable shadow repository built from `git archive HEAD` plus overlays for modified tracked files and declared untracked allowlist entries, while excluding internal oracle paths from the outsider view.\n\n"
+        . "- Run: `php tools/poc6-shadow-build.php`\n"
+        . "- Proof artifact: `{$artifactPath}`\n"
+        . "- HEAD: `{$fingerprint['head_sha']}`\n"
+        . "- Dirty worktree captured: `" . ($fingerprint['dirty'] ? 'yes' : 'no') . "`\n"
+        . "- Captured files: `{$fingerprint['captured_count']}`\n"
+        . "- Golden module: `{$module['id']}`\n"
+        . "- Shadow root: `{$shadowRoot}`\n"
+        . "- Verdict: `{$verdict}`\n";
+}
+
+function poc6_main(): int
+{
+    $repoRoot = poc6_repo_root();
+    $artifactDir = $repoRoot . '/storage/poc6';
+    $statusDocPath = $repoRoot . '/docs/poc6-shadow-build-status.md';
+    $allowedRepoWrites = [$artifactDir, $repoRoot . '/docs', $statusDocPath];
+
+    try {
+        $gitCheck = poc6_run(['git', '--version'], $repoRoot);
+        if ($gitCheck['exit_code'] !== 0) {
+            throw new RuntimeException('git is unavailable: ' . $gitCheck['output']);
+        }
+
+        $head = poc6_run(['git', 'rev-parse', 'HEAD'], $repoRoot);
+        if ($head['exit_code'] !== 0) {
+            throw new RuntimeException('Unable to resolve HEAD: ' . $head['output']);
+        }
+        $headSha = trim($head['stdout']);
+        $shortHead = substr($headSha, 0, 12);
+
+        $status = poc6_run(['git', 'status', '--porcelain'], $repoRoot);
+        $dirty = trim($status['stdout']) !== '';
+
+        $modifiedTracked = poc6_run(['git', 'diff', '--name-only', 'HEAD'], $repoRoot);
+        if ($modifiedTracked['exit_code'] !== 0) {
+            throw new RuntimeException('Unable to list modified tracked files: ' . $modifiedTracked['output']);
+        }
+        $modifiedTrackedPaths = array_values(array_filter(array_map('trim', preg_split('/\R/', trim($modifiedTracked['stdout'])) ?: []), 'strlen'));
+        sort($modifiedTrackedPaths);
+
+        $selectedUntracked = [];
+
+        $tempRoot = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . '/poc6-shadow-build-' . $shortHead . '-' . getmypid() . '-' . bin2hex(random_bytes(4));
+        $captureRoot = $tempRoot . '/capture';
+        $shadowRoot = $tempRoot . '/shadow';
+        foreach ([$tempRoot, $captureRoot, $shadowRoot] as $path) {
+            poc6_assert_allowed_write($path, $repoRoot, $allowedRepoWrites);
+        }
+        if (is_dir($tempRoot)) {
+            throw new RuntimeException('Temporary root already exists, refusing to reuse: ' . $tempRoot);
+        }
+        poc6_mkdir($captureRoot, $repoRoot, $allowedRepoWrites);
+        poc6_mkdir($shadowRoot, $repoRoot, $allowedRepoWrites);
+
+        $archiveCommand = sprintf(
+            'git archive HEAD | tar -x -C %s',
+            escapeshellarg($captureRoot)
+        );
+        $archive = poc6_run(['/bin/sh', '-lc', $archiveCommand], $repoRoot);
+        if ($archive['exit_code'] !== 0) {
+            throw new RuntimeException('git archive extraction failed: ' . $archive['output']);
+        }
+
+        foreach ($modifiedTrackedPaths as $relativePath) {
+            $source = $repoRoot . '/' . $relativePath;
+            if (!is_file($source)) {
+                continue;
+            }
+            poc6_copy_file($source, $captureRoot . '/' . $relativePath, $repoRoot, $allowedRepoWrites);
+        }
+
+        foreach ($selectedUntracked as $relativePath) {
+            $source = $repoRoot . '/' . $relativePath;
+            if (!is_file($source)) {
+                throw new RuntimeException('Selected untracked file missing: ' . $relativePath);
+            }
+            poc6_copy_file($source, $captureRoot . '/' . $relativePath, $repoRoot, $allowedRepoWrites);
+        }
+
+        $capturedFiles = poc6_list_files($captureRoot);
+        $capturedHashes = [];
+        foreach ($capturedFiles as $relativePath) {
+            $capturedHashes[$relativePath] = hash_file('sha256', $captureRoot . '/' . $relativePath);
+        }
+
+        $excluded = [
+            'tests/',
+            '.ai/',
+            'storage/',
+            '.git/',
+            'node_modules/',
+            'android/',
+            'docker/',
+            'test_results/',
+            'test_output.txt',
+            'cleanup.php',
+            'create-*-archive.php',
+            'create-*-package.php',
+            '.github/',
+        ];
+
+        $publicInputs = [
+            'ikabud',
+            'kernel',
+            'src',
+            'config',
+            'public',
+            'vendor',
+            'database',
+            'locales',
+            'templates',
+            'modules',
+            'docs',
+            'bootstrap.php',
+            'composer.json',
+            'composer.lock',
+            'README.md',
+            'LICENSE',
+            'LICENSE.md',
+            'LICENSE.txt',
+            'CONTRIBUTING.md',
+            'SECURITY.md',
+            'CODE_OF_CONDUCT.md',
+            'scripts/guard-module-manifests.php',
+        ];
+
+        foreach ($publicInputs as $relativePath) {
+            $source = $captureRoot . '/' . $relativePath;
+            if (!file_exists($source)) {
+                continue;
+            }
+            poc6_copy_tree($source, $shadowRoot . '/' . $relativePath, $repoRoot, $allowedRepoWrites);
+        }
+        poc6_mkdir($shadowRoot . '/tests', $repoRoot, $allowedRepoWrites);
+
+        $moduleSeed = substr(hash('sha256', $headSha . "\n" . implode("\n", $modifiedTrackedPaths) . "\n" . implode("\n", $selectedUntracked)), 0, 8);
+        $moduleId = 'golden-cleanroom-' . $moduleSeed;
+
+        $steps = [];
+        $makeModule = poc6_run([PHP_BINARY, 'ikabud', 'make:module', $moduleId], $shadowRoot);
+        $steps[] = [
+            'step' => 'make_module',
+            'exit_code' => $makeModule['exit_code'],
+            'evidence' => $makeModule['output'],
+            'passed' => $makeModule['exit_code'] === 0,
+        ];
+
+        $moduleFiles = [
+            $shadowRoot . '/modules/' . $moduleId . '/module.json',
+            $shadowRoot . '/modules/' . $moduleId . '/routes.php',
+            $shadowRoot . '/modules/' . $moduleId . '/handlers.php',
+            $shadowRoot . '/templates/modules/' . $moduleId . '/pages/home.disyl',
+            $shadowRoot . '/tests/' . str_replace('-', '_', $moduleId) . '_module_test.php',
+        ];
+        $missingFiles = array_values(array_filter($moduleFiles, static fn(string $path): bool => !is_file($path)));
+        $steps[] = [
+            'step' => 'scaffold_files_exist',
+            'exit_code' => $missingFiles === [] ? 0 : 1,
+            'evidence' => $missingFiles === [] ? implode("\n", $moduleFiles) : 'Missing: ' . implode(', ', $missingFiles),
+            'passed' => $missingFiles === [],
+        ];
+
+        $guard = poc6_run([PHP_BINARY, 'scripts/guard-module-manifests.php', '--strict'], $shadowRoot);
+        $steps[] = [
+            'step' => 'guard_module_manifests',
+            'exit_code' => $guard['exit_code'],
+            'evidence' => $guard['output'],
+            'passed' => $guard['exit_code'] === 0,
+        ];
+
+        $certify = poc6_run([PHP_BINARY, 'ikabud', 'module:certify', $moduleId], $shadowRoot);
+        $steps[] = [
+            'step' => 'module.certify',
+            'exit_code' => $certify['exit_code'],
+            'evidence' => $certify['output'],
+            'passed' => $certify['exit_code'] === 0,
+        ];
+
+        $verdict = array_reduce(
+            $steps,
+            static fn(bool $carry, array $step): bool => $carry && !empty($step['passed']),
+            true
+        ) ? 'PASS' : 'FAIL';
+
+        poc6_mkdir($artifactDir, $repoRoot, $allowedRepoWrites);
+        $artifactPath = $artifactDir . '/proof-shadow-build-' . $shortHead . '.json';
+        $artifact = [
+            'fingerprint' => [
+                'head_sha' => $headSha,
+                'dirty' => $dirty,
+                'captured_count' => count($capturedFiles),
+                'included' => $capturedFiles,
+                'excluded' => $excluded,
+                'modified_tracked_overlays' => $modifiedTrackedPaths,
+                'selected_untracked_overlays' => $selectedUntracked,
+                'captured_hashes' => $capturedHashes,
+            ],
+            'capture_root' => $captureRoot,
+            'shadow_root' => $shadowRoot,
+            'build_steps' => $steps,
+            'module' => [
+                'id' => $moduleId,
+                'shadow_root' => $shadowRoot,
+                'files' => $moduleFiles,
+            ],
+            'artifact_path' => 'storage/poc6/' . basename($artifactPath),
+            'verdict' => $verdict,
+        ];
+
+        poc6_write_file($artifactPath, json_encode($artifact, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", $repoRoot, $allowedRepoWrites);
+        poc6_write_file($statusDocPath, poc6_render_status_doc($artifact), $repoRoot, $allowedRepoWrites);
+
+        echo 'POC6 shadow build: ' . $verdict
+            . ' | module=' . $moduleId
+            . ' | head=' . $shortHead
+            . ' | dirty=' . ($dirty ? 'yes' : 'no')
+            . ' | artifact=' . $artifact['artifact_path']
+            . PHP_EOL;
+
+        return $verdict === 'PASS' ? 0 : 1;
+    } catch (Throwable $e) {
+        fwrite(STDERR, 'POC6 shadow build: FAIL - ' . $e->getMessage() . PHP_EOL);
+        return 1;
+    }
+}
+
+if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    exit(poc6_main());
+}

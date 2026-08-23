@@ -58,6 +58,7 @@ storage/modules.json
 # Broader storage/private exclusion — keep specific allowlisted subdirs
 /storage/private/**
 !/storage/private/.gitkeep
+/storage/poc6/
 # Generated/test upload directories (not source)
 /public/uploads/**
 !/public/uploads/.gitkeep
