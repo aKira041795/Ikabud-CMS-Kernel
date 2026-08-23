@@ -13,6 +13,20 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     $views = $app->entityViews();
     $moduleId = 'ecommerce';
 
+    $views->registerView('products', 'default', [
+        'fields' => ['id', 'name', 'price', 'image'],
+        'actions' => ['view', 'add_to_cart'],
+        'limit' => 20,
+        'empty_state' => 'No products found.',
+    ], $moduleId);
+
+    $views->registerView('products', 'compact', [
+        'fields' => ['id', 'name', 'price', 'image'],
+        'actions' => ['view', 'add_to_cart'],
+        'limit' => 20,
+        'empty_state' => 'No products found.',
+    ], $moduleId);
+
     $views->registerView('ecommerce_product', 'compact', [
         'fields' => ['id', 'name', 'price', 'image', 'stock_status'],
         'actions' => ['view', 'add_to_cart'],

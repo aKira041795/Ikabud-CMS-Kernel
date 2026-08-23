@@ -176,7 +176,11 @@ final class EntityViewResolver
         $merged['_provenance'] = $provenance;
 
         $this->viewContracts[$key] = $merged;
-        unset($this->resolvedCache[$key]);
+        foreach (array_keys($this->resolvedCache) as $cacheKey) {
+            if (str_starts_with($cacheKey, trim($entityType) . '.')) {
+                unset($this->resolvedCache[$cacheKey]);
+            }
+        }
     }
 
     /**
@@ -641,25 +645,17 @@ final class EntityViewResolver
     /**
      * @deprecated P2.1 Built-in defaults are being migrated to module-level
      *             registrations. This method is kept as a backward-compat
-     *             fallback for entity types that no module has claimed yet.
+     *             fallback for legacy entity types that no module has claimed
+     *             yet; `products` migrated to ecommerce ownership in P2.1.
      *             Logs a warning when invoked so migration progress can
      *             be tracked.
      * @return array<string, mixed>|null
      */
     private function builtinDefaults(string $entityType, string $view): ?array
     {
-        // Log deprecation warning to track unresolved entity types
-        if (\function_exists('write_log')) {
-            \write_log("EntityViewResolver: built-in default used for '{$entityType}.{$view}' — migrate to module-level registration (P2.1)", 'warning', [
-                'entity_type' => $entityType,
-                'view' => $view,
-            ]);
-        }
-
         $compactDefaults = [
             // Legacy backward-compat aliases (short names)
             'orders' => ['fields' => ['id', 'status', 'total', 'created_at'], 'actions' => ['view'], 'limit' => 10, 'empty_state' => 'No orders yet.'],
-            'products' => ['fields' => ['id', 'name', 'price', 'image'], 'actions' => ['view', 'add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
             'cases' => ['fields' => ['id', 'title', 'status', 'updated_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No cases found.'],
             'ledger' => ['fields' => ['id', 'entry_type', 'amount', 'created_at'], 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No ledger entries.'],
             'appointments' => ['fields' => ['id', 'title', 'date', 'status'], 'actions' => ['view', 'cancel'], 'limit' => 10, 'empty_state' => 'No appointments.'],
@@ -667,7 +663,18 @@ final class EntityViewResolver
             'weather' => ['fields' => ['date', 'high_c', 'low_c', 'condition'], 'actions' => [], 'limit' => 5, 'empty_state' => 'No weather data.'],
         ];
 
-        $base = $compactDefaults[$entityType] ?? ['fields' => '*', 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No records found.'];
+        $base = $compactDefaults[$entityType] ?? null;
+        if ($base === null) {
+            return null;
+        }
+
+        // Log deprecation warning to track unresolved entity types
+        if (\function_exists('write_log')) {
+            \write_log("EntityViewResolver: built-in default used for '{$entityType}.{$view}' — migrate to module-level registration (P2.1)", 'warning', [
+                'entity_type' => $entityType,
+                'view' => $view,
+            ]);
+        }
 
         return [
             'entity_type' => $entityType,
