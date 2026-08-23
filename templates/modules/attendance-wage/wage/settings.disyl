@@ -268,6 +268,47 @@
             </div>
         </div>
 
+        <!-- Database Backup -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+            <h2 class="text-lg font-bold text-gray-900">💾 Database Backup</h2>
+            <p class="text-sm text-gray-500">Download a data-only SQL backup of this workspace's data. Backups include business data and user accounts. After a reset, restore by importing the SQL file (e.g. via phpMyAdmin / MySQL client) into this workspace — schema must already exist.</p>
+            <form id="aw-backup-form" method="POST" action="/api/v1/wage/settings/backup">
+                <input type="hidden" name="_token" value="{csrf_token}">
+            </form>
+            <div class="flex items-center gap-3">
+                <button type="button" onclick="awGenerateBackup()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">Generate Backup</button>
+                <span class="text-xs text-gray-400">Kept for 14 days; older backups are auto-deleted.</span>
+            </div>
+            {if backups|count > 0}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="py-2.5 px-4 text-left font-semibold text-gray-600">File</th>
+                            <th class="py-2.5 px-4 text-left font-semibold text-gray-600">Size</th>
+                            <th class="py-2.5 px-4 text-left font-semibold text-gray-600">Created</th>
+                            <th class="py-2.5 px-4 text-right font-semibold text-gray-600">Download</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for b in backups}
+                        <tr class="border-b last:border-b-0 border-gray-100">
+                            <td class="py-2.5 px-4 font-mono text-xs text-gray-700">{b.file_name}</td>
+                            <td class="py-2.5 px-4 text-gray-600 text-xs">{b.file_size_bytes} bytes</td>
+                            <td class="py-2.5 px-4 text-gray-600 text-xs">{b.created_at}</td>
+                            <td class="py-2.5 px-4 text-right">
+                                <a href="{b.download_url}" class="inline-flex px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">⬇ Download</a>
+                            </td>
+                        </tr>
+                        {/for}
+                    </tbody>
+                </table>
+            </div>
+            {else}
+            <p class="text-sm text-gray-400">No backups yet. Generate your first backup above.</p>
+            {/if}
+        </div>
+
         <!-- Danger Zone: Data Reset -->
         <div class="bg-white rounded-xl shadow-sm border border-red-200 p-6 space-y-5">
             <h2 class="text-lg font-bold text-red-700">⚠️ Danger Zone — Data Reset</h2>
@@ -275,10 +316,14 @@
 
             <div class="border border-red-200 rounded-lg p-4">
                 <h3 class="text-sm font-semibold text-gray-800 mb-1">Full Reset</h3>
-                <p class="text-xs text-gray-500 mb-3">Deletes ALL business data (employees &amp; profiles, attendance records, teams/groups, payroll &amp; salary computations, cash advances &amp; repayments, benefits rates, holidays, office locations) and all user accounts except the currently logged-in admin.</p>
+                <p class="text-xs text-gray-500 mb-3">Deletes ALL business data (employees &amp; profiles, attendance records, teams/groups, payroll &amp; salary computations, cash advances &amp; repayments, benefits rates, holidays, office locations). User accounts are deleted too unless you tick "Keep user accounts". Your logged-in account is always kept.</p>
                 <form id="aw-full-reset-form" action="/api/v1/wage/settings/data-reset" method="POST">
                     <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="mode" value="full">
+                    <label class="flex items-center gap-2 mb-3 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" name="keep_users" value="1" class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                        Keep user accounts (exclude users from reset)
+                    </label>
                     <button type="button" onclick="awConfirmFullReset()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">Reset All Data</button>
                 </form>
             </div>
@@ -310,7 +355,10 @@
     window.awConfirmFullReset = function () {
         var form = document.getElementById('aw-full-reset-form');
         if (!form) return;
-        var key = window.prompt('Type RESET to confirm full data reset. This permanently deletes ALL business data and non-admin user accounts.');
+        var keepUsers = !!((form.querySelector('input[name="keep_users"]') || {}).checked);
+        var key = window.prompt(keepUsers
+            ? 'Type RESET to confirm full data reset. This permanently deletes ALL business data. User accounts will be KEPT (exclude users is checked).'
+            : 'Type RESET to confirm full data reset. This permanently deletes ALL business data and all non-admin user accounts.');
         if (key === null) return;
         if (String(key).trim().toUpperCase() !== 'RESET') {
             window.showToast('Reset cancelled — confirmation text did not match.', 'error', 'Cancelled');
@@ -363,6 +411,30 @@
             }
         }).catch(function (e) {
             window.showToast('Reset request failed: ' + e.message, 'error', 'Reset Failed');
+        });
+    };
+
+    window.awGenerateBackup = function () {
+        var form = document.getElementById('aw-backup-form');
+        if (!form) return;
+        if (!window.confirm('Generate a new SQL backup of all workspace data?')) return;
+        var body = new URLSearchParams(new FormData(form));
+        fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            body: body
+        }).then(function (r) {
+            return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+        }).then(function (res) {
+            if (res.ok && res.d.ok) {
+                window.showToast(res.d.message || 'Backup created.', 'success', 'Backup');
+                setTimeout(function () { window.location.reload(); }, 1200);
+            } else {
+                window.showToast((res.d && res.d.error) || 'Backup failed.', 'error', 'Backup Failed');
+            }
+        }).catch(function (e) {
+            window.showToast('Backup request failed: ' + e.message, 'error', 'Backup Failed');
         });
     };
 </script>

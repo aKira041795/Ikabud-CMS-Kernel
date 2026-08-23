@@ -57,6 +57,46 @@
     </div>
 </div>
 
+<div class="wb-panel">
+    <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Database Backup</h2></div>
+    <div class="p-6">
+        <p class="text-sm text-gray-600 mb-4">Download a data-only SQL backup of this workspace's data. Backups include business data and user accounts. After a reset, restore by importing the SQL file (e.g. via phpMyAdmin / MySQL client) into this workspace — schema must already exist.</p>
+        <form id="pal-backup-form" method="POST" action="/api/v1/project-audit-ledger/settings/backup">
+            {csrf_field | raw}
+        </form>
+        <div class="flex items-center gap-3 mb-4">
+            <button type="button" onclick="palGenerateBackup()" class="wb-btn wb-btn--primary">Generate Backup</button>
+            <span class="text-xs text-gray-500">Kept for 14 days; older backups are auto-deleted.</span>
+        </div>
+        {if backups|count > 0}
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-200 text-left text-gray-600">
+                    <th class="py-2.5 pr-4 font-semibold">File</th>
+                    <th class="py-2.5 pr-4 font-semibold">Size</th>
+                    <th class="py-2.5 pr-4 font-semibold">Created</th>
+                    <th class="py-2.5 text-right font-semibold">Download</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for b in backups}
+                <tr class="border-b last:border-b-0 border-gray-100">
+                    <td class="py-2.5 pr-4 font-mono text-xs text-gray-700">{b.file_name}</td>
+                    <td class="py-2.5 pr-4 text-gray-600 text-xs">{b.file_size_bytes} bytes</td>
+                    <td class="py-2.5 pr-4 text-gray-600 text-xs">{b.created_at}</td>
+                    <td class="py-2.5 text-right">
+                        <a href="{b.download_url}" class="text-blue-600 hover:text-blue-800 text-xs font-semibold">⬇ Download</a>
+                    </td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+        {else}
+        <p class="text-sm text-gray-500">No backups yet. Generate your first backup above.</p>
+        {/if}
+    </div>
+</div>
+
 <div class="wb-panel border-red-200">
     <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-red-700">Danger Zone — Data Reset</h2></div>
     <div class="p-6">
@@ -64,10 +104,14 @@
 
         <div class="border border-red-200 rounded-lg p-4 mb-6">
             <h3 class="text-sm font-semibold text-gray-800 mb-1">Full Reset</h3>
-            <p class="text-xs text-gray-500 mb-3">Deletes ALL business data (projects, quotations, sales, collections, purchases, expenses, inventory &amp; materials, cash advances, mobilization, fabrication, clients, suppliers, team leads, attachments, audit trail, approvals) and all user accounts except the currently logged-in admin.</p>
+            <p class="text-xs text-gray-500 mb-3">Deletes ALL business data (projects, quotations, sales, collections, purchases, expenses, inventory &amp; materials, cash advances, mobilization, fabrication, clients, suppliers, team leads, attachments, audit trail, approvals). User accounts are deleted too unless you tick "Keep user accounts". Your logged-in account is always kept.</p>
             <form id="pal-full-reset-form" action="/api/v1/project-audit-ledger/settings/data-reset" method="POST">
                 {csrf_field | raw}
                 <input type="hidden" name="mode" value="full">
+                <label class="flex items-center gap-2 mb-3 cursor-pointer text-sm text-gray-700">
+                    <input type="checkbox" name="keep_users" value="1" class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                    Keep user accounts (exclude users from reset)
+                </label>
                 <button type="button" onclick="palConfirmFullReset()" class="wb-btn wb-btn--danger">Reset All Data</button>
             </form>
         </div>

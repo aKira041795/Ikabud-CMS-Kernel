@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Ikabud\Kernel\Services\ModuleBackupService;
+
 /**
  * Attendance & Wage — Settings page + API handlers.
  *
@@ -35,6 +37,12 @@ function wagePageSettings(array $params = []): void
         $resetGroups[] = ['key' => $key, 'label' => $def['label']];
     }
 
+    // Database backup list (Backup panel)
+    $backups = [];
+    if (class_exists(ModuleBackupService::class)) {
+        $backups = ModuleBackupService::list('attendance-wage', aw_backupDownloadPath());
+    }
+
     $vars = [
         'app_name'             => $moduleSettings['app_name'] ?? 'ZAP',
         'logo_url'             => $moduleSettings['logo_url'] ?? '',
@@ -61,6 +69,7 @@ function wagePageSettings(array $params = []): void
         'users'           => $allUsers,
         'current_user_id' => aw_currentUserId(),
         'reset_groups'    => $resetGroups,
+        'backups'         => $backups,
     ];
 
     echo app()->render('modules/attendance-wage/wage/settings', $vars);
@@ -214,6 +223,75 @@ function wageApiSettingsSave(array $params = []): void
     exit;
 }
 
+/** Download URL path for attendance-wage backups. */
+function aw_backupDownloadPath(): string
+{
+    return '/api/v1/wage/settings/backup/download';
+}
+
+/**
+ * Tenant-scoped ModuleContext for backup tooling.
+ *
+ * The default module('attendance-wage') context points at the base app DB,
+ * but AW data lives in the tenant DB. Wrap the tenant PDO in a ModuleDB so
+ * ModuleBackupService dumps the correct database.
+ */
+function awBackupCtx(): \Ikabud\Kernel\Contracts\ModuleContext
+{
+    $base = function_exists('moduleContextFor') ? moduleContextFor('attendance-wage') : null;
+    $manifest = $base ? $base->manifest() : [];
+    $owns = is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [];
+    $reads = is_array($manifest['reads_tables'] ?? null) ? $manifest['reads_tables'] : [];
+    $db = new \Ikabud\Kernel\Contracts\ModuleDB(aw_db(), 'attendance-wage', $owns, $reads);
+    return new \Ikabud\Kernel\Contracts\ModuleContext(app(), 'attendance-wage', $db, $manifest);
+}
+
+/**
+ * POST /api/v1/wage/settings/backup
+ * Generate a data-only SQL backup of all attendance-wage tenant tables and
+ * return the file metadata + existing backup list (admin only).
+ */
+function wageApiSettingsBackupGenerate(): void
+{
+    attendanceWageGuard('attendance_wage.admin@1');
+    $uid = aw_currentUserId();
+
+    try {
+        $result = ModuleBackupService::generate(awBackupCtx(), '', 'manual backup', [
+            'download_path' => aw_backupDownloadPath(),
+            'retention_days' => 14,
+            'event'          => 'attendance_wage.backup.created',
+            'by_user'        => $uid,
+        ]);
+        $backups = ModuleBackupService::list('attendance-wage', aw_backupDownloadPath());
+    } catch (\Throwable $e) {
+        write_log('attendance_wage.backup.error', 'error', ['message' => $e->getMessage()]);
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Failed to generate backup.']);
+        exit;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok'      => true,
+        'backup'  => $result,
+        'backups' => $backups,
+        'message' => 'Backup created: ' . $result['file_name'],
+    ]);
+    exit;
+}
+
+/**
+ * GET /api/v1/wage/settings/backup/download?file=<name>
+ * Stream a generated backup file as a download (admin only).
+ */
+function wageApiSettingsBackupDownload(): void
+{
+    attendanceWageGuard('attendance_wage.admin@1');
+    ModuleBackupService::download(awBackupCtx(), '', (string)($_GET['file'] ?? ''));
+}
+
 /**
  * Data-reset group catalog for the Attendance & Wage tenant database.
  * Mirrors PAL's palResetGroups() so the same logical groups can be wiped
@@ -238,10 +316,11 @@ function awResetGroups(): array
  * Wipe the selected data groups for the active tenant.
  * - Tenant-scoped tables (have tenant_id) are filtered by tenant id.
  * - cash_advance_repayments has no tenant_id (per-tenant DB) → full delete.
- * - Full mode also wipes all user accounts except the logged-in admin.
+ * - Full mode wipes all user accounts except the logged-in admin, unless
+ *   $keepUsers is true (the "exclude users" option).
  * - payroll_settings (config) is always preserved.
  */
-function awResetTenantData(\PDO $db, string $tenantId, int $uid, array $groups, bool $full): void
+function awResetTenantData(\PDO $db, string $tenantId, int $uid, array $groups, bool $full, bool $keepUsers = false): void
 {
     // Tables that carry a tenant_id column → scoped delete.
     $scopedTables = [
@@ -270,7 +349,7 @@ function awResetTenantData(\PDO $db, string $tenantId, int $uid, array $groups, 
                 }
             }
         }
-        if ($full) {
+        if ($full && !$keepUsers) {
             $stmt = $db->prepare('DELETE FROM attendance_wage_users WHERE id <> :uid');
             $stmt->execute([':uid' => $uid]);
             $db->prepare('DELETE FROM attendance_wage_password_resets WHERE user_id <> :uid')
@@ -294,6 +373,7 @@ function wageApiSettingsDataReset(array $params = []): void
     $uid = aw_currentUserId();
 
     $mode = (string)($_POST['mode'] ?? '');
+    $keepUsers = (int)($_POST['keep_users'] ?? 0) === 1;
     $requested = array_values(array_filter(array_map('strval', (array)($_POST['groups'] ?? []))));
 
     $catalog = awResetGroups();
@@ -316,7 +396,7 @@ function wageApiSettingsDataReset(array $params = []): void
 
     $tenantId = (string)aw_tenant_id();
     try {
-        awResetTenantData(aw_db(), $tenantId, $uid, $resetGroups, $mode === 'full');
+        awResetTenantData(aw_db(), $tenantId, $uid, $resetGroups, $mode === 'full', $keepUsers);
     } catch (\Throwable $e) {
         write_log('attendance_wage_data_reset_error', 'error', ['error' => $e->getMessage()]);
         http_response_code(500);

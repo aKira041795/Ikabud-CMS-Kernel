@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Ikabud\Kernel\Services\ModuleBackupService;
+
 function palPageSettings(): void
 {
     $u = palRequireRole('admin');
@@ -29,6 +31,7 @@ function palPageSettings(): void
         $resetGroups = [];
         foreach (palResetGroups() as $rk => $rg) { $resetGroups[] = ['key' => $rk, 'label' => $rg['label']]; }
         $ctx['reset_groups'] = $resetGroups;
+        $ctx['backups'] = ModuleBackupService::list('project-audit-ledger', pal_backupDownloadPath());
     }
 
     palRender(__DIR__ . '/../templates/project-audit-ledger/shell.disyl', $ctx);
@@ -138,6 +141,62 @@ if(isset($_FILES['logo'])&&$_FILES['logo']['error']===UPLOAD_ERR_OK){$f=$_FILES[
 
 function palApiSettingsLogoUpload(): void { palResponseGuard(function(){ $u=palRequireRole('admin'); palEnforceCsrf(); $tid=(int)($u['tenant_id']??0); if(!isset($_FILES['logo'])||$_FILES['logo']['error']!==UPLOAD_ERR_OK){palJsonError('Upload failed.',422);return;} $f=$_FILES['logo']; $ext=strtolower(pathinfo($f['name'], PATHINFO_EXTENSION)); if(!in_array($ext,['png','jpg','jpeg','gif','svg'])){palJsonError('Invalid image type.');return;} $name='logo-'.$tid.'.'.$ext; $dir=PUBLIC_PATH.'/uploads/pal/'.$tid; if(!is_dir($dir)){mkdir($dir,0755,true);} move_uploaded_file($f['tmp_name'],$dir.'/'.$name); $relPath='uploads/pal/'.$tid.'/'.$name; $db=palDb(); $db->prepare("INSERT INTO pal_settings (tenant_id, setting_key, setting_value) VALUES (:t,'logo_path',:v) ON DUPLICATE KEY UPDATE setting_value=:v2")->execute([':t'=>$tid,':v'=>$relPath,':v2'=>$relPath]); header('Content-Type: application/json'); echo json_encode(['ok'=>true, 'path'=>$relPath]); }); }
 
+/** Download URL path for project-audit-ledger backups. */
+function pal_backupDownloadPath(): string
+{
+    return '/api/v1/project-audit-ledger/settings/backup/download';
+}
+
+/**
+ * Tenant-scoped ModuleContext for backup tooling.
+ * palDb() already returns a tenant-scoped ModuleDB; reuse it so
+ * ModuleBackupService dumps the correct tenant database.
+ */
+function palBackupCtx(): \Ikabud\Kernel\Contracts\ModuleContext
+{
+    $base = function_exists('moduleContextFor') ? moduleContextFor('project-audit-ledger') : null;
+    $manifest = $base ? $base->manifest() : [];
+    return new \Ikabud\Kernel\Contracts\ModuleContext(app(), 'project-audit-ledger', palDb(), $manifest);
+}
+
+/**
+ * API: Settings backup — generate a data-only SQL dump of all pal_* tables.
+ * POST /api/v1/project-audit-ledger/settings/backup
+ */
+function palApiSettingsBackupGenerate(): void
+{
+    palResponseGuard(function (): void {
+        $u = palRequireRole('admin');
+        palEnforceCsrf();
+        $uid = (int)($u['id'] ?? 0);
+        try {
+            $result = ModuleBackupService::generate(palBackupCtx(), 'pal_', 'manual backup', [
+                'download_path' => pal_backupDownloadPath(),
+                'retention_days' => 14,
+                'event'          => 'project_audit_ledger.backup.created',
+                'by_user'        => $uid,
+            ]);
+            $backups = ModuleBackupService::list('project-audit-ledger', pal_backupDownloadPath());
+        } catch (\Throwable $e) {
+            write_log('pal.backup.error', 'error', ['message' => $e->getMessage()]);
+            palJsonError('Failed to generate backup.', 500);
+            return;
+        }
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true, 'backup' => $result, 'backups' => $backups, 'message' => 'Backup created: ' . $result['file_name']]);
+    });
+}
+
+/**
+ * API: Settings backup — download a generated backup file.
+ * GET /api/v1/project-audit-ledger/settings/backup/download?file=...
+ */
+function palApiSettingsBackupDownload(): void
+{
+    palRequireRole('admin');
+    ModuleBackupService::download(palBackupCtx(), 'pal_', (string)($_GET['file'] ?? ''));
+}
+
 /**
  * Data reset groups — group key => human label, tables to wipe, and the
  * pal_approvals entity_type values that reference them (cleared too).
@@ -170,7 +229,7 @@ function palResetGroups(): array
  * order. Each statement goes through ModuleDB separately (multi-statement
  * queries and DDL are forbidden by the module DB contract).
  */
-function palResetTenantData(Ikabud\Kernel\Contracts\ModuleDB $db, int $tid, int $uid, array $groups, bool $full): void
+function palResetTenantData(Ikabud\Kernel\Contracts\ModuleDB $db, int $tid, int $uid, array $groups, bool $full, bool $keepUsers = false): void
 {
     $all = palResetGroups();
     $tables = [];
@@ -197,9 +256,11 @@ function palResetTenantData(Ikabud\Kernel\Contracts\ModuleDB $db, int $tid, int 
             $db->prepare("DELETE FROM pal_approvals WHERE tenant_id = ? AND entity_type IN ({$in})")->execute(array_merge([$tid], $approvalEntities));
         }
         if ($full) {
-            $db->prepare('DELETE FROM pal_users WHERE tenant_id = :tid AND id <> :uid')->execute([':tid' => $tid, ':uid' => $uid]);
-            $db->prepare('DELETE FROM pal_password_resets WHERE tenant_id = :tid AND user_id <> :uid')->execute([':tid' => $tid, ':uid' => $uid]);
             $db->query('DELETE FROM pal_otp_codes');
+            if (!$keepUsers) {
+                $db->prepare('DELETE FROM pal_users WHERE tenant_id = :tid AND id <> :uid')->execute([':tid' => $tid, ':uid' => $uid]);
+                $db->prepare('DELETE FROM pal_password_resets WHERE tenant_id = :tid AND user_id <> :uid')->execute([':tid' => $tid, ':uid' => $uid]);
+            }
         }
     } finally {
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
@@ -220,11 +281,12 @@ function palApiSettingsDataReset(): void
         $uid = (int)$u['id'];
         $db = palDb();
         $mode = $_POST['mode'] ?? '';
+        $keepUsers = (int)($_POST['keep_users'] ?? 0) === 1;
         $groups = [];
 
         if ($mode === 'full') {
             $groups = array_keys(palResetGroups());
-            palResetTenantData($db, $tid, $uid, $groups, true);
+            palResetTenantData($db, $tid, $uid, $groups, true, $keepUsers);
         } elseif ($mode === 'granular') {
             $groups = $_POST['groups'] ?? [];
             if (!is_array($groups) || count($groups) === 0) { palJsonError('Select at least one group to reset.'); return; }

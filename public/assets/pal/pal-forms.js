@@ -162,9 +162,13 @@
     window.palConfirmFullReset = function () {
         var form = document.getElementById('pal-full-reset-form');
         if (!form) return;
+        var keepUsers = !!((form.querySelector('input[name="keep_users"]') || {}).checked);
+        var bodyText = keepUsers
+            ? 'This permanently deletes ALL business data. User accounts will be KEPT (exclude users is checked). Branding and system settings are preserved. This cannot be undone.'
+            : 'This permanently deletes ALL business data (projects, quotations, sales, collections, purchases, expenses, inventory & materials, cash advances, mobilization, fabrication, clients, suppliers, team leads, attachments, audit trail, approvals) and all user accounts EXCEPT the currently logged-in admin. Branding and system settings are preserved. This cannot be undone.';
         palDialog({
             title: 'Full Data Reset',
-            bodyText: 'This permanently deletes ALL business data (projects, quotations, sales, collections, purchases, expenses, inventory & materials, cash advances, mobilization, fabrication, clients, suppliers, team leads, attachments, audit trail, approvals) and all user accounts EXCEPT the currently logged-in admin. Branding and system settings are preserved. This cannot be undone.',
+            bodyText: bodyText,
             input: true,
             placeholder: 'Type RESET to confirm',
             confirmLabel: 'Reset All Data',
@@ -200,6 +204,30 @@
                 ajaxSubmit(form, 'Selected data reset');
             }
         });
+    };
+
+    // ── Settings: Database Backup ──
+    window.palGenerateBackup = function () {
+        var form = document.getElementById('pal-backup-form');
+        if (!form) return;
+        if (!window.confirm('Generate a new SQL backup of all workspace data?')) return;
+        var fd = new FormData(form);
+        fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: fd
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+            .then(function (res) {
+                if (res.ok && res.d.ok) {
+                    window.showToast(res.d.message || 'Backup created.', 'success');
+                    setTimeout(function () { window.location.reload(); }, 1200);
+                } else {
+                    window.showToast((res.d && res.d.error) || 'Backup failed.', 'error');
+                }
+            }).catch(function (e) {
+                window.showToast('Backup request failed: ' + e.message, 'error');
+            });
     };
 
 })();
