@@ -37,6 +37,7 @@ final class ResolvedEntityContext
      * @param array<string, string> $actionShowIf action_name => condition expression
      * @param array<string, string> $actionLabels action_name => display label
      * @param string|null          $keyField      Primary key field name
+     * @param array<string, mixed>|null $sourceSchema Declared source schema metadata
      * @param array|null           $provenance    Provenance metadata (P1.4)
      */
     public function __construct(
@@ -61,6 +62,7 @@ final class ResolvedEntityContext
         public readonly array $actionShowIf,
         public readonly array $actionLabels,
         public readonly ?string $keyField,
+        public readonly ?array $sourceSchema,
         public readonly ?array $provenance = null,
     ) {}
 
@@ -93,6 +95,7 @@ final class ResolvedEntityContext
             actionShowIf:   $contract['action_show_if'] ?? [],
             actionLabels:   $contract['action_labels'] ?? [],
             keyField:       $contract['key_field'] ?? null,
+            sourceSchema:   isset($contract['source_schema']) && is_array($contract['source_schema']) ? $contract['source_schema'] : null,
             provenance:     $provenance,
         );
     }
@@ -170,6 +173,7 @@ final class ResolvedEntityContext
             actionShowIf:   $actionShowIf,
             actionLabels:   $actionLabels,
             keyField:       $keyField,
+            sourceSchema:   $override->sourceSchema ?? $this->sourceSchema,
             provenance:     $provenance,
         );
     }
@@ -204,6 +208,7 @@ final class ResolvedEntityContext
             'action_show_if'  => $this->actionShowIf,
             'action_labels'   => $this->actionLabels,
             'key_field'       => $this->keyField,
+            'source_schema'   => $this->sourceSchema,
             '_provenance'     => $this->provenance,
         ];
     }

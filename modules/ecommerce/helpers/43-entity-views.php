@@ -12,12 +12,39 @@ declare(strict_types=1);
 if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
     $views = $app->entityViews();
     $moduleId = 'ecommerce';
+    $productsSourceSchema = [
+        'entity' => 'products',
+        'owner' => $moduleId,
+        'fields' => [
+            'id' => 'int',
+            'name' => 'string',
+            'price' => 'float',
+            'image' => 'string',
+            'stock_status' => 'string',
+            'excerpt' => 'string',
+            'created_at' => 'datetime',
+        ],
+    ];
+    $ecommerceProductSourceSchema = [
+        'entity' => 'ecommerce_product',
+        'owner' => $moduleId,
+        'fields' => [
+            'id' => 'int',
+            'name' => 'string',
+            'price' => 'float',
+            'image' => 'string',
+            'stock_status' => 'string',
+            'excerpt' => 'string',
+            'created_at' => 'datetime',
+        ],
+    ];
 
     $views->registerView('products', 'default', [
         'fields' => ['id', 'name', 'price', 'image'],
         'actions' => ['view', 'add_to_cart'],
         'limit' => 20,
         'empty_state' => 'No products found.',
+        'source_schema' => $productsSourceSchema,
     ], $moduleId);
 
     $views->registerView('products', 'compact', [
@@ -25,6 +52,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'actions' => ['view', 'add_to_cart'],
         'limit' => 20,
         'empty_state' => 'No products found.',
+        'source_schema' => $productsSourceSchema,
     ], $moduleId);
 
     $views->registerView('ecommerce_product', 'compact', [
@@ -33,6 +61,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'limit' => 20,
         'empty_state' => 'No products found.',
         'sortable_fields' => ['name' => 'name', 'price' => 'price', 'created_at' => 'created_at'],
+        'source_schema' => $ecommerceProductSourceSchema,
     ], $moduleId);
 
     $views->registerView('ecommerce_product', 'card_grid', [
@@ -43,6 +72,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'limit' => 12,
         'empty_state' => 'No products found.',
         'sortable_fields' => ['name' => 'name', 'price' => 'price', 'created_at' => 'created_at'],
+        'source_schema' => $ecommerceProductSourceSchema,
     ], $moduleId);
 
     $views->registerView('ecommerce_order', 'compact', [
