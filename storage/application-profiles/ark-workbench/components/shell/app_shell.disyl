@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{s.application_name} — {s.page_title|default:'Dashboard'}</title>
     <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
-    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=6">
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=7">
     {if s.extra_styles|default:[]}{for style in s.extra_styles}<link rel="stylesheet" href="{style}">{/for}{/if}
 </head>
 <body class="wb-app-shell" data-wb-component="app-shell">
@@ -26,23 +26,31 @@
     {* Sidebar *}
     <aside id="wb-sidebar" class="wb-app-shell__sidebar">
         <div class="p-4 border-b border-slate-700">
-            {if s.logo_url}<img src="{s.logo_url}" class="h-8 mb-1" alt="">{/if}
-            <div class="text-lg font-bold text-white" role="presentation">{s.application_name}</div>
-            {if s.user_display|default:''}<p class="text-xs text-slate-400">{s.user_display}</p>{/if}
+            <div class="wb-app-shell__sidebar-header">
+                <div class="wb-app-shell__sidebar-brand">
+                    {if s.logo_url}<img src="{s.logo_url}" class="h-8 mb-1" alt="">{/if}
+                    <div class="text-lg font-bold text-white wb-app-shell__sidebar-copy" role="presentation">{s.application_name}</div>
+                    {if s.user_display|default:''}<p class="text-xs text-slate-400 wb-app-shell__sidebar-copy">{s.user_display}</p>{/if}
+                </div>
+                <button type="button" class="wb-sidebar-collapse-toggle" data-wb-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
+                    <svg class="wb-sidebar-collapse-toggle__icon wb-sidebar-collapse-toggle__icon--collapse" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    <svg class="wb-sidebar-collapse-toggle__icon wb-sidebar-collapse-toggle__icon--expand" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+            </div>
         </div>
         <nav class="flex-1 overflow-y-auto p-2 space-y-1" aria-label="Main navigation">
             {for section in s.navigation_sections|default:[]}
                 <div class="wb-sidebar-section">
                     <button class="wb-sidebar-section__trigger" aria-expanded="{if section.collapsed_default|default:false}false{else}true{/if}" {if s.inspect_mode|default:false}data-wb-section="{section.label}"{/if}>
-                        <span>{section.label}</span>
-                        <span aria-hidden="true">{if section.collapsed_default|default:false}+{else}−{/if}</span>
+                        <span class="wb-sidebar-section__label">{section.label}</span>
+                        <span class="wb-sidebar-section__chevron" aria-hidden="true">{if section.collapsed_default|default:false}+{else}−{/if}</span>
                     </button>
                     <div class="wb-sidebar-section__items" style="max-height:{if section.collapsed_default|default:false}0{else}none{/if}">
                         {for item in section.items|default:[]}
                             <a href="{item.url}" class="wb-nav-item {if item.is_active}is-active{/if}" {if s.inspect_mode|default:false}data-wb-nav="{item.label|lower|replace:' ': '-'}"{/if}>
-                                <span aria-hidden="true">{item.icon_key|default:'•'}</span>
-                                {item.label}
-                                {if item.badge_count|default:0 > 0}<span class="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5">{item.badge_count}</span>{/if}
+                                <span class="wb-nav-item__icon" aria-hidden="true">{item.icon_key|default:'•'}</span>
+                                <span class="wb-nav-item__label">{item.label}</span>
+                                {if item.badge_count|default:0 > 0}<span class="wb-nav-item__badge ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5">{item.badge_count}</span>{/if}
                             </a>
                         {/for}
                     </div>
@@ -52,7 +60,7 @@
         {if s.user_actions|default:[]}
         <div class="p-4 border-t border-slate-700">
             {for action in s.user_actions}
-                <a href="{action.url}" class="block px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">{action.label}</a>
+                <a href="{action.url}" class="wb-nav-item text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"><span class="wb-nav-item__label">{action.label}</span></a>
             {/for}
         </div>
         {/if}
@@ -80,7 +88,7 @@
     {* Toast container *}
     <div id="wb-toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
-    <script src="/assets/workbench/workbench-core.js?v=7"></script>
+    <script src="/assets/workbench/workbench-core.js?v=8"></script>
     {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="{script}"></script>{/for}{/if}
     <script>
     /* ajaxSubmit — handles form submission via fetch with toast feedback.

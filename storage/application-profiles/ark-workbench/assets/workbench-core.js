@@ -53,6 +53,57 @@
         });
     }
 
+    // ── Sidebar Collapse (desktop only) ──
+    function initSidebarCollapse() {
+        var sidebar = document.getElementById('wb-sidebar');
+        var toggle = document.querySelector('[data-wb-sidebar-toggle]');
+        if (!sidebar || !toggle) return;
+
+        function syncA11y(collapsed) {
+            toggle.setAttribute('aria-expanded', String(!collapsed));
+            toggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+
+            sidebar.querySelectorAll('.wb-nav-item').forEach(function (item) {
+                var label = item.querySelector('.wb-nav-item__label');
+                var text = label ? (label.textContent || '').replace(/\s+/g, ' ').trim() : '';
+                if (collapsed && text) item.setAttribute('aria-label', text);
+                else item.removeAttribute('aria-label');
+            });
+
+            sidebar.querySelectorAll('.wb-sidebar-section__trigger').forEach(function (trigger) {
+                var label = trigger.querySelector('.wb-sidebar-section__label');
+                var text = label ? (label.textContent || '').replace(/\s+/g, ' ').trim() : '';
+                if (collapsed && text) trigger.setAttribute('aria-label', text);
+                else trigger.removeAttribute('aria-label');
+            });
+        }
+
+        function setCollapsed(collapsed) {
+            if (window.innerWidth < 768) {
+                sidebar.classList.remove('wb-app-shell__sidebar--collapsed');
+                syncA11y(false);
+                return;
+            }
+            sidebar.classList.toggle('wb-app-shell__sidebar--collapsed', collapsed);
+            syncA11y(collapsed);
+        }
+
+        toggle.addEventListener('click', function () {
+            if (window.innerWidth < 768) return;
+            setCollapsed(!sidebar.classList.contains('wb-app-shell__sidebar--collapsed'));
+        });
+
+        window.addEventListener('resize', function () {
+            if (window.innerWidth < 768) {
+                setCollapsed(false);
+            } else {
+                setCollapsed(sidebar.classList.contains('wb-app-shell__sidebar--collapsed'));
+            }
+        });
+
+        setCollapsed(sidebar.classList.contains('wb-app-shell__sidebar--collapsed'));
+    }
+
     // ── Sidebar Sections (CSS-only — toggle class, no inline maxHeight) ──
     function initSidebarSections() {
         document.querySelectorAll('.wb-sidebar-section__trigger').forEach(function (trigger) {
@@ -136,6 +187,7 @@
     // ── Init ──
     document.addEventListener('DOMContentLoaded', function () {
         initMobileDrawer();
+        initSidebarCollapse();
         initSidebarSections();
         initValidationSummary();
         initWorkbenchSurfaces();

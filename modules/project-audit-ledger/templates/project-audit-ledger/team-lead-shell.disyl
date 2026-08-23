@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title} — Team Lead Portal</title>
 <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
-<link rel="stylesheet" href="/assets/workbench/workbench.css?v=6">
+<link rel="stylesheet" href="/assets/workbench/workbench.css?v=7">
 <link rel="stylesheet" href="/assets/pal/pal-ui.css?v=1">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
@@ -20,20 +20,28 @@
 
     <aside id="wb-sidebar" class="wb-app-shell__sidebar">
         <div class="p-4 border-b border-slate-700">
-            <h1 class="text-lg font-bold text-white">ZAP-ARTS</h1>
-            <p class="text-xs text-slate-400">Team Lead Portal</p>
-            <p class="text-xs text-slate-500 mt-1">{tl.name|default:''}</p>
+            <div class="wb-app-shell__sidebar-header">
+                <div class="wb-app-shell__sidebar-brand">
+                    <h1 class="text-lg font-bold text-white wb-app-shell__sidebar-copy">ZAP-ARTS</h1>
+                    <p class="text-xs text-slate-400 wb-app-shell__sidebar-copy">Team Lead Portal</p>
+                    <p class="text-xs text-slate-500 mt-1 wb-app-shell__sidebar-copy">{tl.name|default:''}</p>
+                </div>
+                <button type="button" class="wb-sidebar-collapse-toggle" data-wb-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
+                    <svg class="wb-sidebar-collapse-toggle__icon wb-sidebar-collapse-toggle__icon--collapse" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    <svg class="wb-sidebar-collapse-toggle__icon wb-sidebar-collapse-toggle__icon--expand" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+            </div>
         </div>
         <nav class="flex-1 overflow-y-auto p-2 space-y-1">
-            <a href="/admin/project-audit-ledger/team-lead" class="wb-nav-item {if page_content=='team-lead-dashboard'}is-active{/if}">📊 Dashboard</a>
-            <a href="/admin/project-audit-ledger/team-lead/fabrication" class="wb-nav-item {if page_content=='team-lead-fabrication'}is-active{/if}">🔧 My Fabrications</a>
-            <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="wb-nav-item {if page_content=='team-lead-cash-advances'}is-active{/if}">💵 Cash Advances</a>
-            <a href="/admin/project-audit-ledger/team-lead/mobilization" class="wb-nav-item {if page_content=='team-lead-mobilization'}is-active{/if}">🚛 Mobilization</a>
-            <a href="/admin/project-audit-ledger/team-lead/attendance" class="wb-nav-item {if page_content=='team-lead-attendance'}is-active{/if}">👥 Attendance</a>
+            <a href="/admin/project-audit-ledger/team-lead" class="wb-nav-item {if page_content=='team-lead-dashboard'}is-active{/if}"><span class="wb-nav-item__icon" aria-hidden="true">📊</span><span class="wb-nav-item__label">Dashboard</span></a>
+            <a href="/admin/project-audit-ledger/team-lead/fabrication" class="wb-nav-item {if page_content=='team-lead-fabrication'}is-active{/if}"><span class="wb-nav-item__icon" aria-hidden="true">🔧</span><span class="wb-nav-item__label">My Fabrications</span></a>
+            <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="wb-nav-item {if page_content=='team-lead-cash-advances'}is-active{/if}"><span class="wb-nav-item__icon" aria-hidden="true">💵</span><span class="wb-nav-item__label">Cash Advances</span></a>
+            <a href="/admin/project-audit-ledger/team-lead/mobilization" class="wb-nav-item {if page_content=='team-lead-mobilization'}is-active{/if}"><span class="wb-nav-item__icon" aria-hidden="true">🚛</span><span class="wb-nav-item__label">Mobilization</span></a>
+            <a href="/admin/project-audit-ledger/team-lead/attendance" class="wb-nav-item {if page_content=='team-lead-attendance'}is-active{/if}"><span class="wb-nav-item__icon" aria-hidden="true">👥</span><span class="wb-nav-item__label">Attendance</span></a>
         </nav>
         <div class="p-4 border-t border-slate-700">
             <form method="POST" action="/api/v1/project-audit-ledger/tl/logout">
-                <button type="submit" class="wb-nav-item text-slate-400">Sign Out</button>
+                <button type="submit" class="wb-nav-item text-slate-400"><span class="wb-nav-item__icon" aria-hidden="true">🚪</span><span class="wb-nav-item__label">Sign Out</span></button>
             </form>
         </div>
     </aside>
@@ -55,7 +63,7 @@
     </nav>
 
     <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
-    <script src="/assets/workbench/workbench-core.js?v=6"></script>
+    <script src="/assets/workbench/workbench-core.js?v=8"></script>
     <script src="/assets/pal/pal-core.js?v=1"></script>
     <script src="/assets/pal/pal-forms.js?v=1"></script>
 </body>

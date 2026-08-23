@@ -100,6 +100,7 @@
         .aw-toast--warning .aw-toast__bar { background: #f59e0b; }
         .aw-toast--info .aw-toast__bar { background: #3b82f6; }
         @keyframes awToastBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+        [x-cloak] { display: none !important; }
     </style>
     <script>
         window.showToast = function(message, type, title) {
@@ -184,25 +185,34 @@
         }
     </script>
 </head>
-<body class="bg-gray-50 min-h-screen flex">
+<body class="bg-gray-50 min-h-screen flex" x-data="{ sidebarOpen: true }">
     <div id="aw-toast-stack" class="aw-toast-stack" aria-live="polite" aria-atomic="false"></div>
     {if success}<template data-aw-toast data-type="success" data-title="Saved">{success}</template>{/if}
     {if message}<template data-aw-toast data-type="info" data-title="Notice">{message}</template>{/if}
     {if warning}<template data-aw-toast data-type="warning" data-title="Check this">{warning}</template>{/if}
     {if error}<template data-aw-toast data-type="error" data-title="Unable to complete">{error}</template>{/if}
     <!-- Sidebar -->
-    <aside class="w-64 bg-brand-950 text-brand-100 flex flex-col flex-shrink-0 min-h-screen fixed inset-y-0 left-0 z-40">
+    <aside class="bg-brand-950 text-brand-100 flex flex-col flex-shrink-0 min-h-screen fixed inset-y-0 left-0 z-40 transition-all duration-300" :class="sidebarOpen ? 'w-64' : 'w-20'">
         <div class="px-6 py-5 border-b border-brand-800">
-            {if logo_url}
-            <img src="{logo_url}" alt="{app_name|default:'ZAP'}" class="h-8 w-auto mb-2">
-            {/if}
-            <a href="/admin/wage" class="text-xl font-extrabold tracking-tight text-white">{app_name|default:'ZAP'}</a>
-            <p class="text-xs text-brand-400 mt-0.5">Attendance &amp; Wage</p>
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0" :class="sidebarOpen ? '' : 'hidden'">
+                    {if logo_url}
+                    <img src="{logo_url}" alt="{app_name|default:'ZAP'}" class="h-8 w-auto mb-2">
+                    {/if}
+                    <a href="/admin/wage" class="text-xl font-extrabold tracking-tight text-white">{app_name|default:'ZAP'}</a>
+                    <p class="text-xs text-brand-400 mt-0.5">Attendance &amp; Wage</p>
+                </div>
+                <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-brand-800 text-brand-200 hover:bg-brand-800/60 hover:text-white transition-colors ml-auto" @click="sidebarOpen = !sidebarOpen" :aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'" :aria-expanded="sidebarOpen ? 'true' : 'false'">
+                    <svg x-show="sidebarOpen" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.293 15.707a1 1 0 010-1.414L15.586 11H3a1 1 0 110-2h12.586l-3.293-3.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+                    <svg x-show="!sidebarOpen" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.707 4.293a1 1 0 010 1.414L4.414 9H17a1 1 0 110 2H4.414l3.293 3.293a1 1 0 11-1.414 1.414l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
         </div>
         <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {macro navLink(icon, label, url, navId)}
-            <a href="{url}" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == '{navId}'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">{icon}</span> {label}
+            <a href="{url}" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == '{navId}'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}" :class="sidebarOpen ? '' : 'justify-center px-2'" :aria-label="sidebarOpen ? null : '{label}'">
+                <span class="w-5 text-center" :class="sidebarOpen ? 'mr-3' : ''">{icon}</span>
+                <span x-show="sidebarOpen" x-cloak>{label}</span>
             </a>
             {/macro}
 
@@ -230,22 +240,22 @@
             {/if}
         </nav>
         <div class="px-5 py-4 border-t border-brand-800 space-y-2">
-            <a href="/admin/wage/profile" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors">
-                <span>👤</span> My Profile
+            <a href="/admin/wage/profile" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors" :class="sidebarOpen ? '' : 'justify-center'" :aria-label="sidebarOpen ? null : 'My Profile'">
+                <span>👤</span><span x-show="sidebarOpen" x-cloak>My Profile</span>
             </a>
             {if current_user_role == 'admin'}
-            <a href="/admin/wage/settings" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors">
-                <span>⚙️</span> Settings
+            <a href="/admin/wage/settings" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors" :class="sidebarOpen ? '' : 'justify-center'" :aria-label="sidebarOpen ? null : 'Settings'">
+                <span>⚙️</span><span x-show="sidebarOpen" x-cloak>Settings</span>
             </a>
             {/if}
-            <a href="/attendance-wage/logout" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors">
-                <span>🚪</span> Sign out
+            <a href="/attendance-wage/logout" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors" :class="sidebarOpen ? '' : 'justify-center'" :aria-label="sidebarOpen ? null : 'Sign out'">
+                <span>🚪</span><span x-show="sidebarOpen" x-cloak>Sign out</span>
             </a>
         </div>
     </aside>
 
     <!-- Main Content -->
-    <div class="flex-1 ml-64">
+    <div class="flex-1 transition-all duration-300" :class="sidebarOpen ? 'ml-64' : 'ml-20'">
         {block main}{/block}
     </div>
 </body>
