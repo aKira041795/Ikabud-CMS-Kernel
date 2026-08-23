@@ -29,6 +29,7 @@ final class ServiceProxy
     private array $auth;
     private int $timeoutMs;
     private ?string $serviceToken;
+    private array $serviceConfig;
 
     /** @var (callable(string $url, array $opts): array{status:int, body:string})|null */
     private $httpHandler = null;
@@ -38,6 +39,7 @@ final class ServiceProxy
      */
     public function __construct(array $serviceConfig)
     {
+        $this->serviceConfig = $serviceConfig;
         $this->endpoint  = rtrim((string)($serviceConfig['endpoint'] ?? ''), '/');
         $this->protocol  = (string)($serviceConfig['protocol'] ?? 'http+json');
         $this->auth      = is_array($serviceConfig['auth'] ?? null) ? $serviceConfig['auth'] : [];
@@ -82,6 +84,14 @@ final class ServiceProxy
      */
     public function __invoke(mixed $payload, string $capabilityId = '', string $providerId = ''): mixed
     {
+        if (ServiceProxyV2::requiresProtocolV2($this->serviceConfig)) {
+            throw new CapabilityCallException(
+                'capability requires protocol v2; refusing v1 downgrade',
+                $capabilityId,
+                $providerId
+            );
+        }
+
         if ($this->endpoint === '') {
             throw new CapabilityCallException(
                 'ServiceProxy has no endpoint configured',
@@ -186,7 +196,9 @@ final class ServiceProxy
         $raw = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error  = curl_error($ch);
-        curl_close($ch);
+        if (PHP_VERSION_ID < 80000) {
+            curl_close($ch);
+        }
 
         if ($raw === false) {
             throw new \RuntimeException("curl error: {$error}");
@@ -210,6 +222,11 @@ final class ServiceProxy
         // Fallback: check getenv()
         $token = getenv($tokenEnv);
         return is_string($token) && $token !== '' ? $token : null;
+    }
+
+    public function serviceConfig(): array
+    {
+        return $this->serviceConfig;
     }
 
     private function resolveCallerContext(): array

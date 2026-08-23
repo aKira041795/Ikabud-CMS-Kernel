@@ -211,6 +211,12 @@ final class CapabilityBus implements CapabilityBusContract
             }
         }
 
+        $providers = $this->applyAuthorizationRegistry($capabilityId, $providers, $caller, $options, $provider);
+        if (empty($providers)) {
+            $this->logDenied($capabilityId, $caller, 'authorization_registry');
+            throw new CapabilityCallException('Capability authorization denied', $capabilityId, $provider);
+        }
+
         try {
             $result = match ($mode) {
                 'pipeline' => $this->callPipeline($capabilityId, $payload, $providers, $callOptions),
@@ -390,6 +396,113 @@ final class CapabilityBus implements CapabilityBusContract
             $out[] = $p;
         }
         return $out;
+    }
+
+    /**
+     * @param array<int, array{provider: string, modes: string[], handler: callable, meta?: array}> $providers
+     * @return array<int, array{provider: string, modes: string[], handler: callable, meta?: array}>
+     */
+    private function applyAuthorizationRegistry(string $capabilityId, array $providers, array $caller, array $options, ?string $explicitProvider): array
+    {
+        if ($providers === []) {
+            return $providers;
+        }
+
+        $capabilityVersion = $this->capabilityVersionString($capabilityId);
+        $registry = new CapabilityAuthorizationRegistry();
+        $isGoverned = false;
+
+        foreach ($providers as $provider) {
+            $providerId = (string)($provider['provider'] ?? '');
+            if ($providerId === '') {
+                continue;
+            }
+            if ($this->providerRequiresProtocolV2($provider)) {
+                $isGoverned = true;
+                break;
+            }
+            if ($registry->hasPolicyFor($capabilityId, null, $providerId)) {
+                $isGoverned = true;
+                break;
+            }
+        }
+
+        if (!$isGoverned) {
+            return $providers;
+        }
+
+        $tenantId = $this->resolveTenantId($options);
+        $authorized = [];
+        $lastDeniedReason = 'missing_policy_row';
+
+        foreach ($providers as $provider) {
+            $providerId = (string)($provider['provider'] ?? '');
+            if ($providerId === '') {
+                continue;
+            }
+
+            $decision = $registry->authorize([
+                'capability_id' => $capabilityId,
+                'capability_version' => $capabilityVersion,
+                'provider' => $providerId,
+                'caller_module' => (string)($caller['module'] ?? ''),
+                'actor_role' => is_array($caller['user'] ?? null) ? (string)($caller['user']['role'] ?? '') : '',
+                'tenant_id' => $tenantId,
+                'provider_activation' => $providerId === 'kernel' || !function_exists('moduleIsActive') || moduleIsActive($providerId),
+                'explicit_provider' => $explicitProvider,
+            ]);
+
+            if (($decision['allowed'] ?? false) === true) {
+                $authorized[] = $provider;
+                continue;
+            }
+
+            $lastDeniedReason = (string)($decision['reason'] ?? $lastDeniedReason);
+        }
+
+        if ($authorized === []) {
+            throw new CapabilityCallException('Capability authorization denied: ' . $lastDeniedReason, $capabilityId, $explicitProvider);
+        }
+
+        return $authorized;
+    }
+
+    private function capabilityVersionString(string $capabilityId): string
+    {
+        if (preg_match('/@(\d+)$/', $capabilityId, $matches) === 1) {
+            return (string)$matches[1];
+        }
+
+        return '';
+    }
+
+    private function providerRequiresProtocolV2(array $provider): bool
+    {
+        $meta = is_array($provider['meta'] ?? null) ? $provider['meta'] : [];
+        if (strtolower(trim((string)($meta['requires_protocol'] ?? ''))) === 'v2') {
+            return true;
+        }
+
+        $handler = $provider['handler'] ?? null;
+        if ($handler instanceof ServiceProxy) {
+            return ServiceProxyV2::requiresProtocolV2($handler->serviceConfig());
+        }
+
+        return false;
+    }
+
+    private function resolveTenantId(array $options): string
+    {
+        $tenantId = $options['tenant_id'] ?? kernel_request_context_get('tenant_id') ?? null;
+        if ($tenantId === null && function_exists('app')) {
+            try {
+                $tenantId = app()->tenantId ?? null;
+            } catch (\Throwable $e) {
+                $tenantId = null;
+            }
+        }
+
+        return trim((string)$tenantId);
     }
 
     private function trace(

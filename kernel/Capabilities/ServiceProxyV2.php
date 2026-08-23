@@ -10,6 +10,11 @@ use PDOException;
 final class ServiceProxyV2
 {
     private const ALLOWED_ALGS = ['RS256', 'ES256'];
+
+    public static function requiresProtocolV2(array $serviceConfig): bool
+    {
+        return strtolower(trim((string) ($serviceConfig['requires_protocol'] ?? 'v1'))) === 'v2';
+    }
     private const SIGNED_HEADER_ORDER = [
         'method',
         'path',
