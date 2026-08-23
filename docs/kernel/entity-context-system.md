@@ -177,6 +177,34 @@ This enables **polyglot services** to render entity lists without pre-registerin
 explicit view contracts. The renderer auto-detects field names from whatever the
 external service returns.
 
+
+### Source Schemas (owner-sources-only)
+
+`registerView()` now accepts an optional `source_schema` block:
+
+```php
+'source_schema' => [
+    'entity' => 'products',
+    'owner' => 'ecommerce',
+    'fields' => [
+        'id' => 'int',
+        'name' => 'string',
+        'price' => 'float',
+    ],
+]
+```
+
+Rules enforced by `EntityViewResolver`:
+- **Owner-sources-only by default** — `owner` defaults to the provider module when omitted.
+- **Cross-module default deny** — a provider cannot claim another module's source unless `cross_module_approved` is explicitly used.
+- **Fixed type vocabulary** — source-schema fields use the kernel's fixed type set; invalid field types are rejected at registration time.
+- **Field validation** — fields referenced by the view must exist in `source_schema.fields`.
+- **Structural kernel fallback preserved** — kernel fallback contracts remain structural-only and do not claim business entities, business fields, or business actions.
+
+Adoption delivered in 6.2: the `ecommerce` module now owns the `products` and `ecommerce_product` defaults in `modules/ecommerce/helpers/43-entity-views.php`, and the resolver preserves a structural-only fallback in `kernel/EntityContext/EntityViewResolver.php`.
+
+Verification: `tests/entity_source_schema_test.php`.
+
 ### Built-in Defaults
 
 `builtinDefaults()` provides fallback view contracts for common entity types:

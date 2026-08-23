@@ -1,8 +1,64 @@
 # Kernel OS 6.x — Implementation Status
 
-> **Release: 6.1.0 (intercoherence)** | Assessment: June 26, 2026 (updated August 5, 2026)
+> **Current canonical state:** Kernel 6.2 / DiSyL 4.8 proof-program delivery (2026-08-23) — supersedes the 6.1 status below.
+> **Historical baseline preserved:** Kernel 6.1.0 (intercoherence) sections remain below as delivery history.
 > Source roadmap: `kernel_os_disyl_consolidated_roadmap.md`
 > Legend: ✅ Done · 🟡 Partial · 🔴 Not started
+
+---
+
+## Kernel 6.2 / DiSyL 4.8 — Proof-Program Delivery (2026-08-23)
+
+### Executive Summary
+
+Kernel 6.2 / DiSyL 4.8 is the **delivered proof-program batch now on `origin/master`** (`HEAD f4dadcb8`). It supersedes the 6.1 operational status below while preserving those sections as historical context. The delivered batch closes the trust-boundary proof items with evidence-backed gates: CI architecture baselining, durable transactional events, DiSyL typed assignment strictness, conformance/jurisdiction checking, coordinated provisioning, clean-room lifecycle proofs, entity source schemas, workflow retention/provenance, signed service requests, authorization policy registry, aggregate performance gating, module certification rate gating, and browser journey fixtures/tests.
+
+**Canonical release state:** architecture gate integrated in CI with semantic fingerprints and zero new findings; DiSyL 4.8 strict typed assignment is live in interpreted + compiled runtimes; the conformance proof lane reports `promotion: promoted=41 partial=0` and `poc5: lane_green=YES`; certification is 69/69 modules (100%).
+
+### Quick Reference — What Ships in 6.2 / 4.8
+
+| Component | Version / State | Evidence |
+|---|---|---|
+| Kernel OS | `6.2` proof-program batch | `docs/releases/release-notes-2026-08-23-kernel-6.2-disyl-4.8-proof-program.md` |
+| DiSyL | `4.8` | `kernel/DiSyL/TemplateEngine.php`, `kernel/DiSyL/Compiler/TemplateCompiler.php`, `kernel/DiSyL/Types/TypeChecker.php` |
+| ServiceProxyV2 | Delivered | `kernel/Capabilities/ServiceProxyV2.php`, `tests/service_proxy_v2_test.php` |
+| CapabilityAuthorizationRegistry | Delivered | `kernel/Capabilities/CapabilityAuthorizationRegistry.php`, `tests/capability_authorization_registry_test.php` |
+| Durable event outbox/inbox | Delivered | `migrations/015_kernel_durable_event_outbox.sql`, `src/helpers/durable-event-outbox.php`, `tests/durable_event_outbox_test.php` |
+| DiSyL conformance checker | Delivered | `tools/disyl-conformance-check.php`, `tests/disyl_conformance_test.php` |
+| Perf gate | Delivered | `tools/perf-gate.php`, `tests/perf_gate_test.php` |
+| Certification gate | Delivered | `tools/module-certification-gate.php`, `tests/module_certification_rate_test.php` |
+| Provisioning coordinator | Delivered | `src/helpers/module-migrations.php`, `tests/provisioning_coordinator_test.php` |
+| Clean-room proof tools | Delivered | `tools/poc6-shadow-build.php`, `tools/poc6-lifecycle-proof.php`, `tests/poc6_shadow_build_test.php`, `tests/poc6_lifecycle_test.php` |
+
+### Delivered Areas → Verification Evidence
+
+| Area | Delivered state | Verification evidence |
+|---|---|---|
+| **POC 1 — CI boundary gate + semantic fingerprint** | `php ikabud architecture:check --baseline=FILE --fail-on-new --strict`; semantic finding identity via line-stable sha1 fingerprinting; wired into CI | `src/helpers/architecture-check-fingerprint.php`, `.github/workflows/ci.yml`, `tests/architecture_check_baseline_test.php`, `tests/architecture_check_fingerprint_test.php` |
+| **DiSyL 4.8 typed assignment + strict mode** | `{set name: type = expr}` with `string\|int\|float\|bool\|array\|json\|date\|datetime\|reference`; strict mode opt-in (default off); mismatch marker + `disyl.strict.[strict]` app log entry in interpreted + compiled modes | `kernel/DiSyL/TemplateEngine.php`, `kernel/DiSyL/Compiler/TemplateCompiler.php`, `kernel/DiSyL/Types/TypeChecker.php`, `tests/disyl_engine_test.php` |
+| **DiSyL supported tags/functions** | `{math equation="..."}` supported; `{json_encode(...)}` / `{json_decode(...)}` supported (2026-08-05) | `kernel/DiSyL/TemplateEngine.php`, `kernel/DiSyL/Compiler/TemplateCompiler.php`, `docs/releases/release-notes-2026-08-05-cms-akira-product-suite.md` |
+| **Doc/test hygiene** | EBNF carries marked v4.8 additions; offline/canary separation in test discovery with `--offline` default skipping `*_canary_test.php` / `@canary` | `docs/disyl/disyl-grammar-v4.7.ebnf`, `tests/discover.php` |
+| **POC 3 — durable transactional events** | Producer-owned outbox + consumer inbox; MySQL 5.7-safe lease claim, idempotent consumption, retry/backoff, dead-letter, crash recovery, `EventBus::fireDurable()` transaction join | `migrations/015_kernel_durable_event_outbox.sql`, `src/helpers/durable-event-outbox.php`, `kernel/EventBus.php`, `tests/durable_event_outbox_test.php`, `tests/durable_event_worker_test.php`, `tests/eventbus_durable_test.php` |
+| **POC 4 — module-owned entity-view defaults** | `products` / `ecommerce_product` defaults moved to `ecommerce`; kernel fallback remains structural-only | `modules/ecommerce/helpers/43-entity-views.php`, `kernel/EntityContext/EntityViewResolver.php`, `tests/entity_source_schema_test.php` |
+| **POC 5 — DiSyL conformance/jurisdiction** | Canonical inventory of 41 constructs with classifications and per-surface refs; checker validates docs/EBNF refs, dual-mode parity, LSP/resource-limit surfaces, promotion matrix, bounded loops, and emits green proof lane | `config/disyl-feature-inventory.json`, `tools/disyl-conformance-check.php`, `tests/disyl_conformance_test.php`, `.github/workflows/ci.yml` |
+| **POC 6 — coordinated provisioning** | Coordinated tenant migration state machine + CAS; module activation only after migration + ownership verification | `src/helpers/module-migrations.php`, `kernel/Services/TenantProvisioner.php`, `ikabud`, `tests/provisioning_coordinator_test.php` |
+| **POC 6 — clean-room shadow build** | HEAD archive + overlays of modified tracked + declared untracked, sha256 manifest, outsider visibility proof, scaffold/guard/certify coverage | `tools/poc6-shadow-build.php`, `tests/poc6_shadow_build_test.php`, `storage/poc6/proof-shadow-build-<head>.json`, `docs/poc6-shadow-build-status.md` |
+| **POC 6 — clean-room lifecycle** | 21-step lifecycle proof including forbidden paths, tenant checks, durable-event-once, disable/enable, pack/install/uninstall, failed-install restoration | `tools/poc6-lifecycle-proof.php`, `tests/poc6_lifecycle_test.php`, `storage/poc6/proof-lifecycle-<head>.json`, `docs/poc6-lifecycle-status.md` |
+| **Phase 2 #5 — entity source schemas** | `registerView()` accepts optional `source_schema`; owner-sources-only gate, fixed type vocabulary, cross-module default deny with `cross_module_approved`, ecommerce adoption, structural fallback preserved | `kernel/EntityContext/EntityViewResolver.php`, `modules/ecommerce/helpers/43-entity-views.php`, `tests/entity_source_schema_test.php` |
+| **Phase 2 #6 — workflow retention/provenance** | `workflow_runs.payload_hash`, `payload_redacted_at`, `workflow_run_steps.payload_hash`; canonical hash, immutable provenance, redact-vs-purge flows, retention window, append-only transition log insert | `database/migrations/023_kernel_workflow_retention.sql`, `src/helpers/workflow-retention.php`, `tests/workflow_retention_provenance_test.php` |
+| **Phase 2 #7 — signed service requests (ServiceProxy v2)** | Canonical JSON, fixed signed headers, RS256/ES256 allowlist, `kid`, timestamp skew ≤300s, body-hash and endpoint/provider/capability/version binding, nonce reservation, key-rotation overlap, fail-closed | `kernel/Capabilities/ServiceProxyV2.php`, `database/migrations/024_kernel_service_proxy_v2_nonce.sql`, `tests/service_proxy_v2_test.php` |
+| **Phase 2 #7 — capability authorization registry** | Persisted versioned policy, default-deny, policy-version selection, cache + invalidate, fail-closed on DB outage, audit logging; additive CapabilityBus wiring; v1 path unchanged for unregistered capabilities; no silent downgrade for v2-required capabilities | `kernel/Capabilities/CapabilityAuthorizationRegistry.php`, `database/migrations/025_kernel_capability_authorization_policies.sql`, `kernel/Capabilities/CapabilityBus.php`, `kernel/Capabilities/ServiceProxy.php`, `tests/capability_authorization_registry_test.php` |
+| **Guardrail 8 — performance gate** | Additive load-test JSON/baseline/fail-on-delta switches plus standalone perf gate against gitignored baseline; aggregate load delta only | `tests/kernel_load_test.php`, `tools/perf-gate.php`, `tests/perf_gate_test.php`, `storage/perf-baseline.json` |
+| **Track 9 — certification** | 69/69 modules certified (100%); gate enforces ≥90% floor and fail=0 | `tools/module-certification-gate.php`, `tests/module_certification_rate_test.php` |
+| **Browser journeys (PW-2 / PW-3)** | Builder, report-approval, and async-rendering browser journeys green with reproducible seed, CMS route registration, kernel-DB escalation fix, async DiSyL fixture route | `tests/browser/builder-journey.spec.js`, `tests/browser/report-approval-journey.spec.js`, `tests/browser/async-rendering-journey.spec.js`, `database/seeds/browser_environment.php`, `modules/cms/routes.php`, `modules/cms/handlers/78-import-export.php`, `modules/project-audit-ledger/templates/project-audit-ledger/pages/settings-async-rendering.disyl` |
+| **Batch net** | 6.2 batch delivered on master; architecture gate held at zero new findings; ~384+ assertions added across increments 12–23 | `docs/kernel/kernel-6.2-proof-program-promotion-report.md`, `.github/workflows/ci.yml`, architecture gate output at release verification time |
+
+### Supersession Note
+
+The 6.1 sections below are retained as historical delivery records only. For the current canonical state, use this 6.2 / DiSyL 4.8 section together with the release notes and promotion report:
+
+- `docs/releases/release-notes-2026-08-23-kernel-6.2-disyl-4.8-proof-program.md`
+- `docs/kernel/kernel-6.2-proof-program-promotion-report.md`
 
 ---
 

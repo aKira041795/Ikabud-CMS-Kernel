@@ -1,4 +1,4 @@
-# Ikabud — Kernel OS 6.1 (ecosystem)
+# Ikabud — Kernel OS 6.2 / DiSyL 4.8 (proof program)
 
 **A governed, polyglot, observable, report-ready, AI-safe, extendable business operating system.**
 
@@ -43,18 +43,22 @@ Many languages. Many outputs.
 ## Key Features
 
 - **Multi-tenant by default** — Isolated databases per organization.
-- **Polyglot capability dispatch** — Services in Python, Node, Go, Rust, or any language participate through ServiceProxy.
+- **Polyglot capability dispatch** — Services in Python, Node, Go, Rust, or any language participate through ServiceProxy, with delivered **ServiceProxy v2** signed-request enforcement for v2-bound capabilities.
 - **Module isolation enforced** — `owns_tables`/`reads_tables` contracts prevent cross-module data access.
 - **Capability bus** — Typed, versioned, circuit-breaker-protected contracts between modules.
 - **32 governed DiSyL components** — Build screens by describing intent: `<ikb_entity_list source="orders.recent" view="compact" />`
-- **Entity-view architecture** — Define fields, actions, and views per entity type. 16 registered entity views across modules. Kernel enforces permissions via capability bus.
+- **Entity-view architecture** — Define fields, actions, views, and optional `source_schema` ownership contracts per entity type. Kernel enforces permissions via capability bus.
 - **Visual builder contract composer** — React/Vite builder with governed component palette, source+view pickers, validation.
 - **Mobile backend platform** — JWT auth with Bearer/cookie dual path, CORS for API consumers, rate limiting (DB/APCu), push notification queue (FCM), offline sync engine (entity revisions, cursor-based pull, tombstones, conflict detection), idempotency keys for safe retries.
 - **Standardized API contract** — Consistent `{ok, data, error, meta, request_id}` response envelope, rule-based input validation, offset + cursor pagination, OpenAPI 3.0 spec generation from route metadata.
 - **Export pipeline** — CSV, DOCX (PHPWord), PDF (DomPDF). One click turns any screen into a document.
 - **AI governance** — Provider config, per-capability policy, redaction rules, review queue, audit trail, cost dashboard.
 - **Observability** — 22 superadmin APIs for service health, circuit breakers, capability traces, entity-view debugging.
-- **Workflow engine** — Multi-step state machine with event-driven triggers, idempotent step execution, and subscription management.
+- **Workflow engine** — Multi-step state machine with event-driven triggers, idempotent step execution, subscription management, and delivered retention/provenance controls.
+- **Durable transactional events** — Producer-owned outbox + consumer inbox with MySQL 5.7-safe leasing, retry/backoff, dead-letter, and crash recovery.
+- **Capability authorization registry** — Persisted versioned default-deny policy registry with audit logging and fail-closed behavior.
+- **DiSyL conformance lane** — Canonical inventory + jurisdiction checker + CI proof lane for interpreted/compiled parity, LSP surface, and resource limits.
+- **Guardrail gates** — Aggregate perf gate, module certification gate, and browser-journey seed for reproducible verification.
 - **Report manager** — Templates, archive, scheduled reports, signature presets, module report packs.
 - **Module certification** — 10-point checklist for all modules. CLI + API.
 - **AI governance** — AI summaries and drafts with kill switch, model allowlist, cost ceilings, and human review requirements.
@@ -99,8 +103,8 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 
 | Component | Version |
 |---|---|
-| Kernel OS | `6.1.0` (ecosystem) |
-| DiSyL | `4.7.0` |
+| Kernel OS | `6.2` (proof-program batch) |
+| DiSyL | `4.8.0` |
 | ComponentRegistry | `1.0.0` |
 | EntityViewResolver | `1.0.0` |
 | Theme Customizer Orchestrator | `2.0.0` |
@@ -121,7 +125,7 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 | Document | Topic |
 |---|---|
 | [ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) | Kernel OS system architecture |
-| [kernel-os-disyl-roadmap-status.md](docs/kernel/kernel-os-disyl-roadmap-status.md) | Phase-by-phase implementation status (updated June 2026) |
+| [kernel-os-disyl-roadmap-status.md](docs/kernel/kernel-os-disyl-roadmap-status.md) | Canonical 6.2 / 4.8 proof-program status with preserved 6.1 history |
 | [installation.md](docs/kernel/installation.md) | Installation & deployment guide |
 | [contributor-workflows.md](docs/kernel/contributor-workflows.md) | Local setup, testing, logs, refactor guardrails |
 | [api-reference.md](docs/kernel/api-reference.md) | REST API reference |
@@ -170,9 +174,23 @@ php ikabud workflow:list               List workflow definitions
 
 291 test files with ~4,290 assertions across engine, hardening, integration, and module-level tests.
 
+### Critical workflows
+
+```
+php tools/disyl-conformance-check.php
+php tools/perf-gate.php
+php tools/module-certification-gate.php
+php database/seeds/browser_environment.php
+npx playwright test tests/browser/builder-journey.spec.js
+npx playwright test tests/browser/report-approval-journey.spec.js
+npx playwright test tests/browser/async-rendering-journey.spec.js
+```
+
+### Additional test entry points
+
 ```
 php tests/disyl_engine_test.php       DiSyL engine comprehensive
-php tests/kernel_load_test.php        Load test — 22ms for 100 iterations
+php tests/kernel_load_test.php --json Load baseline JSON for perf gate
 vendor/bin/phpunit                   PHPUnit test suite (where configured)
 php ikabud test                       Run module-specific test suites
 ```

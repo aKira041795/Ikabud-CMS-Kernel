@@ -1,8 +1,8 @@
-# DiSyL 4.7 — Language Reference
+# DiSyL 4.8 — Language Reference
 
-> **Version:** 4.8.0 | **Engine:** TemplateEngine 6.1 | **Parser:** v4 | **Compiler:** v8  
+> **Version:** 4.8.0 | **Engine:** TemplateEngine | **Parser:** v4 | **Compiler:** v8  
 > **Last updated:** 2026-08-23  
-> **Note:** Typed `{set}` assignment syntax (`{set name: string = ...}`) is active in the 4.8 runtime. Runtime type-mismatch validation is opt-in via strict typed-assignment mode; with strict typed assignment off, typed `{set}` behaves the same as untyped `{set}`.
+> **Note:** Typed `{set}` assignment syntax (`{set name: string = ...}`) is active in the 4.8 runtime. Runtime type-mismatch validation is opt-in via strict typed-assignment mode (default off); interpreted and compiled runtimes both honor it.
 
 ---
 
@@ -50,7 +50,8 @@
 {set count: int = 42}
 {set price: float = 9.99}
 {set active: bool = true}
-{set amount: number = price * qty}
+{set data: json = payload}
+{set published_at: datetime = now}
 ```
 
 Typed `{set}` is additive. In the default runtime, the annotation is preserved for authoring clarity but assignment behaves the same as untyped `{set}`.
@@ -70,10 +71,14 @@ When strict typed assignment is enabled, the interpreted and compiled runtimes v
 | Type | Accepted PHP values |
 |------|----------------------|
 | `string` | `string` |
-| `number` | `int` or `float` |
-| `bool` / `boolean` | `bool` |
-| `int` / `integer` | `int` |
+| `int` | `int` |
 | `float` | `float` |
+| `bool` | `bool` |
+| `array` | `array` |
+| `json` | JSON-serializable value accepted by the runtime checker |
+| `date` | Date-compatible value accepted by the runtime checker |
+| `datetime` | Datetime-compatible value accepted by the runtime checker |
+| `reference` | Reference-compatible scalar/object id accepted by the runtime checker |
 
 ### Arithmetic
 
@@ -586,12 +591,11 @@ POST forms in entity actions auto-inject `_token` via `csrf_token()`.
 {/sandbox}
 ```
 
-### Strict Mode (✅ ON by default — v4.7+)
+### Strict Mode
 
-- Logs undefined variables
-- Logs type mismatches in `{set}`
-- Logs `|raw` filter usage
-- Disable: `DISYL_STRICT_MODE=false` in env
+- General DiSyL strict mode remains environment-controlled
+- **Typed-assignment strict validation is separate and opt-in in v4.8**
+- When typed-assignment strict validation is on, mismatches emit `[[DiSyL strict type mismatch: ...]]` and a `disyl.strict.[strict]` app log entry
 
 ---
 
@@ -606,6 +610,69 @@ Section B — still renders
 ```
 
 ---
+
+
+## 11. Conformance, Jurisdiction & Promotion Lane (v4.8)
+
+DiSyL 4.8 now carries a canonical conformance inventory in `config/disyl-feature-inventory.json`. The inventory records **41 constructs** and classifies each as one of four kinds:
+
+| Kind | Count | Meaning |
+|---|---:|---|
+| `declarative_core` | 19 | Canonical language surface intended for general use |
+| `governed_extension` | 16 | Blessed extensions with explicit governance |
+| `compatibility_only` | 0 | Legacy compatibility surface retained but not promoted |
+| `prohibited_application_logic` | 6 | Recognized surface intentionally not blessed for application logic |
+
+Each inventory entry carries per-surface fields for interpreted, compiled, renderable, LSP, resource-limit, and docs/EBNF references.
+
+### Conformance Checker
+
+Run the canonical checker with:
+
+```bash
+php tools/disyl-conformance-check.php
+```
+
+It verifies:
+- inventory jurisdiction/classification coverage
+- docs and EBNF references
+- interpreted + compiled parity
+- LSP surface coverage
+- resource-limit surface coverage
+- promotion-lane status
+
+Expected proof-lane summary includes:
+
+```
+promotion: promoted=41 partial=0
+poc5: lane_green=YES
+```
+
+### LSP Surface
+
+The checker validates the current LSP surface as:
+- `block=10`
+- `keyword=5`
+- `component=1`
+- `expression=15`
+- `prohibited_not_blessed=6`
+- `not_applicable=10`
+
+### Resource-Limit Surface
+
+The checker verifies **5 bounded** constructs and **36 not-applicable** cases with justification. Runtime loop limits are explicitly bounded:
+- interpreted: `10000`
+- compiled: `100000`
+
+### CI Gate
+
+The strict proof lane is wired into `.github/workflows/ci.yml` under the `coding-standards` job:
+
+```bash
+php tools/disyl-conformance-check.php
+```
+
+This is the canonical jurisdiction/promotion gate for DiSyL 4.8.
 
 ## 11. Configuration
 

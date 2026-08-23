@@ -1,7 +1,7 @@
 # CLI Tools Reference
 
-> **CLI:** `php ikabud` (Kernel CLI v6.1.0)
-> **Updated:** June 26, 2026 (updated August 5, 2026)
+> **CLI:** `php ikabud` (Kernel CLI, proof-program state)
+> **Updated:** 2026-08-23
 
 The `php ikabud` CLI provides developer tools for architecture enforcement,
 entity inspection, scaffolding, diagnostics, and module management.
@@ -16,6 +16,8 @@ Scans all modules for cross-boundary violations.
 
 ```
 php ikabud architecture:check
+php ikabud architecture:check --baseline=architecture-baseline.json --fail-on-new
+php ikabud architecture:check --baseline=architecture-baseline.json --fail-on-new --strict
 ```
 
 **Detects:**
@@ -34,6 +36,11 @@ php ikabud architecture:check
 ```
 
 **Exit codes:** `0` = clean, `1` = violations found.
+
+**6.2 proof-program options:**
+- `--baseline=FILE` — compare current findings against a saved baseline
+- `--fail-on-new` — fail only on newly introduced findings
+- `--strict` — treat the full finding set as a release-quality gate
 
 ---
 
@@ -506,6 +513,97 @@ its additive suite fields (`suite`/`kind`/`extends`/`extension_points`/`contribu
 `docs/architecture/product-suite-extension-adr.md`.
 
 ---
+
+
+## Proof-Program Verification Tools
+
+### `php tools/disyl-conformance-check.php`
+
+Runs the DiSyL 4.8 jurisdiction/conformance/promotion-lane gate.
+
+```
+php tools/disyl-conformance-check.php
+```
+
+Validates:
+- `config/disyl-feature-inventory.json` jurisdiction coverage
+- docs + EBNF references
+- interpreted + compiled parity
+- LSP and resource-limit surfaces
+- promotion summary (`promotion: promoted=41 partial=0`, `poc5: lane_green=YES`)
+
+Integrated into `.github/workflows/ci.yml` `coding-standards` job.
+
+### `php tools/perf-gate.php [--record] [--fail-on-delta=PCT]`
+
+Records or compares the aggregate load-test baseline used by Guardrail 8.
+
+```
+php tools/perf-gate.php
+php tools/perf-gate.php --record
+php tools/perf-gate.php --fail-on-delta=10
+```
+
+Notes:
+- Baseline file: `storage/perf-baseline.json` (gitignored)
+- Uses `tests/kernel_load_test.php` JSON output
+- Enforces **aggregate load delta only**; it does not claim per-request latency SLOs
+
+### `php tools/module-certification-gate.php`
+
+Checks fleet-wide certification rate.
+
+```
+php tools/module-certification-gate.php
+```
+
+Current delivered target: **69/69 modules certified (100%)**.
+The gate enforces a **≥90% floor** and `fail=0`.
+
+### `php tools/poc6-shadow-build.php`
+
+Builds the clean-room shadow-build proof bundle.
+
+```
+php tools/poc6-shadow-build.php
+```
+
+Outputs a gitignored artifact at `storage/poc6/proof-shadow-build-<head>.json` and updates the status pattern documented in `docs/poc6-shadow-build-status.md`.
+
+### `php tools/poc6-lifecycle-proof.php`
+
+Runs the 21-step clean-room lifecycle proof.
+
+```
+php tools/poc6-lifecycle-proof.php
+```
+
+Outputs a gitignored artifact at `storage/poc6/proof-lifecycle-<head>.json` and updates the status pattern documented in `docs/poc6-lifecycle-status.md`.
+
+### `php database/seeds/browser_environment.php`
+
+Seeds the reproducible browser-journey environment.
+
+```
+php database/seeds/browser_environment.php
+```
+
+Provisioned by the seed:
+- tenant module activation
+- kernel runtime table provisioning
+- CMS admin user
+- builder page fixture
+- report-approval fixture
+- capability-authorization registry table if needed
+
+Use before running the delivered browser journeys:
+
+```
+php database/seeds/browser_environment.php
+npx playwright test tests/browser/builder-journey.spec.js
+npx playwright test tests/browser/report-approval-journey.spec.js
+npx playwright test tests/browser/async-rendering-journey.spec.js
+```
 
 ## Module Management
 

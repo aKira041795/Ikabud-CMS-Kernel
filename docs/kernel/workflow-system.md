@@ -328,6 +328,49 @@ Step argument values support `{payload.*}` references which are resolved against
 
 ---
 
+
+## Retention & Provenance
+
+Kernel 6.2 adds retention/provenance support for workflow runs and steps via:
+- `database/migrations/023_kernel_workflow_retention.sql`
+- `src/helpers/workflow-retention.php`
+- `tests/workflow_retention_provenance_test.php`
+
+### Policy
+
+Workflow payloads are split into two classes of evidence:
+- **Immutable provenance** — canonical payload hash plus metadata needed to prove what ran
+- **Redactable payload** — the raw payload body, which may be nulled later by retention policy
+
+Schema additions:
+- `workflow_runs.payload_hash`
+- `workflow_runs.payload_redacted_at`
+- `workflow_run_steps.payload_hash`
+
+### Operations
+
+`src/helpers/workflow-retention.php` provides the canonical flows:
+- **Canonical JSON hashing** for stable payload provenance
+- **Immutable run-hash recording** when a run is created
+- **Retain-provenance redaction** — payload content is nulled while metadata + hash remain
+- **Full run purge** when policy requires deletion instead of redaction
+- **Retention-window redaction** for aging runs
+- **Append-only transition insert** so transition history is recorded as inserts, not mutable overwrites
+
+### What remains after redaction or purge
+
+After **retain-provenance redaction**:
+- payload body is removed
+- payload hash remains
+- non-payload metadata remains
+- the redaction timestamp remains
+
+After **full purge**:
+- the purge removes the run payload record rather than leaving recoverable payload content
+- provenance is limited to whatever non-payload audit records remain outside the purged payload body
+
+Use the helper flows instead of ad hoc updates so hashes, timestamps, and append-only transition records stay consistent.
+
 ## Conventions
 
 - Workflow keys use dot-separated format: `order.fulfillment`, `cms.content`

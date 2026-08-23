@@ -5,7 +5,7 @@
 - Bootstrapping and global infra live in [bootstrap.php](../bootstrap.php): env loading, path constants, exception handler, `write_log()`, request IDs, and log paths.
 - Module system is manifest-driven via [src/helpers/module-manager.php](../src/helpers/module-manager.php): discover/enable/disable modules, load routes, capability dependency safety checks.
 - Entity view system (Kernel OS 6.0+) is the primary rendering engine: `EntityViewResolver` resolves source/view to data via capability bus, `DefaultEntityRenderer` produces HTML. See [docs/kernel/entity-context-system.md](../docs/kernel/entity-context-system.md) and [docs/kernel/entity-view-adoption-plan.md](../docs/kernel/entity-view-adoption-plan.md).
-- Kernel OS 6.0/6.1 roadmap status: [docs/kernel/kernel-os-disyl-roadmap-status.md](../docs/kernel/kernel-os-disyl-roadmap-status.md) — check before designing rendering or capabilities.
+- Kernel OS 6.2 / DiSyL 4.8 canonical status: [docs/kernel/kernel-os-disyl-roadmap-status.md](../docs/kernel/kernel-os-disyl-roadmap-status.md) — the 6.2 proof-program section supersedes the preserved 6.1 history.
 - CLI tools reference (architecture enforcement, scaffolding, diagnostics): [docs/kernel/cli-tools-reference.md](../docs/kernel/cli-tools-reference.md)
 - Workflow system (state machine + multi-step engine): [docs/kernel/workflow-system.md](../docs/kernel/workflow-system.md)
 - DiSyL async Fibers scheduler: [docs/kernel/disyl-async-fibers-scheduler.md](../docs/kernel/disyl-async-fibers-scheduler.md)
@@ -98,6 +98,26 @@ Capabilities must be designed before routes. Declare `capabilities.exposes`/`cap
   - `composer test`
   - `composer lint`
   - `composer lint:fix`
+  - `php tools/disyl-conformance-check.php`  # DiSyL jurisdiction / promotion lane
+  - `php tools/perf-gate.php`                # aggregate load-delta gate
+  - `php tools/module-certification-gate.php`# 69/69 certification gate
+  - `php database/seeds/browser_environment.php`
+  - `npx playwright test tests/browser/builder-journey.spec.js`
+  - `npx playwright test tests/browser/report-approval-journey.spec.js`
+  - `npx playwright test tests/browser/async-rendering-journey.spec.js`
+
+
+## Delivered proof-program integration points (Kernel 6.2 / DiSyL 4.8)
+- **Architecture gate / POC 1:** `php ikabud architecture:check --baseline=FILE --fail-on-new --strict` is the canonical boundary gate. Semantic finding identity comes from `src/helpers/architecture-check-fingerprint.php` and is enforced in `.github/workflows/ci.yml`.
+- **DiSyL conformance / POC 5:** `config/disyl-feature-inventory.json` is the canonical construct inventory. `php tools/disyl-conformance-check.php` is the jurisdiction/promotion-lane gate and must stay green in CI.
+- **Entity source schemas / Phase 2 #5:** when touching entity-view registrations, preserve `source_schema` ownership rules in `kernel/EntityContext/EntityViewResolver.php`: owner-sources-only by default, cross-module default deny unless `cross_module_approved`, fixed type vocabulary, kernel fallback structural-only.
+- **Durable events / POC 3:** use `EventBus::fireDurable()` for transactional event publication; keep producer-owned outbox + consumer inbox semantics and MySQL 5.7-safe lease-based claiming intact.
+- **Provisioning / POC 6:** tenant provisioning/migration flows must route through `tenantRunCoordinatedProvisionMigrations()` and `tenantCasStatus()` in `src/helpers/module-migrations.php`. Never bypass the pending → provisioning → active coordinator.
+- **ServiceProxy v2 / Phase 2 #7:** preserve the fixed signed-header set, RS256/ES256 allowlist, timestamp skew ≤300s, nonce reservation, endpoint/provider/capability/version binding, key rotation overlap, and fail-closed behavior in `kernel/Capabilities/ServiceProxyV2.php`.
+- **Capability authorization registry / Phase 2 #7:** `kernel/Capabilities/CapabilityAuthorizationRegistry.php` is the persisted default-deny, versioned policy registry. Keep cache invalidation, policy-version selection, audit logging, and fail-closed DB behavior intact. Do not reintroduce silent downgrade from v1 `ServiceProxy` to a v2-required capability.
+- **Workflow retention / Phase 2 #6:** preserve immutable payload-hash provenance vs redactable payload semantics from `src/helpers/workflow-retention.php`; transitions stay append-only.
+- **Perf + certification gates / Guardrail 8 / Track 9:** `tools/perf-gate.php` enforces aggregate load-delta only; `tools/module-certification-gate.php` enforces fleet certification rate.
+- **Browser verification:** use `database/seeds/browser_environment.php` before the delivered browser journeys; the seed is part of the reproducible verification story, not optional setup drift.
 
 ## Mandatory debugging workflow
 - Always check logs after running tests/builds or reproducing bugs:
