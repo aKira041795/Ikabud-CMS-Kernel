@@ -14,6 +14,9 @@
 
 // @ts-nocheck
 var { test, expect } = require('@playwright/test');
+var path = require('path');
+
+test.use({ storageState: path.resolve('test_results/browser/.auth/attendance-wage-admin.json') });
 
 var APP_URL = process.env.APP_URL || 'http://zapattendance.test';
 var ADMIN_USER = process.env.ADMIN_USER || 'zapadmin';
@@ -233,25 +236,10 @@ test.describe('attendance:deeplink-crawl', function () {
     test.setTimeout(600000); // 10 min for full crawl
 
     test('all levels: nav routes + entity details + sub-links + cross-nav', async function ({ page }) {
-        // ── Login once ──
-        await page.goto(APP_URL + '/attendance-wage/login', { waitUntil: 'networkidle', timeout: 30000 });
-
-        var bodyText = '';
-        try { bodyText = await page.locator('body').textContent({ timeout: 2000 }); } catch (e) {}
-        if (bodyText && bodyText.indexOf('Too many login') >= 0) {
-            var match = bodyText.match(/retry_after["':]\s*(\d+)/);
-            var waitSec = match ? parseInt(match[1], 10) + 5 : 120;
-            console.log('  ⏳ Rate limited. Waiting ' + waitSec + 's...');
-            await new Promise(function (r) { setTimeout(r, waitSec * 1000); });
-            await page.goto(APP_URL + '/attendance-wage/login', { waitUntil: 'networkidle', timeout: 30000 });
-        }
-
-        await page.fill('input[name="username"]', ADMIN_USER);
-        await page.fill('input[name="password"]', ADMIN_PASS);
-        await page.click('button[type="submit"]');
-        await page.waitForURL('**/admin/wage**', { timeout: 15000 });
+        // Reuse the guarded prep state; this crawl must not spend another login attempt.
+        await page.goto(APP_URL + '/admin/wage', { waitUntil: 'networkidle', timeout: 30000 });
         await page.waitForSelector('aside nav a', { timeout: 5000 });
-        console.log('  ✅ Login successful');
+        console.log('  ✅ Prepared admin state loaded');
 
         var allBroken = [];
 

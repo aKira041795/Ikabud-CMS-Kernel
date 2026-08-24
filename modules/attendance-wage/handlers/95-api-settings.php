@@ -189,8 +189,9 @@ function wageApiSettingsSave(array $params = []): void
             $sets = [];
             $params = [':tid' => $tid];
             foreach ($updates as $field => $val) {
-                $sets[] = "`{$field}` = :{$field}";
+                $sets[] = "`{$field}` = :update_{$field}";
                 $params[":{$field}"] = $val;
+                $params[":update_{$field}"] = $val;
             }
             $sql = "INSERT INTO payroll_settings (tenant_id, " . implode(', ', array_map(fn($f) => "`{$f}`", array_keys($updates))) . ")
                     VALUES (:tid, " . implode(', ', array_map(fn($f) => ":{$f}", array_keys($updates))) . ")
@@ -303,7 +304,7 @@ function awResetGroups(): array
     return [
         'employees'     => ['label' => 'Employees & Profiles',               'tables' => ['employee_profiles', 'employee_schedules']],
         'attendance'    => ['label' => 'Attendance Records',                 'tables' => ['attendance_records']],
-        'groups'        => ['label' => 'Teams / Groups & Members',           'tables' => ['attendance_groups', 'attendance_group_members']],
+        'groups'        => ['label' => 'Teams / Groups & Members',           'tables' => ['attendance_team_lead_otps', 'attendance_group_members', 'attendance_groups']],
         'payroll'       => ['label' => 'Payroll & Salary Computations',      'tables' => ['payroll_periods', 'salary_computations', 'salary_adjustments', 'employee_deductions']],
         'cash_advances' => ['label' => 'Cash Advances & Repayments',         'tables' => ['cash_advances', 'cash_advance_repayments']],
         'benefits'      => ['label' => 'Benefits Contribution Rates',        'tables' => ['benefits_contribution_rates']],
@@ -325,7 +326,7 @@ function awResetTenantData(\PDO $db, string $tenantId, int $uid, array $groups, 
     // Tables that carry a tenant_id column → scoped delete.
     $scopedTables = [
         'employee_profiles', 'employee_schedules', 'attendance_records',
-        'attendance_groups', 'attendance_group_members', 'payroll_periods',
+        'attendance_team_lead_otps', 'attendance_group_members', 'attendance_groups', 'payroll_periods',
         'salary_computations', 'salary_adjustments', 'employee_deductions',
         'benefits_contribution_rates', 'holidays', 'cash_advances',
         'office_locations',

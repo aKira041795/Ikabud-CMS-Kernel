@@ -282,7 +282,7 @@ function wageApiApproveComputation(array $params = []): void
     $base = awBaseUrl();
     if ($id <= 0) {
         $msg = 'Missing computation ID';
-        write_log("approve: missing id", 'warning', ['id' => $id, 'request_id' => $reqId]);
+        write_log("approve: rejected missing id", 'info', ['id' => $id, 'request_id' => $reqId]);
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?error=' . urlencode($msg)); exit; }
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $msg]);
@@ -295,7 +295,7 @@ function wageApiApproveComputation(array $params = []): void
         $comp = $s->fetch(\PDO::FETCH_ASSOC);
         if (!$comp) {
             $msg = 'Computation not found or already processed.';
-            write_log("approve: not found", 'warning', ['id' => $id, 'request_id' => $reqId]);
+            write_log("approve: rejected invalid transition", 'info', ['id' => $id, 'request_id' => $reqId]);
             if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?error=' . urlencode($msg)); exit; }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok' => false, 'error' => $msg]);
@@ -305,7 +305,7 @@ function wageApiApproveComputation(array $params = []): void
         $payDate = $comp['pay_date'] ?? '9999-12-31';
         if ($payDate > $now) {
             $msg = 'Cannot approve before pay date (' . $payDate . ').';
-            write_log("approve: pay date in future", 'warning', ['id' => $id, 'pay_date' => $payDate, 'request_id' => $reqId]);
+            write_log("approve: rejected before pay date", 'info', ['id' => $id, 'pay_date' => $payDate, 'request_id' => $reqId]);
             if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?period_id=' . ((int)$comp['payroll_period_id']) . '&error=' . urlencode($msg)); exit; }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok' => false, 'error' => $msg]);
@@ -353,10 +353,12 @@ function wageApiPayComputation(array $params = []): void
     }
     try {
         $db = aw_db();
-        $s = $db->prepare("SELECT * FROM salary_computations WHERE computation_id = :id AND status = 'approved' LIMIT 1");
+        $db->beginTransaction();
+        $s = $db->prepare("SELECT * FROM salary_computations WHERE computation_id = :id AND status = 'approved' LIMIT 1 FOR UPDATE");
         $s->execute([':id' => $id]);
         $comp = $s->fetch(\PDO::FETCH_ASSOC);
         if (!$comp) {
+            $db->rollBack();
             $msg = 'Computation not found, not yet approved, or already paid.';
             if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?error=' . urlencode($msg)); exit; }
             header('Content-Type: application/json; charset=utf-8');
@@ -366,11 +368,19 @@ function wageApiPayComputation(array $params = []): void
         $guardUser = attendanceWageUser();
         $db->prepare("UPDATE salary_computations SET status = 'paid', paid_by = :by, payment_date = NOW() WHERE computation_id = :id AND status = 'approved'")
            ->execute([':id' => $id, ':by' => $guardUser['id'] ?? null]);
-        // Mark all cash advance repayments for this computation as paid
+        // Apply each deducted repayment exactly once, then mark it paid.
         $pid = (int)$comp['payroll_period_id'];
         $eid = (int)$comp['employee_profile_id'];
-        $db->prepare("UPDATE cash_advance_repayments car JOIN cash_advances ca ON ca.advance_id = car.advance_id SET car.status = 'paid' WHERE ca.employee_profile_id = :eid AND car.payroll_period_id = :pid AND car.status = 'deducted'")
-           ->execute([':eid' => $eid, ':pid' => $pid]);
+        $repayments = $db->prepare("SELECT car.repayment_id,car.advance_id,car.amount FROM cash_advance_repayments car JOIN cash_advances ca ON ca.advance_id=car.advance_id WHERE ca.employee_profile_id=:eid AND car.payroll_period_id=:pid AND car.status='deducted' FOR UPDATE");
+        $repayments->execute([':eid' => $eid, ':pid' => $pid]);
+        foreach ($repayments->fetchAll(\PDO::FETCH_ASSOC) as $repayment) {
+            $db->prepare("UPDATE cash_advances SET balance=GREATEST(0,balance-:amount),paid_installments=paid_installments+1 WHERE advance_id=:aid")
+                ->execute([':amount' => $repayment['amount'], ':aid' => $repayment['advance_id']]);
+            $db->prepare("UPDATE cash_advance_repayments SET status='paid' WHERE repayment_id=:rid AND status='deducted'")
+                ->execute([':rid' => $repayment['repayment_id']]);
+            $db->prepare("UPDATE cash_advances SET status=IF(balance=0,'completed','active') WHERE advance_id=:aid")
+                ->execute([':aid' => $repayment['advance_id']]);
+        }
         // Check if all computations in the period are paid
         $uc = $db->prepare("SELECT COUNT(*) FROM salary_computations WHERE payroll_period_id = :pid AND status IN ('computed','approved')");
         $uc->execute([':pid' => $pid]);
@@ -378,6 +388,7 @@ function wageApiPayComputation(array $params = []): void
         if ($unpaid === 0) {
             $db->prepare("UPDATE payroll_periods SET status = 'completed' WHERE period_id = :pid AND status IN ('processing','approved')")->execute([':pid' => $pid]);
         }
+        $db->commit();
         if ($isFormPost) {
             header('Location: ' . $base . '/admin/wage/computations?period_id=' . $pid . '&success=' . urlencode('Payment marked as paid.'));
             exit;
@@ -385,6 +396,7 @@ function wageApiPayComputation(array $params = []): void
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => true, 'message' => 'Payment marked as paid.', 'status' => 'paid']);
     } catch (\Throwable $e) {
+        if (isset($db) && $db instanceof \PDO && $db->inTransaction()) $db->rollBack();
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?error=' . urlencode($e->getMessage())); exit; }
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);

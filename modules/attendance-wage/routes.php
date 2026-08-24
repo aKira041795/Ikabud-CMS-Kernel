@@ -95,6 +95,7 @@ return [
         '/api/v1/attendance-wage/auth/reset-password'    => 'attendance-wage:attendanceApiResetPassword',
         '/api/v1/attendance/clock-in'        => 'attendance-wage:attendanceApiClockIn',
         '/api/v1/attendance/clock-out'       => 'attendance-wage:attendanceApiClockOut',
+        '/api/v1/attendance/admin-records'   => 'attendance-wage:attendanceApiAdminRecordCreate',
         '/api/v1/wage/employees'             => 'attendance-wage:wageApiEmployeeCreate',
         '/api/v1/wage/employees/{id}'        => 'attendance-wage:wageApiEmployeeUpdate',
         '/admin/wage/employees/{id}/delete'  => 'attendance-wage:wageApiEmployeeDelete',

@@ -30,24 +30,29 @@ function wageApiDeductionCreate(array $params = []): void
     $isFormPost = !str_contains($contentType, 'application/json');
     $base = awBaseUrl();
 
+    $userId       = (int)($input['user_id'] ?? 0);
     $employeeName = trim((string)($input['employee_name'] ?? ''));
     $amount       = (float)($input['amount'] ?? 0);
     $description  = trim((string)($input['description'] ?? ''));
     $deductionDate = trim((string)($input['deduction_date'] ?? date('Y-m-d')));
 
-    if ($employeeName === '' || $amount <= 0) {
-        $msg = 'Employee name and a positive amount are required.';
+    if ($userId <= 0 || $amount <= 0) {
+        $msg = 'Employee and a positive amount are required.';
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/deductions/create?error=' . urlencode($msg)); exit; }
         awJsonOut(['ok' => false, 'error' => $msg], 422); return;
     }
 
     try {
         $db = aw_db();
+        $employee = $db->prepare("SELECT CONCAT_WS(' ', first_name, middle_name, last_name, suffix) FROM employee_profiles WHERE user_id=:uid AND tenant_id=:tid AND is_active=1 LIMIT 1");
+        $employee->execute([':uid' => $userId, ':tid' => (string)aw_tenant_id()]);
+        $employeeName = trim((string)($employee->fetchColumn() ?: ''));
+        if ($employeeName === '') awJsonOut(['ok' => false, 'error' => 'Active employee not found.'], 404);
         $db->prepare(
-            "INSERT INTO employee_deductions (tenant_id, employee_name, amount, description, status, deduction_date)
-             VALUES (:tid, :name, :amt, :desc, 'pending', :dd)"
+            "INSERT INTO employee_deductions (tenant_id, user_id, employee_name, amount, description, status, deduction_date)
+             VALUES (:tid, :uid, :name, :amt, :desc, 'pending', :dd)"
         )->execute([
-            ':tid' => app()->tenant()->current() ?? '',
+            ':tid' => app()->tenant()->current() ?? '', ':uid' => $userId,
             ':name' => $employeeName, ':amt' => $amount, ':desc' => $description !== '' ? $description : null,
             ':dd' => $deductionDate,
         ]);

@@ -75,6 +75,44 @@ function attendanceApiClockOut(array $params = []): void
     } catch (\Throwable $e) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Clock-out failed. Please try again.']); }
 }
 
+function attendanceApiAdminRecordCreate(array $params = []): void
+{
+    attendanceWageGuard('attendance_wage.admin@1');
+    $input = awInputJSON();
+    $profileId = (int)($input['employee_profile_id'] ?? 0);
+    $clockIn = trim((string)($input['clock_in'] ?? ''));
+    $clockOut = trim((string)($input['clock_out'] ?? ''));
+    if ($profileId <= 0 || $clockIn === '' || $clockOut === '') {
+        awJsonOut(['ok' => false, 'error' => 'Employee, clock in, and clock out are required.'], 422);
+    }
+    try {
+        $in = new \DateTimeImmutable($clockIn, new \DateTimeZone('Asia/Manila'));
+        $out = new \DateTimeImmutable($clockOut, new \DateTimeZone('Asia/Manila'));
+        if ($out <= $in || ($out->getTimestamp() - $in->getTimestamp()) > 86400) {
+            awJsonOut(['ok' => false, 'error' => 'Clock out must be after clock in and within 24 hours.'], 422);
+        }
+        $db = aw_db();
+        $tenantId = (string)aw_tenant_id();
+        $profile = $db->prepare('SELECT user_id FROM employee_profiles WHERE profile_id=:pid AND tenant_id=:tid AND is_active=1 LIMIT 1');
+        $profile->execute([':pid' => $profileId, ':tid' => $tenantId]);
+        $userId = (int)($profile->fetchColumn() ?: 0);
+        if ($userId <= 0) awJsonOut(['ok' => false, 'error' => 'Active employee not found.'], 404);
+        $duplicate = $db->prepare('SELECT attendance_id FROM attendance_records WHERE tenant_id=:tid AND user_id=:uid AND clock_in=:clock_in LIMIT 1');
+        $duplicate->execute([':tid' => $tenantId, ':uid' => $userId, ':clock_in' => $in->format('Y-m-d H:i:s')]);
+        if ($duplicate->fetchColumn()) awJsonOut(['ok' => false, 'error' => 'An attendance record already exists for this clock-in.'], 409);
+        $stmt = $db->prepare("INSERT INTO attendance_records (tenant_id,user_id,clock_in,clock_out,status,notes,last_edited_by,last_edited_at) VALUES (:tid,:uid,:clock_in,:clock_out,'edited',:notes,:by,NOW())");
+        $stmt->execute([
+            ':tid' => $tenantId, ':uid' => $userId,
+            ':clock_in' => $in->format('Y-m-d H:i:s'), ':clock_out' => $out->format('Y-m-d H:i:s'),
+            ':notes' => trim((string)($input['notes'] ?? 'Admin attendance entry')),
+            ':by' => aw_currentUserId(),
+        ]);
+        awJsonOut(['ok' => true, 'id' => (int)$db->lastInsertId()]);
+    } catch (\Throwable $e) {
+        awJsonOut(['ok' => false, 'error' => $e->getMessage()], 500);
+    }
+}
+
 function attendanceApiRecords(array $params = []): void
 {
     $user = attendanceWageUser();

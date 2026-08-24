@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/** @param resource $stream */
+function aw_reportCsv($stream, array $fields): void
+{
+    fputcsv($stream, $fields, ',', '"', '\\');
+}
+
 /**
  * Payroll report & payslip API handlers.
  */
@@ -55,10 +61,10 @@ function wageApiReportExportAll(array $params = []): void
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="payroll_report_all_' . date('Ymd') . '.csv"');
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Payroll Report — All Periods', date('Y-m-d')]);
-            fputcsv($out, []);
+            aw_reportCsv($out, ['Payroll Report — All Periods', date('Y-m-d')]);
+            aw_reportCsv($out, []);
             foreach ($periods as $period) {
-                fputcsv($out, ['Period: ' . $period['period_name'], $period['start_date'] . ' to ' . $period['end_date'], 'Pay Date: ' . ($period['pay_date'] ?? '—'), 'Status: ' . ucfirst($period['status'])]);
+                aw_reportCsv($out, ['Period: ' . $period['period_name'], $period['start_date'] . ' to ' . $period['end_date'], 'Pay Date: ' . ($period['pay_date'] ?? '—'), 'Status: ' . ucfirst($period['status'])]);
                 // Get computations for this period
                 $comp = $db->prepare(
                     "SELECT CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
@@ -73,11 +79,11 @@ function wageApiReportExportAll(array $params = []): void
                 );
                 $comp->execute([':pid' => $period['period_id']]);
                 $rows = $comp->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-                fputcsv($out, ['Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'SSS', 'PhilHealth', 'Pag-IBIG', 'Income Tax', 'Manual Deductions', 'Cash Advance', 'Other Deductions', 'Total Deductions', 'Net Pay', 'Status']);
+                aw_reportCsv($out, ['Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'SSS', 'PhilHealth', 'Pag-IBIG', 'Income Tax', 'Manual Deductions', 'Cash Advance', 'Other Deductions', 'Total Deductions', 'Net Pay', 'Status']);
                 foreach ($rows as $r) {
                     $totalDed = (float)($r['sss_employee'] ?? 0) + (float)($r['philhealth_employee'] ?? 0) + (float)($r['pagibig_employee'] ?? 0)
                         + (float)($r['income_tax'] ?? 0) + (float)($r['salary_deductions'] ?? 0) + (float)($r['cash_advance_deduction'] ?? 0) + (float)($r['other_deductions'] ?? 0);
-                    fputcsv($out, [
+                    aw_reportCsv($out, [
                         $r['employee_name'] ?? '—',
                         $r['employee_number'] ?? '—',
                         $r['position'] ?? '—',
@@ -95,7 +101,7 @@ function wageApiReportExportAll(array $params = []): void
                         ucfirst($r['status'] ?? '—'),
                     ]);
                 }
-                fputcsv($out, []); // blank line between periods
+                aw_reportCsv($out, []); // blank line between periods
             }
             fclose($out);
             exit;
@@ -148,16 +154,16 @@ function wageApiReportExport(array $params = []): void
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="payroll_' . $period['period_name'] . '_' . date('Ymd') . '.csv"');
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Payroll Report', $period['period_name']]);
-            fputcsv($out, ['Period', $period['start_date'] . ' to ' . $period['end_date']]);
-            fputcsv($out, ['Pay Date', $period['pay_date'] ?? '—']);
-            fputcsv($out, []);
-            fputcsv($out, ['#', 'Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'SSS', 'PhilHealth', 'Pag-IBIG', 'Income Tax', 'Manual Deductions', 'Cash Advance', 'Other Deductions', 'Total Deductions', 'Net Pay', 'Status']);
+            aw_reportCsv($out, ['Payroll Report', $period['period_name']]);
+            aw_reportCsv($out, ['Period', $period['start_date'] . ' to ' . $period['end_date']]);
+            aw_reportCsv($out, ['Pay Date', $period['pay_date'] ?? '—']);
+            aw_reportCsv($out, []);
+            aw_reportCsv($out, ['#', 'Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'SSS', 'PhilHealth', 'Pag-IBIG', 'Income Tax', 'Manual Deductions', 'Cash Advance', 'Other Deductions', 'Total Deductions', 'Net Pay', 'Status']);
             $i = 1;
             foreach ($rows as $r) {
                 $totalDed = (float)($r['sss_employee'] ?? 0) + (float)($r['philhealth_employee'] ?? 0) + (float)($r['pagibig_employee'] ?? 0)
                     + (float)($r['income_tax'] ?? 0) + (float)($r['salary_deductions'] ?? 0) + (float)($r['cash_advance_deduction'] ?? 0) + (float)($r['other_deductions'] ?? 0);
-                fputcsv($out, [
+                aw_reportCsv($out, [
                     $i++,
                     $r['employee_name'] ?? '—',
                     $r['employee_number'] ?? '—',
@@ -372,8 +378,8 @@ function wageApiReportSummary(array $params = []): void
         $db = aw_db();
         $tid = app()->tenant()->current() ?? '';
 
-        $where = '1=1';
-        $binds = [];
+        $where = 'sc.tenant_id = :tid';
+        $binds = [':tid' => $tid];
         if ($periodId > 0) { $where .= ' AND sc.payroll_period_id = :pid'; $binds[':pid'] = $periodId; }
         if ($department !== '') { $where .= ' AND ep.department = :dept'; $binds[':dept'] = $department; }
         if ($status !== '') { $where .= ' AND sc.status = :st'; $binds[':st'] = $status; }
@@ -381,9 +387,11 @@ function wageApiReportSummary(array $params = []): void
         $rows = $db->prepare(
             "SELECT sc.computation_id AS id,
                     CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
-                    ep.department, sc.salary_type,
+                    ep.department, ep.salary_type,
                     sc.gross_pay, sc.overtime_pay, sc.total_deductions, sc.net_pay,
-                    sc.total_adjustments, sc.benefits_total, sc.status,
+                    (sc.total_additions - sc.other_deductions) AS total_adjustments,
+                    (sc.sss_employee + sc.philhealth_employee + sc.pagibig_employee) AS benefits_total,
+                    sc.status,
                     pp.period_name
              FROM salary_computations sc
              JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id

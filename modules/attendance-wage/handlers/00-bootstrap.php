@@ -16,8 +16,9 @@ function attendanceWageGuard(string $capability = ''): ?array
     $user = attendanceWageUser();
     if (!$user) {
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-        $isFormPost = !str_contains($contentType, 'application/json') && $_SERVER['REQUEST_METHOD'] === 'POST';
-        $isPageRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && !str_starts_with(($_SERVER['REQUEST_URI'] ?? ''), '/api/');
+        $isApiRequest = str_starts_with(($_SERVER['REQUEST_URI'] ?? ''), '/api/');
+        $isFormPost = !$isApiRequest && !str_contains($contentType, 'application/json') && $_SERVER['REQUEST_METHOD'] === 'POST';
+        $isPageRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && !$isApiRequest;
         if ($isFormPost || $isPageRequest) {
             $base = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
             header('Location: ' . $base . '/attendance-wage/login?error=session_expired');

@@ -49,6 +49,29 @@ function tl_unsign(string $token): ?array
     return is_array($data) ? $data : null;
 }
 
+// ── OTP storage helpers ──
+
+function tl_otp_encrypt(string $code): string
+{
+    $key = hash('sha256', (string)($_ENV['APP_SECRET'] ?? 'ikabud-default-secret'), true);
+    $iv = random_bytes(12);
+    $tag = '';
+    $ciphertext = openssl_encrypt($code, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    if ($ciphertext === false) {
+        throw new RuntimeException('Unable to protect verification code.');
+    }
+    return base64_encode($iv . $tag . $ciphertext);
+}
+
+function tl_otp_decrypt(string $payload): ?string
+{
+    $raw = base64_decode($payload, true);
+    if ($raw === false || strlen($raw) < 29) return null;
+    $key = hash('sha256', (string)($_ENV['APP_SECRET'] ?? 'ikabud-default-secret'), true);
+    $plain = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', $key, OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
+    return is_string($plain) ? $plain : null;
+}
+
 // ── API: Send OTP ──
 
 function attendanceApiTeamLeadSendOtp(): void
@@ -110,6 +133,23 @@ function attendanceApiTeamLeadSendOtp(): void
         $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         $otpHash = password_hash($otp, PASSWORD_DEFAULT);
 
+        // Persist a tenant/email/group-scoped, encrypted single-use record.
+        // Verification still uses the one-way hash; ciphertext exists so the
+        // deterministic E2E harness can read app state without an OTP bypass.
+        $otpStore = $db->prepare(
+            "INSERT INTO attendance_team_lead_otps
+             (tenant_id, group_id, email, code_hash, code_ciphertext, expires_at)
+             VALUES (:tid, :gid, :email, :hash, :cipher, DATE_ADD(NOW(), INTERVAL 10 MINUTE))"
+        );
+        $otpStore->execute([
+            ':tid' => (string)$tenantId,
+            ':gid' => (int)$group['group_id'],
+            ':email' => $email,
+            ':hash' => $otpHash,
+            ':cipher' => tl_otp_encrypt($otp),
+        ]);
+        $otpId = (int)$db->lastInsertId();
+
         // Send OTP email
         $name = htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8');
         $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Team Lead — ' . $name . '</p>'
@@ -118,12 +158,16 @@ function attendanceApiTeamLeadSendOtp(): void
             . '<p style="margin:0 0 16px;color:#9ca3af;font-size:14px;">This code expires in 10 minutes.</p>';
         $body = buildEmailTemplate('ZAP — Team Attendance Verification', $content, '', '');
         if (!sendEmail($email, 'ZAP Attendance — Verification Code: ' . $otp, $body)) {
+            $db->prepare('DELETE FROM attendance_team_lead_otps WHERE otp_id = :id AND tenant_id = :tid')
+                ->execute([':id' => $otpId, ':tid' => (string)$tenantId]);
             throw new RuntimeException('OTP email delivery failed.');
         }
 
-        // Build signed token with OTP hash — no session dependency
+        // Build a signed reference. The real verification secret remains the
+        // hash in app storage and the record can be consumed only once.
         $token = tl_sign([
-            'h' => $otpHash,
+            'o' => $otpId,
+            't' => (string)$tenantId,
             'e' => $email,
             'g' => $group['group_id'],
             'n' => $group['name'],
@@ -160,8 +204,33 @@ function attendanceApiTeamLeadVerifyOtp(): void
         return;
     }
 
-    if (!password_verify($code, (string)($data['h'] ?? ''))) {
+    $tenantId = (string)aw_tenant_id();
+    if (!hash_equals($tenantId, (string)($data['t'] ?? ''))) {
+        awJson(['ok' => false, 'error' => 'Invalid or expired verification. Please request a new code.'], 422);
+        return;
+    }
+
+    $db = aw_db();
+    $otpStmt = $db->prepare(
+        "SELECT otp_id, code_hash FROM attendance_team_lead_otps
+         WHERE otp_id = :id AND tenant_id = :tid AND group_id = :gid AND email = :email
+           AND consumed_at IS NULL AND expires_at > NOW() LIMIT 1"
+    );
+    $otpStmt->execute([
+        ':id' => (int)($data['o'] ?? 0), ':tid' => $tenantId,
+        ':gid' => (int)($data['g'] ?? 0), ':email' => (string)($data['e'] ?? ''),
+    ]);
+    $otpRecord = $otpStmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$otpRecord || !password_verify($code, (string)$otpRecord['code_hash'])) {
         awJson(['ok' => false, 'error' => 'Invalid code. Please try again.'], 422);
+        return;
+    }
+    $consume = $db->prepare(
+        'UPDATE attendance_team_lead_otps SET consumed_at = NOW() WHERE otp_id = :id AND tenant_id = :tid AND consumed_at IS NULL'
+    );
+    $consume->execute([':id' => (int)$otpRecord['otp_id'], ':tid' => $tenantId]);
+    if ($consume->rowCount() !== 1) {
+        awJson(['ok' => false, 'error' => 'Verification code has already been used.'], 422);
         return;
     }
 

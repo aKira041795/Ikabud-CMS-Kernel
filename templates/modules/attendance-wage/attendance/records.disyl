@@ -7,6 +7,7 @@
         <div class="flex items-center gap-3">
             <span class="text-sm text-gray-400">{today}</span>
             {if not selected_employee}
+            <button type="button" data-testid="add-attendance-record" onclick="document.getElementById('adminAttendanceForm').classList.toggle('hidden')" class="inline-flex items-center gap-1 px-4 py-2 text-xs font-medium rounded-lg bg-brand-600 text-white">+ Add Record</button>
             <a href="/admin/attendance?export=csv"
                class="inline-flex items-center gap-1 px-4 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200">
                 📥 Export All CSV
@@ -53,6 +54,17 @@
 
     {else}
     <!-- Employee list with today's attendance summary -->
+    <form id="adminAttendanceForm" class="hidden mb-6 bg-white rounded-xl border border-gray-200 p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <label class="text-sm font-semibold">Employee
+            <select name="employee_profile_id" required class="block mt-1 w-full border rounded p-2">
+                {for emp in records}<option value="{emp.profile_id}">{emp.full_name}</option>{/for}
+            </select>
+        </label>
+        <label class="text-sm font-semibold">Clock In<input name="clock_in" type="datetime-local" required class="block mt-1 w-full border rounded p-2"></label>
+        <label class="text-sm font-semibold">Clock Out<input name="clock_out" type="datetime-local" required class="block mt-1 w-full border rounded p-2"></label>
+        <button type="submit" class="self-end bg-brand-600 text-white rounded p-2 font-semibold">Save Record</button>
+        <p data-testid="attendance-form-result" class="md:col-span-4 text-sm"></p>
+    </form>
     {if records|count > 0}
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto">
@@ -99,10 +111,10 @@
                             {/if}
                         </td>
                         <td class="py-3 px-4 text-gray-700 font-mono text-xs">
-                            {emp.clock_in|substr:11:8|default:'—'}
+                            {emp.clock_in|default:'—'}
                         </td>
                         <td class="py-3 px-4 text-gray-700 font-mono text-xs">
-                            {if emp.clock_out}{emp.clock_out|substr:11:8}{else}—{/if}
+                            {if emp.clock_out}{emp.clock_out}{else}—{/if}
                         </td>
                         <td class="py-3 px-4 text-gray-600 text-xs max-w-[220px]" title="{emp.location_in|default:''}">
                             <span class="font-medium">{emp.location_in|default:'—'}</span>
@@ -146,6 +158,15 @@ function closePhotoModal() {
     document.body.style.overflow = '';
 }
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePhotoModal(); });
+document.getElementById('adminAttendanceForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const values = Object.fromEntries(new FormData(this).entries());
+    const response = await fetch('/api/v1/attendance/admin-records', {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify(values)});
+    const body = await response.json();
+    const result = this.querySelector('[data-testid="attendance-form-result"]');
+    result.textContent = body.ok ? 'Attendance record saved.' : (body.error || 'Unable to save record.');
+    if (body.ok) window.location.reload();
+});
 </script>
 
 {/block}

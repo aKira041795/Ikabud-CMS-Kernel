@@ -43,6 +43,20 @@ function t(string $label, bool $ok, string $detail = ''): void {
 
 echo "── Attendance Hours Inline Editing Test ──\n\n";
 
+// Regression contract: attendancePageRecords renders the template on several
+// paths that never select an employee. Its render payload must therefore be
+// initialized before database/selection branching, not only in the history
+// renderer branch.
+$recordsHandler = file_get_contents($basePath . '/modules/attendance-wage/handlers/10-pages-attendance.php') ?: '';
+$functionPos = strpos($recordsHandler, 'function attendancePageRecords');
+$tryPos = strpos($recordsHandler, '    try {', $functionPos === false ? 0 : $functionPos);
+$initPos = strpos($recordsHandler, '$renderedRecordsTable = \'\';', $functionPos === false ? 0 : $functionPos);
+$payloadPos = strpos($recordsHandler, "'rendered_records_table' => \$renderedRecordsTable", $functionPos === false ? 0 : $functionPos);
+t('records render contract initializes table before fallible branches',
+    $functionPos !== false && $initPos !== false && $tryPos !== false && $initPos < $tryPos);
+t('records render contract always passes initialized table to template',
+    $payloadPos !== false && $initPos !== false && $initPos < $payloadPos);
+
 $hoursFieldContract = [
     'editable' => 'true',
     'update_capability' => 'attendance.record.hours.update@1',

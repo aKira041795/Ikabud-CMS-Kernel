@@ -49,12 +49,23 @@ function wageApiCashAdvanceCreate(array $params = []): void
 
     try {
         $db = aw_db();
-        // Get user_id from profile
+        // Validate the employee and tenant policy before creating a request.
         $userId = 0;
-        $p = $db->prepare("SELECT user_id FROM employee_profiles WHERE profile_id = :pid LIMIT 1");
-        $p->execute([':pid' => $profileId]);
+        $p = $db->prepare("SELECT user_id,basic_salary,cash_advance_allowed FROM employee_profiles WHERE profile_id=:pid AND tenant_id=:tid AND is_active=1 LIMIT 1");
+        $p->execute([':pid' => $profileId, ':tid' => (string)aw_tenant_id()]);
         $prof = $p->fetch(\PDO::FETCH_ASSOC);
-        if ($prof) { $userId = max(0, (int)($prof['user_id'] ?? 0)); }
+        if (!$prof || empty($prof['cash_advance_allowed'])) {
+            awJsonOut(['ok' => false, 'error' => 'Cash advances are not enabled for this employee.'], 422);
+        }
+        $userId = max(0, (int)($prof['user_id'] ?? 0));
+        $settings = aw_payrollSettings();
+        $limit = round((float)$prof['basic_salary'] * ((float)($settings['max_cash_advance_pct'] ?? 50) / 100), 2);
+        if ($amount > $limit) awJsonOut(['ok' => false, 'error' => 'Amount exceeds the cash advance policy limit of ₱' . number_format($limit, 2) . '.'], 422);
+        $active = $db->prepare("SELECT COUNT(*) FROM cash_advances WHERE tenant_id=:tid AND employee_profile_id=:pid AND status IN ('pending','approved','active')");
+        $active->execute([':tid' => (string)aw_tenant_id(), ':pid' => $profileId]);
+        if ((int)$active->fetchColumn() >= (int)($settings['max_active_advances'] ?? 2)) {
+            awJsonOut(['ok' => false, 'error' => 'Maximum active cash advances reached.'], 422);
+        }
 
         $guardUser = attendanceWageUser();
 
@@ -101,13 +112,16 @@ function wageApiCashAdvanceApprove(array $params = []): void
     }
     try {
         $db = aw_db();
+        $db->beginTransaction();
 
-        $s = $db->prepare("SELECT * FROM cash_advances WHERE advance_id = :id AND status = 'pending' LIMIT 1");
+        $s = $db->prepare("SELECT * FROM cash_advances WHERE advance_id = :id AND status = 'pending' LIMIT 1 FOR UPDATE");
         $s->execute([':id' => $id]);
         $advance = $s->fetch(\PDO::FETCH_ASSOC);
         if (!$advance) {
             $msg = 'Advance not found or already processed';
+            $db->rollBack();
             if ($isFormPost) { header('Location: ' . $base . '/admin/wage/cash-advances?error=' . urlencode($msg)); exit; }
+            header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok' => false, 'error' => $msg]); return;
         }
 
@@ -165,6 +179,7 @@ function wageApiCashAdvanceApprove(array $params = []): void
             $db->prepare("UPDATE cash_advances SET status = 'active' WHERE advance_id = :id")->execute([':id' => $id]);
         }
 
+        $db->commit();
         if ($isFormPost) {
             header('Location: ' . $base . '/admin/wage/cash-advances?success=Cash+advance+approved');
             exit;
@@ -172,6 +187,7 @@ function wageApiCashAdvanceApprove(array $params = []): void
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => true, 'message' => 'Cash advance approved. Repayment scheduled for next payroll.']);
     } catch (\Throwable $e) {
+        if (isset($db) && $db instanceof \PDO && $db->inTransaction()) $db->rollBack();
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/cash-advances?error=' . urlencode($e->getMessage())); exit; }
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);

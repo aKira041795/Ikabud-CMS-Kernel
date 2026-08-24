@@ -64,9 +64,9 @@
                                 <div class="text-xs text-gray-400">{row.employee_number|default:'—'}</div>
                             </td>
                             <td class="py-3 px-4 text-gray-600 text-xs">{row.position|default:'—'}</td>
-                            <td class="py-3 px-4 text-gray-700 font-mono text-xs">{row.clock_in|substr:11:8|default:'—'}</td>
+                            <td class="py-3 px-4 text-gray-700 font-mono text-xs">{row.clock_in|default:'—'}</td>
                             <td class="py-3 px-4 text-gray-700 font-mono text-xs">
-                                {if row.clock_out}{row.clock_out|substr:11:8}{else}<span class="text-amber-600 font-medium">—</span>{/if}
+                                {if row.clock_out}{row.clock_out}{else}<span class="text-amber-600 font-medium">—</span>{/if}
                             </td>
                             <td class="py-3 px-4">
                                 {if row.onsite_attendance}

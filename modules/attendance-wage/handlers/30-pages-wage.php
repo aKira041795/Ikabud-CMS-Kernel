@@ -223,7 +223,20 @@ function wagePagePeriodForm(array $params = []): void
 {
     attendanceWageGuard();
     $editId = (int)($params['id'] ?? 0);
-    $vars = ['id' => $editId];
+    $isCreate = $editId <= 0;
+    $vars = [
+        'id' => $editId,
+        'is_create' => $isCreate,
+        'form_action' => $isCreate ? '/api/v1/wage/periods' : '/api/v1/wage/periods/' . $editId,
+        'form_title' => $isCreate ? 'Create Payroll Period' : 'Edit Payroll Period',
+        'form_button' => $isCreate ? 'Create Period' : 'Save Changes',
+        'period_name' => '',
+        'period_type' => 'semi_monthly',
+        'start_date' => '',
+        'end_date' => '',
+        'pay_date' => '',
+        'cutoff_date' => '',
+    ];
     if ($editId > 0) {
         try {
             $db = aw_db();
@@ -342,7 +355,21 @@ function wagePageAdjustmentForm(array $params = []): void
 {
     attendanceWageGuard();
     $editId = (int)($params['id'] ?? 0);
-    $vars = ['id' => $editId, 'effective_date' => date('Y-m-d')];
+    $vars = [
+        'id' => $editId,
+        'effective_date' => date('Y-m-d'),
+        'status' => 'pending',
+        'approval_date' => '',
+        'applied_date' => '',
+        'user_id' => 0,
+        'adjustment_type' => 'bonus',
+        'category' => 'taxable',
+        'amount' => '0.00',
+        'description' => '',
+        'payroll_period_id' => 0,
+        'current_period_name' => '',
+        'current_period_pay_date' => '',
+    ];
     $employees = [];
     $currentPeriod = null;
     try {
@@ -394,7 +421,14 @@ function wagePageDeductionForm(array $params = []): void
 {
     attendanceWageGuard();
     $user = attendanceWageUser();
+    $employees = [];
+    try {
+        $stmt = aw_db()->prepare("SELECT user_id, CONCAT_WS(' ', first_name, middle_name, last_name, suffix) AS full_name FROM employee_profiles WHERE tenant_id=:tid AND is_active=1 ORDER BY last_name,first_name");
+        $stmt->execute([':tid' => (string)aw_tenant_id()]);
+        $employees = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {}
     echo app()->render('modules/attendance-wage/wage/deductions/form', [
+        'employees'         => $employees,
         'active_nav'        => 'deductions',
         'current_user_role' => $user['role'] ?? '',
     ]);

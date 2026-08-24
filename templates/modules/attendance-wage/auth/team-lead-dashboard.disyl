@@ -100,9 +100,9 @@
                         {set total_hours = total_hours + a.hours_worked}
                         <tr class="border-b border-gray-200">
                             <td class="py-2 px-3 text-sm">{a.employee_name}<br><span class="text-xs text-gray-500">{a.position|default:''}{if a.salary_type} · {a.salary_type}{/if}</span></td>
-                            <td class="py-2 px-3 text-xs">{a.clock_in|substr:0:10}</td>
-                            <td class="py-2 px-3 text-xs text-center">{a.clock_in|substr:11:8}</td>
-                            <td class="py-2 px-3 text-xs text-center">{if a.clock_out}{a.clock_out|substr:11:8}{else}—{/if}</td>
+                            <td class="py-2 px-3 text-xs">{a.clock_in}</td>
+                            <td class="py-2 px-3 text-xs text-center">{a.clock_in}</td>
+                            <td class="py-2 px-3 text-xs text-center">{if a.clock_out}{a.clock_out}{else}—{/if}</td>
                             <td class="py-2 px-3 text-xs text-right font-medium">{a.hours_worked|default:0}</td>
                             <td class="py-2 px-3 text-xs text-gray-600">{a.location_in|default:'—'}</td>
                             <td class="py-2 px-3 text-xs text-gray-600">{a.location_out|default:'—'}</td>

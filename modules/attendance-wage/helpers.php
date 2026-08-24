@@ -180,7 +180,7 @@ function aw_cap_entity_list_attendance_record_1(mixed $payload, string $capabili
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT ar.attendance_id AS id, u.full_name AS employee_name, s.name AS store_name, ar.clock_in, ar.clock_out, ar.status, ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60, 1) AS hours, ar.created_at FROM attendance_records ar JOIN attendance_wage_users u ON u.id = ar.user_id LEFT JOIN stores s ON s.store_id = ar.store_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT ar.attendance_id AS id, u.full_name AS employee_name, COALESCE(ar.location_in, '—') AS store_name, ar.clock_in, ar.clock_out, ar.status, ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60, 1) AS hours, ar.created_at FROM attendance_records ar JOIN attendance_wage_users u ON u.id = ar.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM attendance_records')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -205,6 +205,8 @@ function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilit
             'department'        => 'department',
             'salary_type'       => 'salary_type',
             'basic_salary'      => 'basic_salary',
+            'hourly_rate'       => 'hourly_rate',
+            'daily_rate'        => "CASE WHEN salary_type = 'daily' THEN basic_salary ELSE 0 END",
             'employment_status' => 'employment_status',
             'account_status'    => "CASE WHEN is_active = 1 THEN 'active' ELSE 'deactivated' END",
             'hire_date'         => 'hire_date',
@@ -217,7 +219,7 @@ function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilit
 function aw_cap_entity_list_payroll_period_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $limit = min((int)($payload['limit'] ?? 12), 50);
-    $sortField = aw_allowedSort($payload, 'start_date', ['period_id', 'period_name', 'start_date', 'end_date', 'status', 'total_gross', 'total_net']);
+    $sortField = aw_allowedSort($payload, 'start_date', ['period_id', 'period_name', 'start_date', 'end_date', 'status', 'total_gross', 'total_net_pay']);
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
@@ -225,7 +227,7 @@ function aw_cap_entity_list_payroll_period_1(mixed $payload, string $capabilityI
             "SELECT pp.period_id AS id, pp.period_name, pp.period_type,
                     pp.start_date, pp.end_date, pp.pay_date, pp.status,
                     COALESCE(pp.total_gross_pay, 0) AS total_gross,
-                    COALESCE(pp.total_net_pay, 0) AS total_net,
+                    COALESCE(pp.total_net_pay, 0) AS total_net_pay,
                     (SELECT COUNT(*) FROM salary_computations sc WHERE sc.payroll_period_id = pp.period_id) AS comp_count
              FROM payroll_periods pp
              ORDER BY {$sortField} {$sortDir}
@@ -795,12 +797,15 @@ function aw_calculateAttendanceHours(int $userId, string $startDate, string $end
 
     $reg=0.0;$ot=0.0;$dot=0.0;$hol=0.0;$ns=0.0;$rd=0.0;$weekly=[];
     $maxD=(float)($profile['max_daily_hours']??8);$maxW=(float)($profile['max_weekly_hours']??40);
+    $roundTo = (float)(aw_payrollSettings()['round_hours_to'] ?? 0);
     $otOk=(bool)($profile['overtime_allowed']??1);$holOk=(bool)($profile['holiday_pay_enabled']??1);
     $nsOk=(bool)($profile['night_diff_enabled']??1);$rdOk=(bool)($profile['rest_day_pay_enabled']??1);
 
     foreach($records as $rec){
         $ci=new \DateTime($rec['clock_in']); $co=new \DateTime($rec['clock_out']);
-        $th=($co->getTimestamp()-$ci->getTimestamp())/3600.0; $dt=$ci->format('Y-m-d'); $wk=$ci->format('Y-W');
+        $th=($co->getTimestamp()-$ci->getTimestamp())/3600.0;
+        if ($roundTo > 0) $th = round($th / $roundTo) * $roundTo;
+        $dt=$ci->format('Y-m-d'); $wk=$ci->format('Y-W');
         if(!isset($weekly[$wk]))$weekly[$wk]=0.0;
         if(aw_isHoliday($dt)&&$holOk){$hol+=$th;continue;}
         if(aw_isRestDay($userId,$dt,$profile)&&$rdOk){$rd+=$th;continue;}
@@ -826,23 +831,51 @@ function aw_calculateAttendanceHours(int $userId, string $startDate, string $end
 
 function aw_calculateBenefits(float $grossPay): array
 {
-    $db=aw_db(); $r=['sss'=>['employee'=>0.0,'employer'=>0.0],'philhealth'=>['employee'=>0.0,'employer'=>0.0],'pagibig'=>['employee'=>0.0,'employer'=>0.0]];
-    foreach(['sss','philhealth','pagibig'] as $t){
+    $db = aw_db();
+    $tenantId = (string)aw_tenant_id();
+    $result = [];
+
+    foreach (['sss', 'philhealth', 'pagibig'] as $type) {
         try {
-            $s=$db->prepare("SELECT employee_share_pct,employer_share_pct,employee_fixed,employer_fixed,min_contribution,max_contribution FROM benefits_contribution_rates WHERE benefit_type=:t AND is_active=1 AND effective_date<=CURDATE() AND salary_from<=:s AND (salary_to IS NULL OR salary_to>=:s2) ORDER BY effective_date DESC LIMIT 1");
-            $s->execute([':t'=>$t,':s'=>$grossPay,':s2'=>$grossPay]); $rate=$s->fetch(\PDO::FETCH_ASSOC);
-            if($rate){
-                $e=$rate['employee_fixed']??($grossPay*(float)$rate['employee_share_pct']); $e=max((float)($rate['min_contribution']??0),min($e,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employee']=round($e,2);
-                $er=$rate['employer_fixed']??($grossPay*(float)$rate['employer_share_pct']); $er=max((float)($rate['min_contribution']??0),min($er,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employer']=round($er,2);
-            } else {
-                $r[$t] = aw_defaultBenefitsRate($t, $grossPay);
+            $stmt = $db->prepare(
+                'SELECT employee_share_pct, employer_share_pct, employee_fixed, employer_fixed, min_contribution, max_contribution '
+                . 'FROM benefits_contribution_rates '
+                . 'WHERE tenant_id = :tenant_id AND benefit_type = :type AND is_active = 1 '
+                . 'AND effective_date <= CURDATE() AND salary_from <= :salary_from '
+                . 'AND (salary_to IS NULL OR salary_to >= :salary_to) '
+                . 'ORDER BY effective_date DESC LIMIT 1'
+            );
+            $stmt->execute([
+                ':tenant_id' => $tenantId,
+                ':type' => $type,
+                ':salary_from' => $grossPay,
+                ':salary_to' => $grossPay,
+            ]);
+            $rate = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!is_array($rate)) {
+                $result[$type] = aw_defaultBenefitsRate($type, $grossPay);
+                continue;
             }
-        } catch (\Throwable $e) {
-            // DB table missing or query failed — fall back to hardcoded statutory rates
-            $r[$t] = aw_defaultBenefitsRate($t, $grossPay);
+
+            $minimum = $rate['min_contribution'] === null ? 0.0 : (float)$rate['min_contribution'];
+            $maximum = $rate['max_contribution'] === null ? PHP_FLOAT_MAX : (float)$rate['max_contribution'];
+            $employee = $rate['employee_fixed'] === null
+                ? $grossPay * (float)$rate['employee_share_pct']
+                : (float)$rate['employee_fixed'];
+            $employer = $rate['employer_fixed'] === null
+                ? $grossPay * (float)$rate['employer_share_pct']
+                : (float)$rate['employer_fixed'];
+            $result[$type] = [
+                'employee' => round(max($minimum, min($employee, $maximum)), 2),
+                'employer' => round(max($minimum, min($employer, $maximum)), 2),
+            ];
+        } catch (\Throwable $exception) {
+            // Missing contribution schema is supported by statutory fallbacks.
+            $result[$type] = aw_defaultBenefitsRate($type, $grossPay);
         }
     }
-    return $r;
+
+    return $result;
 }
 
 function aw_defaultBenefitsRate(string $type, float $grossPay): array

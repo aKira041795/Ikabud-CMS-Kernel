@@ -132,11 +132,21 @@ function awPageAttendanceGroupForm(array $rp = []): void
     [, $tenantId, $db] = awGroupContext($user);
 
     $groupId = (int)($rp['id'] ?? $_GET['id'] ?? 0);
-    $group = null;
+    $group = [
+        'group_id' => 0,
+        'name' => '',
+        'leader_profile_id' => 0,
+        'pal_team_lead_email' => '',
+        'description' => '',
+        'members' => [],
+    ];
 
     if ($groupId > 0) {
         $svc = awGroupService($user, $db, $tenantId);
-        $group = $svc->get($groupId);
+        $storedGroup = $svc->get($groupId);
+        if (is_array($storedGroup)) {
+            $group = $storedGroup + $group;
+        }
     }
 
     $employees = $db->prepare("
@@ -149,10 +159,10 @@ function awPageAttendanceGroupForm(array $rp = []): void
     $employees->execute([':tid' => $tenantId]);
 
     echo app()->render('modules/attendance-wage/wage/groups/form', [
-        'page_title' => $group ? 'Edit Group' : 'Create Group',
+        'page_title' => $groupId > 0 ? 'Edit Group' : 'Create Group',
         'active_nav' => 'groups',
         'group' => $group,
-        'is_edit' => $group !== null,
+        'is_edit' => $groupId > 0,
         'employees' => $employees->fetchAll(PDO::FETCH_ASSOC),
         'current_user_role' => $user['role'] ?? '',
     ]);

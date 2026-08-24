@@ -60,6 +60,12 @@ function kioskApiClock(array $params = []): void
     $longitude = (float)($input['longitude'] ?? 0);
     $photoData = (string)($input['photo_data'] ?? ''); // base64-encoded image
     $onsitePlace = trim((string)($input['onsite_place'] ?? ''));
+    $explicitAction = trim((string)($input['action'] ?? ''));
+
+    if ($explicitAction !== '' && !in_array($explicitAction, ['clock_in', 'clock_out'], true)) {
+        awJson(['ok' => false, 'error' => 'Action must be clock_in or clock_out.'], 422);
+        return;
+    }
 
     // Auto-resolve place name from GPS if client didn't provide one
     if ($onsitePlace === '' && $latitude !== 0.0 && $longitude !== 0.0) {
@@ -165,16 +171,26 @@ function kioskApiClock(array $params = []): void
             }
         }
 
-        // Smart clock-in/out detection: check if already clocked in today
+        // Resolve the current transition. Explicit actions reject duplicate state
+        // changes; omission retains the legacy smart-toggle contract.
         $existing = $db->prepare(
             "SELECT attendance_id, clock_in FROM attendance_records
-             WHERE user_id = :uid AND DATE(clock_in) = CURDATE() AND clock_out IS NULL
+             WHERE tenant_id = :tid AND user_id = :uid AND clock_out IS NULL
              ORDER BY clock_in DESC LIMIT 1"
         );
-        $existing->execute([':uid' => $userId]);
+        $existing->execute([':tid' => $tid, ':uid' => $userId]);
         $activeRecord = $existing->fetch(\PDO::FETCH_ASSOC);
 
-        $isClockIn = !$activeRecord;
+        if ($explicitAction === 'clock_in' && $activeRecord) {
+            awJson(['ok' => false, 'error' => 'Employee is already clocked in. Duplicate clock-in rejected.'], 409);
+            return;
+        }
+        if ($explicitAction === 'clock_out' && !$activeRecord) {
+            awJson(['ok' => false, 'error' => 'Employee is not clocked in. Duplicate clock-out rejected.'], 409);
+            return;
+        }
+
+        $isClockIn = $explicitAction !== '' ? $explicitAction === 'clock_in' : !$activeRecord;
         $photoFilename = null;
 
         // Save photo if provided

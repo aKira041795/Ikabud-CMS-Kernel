@@ -24,6 +24,9 @@ function attendancePageRecords(array $params = []): void
     $records = [];
     $selectedEmployee = null;
     $selectedRecords = [];
+    // Render contract: the template always receives a string, including the
+    // all-employees, unknown-employee, empty-history, and database-error paths.
+    $renderedRecordsTable = '';
     $employeeId = (int)($_GET['employee_id'] ?? 0);
     $exportCsv = ($_GET['export'] ?? '') === 'csv';
 
@@ -90,7 +93,6 @@ function attendancePageRecords(array $params = []): void
                 // The entity view handles: location with coordinates (location renderer),
                 // photos with click-to-view (image renderer), inline editing for hours
                 // (field_contracts → renderCellEditable in renderTableRow).
-                $renderedRecordsTable = '';
                 if (!empty($selectedRecords) && function_exists('app') && ($app = app()) !== null && method_exists($app, 'entityRenderers')) {
                     try {
                         $rows = [];

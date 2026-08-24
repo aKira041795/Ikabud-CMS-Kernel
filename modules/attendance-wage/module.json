@@ -22,7 +22,8 @@
         "payroll_settings",
         "office_locations",
         "attendance_groups",
-        "attendance_group_members"
+        "attendance_group_members",
+        "attendance_team_lead_otps"
     ],
     "reads_tables": [
         "audit_logs",
@@ -309,7 +310,10 @@
         "database/migrations/021_add_lat_lng_to_attendance_records.sql",
         "database/migrations/022_add_employee_photo_url.sql",
         "database/migrations/023_add_thirteenth_month_enabled.sql",
-        "database/migrations/024_create_attendance_groups.sql"
+        "database/migrations/024_create_attendance_groups.sql",
+        "database/migrations/025_attendance_username_case_sensitive.sql",
+        "database/migrations/026_create_team_lead_otps.sql",
+        "database/migrations/027_cash_advance_repayment_idempotency.sql"
     ],
     "nav": [
         {

@@ -156,7 +156,8 @@
             "payroll_settings",
             "office_locations",
             "attendance_groups",
-            "attendance_group_members"
+            "attendance_group_members",
+            "attendance_team_lead_otps"
         ],
         "shared_with": [
             {

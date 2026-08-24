@@ -113,6 +113,30 @@ function wageApiEmployeeCreate(array $params = []): void
 
     try {
         $db = aw_db();
+        $db->beginTransaction();
+        // employee_profiles.user_id is mandatory. Employee creation is the
+        // product surface for that identity, so create its least-privilege
+        // module account atomically rather than leaving an orphan profile.
+        $identityKey = strtolower(trim((string)preg_replace('/[^a-zA-Z0-9]+/', '-', $empNo !== '' ? $empNo : ($firstName . '-' . $lastName)), '-'));
+        if ($identityKey === '') $identityKey = bin2hex(random_bytes(6));
+        $employeeUsername = 'aw-employee-' . $identityKey;
+        $employeeEmail = $employeeUsername . '@attendance-wage.invalid';
+        $existingIdentity = $db->prepare("SELECT id FROM attendance_wage_users WHERE username=:username AND role='employee' LIMIT 1");
+        $existingIdentity->execute([':username' => $employeeUsername]);
+        $employeeUserId = (int)($existingIdentity->fetchColumn() ?: 0);
+        if ($employeeUserId > 0) {
+            $db->prepare("UPDATE attendance_wage_users SET email=:email,full_name=:full_name,is_active=1 WHERE id=:id AND role='employee'")
+                ->execute([':email' => $employeeEmail, ':full_name' => trim($firstName . ' ' . $middleName . ' ' . $lastName . ' ' . $suffix), ':id' => $employeeUserId]);
+        } else {
+            $identity = $db->prepare("INSERT INTO attendance_wage_users (username,email,password_hash,full_name,role,is_active) VALUES (:username,:email,:password_hash,:full_name,'employee',1)");
+            $identity->execute([
+                ':username' => $employeeUsername,
+                ':email' => $employeeEmail,
+                ':password_hash' => password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                ':full_name' => trim($firstName . ' ' . $middleName . ' ' . $lastName . ' ' . $suffix),
+            ]);
+            $employeeUserId = (int)$db->lastInsertId();
+        }
         static $hasPhotoColInsert = null;
         if ($hasPhotoColInsert === null) {
             try { $c = $db->query("SHOW COLUMNS FROM employee_profiles LIKE 'photo_url'"); $hasPhotoColInsert = (bool)$c->fetch(); } catch (\Throwable $e) { $hasPhotoColInsert = false; }
@@ -121,14 +145,14 @@ function wageApiEmployeeCreate(array $params = []): void
         $photoValPart = $hasPhotoColInsert ? ', :photo' : '';
         $stmt = $db->prepare(
             "INSERT INTO employee_profiles
-                (tenant_id, first_name, last_name, middle_name, suffix, employee_number, position, department,
+                (tenant_id, user_id, first_name, last_name, middle_name, suffix, employee_number, position, department,
                  hire_date, employment_status, salary_type, basic_salary, hourly_rate,
                  overtime_allowed, overtime_rate, max_daily_hours, max_weekly_hours,
                  holiday_pay_enabled, rest_day_pay_enabled, night_diff_enabled, cash_advance_allowed, thirteenth_month_enabled, onsite_attendance,
                  sss_number, sss_applicable, philhealth_number, philhealth_applicable,
                  pagibig_number, pagibig_applicable, tin_number, tax_exemption_status{$photoColPart})
              VALUES
-                (:tid, :fn, :ln, :mn, :sx, :en, :pos, :dept,
+                (:tid, :uid, :fn, :ln, :mn, :sx, :en, :pos, :dept,
                  :hd, :es, :st, :bs, :hr,
                  :oa, :or, :mdh, :mwh,
                  :hp, :rdp, :nd, :ca, :t13, :osa,
@@ -136,7 +160,7 @@ function wageApiEmployeeCreate(array $params = []): void
                  :pag, :paga, :tin, :tx{$photoValPart})"
         );
         $params = [
-            ':tid' => app()->tenant()->current() ?? '',
+            ':tid' => (string)aw_tenant_id(), ':uid' => $employeeUserId,
             ':fn' => $firstName, ':ln' => $lastName, ':mn' => $middleName, ':sx' => $suffix,
             ':en' => $empNo, ':pos' => $position, ':dept' => $department, ':hd' => $hireDate ?: null,
             ':es' => $status, ':st' => $salaryType, ':bs' => $basicSalary, ':hr' => $hourlyRate,
@@ -150,6 +174,7 @@ function wageApiEmployeeCreate(array $params = []): void
         if ($hasPhotoColInsert) { $params[':photo'] = $photoUrl; }
         $stmt->execute($params);
         $id = (int)$db->lastInsertId();
+        $db->commit();
         $isFormPost = !str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json');
         if ($isFormPost) {
             header('Location: ' . awBaseUrl() . '/admin/wage/employees?success=Employee+created+successfully');
@@ -157,6 +182,7 @@ function wageApiEmployeeCreate(array $params = []): void
         }
         awJsonOut(['ok' => true, 'message' => 'Employee profile created', 'id' => $id]);
     } catch (\Throwable $e) {
+        if (isset($db) && $db instanceof \PDO && $db->inTransaction()) $db->rollBack();
         $isFormPost = !str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json');
         if ($isFormPost) {
             header('Location: ' . awBaseUrl() . '/admin/wage/employees?error=' . urlencode($e->getMessage()));
