@@ -5,6 +5,8 @@ Local client for the **HARPP module's harness bridge** — lets your AI harness
 the owner, poll for decisions/replies, and post status, exactly as the
 **Decision MCP Bridge** was designed.
 
+> **Module + full installation/deployment:** see [`modules/harpp/README.md`](../../modules/harpp/README.md).
+
 **Zero dependencies** — Python stdlib only. Nothing is installed on the server.
 
 ## Components
