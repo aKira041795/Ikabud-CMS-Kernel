@@ -1,0 +1,6 @@
+{include "workbench:app_shell" shell=printing_shell_ctx}
+    {csrf_field|raw}
+    <div class="pal-page">
+        {page_body|raw}
+    </div>
+{/include}

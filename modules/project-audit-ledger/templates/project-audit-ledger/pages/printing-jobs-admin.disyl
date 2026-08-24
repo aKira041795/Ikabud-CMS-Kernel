@@ -1,0 +1,48 @@
+<div class="wb-panel">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Print Jobs</span>
+        {if can_create_print_jobs}<a href="/admin/project-audit-ledger/printing/jobs/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Create Print Job</a>{/if}
+    </div>
+    <div class="wb-panel__body--flush overflow-x-auto">
+        <table class="w-full text-sm wb-table wb-table--sticky">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left py-3 px-3">Job #</th>
+                    <th class="text-left py-3 px-3">Client</th>
+                    <th class="text-left py-3 px-3">Material</th>
+                    <th class="text-left py-3 px-3">Size</th>
+                    <th class="text-left py-3 px-3">Qty</th>
+                    <th class="text-left py-3 px-3">Cost</th>
+                    <th class="text-left py-3 px-3">Status</th>
+                    <th class="text-left py-3 px-3">Comments</th>
+                    <th class="text-left py-3 px-3">Completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for job in jobs|default:[]}
+                <tr class="border-b border-gray-100 align-top">
+                    <td class="py-3 px-3 font-medium">{job.job_number}</td>
+                    <td class="py-3 px-3">{job.client_name}</td>
+                    <td class="py-3 px-3">{job.material_label}</td>
+                    <td class="py-3 px-3">{job.display_size|default:'—'}</td>
+                    <td class="py-3 px-3">{job.quantity|number_format:2}</td>
+                    <td class="py-3 px-3">₱{job.cost|number_format:2}</td>
+                    <td class="py-3 px-3"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if job.status=='done'}bg-green-100 text-green-700{else}bg-amber-100 text-amber-700{/if}">{job.status}</span></td>
+                    <td class="py-3 px-3 text-xs">
+                        {if job.comment_option_label}<div>{job.comment_option_label}</div>{/if}
+                        {if job.comment_text}<div class="text-gray-500">{job.comment_text}</div>{/if}
+                        {if !job.comment_option_label && !job.comment_text}—{/if}
+                    </td>
+                    <td class="py-3 px-3 text-xs">
+                        {if job.completed_by_name}{job.completed_by_name}<br>{/if}
+                        {if job.completed_at}{job.completed_at}{else}—{/if}
+                    </td>
+                </tr>
+                {/for}
+                {if jobs|count == 0}
+                <tr><td colspan="9" class="py-10 text-center text-gray-500">No print jobs found.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>

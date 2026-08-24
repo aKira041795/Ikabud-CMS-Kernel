@@ -37,6 +37,7 @@ require_once __DIR__ . '/handlers/52-quotations.php';
 require_once __DIR__ . '/handlers/53-team-lead.php';
 require_once __DIR__ . '/handlers/55-approvals.php';
 require_once __DIR__ . '/handlers/57-cash-advances.php';
+require_once __DIR__ . '/handlers/58-printing.php';
 require_once __DIR__ . '/handlers/59-bom.php';
 require_once __DIR__ . '/handlers/60-reports.php';
 require_once __DIR__ . '/handlers/65-audit.php';

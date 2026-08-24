@@ -80,7 +80,8 @@
         "pal_otp_codes",
         "pal_mobilization_requests",
         "pal_receivables",
-        "pal_receivable_payments"
+        "pal_receivable_payments",
+        "pal_print_jobs"
     ],
     "reads_tables": [
         "kernel_tenants",
@@ -113,7 +114,8 @@
         "database/migrations/019_pal_allocation_idempotency.sql",
         "database/migrations/020_pal_username_case_sensitive.sql",
         "database/migrations/021_pal_mobilization_attendance_snapshot.sql",
-        "database/migrations/022_pal_reconciliation.sql"
+        "database/migrations/022_pal_reconciliation.sql",
+        "database/migrations/023_pal_print_jobs.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -387,6 +389,22 @@
                     "first"
                 ],
                 "description": "Manage cash advances"
+            },
+            {
+                "id": "pal.print.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View print jobs"
+            },
+            {
+                "id": "pal.print.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create or update print jobs"
             },
             {
                 "id": "pal.mobilization.read@1",
@@ -718,6 +736,15 @@
         },
         {
             "key": "pal.report.generated"
+        },
+        {
+            "key": "pal.print_job.created"
+        },
+        {
+            "key": "pal.print_job.completed"
+        },
+        {
+            "key": "pal.print_job.comment_updated"
         }
     ],
     "settings_fields": [
@@ -943,6 +970,11 @@
                     "label": "Cash Advances",
                     "url": "/admin/project-audit-ledger/cash-advances",
                     "icon": "banknote"
+                },
+                {
+                    "label": "Printing",
+                    "url": "/admin/project-audit-ledger/printing/jobs",
+                    "icon": "printer"
                 }
             ]
         },

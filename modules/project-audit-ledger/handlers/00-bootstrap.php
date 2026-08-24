@@ -29,7 +29,7 @@ function palEnforceCsrf(): void
     app()->csrfEnforce();
 }
 
-function palCurrentUser(array $roles = ['admin', 'supervisor', 'encoder']): array
+function palCurrentUser(array $roles = ['admin', 'supervisor', 'encoder', 'printer']): array
 {
     // Check user directly — don't call App::requireAuth() which redirects
     // to kernel /login on expiry. We redirect to PAL login instead.

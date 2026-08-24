@@ -9,7 +9,7 @@ function palPageLogin(): void
 {
     $user = app()->user();
     if ($user !== null && is_array($user) && palIsModuleUser($user)) {
-        app()->redirect('/admin/project-audit-ledger');
+        app()->redirect(palLoginRedirectPath($user));
         return;
     }
 
@@ -178,10 +178,10 @@ function palAuthLogin(): void
 
     if (!empty($input)) {
         header('Content-Type: application/json');
-        echo json_encode(['ok' => true, 'redirect' => '/admin/project-audit-ledger']);
+        echo json_encode(['ok' => true, 'redirect' => palLoginRedirectPath($payload)]);
         exit;
     }
-    app()->redirect('/admin/project-audit-ledger');
+    app()->redirect(palLoginRedirectPath($payload));
 }
 
 /**

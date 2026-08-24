@@ -46,7 +46,7 @@ function palApiUserStore(): void
             return;
         }
 
-        if (!in_array($role, ['admin', 'supervisor', 'encoder'], true)) {
+        if (!in_array($role, ['admin', 'supervisor', 'encoder', 'printer'], true)) {
             palJsonError('Invalid role.');
             return;
         }
@@ -119,7 +119,7 @@ function palApiUserUpdate(array $routeParams = []): void
             $params[':full_name'] = $_POST['full_name'];
         }
         if (isset($_POST['role'])) {
-            if (!in_array($_POST['role'], ['admin', 'supervisor', 'encoder'], true)) {
+            if (!in_array($_POST['role'], ['admin', 'supervisor', 'encoder', 'printer'], true)) {
                 palJsonError('Invalid role.');
                 return;
             }

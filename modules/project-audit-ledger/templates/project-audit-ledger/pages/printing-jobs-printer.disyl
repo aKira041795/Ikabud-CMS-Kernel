@@ -1,0 +1,107 @@
+<div class="wb-panel">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Pending Print Jobs</span>
+        <span class="text-xs text-gray-500">{jobs|count} pending</span>
+    </div>
+    <div class="wb-panel__body--flush overflow-x-auto">
+        <table class="w-full text-sm wb-table wb-table--sticky">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left py-3 px-3">Job #</th>
+                    <th class="text-left py-3 px-3">Client</th>
+                    <th class="text-left py-3 px-3">Material</th>
+                    <th class="text-left py-3 px-3">Size</th>
+                    <th class="text-left py-3 px-3">Qty</th>
+                    <th class="text-left py-3 px-3">Comments / Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for job in jobs|default:[]}
+                <tr class="border-b border-gray-100 align-top" data-print-job-row="{job.id}">
+                    <td class="py-3 px-3 font-medium">{job.job_number}</td>
+                    <td class="py-3 px-3">{job.client_name}</td>
+                    <td class="py-3 px-3">{job.material_label}</td>
+                    <td class="py-3 px-3">{job.display_size|default:'—'}</td>
+                    <td class="py-3 px-3">{job.quantity|number_format:2}</td>
+                    <td class="py-3 px-3">
+                        <div class="space-y-2 max-w-md">
+                            <select name="comment_option_key" class="wb-select" data-print-job-option="{job.id}">
+                                <option value="">— Preset comment —</option>
+                                {for option in comment_options|default:[]}
+                                <option value="{option.key}"{if job.comment_option_key==option.key} selected{/if}>{option.label}</option>
+                                {/for}
+                            </select>
+                            <textarea name="comment_text" rows="2" class="wb-textarea" placeholder="Optional note" data-print-job-note="{job.id}">{job.comment_text}</textarea>
+                            <div class="flex gap-2">
+                                <button type="button" class="wb-btn wb-btn--secondary wb-btn--sm" onclick="palSavePrintComment({job.id})">Save Comment</button>
+                                <button type="button" class="wb-btn wb-btn--primary wb-btn--sm" onclick="palCompletePrintJob({job.id})">Mark Done</button>
+                            </div>
+                            <p class="text-xs text-gray-500 hidden" data-print-job-status="{job.id}"></p>
+                        </div>
+                    </td>
+                </tr>
+                {/for}
+                {if jobs|count == 0}
+                <tr><td colspan="6" class="py-10 text-center text-gray-500">No pending print jobs.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function(){
+    function token() {
+        var el = document.querySelector('input[name="_token"]');
+        return el ? el.value : '';
+    }
+    async function post(url, payload) {
+        payload = payload || {};
+        if (!payload._token) payload._token = token();
+        var body = new URLSearchParams(payload);
+        var res = await fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        });
+        var json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Request failed');
+        return json;
+    }
+    function payloadFor(jobId) {
+        var option = document.querySelector('[data-print-job-option="' + jobId + '"]');
+        var note = document.querySelector('[data-print-job-note="' + jobId + '"]');
+        return {
+            comment_option_key: option ? option.value : '',
+            comment_text: note ? note.value : ''
+        };
+    }
+    function setStatus(jobId, message, ok) {
+        var el = document.querySelector('[data-print-job-status="' + jobId + '"]');
+        if (!el) return;
+        el.textContent = message;
+        el.classList.remove('hidden');
+        el.classList.toggle('text-green-600', !!ok);
+        el.classList.toggle('text-red-600', !ok);
+    }
+    window.palSavePrintComment = async function(jobId) {
+        try {
+            await post('/api/v1/project-audit-ledger/printing/jobs/' + jobId + '/comment', payloadFor(jobId));
+            setStatus(jobId, 'Comment saved.', true);
+        } catch (err) {
+            setStatus(jobId, err.message || 'Save failed.', false);
+        }
+    };
+    window.palCompletePrintJob = async function(jobId) {
+        try {
+            await post('/api/v1/project-audit-ledger/printing/jobs/' + jobId + '/complete', payloadFor(jobId));
+            setStatus(jobId, 'Completed.', true);
+            var row = document.querySelector('[data-print-job-row="' + jobId + '"]');
+            if (row) row.remove();
+        } catch (err) {
+            setStatus(jobId, err.message || 'Completion failed.', false);
+        }
+    };
+})();
+</script>

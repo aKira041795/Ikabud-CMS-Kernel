@@ -1,0 +1,36 @@
+<div class="max-w-4xl">
+    <div class="wb-panel p-6">
+        <h2 class="font-semibold text-gray-900 mb-4">Create Print Job</h2>
+        <form onsubmit="return ajaxSubmit(this, 'Print job created')" action="/api/v1/project-audit-ledger/printing/jobs" method="POST" class="space-y-4">
+            {csrf_field | raw}
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="wb-label">Job Number *</label><input type="text" name="job_number" required class="wb-input"></div>
+                <div><label class="wb-label">Source Sale Item</label><select name="sale_item_id" class="wb-select"><option value="">— Manual entry —</option>{for item in sale_items|default:[]}<option value="{item.id}">{item.sale_number} — {item.client_name} — {item.material_label}{if item.size_label} ({item.size_label}){/if}</option>{/for}</select></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="wb-label">Project</label><select name="project_id" class="wb-select"><option value="">—</option>{for project in projects|default:[]}<option value="{project.id}">{if project.job_order_number}{project.job_order_number} — {/if}{project.title}</option>{/for}</select></div>
+                <div><label class="wb-label">Sale</label><select name="sale_id" class="wb-select"><option value="">—</option>{for sale in sales|default:[]}<option value="{sale.id}">{sale.sale_number}{if sale.client_name} — {sale.client_name}{/if}</option>{/for}</select></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="wb-label">Client Name *</label><input type="text" name="client_name" class="wb-input"></div>
+                <div><label class="wb-label">Material</label><select name="material_id" class="wb-select"><option value="">—</option>{for material in materials|default:[]}<option value="{material.id}">{material.name}</option>{/for}</select></div>
+            </div>
+            <div><label class="wb-label">Material Label *</label><input type="text" name="material_label" class="wb-input"></div>
+            <div class="grid grid-cols-4 gap-4">
+                <div><label class="wb-label">Width</label><input type="number" step="0.01" name="width" class="wb-input"></div>
+                <div><label class="wb-label">Height</label><input type="number" step="0.01" name="height" class="wb-input"></div>
+                <div><label class="wb-label">Unit</label><input type="text" name="size_unit" class="wb-input" placeholder="in"></div>
+                <div><label class="wb-label">Size Label</label><input type="text" name="size_label" class="wb-input" placeholder="24 x 36 in"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="wb-label">Quantity *</label><input type="number" step="0.01" min="0.01" name="quantity" value="1" class="wb-input"></div>
+                <div><label class="wb-label">Cost</label><input type="number" step="0.01" min="0" name="cost" value="0" class="wb-input"></div>
+            </div>
+            <div class="flex gap-3">
+                <button type="submit" class="wb-btn wb-btn--primary">Create Print Job</button>
+                <a href="/admin/project-audit-ledger/printing/jobs" class="wb-btn wb-btn--secondary">Cancel</a>
+            </div>
+            <p class="text-xs text-gray-500">If a source sale item is selected, snapshot values are copied from it.</p>
+        </form>
+    </div>
+</div>

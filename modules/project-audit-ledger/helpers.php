@@ -48,6 +48,8 @@ function project_audit_ledger_capability_handlers(): array
         'pal.sales.items.manage@1' => 'pal_cap_sales_items_manage_1',
         'pal.cash_advances.read@1' => 'pal_cap_cash_advances_read_1',
         'pal.cash_advances.write@1' => 'pal_cap_cash_advances_write_1',
+        'pal.print.read@1' => 'pal_cap_print_read_1',
+        'pal.print.write@1' => 'pal_cap_print_write_1',
         'pal.mobilization.read@1' => 'pal_cap_mobilization_read_1',
         'pal.mobilization.write@1' => 'pal_cap_mobilization_write_1',
         'entity.list.pal_project@1' => 'pal_cap_entity_list_project_1',
@@ -108,7 +110,7 @@ function palCapCheck(array $allowedRoles): array
 function pal_cap_read_1(array $args): array
 {
     // Basic read — any authenticated module user
-    return palCapCheck(['admin', 'supervisor', 'encoder']);
+    return palCapCheck(['admin', 'supervisor', 'encoder', 'printer']);
 }
 
 function pal_cap_manage_1(array $args): array
@@ -684,6 +686,38 @@ function palSetAuthCookie(string $token, int $expiresInSeconds = 86400): void
     ]);
 }
 
+function palPrintCommentOptions(): array
+{
+    return [
+        ['key' => 'done', 'label' => 'Done'],
+        ['key' => 'rush_on_hold', 'label' => 'Rush — on hold'],
+        ['key' => 'needs_revision', 'label' => 'Needs revision'],
+        ['key' => 'waiting_material', 'label' => 'Waiting for material'],
+        ['key' => 'client_hold', 'label' => 'Client hold'],
+        ['key' => 'reprint_required', 'label' => 'Reprint required'],
+    ];
+}
+
+function palPrintCommentLabel(?string $key): string
+{
+    if ($key === null || $key === '') {
+        return '';
+    }
+    foreach (palPrintCommentOptions() as $option) {
+        if (($option['key'] ?? '') === $key) {
+            return (string)($option['label'] ?? '');
+        }
+    }
+    return $key;
+}
+
+function palLoginRedirectPath(array $user): string
+{
+    return (($user['role'] ?? '') === 'printer')
+        ? '/admin/project-audit-ledger/printing'
+        : '/admin/project-audit-ledger';
+}
+
 function palLoginPageContext(array $overrides = []): array
 {
     $baseUrl = palBaseUrl();
@@ -807,6 +841,7 @@ function palDb(): Ikabud\Kernel\Contracts\ModuleDB
             'pal_fabrication_weekly_dues', 'pal_fabrication_payments', 'pal_team_leads',
             'pal_approvals', 'pal_attachments', 'pal_audit_logs', 'pal_report_exports',
             'pal_settings', 'pal_quotations', 'pal_quotation_items', 'pal_cash_advances',
+            'pal_print_jobs',
             'pal_otp_codes', 'pal_mobilization_requests',
             'pal_receivables', 'pal_receivable_payments',
         ],
@@ -822,6 +857,41 @@ function palDb(): Ikabud\Kernel\Contracts\ModuleDB
  * Lives in PHP to avoid DiSyL scale limits with deeply nested arrays.
  */
 use Ikabud\ApplicationProfiles\ArkWorkbench\ApplicationShellViewModel;
+
+function palBuildPrintingShellContext(array $ctx): array
+{
+    $user = $ctx['current_user'] ?? [];
+    $pc = $ctx['page_content'] ?? '';
+
+    $shell = ApplicationShellViewModel::create()
+        ->withAppName($ctx['pal_app_name'] ?? 'Project Audit Ledger')
+        ->withLogoUrl(!empty($ctx['pal_logo_path']) ? '/' . $ctx['pal_logo_path'] : '')
+        ->withUser($user)
+        ->withPageTitle($ctx['page_title'] ?? '')
+        ->withCurrentRoute($pc)
+        ->withInspectMode(!empty($_GET['wb_inspect']));
+
+    $shell->addNavSection('Printing', [
+        ['label' => 'Pending Jobs', 'url' => '/admin/project-audit-ledger/printing', 'icon_key' => '🖨', 'routes' => ['printing-jobs-printer', 'printing-home']],
+    ]);
+    $shell->addUserAction('Sign Out', '/api/v1/project-audit-ledger/auth/logout');
+    $shell->addMobileNav('Print Jobs', '/admin/project-audit-ledger/printing', '🖨');
+
+    $palAssetVer = function (string $path): string {
+        $full = dirname(__DIR__, 2) . '/public' . $path;
+        $mtime = is_file($full) ? filemtime($full) : time();
+        return $path . '?v=' . $mtime;
+    };
+
+    $shell->addExtraStyle($palAssetVer('/assets/pal/pal-ui.css'));
+    $shell->addExtraScript('https://unpkg.com/htmx.org@1.9.12');
+    $shell->addExtraScript('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
+    $shell->addExtraScript($palAssetVer('/assets/pal/pal-routes.js'));
+    $shell->addExtraScript($palAssetVer('/assets/pal/pal-core.js'));
+    $shell->addExtraScript($palAssetVer('/assets/pal/pal-forms.js'));
+
+    return $shell->toTemplateContext();
+}
 
 function palBuildShellContext(array $ctx): array
 {
@@ -886,11 +956,15 @@ function palBuildShellContext(array $ctx): array
         ['label' => 'Expenses',         'url' => '/admin/project-audit-ledger/expenses',           'icon_key' => '💳', 'routes' => ['expenses-list', 'expense-form', 'expense-detail']],
     ]);
     // Operations
-    $shell->addNavSection('Operations', [
+    $operationsNav = [
         ['label' => 'Fabrication',  'url' => '/admin/project-audit-ledger/fabrication/allocations','icon_key' => '🔧', 'routes' => 'fabrication-allocations'],
         ['label' => 'Mobilization', 'url' => '/admin/project-audit-ledger/mobilization',           'icon_key' => '🚛', 'routes' => 'mobilization-list'],
         ['label' => 'Cash Advances','url' => '/admin/project-audit-ledger/cash-advances',          'icon_key' => '💵', 'routes' => 'cash-advances-list'],
-    ]);
+    ];
+    if (in_array((string)($user['role'] ?? ''), ['admin', 'supervisor'], true)) {
+        $operationsNav[] = ['label' => 'Printing', 'url' => '/admin/project-audit-ledger/printing/jobs', 'icon_key' => '🖨', 'routes' => ['printing-jobs-admin', 'printing-job-form', 'printing-home']];
+    }
+    $shell->addNavSection('Operations', $operationsNav);
     // Oversight
     $shell->addNavSection('Oversight', [
         ['label' => 'Approvals',  'url' => '/admin/project-audit-ledger/approvals',   'icon_key' => '✅', 'routes' => 'approval-queue'],
@@ -1231,6 +1305,16 @@ function pal_cap_cash_advances_read_1(array $args): array
 function pal_cap_cash_advances_write_1(array $args): array
 {
     return palCapCheck(['admin', 'supervisor']);
+}
+
+function pal_cap_print_read_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor', 'printer']);
+}
+
+function pal_cap_print_write_1(array $args): array
+{
+    return palCapCheck(['admin', 'printer']);
 }
 
 function pal_cap_mobilization_read_1(array $args): array
