@@ -1,0 +1,24 @@
+{ikb_entity_view name="harpp_decision" view="table"}
+    {field name="decision_key" type="string" renderer="text"}
+    {field name="title" type="string" renderer="text"}
+    {field name="lifecycle_state" type="string" renderer="badge"}
+    {field name="priority" type="string" renderer="badge"}
+    {field name="workbench_state" type="string" renderer="text"}
+    {field name="created_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/harpp/decisions/{id}" method="GET" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="harpp_decision" view="detailed"}
+    {field name="decision_key" type="string" renderer="text"}
+    {field name="title" type="string" renderer="text"}
+    {field name="body" type="string" renderer="text"}
+    {field name="context" type="string" renderer="text"}
+    {field name="requested_decision" type="string" renderer="text"}
+    {field name="decision" type="string" renderer="text"}
+    {field name="lifecycle_state" type="string" renderer="badge"}
+    {field name="priority" type="string" renderer="badge"}
+    {field name="workbench_state" type="string" renderer="text"}
+    {field name="decided_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+{/ikb_entity_view}

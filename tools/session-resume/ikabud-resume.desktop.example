@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Ikabud session resume guard
+Comment=Inspect crash state first, then arm and capture the desktop session
+# Replace @REPO_ROOT@ with this repository's absolute realpath before copying.
+# resume.sh exit 10 means cross-boot replay atomically armed its rollover generation.
+Exec=/bin/sh -c '@REPO_ROOT@/tools/session-resume/resume.sh; rc=$?; if [ "$rc" -eq 10 ]; then :; elif [ "$rc" -eq 0 ]; then @REPO_ROOT@/tools/session-resume/session-guard.sh arm || exit $?; else exit "$rc"; fi; trap '\''@REPO_ROOT@/tools/session-resume/session-guard.sh disarm'\'' EXIT HUP INT TERM; @REPO_ROOT@/tools/session-resume/capture.sh & child=$!; wait "$child"'
+Terminal=false
+OnlyShowIn=XFCE;
+X-XFCE-Autostart-enabled=true
+# For another XDG desktop, remove OnlyShowIn after verifying trigger and clean-stop delivery.
+# Install (do not use sudo): mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+# then copy the edited file there as ikabud-resume.desktop and chmod 0600 it.

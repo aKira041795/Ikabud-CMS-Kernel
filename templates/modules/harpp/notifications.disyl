@@ -1,0 +1,3 @@
+{extends "modules/harpp/layout.disyl"}
+{block content}<section class="panel"><div style="display:flex;justify-content:space-between;gap:1rem"><h1>Notifications</h1><button id="mark-all" class="button" type="button">Mark all read</button></div><div id="notification-list" class="grid"></div><p id="notification-status" class="status"></p></section>{/block}
+{block scripts}<script src="/assets/modules/harpp/notifications.js" defer></script>{/block}

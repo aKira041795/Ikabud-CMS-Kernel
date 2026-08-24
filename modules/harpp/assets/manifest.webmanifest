@@ -1,0 +1,14 @@
+{
+  "id": "/harpp/",
+  "name": "HARPP",
+  "short_name": "HARPP",
+  "description": "Harness decision center and messenger",
+  "start_url": "/harpp/",
+  "scope": "/harpp/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#172554",
+  "icons": [
+    {"src": "/harpp/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+  ]
+}

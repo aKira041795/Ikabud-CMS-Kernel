@@ -1,0 +1,21 @@
+{ikb_entity_view name="harpp_adr" view="table"}
+    {field name="adr_key" type="string" renderer="text"}
+    {field name="title" type="string" renderer="text"}
+    {field name="decision" type="string" renderer="text"}
+    {field name="decided_by" type="number" renderer="text"}
+    {field name="decided_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="harpp_adr" view="detailed"}
+    {field name="adr_key" type="string" renderer="text"}
+    {field name="title" type="string" renderer="text"}
+    {field name="context" type="string" renderer="text"}
+    {field name="body" type="string" renderer="text"}
+    {field name="decision" type="string" renderer="text"}
+    {field name="rationale" type="string" renderer="text"}
+    {field name="decision_ref" type="number" renderer="text"}
+    {field name="decided_by" type="number" renderer="text"}
+    {field name="decided_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+{/ikb_entity_view}

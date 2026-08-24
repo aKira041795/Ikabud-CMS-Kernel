@@ -1,0 +1,141 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Harpp\Services;
+
+use Ikabud\Kernel\Contracts\ModuleDB;
+use PDO;
+use Throwable;
+
+final class HarppNotificationService
+{
+    public function __construct(private ?ModuleDB $database = null, private ?HarppPushService $push = null)
+    {
+    }
+
+    private function db(): ModuleDB
+    {
+        if ($this->database instanceof ModuleDB) { return $this->database; }
+        $db = \module('harpp')->db();
+        if (!$db instanceof ModuleDB) { throw new \RuntimeException('HARPP module database is unavailable.'); }
+        return $this->database = $db;
+    }
+
+    public function create(int $userId, string $type, array $payload, ?int $decisionId = null, ?int $conversationId = null, ?int $messageId = null, bool $dispatch = true)
+    {
+        if ($userId <= 0 || !in_array($type, ['decision', 'message', 'system'], true)) {
+            return HarppServiceResult::failure('Invalid notification recipient or type.');
+        }
+        if (!$this->channelEnabled('push') || !$this->typeEnabled($type)) {
+            return HarppServiceResult::success(['notification_id' => 0, 'skipped' => true, 'reason' => 'notification_disabled']);
+        }
+        $ownsTransaction = !$this->db()->inTransaction();
+        try {
+            if ($ownsTransaction) $this->db()->beginTransaction();
+            $stmt = $this->db()->prepare('INSERT INTO harpp_notifications (user_id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at) VALUES (:user, :decision, :conversation, :message, :type, \'push\', \'pending\', :payload, NOW())');
+            $stmt->execute([':user' => $userId, ':decision' => $decisionId, ':conversation' => $conversationId, ':message' => $messageId, ':type' => $type, ':payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
+            $id = (int)$this->db()->lastInsertId();
+            $event = $this->effects('harpp.notification.created', 'notification.created', $id, $userId, null, ['status'=>'pending','type'=>$type,'channel'=>'push','decision_id'=>$decisionId,'conversation_id'=>$conversationId,'message_id'=>$messageId]);
+            if ($ownsTransaction) $this->db()->commit();
+            if ($dispatch) { $this->dispatch($id, $userId); }
+            return HarppServiceResult::success(['notification_id' => $id], '', [$event], 'harpp_notification', $id);
+        } catch (Throwable $e) {
+            if ($ownsTransaction && $this->db()->inTransaction()) $this->db()->rollBack();
+            $this->log('notification create failed', $e);
+            return HarppServiceResult::failure('Unable to create notification.', 500);
+        }
+    }
+
+    public function dispatch(int $notificationId, int $userId)
+    {
+        $check = $this->db()->prepare('SELECT notification_type, channel, status FROM harpp_notifications WHERE id = :id AND user_id = :user');
+        $check->execute([':id' => $notificationId, ':user' => $userId]);
+        $notice = $check->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($notice) || !$this->channelEnabled((string)$notice['channel']) || !$this->typeEnabled((string)$notice['notification_type'])) {
+            return HarppServiceResult::success(['attempted' => 0, 'sent' => 0, 'skipped' => true]);
+        }
+        $result = ($this->push ??= new HarppPushService($this->db()))->dispatchToUser($userId);
+        $sent = !empty($result['ok']) && (int)($result['data']['sent'] ?? 0) > 0;
+        $ownsTransaction = !$this->db()->inTransaction();
+        try {
+            if ($ownsTransaction) $this->db()->beginTransaction();
+            $status = $sent ? 'sent' : 'pending';
+            $stmt = $this->db()->prepare('UPDATE harpp_notifications SET status = :status, sent_at = IF(:sent = 1, NOW(), sent_at) WHERE id = :id AND user_id = :user');
+            $stmt->execute([':status' => $status, ':sent' => $sent ? 1 : 0, ':id' => $notificationId, ':user' => $userId]);
+            $this->effects('harpp.notification.status_changed', 'notification.status_changed', $notificationId, $userId, ['status'=>(string)$notice['status']], ['status'=>$status,'sent'=>$sent]);
+            if ($ownsTransaction) $this->db()->commit();
+        } catch (Throwable $e) {
+            if ($ownsTransaction && $this->db()->inTransaction()) $this->db()->rollBack();
+            $this->log('notification status update failed', $e);
+            return HarppServiceResult::failure('Unable to update notification status.', 500);
+        }
+        return $result;
+    }
+
+    public function list(array $actor, array $filters = [], ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId)) { return HarppServiceResult::failure('Forbidden.', 403); }
+        $limit = max(1, min(100, (int)($filters['limit'] ?? 25)));
+        $offset = max(0, (int)($filters['offset'] ?? 0));
+        $sql = 'SELECT id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at, sent_at, read_at FROM harpp_notifications WHERE user_id = :user';
+        $params = [':user' => (int)$actor['id']];
+        if (array_key_exists('unread', $filters) && filter_var($filters['unread'], FILTER_VALIDATE_BOOLEAN)) { $sql .= ' AND read_at IS NULL'; }
+        $sql .= ' ORDER BY created_at DESC, id DESC LIMIT ' . $limit . ' OFFSET ' . $offset;
+        $stmt = $this->db()->prepare($sql); $stmt->execute($params);
+        return HarppServiceResult::success(['notifications' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'limit' => $limit, 'offset' => $offset]);
+    }
+
+    public function markRead(array $actor, int $notificationId, ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId) || $notificationId <= 0) { return HarppServiceResult::failure('Forbidden or invalid notification.', 403); }
+        $stmt = $this->db()->prepare('UPDATE harpp_notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = :id AND user_id = :user');
+        $stmt->execute([':id' => $notificationId, ':user' => (int)$actor['id']]);
+        return $stmt->rowCount() > 0 ? HarppServiceResult::success(['notification_id' => $notificationId]) : HarppServiceResult::failure('Notification not found.', 404);
+    }
+
+    public function unreadCount(array $actor, ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId)) { return HarppServiceResult::failure('Forbidden.', 403); }
+        $stmt = $this->db()->prepare('SELECT COUNT(*) FROM harpp_notifications WHERE user_id = :user AND read_at IS NULL');
+        $stmt->execute([':user' => (int)$actor['id']]);
+        return HarppServiceResult::success(['unread' => (int)$stmt->fetchColumn()]);
+    }
+
+    private function effects(string $event, string $action, int $id, int $userId, ?array $before, array $after): array
+    {
+        $payload = ['notification_id'=>$id,'user_id'=>$userId,'before'=>$before,'after'=>$after];
+        if (function_exists('app')) {
+            \app()->events()->fire($event, $payload, 'harpp');
+            $audit = \app()->cap()->call('kernel.audit.record@1', ['module'=>'harpp','action'=>$action,'entity_type'=>'harpp_notification','entity_id'=>(string)$id,'old_data'=>$before,'new_data'=>$after], ['mode'=>'first','caller_module'=>'harpp']);
+            if (!is_array($audit) || empty($audit['ok'])) throw new \RuntimeException('Kernel audit recording failed.');
+        }
+        return ['name'=>$event,'payload'=>$payload];
+    }
+
+    private function typeEnabled(string $type): bool
+    {
+        if ($type === 'system') return true;
+        $key = $type === 'decision' ? 'notify_decisions' : 'notify_messages';
+        return $this->setting($key, '1') === '1';
+    }
+    private function channelEnabled(string $channel): bool
+    {
+        if ($channel !== 'push' || $this->setting('push_enabled', '1') !== '1') return false;
+        $channels = array_filter(array_map('trim', explode(',', strtolower($this->setting('notification_channels', 'push')))));
+        return in_array('push', $channels, true);
+    }
+    private function setting(string $key, string $default): string
+    {
+        $stmt = $this->db()->prepare('SELECT setting_value FROM harpp_settings WHERE setting_key = :key LIMIT 1');
+        $stmt->execute([':key' => $key]);
+        $value = $stmt->fetchColumn();
+        return $value === false ? $default : (string)$value;
+    }
+    private function access(array $actor, ?int $tenantId): bool
+    {
+        $current = (int)(\app()->tenant()->current() ?? 0);
+        return $current > 0 && ($tenantId === null || $tenantId === $current) && (int)($actor['id'] ?? 0) > 0 && ($actor['source'] ?? 'harpp') === 'harpp' && in_array((string)($actor['role'] ?? ''), ['owner', 'admin', 'member'], true);
+    }
+    private function log(string $message, Throwable $e): void { if (function_exists('write_log')) { \write_log('HARPP ' . $message, 'error', ['module' => 'harpp', 'error' => $e->getMessage()]); } }
+}

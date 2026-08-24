@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""HARPP bridge CLI — talk to the HARPP module from the shell / Pi.
+
+Commands:
+  harpp config set <key> <value>      base_url | bridge_key | tenant_id
+  harpp config get [key]
+  harpp check                         validate config (no network)
+  harpp self-test                     run the local unit tests (no network)
+  harpp decision submit --title T --body B [--context C --requested R --priority P --source S --workbench-state W --decision-key K]
+  harpp decision list [--state S --priority P --workbench-state W --limit N]
+  harpp decision ack <id> [--rationale R]
+  harpp decision apply <id> [--rationale R]
+  harpp msg send --body B [--conversation-id N --title T --harness-session-id S]
+  harpp msg poll [--conversation-id N --after A --limit N]
+  harpp status --message M [--status S --workbench-state W --harness-session-id S]
+
+Set HARPP_DRY_RUN=1 to preview requests without sending.
+"""
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import harpp_client  # noqa: E402
+
+
+def main():
+    p = argparse.ArgumentParser(prog="harpp", description="HARPP harness bridge client")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    cfg = sub.add_parser("config")
+    cfg.add_argument("action", choices=["set", "get"])
+    cfg.add_argument("key", nargs="?")
+    cfg.add_argument("value", nargs="?")
+
+    sub.add_parser("check")
+    sub.add_parser("self-test")
+
+    d = sub.add_parser("decision")
+    dsub = d.add_subparsers(dest="dcmd", required=True)
+    ds = dsub.add_parser("submit")
+    ds.add_argument("--title", required=True)
+    ds.add_argument("--body", required=True)
+    ds.add_argument("--context", default="")
+    ds.add_argument("--requested", dest="requested_decision", default="")
+    ds.add_argument("--priority", default="normal", choices=["low", "normal", "high", "critical"])
+    ds.add_argument("--source", default="harness")
+    ds.add_argument("--workbench-state", default="ARCHITECTURE_DECISION_REQUIRED")
+    ds.add_argument("--decision-key", default="")
+    dl = dsub.add_parser("list")
+    dl.add_argument("--state", default="")
+    dl.add_argument("--priority", default="")
+    dl.add_argument("--workbench-state", default="")
+    dl.add_argument("--limit", type=int, default=25)
+    da = dsub.add_parser("ack")
+    da.add_argument("id", type=int)
+    da.add_argument("--rationale", default="Harness acknowledged the owner decision.")
+    dp = dsub.add_parser("apply")
+    dp.add_argument("id", type=int)
+    dp.add_argument("--rationale", default="Harness applied the owner decision.")
+
+    m = sub.add_parser("msg")
+    msub = m.add_subparsers(dest="mcmd", required=True)
+    ms = msub.add_parser("send")
+    ms.add_argument("--body", required=True)
+    ms.add_argument("--conversation-id", type=int)
+    ms.add_argument("--title", default="")
+    ms.add_argument("--harness-session-id", default="")
+    mp = msub.add_parser("poll")
+    mp.add_argument("--conversation-id", type=int)
+    mp.add_argument("--after", type=int, default=0)
+    mp.add_argument("--limit", type=int, default=25)
+
+    st = sub.add_parser("status")
+    st.add_argument("--message", required=True)
+    st.add_argument("--status", default="")
+    st.add_argument("--workbench-state", default="")
+    st.add_argument("--harness-session-id", default="")
+
+    args = p.parse_args()
+
+    if args.cmd == "config":
+        if args.action == "set":
+            if not args.key or not args.value:
+                sys.exit("harpp config set requires KEY and VALUE")
+            path = harpp_client.save_config({args.key: args.value})
+            print(f"saved {args.key} -> {path}")
+        else:
+            cfg = harpp_client.load_config()
+            if args.key:
+                print(cfg.get(args.key, ""))
+            else:
+                print(json.dumps({k: ("<redacted>" if k == "bridge_key" else v) for k, v in cfg.items()}, indent=2))
+    elif args.cmd == "check":
+        cfg = harpp_client.load_config()
+        print(f"base_url={cfg['base_url']} tenant_id={cfg['tenant_id']} bridge_key=<redacted> OK")
+    elif args.cmd == "self-test":
+        import unittest
+        import tests.test_harpp_bridge as t
+        suite = unittest.defaultTestLoader.loadTestsFromModule(t)
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        sys.exit(0 if result.wasSuccessful() else 1)
+    elif args.cmd == "decision":
+        if args.dcmd == "submit":
+            print(json.dumps(harpp_client.submit_decision(
+                title=args.title, body=args.body, context=args.context,
+                requested_decision=args.requested_decision, priority=args.priority,
+                source=args.source, workbench_state=args.workbench_state, decision_key=args.decision_key), indent=2))
+        elif args.dcmd == "list":
+            print(json.dumps(harpp_client.list_decisions(
+                state=args.state, priority=args.priority, workbench_state=args.workbench_state, limit=args.limit), indent=2))
+        elif args.dcmd == "ack":
+            print(json.dumps(harpp_client.acknowledge_decision(args.id, rationale=args.rationale), indent=2))
+        else:
+            print(json.dumps(harpp_client.apply_decision(args.id, rationale=args.rationale), indent=2))
+    elif args.cmd == "msg":
+        if args.mcmd == "send":
+            print(json.dumps(harpp_client.send_message(
+                body=args.body, conversation_id=args.conversation_id, title=args.title,
+                harness_session_id=args.harness_session_id), indent=2))
+        else:
+            print(json.dumps(harpp_client.poll_messages(
+                conversation_id=args.conversation_id, after=args.after, limit=args.limit), indent=2))
+    elif args.cmd == "status":
+        print(json.dumps(harpp_client.post_status(
+            message=args.message, status=args.status, workbench_state=args.workbench_state,
+            harness_session_id=args.harness_session_id), indent=2))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except harpp_client.HarppError as exc:
+        sys.stderr.write(f"harpp: {exc}\n")
+        sys.exit(1)

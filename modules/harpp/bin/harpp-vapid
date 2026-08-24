@@ -1,0 +1,106 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * HARPP VAPID (ES256 / P-256) key generator.
+ *
+ * Produces the three HARPP_VAPID_* values exactly as
+ * HarppPushService::vapidKeys() expects them:
+ *   - HARPP_VAPID_PUBLIC_KEY   = base64url of the 65-byte uncompressed EC point (0x04||X||Y)
+ *   - HARPP_VAPID_PRIVATE_KEY  = PEM private key, with literal \n escapes (single-line, quoted)
+ *   - HARPP_VAPID_SUBJECT      = e.g. mailto:you@example.com
+ *
+ * Usage:
+ *   php modules/harpp/bin/harpp-vapid                    # print .env lines to stdout
+ *   php modules/harpp/bin/harpp-vapid --subject mailto:you@example.com
+ *   php modules/harpp/bin/harpp-vapid --write            # append to repo .env (replaces old HARPP_VAPID_*)
+ *   php modules/harpp/bin/harpp-vapid --json             # machine-readable (includes PEM)
+ */
+
+$subject = 'mailto:harpp@localhost';
+$write = false;
+$json = false;
+$args = array_slice($argv, 1);
+for ($i = 0, $n = count($args); $i < $n; $i++) {
+    $arg = $args[$i];
+    if (str_starts_with($arg, '--subject=')) {
+        $subject = trim(substr($arg, 10));
+    } elseif ($arg === '--subject' && $i + 1 < $n) {
+        $subject = trim((string)$args[++$i]);
+    } elseif ($arg === '--write') {
+        $write = true;
+    } elseif ($arg === '--json') {
+        $json = true;
+    }
+}
+
+if (!function_exists('openssl_pkey_new')) {
+    fwrite(STDERR, "Error: PHP OpenSSL extension is required for VAPID.\n");
+    exit(1);
+}
+
+$resource = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
+if ($resource === false || !openssl_pkey_export($resource, $privatePem)) {
+    fwrite(STDERR, "Error: unable to generate an EC P-256 key pair.\n");
+    exit(1);
+}
+$details = openssl_pkey_get_details($resource);
+$x = (string)($details['ec']['x'] ?? '');
+$y = (string)($details['ec']['y'] ?? '');
+if (strlen($x) !== 32 || strlen($y) !== 32) {
+    fwrite(STDERR, "Error: invalid EC key material.\n");
+    exit(1);
+}
+$public = rtrim(strtr(base64_encode("\x04" . $x . $y), '+/', '-_'), '=');
+
+// Self-verify: re-derive the public key from the exported PEM exactly like the runtime.
+$re = openssl_pkey_get_details(openssl_pkey_get_private($privatePem));
+$publicCheck = rtrim(strtr(base64_encode("\x04" . (string)($re['ec']['x'] ?? '') . (string)($re['ec']['y'] ?? '')), '+/', '-_'), '=');
+if (!hash_equals($publicCheck, $public)) {
+    fwrite(STDERR, "Error: VAPID key self-verification failed.\n");
+    exit(1);
+}
+
+$privateEsc = str_replace("\n", '\\n', $privatePem); // single line for .env
+
+if ($json) {
+    echo json_encode([
+        'subject' => $subject,
+        'public' => $public,
+        'private' => $privateEsc,
+        'private_pem' => $privatePem,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+    exit(0);
+}
+
+$lines = [
+    'HARPP_VAPID_PUBLIC_KEY=' . $public,
+    'HARPP_VAPID_PRIVATE_KEY="' . $privateEsc . '"',
+    'HARPP_VAPID_SUBJECT=' . $subject,
+];
+
+if ($write) {
+    $env = realpath(__DIR__ . '/../../..') . '/.env';
+    $existing = is_file($env) ? (string)file_get_contents($env) : '';
+    $kept = [];
+    foreach (explode("\n", $existing) as $line) {
+        if (!str_starts_with(trim($line), 'HARPP_VAPID_')) {
+            $kept[] = $line;
+        }
+    }
+    $content = rtrim(implode("\n", $kept), "\n") . "\n\n" . implode("\n", $lines) . "\n";
+    if (file_put_contents($env, $content) === false) {
+        fwrite(STDERR, "Error: could not write $env\n");
+        exit(1);
+    }
+    echo "Wrote HARPP_VAPID_* to $env\n";
+    echo "  HARPP_VAPID_PUBLIC_KEY=" . $public . "\n";
+    echo "  HARPP_VAPID_PRIVATE_KEY=<redacted " . strlen($privateEsc) . " chars>\n";
+    echo "  HARPP_VAPID_SUBJECT=" . $subject . "\n";
+    echo "Self-verified: public/private pair match.\n";
+    exit(0);
+}
+
+echo implode("\n", $lines) . "\n";
