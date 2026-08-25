@@ -221,6 +221,58 @@ class HarppWakeTest(unittest.TestCase):
                 except OSError:
                     proc.kill()
 
+    # --- marker accuracy (last occurrence wins) ---
+
+    def _job_with_log(self, content, marker="JOB status=PASS"):
+        p = Path(self.tmp.name) / "m.log"
+        p.write_text(content, encoding="utf-8")
+        st = p.stat()
+        return {"marker": marker, "log_path": str(p), "log_offset": 0,
+                "log_identity": f"{st.st_dev}:{st.st_ino}"}
+
+    def test_marker_uses_last_occurrence(self):
+        # intermediate PASS then final FAIL -> expected PASS not satisfied
+        self.assertFalse(harpp_wake._marker_found(
+            self._job_with_log("JOB status=PASS\nmore\nJOB status=FAIL\n")))
+        # intermediate FAIL then final PASS -> satisfied
+        self.assertTrue(harpp_wake._marker_found(
+            self._job_with_log("JOB status=FAIL\nmore\nJOB status=PASS\n")))
+        # final FAIL with expected FAIL -> satisfied
+        self.assertTrue(harpp_wake._marker_found(
+            self._job_with_log("JOB status=PASS\nJOB status=FAIL\n", marker="JOB status=FAIL")))
+        # plain marker without a status value -> presence suffices
+        self.assertTrue(harpp_wake._marker_found(
+            self._job_with_log("some output\nDONE\n", marker="DONE")))
+        self.assertFalse(harpp_wake._marker_found(
+            self._job_with_log("no marker here\n", marker="DONE")))
+
+    # --- wake terminal (visual feedback) ---
+
+    def test_open_agent_terminal_opens_when_emulator_present(self):
+        called = []
+        original_detect = harpp_wake._detect_terminal
+        original_popen = harpp_wake.subprocess.Popen
+        harpp_wake._detect_terminal = lambda: ("xterm", ["-e"])
+        harpp_wake.subprocess.Popen = lambda *a, **k: called.append(a)
+        try:
+            ok = harpp_wake.open_agent_terminal(12345, "/tmp/some.log")
+            self.assertTrue(ok)
+            flat = " ".join(str(x) for x in called[0])
+            self.assertIn("xterm", flat)
+            self.assertIn("--pid=12345", flat)
+            self.assertIn("some.log", flat)
+        finally:
+            harpp_wake._detect_terminal = original_detect
+            harpp_wake.subprocess.Popen = original_popen
+
+    def test_open_agent_terminal_no_emulator_returns_false(self):
+        original_detect = harpp_wake._detect_terminal
+        harpp_wake._detect_terminal = lambda: (None, None)
+        try:
+            self.assertFalse(harpp_wake.open_agent_terminal(12345, "/tmp/x.log"))
+        finally:
+            harpp_wake._detect_terminal = original_detect
+
     def test_missing_log_is_reported_as_failure(self):
         logp = Path(self.tmp.name) / "deleted.log"
         logp.write_text("starting\n")

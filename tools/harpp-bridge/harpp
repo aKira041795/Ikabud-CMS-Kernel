@@ -30,7 +30,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harpp_client  # noqa: E402
 import harpp_wake  # noqa: E402
 
-DEFAULT_INBOX = ".ai/harpp-inbox.jsonl"
+DEFAULT_INBOX = ".ai/harpp-inbox.jsonl"  # legacy workspace-relative path
+
+
+def _default_inbox():
+    """Machine-global inbox so monitoring survives workspace switches."""
+    return str(harpp_wake.INBOX_FILE)
+
+
+def _default_log():
+    return str(harpp_wake.AUTOPROCESS_LOG)
 
 
 def _watch_state_path():
@@ -97,11 +106,14 @@ def _autoprocess(records, log):
     return [rec for rec, ok in outcomes if not ok]
 
 
-def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log",
+def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
                wake=False, wake_command=None, cooldown=60, max_per_hour=20,
-               timeout=900, model=None, max_retries=3):
+               timeout=900, model=None, max_retries=3, open_terminal=True):
     import threading
     import time
+    inbox = inbox or _default_inbox()
+    log = log or _default_log()
+    workspace = harpp_wake.default_workspace()
     state = _load_watch_state()
     last_msg = int(state.get("last_msg_id", 0))
     last_decided = int(state.get("last_decided_id", 0))
@@ -159,7 +171,8 @@ def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"
             wake_kw = dict(enabled=True, command=wake_command,
                            model=model or harpp_wake.DEFAULT_MODEL, cooldown=cooldown,
                            max_per_hour=max_per_hour, timeout=timeout,
-                           max_retries=max_retries)
+                           max_retries=max_retries, workspace=workspace,
+                           open_terminal=open_terminal)
             if once:
                 harpp_wake.maybe_wake(inbox, **wake_kw)
             else:
@@ -171,10 +184,10 @@ def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"
         time.sleep(max(5, interval))
 
 
-def inbox_cmd(clear):
-    p = Path(DEFAULT_INBOX)
+def inbox_cmd(clear, path=None):
+    p = Path(path or _default_inbox())
     if not p.exists():
-        print("inbox empty")
+        print(f"inbox empty ({p})")
         return
     for line in p.read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -184,11 +197,12 @@ def inbox_cmd(clear):
 
 
 def cmd_job_track(args):
+    workspace = harpp_wake.default_workspace()
     try:
         jid = harpp_wake.track_job(
             pid=args.pid, model=args.model, task=args.task, conversation_id=args.conversation,
             log_path=args.log, verify=args.verify, marker=args.marker,
-            repo=args.repo, commit=args.commit, timeout=args.timeout)
+            repo=args.repo or workspace, commit=args.commit, timeout=args.timeout)
     except ValueError as exc:
         sys.exit(f"harpp job track: {exc}")
     print(json.dumps({"job_id": jid, "status": "tracked", "pid": args.pid,
@@ -200,11 +214,13 @@ def cmd_job_launch(args):
     if command and command[0] == "--":
         command = command[1:]  # argparse REMAINDER keeps the '--' separator
     command = command[0] if len(command) == 1 else command
+    workspace = args.cwd or harpp_wake.default_workspace()
     try:
         jid, proc = harpp_wake.launch_job(
             model=args.model, task=args.task, conversation_id=args.conversation,
             command=command, log_path=args.log, verify=args.verify, marker=args.marker,
-            repo=args.repo, commit=args.commit, quiet=args.quiet, timeout=args.timeout)
+            repo=args.repo or workspace, commit=args.commit, quiet=args.quiet,
+            timeout=args.timeout, cwd=workspace, open_terminal=not args.no_terminal)
     except ValueError as exc:
         sys.exit(f"harpp job launch: {exc}")
     print(json.dumps({"job_id": jid, "status": "tracked", "pid": proc.pid,
@@ -286,9 +302,9 @@ def main():
     wt = sub.add_parser("watch", help="actively monitor + auto-process owner messages + decided decisions")
     wt.add_argument("--once", action="store_true", help="single check, then exit")
     wt.add_argument("--interval", type=int, default=60, help="poll interval seconds (default 60)")
-    wt.add_argument("--inbox", default=DEFAULT_INBOX, help="append new items to this JSONL file")
+    wt.add_argument("--inbox", default=None, help=f"append new items to this JSONL file (default {_default_inbox()})")
     wt.add_argument("--no-autoprocess", action="store_true", help=argparse.SUPPRESS)  # retained compatibility; ignored
-    wt.add_argument("--log", default=".ai/harpp-wake.log", help="autoprocess action log (default .ai/harpp-wake.log)")
+    wt.add_argument("--log", default=None, help=f"autoprocess action log (default {_default_log()})")
     wt.add_argument("--wake", action="store_true", help="enable headless Pi-agent wake (mechanism E; env HARPP_WAKE_ENABLED=1)")
     wt.add_argument("--wake-command", default=os.environ.get("HARPP_WAKE_CMD", ""), help="override agent invocation; {model}/{prompt} substituted")
     wt.add_argument("--cooldown", type=int, default=int(os.environ.get("HARPP_WAKE_COOLDOWN", "60")))
@@ -296,9 +312,12 @@ def main():
     wt.add_argument("--timeout", type=int, default=int(os.environ.get("HARPP_WAKE_TIMEOUT", "900")))
     wt.add_argument("--max-retries", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_RETRIES", "3")))
     wt.add_argument("--model", default=os.environ.get("HARPP_WAKE_MODEL", "deepseek/deepseek-v4-pro"))
+    wt.add_argument("--no-terminal", action="store_true",
+                    help="do not open a visible terminal for wake feedback (default: on)")
 
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
     ib.add_argument("--clear", action="store_true")
+    ib.add_argument("--inbox", default=None, help="override the inbox path (default machine-global)")
 
     jb = sub.add_parser("job", help="track/monitor delegated model jobs (auto-report on completion)")
     jsub = jb.add_subparsers(dest="jcmd", required=True)
@@ -309,10 +328,12 @@ def main():
     jl2.add_argument("--log", default=None, help="path to write the process output (monitor reads growth/markers here)")
     jl2.add_argument("--verify", default=None, help="verification command; exit 0 = pass")
     jl2.add_argument("--marker", default=None, help="success marker string to search for in the log (post-launch)")
-    jl2.add_argument("--repo", default=None, help="repo path for git status / auto-commit")
+    jl2.add_argument("--repo", default=None, help="repo path for git status / auto-commit (default: configured workspace)")
     jl2.add_argument("--commit", action="store_true", help="auto commit + push on verified completion")
     jl2.add_argument("--quiet", action="store_true", help="skip the start confirmation message")
     jl2.add_argument("--timeout", type=int, default=0, help="hard kill the job after N seconds (0 = no deadline)")
+    jl2.add_argument("--cwd", default=None, help="working directory for the spawned command (default: configured workspace)")
+    jl2.add_argument("--no-terminal", action="store_true", help="do not open a visible terminal for live feedback")
     jl2.add_argument("command", nargs=argparse.REMAINDER, help="command to run, after --")
     jl2.set_defaults(func=cmd_job_launch)
     jt = jsub.add_parser("track", help="register an already-running model process")
@@ -395,9 +416,10 @@ def main():
                    wake=args.wake or os.environ.get("HARPP_WAKE_ENABLED", "") == "1",
                    wake_command=args.wake_command or None, cooldown=args.cooldown,
                    max_per_hour=args.max_per_hour, timeout=args.timeout,
-                   model=args.model or None, max_retries=args.max_retries)
+                   model=args.model or None, max_retries=args.max_retries,
+                   open_terminal=not args.no_terminal and os.environ.get("HARPP_WAKE_TERMINAL", "1") != "0")
     elif args.cmd == "inbox":
-        inbox_cmd(clear=args.clear)
+        inbox_cmd(clear=args.clear, path=args.inbox)
     elif args.cmd == "job":
         args.func(args)
 

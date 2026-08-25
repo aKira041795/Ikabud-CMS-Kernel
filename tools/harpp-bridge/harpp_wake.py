@@ -19,6 +19,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
+import shutil
 import signal
 import subprocess
 import threading
@@ -36,6 +38,10 @@ LOCK_FILE = CONFIG_DIR / "wake.lock"
 PROCESSED_FILE = CONFIG_DIR / "wake-processed.json"
 WAKE_LOG = CONFIG_DIR / "wake.log"
 JOBS_FILE = CONFIG_DIR / "jobs.json"
+# Machine-global defaults so monitoring survives workspace switches (any VS Code
+# window reads the same inbox/log). Explicit --inbox/--log still override.
+INBOX_FILE = CONFIG_DIR / "inbox.jsonl"
+AUTOPROCESS_LOG = CONFIG_DIR / "autoprocess.log"
 JOB_HISTORY_LIMIT = 100
 JOB_VERIFY_TIMEOUT = 600
 JOB_REPORT_STALE_AFTER = JOB_VERIFY_TIMEOUT + 300
@@ -71,6 +77,53 @@ _LOCK_TOKEN = None
 
 def _now() -> int:
     return int(time.time())
+
+
+def default_workspace() -> str | None:
+    """Absolute path of the configured active workspace, or None."""
+    try:
+        return harpp_client.workspace_path()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# Terminal emulators, in preference order, with the arg to run a command after.
+TERMINAL_EMULATORS = [
+    ("gnome-terminal", ["--"]),
+    ("konsole", ["-e"]),
+    ("xfce4-terminal", ["-e"]),
+    ("mate-terminal", ["-e"]),
+    ("x-terminal-emulator", ["-e"]),
+    ("xterm", ["-e"]),
+]
+
+
+def _detect_terminal() -> tuple[str | None, list | None]:
+    for name, args in TERMINAL_EMULATORS:
+        if shutil.which(name):
+            return name, args
+    return None, None
+
+
+def open_agent_terminal(pid: int, tail_path: str, title: str = "HARPP") -> bool:
+    """Open a visible terminal tailing `tail_path`, auto-closing when pid dies.
+
+    Gives a human user live visual feedback that HARPP is woken/working. Never
+    raises into the wake loop — headless environments simply skip it.
+    """
+    try:
+        name, args = _detect_terminal()
+        if not name or not tail_path:
+            return False
+        inner = f"exec tail -n 20 -f --pid={int(pid)} -- {shlex.quote(str(tail_path))}"
+        subprocess.Popen([name, *args, "bash", "-lc", inner],
+                         start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        log(f"opened {name} terminal tailing {tail_path} for pid {pid}")
+        return True
+    except Exception as e:  # noqa: BLE001
+        log(f"could not open wake terminal: {e}")
+        return False
 
 
 def log(msg: str) -> None:
@@ -431,7 +484,8 @@ def _drain(proc: subprocess.Popen) -> None:
 def launch_job(*, model: str, task: str, conversation_id: int, command,
                log_path: str | None = None, verify: str | None = None,
                marker: str | None = None, repo: str | None = None,
-               commit: bool = False, quiet: bool = False, timeout: int = 0):
+               commit: bool = False, quiet: bool = False, timeout: int = 0,
+               cwd: str | None = None, open_terminal: bool = True):
     """Spawn a delegated model command AND track it in one atomic step.
 
     The pid is captured directly from the spawned process (never pgrep), and its
@@ -446,7 +500,7 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
     shell = isinstance(command, str)
     proc = subprocess.Popen(command if shell else list(command), shell=shell,
                             stdout=logf or subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, start_new_session=True)
+                            text=True, start_new_session=True, cwd=cwd)
     if logf is None:
         threading.Thread(target=_drain, args=(proc,), daemon=True).start()
     try:
@@ -469,6 +523,8 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
             log(f"job {job_id} start confirmation sent to conversation {conversation_id}")
         except Exception as e:  # noqa: BLE001
             log(f"job {job_id} start confirmation failed: {e}")
+    if open_terminal and log_path:
+        open_agent_terminal(proc.pid, log_path, f"HARPP job ({model})")
     return job_id, proc
 
 
@@ -531,11 +587,19 @@ def _log_tail(path: str | None, limit: int = 40) -> str:
 
 
 def _marker_found(job: dict) -> bool:
-    """Search only log output produced after tracking, avoiding stale success markers."""
+    """Accurate marker check over post-tracking log output.
+
+    Agents routinely mention their marker (both PASS and FAIL) in intermediate
+    thinking/tool output, so presence alone is misleading. For markers of the form
+    `PREFIX status=STATUS`, the LAST occurrence is the agent's final stated status
+    and is the only one that counts. Plain markers (no status value) fall back to
+    presence after tracking.
+    """
     marker = job.get("marker")
     path = job.get("log_path")
     if not marker or not path:
         return False
+    m = re.match(r"^(?P<prefix>.+?)\s+status=(?P<expected>[A-Za-z0-9_]+)\s*$", marker)
     try:
         p = Path(path)
         stat = p.stat()
@@ -545,8 +609,11 @@ def _marker_found(job: dict) -> bool:
             offset = 0  # legacy state, rotation, or truncation: inspect the replacement log
         with p.open("rb") as stream:
             stream.seek(int(offset))
-            data = stream.read()
-        return str(marker).casefold() in data.decode("utf-8", errors="replace").casefold()
+            data = stream.read().decode("utf-8", errors="replace")
+        if m is None:
+            return str(marker).casefold() in data.casefold()
+        found = re.findall(re.escape(m.group("prefix")) + r"\s+status=([A-Za-z0-9_]+)", data)
+        return bool(found) and found[-1] == m.group("expected")
     except Exception:  # noqa: BLE001
         return False
 
@@ -717,7 +784,7 @@ def monitor_jobs() -> int:
     return reported_count
 
 
-def task_prompt(inbox: str, items: list, template: str | None = None) -> str:
+def task_prompt(inbox: str, items: list, template: str | None = None, workspace: str | None = None) -> str:
     """Build the single-pass agent prompt from the task-contract template + staged items."""
     default = Path(__file__).resolve().parent / "wake" / "task-contract.md"
     try:
@@ -728,21 +795,27 @@ def task_prompt(inbox: str, items: list, template: str | None = None) -> str:
             "through the harness bridge. Then EXIT. Do not edit code or run tests unless asked.\n"
         )
     items_json = "\n".join(json.dumps(i, ensure_ascii=False) for i in items)
-    return text.replace("{{INBOX}}", inbox).replace("{{ITEMS}}", items_json)
+    return (text.replace("{{INBOX}}", inbox)
+                .replace("{{ITEMS}}", items_json)
+                .replace("{{WORKSPACE}}", workspace or "(no workspace configured)"))
 
 
 def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
-                expected_replies: int | None = None) -> bool:
+                expected_replies: int | None = None, cwd: str | None = None,
+                open_terminal: bool = False) -> bool:
     """Run the headless Pi agent once. Returns True on exit 0. Kills on timeout."""
     if command:
         cmd = command.replace("{model}", model).replace("{prompt}", prompt)
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, start_new_session=True)
+                                text=True, start_new_session=True, cwd=cwd)
     else:
         proc = subprocess.Popen(
             ["pi", "--model", model, "--mode", "json", "--print", prompt],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
+            cwd=cwd,
         )
+    if open_terminal:
+        open_agent_terminal(proc.pid, str(WAKE_LOG), f"HARPP wake ({model})")
     try:
         out, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -770,7 +843,8 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
 def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                model: str = DEFAULT_MODEL, cooldown: int = DEFAULT_COOLDOWN,
                max_per_hour: int = DEFAULT_MAX_PER_HOUR, timeout: int = DEFAULT_TIMEOUT,
-               max_retries: int = DEFAULT_MAX_RETRIES) -> bool:
+               max_retries: int = DEFAULT_MAX_RETRIES, workspace: str | None = None,
+               open_terminal: bool = False) -> bool:
     """Attempt one guarded wake for unprocessed inbox items. Returns True if an agent ran."""
     if not enabled:
         return False
@@ -821,7 +895,7 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
     try:
         # Count every invocation, including failures, so retries remain rate-bounded.
         record_attempt(items)
-        prompt = task_prompt(inbox, items)
+        prompt = task_prompt(inbox, items, workspace=workspace)
         # Prompt-driven model routing + graceful fallback: try the requested model first;
         # if it fails (incl. usage/balance exhaustion), fall back to the configured default.
         chosen = pick_model(items, model)
@@ -830,7 +904,8 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
         for attempt_model in chain:
             log(f"spawning wake agent with model {attempt_model}")
             if spawn_agent(prompt, command=command, model=attempt_model, timeout=timeout,
-                           expected_replies=len(items)):
+                           expected_replies=len(items), cwd=workspace,
+                           open_terminal=open_terminal):
                 ok = True
                 log(f"wake complete with {attempt_model}; processed {len(items)} item(s)")
                 break

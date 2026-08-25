@@ -77,6 +77,25 @@ def save_config(values):
     return p
 
 
+def workspace_path(config=None):
+    """Absolute path of the active workspace the harness should target, or None.
+
+    Set with: harpp config set workspace /path/to/repo
+    The wake agent and job launcher run with this as their working directory so
+    file edits land in the currently active workspace regardless of where the
+    daemon was started.
+    """
+    try:
+        cfg = config or load_config()
+    except HarppError:
+        cfg = {}
+    raw = str((cfg or {}).get("workspace", "") or "").strip()
+    if not raw:
+        return None
+    p = Path(raw).expanduser()
+    return str(p) if p.is_absolute() else None
+
+
 def _query(params):
     from urllib.parse import urlencode
     q = {k: str(v) for k, v in params.items() if v not in (None, "", 0) or k == "after"}
