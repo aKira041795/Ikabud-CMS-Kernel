@@ -23,7 +23,8 @@ The owner already received an instant "Received — working on it" confirmation
 (deterministic auto-ack), so do NOT just re-acknowledge — provide the substantive
 response and, where instructed, the actual work.
 
-For each staged record:
+For each staged record. A reply counts as sent only when the bridge tool/CLI returns a
+successful response; do not claim success merely because a command was attempted:
 
 1. **`kind: message`** — an owner message in a conversation. Provide a substantive,
    concise reply through the bridge (`harpp msg send --conversation-id <id> --body ...`).
@@ -53,5 +54,6 @@ For each staged record:
 
 ## Output
 
-End with a one-line summary of what you did (items processed, replies sent, decisions
-acked/applied). Then stop.
+End with exactly one machine-readable result line after your summary:
+`HARPP_WAKE_RESULT replies_sent=<N> items_processed=<N>`
+Use the actual count of successful substantive message deliveries. Then stop.

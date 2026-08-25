@@ -32,7 +32,8 @@ class HarppWakeTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _wake(self, **kw):
-        defaults = dict(command="echo dry", cooldown=0, max_per_hour=0, timeout=30, enabled=True)
+        defaults = dict(command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1'",
+                        cooldown=0, max_per_hour=0, timeout=30, enabled=True)
         defaults.update(kw)
         return harpp_wake.maybe_wake(str(self.inbox), **defaults)
 
@@ -77,6 +78,11 @@ class HarppWakeTest(unittest.TestCase):
 
     def test_failed_agent_leaves_staged(self):
         self.assertFalse(self._wake(command="false"))
+        self.assertNotIn(1, harpp_wake.read_state()["messages"])
+        self.assertEqual(harpp_wake.read_state()["failures"]["1"], 1)
+
+    def test_unverifiable_agent_output_is_retried(self):
+        self.assertFalse(self._wake(command="echo garbage"))
         self.assertNotIn(1, harpp_wake.read_state()["messages"])
 
     def test_decision_skipped_by_wake(self):

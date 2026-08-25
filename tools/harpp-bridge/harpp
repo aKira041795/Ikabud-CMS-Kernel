@@ -45,8 +45,13 @@ def _load_watch_state():
 
 def _save_watch_state(state):
     p = _watch_state_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(state))
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(f".{p.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(state))
+        os.replace(tmp, p)
+    except Exception as e:
+        print(f"harpp watch: state save failed: {e}", flush=True)
 
 
 def _notify(title, body):
@@ -63,45 +68,62 @@ def _emit(record, inbox):
     line = json.dumps(record, ensure_ascii=False)
     print(line, flush=True)
     if inbox:
-        p = Path(inbox)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        try:
+            p = Path(inbox)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with p.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception as e:
+            # Staging failure must not suppress the immediate bridge receipt.
+            print(f"harpp watch: inbox append failed: {e}", flush=True)
 
 
 def _autoprocess(records, log):
-    """Standard HARPP behavior when enabled: auto-respond to owner input (see client)."""
-    for note in harpp_client.autoprocess(records):
+    """Auto-respond and return only records that still need retrying."""
+    outcomes = []
+    for note in harpp_client.autoprocess(records, outcomes=outcomes):
         print("autoprocess: " + note, flush=True)
         if log:
-            with open(log, "a", encoding="utf-8") as f:
-                f.write("autoprocess: " + note + "\n")
+            try:
+                p = Path(log)
+                p.parent.mkdir(parents=True, exist_ok=True)
+                with p.open("a", encoding="utf-8") as f:
+                    f.write("autoprocess: " + note + "\n")
+            except Exception as e:
+                print(f"harpp watch: autoprocess log failed: {e}", flush=True)
+    return [rec for rec, ok in outcomes if not ok]
 
 
 def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log",
-               wake=False, wake_command=None, cooldown=300, max_per_hour=6,
-               timeout=900, model=None):
+               wake=False, wake_command=None, cooldown=30, max_per_hour=6,
+               timeout=900, model=None, max_retries=3):
+    import threading
     import time
     state = _load_watch_state()
     last_msg = int(state.get("last_msg_id", 0))
     last_decided = int(state.get("last_decided_id", 0))
+    pending = state.get("pending_autoprocess", []) if autoprocess else []
     while True:
         emitted = []
         try:
             msgs = harpp_client.poll_messages(limit=100).get("data", {}).get("messages", [])
-            for m in msgs:
+            for m in sorted(msgs, key=lambda row: int(row.get("id", 0))):
                 mid = int(m.get("id", 0))
                 if mid > last_msg:
+                    last_msg = mid
+                    # Never receipt/re-wake on the harness's own replies.
+                    sender = str(m.get("sender_type") or "owner").lower()
+                    if sender not in ("owner", "user"):
+                        continue
                     rec = {"kind": "message", "id": mid, "conversation_id": m.get("conversation_id"), "sender_type": m.get("sender_type"), "body": m.get("body"), "created_at": m.get("created_at")}
                     _emit(rec, inbox)
                     _notify("HARPP message", str(m.get("body", ""))[:120])
                     emitted.append(rec)
-                    last_msg = mid
         except Exception as e:
             print(f"harpp watch: message poll failed: {e}", flush=True)
         try:
             ds = harpp_client.list_decisions(limit=100).get("data", {}).get("decisions", [])
-            for d in ds:
+            for d in sorted(ds, key=lambda row: int(row.get("id", 0))):
                 did = int(d.get("id", 0))
                 if d.get("decided_at") and d.get("lifecycle_state") == "DECIDED" and did > last_decided:
                     rec = {"kind": "decision", "id": did, "decision_key": d.get("decision_key"), "title": d.get("title"), "decision": d.get("decision"), "rationale": d.get("rationale"), "decided_by": d.get("decided_by"), "lifecycle_state": d.get("lifecycle_state")}
@@ -111,18 +133,30 @@ def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"
                     last_decided = did
         except Exception as e:
             print(f"harpp watch: decision poll failed: {e}", flush=True)
-        _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided})
-        # Instant confirmation + decisions: deterministic, always on — the owner must
-        # never be left wondering whether their message was received and is being worked on.
-        if autoprocess and emitted:
-            _autoprocess(emitted, log)
+        if autoprocess:
+            known = {(r.get("kind"), r.get("id")) for r in pending}
+            pending.extend(r for r in emitted if (r.get("kind"), r.get("id")) not in known)
+        # Persist pending receipts before network delivery so a crash cannot lose them.
+        _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided,
+                           "pending_autoprocess": pending})
+        # Instant confirmation + decisions are deterministic and retried every poll.
+        if autoprocess and pending:
+            pending = _autoprocess(pending, log)
+            _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided,
+                               "pending_autoprocess": pending})
         # Substantive processing: the wake agent (when enabled) replies/works in the
         # background, ledger-deduped, bounded by cooldown + max-per-hour.
         if wake:
-            harpp_wake.maybe_wake(
-                inbox, enabled=True, command=wake_command,
-                model=model or harpp_wake.DEFAULT_MODEL, cooldown=cooldown,
-                max_per_hour=max_per_hour, timeout=timeout)
+            wake_kw = dict(enabled=True, command=wake_command,
+                           model=model or harpp_wake.DEFAULT_MODEL, cooldown=cooldown,
+                           max_per_hour=max_per_hour, timeout=timeout,
+                           max_retries=max_retries)
+            if once:
+                harpp_wake.maybe_wake(inbox, **wake_kw)
+            else:
+                # Agent latency (up to timeout) must never block polling/instant receipts.
+                threading.Thread(target=harpp_wake.maybe_wake, args=(inbox,),
+                                 kwargs=wake_kw, daemon=True).start()
         if once:
             return
         time.sleep(max(5, interval))
@@ -204,13 +238,14 @@ def main():
     wt.add_argument("--once", action="store_true", help="single check, then exit")
     wt.add_argument("--interval", type=int, default=60, help="poll interval seconds (default 60)")
     wt.add_argument("--inbox", default=DEFAULT_INBOX, help="append new items to this JSONL file")
-    wt.add_argument("--no-autoprocess", action="store_true", help="disable auto-ack/auto-apply standard behavior")
+    wt.add_argument("--no-autoprocess", action="store_true", help=argparse.SUPPRESS)  # retained compatibility; ignored
     wt.add_argument("--log", default=".ai/harpp-wake.log", help="autoprocess action log (default .ai/harpp-wake.log)")
     wt.add_argument("--wake", action="store_true", help="enable headless Pi-agent wake (mechanism E; env HARPP_WAKE_ENABLED=1)")
     wt.add_argument("--wake-command", default=os.environ.get("HARPP_WAKE_CMD", ""), help="override agent invocation; {model}/{prompt} substituted")
-    wt.add_argument("--cooldown", type=int, default=int(os.environ.get("HARPP_WAKE_COOLDOWN", "300")))
+    wt.add_argument("--cooldown", type=int, default=int(os.environ.get("HARPP_WAKE_COOLDOWN", "30")))
     wt.add_argument("--max-per-hour", dest="max_per_hour", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_PER_HOUR", "6")))
     wt.add_argument("--timeout", type=int, default=int(os.environ.get("HARPP_WAKE_TIMEOUT", "900")))
+    wt.add_argument("--max-retries", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_RETRIES", "3")))
     wt.add_argument("--model", default=os.environ.get("HARPP_WAKE_MODEL", "deepseek/deepseek-v4-pro"))
 
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
@@ -274,11 +309,11 @@ def main():
             harness_session_id=args.harness_session_id), indent=2))
     elif args.cmd == "watch":
         watch_loop(once=args.once, interval=args.interval, inbox=args.inbox,
-                   autoprocess=not args.no_autoprocess, log=args.log,
+                   autoprocess=True, log=args.log,
                    wake=args.wake or os.environ.get("HARPP_WAKE_ENABLED", "") == "1",
                    wake_command=args.wake_command or None, cooldown=args.cooldown,
                    max_per_hour=args.max_per_hour, timeout=args.timeout,
-                   model=args.model or None)
+                   model=args.model or None, max_retries=args.max_retries)
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear)
 

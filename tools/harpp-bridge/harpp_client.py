@@ -168,30 +168,35 @@ def apply_decision(decision_id, config=None, rationale="Harness applied the owne
                {"rationale": rationale}, config=config)
 
 
-def autoprocess(records):
-    """Standard HARPP behavior when enabled: respond deterministically to owner input.
-
-    - New owner message -> send a short auto-acknowledgment reply through the bridge.
-    - Newly DECIDED decision -> acknowledge + apply it (closes the loop) via the bridge.
-    Returns a list of human-readable outcome notes (one per record). No LLM needed.
-    """
+def autoprocess(records, outcomes=None):
+    """Deterministically receipt messages and close decisions; optionally report success."""
     notes = []
     for rec in records or []:
+        ok = False
         try:
             if rec.get("kind") == "message":
                 conv = rec.get("conversation_id")
                 if not conv:
-                    continue
-                r = send_message(body=f"✅ Received — the harness is working on it.",
+                    raise HarppError("message has no conversation_id")
+                r = send_message(body="✅ Received — the harness is working on it.",
                                  conversation_id=int(conv))
-                notes.append(f"message {rec.get('id')} ack ok={bool(r.get('ok'))}")
+                ok = bool(r.get("ok"))
+                notes.append(f"message {rec.get('id')} ack ok={ok}")
             elif rec.get("kind") == "decision":
                 did = int(rec.get("id"))
-                a = acknowledge_decision(did, rationale="Harness auto-acknowledged the owner decision.")
+                ack_ok = False
+                try:
+                    a = acknowledge_decision(did, rationale="Harness auto-acknowledged the owner decision.")
+                    ack_ok = bool(a.get("ok"))
+                except Exception:  # Applying an already-acknowledged retry may still succeed.
+                    pass
                 ap = apply_decision(did, rationale="Harness auto-applied the owner decision (standard watch behavior).")
-                notes.append(f"decision {did} ack={bool(a.get('ok'))} apply={bool(ap.get('ok'))}")
+                ok = bool(ap.get("ok"))
+                notes.append(f"decision {did} ack={ack_ok} apply={ok}")
         except Exception as e:  # noqa: BLE001
             notes.append(f"{rec.get('kind')} {rec.get('id')} failed: {e}")
+        if outcomes is not None:
+            outcomes.append((rec, ok))
     return notes
 
 
