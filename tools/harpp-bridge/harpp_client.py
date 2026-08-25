@@ -27,6 +27,18 @@ DEFAULT_WORKFLOW_BUDGETS = {
     "max_tool_retries": 2,
     "max_network_retries": 2,
 }
+DEFAULT_HARPP_AUTHORITY = "L2"
+DEFAULT_AUTHORITY_POLICY = {
+    "L0": "autonomous",
+    "L1": "autonomous",
+    "L2": "autonomous",
+    "L3": "autonomous",
+    "L4": "human_approval",
+}
+OWNER_MESSAGE_TYPES = {
+    "INFO", "PROGRESS", "WARNING", "DECISION_REQUIRED", "BLOCKED", "RELEASE_READY", "FAILED",
+}
+ACTIONABLE_MESSAGE_TYPES = {"DECISION_REQUIRED", "BLOCKED", "RELEASE_READY"}
 
 
 class HarppError(RuntimeError):
@@ -43,14 +55,30 @@ def config_path():
     return Path(raw).expanduser() if raw else DEFAULT_CONFIG_PATH
 
 
+def governance_config(config=None):
+    cfg = dict(config or {})
+    if not cfg:
+        p = config_path()
+        if p.is_file():
+            try:
+                cfg = json.loads(p.read_text(encoding="utf-8"))
+            except Exception as exc:  # noqa: BLE001
+                raise HarppError(f"config file {p} is invalid JSON: {exc}") from exc
+    if os.environ.get("HARPP_AUTHORITY"):
+        cfg["harpp_authority"] = os.environ["HARPP_AUTHORITY"]
+    authority = str(cfg.get("harpp_authority") or DEFAULT_HARPP_AUTHORITY).strip().upper() or DEFAULT_HARPP_AUTHORITY
+    cfg["harpp_authority"] = authority
+    policy = cfg.get("authority_policy")
+    if not isinstance(policy, dict):
+        policy = {}
+    merged = dict(DEFAULT_AUTHORITY_POLICY)
+    merged.update({str(k).upper(): str(v) for k, v in policy.items()})
+    cfg["authority_policy"] = merged
+    return cfg
+
+
 def load_config():
-    cfg = {}
-    p = config_path()
-    if p.is_file():
-        try:
-            cfg = json.loads(p.read_text(encoding="utf-8"))
-        except Exception as exc:  # noqa: BLE001
-            raise HarppError(f"config file {p} is invalid JSON: {exc}") from exc
+    cfg = governance_config()
     for key, env in (
         ("base_url", "HARPP_BASE_URL"),
         ("bridge_key", "HARPP_BRIDGE_KEY"),
@@ -65,6 +93,10 @@ def load_config():
             + ". Run: harpp config set <key> <value>  (base_url, bridge_key, tenant_id)"
         )
     cfg["base_url"] = str(cfg["base_url"]).rstrip("/")
+    if not cfg["base_url"].startswith("https://"):
+        raise HarppError(
+            "HARPP base_url must use https://; refusing to transmit the bridge key over an insecure transport."
+        )
     cfg["tenant_id"] = str(cfg["tenant_id"])
     return cfg
 
@@ -113,6 +145,10 @@ def api(method, path, body=None, config=None, timeout=30, dry_run=None):
     config = config or load_config()
     dry = (os.environ.get("HARPP_DRY_RUN") == "1") if dry_run is None else dry_run
     url = config["base_url"] + path
+    if not config["base_url"].startswith("https://"):
+        raise HarppError(
+            "HARPP base_url must use https://; refusing to transmit the bridge key over an insecure transport."
+        )
     data = json.dumps(body).encode("utf-8") if body is not None else None
     headers = {
         "X-HARPP-BRIDGE-KEY": config["bridge_key"],
@@ -123,8 +159,11 @@ def api(method, path, body=None, config=None, timeout=30, dry_run=None):
     if data is not None:
         headers["Content-Type"] = "application/json"
     if dry:
-        print(json.dumps({"dry_run": True, "method": method, "url": url, "headers": headers, "body": body}, indent=2))
-        return {"dry_run": True, "url": url, "method": method, "headers": headers, "body": body}
+        redacted = dict(headers)
+        if "X-HARPP-BRIDGE-KEY" in redacted:
+            redacted["X-HARPP-BRIDGE-KEY"] = "harpp_br_***redacted***"
+        print(json.dumps({"dry_run": True, "method": method, "url": url, "headers": redacted, "body": body}, indent=2))
+        return {"dry_run": True, "url": url, "method": method, "headers": redacted, "body": body}
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     ctx = ssl.create_default_context()
     if os.environ.get("HARPP_INSECURE") == "1":
@@ -204,8 +243,8 @@ def autoprocess(records, outcomes=None):
                 conv = rec.get("conversation_id")
                 if not conv:
                     raise HarppError("message has no conversation_id")
-                r = send_message(body="✅ Received — the harness is working on it.",
-                                 conversation_id=int(conv))
+                r = harpp_notify(body="✅ Received — the harness is working on it.",
+                                 conversation_id=int(conv), message_type="INFO")
                 ok = bool(r.get("ok"))
                 notes.append(f"message {rec.get('id')} ack ok={ok}")
             elif rec.get("kind") == "decision":
@@ -241,6 +280,63 @@ def send_message(config=None, **kw):
     if session:
         body["harness_session_id"] = session
     return api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
+
+
+def _prefix_message(message_type, body):
+    kind = str(message_type or "INFO").strip().upper() or "INFO"
+    if kind not in OWNER_MESSAGE_TYPES:
+        raise ValueError(f"unsupported HARPP owner message type: {kind}")
+    text = _nl(body or "")
+    prefix = f"[{kind}]"
+    stripped = text.lstrip()
+    return text if stripped.startswith(prefix) else (prefix if not text else f"{prefix} {text}")
+
+
+def _decision_lines(payload=None):
+    payload = payload or {}
+    options = payload.get("options") or []
+    if isinstance(options, str):
+        options = [options]
+    lines = [
+        f"what: {_nl(str(payload.get('what') or ''))}".rstrip(),
+        f"why: {_nl(str(payload.get('why') or ''))}".rstrip(),
+        "options:",
+    ]
+    if options:
+        for opt in options:
+            lines.append(f"- {_nl(str(opt))}".rstrip())
+    else:
+        lines.append("- owner direction required")
+    lines.extend([
+        f"recommendation: {_nl(str(payload.get('recommendation') or ''))}".rstrip(),
+        f"risk: {_nl(str(payload.get('risk') or ''))}".rstrip(),
+    ])
+    return "\n".join(lines)
+
+
+def harpp_notify(*, conversation_id, message_type, body, title=None, harness_session_id=None,
+                 decision=None, config=None):
+    message_type = str(message_type or "INFO").strip().upper() or "INFO"
+    response = send_message(config=config, conversation_id=conversation_id, title=title,
+                            harness_session_id=harness_session_id,
+                            body=_prefix_message(message_type, body))
+    if message_type in ACTIONABLE_MESSAGE_TYPES:
+        decision = dict(decision or {})
+        if not decision.get("title"):
+            raise ValueError(f"{message_type} notifications require decision metadata.title")
+        decision_body = _decision_lines(decision)
+        submit_decision(
+            config=config,
+            title=decision["title"],
+            body=decision_body,
+            context=_nl(decision.get("context", "")),
+            requested_decision=_nl(decision.get("requested_decision", "")),
+            priority=decision.get("priority", "high" if message_type != "RELEASE_READY" else "normal"),
+            source=decision.get("source", "harness"),
+            workbench_state=decision.get("workbench_state", message_type),
+            decision_key=decision.get("decision_key", ""),
+        )
+    return response
 
 
 def poll_messages(config=None, **kw):

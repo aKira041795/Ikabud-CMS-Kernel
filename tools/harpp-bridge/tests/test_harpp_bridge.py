@@ -7,6 +7,7 @@ Run:  python3 -m unittest tools.harpp-bridge.tests.test_harpp_bridge
 import json
 import os
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -64,6 +65,8 @@ class HarppClientTest(unittest.TestCase):
         cfg = harpp_client.load_config()
         self.assertEqual(cfg["base_url"], "https://harpp.example.com")
         self.assertEqual(cfg["tenant_id"], "7")
+        self.assertEqual(cfg["harpp_authority"], "L2")
+        self.assertEqual(cfg["authority_policy"]["L4"], "human_approval")
 
     def test_config_env_override(self):
         os.environ["HARPP_BASE_URL"] = "https://env.example.com"
@@ -81,11 +84,18 @@ class HarppClientTest(unittest.TestCase):
         self.assertTrue(req["dry_run"])
         self.assertEqual(req["method"], "POST")
         self.assertIn("/api/v1/harpp/bridge/decisions", req["url"])
-        self.assertEqual(req["headers"]["X-HARPP-BRIDGE-KEY"], "k-test")
+        # The dry-run payload must redact the bridge key, never echo it.
+        self.assertNotEqual(req["headers"]["X-HARPP-BRIDGE-KEY"], "k-test")
+        self.assertNotIn("k-test", json.dumps(req))
+        self.assertIn("redacted", req["headers"]["X-HARPP-BRIDGE-KEY"])
         self.assertEqual(req["headers"]["X-HARPP-TENANT-ID"], "7")
         self.assertEqual(req["body"]["title"], "T")
         self.assertEqual(req["body"]["priority"], "high")
         self.assertEqual(req["body"]["workbench_state"], "ARCHITECTURE_DECISION_REQUIRED")
+
+    def test_rejects_http_base_url(self):
+        with self.assertRaises(harpp_client.HarppError):
+            harpp_client.api("GET", "/api/v1/harpp/bridge/decisions", config={"base_url": "http://x", "bridge_key": "k", "tenant_id": "1"})
 
     def test_dry_run_list_query(self):
         req = harpp_client.list_decisions(state="PENDING", limit=5)
@@ -103,6 +113,25 @@ class HarppClientTest(unittest.TestCase):
         self.assertEqual(m["body"]["conversation_id"], 9)
         s = harpp_client.post_status(message="running", workbench_state="IMPLEMENTING")
         self.assertEqual(s["body"]["workbench_state"], "IMPLEMENTING")
+
+
+class HarppCliDecisionLedgerTest(unittest.TestCase):
+    def test_local_decision_record_and_list_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = os.environ.copy()
+            env["XDG_CONFIG_HOME"] = d
+            script = str(Path(__file__).resolve().parent.parent / "harpp")
+            rec = subprocess.run(
+                [sys.executable, script, "decision", "record", "--task", "workflow:x",
+                 "--decision", "Use stdlib only", "--constraint", "Never print secrets",
+                 "--applied-to", "stage:test"],
+                check=True, text=True, stdout=subprocess.PIPE, env=env)
+            listed = subprocess.run(
+                [sys.executable, script, "decision", "list"],
+                check=True, text=True, stdout=subprocess.PIPE, env=env)
+            self.assertIn("DEC-0001", rec.stdout)
+            self.assertIn("Use stdlib only", listed.stdout)
+            self.assertIn("Never print secrets", listed.stdout)
 
 
 class HarppMcpTest(unittest.TestCase):
