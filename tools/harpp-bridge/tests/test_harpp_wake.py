@@ -303,9 +303,11 @@ class HarppWakeTest(unittest.TestCase):
                 "timeout": 10, "marker": None, "verify": None, "commit": False,
                 "prompt_file": None, "prompt": "p"}
 
-    def _seed_workflow(self, wid, stages, index=0):
+    def _seed_workflow(self, wid, stages, index=0, max_repairs=0):
         wf = {"id": wid, "title": "t", "conversation_id": 7, "workspace": None,
               "stages": stages, "current_index": index, "status": "running",
+              "max_repairs": max_repairs, "repair_count": 0,
+              "advancing": False, "advancing_ts": 0,
               "created_at": "2026-08-25 00:00:00", "updated_at": "2026-08-25 00:00:00"}
         harpp_wake.save_workflows_state({"workflows": {wid: wf}})
         return wf
@@ -387,6 +389,100 @@ class HarppWakeTest(unittest.TestCase):
             self.assertIn("Workflow stopped", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original
+
+    def _fake_launch_seq(self, launched, counter):
+        def fake_launch(**kw):
+            launched.append(kw.get("task"))
+            counter["n"] += 1
+            return f"job-{counter['n']}", None
+        return fake_launch
+
+    def test_workflow_auto_repairs_review_then_succeeds(self):
+        wid = "wf-repair"
+        stages = [self._stage("implement", "job-1", "running"),
+                  self._stage("review"), self._stage("release-gate")]
+        self._seed_workflow(wid, stages, max_repairs=2)
+        launched, counter = [], {"n": 1}
+        original_launch = harpp_wake.launch_job
+        harpp_wake.launch_job = self._fake_launch_seq(launched, counter)
+        try:
+            self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+            self.assertEqual(harpp_wake.advance_workflows(), 1)  # -> review job-2
+            self._write_jobs({"job-2": {"id": "job-2", "status": "finished", "outcome": "FAILED", "conversation_id": 7}})
+            self.assertEqual(harpp_wake.advance_workflows(), 1)  # -> auto-repair implement
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "running")
+            self.assertEqual(wf["repair_count"], 1)
+            self.assertEqual(wf["current_index"], 0)
+            self.assertIn("REPAIR 1/2", launched[-1])
+            self._write_jobs({"job-3": {"id": "job-3", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+            self.assertEqual(harpp_wake.advance_workflows(), 1)  # -> review job-4
+            self.assertEqual(harpp_wake.get_workflow(wid)["current_index"], 1)
+            self._write_jobs({"job-4": {"id": "job-4", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+            self.assertEqual(harpp_wake.advance_workflows(), 1)  # -> gate job-5
+            self.assertEqual(harpp_wake.get_workflow(wid)["current_index"], 2)
+            self._write_jobs({"job-5": {"id": "job-5", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+            sent, original_send = self._patch_send()
+            try:
+                self.assertEqual(harpp_wake.advance_workflows(), 1)
+                self.assertEqual(harpp_wake.get_workflow(wid)["status"], "done")
+                self.assertTrue(any("Workflow complete" in s["body"] for s in sent))
+            finally:
+                harpp_wake.harpp_client.send_message = original_send
+        finally:
+            harpp_wake.launch_job = original_launch
+
+    def test_workflow_stops_after_max_repairs(self):
+        wid = "wf-max"
+        stages = [self._stage("implement", "job-1", "running"), self._stage("review")]
+        self._seed_workflow(wid, stages, max_repairs=1)
+        launched, counter = [], {"n": 1}
+        original_launch = harpp_wake.launch_job
+        harpp_wake.launch_job = self._fake_launch_seq(launched, counter)
+        sent, original_send = self._patch_send()
+        try:
+            self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+            harpp_wake.advance_workflows()  # -> review job-2
+            self._write_jobs({"job-2": {"id": "job-2", "status": "finished", "outcome": "FAILED", "conversation_id": 7}})
+            harpp_wake.advance_workflows()  # repair round 1 -> implement job-3
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "running")
+            self.assertEqual(wf["repair_count"], 1)
+            self.assertIn("REPAIR 1/1", launched[-1])
+            self._write_jobs({"job-3": {"id": "job-3", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+            harpp_wake.advance_workflows()  # -> review job-4
+            self._write_jobs({"job-4": {"id": "job-4", "status": "finished", "outcome": "FAILED", "conversation_id": 7}})
+            harpp_wake.advance_workflows()  # repairs exhausted -> FAILED (terminates)
+            wf2 = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf2["status"], "failed")
+            self.assertEqual(wf2["repair_count"], 1)
+            self.assertFalse(any("REPAIR 2" in t for t in launched))
+            self.assertTrue(any("Workflow stopped" in s["body"] for s in sent))
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.harpp_client.send_message = original_send
+
+    def test_workflow_max_repairs_zero_disables_repair(self):
+        wid = "wf-zero"
+        stages = [self._stage("implement", "job-1", "running"), self._stage("review")]
+        self._seed_workflow(wid, stages, max_repairs=0)
+        launched = []
+        original_launch = harpp_wake.launch_job
+        harpp_wake.launch_job = lambda **kw: (launched.append(kw.get("task")) or ("x", None))
+        sent, original_send = self._patch_send()
+        try:
+            self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+            harpp_wake.advance_workflows()  # -> review launched ("x")
+            self._write_jobs({"x": {"id": "x", "status": "finished", "outcome": "FAILED", "conversation_id": 7}})
+            harpp_wake.advance_workflows()  # max_repairs=0 -> immediate stop, no repair
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "failed")
+            self.assertEqual(wf["repair_count"], 0)
+            self.assertEqual(len(launched), 1)
+            self.assertTrue(any("Workflow stopped" in s["body"] for s in sent))
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.harpp_client.send_message = original_send
 
     # --- deterministic workflow commands from the messenger ---
 

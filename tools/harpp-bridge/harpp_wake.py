@@ -834,22 +834,30 @@ def _stage_prompt(stage: dict) -> str:
                f"Produce the required output and end with your stage marker.\n")
 
 
-def _notify_workflow(wf: dict, status: str, stage: dict | None = None) -> None:
+def _notify_workflow(wf: dict, status: str, stage: dict | None = None,
+                     round_no: int = 0, max_repairs: int = 0) -> None:
     try:
         if status == "DONE":
             body = (f"✅ Workflow complete: {wf.get('title')} — all {len(wf.get('stages', []))} stages passed.\n"
                     "Stages: " + " → ".join(s.get('name', '?') for s in wf.get('stages', [])) + ".")
+        elif status == "REPAIR":
+            body = (f"🔄 Auto-repair round {round_no}/{max_repairs}: '{stage.get('name') if stage else '?'}' failed — "
+                    f"re-running the implementation with the remediation. I'll re-review after; "
+                    f"if it still fails after {max_repairs} rounds the workflow stops.")
         else:
             body = (f"❌ Workflow stopped: {wf.get('title')} failed at stage "
                     f"'{stage.get('name') if stage else '?'}' "
-                    f"(job {stage.get('job_id') if stage else '?'}). "
+                    f"(job {stage.get('job_id') if stage else '?'}) after "
+                    f"{wf.get('repair_count', 0)} repair round(s). "
                     f"See the job report above; fix and retry, or ask the harness.")
         harpp_client.send_message(conversation_id=int(wf.get("conversation_id") or 0), body=body)
     except Exception as e:  # noqa: BLE001
         log(f"workflow notify failed for {wf.get('id')}: {e}")
 
 
-def _launch_stage(wid: str, stage: dict, index: int, workflow: dict) -> None:
+def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
+                  remediation: str | None = None, repair_round: int = 0,
+                  max_repairs: int = 0) -> None:
     """Launch a workflow stage as a tracked job and record its job id on the stage."""
     prompt = _stage_prompt(stage)
     prompt = (prompt.replace("{{WORKSPACE}}", workflow.get("workspace") or "(no workspace)")
@@ -857,7 +865,17 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict) -> None:
     if index > 0:
         prev = workflow.get("stages", [])[index - 1]
         prompt = prompt.replace("{{PREV_OUTPUT}}", str(prev.get("output_path") or prev.get("job_id") or ""))
-    task = f"workflow {wid} stage {index + 1}/{len(workflow.get('stages', []))}: {stage.get('name')}"
+    if remediation:
+        prompt += ("\n\n# AUTO-REPAIR CONTEXT (round {}/{})\n"
+                   "This is an auto-repair run: the previous stage reported a failure. "
+                   "Fix the issues below and re-verify; do NOT redo unrelated work. "
+                   "If the issues cannot be resolved, say so explicitly and end with the FAIL marker.\n"
+                   "Previous stage log (last lines):\n```\n{}\n```\n").format(
+                       repair_round, max_repairs, (remediation or "")[-1500:])
+    label = stage.get('name')
+    if repair_round:
+        label = f"{label} (REPAIR {repair_round}/{max_repairs})"
+    task = f"workflow {wid} stage {index + 1}/{len(workflow.get('stages', []))}: {label}"
     cmd = ["pi", "--model", str(stage.get("model")), "--mode", "json", "--print", prompt]
     log_path = str(CONFIG_DIR / f"wf-{wid}-s{index}.log")
     jid, _proc = launch_job(
@@ -869,12 +887,17 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict) -> None:
     stage["job_id"] = jid
     stage["log_path"] = log_path
     stage["status"] = "running"
-    log(f"workflow {wid} launched stage {index + 1} '{stage.get('name')}' as job {jid}")
+    log(f"workflow {wid} launched stage {index + 1} '{label}' as job {jid}")
 
 
 def start_workflow(*, title: str, conversation_id: int, stages: list,
-                  workspace: str | None = None) -> str:
-    """Register a multi-stage workflow and launch its first stage. Returns workflow id."""
+                  workspace: str | None = None, max_repairs: int = 2) -> str:
+    """Register a multi-stage workflow and launch its first stage. Returns workflow id.
+
+    max_repairs bounds the auto-repair loop (review FAIL -> re-run implement -> review)
+    so a failing pipeline always terminates: after max_repairs rounds it stops as FAILED.
+    Set 0 to disable auto-repair (fail-closed on the first failure).
+    """
     if not str(title).strip() or int(conversation_id) < 1 or not stages:
         raise ValueError("title, conversation_id and at least one stage are required")
     wid = uuid.uuid4().hex[:12]
@@ -883,6 +906,8 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
         "workspace": workspace or default_workspace(),
         "stages": [dict(s) for s in stages],
         "current_index": 0, "status": "running",
+        "max_repairs": max(0, int(max_repairs)), "repair_count": 0,
+        "advancing": False, "advancing_ts": 0,
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -922,8 +947,69 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
     return wid
 
 
+def _repair_target_index(wf: dict, failed_idx: int) -> int:
+    """Index of the stage to re-run on failure — the 'implement' producer if present, else the stage itself."""
+    for i, s in enumerate(wf.get("stages", [])):
+        if str(s.get("name", "")).lower() == "implement":
+            return i
+    return failed_idx
+
+
+def _remediation_from(stage: dict) -> str:
+    """Tail of a failed stage's log — carries the reviewer's FAIL rationale/remediation."""
+    p = stage.get("log_path")
+    if not p:
+        return ""
+    try:
+        pp = Path(p)
+        return pp.read_text(encoding="utf-8", errors="replace")[-1500:] if pp.exists() else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _launch_stage_with_claim(wid: str, wf: dict, stage: dict, index: int, *,
+                             remediation: str | None = None, repair_round: int = 0,
+                             max_repairs: int = 0) -> bool:
+    """Launch a stage under a persisted 'advancing' claim so concurrent passes can't double-launch."""
+    now = _now()
+    with _jobs_lock():
+        state = _load_json(WORKFLOWS_FILE, {})
+        cur = state.get("workflows", {}).get(wid)
+        if not cur or cur.get("status") != "running":
+            return False
+        cur["advancing"] = True
+        cur["advancing_ts"] = now
+        _save_json(WORKFLOWS_FILE, state)
+    try:
+        _launch_stage(wid, stage, index, wf, remediation=remediation,
+                      repair_round=repair_round, max_repairs=max_repairs)
+        return True
+    finally:
+        with _jobs_lock():
+            state = _load_json(WORKFLOWS_FILE, {})
+            c2 = state.get("workflows", {}).get(wid)
+            if c2:
+                c2["advancing"] = False
+                c2["advancing_ts"] = 0
+                # Persist the just-launched job id atomically (closes the double-launch window).
+                try:
+                    c2["stages"][index]["job_id"] = stage.get("job_id")
+                    c2["stages"][index]["status"] = stage.get("status")
+                    c2["stages"][index]["log_path"] = stage.get("log_path")
+                    c2["current_index"] = index
+                except Exception:  # noqa: BLE001
+                    pass
+                _save_json(WORKFLOWS_FILE, state)
+
+
 def advance_workflows() -> int:
-    """Advance running workflows whose current stage job finished. Returns count advanced/finalized."""
+    """Advance running workflows whose current stage job finished. Returns count advanced/finalized.
+
+    Failures trigger a BOUNDED auto-repair: the implement stage is re-run with the failed
+    stage's remediation (e.g. review FAIL -> repair implement -> review again) up to
+    max_repairs rounds; past that the workflow terminates as FAILED — it can never loop
+    forever. A persisted advancing claim prevents concurrent passes from double-launching.
+    """
     try:
         with _jobs_lock():
             wstate = _load_json(WORKFLOWS_FILE, {})
@@ -931,14 +1017,20 @@ def advance_workflows() -> int:
         wf_map = wstate.get("workflows", {}) if isinstance(wstate, dict) else {}
         jobs = jstate.get("jobs", {})
         advanced = 0
+        now = _now()
         for wid, wf in list(wf_map.items()):
             if wf.get("status") != "running":
                 continue
+            if wf.get("advancing"):
+                if now - int(wf.get("advancing_ts") or 0) < 60:
+                    continue  # another pass is mid-launch
+                wf["advancing"] = False  # stale claim reclaim
             stages = wf.get("stages", [])
             idx = int(wf.get("current_index", 0))
             if idx >= len(stages):
                 wf["status"] = "done"
                 advanced += 1
+                wf["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
                 continue
             stage = stages[idx]
             job = jobs.get(stage.get("job_id")) if stage.get("job_id") else None
@@ -950,16 +1042,34 @@ def advance_workflows() -> int:
                 if idx >= len(stages) - 1:
                     wf["status"] = "done"
                     _notify_workflow(wf, "DONE")
+                    advanced += 1
                 else:
                     nxt = idx + 1
                     wf["current_index"] = nxt
-                    _launch_stage(wid, stages[nxt], nxt, wf)
-                advanced += 1
+                    _launch_stage_with_claim(wid, wf, stages[nxt], nxt)
+                    advanced += 1
             else:
                 stage["status"] = "failed"
-                wf["status"] = "failed"
-                _notify_workflow(wf, "FAILED", stage)
-                advanced += 1
+                repairs = int(wf.get("repair_count", 0))
+                max_repairs = int(wf.get("max_repairs", 0))
+                if max_repairs > 0 and repairs < max_repairs:
+                    # Bounded auto-repair: re-run the producer with the failure remediation.
+                    wf["repair_count"] = repairs + 1
+                    repair_idx = _repair_target_index(wf, idx)
+                    target = stages[repair_idx]
+                    target["status"] = "pending"
+                    target["job_id"] = None
+                    wf["current_index"] = repair_idx
+                    remediation = _remediation_from(stage)
+                    _launch_stage_with_claim(wid, wf, target, repair_idx,
+                                             remediation=remediation, repair_round=repairs + 1,
+                                             max_repairs=max_repairs)
+                    _notify_workflow(wf, "REPAIR", stage, round_no=repairs + 1, max_repairs=max_repairs)
+                    advanced += 1
+                else:
+                    wf["status"] = "failed"
+                    _notify_workflow(wf, "FAILED", stage)
+                    advanced += 1
             wf["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
         if advanced:
             with _jobs_lock():
@@ -1012,8 +1122,12 @@ def parse_workflow_command(body) -> tuple | None:
         ti = re.search(r"--title\s+(.+)", rest)
         if ti:
             args["title"] = ti.group(1).strip()
+        mr = re.search(r"--max-repairs\s+(\d+)", rest)
+        if mr:
+            args["max_repairs"] = int(mr.group(1))
         rest = re.sub(r"--workspace\s+\S+", "", rest)
         rest = re.sub(r"--title\s+.+", "", rest)
+        rest = re.sub(r"--max-repairs\s+\d+", "", rest)
         args["name"] = " ".join(rest.split()).strip() or "governed-loop"
         return ("start", args)
     for alias in WORKFLOW_COMMANDS:
@@ -1061,10 +1175,17 @@ def _exec_workflow_command(cmd, conv: int) -> str:
             raise RuntimeError("workflow manifest has no stages")
         title = args.get("title") or (manifest.get("title") if isinstance(manifest, dict) else "") or name
         ws = args.get("workspace") or default_ws or default_workspace()
-        wid = start_workflow(title=title, conversation_id=conv, stages=stages, workspace=ws)
+        max_repairs = args.get("max_repairs")
+        if max_repairs is None and isinstance(manifest, dict):
+            max_repairs = manifest.get("max_repairs")
+        if max_repairs is None:
+            max_repairs = 2
+        wid = start_workflow(title=title, conversation_id=conv, stages=stages, workspace=ws,
+                             max_repairs=int(max_repairs))
         names = ", ".join(s.get("name", "?") for s in stages)
         first = stages[0].get("name", "?")
         return (f"🔁 Workflow started: {wid}\ntitle: {title}\nstages ({len(stages)}): {names}\n"
+                f"auto-repair: {max_repairs} round(s)\n"
                 f"stage 1 ({first}) launched — each stage result will be auto-reported here.")
     return "❓ Unrecognized workflow command."
 

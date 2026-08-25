@@ -258,12 +258,19 @@ def cmd_workflow_start(args):
     if not isinstance(stages, list) or not stages:
         sys.exit("harpp workflow start: manifest must contain a non-empty 'stages' array")
     title = args.title or (manifest.get("title") if isinstance(manifest, dict) else "") or "Governed HARPP workflow"
+    max_repairs = args.max_repairs
+    if max_repairs is None and isinstance(manifest, dict):
+        max_repairs = manifest.get("max_repairs")
+    if max_repairs is None:
+        max_repairs = 2
     try:
         wid = harpp_wake.start_workflow(title=title, conversation_id=args.conversation,
-                                        stages=stages, workspace=args.workspace)
+                                        stages=stages, workspace=args.workspace,
+                                        max_repairs=int(max_repairs))
     except ValueError as exc:
         sys.exit(f"harpp workflow start: {exc}")
-    print(json.dumps({"workflow_id": wid, "status": "running", "stages": len(stages)}))
+    print(json.dumps({"workflow_id": wid, "status": "running", "stages": len(stages),
+                      "max_repairs": int(max_repairs)}))
 
 
 def cmd_workflow_list(args):
@@ -405,6 +412,8 @@ def main():
     ws.add_argument("--conversation", type=int, required=True, help="conversation id to report to")
     ws.add_argument("--manifest", required=True, help="JSON manifest with a non-empty 'stages' array")
     ws.add_argument("--workspace", default=None, help="working dir for stages (default: configured workspace)")
+    ws.add_argument("--max-repairs", type=int, default=None,
+                    help="bounded auto-repair rounds on stage failure (default from manifest, else 2; 0 disables)")
     ws.set_defaults(func=cmd_workflow_start)
     wl = wsub.add_parser("list", help="list workflows + status")
     wl.set_defaults(func=cmd_workflow_list)
