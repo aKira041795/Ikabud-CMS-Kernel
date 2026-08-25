@@ -45,9 +45,28 @@
     if (!badge) return;
     try { const count = (await api('/api/v1/harpp/notifications/unread-count')).data.unread || 0; badge.textContent = String(count); badge.style.display = count ? 'block' : 'none'; } catch (_) {}
   }
+  async function maybePromptPush() {
+    // Option A: one-time onboarding banner — show only when push is possible,
+    // this device is not yet subscribed, and the owner has not dismissed it.
+    const banner = document.getElementById('push-banner');
+    if (!banner || !('PushManager' in window) || localStorage.getItem('harpp-push-dismissed') === '1') return;
+    try {
+      const reg = await registration();
+      if (await reg.pushManager.getSubscription()) return;
+      banner.hidden = false;
+      document.getElementById('push-banner-enable').onclick = async () => {
+        try { await subscribe(); banner.hidden = true; pollUnread(); } catch (_) {}
+      };
+      document.getElementById('push-banner-dismiss').onclick = () => {
+        localStorage.setItem('harpp-push-dismissed', '1');
+        banner.hidden = true;
+      };
+    } catch (_) {}
+  }
   window.Harpp = {fetch: api, register: registration, subscribe, unsubscribe, subscribed, pollUnread};
   document.addEventListener('DOMContentLoaded', () => {
     registration().catch(() => {});
+    maybePromptPush();
     pollUnread();
     window.setInterval(pollUnread, 30000);
     document.getElementById('harpp-logout')?.addEventListener('click', async () => { try { await api('/api/v1/harpp/auth/logout', {method: 'POST'}); } finally { location.href = '/harpp/login'; } });

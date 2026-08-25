@@ -46,6 +46,18 @@ try {
     ],$tenantId);
     $decisionId=(int)($created['data']['decision_id']??0);$decisionConversation=(int)($created['data']['conversation_id']??0);
     $assert('bridge decision create returns PENDING',!empty($created['ok'])&&$decisionId>0&&($created['data']['state']??'')==='PENDING');
+
+    $ownerChoice=$bridge->createDecision($actor,['title'=>'Phase 5 owner messenger decision','body'=>'Owner chose via messenger.','context'=>'Messenger decision test','requested_decision'=>'Confirm your choice','priority'=>'normal','source'=>'harness','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED','decision_key'=>'BRIDGE-DECIDE-'.strtoupper(bin2hex(random_bytes(6)))],$tenantId);
+    $ownerDecisionId=(int)($ownerChoice['data']['decision_id']??0);
+    (new HarppDecisionService($db))->transition($owner,$ownerDecisionId,'NOTIFIED','Notify owner',[],$tenantId);
+    $viewedViaBridge=$bridge->view($actor,$ownerDecisionId,['rationale'=>'Owner opened the decision via messenger.'],$tenantId);
+    $decidedViaBridge=$bridge->decide($actor,$ownerDecisionId,['decision'=>'Option A','rationale'=>'Owner replied Option A via messenger.'],$tenantId);
+    $dRow=$db->prepare("SELECT lifecycle_state,decision,decided_by FROM harpp_decisions WHERE id=:id");$dRow->execute([':id'=>$ownerDecisionId]);$d=$dRow->fetch(PDO::FETCH_ASSOC);
+    $adrN=$db->prepare("SELECT COUNT(*) FROM harpp_adrs WHERE decision_ref=:id");$adrN->execute([':id'=>$ownerDecisionId]);
+    $assert('bridge view marks decision viewed',!empty($viewedViaBridge['ok'])&&($viewedViaBridge['data']['state']??'')==='VIEWED');
+    $assert('bridge decide records owner decision via messenger',!empty($decidedViaBridge['ok'])&&($d['lifecycle_state']??'')==='DECIDED'&&($d['decision']??'')==='Option A'&&(int)$d['decided_by']===(int)$owner['id']&&(int)$adrN->fetchColumn()===1);
+    $missingDecision=$bridge->decide($actor,$ownerDecisionId,['rationale'=>'No choice text'],$tenantId);
+    $assert('bridge decide rejects missing decision text',empty($missingDecision['ok']));
     $domain=new HarppDecisionService($db);
     foreach(['NOTIFIED','VIEWED','DECIDED'] as $state){$changes=$state==='DECIDED'?['decision'=>'Approve the safe bridge path']:[];$r=$domain->transition($owner,$decisionId,$state,'Owner CLI '.$state,$changes,$tenantId);$assert('owner transition '.$state,!empty($r['ok']),(string)($r['error']??''));}
     $ack=$bridge->acknowledge($actor,$decisionId,[],$tenantId);$applied=$bridge->applied($actor,$decisionId,[],$tenantId);

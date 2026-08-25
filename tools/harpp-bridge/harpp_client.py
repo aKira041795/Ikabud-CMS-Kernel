@@ -121,12 +121,17 @@ def api(method, path, body=None, config=None, timeout=30, dry_run=None):
 
 # ── Bridge operations ─────────────────────────────────────────────────────────
 
+def _nl(value):
+    """Convert literal '\\n' escapes (common from shell double-quoted args) to real newlines."""
+    return value.replace("\\n", "\n") if isinstance(value, str) else value
+
+
 def submit_decision(config=None, **kw):
     body = {
         "title": kw.get("title", ""),
-        "body": kw.get("body", ""),
-        "context": kw.get("context", ""),
-        "requested_decision": kw.get("requested_decision", ""),
+        "body": _nl(kw.get("body", "")),
+        "context": _nl(kw.get("context", "")),
+        "requested_decision": _nl(kw.get("requested_decision", "")),
         "priority": kw.get("priority", "normal"),
         "source": kw.get("source", "harness"),
         "workbench_state": kw.get("workbench_state", "ARCHITECTURE_DECISION_REQUIRED"),
@@ -142,6 +147,17 @@ def list_decisions(config=None, **kw):
          "workbench_state": kw.get("workbench_state"), "limit": kw.get("limit")}), config=config)
 
 
+def view_decision(decision_id, config=None, rationale="Owner viewed the decision via messenger."):
+    return api("POST", f"/api/v1/harpp/bridge/decisions/{int(decision_id)}/view",
+               {"rationale": rationale}, config=config)
+
+
+def record_decision(decision_id, decision, config=None, rationale="Owner decision recorded via harness."):
+    """Record the owner's decision (DECIDED) on the owner's behalf via the bridge."""
+    return api("POST", f"/api/v1/harpp/bridge/decisions/{int(decision_id)}/decide",
+               {"decision": decision, "rationale": _nl(rationale)}, config=config)
+
+
 def acknowledge_decision(decision_id, config=None, rationale="Harness acknowledged the owner decision."):
     return api("POST", f"/api/v1/harpp/bridge/decisions/{int(decision_id)}/acknowledge",
                {"rationale": rationale}, config=config)
@@ -154,7 +170,7 @@ def apply_decision(decision_id, config=None, rationale="Harness applied the owne
 
 def send_message(config=None, **kw):
     import socket
-    body = {"body": kw.get("body", "")}
+    body = {"body": _nl(kw.get("body", ""))}
     if kw.get("conversation_id"):
         body["conversation_id"] = int(kw["conversation_id"])
     if kw.get("title"):

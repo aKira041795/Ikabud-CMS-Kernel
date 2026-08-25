@@ -143,6 +143,13 @@ def main():
     da = dsub.add_parser("ack")
     da.add_argument("id", type=int)
     da.add_argument("--rationale", default="Harness acknowledged the owner decision.")
+    dv = dsub.add_parser("view", help="mark a decision viewed (NOTIFIED -> VIEWED) via the bridge")
+    dv.add_argument("id", type=int)
+    dv.add_argument("--rationale", default="Owner viewed the decision via messenger.")
+    dd = dsub.add_parser("decide", help="record the owner's decision (DECIDED) via the bridge")
+    dd.add_argument("id", type=int)
+    dd.add_argument("--decision", required=True)
+    dd.add_argument("--rationale", default="Owner decision recorded by harness.")
     dp = dsub.add_parser("apply")
     dp.add_argument("id", type=int)
     dp.add_argument("--rationale", default="Harness applied the owner decision.")
@@ -205,6 +212,10 @@ def main():
         elif args.dcmd == "list":
             print(json.dumps(harpp_client.list_decisions(
                 state=args.state, priority=args.priority, workbench_state=args.workbench_state, limit=args.limit), indent=2))
+        elif args.dcmd == "view":
+            print(json.dumps(harpp_client.view_decision(args.id, rationale=args.rationale), indent=2))
+        elif args.dcmd == "decide":
+            print(json.dumps(harpp_client.record_decision(args.id, args.decision, rationale=args.rationale), indent=2))
         elif args.dcmd == "ack":
             print(json.dumps(harpp_client.acknowledge_decision(args.id, rationale=args.rationale), indent=2))
         else:

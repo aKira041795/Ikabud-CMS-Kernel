@@ -22,6 +22,18 @@ final class HarppBridgeService
         return (new HarppDecisionService($this->db))->list($actor, $filters, $tenantId);
     }
 
+    public function view(array $actor, int $decisionId, array $input, int $tenantId)
+    {
+        return (new HarppDecisionService($this->db))->transition($actor, $decisionId, 'VIEWED', trim((string)($input['rationale'] ?? 'Owner viewed the decision via messenger.')), $input, $tenantId);
+    }
+
+    public function decide(array $actor, int $decisionId, array $input, int $tenantId)
+    {
+        $decision = trim((string)($input['decision'] ?? ''));
+        if ($decision === '') return HarppServiceResult::failure('Decision text is required.', 422);
+        return (new HarppDecisionService($this->db))->transition($actor, $decisionId, 'DECIDED', trim((string)($input['rationale'] ?? 'Owner decision recorded via harness.')), ['decision' => $decision], $tenantId);
+    }
+
     public function acknowledge(array $actor, int $decisionId, array $input, int $tenantId)
     {
         return (new HarppDecisionService($this->db))->transition($actor, $decisionId, 'ACKNOWLEDGED', trim((string)($input['rationale'] ?? 'Harness acknowledged the owner decision.')), $input, $tenantId);

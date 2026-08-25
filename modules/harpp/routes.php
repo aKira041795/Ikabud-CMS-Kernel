@@ -52,6 +52,8 @@ return [
         '/api/v1/harpp/adrs' => 'harpp:harppAdrRecord',
         '/api/v1/harpp/bridge/key' => 'harpp:harppBridgeKeyRotate',
         '/api/v1/harpp/bridge/decisions' => 'harpp:harppBridgeDecisionCreate',
+        '/api/v1/harpp/bridge/decisions/{id}/view' => 'harpp:harppBridgeDecisionView',
+        '/api/v1/harpp/bridge/decisions/{id}/decide' => 'harpp:harppBridgeDecisionDecide',
         '/api/v1/harpp/bridge/decisions/{id}/acknowledge' => 'harpp:harppBridgeDecisionAcknowledge',
         '/api/v1/harpp/bridge/decisions/{id}/applied' => 'harpp:harppBridgeDecisionApplied',
         '/api/v1/harpp/bridge/messages' => 'harpp:harppBridgeMessageSend',
