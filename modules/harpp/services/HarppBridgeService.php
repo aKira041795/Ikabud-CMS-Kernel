@@ -39,6 +39,11 @@ final class HarppBridgeService
         return (new HarppDecisionService($this->db))->transition($actor, $decisionId, 'ACKNOWLEDGED', trim((string)($input['rationale'] ?? 'Harness acknowledged the owner decision.')), $input, $tenantId);
     }
 
+    public function cancel(array $actor, int $decisionId, array $input, int $tenantId)
+    {
+        return (new HarppDecisionService($this->db))->transition($actor, $decisionId, 'CANCELLED', trim((string)($input['rationale'] ?? 'Owner cancelled the decision.')), $input, $tenantId);
+    }
+
     public function applied(array $actor, int $decisionId, array $input, int $tenantId)
     {
         return (new HarppDecisionService($this->db))->applyAndClose(

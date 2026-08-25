@@ -26,7 +26,7 @@ $h->fingerprint('modules/harpp/services/HarppBridgeAuthService.php');
 $h->fingerprint('modules/harpp/services/HarppBridgeService.php');
 $h->fingerprint('modules/harpp/services/HarppDecisionService.php');
 $assert = static function(string $name, bool $ok, string $detail = '') use ($h): void { $h->test($name, $ok, $detail); };
-$decisionId=0;$decisionConversation=0;$messageConversation=0;$messageId=0;$ownerMessageId=0;$statusNotificationId=0;
+$decisionId=0;$decisionConversation=0;$cancelDecisionId=0;$cancelConversation=0;$ownerDecisionId=0;$ownerDecisionConversation=0;$messageConversation=0;$messageId=0;$ownerMessageId=0;$statusNotificationId=0;
 try {
     $auth=new HarppBridgeAuthService($db);$issued=$auth->rotate($tenantId);$key=(string)($issued['data']['key']??'');
     $valid=$auth->validate($key,$tenantId,'phase5-valid');$actor=(array)($valid['data']['actor']??[]);
@@ -48,7 +48,7 @@ try {
     $assert('bridge decision create returns PENDING',!empty($created['ok'])&&$decisionId>0&&($created['data']['state']??'')==='PENDING');
 
     $ownerChoice=$bridge->createDecision($actor,['title'=>'Phase 5 owner messenger decision','body'=>'Owner chose via messenger.','context'=>'Messenger decision test','requested_decision'=>'Confirm your choice','priority'=>'normal','source'=>'harness','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED','decision_key'=>'BRIDGE-DECIDE-'.strtoupper(bin2hex(random_bytes(6)))],$tenantId);
-    $ownerDecisionId=(int)($ownerChoice['data']['decision_id']??0);
+    $ownerDecisionId=(int)($ownerChoice['data']['decision_id']??0);$ownerDecisionConversation=(int)($ownerChoice['data']['conversation_id']??0);
     (new HarppDecisionService($db))->transition($owner,$ownerDecisionId,'NOTIFIED','Notify owner',[],$tenantId);
     $viewedViaBridge=$bridge->view($actor,$ownerDecisionId,['rationale'=>'Owner opened the decision via messenger.'],$tenantId);
     $decidedViaBridge=$bridge->decide($actor,$ownerDecisionId,['decision'=>'Option A','rationale'=>'Owner replied Option A via messenger.'],$tenantId);
@@ -58,13 +58,25 @@ try {
     $assert('bridge decide records owner decision via messenger',!empty($decidedViaBridge['ok'])&&($d['lifecycle_state']??'')==='DECIDED'&&($d['decision']??'')==='Option A'&&(int)$d['decided_by']===(int)$owner['id']&&(int)$adrN->fetchColumn()===1);
     $missingDecision=$bridge->decide($actor,$ownerDecisionId,['rationale'=>'No choice text'],$tenantId);
     $assert('bridge decide rejects missing decision text',empty($missingDecision['ok']));
+
+    $stale=$bridge->createDecision($actor,['title'=>'Phase 5 stale bridge decision','body'=>'This request is no longer needed.','requested_decision'=>'Choose an abandoned option','priority'=>'normal','source'=>'harness','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED','decision_key'=>'BRIDGE-CANCEL-'.strtoupper(bin2hex(random_bytes(6)))],$tenantId);
+    $cancelDecisionId=(int)($stale['data']['decision_id']??0);$cancelConversation=(int)($stale['data']['conversation_id']??0);
+    $notified=(new HarppDecisionService($db))->transition($owner,$cancelDecisionId,'NOTIFIED','Notify owner before request became stale.',[],$tenantId);
+    $cancelled=$bridge->cancel($actor,$cancelDecisionId,[],$tenantId);
+    $actionable=$bridge->listDecisions($actor,['state'=>'NOTIFIED'],$tenantId);
+    $cancelledRows=$bridge->listDecisions($actor,['state'=>'CANCELLED'],$tenantId);
+    $assert('bridge cancels stale NOTIFIED decision with default rationale',!empty($notified['ok'])&&!empty($cancelled['ok'])&&($cancelled['data']['state']??'')==='CANCELLED');
+    $assert('cancelled decision is no longer actionable by lifecycle',!HarppDecisionService::isTransitionAllowed('CANCELLED','VIEWED')&&count(array_filter((array)($actionable['data']['decisions']??[]),fn($d)=>(int)$d['id']===$cancelDecisionId))===0&&count(array_filter((array)($cancelledRows['data']['decisions']??[]),fn($d)=>(int)$d['id']===$cancelDecisionId))===1);
+
     $domain=new HarppDecisionService($db);
     foreach(['NOTIFIED','VIEWED','DECIDED'] as $state){$changes=$state==='DECIDED'?['decision'=>'Approve the safe bridge path']:[];$r=$domain->transition($owner,$decisionId,$state,'Owner CLI '.$state,$changes,$tenantId);$assert('owner transition '.$state,!empty($r['ok']),(string)($r['error']??''));}
     $ack=$bridge->acknowledge($actor,$decisionId,[],$tenantId);$applied=$bridge->applied($actor,$decisionId,[],$tenantId);
     $assert('bridge acknowledge succeeds',!empty($ack['ok'])&&($ack['data']['state']??'')==='ACKNOWLEDGED');
     $assert('bridge applied closes decision',!empty($applied['ok'])&&($applied['data']['applied_state']??'')==='APPLIED'&&($applied['data']['state']??'')==='CLOSED');
     $illegal=$bridge->acknowledge($actor,$decisionId,[],$tenantId);
+    $illegalCancel=$bridge->cancel($actor,$decisionId,['rationale'=>'Closed decisions must remain closed.'],$tenantId);
     $assert('illegal bridge transition rejected',empty($illegal['ok'])&&($illegal['code']??'')==='illegal_transition');
+    $assert('bridge rejects CLOSED to CANCELLED transition',empty($illegalCancel['ok'])&&($illegalCancel['code']??'')==='illegal_transition');
     $filtered=$bridge->listDecisions($actor,['state'=>'CLOSED','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED'],$tenantId);
     $assert('bridge decision poll filters state/workbench',!empty($filtered['ok'])&&count(array_filter((array)($filtered['data']['decisions']??[]),fn($d)=>(int)$d['id']===$decisionId))===1);
 
@@ -86,9 +98,9 @@ try {
 } finally {
     $db->prepare("DELETE FROM harpp_settings WHERE setting_key LIKE 'bridge_auth_rate_%'")->execute();
     if($statusNotificationId>0)$db->prepare('DELETE FROM harpp_notifications WHERE id=:id')->execute([':id'=>$statusNotificationId]);
-    foreach(array_unique(array_filter([$decisionConversation,$messageConversation])) as $cid)$db->prepare('DELETE FROM harpp_notifications WHERE conversation_id=:id')->execute([':id'=>$cid]);
-    if($decisionId>0){$db->prepare('DELETE FROM harpp_adrs WHERE decision_ref=:id')->execute([':id'=>$decisionId]);$db->prepare('DELETE FROM harpp_notifications WHERE decision_id=:id')->execute([':id'=>$decisionId]);$db->prepare('DELETE FROM harpp_decisions WHERE id=:id')->execute([':id'=>$decisionId]);}
-    foreach(array_unique(array_filter([$decisionConversation,$messageConversation])) as $cid)$db->prepare('DELETE FROM harpp_conversations WHERE id=:id')->execute([':id'=>$cid]);
+    foreach(array_unique(array_filter([$decisionConversation,$cancelConversation,$ownerDecisionConversation,$messageConversation])) as $cid)$db->prepare('DELETE FROM harpp_notifications WHERE conversation_id=:id')->execute([':id'=>$cid]);
+    foreach(array_unique(array_filter([$decisionId,$cancelDecisionId,$ownerDecisionId])) as $id){$db->prepare('DELETE FROM harpp_adrs WHERE decision_ref=:id')->execute([':id'=>$id]);$db->prepare('DELETE FROM harpp_notifications WHERE decision_id=:id')->execute([':id'=>$id]);$db->prepare('DELETE FROM harpp_decisions WHERE id=:id')->execute([':id'=>$id]);}
+    foreach(array_unique(array_filter([$decisionConversation,$cancelConversation,$ownerDecisionConversation,$messageConversation])) as $cid)$db->prepare('DELETE FROM harpp_conversations WHERE id=:id')->execute([':id'=>$cid]);
     $db->prepare("DELETE FROM harpp_settings WHERE setting_key IN ('bridge_api_key_hash','bridge_api_key_rotated_at')")->execute();
     $restore=$db->prepare('INSERT INTO harpp_settings(setting_key,setting_value,updated_at) VALUES(:key,:value,NOW())');foreach($oldSettings as $keyName=>$value)$restore->execute([':key'=>$keyName,':value'=>$value]);
 }

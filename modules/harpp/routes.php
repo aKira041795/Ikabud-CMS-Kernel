@@ -61,6 +61,7 @@ return [
         '/api/v1/harpp/bridge/decisions/{id}/view' => 'harpp:harppBridgeDecisionView',
         '/api/v1/harpp/bridge/decisions/{id}/decide' => 'harpp:harppBridgeDecisionDecide',
         '/api/v1/harpp/bridge/decisions/{id}/acknowledge' => 'harpp:harppBridgeDecisionAcknowledge',
+        '/api/v1/harpp/bridge/decisions/{id}/cancel' => 'harpp:harppBridgeDecisionCancel',
         '/api/v1/harpp/bridge/decisions/{id}/applied' => 'harpp:harppBridgeDecisionApplied',
         '/api/v1/harpp/bridge/messages' => 'harpp:harppBridgeMessageSend',
         '/api/v1/harpp/bridge/status' => 'harpp:harppBridgeStatus',
