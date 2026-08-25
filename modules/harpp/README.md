@@ -244,6 +244,19 @@ nohup setsid env python3 tools/harpp-bridge/harpp watch --interval 45 \
 
 Use `--no-autoprocess` to keep stage+notify only.
 
+**Optional autonomous wake (mechanism E):** add `--wake` (or `HARPP_WAKE_ENABLED=1`) so that
+unprocessed owner input spawns **one headless Pi agent** that replies semantically via the
+bridge, acknowledges + applies decided decisions, and exits. Guarded by a single-flight lock
+(stale TTL), cooldown (300s), max-per-hour (6), a hard timeout kill (900s), and an
+idempotent processed-id ledger. On any failure it falls back to staging + notify — nothing
+is dropped. Task contract: `tools/harpp-bridge/wake/task-contract.md`; log:
+`~/.config/harpp/wake.log`.
+
+```bash
+HARPP_WAKE_ENABLED=1 harpp watch --interval 45          # full autonomous wake
+harpp watch --once --wake --wake-command 'echo dry'     # dry-run of the spawn decision
+```
+
 **MCP (VS Code Copilot Chat):** add to `.vscode/mcp.json` (or user MCP config):
 
 ```json
