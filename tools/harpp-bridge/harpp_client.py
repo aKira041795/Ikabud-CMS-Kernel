@@ -91,6 +91,8 @@ def api(method, path, body=None, config=None, timeout=30, dry_run=None):
     headers = {
         "X-HARPP-BRIDGE-KEY": config["bridge_key"],
         "X-HARPP-TENANT-ID": config["tenant_id"],
+        "Accept": "application/json",
+        "User-Agent": "harpp-bridge-client/1.0",
     }
     if data is not None:
         headers["Content-Type"] = "application/json"
@@ -151,13 +153,19 @@ def apply_decision(decision_id, config=None, rationale="Harness applied the owne
 
 
 def send_message(config=None, **kw):
+    import socket
     body = {"body": kw.get("body", "")}
     if kw.get("conversation_id"):
         body["conversation_id"] = int(kw["conversation_id"])
     if kw.get("title"):
         body["title"] = kw["title"]
-    if kw.get("harness_session_id"):
-        body["harness_session_id"] = kw["harness_session_id"]
+    # The bridge auto-creates a conversation only when title + harness_session_id
+    # are both provided; default the session id to the hostname for convenience.
+    session = kw.get("harness_session_id")
+    if not session and not kw.get("conversation_id"):
+        session = socket.gethostname()
+    if session:
+        body["harness_session_id"] = session
     return api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
 
 
