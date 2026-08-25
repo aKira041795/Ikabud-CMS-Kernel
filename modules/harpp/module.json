@@ -22,7 +22,8 @@
         "database/migrations/002_harpp_bootstrap_users.sql",
         "database/migrations/003_harpp_phase3_domain.sql",
         "database/migrations/004_harpp_user_soft_delete.sql",
-        "database/migrations/005_harpp_admin_role_repair.sql"
+        "database/migrations/005_harpp_admin_role_repair.sql",
+        "database/migrations/006_harpp_conversation_archive.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -232,6 +233,22 @@
             "key": "notify_messages",
             "type": "select",
             "label": "Message Notifications",
+            "default": "1",
+            "options": [
+                {
+                    "label": "Enabled",
+                    "value": "1"
+                },
+                {
+                    "label": "Disabled",
+                    "value": "0"
+                }
+            ]
+        },
+        {
+            "key": "conversation_archiving",
+            "type": "select",
+            "label": "Conversation Archiving",
             "default": "1",
             "options": [
                 {

@@ -80,7 +80,9 @@ final class HarppNotificationService
         $offset = max(0, (int)($filters['offset'] ?? 0));
         $sql = 'SELECT id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at, sent_at, read_at FROM harpp_notifications WHERE user_id = :user';
         $params = [':user' => (int)$actor['id']];
-        if (array_key_exists('unread', $filters) && filter_var($filters['unread'], FILTER_VALIDATE_BOOLEAN)) { $sql .= ' AND read_at IS NULL'; }
+        $includeRead = array_key_exists('include_read', $filters) && filter_var($filters['include_read'], FILTER_VALIDATE_BOOLEAN);
+        $unreadOnly = !$includeRead || (array_key_exists('unread', $filters) && filter_var($filters['unread'], FILTER_VALIDATE_BOOLEAN));
+        if ($unreadOnly) { $sql .= ' AND read_at IS NULL'; }
         $sql .= ' ORDER BY created_at DESC, id DESC LIMIT ' . $limit . ' OFFSET ' . $offset;
         $stmt = $this->db()->prepare($sql); $stmt->execute($params);
         return HarppServiceResult::success(['notifications' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'limit' => $limit, 'offset' => $offset]);

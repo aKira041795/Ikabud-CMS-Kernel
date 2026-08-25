@@ -13,10 +13,13 @@ final class HarppMessagingService
     public function __construct(private ?ModuleDB $database = null, private ?HarppNotificationService $notifications = null) {}
     private function db(): ModuleDB { if ($this->database instanceof ModuleDB) return $this->database; $db=\module('harpp')->db(); if(!$db instanceof ModuleDB) throw new \RuntimeException('HARPP module database is unavailable.'); return $this->database=$db; }
 
-    public function listConversations(array $actor, ?int $tenantId = null)
+    public function listConversations(array $actor, array $filters = [], ?int $tenantId = null)
     {
         if (!$this->access($actor, $tenantId)) return HarppServiceResult::failure('Forbidden.', 403);
-        $stmt = $this->db()->query("SELECT c.id,c.title,c.harness_session_id,c.status,c.created_by,c.created_at,c.updated_at,COUNT(CASE WHEN m.read_at IS NULL AND m.sender_type<>'user' THEN 1 END) AS unread FROM harpp_conversations c LEFT JOIN harpp_messages m ON m.conversation_id=c.id GROUP BY c.id,c.title,c.harness_session_id,c.status,c.created_by,c.created_at,c.updated_at ORDER BY c.updated_at DESC,c.id DESC LIMIT 100");
+        $archived = array_key_exists('archived', $filters) && filter_var($filters['archived'], FILTER_VALIDATE_BOOLEAN);
+        $includeArchived = array_key_exists('include_archived', $filters) && filter_var($filters['include_archived'], FILTER_VALIDATE_BOOLEAN);
+        $where = $includeArchived ? '' : ($archived ? ' WHERE c.archived_at IS NOT NULL' : ' WHERE c.archived_at IS NULL');
+        $stmt = $this->db()->query("SELECT c.id,c.title,c.harness_session_id,c.status,c.archived_at,c.created_by,c.created_at,c.updated_at,COUNT(CASE WHEN m.read_at IS NULL AND m.sender_type<>'user' THEN 1 END) AS unread FROM harpp_conversations c LEFT JOIN harpp_messages m ON m.conversation_id=c.id".$where." GROUP BY c.id,c.title,c.harness_session_id,c.status,c.archived_at,c.created_by,c.created_at,c.updated_at ORDER BY c.updated_at DESC,c.id DESC LIMIT 100");
         return HarppServiceResult::success(['conversations' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
 
@@ -81,6 +84,48 @@ final class HarppMessagingService
         $s=$this->db()->query("SELECT conversation_id,COUNT(*) unread FROM harpp_messages WHERE read_at IS NULL AND sender_type<>'user' GROUP BY conversation_id ORDER BY conversation_id ASC");$rows=$s->fetchAll(PDO::FETCH_ASSOC);$total=0;foreach($rows as $row)$total+=(int)$row['unread'];return HarppServiceResult::success(['total'=>$total,'conversations'=>$rows]);
     }
 
+    public function closeConversation(array $actor, int $conversationId, ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId) || $conversationId <= 0) return HarppServiceResult::failure('Forbidden.', 403);
+        if (!in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true)) return HarppServiceResult::failure('Owner or admin access is required.', 403);
+        $s = $this->db()->prepare("UPDATE harpp_conversations SET status='closed', updated_at=NOW() WHERE id=:id");
+        $s->execute([':id' => $conversationId]);
+        if ($s->rowCount() === 0) return HarppServiceResult::failure('Conversation not found.', 404);
+        $this->audit('conversation.closed', $actor, ['conversation_id' => $conversationId]);
+        return HarppServiceResult::success(['conversation_id' => $conversationId, 'status' => 'closed']);
+    }
+
+    public function archiveConversation(array $actor, int $conversationId, bool $archive = true, ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId) || $conversationId <= 0) return HarppServiceResult::failure('Forbidden.', 403);
+        if (!in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true)) return HarppServiceResult::failure('Owner or admin access is required.', 403);
+        try {
+            $this->db()->beginTransaction();
+            $c = $this->db()->prepare('SELECT status, archived_at FROM harpp_conversations WHERE id=:id FOR UPDATE');
+            $c->execute([':id' => $conversationId]);
+            $row = $c->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($row)) throw new \InvalidArgumentException('Conversation not found.');
+            if ($archive && $row['status'] !== 'closed') throw new \InvalidArgumentException('Only done (closed) conversations can be archived.');
+            if ($archive && $this->setting('conversation_archiving', '1') !== '1') throw new \InvalidArgumentException('Conversation archiving is disabled.');
+            $s = $this->db()->prepare('UPDATE harpp_conversations SET archived_at = :at, updated_at = NOW() WHERE id = :id');
+            $s->execute([':at' => $archive ? date('Y-m-d H:i:s') : null, ':id' => $conversationId]);
+            $this->audit($archive ? 'conversation.archived' : 'conversation.unarchived', $actor, ['conversation_id' => $conversationId]);
+            $this->db()->commit();
+            return HarppServiceResult::success(['conversation_id' => $conversationId, 'archived' => $archive]);
+        } catch (Throwable $e) {
+            if ($this->db()->inTransaction()) $this->db()->rollBack();
+            $this->log('conversation archive failed', $e);
+            return HarppServiceResult::failure($e instanceof \InvalidArgumentException ? $e->getMessage() : 'Unable to update conversation archive state.', $e instanceof \InvalidArgumentException ? 409 : 500);
+        }
+    }
+
+    private function setting(string $key, string $default): string
+    {
+        $stmt = $this->db()->prepare('SELECT setting_value FROM harpp_settings WHERE setting_key = :key LIMIT 1');
+        $stmt->execute([':key' => $key]);
+        $value = $stmt->fetchColumn();
+        return $value === false ? $default : (string)$value;
+    }
     private function effects(string $event,string $action,array $actor,string $type,int $id,?array $before,array $after):array{if(function_exists('app')){\app()->events()->fire($event,['entity_id'=>$id,'actor_user_id'=>(int)($actor['id']??0),'after'=>$after],'harpp');$r=\app()->cap()->call('kernel.audit.record@1',['module'=>'harpp','action'=>$action,'entity_type'=>$type,'entity_id'=>(string)$id,'old_data'=>$before,'new_data'=>$after],['mode'=>'first','caller_module'=>'harpp']);if(!is_array($r)||empty($r['ok']))throw new \RuntimeException('Kernel audit recording failed.');}return['name'=>$event,'payload'=>['entity_id'=>$id]+$after];}
     private function otherOperator(int $exclude): int{$s=$this->db()->prepare("SELECT id FROM harpp_users WHERE is_active=1 AND id<>:id AND role IN ('owner','admin') ORDER BY FIELD(role,'owner','admin'),id LIMIT 1");$s->execute([':id'=>$exclude]);return(int)($s->fetchColumn()?:0);}
     private function access(array $actor,?int $tenantId):bool{$current=(int)(\app()->tenant()->current()??0);return$current>0&&($tenantId===null||$tenantId===$current)&&(int)($actor['id']??0)>0&&in_array((string)($actor['source']??'harpp'),['harpp','harpp_bridge'],true)&&in_array((string)($actor['role']??''),['owner','admin','member'],true);}

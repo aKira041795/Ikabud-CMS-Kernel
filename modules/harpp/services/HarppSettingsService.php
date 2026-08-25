@@ -106,7 +106,7 @@ final class HarppSettingsService
 
     private function normalize(string $key, mixed $value): string
     {
-        if (in_array($key, ['push_enabled', 'notify_decisions', 'notify_messages'], true)) {
+        if (in_array($key, ['push_enabled', 'notify_decisions', 'notify_messages', 'conversation_archiving'], true)) {
             $value = strtolower(trim((string)$value));
             if (!in_array($value, ['0', '1', 'true', 'false', 'on', 'off'], true)) {
                 throw new \InvalidArgumentException($key . ' must be boolean.');

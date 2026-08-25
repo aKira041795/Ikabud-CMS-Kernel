@@ -49,6 +49,8 @@ return [
         '/api/v1/harpp/conversations' => 'harpp:harppConversationCreate',
         '/api/v1/harpp/conversations/{id}/messages' => 'harpp:harppMessageSend',
         '/api/v1/harpp/conversations/{id}/read' => 'harpp:harppMessageMarkRead',
+        '/api/v1/harpp/conversations/{id}/close' => 'harpp:harppConversationClose',
+        '/api/v1/harpp/conversations/{id}/archive' => 'harpp:harppConversationArchive',
         '/api/v1/harpp/notifications/{id}/read' => 'harpp:harppNotificationMarkRead',
         '/api/v1/harpp/push/subscribe' => 'harpp:harppPushSubscribe',
         '/api/v1/harpp/push/unsubscribe' => 'harpp:harppPushUnsubscribe',
