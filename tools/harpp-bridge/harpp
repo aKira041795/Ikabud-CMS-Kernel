@@ -26,6 +26,91 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import harpp_client  # noqa: E402
 
+DEFAULT_INBOX = ".ai/harpp-inbox.jsonl"
+
+
+def _watch_state_path():
+    base = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "harpp"
+    return base / "watch-state.json"
+
+
+def _load_watch_state():
+    p = _watch_state_path()
+    try:
+        return json.loads(p.read_text()) if p.exists() else {}
+    except Exception:
+        return {}
+
+
+def _save_watch_state(state):
+    p = _watch_state_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(state))
+
+
+def _notify(title, body):
+    try:
+        import shutil
+        import subprocess
+        if shutil.which("notify-send"):
+            subprocess.Popen(["notify-send", title, body])
+    except Exception:
+        pass
+
+
+def _emit(record, inbox):
+    line = json.dumps(record, ensure_ascii=False)
+    print(line, flush=True)
+    if inbox:
+        p = Path(inbox)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+
+
+def watch_loop(once, interval, inbox):
+    import time
+    state = _load_watch_state()
+    last_msg = int(state.get("last_msg_id", 0))
+    last_decided = int(state.get("last_decided_id", 0))
+    while True:
+        try:
+            msgs = harpp_client.poll_messages(limit=100).get("data", {}).get("messages", [])
+            for m in msgs:
+                mid = int(m.get("id", 0))
+                if mid > last_msg:
+                    _emit({"kind": "message", "id": mid, "conversation_id": m.get("conversation_id"), "sender_type": m.get("sender_type"), "body": m.get("body"), "created_at": m.get("created_at")}, inbox)
+                    _notify("HARPP message", str(m.get("body", ""))[:120])
+                    last_msg = mid
+        except Exception as e:
+            print(f"harpp watch: message poll failed: {e}", flush=True)
+        try:
+            ds = harpp_client.list_decisions(limit=100).get("data", {}).get("decisions", [])
+            for d in ds:
+                did = int(d.get("id", 0))
+                if d.get("decided_at") and did > last_decided:
+                    _emit({"kind": "decision", "id": did, "decision_key": d.get("decision_key"), "title": d.get("title"), "decision": d.get("decision"), "rationale": d.get("rationale"), "decided_by": d.get("decided_by"), "lifecycle_state": d.get("lifecycle_state")}, inbox)
+                    _notify("HARPP decision", f"#{did} {str(d.get('title', ''))[:120]}")
+                    last_decided = did
+        except Exception as e:
+            print(f"harpp watch: decision poll failed: {e}", flush=True)
+        _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided})
+        if once:
+            return
+        time.sleep(max(5, interval))
+
+
+def inbox_cmd(clear):
+    p = Path(DEFAULT_INBOX)
+    if not p.exists():
+        print("inbox empty")
+        return
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            print(line)
+    if clear:
+        p.unlink()
+
 
 def main():
     p = argparse.ArgumentParser(prog="harpp", description="HARPP harness bridge client")
@@ -80,6 +165,14 @@ def main():
     st.add_argument("--workbench-state", default="")
     st.add_argument("--harness-session-id", default="")
 
+    wt = sub.add_parser("watch", help="actively monitor for owner messages + decided decisions")
+    wt.add_argument("--once", action="store_true", help="single check, then exit")
+    wt.add_argument("--interval", type=int, default=60, help="poll interval seconds (default 60)")
+    wt.add_argument("--inbox", default=DEFAULT_INBOX, help="append new items to this JSONL file")
+
+    ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
+    ib.add_argument("--clear", action="store_true")
+
     args = p.parse_args()
 
     if args.cmd == "config":
@@ -128,6 +221,10 @@ def main():
         print(json.dumps(harpp_client.post_status(
             message=args.message, status=args.status, workbench_state=args.workbench_state,
             harness_session_id=args.harness_session_id), indent=2))
+    elif args.cmd == "watch":
+        watch_loop(once=args.once, interval=args.interval, inbox=args.inbox)
+    elif args.cmd == "inbox":
+        inbox_cmd(clear=args.clear)
 
 
 if __name__ == "__main__":
