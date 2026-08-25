@@ -196,7 +196,10 @@ def cmd_job_track(args):
 
 
 def cmd_job_launch(args):
-    command = args.command[0] if len(args.command) == 1 else args.command
+    command = args.command
+    if command and command[0] == "--":
+        command = command[1:]  # argparse REMAINDER keeps the '--' separator
+    command = command[0] if len(command) == 1 else command
     try:
         jid, proc = harpp_wake.launch_job(
             model=args.model, task=args.task, conversation_id=args.conversation,
