@@ -43,6 +43,10 @@ successful response; do not claim success merely because a command was attempted
      ```
      Then reply that the pipeline is registered (give the workflow id) and will be
      monitored stage-by-stage, with each stage's result auto-reported.
+   - **Explicit workflow commands are NOT yours to handle** — the watch daemon handles
+     `workflow start/list/status/show` and "run the X loop" messages deterministically
+     (they are marked processed before you run). If you still see one, do NOT start a
+     workflow; just confirm it was handled.
    - If the message is an **explicit fix/implement request** (e.g. "fix the responsive
      view", "implement X"), you MAY make the minimal change yourself in the repo, verify
      it (JS: `node --check <file>`; PHP: `php -l <file>`; DiSyL templates: keep the

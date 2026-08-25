@@ -970,6 +970,140 @@ def advance_workflows() -> int:
         return 0
 
 
+# ---------------------------------------------------------------------------
+# Deterministic workflow commands from the messenger — the owner drives
+# multi-stage work directly from HARPP (no VS Code, no LLM needed). The watch
+# daemon routes owner messages that are workflow commands through here.
+# ---------------------------------------------------------------------------
+# natural alias -> (manifest file under tools/harpp-bridge/workflows/, default stage workspace)
+WORKFLOW_COMMANDS = {
+    "governed-loop": ("governed-loop.json", None),
+    "governed loop": ("governed-loop.json", None),
+    "the loop": ("governed-loop.json", None),
+    "default": ("governed-loop.json", None),
+    "standalone-harpp-loop": ("standalone-harpp-loop.json", "/var/www/html/harpp"),
+    "standalone harpp loop": ("standalone-harpp-loop.json", "/var/www/html/harpp"),
+    "standalone": ("standalone-harpp-loop.json", "/var/www/html/harpp"),
+    "harpp loop": ("standalone-harpp-loop.json", "/var/www/html/harpp"),
+}
+
+
+def _workflow_manifest_path(name: str) -> Path:
+    return Path(__file__).resolve().parent / "workflows" / name
+
+
+def parse_workflow_command(body) -> tuple | None:
+    """Parse an owner message into a workflow command: ('list'|'show'|'start', args)."""
+    if not body or not isinstance(body, str):
+        return None
+    low = " ".join(body.split()).lower().strip()
+    if low.startswith("workflow list") or low.startswith("workflow status"):
+        return ("list", {})
+    m = re.match(r"^workflow show\s+([a-z0-9_\-]+)\s*$", low)
+    if m:
+        return ("show", {"id": m.group(1)})
+    m = re.match(r"^workflow start\b(.*)$", low)
+    if m:
+        rest = m.group(1).strip()
+        args = {}
+        ws = re.search(r"--workspace\s+(\S+)", rest)
+        if ws:
+            args["workspace"] = ws.group(1)
+        ti = re.search(r"--title\s+(.+)", rest)
+        if ti:
+            args["title"] = ti.group(1).strip()
+        rest = re.sub(r"--workspace\s+\S+", "", rest)
+        rest = re.sub(r"--title\s+.+", "", rest)
+        args["name"] = " ".join(rest.split()).strip() or "governed-loop"
+        return ("start", args)
+    for alias in WORKFLOW_COMMANDS:
+        if alias in low and any(w in low for w in ("run", "start")):
+            return ("start", {"name": alias})
+    return None
+
+
+def _exec_workflow_command(cmd, conv: int) -> str:
+    """Execute a parsed workflow command and return the owner-facing reply body."""
+    kind = cmd[0]
+    if kind in ("list", "status"):
+        wfs = list_workflows()
+        if not wfs:
+            return "📋 No workflows running."
+        lines = [f"📋 Workflows ({len(wfs)}):"]
+        for w in wfs:
+            total = len(w.get("stages", []))
+            idx = int(w.get("current_index", 0))
+            cur = w.get("stages", [])[idx].get("name", "?") if total else "?"
+            lines.append(f"- {w.get('id')}: {w.get('status')} — stage {idx + 1}/{total} ({cur}) — {w.get('title')}")
+        return "\n".join(lines)
+    if kind == "show":
+        w = get_workflow(cmd[1]["id"])
+        if not w:
+            return f"❓ Workflow {cmd[1]['id']} not found."
+        return (f"🔍 Workflow {w['id']}: {w.get('title')}\nstatus: {w.get('status')}\n"
+                + "\n".join(f"- {i + 1}. {s.get('name')} [{s.get('status')}] job {s.get('job_id')}"
+                            for i, s in enumerate(w.get('stages', []))))
+    if kind == "start":
+        args = cmd[1]
+        name = args.get("name", "governed-loop").lower()
+        if name in WORKFLOW_COMMANDS:
+            manifest_file, default_ws = WORKFLOW_COMMANDS[name]
+        else:
+            manifest_file = name if name.endswith(".json") else f"{name}.json"
+            default_ws = None
+        mpath = _workflow_manifest_path(manifest_file)
+        try:
+            manifest = json.loads(mpath.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"workflow manifest not found or invalid ({mpath}): {exc}") from exc
+        stages = manifest.get("stages") if isinstance(manifest, dict) else None
+        if not isinstance(stages, list) or not stages:
+            raise RuntimeError("workflow manifest has no stages")
+        title = args.get("title") or (manifest.get("title") if isinstance(manifest, dict) else "") or name
+        ws = args.get("workspace") or default_ws or default_workspace()
+        wid = start_workflow(title=title, conversation_id=conv, stages=stages, workspace=ws)
+        names = ", ".join(s.get("name", "?") for s in stages)
+        first = stages[0].get("name", "?")
+        return (f"🔁 Workflow started: {wid}\ntitle: {title}\nstages ({len(stages)}): {names}\n"
+                f"stage 1 ({first}) launched — each stage result will be auto-reported here.")
+    return "❓ Unrecognized workflow command."
+
+
+def route_workflow_commands(records) -> int:
+    """Deterministically handle owner workflow commands in staged messages.
+
+    Recognized commands are executed + replied to via the bridge and marked
+    processed so the single-pass wake agent never double-handles them.
+    Returns the number of commands handled. Never raises into the watch loop.
+    """
+    handled = 0
+    for r in records or []:
+        if r.get("kind") != "message":
+            continue
+        if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        cmd = parse_workflow_command(r.get("body"))
+        if not cmd:
+            continue
+        conv = int(r.get("conversation_id") or 0)
+        try:
+            body = _exec_workflow_command(cmd, conv)
+            if conv:
+                harpp_client.send_message(conversation_id=conv, body=body)
+            log(f"routed workflow command '{cmd[0]}' for message {r.get('id')}")
+        except Exception as e:  # noqa: BLE001
+            log(f"workflow command failed for message {r.get('id')}: {e}")
+            try:
+                if conv:
+                    harpp_client.send_message(conversation_id=conv,
+                                              body=f"⚠️ Workflow command could not be processed: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+        mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])
+        handled += 1
+    return handled
+
+
 def task_prompt(inbox: str, items: list, template: str | None = None, workspace: str | None = None) -> str:
     """Build the single-pass agent prompt from the task-contract template + staged items."""
     default = Path(__file__).resolve().parent / "wake" / "task-contract.md"

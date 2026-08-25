@@ -388,6 +388,59 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.harpp_client.send_message = original
 
+    # --- deterministic workflow commands from the messenger ---
+
+    def test_parse_workflow_command_list_show(self):
+        self.assertEqual(harpp_wake.parse_workflow_command("workflow list")[0], "list")
+        self.assertEqual(harpp_wake.parse_workflow_command("Workflow status")[0], "list")
+        self.assertEqual(harpp_wake.parse_workflow_command("workflow show abc123"),
+                         ("show", {"id": "abc123"}))
+        self.assertIsNone(harpp_wake.parse_workflow_command("hello there"))
+        self.assertIsNone(harpp_wake.parse_workflow_command(""))
+
+    def test_parse_workflow_command_start(self):
+        c = harpp_wake.parse_workflow_command("workflow start standalone harpp loop")
+        self.assertEqual(c[0], "start")
+        self.assertEqual(c[1]["name"], "standalone harpp loop")
+        c2 = harpp_wake.parse_workflow_command("workflow start --workspace /tmp/x standalone")
+        self.assertEqual(c2[1]["workspace"], "/tmp/x")
+        c3 = harpp_wake.parse_workflow_command("run the governed loop")
+        self.assertEqual(c3[0], "start")
+        self.assertEqual(c3[1]["name"], "governed loop")
+
+    def test_route_workflow_commands_list_replies_and_marks_processed(self):
+        sent, original = self._patch_send()
+        try:
+            n = harpp_wake.route_workflow_commands([
+                {"kind": "message", "id": 900, "conversation_id": 7, "sender_type": "user",
+                 "body": "workflow list"}])
+            self.assertEqual(n, 1)
+            self.assertEqual(len(sent), 1)
+            self.assertIn("No workflows", sent[0]["body"])
+            self.assertIn(900, harpp_wake.read_state()["messages"])
+        finally:
+            harpp_wake.harpp_client.send_message = original
+
+    def test_route_workflow_commands_starts_workflow(self):
+        started = []
+        original_start = harpp_wake.start_workflow
+        harpp_wake.start_workflow = lambda **kw: started.append(kw) or "wf-x"
+        sent, original_send = self._patch_send()
+        try:
+            n = harpp_wake.route_workflow_commands([
+                {"kind": "message", "id": 901, "conversation_id": 8, "sender_type": "user",
+                 "body": "workflow start standalone harpp loop"}])
+            self.assertEqual(n, 1)
+            self.assertEqual(len(started), 1)
+            self.assertEqual(started[0]["conversation_id"], 8)
+            self.assertEqual(started[0]["workspace"], "/var/www/html/harpp")
+            self.assertEqual(len(sent), 1)
+            self.assertIn("Workflow started", sent[0]["body"])
+            self.assertIn(901, harpp_wake.read_state()["messages"])
+        finally:
+            harpp_wake.start_workflow = original_start
+            harpp_wake.harpp_client.send_message = original_send
+
     def test_missing_log_is_reported_as_failure(self):
         logp = Path(self.tmp.name) / "deleted.log"
         logp.write_text("starting\n")

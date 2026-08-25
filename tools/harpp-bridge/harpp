@@ -159,6 +159,14 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             pending = _autoprocess(pending, log)
             _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided,
                                "pending_autoprocess": pending})
+        # Deterministic workflow commands from the messenger: the owner drives
+        # multi-stage work directly from HARPP (workflow start/list/status/show,
+        # "run the X loop") — no VS Code / LLM needed. Handled commands are marked
+        # processed so the wake agent does not double-handle them.
+        try:
+            harpp_wake.route_workflow_commands(emitted)
+        except Exception as e:
+            print(f"harpp watch: workflow command routing failed: {e}", flush=True)
         # Job monitor: track delegated model processes; when one finishes, verify + commit
         # + report the result to the owner conversation automatically (no reminder needed).
         try:

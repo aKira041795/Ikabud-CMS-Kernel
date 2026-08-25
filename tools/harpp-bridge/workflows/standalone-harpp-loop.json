@@ -1,0 +1,29 @@
+{
+  "title": "Standalone HARPP: implement -> review -> release-gate",
+  "stages": [
+    {
+      "name": "implement",
+      "model": "openai-codex/gpt-5.6-sol",
+      "prompt_file": "stages/standalone-implement.md",
+      "marker": "SOL_IMPL status=PASS",
+      "verify": "true",
+      "timeout": 2400
+    },
+    {
+      "name": "review",
+      "model": "openai-codex/gpt-5.6-sol",
+      "prompt_file": "stages/standalone-review.md",
+      "marker": "SOL_REVIEW status=PASS",
+      "verify": "true",
+      "timeout": 1800
+    },
+    {
+      "name": "release-gate",
+      "model": "openai-codex/gpt-5.6-sol",
+      "prompt_file": "stages/standalone-release-gate.md",
+      "marker": "SOL_GATE status=PASS",
+      "verify": "true",
+      "timeout": 1800
+    }
+  ]
+}
