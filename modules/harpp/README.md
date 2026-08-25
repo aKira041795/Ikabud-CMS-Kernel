@@ -123,6 +123,8 @@ Capability handlers live in `modules/harpp/helpers.php` (`harpp_capability_handl
 
 ```
 POST/GET  /api/v1/harpp/bridge/decisions                create / list (filters)
+POST      /api/v1/harpp/bridge/decisions/{id}/view        NOTIFIED → VIEWED (bridge)
+POST      /api/v1/harpp/bridge/decisions/{id}/decide      VIEWED → DECIDED (owner decision via harness)
 POST      /api/v1/harpp/bridge/decisions/{id}/acknowledge
 POST      /api/v1/harpp/bridge/decisions/{id}/applied
 POST/GET  /api/v1/harpp/bridge/messages                 send / poll (cursor)
@@ -209,10 +211,38 @@ harpp check
 ```bash
 harpp decision submit --title "Blocked: nested extensions" --body "..." --priority high
 harpp decision list --state PENDING
+harpp decision view 12 && harpp decision decide 12 --decision "Option A"   # owner decided via messenger
 harpp decision ack 12 && harpp decision apply 12
 harpp msg send --body "tests green" && harpp msg poll --after 0
 harpp status --message "running" --workbench-state IMPLEMENTING
 ```
+
+**Standard watch loop (always-on when enabled):**
+
+```bash
+harpp watch --once                # catch-up scan: stages new owner input into .ai/harpp-inbox.jsonl
+harpp watch --interval 60         # background daemon: same, plus auto-process + desktop notify
+harpp inbox [--clear]             # read / clear staged owner input
+```
+
+The watch loop is the **standard behavior when HARPP is enabled**: when new owner input
+arrives it (a) stages it to `.ai/harpp-inbox.jsonl`, (b) fires a desktop notification, and
+(c) **auto-processes deterministically** (no LLM needed, cursor-deduped, logged to
+`.ai/harpp-wake.log`):
+
+- New **owner message** → the harness auto-replies an acknowledgment through the bridge
+  (the owner gets an immediate confirmation push on their phone).
+- Newly **DECIDED** decision → the harness auto-acknowledges + auto-applies it
+  (closes the loop → CLOSED, durable ADR).
+
+Run it detached as the standard daemon:
+
+```bash
+nohup setsid env python3 tools/harpp-bridge/harpp watch --interval 45 \
+  > /tmp/harpp-watch.log 2>&1 < /dev/null &
+```
+
+Use `--no-autoprocess` to keep stage+notify only.
 
 **MCP (VS Code Copilot Chat):** add to `.vscode/mcp.json` (or user MCP config):
 
