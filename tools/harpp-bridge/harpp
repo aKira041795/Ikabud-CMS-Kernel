@@ -95,7 +95,7 @@ def _autoprocess(records, log):
 
 
 def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log",
-               wake=False, wake_command=None, cooldown=30, max_per_hour=6,
+               wake=False, wake_command=None, cooldown=60, max_per_hour=20,
                timeout=900, model=None, max_retries=3):
     import threading
     import time
@@ -242,8 +242,8 @@ def main():
     wt.add_argument("--log", default=".ai/harpp-wake.log", help="autoprocess action log (default .ai/harpp-wake.log)")
     wt.add_argument("--wake", action="store_true", help="enable headless Pi-agent wake (mechanism E; env HARPP_WAKE_ENABLED=1)")
     wt.add_argument("--wake-command", default=os.environ.get("HARPP_WAKE_CMD", ""), help="override agent invocation; {model}/{prompt} substituted")
-    wt.add_argument("--cooldown", type=int, default=int(os.environ.get("HARPP_WAKE_COOLDOWN", "30")))
-    wt.add_argument("--max-per-hour", dest="max_per_hour", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_PER_HOUR", "6")))
+    wt.add_argument("--cooldown", type=int, default=int(os.environ.get("HARPP_WAKE_COOLDOWN", "60")))
+    wt.add_argument("--max-per-hour", dest="max_per_hour", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_PER_HOUR", "20")))
     wt.add_argument("--timeout", type=int, default=int(os.environ.get("HARPP_WAKE_TIMEOUT", "900")))
     wt.add_argument("--max-retries", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_RETRIES", "3")))
     wt.add_argument("--model", default=os.environ.get("HARPP_WAKE_MODEL", "deepseek/deepseek-v4-pro"))

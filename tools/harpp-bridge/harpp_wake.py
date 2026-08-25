@@ -33,8 +33,10 @@ PROCESSED_FILE = CONFIG_DIR / "wake-processed.json"
 WAKE_LOG = CONFIG_DIR / "wake.log"
 
 DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
-DEFAULT_COOLDOWN = 30
-DEFAULT_MAX_PER_HOUR = 6
+# Production-grade wake limits: max ~1 run/3min (20/hr) keeps replies responsive while
+# bounded; cooldown 60s is the min gap between runs (new-message bypass covers bursts).
+DEFAULT_COOLDOWN = 60
+DEFAULT_MAX_PER_HOUR = 20
 DEFAULT_TIMEOUT = 900
 DEFAULT_MAX_RETRIES = 3
 _LOCK_TOKEN = None
