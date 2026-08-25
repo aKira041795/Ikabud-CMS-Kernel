@@ -10,6 +10,7 @@ Commands:
   harpp decision list [--limit N] [--remote --state S --priority P --workbench-state W]
   harpp decision submit --title T --body B [--context C --requested R --priority P --source S --workbench-state W --decision-key K]
   harpp decision ack <id> [--rationale R]
+  harpp decision cancel <id> [--rationale R]
   harpp decision apply <id> [--rationale R]
   harpp msg send --body B [--conversation-id N --title T --harness-session-id S]
   harpp msg poll [--conversation-id N --after A --limit N]
@@ -351,6 +352,9 @@ def main():
     da = dsub.add_parser("ack")
     da.add_argument("id", type=int)
     da.add_argument("--rationale", default="Harness acknowledged the owner decision.")
+    dc = dsub.add_parser("cancel")
+    dc.add_argument("id", type=int)
+    dc.add_argument("--rationale", default="Owner cancelled the decision via harness.")
     dv = dsub.add_parser("view", help="mark a decision viewed (NOTIFIED -> VIEWED) via the bridge")
     dv.add_argument("id", type=int)
     dv.add_argument("--rationale", default="Owner viewed the decision via messenger.")
@@ -514,6 +518,8 @@ def main():
             print(json.dumps(harpp_client.record_decision(args.id, args.decision, rationale=args.rationale), indent=2))
         elif args.dcmd == "ack":
             print(json.dumps(harpp_client.acknowledge_decision(args.id, rationale=args.rationale), indent=2))
+        elif args.dcmd == "cancel":
+            print(json.dumps(harpp_client.cancel_decision(args.id, rationale=args.rationale), indent=2))
         else:
             print(json.dumps(harpp_client.apply_decision(args.id, rationale=args.rationale), indent=2))
     elif args.cmd == "msg":

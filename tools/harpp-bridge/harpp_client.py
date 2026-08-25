@@ -228,6 +228,11 @@ def acknowledge_decision(decision_id, config=None, rationale="Harness acknowledg
                {"rationale": rationale}, config=config)
 
 
+def cancel_decision(decision_id, rationale="Owner cancelled the decision via harness.", config=None):
+    return api("POST", f"/api/v1/harpp/bridge/decisions/{int(decision_id)}/cancel",
+               {"rationale": rationale}, config=config)
+
+
 def apply_decision(decision_id, config=None, rationale="Harness applied the owner decision."):
     return api("POST", f"/api/v1/harpp/bridge/decisions/{int(decision_id)}/applied",
                {"rationale": rationale}, config=config)
