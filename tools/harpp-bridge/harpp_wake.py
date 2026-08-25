@@ -106,16 +106,20 @@ def _detect_terminal() -> tuple[str | None, list | None]:
 
 
 def open_agent_terminal(pid: int, tail_path: str, title: str = "HARPP") -> bool:
-    """Open a visible terminal tailing `tail_path`, auto-closing when pid dies.
+    """Open a visible terminal tailing `tail_path`, closing shortly after pid dies.
 
-    Gives a human user live visual feedback that HARPP is woken/working. Never
-    raises into the wake loop — headless environments simply skip it.
+    Gives a human user live visual feedback that HARPP is woken/working. The window
+    lingers HARPP_WAKE_TERMINAL_LINGER seconds (default 30) after the agent exits so
+    the output can be read before it closes. Never raises into the wake loop.
     """
     try:
         name, args = _detect_terminal()
         if not name or not tail_path:
             return False
-        inner = f"exec tail -n 20 -f --pid={int(pid)} -- {shlex.quote(str(tail_path))}"
+        linger = max(0, int(os.environ.get("HARPP_WAKE_TERMINAL_LINGER", "30")))
+        inner = (f"tail -n 20 -f --pid={int(pid)} -- {shlex.quote(str(tail_path))}; "
+                 f"echo; echo '--- HARPP agent finished (window closes in {linger}s) ---'; "
+                 f"sleep {linger}")
         subprocess.Popen([name, *args, "bash", "-lc", inner],
                          start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -800,6 +804,54 @@ def task_prompt(inbox: str, items: list, template: str | None = None, workspace:
                 .replace("{{WORKSPACE}}", workspace or "(no workspace configured)"))
 
 
+def _stream_agent_output(proc, timeout: int, tee):
+    """Stream a child's stdout, teeing live to `tee` (optional). Kills on timeout.
+
+    Returns (output, timed_out). The reader thread keeps the terminal (and tee file)
+    updated in real time while the main thread enforces the hard timeout.
+    """
+    chunks = []
+
+    def _read():
+        try:
+            while True:
+                chunk = proc.stdout.read(4096)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                if tee is not None:
+                    try:
+                        tee.write(chunk)
+                        tee.flush()
+                    except Exception:  # noqa: BLE001
+                        pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    threading.Thread(target=_read, daemon=True).start()
+    timed_out = False
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        try:
+            proc.wait(timeout=10)
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        proc.stdout.close()
+    except Exception:  # noqa: BLE001
+        pass
+    return "".join(chunks), timed_out
+
+
 def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 expected_replies: int | None = None, cwd: str | None = None,
                 open_terminal: bool = False) -> bool:
@@ -814,16 +866,23 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
             cwd=cwd,
         )
+    tee = None
     if open_terminal:
-        open_agent_terminal(proc.pid, str(WAKE_LOG), f"HARPP wake ({model})")
-    try:
-        out, _ = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except OSError:
-            proc.kill()
-        proc.communicate()
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            tee = (CONFIG_DIR / "wake-agent.log").open("a", encoding="utf-8", buffering=1)
+        except Exception as e:  # noqa: BLE001
+            log(f"could not open wake-agent log for terminal tee: {e}")
+        open_agent_terminal(proc.pid, str(CONFIG_DIR / "wake-agent.log"), f"HARPP wake ({model})")
+    try:
+        out, timed_out = _stream_agent_output(proc, timeout, tee)
+    finally:
+        if tee is not None:
+            try:
+                tee.close()
+            except Exception:  # noqa: BLE001
+                pass
+    if timed_out:
         log(f"wake agent timed out after {timeout}s; killed")
         return False
     log(f"wake agent exit={proc.returncode} output_tail={out[-200:]!r}")

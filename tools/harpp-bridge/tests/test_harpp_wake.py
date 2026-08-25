@@ -273,6 +273,22 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake._detect_terminal = original_detect
 
+    def test_spawn_agent_tees_output_for_terminal(self):
+        calls = []
+        original = harpp_wake.open_agent_terminal
+        harpp_wake.open_agent_terminal = lambda *a, **k: calls.append(a)
+        try:
+            ok = harpp_wake.spawn_agent(
+                "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1'",
+                model="deepseek/deepseek-v4-pro", timeout=30, expected_replies=1,
+                open_terminal=True)
+            self.assertTrue(ok)
+            self.assertEqual(len(calls), 1)
+            tee_log = Path(harpp_wake.CONFIG_DIR) / "wake-agent.log"
+            self.assertIn("HARPP_WAKE_RESULT", tee_log.read_text(encoding="utf-8"))
+        finally:
+            harpp_wake.open_agent_terminal = original
+
     def test_missing_log_is_reported_as_failure(self):
         logp = Path(self.tmp.name) / "deleted.log"
         logp.write_text("starting\n")
