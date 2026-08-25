@@ -14,7 +14,10 @@ Staged owner input (JSONL records), newest appended last:
 
 Inbox file: `{{INBOX}}`
 
-## Required actions (use the `harpp` CLI / HARPP tools)
+## Required actions
+
+Use the `harpp_*` tools provided by the HARPP extension (preferred), or the `harpp` CLI
+(`harpp` is on PATH; fallback: `python3 tools/harpp-bridge/harpp`).
 
 For each staged record:
 
