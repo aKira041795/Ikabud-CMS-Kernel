@@ -20,6 +20,13 @@ import urllib.request
 from pathlib import Path
 
 DEFAULT_CONFIG_PATH = Path("~/.config/harpp/config.json").expanduser()
+DEFAULT_WORKFLOW_BUDGETS = {
+    "max_total_cycles": 8,
+    "max_repairs": 3,
+    "max_browser_repairs": 2,
+    "max_tool_retries": 2,
+    "max_network_retries": 2,
+}
 
 
 class HarppError(RuntimeError):

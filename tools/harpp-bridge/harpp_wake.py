@@ -357,6 +357,7 @@ def _jobs_state_unlocked() -> dict:
         state["jobs"] = {}
     if not isinstance(state.get("reported"), list):
         state["reported"] = []
+    state["jobs"] = {jid: _normalize_job(job) for jid, job in state["jobs"].items() if isinstance(job, dict)}
     return state
 
 
@@ -441,10 +442,157 @@ def _git_changed_paths(repo: str | None) -> list[str]:
         return []
 
 
+def _git_sha(repo: str | None) -> str | None:
+    if not repo:
+        return None
+    try:
+        proc = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, text=True, timeout=30, check=True)
+        sha = (proc.stdout or "").strip()
+        return sha or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _task_id(value: str | None) -> str:
+    text = re.sub(r"[^A-Za-z0-9]+", "_", str(value or "").strip()).strip("_")
+    return text[:120]
+
+
+def _next_run_id() -> str:
+    today = time.strftime("%Y%m%d")
+    prefix = f"HARPP-{today}-"
+    seq = 0
+    try:
+        for path, key in ((JOBS_FILE, "jobs"), (WORKFLOWS_FILE, "workflows")):
+            state = _load_json(path, {})
+            values = (state.get(key, {}) or {}).values() if isinstance(state, dict) else []
+            for rec in values:
+                rid = str((rec or {}).get("run_id") or "")
+                if rid.startswith(prefix):
+                    try:
+                        seq = max(seq, int(rid.rsplit("-", 1)[1]))
+                    except Exception:  # noqa: BLE001
+                        pass
+    except Exception:  # noqa: BLE001
+        pass
+    return f"{prefix}{seq + 1:05d}"
+
+
+def _job_state_label(job: dict) -> str:
+    status = str(job.get("status") or "running").lower()
+    outcome = str(job.get("outcome") or "").upper()
+    if outcome in ("DONE", "FAILED"):
+        return outcome
+    return "RUNNING" if status in ("running", "reporting") else status.upper()
+
+
+def _workflow_stage_state(name: str | None, workflow_status: str | None = None, repairing: bool = False) -> str:
+    status = str(workflow_status or "").lower()
+    if status == "blocked":
+        return "BLOCKED"
+    if status == "done":
+        return "DONE"
+    if status == "failed":
+        return "FAILED"
+    if repairing:
+        return "REPAIRING"
+    low = str(name or "").strip().lower()
+    if low == "implement":
+        return "IMPLEMENTING"
+    if low == "review":
+        return "REVIEWING"
+    if low == "architect":
+        return "ARCHITECTING"
+    if low == "release-gate":
+        return "RELEASE_GATE"
+    return (re.sub(r"[^A-Za-z0-9]+", "_", low).strip("_") or "RUNNING").upper()
+
+
+def _normalize_job(job: dict) -> dict:
+    rec = dict(job or {})
+    rec.setdefault("run_id", _next_run_id())
+    rec.setdefault("task_id", _task_id(rec.get("task")))
+    rec.setdefault("contract_revision", 0)
+    rec["state"] = _job_state_label(rec)
+    rec.setdefault("stage_attempts", {})
+    rec.setdefault("base_sha", _git_sha(rec.get("repo")))
+    rec.setdefault("current_sha", _git_sha(rec.get("repo")))
+    rec.setdefault("human_decisions", [])
+    return rec
+
+
+def _workflow_budget_defaults(max_repairs: int | None = None) -> dict:
+    defaults = dict(harpp_client.DEFAULT_WORKFLOW_BUDGETS)
+    if max_repairs is not None:
+        defaults["max_repairs"] = max(0, int(max_repairs))
+    return defaults
+
+
+def _normalize_stage(stage: dict, index: int) -> dict:
+    rec = dict(stage or {})
+    rec.setdefault("job_id", None)
+    rec.setdefault("status", "pending")
+    rec.setdefault("timeout", 1800)
+    rec.setdefault("marker", None)
+    rec.setdefault("verify", None)
+    rec.setdefault("commit", False)
+    rec.setdefault("prompt_file", None)
+    rec.setdefault("prompt", None)
+    rec.setdefault("model", "deepseek/deepseek-v4-pro")
+    rec.setdefault("attempt_count", 0)
+    if not isinstance(rec.get("attempt_statuses"), list):
+        rec["attempt_statuses"] = []
+    rec.setdefault("last_run_id", None)
+    rec.setdefault("last_started_at", None)
+    rec.setdefault("last_finished_at", None)
+    return rec
+
+
+def _normalize_workflow(wf: dict) -> dict:
+    rec = dict(wf or {})
+    rec.setdefault("id", uuid.uuid4().hex[:12])
+    rec.setdefault("title", "")
+    rec.setdefault("conversation_id", 0)
+    rec.setdefault("workspace", None)
+    stages = rec.get("stages") if isinstance(rec.get("stages"), list) else []
+    rec["stages"] = [_normalize_stage(stage, i) for i, stage in enumerate(stages)]
+    rec.setdefault("current_index", 0)
+    rec.setdefault("status", "running")
+    budgets = _workflow_budget_defaults(rec.get("max_repairs"))
+    for key, value in budgets.items():
+        rec.setdefault(key, value)
+    rec.setdefault("repair_count", 0)
+    rec.setdefault("total_cycles", 0)
+    rec.setdefault("browser_repairs", 0)
+    rec.setdefault("tool_retries", 0)
+    rec.setdefault("network_retries", 0)
+    rec.setdefault("advancing", False)
+    rec.setdefault("advancing_ts", 0)
+    rec.setdefault("created_at", time.strftime("%Y-%m-%d %H:%M:%S"))
+    rec.setdefault("updated_at", rec.get("created_at"))
+    rec.setdefault("run_id", _next_run_id())
+    rec.setdefault("task_id", _task_id(rec.get("title")))
+    rec.setdefault("contract_revision", 0)
+    rec.setdefault("base_sha", _git_sha(rec.get("workspace")))
+    rec.setdefault("current_sha", _git_sha(rec.get("workspace")))
+    rec.setdefault("human_decisions", [])
+    rec.setdefault("blocked_reason", None)
+    rec["state"] = _workflow_stage_state(
+        rec["stages"][min(max(int(rec.get("current_index", 0)), 0), max(len(rec["stages"]) - 1, 0))].get("name")
+        if rec["stages"] else None,
+        rec.get("status"),
+        False,
+    )
+    return rec
+
+
 def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = None,
               log_path: str | None = None, verify: str | None = None,
               marker: str | None = None, repo: str | None = None,
-              commit: bool = False, timeout: int = 0) -> str:
+              commit: bool = False, timeout: int = 0, run_id: str | None = None,
+              task_id: str | None = None, contract_revision: int = 0,
+              state: str | None = None, human_decisions: list | None = None) -> str:
     """Register an in-flight delegated model job for completion monitoring."""
     pid = int(pid)
     if pid < 1:
@@ -466,6 +614,14 @@ def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = 
         "deadline": (_now() + int(timeout)) if int(timeout) > 0 else None,
         "status": "running", "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "finished_at": None, "reported_at": None,
+        "run_id": run_id or _next_run_id(),
+        "task_id": task_id if task_id is not None else _task_id(task),
+        "contract_revision": int(contract_revision or 0),
+        "state": state or "RUNNING",
+        "stage_attempts": {},
+        "base_sha": _git_sha(repo),
+        "current_sha": _git_sha(repo),
+        "human_decisions": list(human_decisions or []),
     }
     with _jobs_lock():
         state = _jobs_state_unlocked()
@@ -491,7 +647,10 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
                log_path: str | None = None, verify: str | None = None,
                marker: str | None = None, repo: str | None = None,
                commit: bool = False, quiet: bool = False, timeout: int = 0,
-               cwd: str | None = None, open_terminal: bool = True):
+               cwd: str | None = None, open_terminal: bool = True,
+               run_id: str | None = None, task_id: str | None = None,
+               contract_revision: int = 0, state: str | None = None,
+               human_decisions: list | None = None):
     """Spawn a delegated model command AND track it in one atomic step.
 
     The pid is captured directly from the spawned process (never pgrep), and its
@@ -513,7 +672,9 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
         job_id = track_job(pid=proc.pid, model=model, task=task,
                            conversation_id=conversation_id, log_path=log_path,
                            verify=verify, marker=marker, repo=repo,
-                           commit=commit, timeout=timeout)
+                           commit=commit, timeout=timeout, run_id=run_id,
+                           task_id=task_id, contract_revision=contract_revision,
+                           state=state, human_decisions=human_decisions)
     except Exception:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -743,7 +904,9 @@ def monitor_jobs() -> int:
                 if _pid_alive(int(job.get("pid", 0)), job.get("pid_identity")):
                     continue
                 job["status"] = "reporting"
+                job["state"] = "REPORTING"
                 job["finished_at"] = job.get("finished_at") or time.strftime("%Y-%m-%d %H:%M:%S")
+                job["current_sha"] = _git_sha(job.get("repo"))
                 job["report_token"] = claim_token
                 job["reporter_pid"] = os.getpid()
                 job["report_started_ts"] = now
@@ -765,6 +928,8 @@ def monitor_jobs() -> int:
                     raise RuntimeError("job claim changed before report could be recorded")
                 current["status"] = "finished"
                 current["outcome"] = outcome  # DONE / FAILED — lets workflows advance on real results
+                current["state"] = outcome
+                current["current_sha"] = _git_sha(current.get("repo"))
                 current["reported_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
                 current.pop("report_token", None)
                 current.pop("reporter_pid", None)
@@ -783,6 +948,8 @@ def monitor_jobs() -> int:
                     current = state["jobs"].get(jid)
                     if current and current.get("report_token") == claim_token:
                         current["status"] = "running"
+                        current["state"] = "RUNNING"
+                        current["current_sha"] = _git_sha(current.get("repo"))
                         current.pop("report_token", None)
                         current.pop("reporter_pid", None)
                         current.pop("report_started_ts", None)
@@ -806,6 +973,7 @@ def workflows_state() -> dict:
         if not isinstance(state, dict):
             state = {}
         state.setdefault("workflows", {})
+        state["workflows"] = {wid: _normalize_workflow(wf) for wid, wf in state["workflows"].items() if isinstance(wf, dict)}
         return state
 
 
@@ -823,6 +991,65 @@ def get_workflow(wid: str) -> dict | None:
     return workflows_state().get("workflows", {}).get(wid)
 
 
+def resume_workflow(wid: str) -> dict | None:
+    """Deterministically reconstruct a workflow from persisted state and re-land if needed."""
+    with _jobs_lock():
+        raw = _load_json(WORKFLOWS_FILE, {})
+        if not isinstance(raw, dict):
+            raw = {}
+        raw.setdefault("workflows", {})
+        wf = _normalize_workflow(raw["workflows"].get(wid)) if raw["workflows"].get(wid) else None
+        if not wf:
+            return None
+        jobs = _jobs_state_unlocked().get("jobs", {})
+        idx = int(wf.get("current_index", 0))
+        stages = wf.get("stages", [])
+        stage = stages[idx] if 0 <= idx < len(stages) else None
+        reason = _budget_exhausted_reason(wf)
+        needs_reland = False
+        if stage and wf.get("status") == "running":
+            job = jobs.get(stage.get("job_id")) if stage.get("job_id") else None
+            if job and job.get("status") == "finished":
+                stage["status"] = "done" if (job.get("outcome") == "DONE") else "failed"
+            elif stage.get("status") in ("pending", "running") and (not stage.get("job_id") or job is None):
+                wf["advancing"] = False
+                wf["advancing_ts"] = 0
+                needs_reland = not reason
+                if reason:
+                    _block_workflow(wf, stage, reason)
+        _update_workflow_state(wf, stage_name=stage.get("name") if stage else None)
+        raw["workflows"][wid] = wf
+        _save_json(WORKFLOWS_FILE, raw)
+    relaunched = _launch_stage_with_claim(wid, wf, stage, idx) if needs_reland and stage else False
+    if relaunched:
+        wf = get_workflow(wid) or wf
+        idx = int(wf.get("current_index", 0))
+        stage = wf.get("stages", [])[idx] if 0 <= idx < len(wf.get("stages", [])) else None
+    return {
+        "workflow_id": wid,
+        "run_id": wf.get("run_id"),
+        "task_id": wf.get("task_id"),
+        "contract_revision": int(wf.get("contract_revision") or 0),
+        "status": wf.get("status"),
+        "state": wf.get("state"),
+        "blocked_reason": wf.get("blocked_reason"),
+        "current_stage": stage.get("name") if stage else None,
+        "current_index": int(wf.get("current_index", 0)),
+        "job_id": stage.get("job_id") if stage else None,
+        "repair_count": int(wf.get("repair_count", 0)),
+        "total_cycles": int(wf.get("total_cycles", 0)),
+        "browser_repairs": int(wf.get("browser_repairs", 0)),
+        "tool_retries": int(wf.get("tool_retries", 0)),
+        "network_retries": int(wf.get("network_retries", 0)),
+        "base_sha": wf.get("base_sha"),
+        "current_sha": wf.get("current_sha"),
+        "relanded": bool(relaunched),
+        "stage_attempts": {s.get("name") or str(i): {"attempt_count": int(s.get("attempt_count", 0)),
+                                                       "statuses": list(s.get("attempt_statuses") or [])}
+                           for i, s in enumerate(wf.get("stages", []))},
+    }
+
+
 def _stage_prompt(stage: dict) -> str:
     if stage.get("prompt_file"):
         p = Path(__file__).resolve().parent / "workflows" / str(stage["prompt_file"])
@@ -836,7 +1063,8 @@ def _stage_prompt(stage: dict) -> str:
 
 
 def _notify_workflow(wf: dict, status: str, stage: dict | None = None,
-                     round_no: int = 0, max_repairs: int = 0) -> None:
+                     round_no: int = 0, max_repairs: int = 0,
+                     reason: str | None = None) -> None:
     try:
         if status == "DONE":
             body = (f"✅ Workflow complete: {wf.get('title')} — all {len(wf.get('stages', []))} stages passed.\n"
@@ -845,6 +1073,10 @@ def _notify_workflow(wf: dict, status: str, stage: dict | None = None,
             body = (f"🔄 Auto-repair round {round_no}/{max_repairs}: '{stage.get('name') if stage else '?'}' failed — "
                     f"re-running the implementation with the remediation. I'll re-review after; "
                     f"if it still fails after {max_repairs} rounds the workflow stops.")
+        elif status == "BLOCKED":
+            body = (f"⛔ Workflow blocked: {wf.get('title')} at stage '{stage.get('name') if stage else '?'}' "
+                    f"(job {stage.get('job_id') if stage else '?'}) because {reason or wf.get('blocked_reason') or 'budget exhausted'}. "
+                    "Autonomous advancement has stopped until the owner intervenes.")
         else:
             body = (f"❌ Workflow stopped: {wf.get('title')} failed at stage "
                     f"'{stage.get('name') if stage else '?'}' "
@@ -856,10 +1088,60 @@ def _notify_workflow(wf: dict, status: str, stage: dict | None = None,
         log(f"workflow notify failed for {wf.get('id')}: {e}")
 
 
+def _update_workflow_state(wf: dict, *, stage_name: str | None = None, repairing: bool = False) -> None:
+    wf["current_sha"] = _git_sha(wf.get("workspace"))
+    wf["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    wf["state"] = _workflow_stage_state(stage_name, wf.get("status"), repairing)
+
+
+def _record_stage_attempt(stage: dict, status: str, *, job_id: str | None = None, run_id: str | None = None) -> None:
+    stage.setdefault("attempt_count", 0)
+    if status == "running":
+        stage["attempt_count"] += 1
+        stage["last_started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    if status in ("done", "failed", "blocked"):
+        stage["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    stage["last_run_id"] = run_id or stage.get("last_run_id")
+    stage.setdefault("attempt_statuses", [])
+    stage["attempt_statuses"].append({
+        "attempt": int(stage.get("attempt_count") or 0),
+        "status": status,
+        "job_id": job_id,
+        "run_id": run_id,
+        "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    })
+
+
+def _block_workflow(wf: dict, stage: dict | None, reason: str) -> None:
+    wf["status"] = "blocked"
+    wf["blocked_reason"] = f"BLOCKED_BUDGET_EXHAUSTED: {reason}"
+    if stage:
+        stage["status"] = "blocked"
+        _record_stage_attempt(stage, "blocked", job_id=stage.get("job_id"), run_id=stage.get("last_run_id"))
+    _update_workflow_state(wf, stage_name=stage.get("name") if stage else None)
+    _notify_workflow(wf, "BLOCKED", stage, reason=wf["blocked_reason"])
+
+
+def _budget_exhausted_reason(wf: dict) -> str | None:
+    checks = (
+        ("total_cycles", "max_total_cycles", int(wf.get("total_cycles", 0)) >= int(wf.get("max_total_cycles", 0))),
+        ("browser_repairs", "max_browser_repairs", int(wf.get("browser_repairs", 0)) >= int(wf.get("max_browser_repairs", 0))),
+        ("tool_retries", "max_tool_retries", int(wf.get("tool_retries", 0)) >= int(wf.get("max_tool_retries", 0))),
+        ("network_retries", "max_network_retries", int(wf.get("network_retries", 0)) >= int(wf.get("max_network_retries", 0))),
+    )
+    for used_key, max_key, exhausted in checks:
+        if exhausted:
+            return f"{used_key}={int(wf.get(used_key, 0))} reached {max_key}={int(wf.get(max_key, 0))}"
+    return None
+
+
 def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
                   remediation: str | None = None, repair_round: int = 0,
                   max_repairs: int = 0) -> None:
     """Launch a workflow stage as a tracked job and record its job id on the stage."""
+    reason = _budget_exhausted_reason(workflow)
+    if reason:
+        raise RuntimeError(reason)
     prompt = _stage_prompt(stage)
     prompt = (prompt.replace("{{WORKSPACE}}", workflow.get("workspace") or "(no workspace)")
                    .replace("{{TITLE}}", workflow.get("title") or ""))
@@ -884,15 +1166,26 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
         command=cmd, log_path=log_path, verify=stage.get("verify"), marker=stage.get("marker"),
         repo=workflow.get("workspace"), commit=bool(stage.get("commit")),
         timeout=int(stage.get("timeout") or 1800), cwd=workflow.get("workspace"),
-        open_terminal=True)
+        open_terminal=True, task_id=workflow.get("task_id"), contract_revision=int(workflow.get("contract_revision") or 0),
+        state=_workflow_stage_state(stage.get("name"), workflow.get("status"), bool(repair_round)),
+        human_decisions=list(workflow.get("human_decisions") or []))
     stage["job_id"] = jid
     stage["log_path"] = log_path
     stage["status"] = "running"
+    stage["last_run_id"] = jid
+    workflow["total_cycles"] = int(workflow.get("total_cycles", 0)) + 1
+    _record_stage_attempt(stage, "running", job_id=jid, run_id=jid)
+    _update_workflow_state(workflow, stage_name=stage.get("name"), repairing=bool(repair_round))
     log(f"workflow {wid} launched stage {index + 1} '{label}' as job {jid}")
 
 
 def start_workflow(*, title: str, conversation_id: int, stages: list,
-                  workspace: str | None = None, max_repairs: int = 2) -> str:
+                  workspace: str | None = None, max_repairs: int = 3,
+                  max_total_cycles: int | None = None,
+                  max_browser_repairs: int | None = None,
+                  max_tool_retries: int | None = None,
+                  max_network_retries: int | None = None,
+                  contract_revision: int = 0) -> str:
     """Register a multi-stage workflow and launch its first stage. Returns workflow id.
 
     max_repairs bounds the auto-repair loop (review FAIL -> re-run implement -> review)
@@ -902,26 +1195,33 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
     if not str(title).strip() or int(conversation_id) < 1 or not stages:
         raise ValueError("title, conversation_id and at least one stage are required")
     wid = uuid.uuid4().hex[:12]
-    wf = {
+    budgets = _workflow_budget_defaults(max_repairs)
+    if max_total_cycles is not None:
+        budgets["max_total_cycles"] = max(0, int(max_total_cycles))
+    if max_browser_repairs is not None:
+        budgets["max_browser_repairs"] = max(0, int(max_browser_repairs))
+    if max_tool_retries is not None:
+        budgets["max_tool_retries"] = max(0, int(max_tool_retries))
+    if max_network_retries is not None:
+        budgets["max_network_retries"] = max(0, int(max_network_retries))
+    wf = _normalize_workflow({
         "id": wid, "title": str(title).strip(), "conversation_id": int(conversation_id),
         "workspace": workspace or default_workspace(),
         "stages": [dict(s) for s in stages],
         "current_index": 0, "status": "running",
-        "max_repairs": max(0, int(max_repairs)), "repair_count": 0,
+        "repair_count": 0, "total_cycles": 0, "browser_repairs": 0,
+        "tool_retries": 0, "network_retries": 0,
         "advancing": False, "advancing_ts": 0,
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    for i, st in enumerate(wf["stages"]):
-        st.setdefault("job_id", None)
-        st.setdefault("status", "pending")
-        st.setdefault("timeout", 1800)
-        st.setdefault("marker", None)
-        st.setdefault("verify", None)
-        st.setdefault("commit", False)
-        st.setdefault("prompt_file", None)
-        st.setdefault("prompt", None)
-        st.setdefault("model", "deepseek/deepseek-v4-pro")
+        "run_id": _next_run_id(),
+        "task_id": _task_id(title),
+        "contract_revision": int(contract_revision or 0),
+        "base_sha": _git_sha(workspace or default_workspace()),
+        "current_sha": _git_sha(workspace or default_workspace()),
+        "human_decisions": [],
+        **budgets,
+    })
     with _jobs_lock():
         state = _load_json(WORKFLOWS_FILE, {})
         if not isinstance(state, dict):
@@ -932,8 +1232,15 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
     try:
         _launch_stage(wid, wf["stages"][0], 0, wf)
     except Exception as e:  # noqa: BLE001
-        wf["status"] = "failed"
-        wf["stages"][0]["status"] = "failed"
+        wf["tool_retries"] = int(wf.get("tool_retries", 0)) + 1
+        reason = _budget_exhausted_reason(wf)
+        if reason:
+            _block_workflow(wf, wf["stages"][0], reason)
+        else:
+            wf["status"] = "failed"
+            wf["stages"][0]["status"] = "failed"
+            _record_stage_attempt(wf["stages"][0], "failed", job_id=wf["stages"][0].get("job_id"))
+            _update_workflow_state(wf, stage_name=wf["stages"][0].get("name"))
         with _jobs_lock():
             state = _load_json(WORKFLOWS_FILE, {})
             state["workflows"][wid] = wf
@@ -981,25 +1288,36 @@ def _launch_stage_with_claim(wid: str, wf: dict, stage: dict, index: int, *,
         cur["advancing"] = True
         cur["advancing_ts"] = now
         _save_json(WORKFLOWS_FILE, state)
+    ok = False
     try:
         _launch_stage(wid, stage, index, wf, remediation=remediation,
                       repair_round=repair_round, max_repairs=max_repairs)
+        ok = True
         return True
+    except Exception:
+        wf["tool_retries"] = int(wf.get("tool_retries", 0)) + 1
+        reason = _budget_exhausted_reason(wf)
+        if reason:
+            _block_workflow(wf, stage, reason)
+        else:
+            _update_workflow_state(wf, stage_name=stage.get("name"), repairing=bool(repair_round))
+        return False
     finally:
         with _jobs_lock():
             state = _load_json(WORKFLOWS_FILE, {})
-            c2 = state.get("workflows", {}).get(wid)
+            c2 = _normalize_workflow(state.get("workflows", {}).get(wid) or wf)
             if c2:
+                c2.update(wf)
                 c2["advancing"] = False
                 c2["advancing_ts"] = 0
                 # Persist the just-launched job id atomically (closes the double-launch window).
                 try:
-                    c2["stages"][index]["job_id"] = stage.get("job_id")
-                    c2["stages"][index]["status"] = stage.get("status")
-                    c2["stages"][index]["log_path"] = stage.get("log_path")
+                    c2["stages"][index] = stage
                     c2["current_index"] = index
                 except Exception:  # noqa: BLE001
                     pass
+                state.setdefault("workflows", {})
+                state["workflows"][wid] = c2
                 _save_json(WORKFLOWS_FILE, state)
 
 
@@ -1008,71 +1326,107 @@ def advance_workflows() -> int:
 
     Failures trigger a BOUNDED auto-repair: the implement stage is re-run with the failed
     stage's remediation (e.g. review FAIL -> repair implement -> review again) up to
-    max_repairs rounds; past that the workflow terminates as FAILED — it can never loop
-    forever. A persisted advancing claim prevents concurrent passes from double-launching.
+    max_repairs rounds; past that the workflow terminates as BLOCKED_BUDGET_EXHAUSTED.
+    A persisted advancing claim prevents concurrent passes from double-launching.
     """
     try:
         with _jobs_lock():
-            wstate = _load_json(WORKFLOWS_FILE, {})
+            raw_wstate = _load_json(WORKFLOWS_FILE, {})
+            if not isinstance(raw_wstate, dict):
+                raw_wstate = {}
+            raw_wstate.setdefault("workflows", {})
+            raw_wstate["workflows"] = {wid: _normalize_workflow(wf) for wid, wf in raw_wstate["workflows"].items() if isinstance(wf, dict)}
+            wstate = raw_wstate
             jstate = _jobs_state_unlocked()
         wf_map = wstate.get("workflows", {}) if isinstance(wstate, dict) else {}
         jobs = jstate.get("jobs", {})
         advanced = 0
         now = _now()
+        dirty = False
         for wid, wf in list(wf_map.items()):
             if wf.get("status") != "running":
+                continue
+            stages = wf.get("stages", [])
+            idx = int(wf.get("current_index", 0))
+            stage = stages[idx] if 0 <= idx < len(stages) else None
+            reason = _budget_exhausted_reason(wf)
+            if reason:
+                _block_workflow(wf, stage, reason)
+                advanced += 1
+                dirty = True
                 continue
             if wf.get("advancing"):
                 if now - int(wf.get("advancing_ts") or 0) < 60:
                     continue  # another pass is mid-launch
                 wf["advancing"] = False  # stale claim reclaim
-            stages = wf.get("stages", [])
-            idx = int(wf.get("current_index", 0))
+                dirty = True
             if idx >= len(stages):
                 wf["status"] = "done"
+                _update_workflow_state(wf)
                 advanced += 1
-                wf["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                dirty = True
                 continue
             stage = stages[idx]
             job = jobs.get(stage.get("job_id")) if stage.get("job_id") else None
+            if stage.get("status") in ("pending", "running") and (not stage.get("job_id") or job is None):
+                if _launch_stage_with_claim(wid, wf, stage, idx):
+                    advanced += 1
+                dirty = True
+                continue
             if not job or job.get("status") != "finished":
                 continue  # stage still running
             outcome = job.get("outcome") or "FAILED"
+            stage["job_id"] = job.get("id")
+            stage["last_run_id"] = job.get("run_id") or stage.get("last_run_id")
             if outcome == "DONE":
                 stage["status"] = "done"
+                _record_stage_attempt(stage, "done", job_id=job.get("id"), run_id=job.get("run_id"))
                 if idx >= len(stages) - 1:
                     wf["status"] = "done"
+                    _update_workflow_state(wf, stage_name=stage.get("name"))
                     _notify_workflow(wf, "DONE")
                     advanced += 1
                 else:
                     nxt = idx + 1
                     wf["current_index"] = nxt
+                    _update_workflow_state(wf, stage_name=stages[nxt].get("name"))
                     _launch_stage_with_claim(wid, wf, stages[nxt], nxt)
                     advanced += 1
             else:
                 stage["status"] = "failed"
+                _record_stage_attempt(stage, "failed", job_id=job.get("id"), run_id=job.get("run_id"))
                 repairs = int(wf.get("repair_count", 0))
                 max_repairs = int(wf.get("max_repairs", 0))
                 if max_repairs > 0 and repairs < max_repairs:
-                    # Bounded auto-repair: re-run the producer with the failure remediation.
                     wf["repair_count"] = repairs + 1
                     repair_idx = _repair_target_index(wf, idx)
                     target = stages[repair_idx]
                     target["status"] = "pending"
                     target["job_id"] = None
-                    wf["current_index"] = repair_idx
-                    remediation = _remediation_from(stage)
-                    _launch_stage_with_claim(wid, wf, target, repair_idx,
-                                             remediation=remediation, repair_round=repairs + 1,
-                                             max_repairs=max_repairs)
-                    _notify_workflow(wf, "REPAIR", stage, round_no=repairs + 1, max_repairs=max_repairs)
+                    if "browser" in str(stage.get("name") or "").lower() or "browser" in str(target.get("name") or "").lower():
+                        wf["browser_repairs"] = int(wf.get("browser_repairs", 0)) + 1
+                    reason = _budget_exhausted_reason(wf)
+                    if reason:
+                        _block_workflow(wf, stage, reason)
+                    else:
+                        wf["current_index"] = repair_idx
+                        remediation = _remediation_from(stage)
+                        _launch_stage_with_claim(wid, wf, target, repair_idx,
+                                                 remediation=remediation, repair_round=repairs + 1,
+                                                 max_repairs=max_repairs)
+                        _notify_workflow(wf, "REPAIR", stage, round_no=repairs + 1, max_repairs=max_repairs)
+                    advanced += 1
+                elif max_repairs > 0:
+                    _block_workflow(wf, stage, f"repair_count={repairs} reached max_repairs={max_repairs}")
                     advanced += 1
                 else:
                     wf["status"] = "failed"
+                    _update_workflow_state(wf, stage_name=stage.get("name"))
                     _notify_workflow(wf, "FAILED", stage)
                     advanced += 1
-            wf["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-        if advanced:
+            _update_workflow_state(wf, stage_name=stage.get("name"))
+            dirty = True
+        if dirty:
             with _jobs_lock():
                 _save_json(WORKFLOWS_FILE, wstate)
         return advanced

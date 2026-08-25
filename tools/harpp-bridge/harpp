@@ -16,6 +16,7 @@ Commands:
   harpp job track --pid N --model M --task T --conversation C [verification options]
   harpp job list
   harpp job untrack <id>
+  harpp workflow resume <id>
 
 Set HARPP_DRY_RUN=1 to preview requests without sending.
 """
@@ -258,19 +259,25 @@ def cmd_workflow_start(args):
     if not isinstance(stages, list) or not stages:
         sys.exit("harpp workflow start: manifest must contain a non-empty 'stages' array")
     title = args.title or (manifest.get("title") if isinstance(manifest, dict) else "") or "Governed HARPP workflow"
-    max_repairs = args.max_repairs
-    if max_repairs is None and isinstance(manifest, dict):
-        max_repairs = manifest.get("max_repairs")
-    if max_repairs is None:
-        max_repairs = 2
+    defaults = dict(harpp_client.DEFAULT_WORKFLOW_BUDGETS)
+    for key in defaults:
+        arg_value = getattr(args, key, None)
+        if arg_value is not None:
+            defaults[key] = arg_value
+        elif isinstance(manifest, dict) and manifest.get(key) is not None:
+            defaults[key] = manifest.get(key)
     try:
         wid = harpp_wake.start_workflow(title=title, conversation_id=args.conversation,
                                         stages=stages, workspace=args.workspace,
-                                        max_repairs=int(max_repairs))
+                                        max_repairs=int(defaults["max_repairs"]),
+                                        max_total_cycles=int(defaults["max_total_cycles"]),
+                                        max_browser_repairs=int(defaults["max_browser_repairs"]),
+                                        max_tool_retries=int(defaults["max_tool_retries"]),
+                                        max_network_retries=int(defaults["max_network_retries"]),
+                                        contract_revision=int(getattr(args, "contract_revision", 0) or 0))
     except ValueError as exc:
         sys.exit(f"harpp workflow start: {exc}")
-    print(json.dumps({"workflow_id": wid, "status": "running", "stages": len(stages),
-                      "max_repairs": int(max_repairs)}))
+    print(json.dumps({"workflow_id": wid, "status": "running", "stages": len(stages), **defaults}))
 
 
 def cmd_workflow_list(args):
@@ -284,6 +291,14 @@ def cmd_workflow_list(args):
 
 def cmd_workflow_show(args):
     w = harpp_wake.get_workflow(args.id)
+    if not w:
+        print(json.dumps({"workflow_id": args.id, "found": False}))
+        raise SystemExit(1)
+    print(json.dumps(w, indent=2))
+
+
+def cmd_workflow_resume(args):
+    w = harpp_wake.resume_workflow(args.id)
     if not w:
         print(json.dumps({"workflow_id": args.id, "found": False}))
         raise SystemExit(1)
@@ -413,13 +428,21 @@ def main():
     ws.add_argument("--manifest", required=True, help="JSON manifest with a non-empty 'stages' array")
     ws.add_argument("--workspace", default=None, help="working dir for stages (default: configured workspace)")
     ws.add_argument("--max-repairs", type=int, default=None,
-                    help="bounded auto-repair rounds on stage failure (default from manifest, else 2; 0 disables)")
+                    help="bounded auto-repair rounds on stage failure (default from manifest, else 3; 0 disables)")
+    ws.add_argument("--max-total-cycles", type=int, default=None)
+    ws.add_argument("--max-browser-repairs", type=int, default=None)
+    ws.add_argument("--max-tool-retries", type=int, default=None)
+    ws.add_argument("--max-network-retries", type=int, default=None)
+    ws.add_argument("--contract-revision", type=int, default=0)
     ws.set_defaults(func=cmd_workflow_start)
     wl = wsub.add_parser("list", help="list workflows + status")
     wl.set_defaults(func=cmd_workflow_list)
     wh = wsub.add_parser("show", help="show a workflow's full state")
     wh.add_argument("id")
     wh.set_defaults(func=cmd_workflow_show)
+    wr = wsub.add_parser("resume", help="reconstruct and re-land a workflow after a crash")
+    wr.add_argument("id")
+    wr.set_defaults(func=cmd_workflow_resume)
 
     args = p.parse_args()
 
