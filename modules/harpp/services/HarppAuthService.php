@@ -37,7 +37,7 @@ final class HarppAuthService
 
         try {
             $stmt = $this->db()->prepare(
-                'SELECT id, email, password_hash, full_name, role, is_active FROM harpp_users WHERE LOWER(email) = :email LIMIT 1'
+                'SELECT id, email, password_hash, full_name, role, is_active FROM harpp_users WHERE LOWER(email) = :email AND deleted_at IS NULL LIMIT 1'
             );
             $stmt->execute([':email' => $email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -230,7 +230,7 @@ final class HarppAuthService
         if ($id <= 0) {
             return null;
         }
-        $stmt = $this->db()->prepare('SELECT id, email, full_name, role, is_active FROM harpp_users WHERE id = :id AND is_active = 1 LIMIT 1');
+        $stmt = $this->db()->prepare('SELECT id, email, full_name, role, is_active FROM harpp_users WHERE id = :id AND is_active = 1 AND deleted_at IS NULL LIMIT 1');
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return is_array($row) ? $this->publicUser($row) : null;

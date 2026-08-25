@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Harpp\Services\HarppAuthService;
+use Harpp\Services\HarppUserService;
 use Harpp\Services\HarppSettingsService;
 use Harpp\Services\HarppDecisionService;
 use Harpp\Services\HarppMessagingService;
@@ -11,6 +12,7 @@ use Ikabud\Kernel\Contracts\ModuleDB;
 
 require_once __DIR__ . '/services/HarppServiceResult.php';
 require_once __DIR__ . '/services/HarppAuthService.php';
+require_once __DIR__ . '/services/HarppUserService.php';
 require_once __DIR__ . '/services/HarppPasswordResetService.php';
 require_once __DIR__ . '/services/HarppSettingsService.php';
 require_once __DIR__ . '/services/HarppPushService.php';
@@ -29,6 +31,7 @@ function harpp_capability_handlers(): array
         'kernel.auth.authenticate@1' => 'harpp_cap_kernel_auth_authenticate_1',
         'harpp.read@1' => 'harpp_cap_read_1',
         'harpp.manage@1' => 'harpp_cap_manage_1',
+        'harpp.users.manage@1' => 'harpp_cap_users_manage_1',
         'harpp.decision.review@1' => 'harpp_cap_decision_review_1',
         'harpp.notify@1' => 'harpp_cap_notify_1',
         'harpp.bridge@1' => 'harpp_cap_bridge_1',
@@ -91,6 +94,7 @@ function harppPermissionResult(string $permission, mixed $payload): array
     $roles = [
         'harpp.read' => ['owner', 'admin', 'member'],
         'harpp.manage' => ['owner', 'admin'],
+        'harpp.users.manage' => ['owner', 'admin'],
         'harpp.decision.review' => ['owner', 'admin', 'member'],
         'harpp.notify' => ['owner', 'admin'],
         'harpp.bridge' => ['owner', 'admin'],
@@ -147,6 +151,10 @@ function harpp_cap_read_1(mixed $payload, string $capabilityId = 'harpp.read@1',
 function harpp_cap_manage_1(mixed $payload, string $capabilityId = 'harpp.manage@1', string $providerId = ''): array
 {
     return harppPermissionResult('harpp.manage', $payload);
+}
+function harpp_cap_users_manage_1(mixed $payload, string $capabilityId = 'harpp.users.manage@1', string $providerId = ''): array
+{
+    return harppPermissionResult('harpp.users.manage', $payload);
 }
 function harpp_cap_decision_review_1(mixed $payload, string $capabilityId = 'harpp.decision.review@1', string $providerId = ''): array
 {

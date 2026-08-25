@@ -20,7 +20,8 @@
     "migrations": [
         "database/migrations/001_harpp_core.sql",
         "database/migrations/002_harpp_bootstrap_users.sql",
-        "database/migrations/003_harpp_phase3_domain.sql"
+        "database/migrations/003_harpp_phase3_domain.sql",
+        "database/migrations/004_harpp_user_soft_delete.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -44,6 +45,14 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "harpp.users.manage@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Administer HARPP users"
             },
             {
                 "id": "harpp.decision.review@1",

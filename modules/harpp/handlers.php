@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Harpp\Services\HarppAuthService;
+use Harpp\Services\HarppUserService;
 use Harpp\Services\HarppPasswordResetService;
 use Harpp\Services\HarppSettingsService;
 use Harpp\Services\HarppDecisionService;
@@ -207,6 +208,38 @@ function harppAuthInvite(array $params = []): void
         if ($user !== null) {
             harppJson((new HarppAuthService())->invite($user, harppInput()), null);
         }
+    });
+}
+
+function harppUserList(array $params = []): void
+{
+    harppHandle(function (): void {
+        $user = harppAuthenticated('harpp.users.manage@1');
+        if ($user !== null) harppJson((new HarppUserService())->list($user, harppRequestData()));
+    });
+}
+
+function harppUserCreate(array $params = []): void
+{
+    harppHandle(function (): void {
+        $user = harppAuthenticated('harpp.users.manage@1');
+        if ($user !== null) harppJson((new HarppUserService())->create($user, harppInput()), null);
+    });
+}
+
+function harppUserUpdate(array $params = []): void
+{
+    harppHandle(function () use ($params): void {
+        $user = harppAuthenticated('harpp.users.manage@1');
+        if ($user !== null) harppJson((new HarppUserService())->update($user, (int)($params['id'] ?? 0), harppInput()));
+    });
+}
+
+function harppUserDelete(array $params = []): void
+{
+    harppHandle(function () use ($params): void {
+        $user = harppAuthenticated('harpp.users.manage@1');
+        if ($user !== null) harppJson((new HarppUserService())->delete($user, (int)($params['id'] ?? 0)));
     });
 }
 

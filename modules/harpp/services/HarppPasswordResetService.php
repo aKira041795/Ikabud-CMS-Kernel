@@ -35,7 +35,7 @@ final class HarppPasswordResetService
 
         $generic = 'If an active HARPP account matches that email, a reset link has been sent.';
         try {
-            $stmt = $this->db()->prepare('SELECT id, email, full_name FROM harpp_users WHERE LOWER(email) = :email AND is_active = 1 LIMIT 1');
+            $stmt = $this->db()->prepare('SELECT id, email, full_name FROM harpp_users WHERE LOWER(email) = :email AND is_active = 1 AND deleted_at IS NULL LIMIT 1');
             $stmt->execute([':email' => $email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!is_array($user)) {
@@ -92,7 +92,7 @@ final class HarppPasswordResetService
             $tokenHash = hash('sha256', $rawToken);
             $this->db()->beginTransaction();
             $stmt = $this->db()->prepare(
-                'SELECT pr.id, pr.user_id FROM harpp_password_resets pr INNER JOIN harpp_users u ON u.id = pr.user_id WHERE pr.token = :token AND pr.used_at IS NULL AND pr.expires_at > NOW() AND u.is_active = 1 LIMIT 1 FOR UPDATE'
+                'SELECT pr.id, pr.user_id FROM harpp_password_resets pr INNER JOIN harpp_users u ON u.id = pr.user_id WHERE pr.token = :token AND pr.used_at IS NULL AND pr.expires_at > NOW() AND u.is_active = 1 AND u.deleted_at IS NULL LIMIT 1 FOR UPDATE'
             );
             $stmt->execute([':token' => $tokenHash]);
             $reset = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -101,7 +101,7 @@ final class HarppPasswordResetService
                 return HarppServiceResult::failure('The reset token is invalid or expired.', 422, 'invalid_token');
             }
 
-            $update = $this->db()->prepare('UPDATE harpp_users SET password_hash = :hash, updated_at = NOW() WHERE id = :user_id AND is_active = 1');
+            $update = $this->db()->prepare('UPDATE harpp_users SET password_hash = :hash, updated_at = NOW() WHERE id = :user_id AND is_active = 1 AND deleted_at IS NULL');
             $update->execute([':hash' => password_hash($password, PASSWORD_BCRYPT), ':user_id' => (int)$reset['user_id']]);
             $consume = $this->db()->prepare('UPDATE harpp_password_resets SET used_at = NOW() WHERE user_id = :user_id AND used_at IS NULL');
             $consume->execute([':user_id' => (int)$reset['user_id']]);

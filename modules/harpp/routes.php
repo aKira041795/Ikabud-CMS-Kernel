@@ -18,6 +18,7 @@ return [
         '/harpp/icon.svg' => 'harpp:harppIcon',
         '/api/v1/harpp/auth/me' => 'harpp:harppAuthMe',
         '/api/v1/harpp/settings' => 'harpp:harppSettingsGet',
+        '/api/v1/harpp/users' => 'harpp:harppUserList',
         '/api/v1/harpp/decisions' => 'harpp:harppDecisionList',
         '/api/v1/harpp/decisions/{id}' => 'harpp:harppDecisionGet',
         '/api/v1/harpp/conversations' => 'harpp:harppConversationList',
@@ -41,6 +42,7 @@ return [
         '/api/v1/harpp/auth/select-tenant' => 'harpp:harppAuthSelectTenant',
         '/api/v1/harpp/auth/profile' => 'harpp:harppAuthProfile',
         '/api/v1/harpp/settings' => 'harpp:harppSettingsSave',
+        '/api/v1/harpp/users' => 'harpp:harppUserCreate',
         '/api/v1/harpp/decisions' => 'harpp:harppDecisionCreate',
         '/api/v1/harpp/decisions/{id}/transition' => 'harpp:harppDecisionTransition',
         '/api/v1/harpp/conversations' => 'harpp:harppConversationCreate',
@@ -58,5 +60,14 @@ return [
         '/api/v1/harpp/bridge/decisions/{id}/applied' => 'harpp:harppBridgeDecisionApplied',
         '/api/v1/harpp/bridge/messages' => 'harpp:harppBridgeMessageSend',
         '/api/v1/harpp/bridge/status' => 'harpp:harppBridgeStatus',
+    ],
+    'PUT' => [
+        '/api/v1/harpp/users/{id}' => 'harpp:harppUserUpdate',
+    ],
+    'PATCH' => [
+        '/api/v1/harpp/users/{id}' => 'harpp:harppUserUpdate',
+    ],
+    'DELETE' => [
+        '/api/v1/harpp/users/{id}' => 'harpp:harppUserDelete',
     ],
 ];
