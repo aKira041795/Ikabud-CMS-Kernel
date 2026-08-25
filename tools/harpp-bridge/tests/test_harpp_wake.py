@@ -162,6 +162,65 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.harpp_client.send_message = original
 
+    # --- job launch (one-step spawn + track) ---
+
+    def test_launch_job_spawns_tracks_and_confirms(self):
+        sent, original = self._patch_send()
+        try:
+            jid, proc = harpp_wake.launch_job(
+                model="deepseek/deepseek-v4-pro", task="quick test", conversation_id=7,
+                command=["echo", "hello"])
+            proc.wait(timeout=10)
+            job = next(j for j in harpp_wake.list_jobs() if j["id"] == jid)
+            self.assertEqual(job["pid"], proc.pid)
+            self.assertEqual(job["conversation_id"], 7)
+            self.assertEqual(job["status"], "running")
+            self.assertGreater(len(sent), 0)
+            self.assertEqual(sent[0]["conversation_id"], 7)
+            self.assertIn("monitoring started", sent[0]["body"])
+            self.assertIn(jid, sent[0]["body"])
+        finally:
+            harpp_wake.harpp_client.send_message = original
+
+    def test_launch_job_captures_pid_identity(self):
+        _, proc = harpp_wake.launch_job(
+            model="deepseek/deepseek-v4-pro", task="identity test", conversation_id=7,
+            command=["true"], quiet=True)
+        try:
+            job = harpp_wake.list_jobs()[-1]
+            self.assertEqual(job["pid"], proc.pid)
+            self.assertEqual(job["pid_identity"], harpp_wake._pid_identity(proc.pid))
+        finally:
+            try:
+                proc.wait(timeout=10)
+            except Exception:
+                pass
+
+    def test_launch_job_timeout_kills_and_reports(self):
+        sent, original = self._patch_send()
+        proc = None
+        try:
+            jid, proc = harpp_wake.launch_job(
+                model="deepseek/deepseek-v4-pro", task="timeout test", conversation_id=7,
+                command=["sleep", "60"], quiet=True, timeout=1)
+            time.sleep(1.3)
+            for _ in range(6):
+                harpp_wake.monitor_jobs()
+                time.sleep(0.15)
+                if any(j["id"] == jid and j["status"] == "finished" for j in harpp_wake.list_jobs()):
+                    break
+            self.assertFalse(harpp_wake._pid_alive(proc.pid, None))
+            self.assertIn(jid, harpp_wake.jobs_state()["reported"])
+            self.assertGreater(len(sent), 0)
+            self.assertIn("FAILED", sent[0]["body"])  # killed -> no marker -> FAILED
+        finally:
+            harpp_wake.harpp_client.send_message = original
+            if proc and harpp_wake._pid_alive(proc.pid, None):
+                try:
+                    os.killpg(proc.pid, 9)
+                except OSError:
+                    proc.kill()
+
     def test_missing_log_is_reported_as_failure(self):
         logp = Path(self.tmp.name) / "deleted.log"
         logp.write_text("starting\n")

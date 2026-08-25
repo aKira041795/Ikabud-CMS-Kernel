@@ -21,6 +21,7 @@ import os
 import re
 import signal
 import subprocess
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -384,7 +385,7 @@ def _git_changed_paths(repo: str | None) -> list[str]:
 def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = None,
               log_path: str | None = None, verify: str | None = None,
               marker: str | None = None, repo: str | None = None,
-              commit: bool = False) -> str:
+              commit: bool = False, timeout: int = 0) -> str:
     """Register an in-flight delegated model job for completion monitoring."""
     pid = int(pid)
     if pid < 1:
@@ -403,6 +404,7 @@ def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = 
         "log_path": log_path, "log_offset": log_offset, "log_identity": log_identity,
         "verify": verify, "marker": marker, "repo": repo, "commit": bool(commit),
         "git_baseline": _git_changed_paths(repo),
+        "deadline": (_now() + int(timeout)) if int(timeout) > 0 else None,
         "status": "running", "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "finished_at": None, "reported_at": None,
     }
@@ -413,6 +415,61 @@ def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = 
         _save_jobs_state_unlocked(state)
     log(f"job {job_id} tracked: pid={pid} model={model} task={task!r}")
     return job_id
+
+
+def _drain(proc: subprocess.Popen) -> None:
+    """Drain a child's stdout so it never blocks on a full pipe when no log is set."""
+    try:
+        while True:
+            chunk = proc.stdout.read(65536) if proc.stdout else None
+            if not chunk:
+                break
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def launch_job(*, model: str, task: str, conversation_id: int, command,
+               log_path: str | None = None, verify: str | None = None,
+               marker: str | None = None, repo: str | None = None,
+               commit: bool = False, quiet: bool = False, timeout: int = 0):
+    """Spawn a delegated model command AND track it in one atomic step.
+
+    The pid is captured directly from the spawned process (never pgrep), and its
+    start-time identity is recorded so the monitor can distinguish real completion
+    from PID reuse. A start confirmation is sent to the owner conversation so they
+    know the delegation was received and is being monitored. Returns (job_id, proc).
+    """
+    logf = None
+    if log_path:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+        logf = open(log_path, "a", encoding="utf-8", buffering=1)  # line-buffered
+    shell = isinstance(command, str)
+    proc = subprocess.Popen(command if shell else list(command), shell=shell,
+                            stdout=logf or subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, start_new_session=True)
+    if logf is None:
+        threading.Thread(target=_drain, args=(proc,), daemon=True).start()
+    try:
+        job_id = track_job(pid=proc.pid, model=model, task=task,
+                           conversation_id=conversation_id, log_path=log_path,
+                           verify=verify, marker=marker, repo=repo,
+                           commit=commit, timeout=timeout)
+    except Exception:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            proc.kill()
+        raise
+    if not quiet:
+        try:
+            harpp_client.send_message(
+                conversation_id=int(conversation_id),
+                body=f"🔧 Delegated to {model}: {task} — monitoring started (job {job_id}). "
+                     f"You'll be auto-notified when it's done.")
+            log(f"job {job_id} start confirmation sent to conversation {conversation_id}")
+        except Exception as e:  # noqa: BLE001
+            log(f"job {job_id} start confirmation failed: {e}")
+    return job_id, proc
 
 
 def list_jobs() -> list:
@@ -431,14 +488,26 @@ def untrack_job(job_id: str) -> bool:
     return True
 
 
+def _pid_zombie(pid: int) -> bool:
+    """True if the pid is a zombie (finished but not yet reaped). A zombie is effectively dead."""
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        after_comm = raw[raw.rfind(")") + 2:].split()
+        return bool(after_comm) and after_comm[0] == "Z"
+    except (OSError, IndexError):
+        return False
+
+
 def _pid_alive(pid: int, identity: str | None = None) -> bool:
     if not pid or pid < 1:
         return False
     try:
         os.kill(pid, 0)
+        if _pid_zombie(pid):
+            return False  # finished, awaiting reap — treat as dead for monitoring
         if identity is not None:
             current = _pid_identity(pid)
-            return current is None or current == identity
+            return current is not None and current == identity
         return True
     except ProcessLookupError:
         return False
@@ -586,6 +655,17 @@ def monitor_jobs() -> int:
                     job["status"] = "running"
                 if job.get("status") != "running":
                     continue
+                deadline = job.get("deadline")
+                if deadline and now > int(deadline):
+                    try:
+                        os.killpg(int(job.get("pid", 0)), signal.SIGKILL)
+                        log(f"job {jid} exceeded its deadline; process group killed")
+                    except (OSError, ProcessLookupError, ValueError):
+                        try:
+                            os.kill(int(job.get("pid", 0)), signal.SIGKILL)
+                        except (OSError, ProcessLookupError, ValueError):
+                            pass
+                    # pid will be claimed as finished this or the next pass.
                 if _pid_alive(int(job.get("pid", 0)), job.get("pid_identity")):
                     continue
                 job["status"] = "reporting"

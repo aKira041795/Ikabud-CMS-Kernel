@@ -188,10 +188,23 @@ def cmd_job_track(args):
         jid = harpp_wake.track_job(
             pid=args.pid, model=args.model, task=args.task, conversation_id=args.conversation,
             log_path=args.log, verify=args.verify, marker=args.marker,
-            repo=args.repo, commit=args.commit)
+            repo=args.repo, commit=args.commit, timeout=args.timeout)
     except ValueError as exc:
         sys.exit(f"harpp job track: {exc}")
     print(json.dumps({"job_id": jid, "status": "tracked", "pid": args.pid,
+                      "conversation_id": args.conversation}))
+
+
+def cmd_job_launch(args):
+    command = args.command[0] if len(args.command) == 1 else args.command
+    try:
+        jid, proc = harpp_wake.launch_job(
+            model=args.model, task=args.task, conversation_id=args.conversation,
+            command=command, log_path=args.log, verify=args.verify, marker=args.marker,
+            repo=args.repo, commit=args.commit, quiet=args.quiet, timeout=args.timeout)
+    except ValueError as exc:
+        sys.exit(f"harpp job launch: {exc}")
+    print(json.dumps({"job_id": jid, "status": "tracked", "pid": proc.pid,
                       "conversation_id": args.conversation}))
 
 
@@ -286,7 +299,20 @@ def main():
 
     jb = sub.add_parser("job", help="track/monitor delegated model jobs (auto-report on completion)")
     jsub = jb.add_subparsers(dest="jcmd", required=True)
-    jt = jsub.add_parser("track", help="register an in-flight delegated model job")
+    jl2 = jsub.add_parser("launch", help="spawn a delegated model command AND track it in one step (auto-report on completion)")
+    jl2.add_argument("--model", required=True, help="provider-qualified model id, e.g. openai-codex/gpt-5.6-sol")
+    jl2.add_argument("--task", required=True, help="short description of the work being done")
+    jl2.add_argument("--conversation", type=int, required=True, help="conversation id to auto-report to")
+    jl2.add_argument("--log", default=None, help="path to write the process output (monitor reads growth/markers here)")
+    jl2.add_argument("--verify", default=None, help="verification command; exit 0 = pass")
+    jl2.add_argument("--marker", default=None, help="success marker string to search for in the log (post-launch)")
+    jl2.add_argument("--repo", default=None, help="repo path for git status / auto-commit")
+    jl2.add_argument("--commit", action="store_true", help="auto commit + push on verified completion")
+    jl2.add_argument("--quiet", action="store_true", help="skip the start confirmation message")
+    jl2.add_argument("--timeout", type=int, default=0, help="hard kill the job after N seconds (0 = no deadline)")
+    jl2.add_argument("command", nargs=argparse.REMAINDER, help="command to run, after --")
+    jl2.set_defaults(func=cmd_job_launch)
+    jt = jsub.add_parser("track", help="register an already-running model process")
     jt.add_argument("--pid", type=int, required=True, help="pid of the running model process")
     jt.add_argument("--model", required=True, help="provider-qualified model id, e.g. openai-codex/gpt-5.6-sol")
     jt.add_argument("--task", required=True, help="short description of the work being done")
@@ -296,6 +322,7 @@ def main():
     jt.add_argument("--marker", default=None, help="success marker string to search for in the log")
     jt.add_argument("--repo", default=None, help="repo path for git status / auto-commit")
     jt.add_argument("--commit", action="store_true", help="auto commit + push on verified completion")
+    jt.add_argument("--timeout", type=int, default=0, help="hard kill the job after N seconds (0 = no deadline)")
     jt.set_defaults(func=cmd_job_track)
     jl = jsub.add_parser("list", help="list tracked jobs + status")
     jl.set_defaults(func=cmd_job_list)
