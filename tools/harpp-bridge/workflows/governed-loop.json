@@ -1,0 +1,37 @@
+{
+  "title": "Governed loop: architect -> implement -> review -> release-gate",
+  "stages": [
+    {
+      "name": "architect",
+      "model": "openai-codex/gpt-5.6-sol",
+      "prompt_file": "stages/architect.md",
+      "marker": "SOL_ARCH status=PASS",
+      "verify": "test -f ARCHITECTURE.md",
+      "timeout": 1800
+    },
+    {
+      "name": "implement",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt_file": "stages/implement.md",
+      "marker": "SOL_IMPL status=PASS",
+      "verify": "true",
+      "timeout": 2400
+    },
+    {
+      "name": "review",
+      "model": "openai-codex/gpt-5.6-sol",
+      "prompt_file": "stages/review.md",
+      "marker": "SOL_REVIEW status=PASS",
+      "verify": "true",
+      "timeout": 1800
+    },
+    {
+      "name": "release-gate",
+      "model": "openai-codex/gpt-5.6-sol",
+      "prompt_file": "stages/release-gate.md",
+      "marker": "SOL_GATE status=PASS",
+      "verify": "true",
+      "timeout": 1800
+    }
+  ]
+}

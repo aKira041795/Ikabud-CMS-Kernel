@@ -29,6 +29,7 @@ class HarppWakeTest(unittest.TestCase):
         harpp_wake.PROCESSED_FILE = base / "wake-processed.json"
         harpp_wake.WAKE_LOG = base / "wake.log"
         harpp_wake.JOBS_FILE = base / "jobs.json"
+        harpp_wake.WORKFLOWS_FILE = base / "workflows.json"
         self.inbox = base / "inbox.jsonl"
         self.inbox.write_text(
             json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "hi"}) + "\n",
@@ -288,6 +289,104 @@ class HarppWakeTest(unittest.TestCase):
             self.assertIn("HARPP_WAKE_RESULT", tee_log.read_text(encoding="utf-8"))
         finally:
             harpp_wake.open_agent_terminal = original
+
+    # --- governed multi-stage workflows ---
+
+    def _write_jobs(self, jobs):
+        with harpp_wake._jobs_lock():
+            jstate = harpp_wake._jobs_state_unlocked()
+            jstate["jobs"] = jobs
+            harpp_wake._save_jobs_state_unlocked(jstate)
+
+    def _stage(self, name, job_id=None, status="pending"):
+        return {"name": name, "model": "m", "job_id": job_id, "status": status,
+                "timeout": 10, "marker": None, "verify": None, "commit": False,
+                "prompt_file": None, "prompt": "p"}
+
+    def _seed_workflow(self, wid, stages, index=0):
+        wf = {"id": wid, "title": "t", "conversation_id": 7, "workspace": None,
+              "stages": stages, "current_index": index, "status": "running",
+              "created_at": "2026-08-25 00:00:00", "updated_at": "2026-08-25 00:00:00"}
+        harpp_wake.save_workflows_state({"workflows": {wid: wf}})
+        return wf
+
+    def test_start_workflow_launches_first_stage(self):
+        launched = []
+        original_launch = harpp_wake.launch_job
+
+        def fake_launch(**kw):
+            launched.append(kw)
+            return "job-0", None
+
+        harpp_wake.launch_job = fake_launch
+        try:
+            wid = harpp_wake.start_workflow(
+                title="test wf", conversation_id=7,
+                stages=[self._stage("s1")])
+            self.assertEqual(len(launched), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "running")
+            self.assertEqual(wf["stages"][0]["status"], "running")
+            self.assertEqual(wf["stages"][0]["job_id"], "job-0")
+        finally:
+            harpp_wake.launch_job = original_launch
+
+    def test_workflow_requires_valid_args(self):
+        with self.assertRaises(ValueError):
+            harpp_wake.start_workflow(title="x", conversation_id=7, stages=[])
+        with self.assertRaises(ValueError):
+            harpp_wake.start_workflow(title="", conversation_id=0, stages=[self._stage("s")])
+
+    def test_workflow_advances_on_stage_pass_then_done(self):
+        wid = "wf-adv"
+        stages = [self._stage("s1", job_id="job-1", status="running"), self._stage("s2")]
+        self._seed_workflow(wid, stages)
+        self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+        launched = []
+        original_launch = harpp_wake.launch_job
+
+        def fake_launch(**kw):
+            launched.append(kw)
+            return "job-2", None
+
+        harpp_wake.launch_job = fake_launch
+        try:
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["current_index"], 1)
+            self.assertEqual(wf["stages"][0]["status"], "done")
+            self.assertEqual(wf["stages"][1]["job_id"], "job-2")
+            self.assertEqual(len(launched), 1)
+        finally:
+            harpp_wake.launch_job = original_launch
+        # stage 2 finishes DONE -> workflow done + final notify
+        self._write_jobs({"job-2": {"id": "job-2", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+        sent, original_send = self._patch_send()
+        try:
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            wf2 = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf2["status"], "done")
+            self.assertEqual(wf2["stages"][1]["status"], "done")
+            self.assertGreater(len(sent), 0)
+            self.assertIn("Workflow complete", sent[0]["body"])
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+
+    def test_workflow_stops_on_stage_fail(self):
+        wid = "wf-fail"
+        stages = [self._stage("s1", job_id="job-f", status="running")]
+        self._seed_workflow(wid, stages)
+        self._write_jobs({"job-f": {"id": "job-f", "status": "finished", "outcome": "FAILED", "conversation_id": 7}})
+        sent, original = self._patch_send()
+        try:
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "failed")
+            self.assertEqual(wf["stages"][0]["status"], "failed")
+            self.assertGreater(len(sent), 0)
+            self.assertIn("Workflow stopped", sent[0]["body"])
+        finally:
+            harpp_wake.harpp_client.send_message = original
 
     def test_missing_log_is_reported_as_failure(self):
         logp = Path(self.tmp.name) / "deleted.log"

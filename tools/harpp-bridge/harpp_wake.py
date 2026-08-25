@@ -38,6 +38,7 @@ LOCK_FILE = CONFIG_DIR / "wake.lock"
 PROCESSED_FILE = CONFIG_DIR / "wake-processed.json"
 WAKE_LOG = CONFIG_DIR / "wake.log"
 JOBS_FILE = CONFIG_DIR / "jobs.json"
+WORKFLOWS_FILE = CONFIG_DIR / "workflows.json"
 # Machine-global defaults so monitoring survives workspace switches (any VS Code
 # window reads the same inbox/log). Explicit --inbox/--log still override.
 INBOX_FILE = CONFIG_DIR / "inbox.jsonl"
@@ -665,8 +666,8 @@ def _commit_job(job: dict) -> str:
         return f"commit attempt failed: {e}"
 
 
-def _report_job(job_id: str, job: dict) -> None:
-    """Build + deliver the completion report for a finished job."""
+def _report_job(job_id: str, job: dict) -> str:
+    """Build + deliver the completion report for a finished job. Returns the outcome."""
     conv = job.get("conversation_id")
     if not conv:
         raise ValueError("job has no conversation_id")
@@ -700,6 +701,7 @@ def _report_job(job_id: str, job: dict) -> None:
         lines.append(f"commit: {commit}")
     lines.append("— auto-reported by the harness job monitor; no action needed unless noted.")
     harpp_client.send_message(conversation_id=int(conv), body="\n".join(lines))
+    return status
 
 
 def monitor_jobs() -> int:
@@ -754,13 +756,14 @@ def monitor_jobs() -> int:
     reported_count = 0
     for jid, job in claimed:
         try:
-            _report_job(jid, job)
+            outcome = _report_job(jid, job)
             with _jobs_lock():
                 state = _jobs_state_unlocked()
                 current = state["jobs"].get(jid)
                 if not current or current.get("report_token") != claim_token:
                     raise RuntimeError("job claim changed before report could be recorded")
                 current["status"] = "finished"
+                current["outcome"] = outcome  # DONE / FAILED — lets workflows advance on real results
                 current["reported_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
                 current.pop("report_token", None)
                 current.pop("reporter_pid", None)
@@ -770,7 +773,7 @@ def monitor_jobs() -> int:
                 _prune_jobs_state(state)
                 _save_jobs_state_unlocked(state)
             reported_count += 1
-            log(f"job {jid} reported to conversation {job.get('conversation_id')}")
+            log(f"job {jid} reported to conversation {job.get('conversation_id')} ({outcome})")
         except Exception as e:  # noqa: BLE001
             log(f"job {jid} report delivery failed: {e}; will retry next pass")
             try:
@@ -786,6 +789,185 @@ def monitor_jobs() -> int:
             except Exception as reset_error:  # noqa: BLE001
                 log(f"job {jid} retry-state save failed: {reset_error}")
     return reported_count
+
+
+# ---------------------------------------------------------------------------
+# Governed multi-stage workflows — run /architect -> /implement -> /review ->
+# /release-gate as sequential tracked jobs. Each stage is its own `harpp job`
+# (with start confirmation, live terminal, auto-verify + report); the engine
+# advances to the next stage only when the previous one actually PASSED, and
+# stops + notifies on FAIL. State persists in ~/.config/harpp/workflows.json.
+# ---------------------------------------------------------------------------
+
+def workflows_state() -> dict:
+    with _jobs_lock():
+        state = _load_json(WORKFLOWS_FILE, {})
+        if not isinstance(state, dict):
+            state = {}
+        state.setdefault("workflows", {})
+        return state
+
+
+def save_workflows_state(state: dict) -> None:
+    with _jobs_lock():
+        _save_json(WORKFLOWS_FILE, state)
+
+
+def list_workflows() -> list:
+    return sorted(workflows_state().get("workflows", {}).values(),
+                  key=lambda w: w.get("created_at", ""))
+
+
+def get_workflow(wid: str) -> dict | None:
+    return workflows_state().get("workflows", {}).get(wid)
+
+
+def _stage_prompt(stage: dict) -> str:
+    if stage.get("prompt_file"):
+        p = Path(__file__).resolve().parent / "workflows" / str(stage["prompt_file"])
+        try:
+            return p.read_text(encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+    return (stage.get("prompt")
+            or f"You are stage '{stage.get('name')}' of a governed HARPP workflow. "
+               f"Produce the required output and end with your stage marker.\n")
+
+
+def _notify_workflow(wf: dict, status: str, stage: dict | None = None) -> None:
+    try:
+        if status == "DONE":
+            body = (f"✅ Workflow complete: {wf.get('title')} — all {len(wf.get('stages', []))} stages passed.\n"
+                    "Stages: " + " → ".join(s.get('name', '?') for s in wf.get('stages', [])) + ".")
+        else:
+            body = (f"❌ Workflow stopped: {wf.get('title')} failed at stage "
+                    f"'{stage.get('name') if stage else '?'}' "
+                    f"(job {stage.get('job_id') if stage else '?'}). "
+                    f"See the job report above; fix and retry, or ask the harness.")
+        harpp_client.send_message(conversation_id=int(wf.get("conversation_id") or 0), body=body)
+    except Exception as e:  # noqa: BLE001
+        log(f"workflow notify failed for {wf.get('id')}: {e}")
+
+
+def _launch_stage(wid: str, stage: dict, index: int, workflow: dict) -> None:
+    """Launch a workflow stage as a tracked job and record its job id on the stage."""
+    prompt = _stage_prompt(stage)
+    prompt = (prompt.replace("{{WORKSPACE}}", workflow.get("workspace") or "(no workspace)")
+                   .replace("{{TITLE}}", workflow.get("title") or ""))
+    if index > 0:
+        prev = workflow.get("stages", [])[index - 1]
+        prompt = prompt.replace("{{PREV_OUTPUT}}", str(prev.get("output_path") or prev.get("job_id") or ""))
+    task = f"workflow {wid} stage {index + 1}/{len(workflow.get('stages', []))}: {stage.get('name')}"
+    cmd = ["pi", "--model", str(stage.get("model")), "--mode", "json", "--print", prompt]
+    log_path = str(CONFIG_DIR / f"wf-{wid}-s{index}.log")
+    jid, _proc = launch_job(
+        model=str(stage.get("model")), task=task, conversation_id=int(workflow["conversation_id"]),
+        command=cmd, log_path=log_path, verify=stage.get("verify"), marker=stage.get("marker"),
+        repo=workflow.get("workspace"), commit=bool(stage.get("commit")),
+        timeout=int(stage.get("timeout") or 1800), cwd=workflow.get("workspace"),
+        open_terminal=True)
+    stage["job_id"] = jid
+    stage["log_path"] = log_path
+    stage["status"] = "running"
+    log(f"workflow {wid} launched stage {index + 1} '{stage.get('name')}' as job {jid}")
+
+
+def start_workflow(*, title: str, conversation_id: int, stages: list,
+                  workspace: str | None = None) -> str:
+    """Register a multi-stage workflow and launch its first stage. Returns workflow id."""
+    if not str(title).strip() or int(conversation_id) < 1 or not stages:
+        raise ValueError("title, conversation_id and at least one stage are required")
+    wid = uuid.uuid4().hex[:12]
+    wf = {
+        "id": wid, "title": str(title).strip(), "conversation_id": int(conversation_id),
+        "workspace": workspace or default_workspace(),
+        "stages": [dict(s) for s in stages],
+        "current_index": 0, "status": "running",
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    for i, st in enumerate(wf["stages"]):
+        st.setdefault("job_id", None)
+        st.setdefault("status", "pending")
+        st.setdefault("timeout", 1800)
+        st.setdefault("marker", None)
+        st.setdefault("verify", None)
+        st.setdefault("commit", False)
+        st.setdefault("prompt_file", None)
+        st.setdefault("prompt", None)
+        st.setdefault("model", "deepseek/deepseek-v4-pro")
+    with _jobs_lock():
+        state = _load_json(WORKFLOWS_FILE, {})
+        if not isinstance(state, dict):
+            state = {}
+        state.setdefault("workflows", {})
+        state["workflows"][wid] = wf
+        _save_json(WORKFLOWS_FILE, state)
+    try:
+        _launch_stage(wid, wf["stages"][0], 0, wf)
+    except Exception as e:  # noqa: BLE001
+        wf["status"] = "failed"
+        wf["stages"][0]["status"] = "failed"
+        with _jobs_lock():
+            state = _load_json(WORKFLOWS_FILE, {})
+            state["workflows"][wid] = wf
+            _save_json(WORKFLOWS_FILE, state)
+        raise RuntimeError(f"workflow first stage failed to launch: {e}") from e
+    # Persist the launched first-stage job id + status so the monitor can advance it.
+    with _jobs_lock():
+        state = _load_json(WORKFLOWS_FILE, {})
+        state["workflows"][wid] = wf
+        _save_json(WORKFLOWS_FILE, state)
+    log(f"workflow {wid} started: {wf['title']} ({len(wf['stages'])} stages)")
+    return wid
+
+
+def advance_workflows() -> int:
+    """Advance running workflows whose current stage job finished. Returns count advanced/finalized."""
+    try:
+        with _jobs_lock():
+            wstate = _load_json(WORKFLOWS_FILE, {})
+            jstate = _jobs_state_unlocked()
+        wf_map = wstate.get("workflows", {}) if isinstance(wstate, dict) else {}
+        jobs = jstate.get("jobs", {})
+        advanced = 0
+        for wid, wf in list(wf_map.items()):
+            if wf.get("status") != "running":
+                continue
+            stages = wf.get("stages", [])
+            idx = int(wf.get("current_index", 0))
+            if idx >= len(stages):
+                wf["status"] = "done"
+                advanced += 1
+                continue
+            stage = stages[idx]
+            job = jobs.get(stage.get("job_id")) if stage.get("job_id") else None
+            if not job or job.get("status") != "finished":
+                continue  # stage still running
+            outcome = job.get("outcome") or "FAILED"
+            if outcome == "DONE":
+                stage["status"] = "done"
+                if idx >= len(stages) - 1:
+                    wf["status"] = "done"
+                    _notify_workflow(wf, "DONE")
+                else:
+                    nxt = idx + 1
+                    wf["current_index"] = nxt
+                    _launch_stage(wid, stages[nxt], nxt, wf)
+                advanced += 1
+            else:
+                stage["status"] = "failed"
+                wf["status"] = "failed"
+                _notify_workflow(wf, "FAILED", stage)
+                advanced += 1
+            wf["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        if advanced:
+            with _jobs_lock():
+                _save_json(WORKFLOWS_FILE, wstate)
+        return advanced
+    except Exception as e:  # noqa: BLE001
+        log(f"workflow advance failed: {e}")
+        return 0
 
 
 def task_prompt(inbox: str, items: list, template: str | None = None, workspace: str | None = None) -> str:

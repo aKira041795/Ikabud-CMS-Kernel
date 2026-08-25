@@ -163,6 +163,8 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
         # + report the result to the owner conversation automatically (no reminder needed).
         try:
             harpp_wake.monitor_jobs()
+            # Governed multi-stage workflows advance on each stage's real outcome.
+            harpp_wake.advance_workflows()
         except Exception as e:
             print(f"harpp watch: job monitor failed: {e}", flush=True)
         # Substantive processing: the wake agent (when enabled) replies/works in the
@@ -237,6 +239,40 @@ def cmd_job_untrack(args):
     print(json.dumps({"job_id": args.id, "untracked": ok}))
     if not ok:
         raise SystemExit(1)
+
+
+def cmd_workflow_start(args):
+    try:
+        manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        sys.exit(f"harpp workflow start: cannot read manifest {args.manifest}: {exc}")
+    stages = manifest.get("stages") if isinstance(manifest, dict) else None
+    if not isinstance(stages, list) or not stages:
+        sys.exit("harpp workflow start: manifest must contain a non-empty 'stages' array")
+    title = args.title or (manifest.get("title") if isinstance(manifest, dict) else "") or "Governed HARPP workflow"
+    try:
+        wid = harpp_wake.start_workflow(title=title, conversation_id=args.conversation,
+                                        stages=stages, workspace=args.workspace)
+    except ValueError as exc:
+        sys.exit(f"harpp workflow start: {exc}")
+    print(json.dumps({"workflow_id": wid, "status": "running", "stages": len(stages)}))
+
+
+def cmd_workflow_list(args):
+    wfs = harpp_wake.list_workflows()
+    print(json.dumps({"count": len(wfs), "workflows": [
+        {"id": w["id"], "title": w.get("title"), "status": w.get("status"),
+         "current_index": w.get("current_index"), "stages": len(w.get("stages", [])),
+         "conversation_id": w.get("conversation_id"), "created_at": w.get("created_at")}
+        for w in wfs]}, indent=2))
+
+
+def cmd_workflow_show(args):
+    w = harpp_wake.get_workflow(args.id)
+    if not w:
+        print(json.dumps({"workflow_id": args.id, "found": False}))
+        raise SystemExit(1)
+    print(json.dumps(w, indent=2))
 
 
 def main():
@@ -354,6 +390,20 @@ def main():
     ju.add_argument("id", help="job id")
     ju.set_defaults(func=cmd_job_untrack)
 
+    wf = sub.add_parser("workflow", help="governed multi-stage workflows (architect->implement->review->gate)")
+    wsub = wf.add_subparsers(dest="wcmd", required=True)
+    ws = wsub.add_parser("start", help="start a multi-stage workflow from a JSON manifest")
+    ws.add_argument("--title", default="")
+    ws.add_argument("--conversation", type=int, required=True, help="conversation id to report to")
+    ws.add_argument("--manifest", required=True, help="JSON manifest with a non-empty 'stages' array")
+    ws.add_argument("--workspace", default=None, help="working dir for stages (default: configured workspace)")
+    ws.set_defaults(func=cmd_workflow_start)
+    wl = wsub.add_parser("list", help="list workflows + status")
+    wl.set_defaults(func=cmd_workflow_list)
+    wh = wsub.add_parser("show", help="show a workflow's full state")
+    wh.add_argument("id")
+    wh.set_defaults(func=cmd_workflow_show)
+
     args = p.parse_args()
 
     if args.cmd == "config":
@@ -421,6 +471,8 @@ def main():
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear, path=args.inbox)
     elif args.cmd == "job":
+        args.func(args)
+    elif args.cmd == "workflow":
         args.func(args)
 
 

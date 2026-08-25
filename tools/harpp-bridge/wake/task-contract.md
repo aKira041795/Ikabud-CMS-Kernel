@@ -28,6 +28,21 @@ successful response; do not claim success merely because a command was attempted
 
 1. **`kind: message`** — an owner message in a conversation. Provide a substantive,
    concise reply through the bridge (`harpp msg send --conversation-id <id> --body ...`).
+   - **Multi-stage pipeline request** (the message asks for a governed loop, e.g.
+     "/architect then the rest of the loop", "run the loop", "workflow", "set <model> to
+     do the architect and then implement/review/release", or any chain of
+     architect→implement→review→release-gate): do NOT attempt the stages yourself and do
+     NOT just acknowledge. Register it as a governed workflow so each stage runs as a
+     tracked, monitored job:
+     ```
+     python3 tools/harpp-bridge/harpp workflow start \
+       --conversation <conversation_id> \
+       --title "<short task title>" \
+       --manifest tools/harpp-bridge/workflows/governed-loop.json \
+       [--workspace <target folder if the owner names one>]
+     ```
+     Then reply that the pipeline is registered (give the workflow id) and will be
+     monitored stage-by-stage, with each stage's result auto-reported.
    - If the message is an **explicit fix/implement request** (e.g. "fix the responsive
      view", "implement X"), you MAY make the minimal change yourself in the repo, verify
      it (JS: `node --check <file>`; PHP: `php -l <file>`; DiSyL templates: keep the
