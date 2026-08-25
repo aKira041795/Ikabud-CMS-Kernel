@@ -30,6 +30,7 @@ class HarppWakeTest(unittest.TestCase):
         harpp_wake.WAKE_LOG = base / "wake.log"
         harpp_wake.JOBS_FILE = base / "jobs.json"
         harpp_wake.WORKFLOWS_FILE = base / "workflows.json"
+        harpp_wake.DECISIONS_FILE = base / "decisions.json"
         self.inbox = base / "inbox.jsonl"
         self.inbox.write_text(
             json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "hi"}) + "\n",
@@ -76,8 +77,15 @@ class HarppWakeTest(unittest.TestCase):
     def _patch_send(self):
         sent = []
         original = harpp_wake.harpp_client.send_message
-        harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw)
+        harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw) or {"ok": True}
         return sent, original
+
+    def _patch_notify(self):
+        sent, original_send = self._patch_send()
+        decisions = []
+        original_submit = harpp_wake.harpp_client.submit_decision
+        harpp_wake.harpp_client.submit_decision = lambda **kw: decisions.append(kw) or {"ok": True}
+        return sent, decisions, original_send, original_submit
 
     def test_track_list_untrack_job(self):
         jid = harpp_wake.track_job(pid=self._dead_pid(), model="openai-codex/gpt-5.6-sol",
@@ -102,7 +110,7 @@ class HarppWakeTest(unittest.TestCase):
         try:
             self.assertEqual(harpp_wake.monitor_jobs(), 1)
             self.assertEqual(len(sent), 1)
-            self.assertIn("DONE", sent[0]["body"])
+            self.assertIn("VERIFIED", sent[0]["body"])
             self.assertIn("ALL HARPP CHECKS PASS", sent[0]["body"])
             self.assertEqual(sent[0]["conversation_id"], 9)
             # idempotent: second pass does not re-report
@@ -140,8 +148,9 @@ class HarppWakeTest(unittest.TestCase):
         sent, original = self._patch_send()
         try:
             self.assertEqual(harpp_wake.monitor_jobs(), 1)
-            self.assertIn("DONE", sent[0]["body"])
+            self.assertIn("VERIFIED", sent[0]["body"])
             self.assertIn("verify exit=OK", sent[0]["body"])
+            self.assertIn("Next: workflow monitor will advance automatically", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original
 
@@ -178,6 +187,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(job["status"], "running")
             self.assertGreater(len(sent), 0)
             self.assertEqual(sent[0]["conversation_id"], 7)
+            self.assertTrue(sent[0]["body"].startswith("[PROGRESS]"))
             self.assertIn("monitoring started", sent[0]["body"])
             self.assertIn(jid, sent[0]["body"])
         finally:
@@ -371,7 +381,8 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf2["status"], "done")
             self.assertEqual(wf2["stages"][1]["status"], "done")
             self.assertGreater(len(sent), 0)
-            self.assertIn("Workflow complete", sent[0]["body"])
+            self.assertIn("WORKFLOW COMPLETE", sent[0]["body"])
+            self.assertIn("Next: done — safe to move forward", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original_send
 
@@ -387,7 +398,8 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["status"], "failed")
             self.assertEqual(wf["stages"][0]["status"], "failed")
             self.assertGreater(len(sent), 0)
-            self.assertIn("Workflow stopped", sent[0]["body"])
+            self.assertIn("FAILED", sent[0]["body"])
+            self.assertIn("Next: remediation required", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original
 
@@ -402,7 +414,7 @@ class HarppWakeTest(unittest.TestCase):
         wid = "wf-repair"
         stages = [self._stage("implement", "job-1", "running"),
                   self._stage("review"), self._stage("release-gate")]
-        self._seed_workflow(wid, stages, max_repairs=2)
+        self._seed_workflow(wid, stages, max_repairs=2, authority_level="L3")
         launched, counter = [], {"n": 1}
         original_launch = harpp_wake.launch_job
         harpp_wake.launch_job = self._fake_launch_seq(launched, counter)
@@ -427,7 +439,7 @@ class HarppWakeTest(unittest.TestCase):
             try:
                 self.assertEqual(harpp_wake.advance_workflows(), 1)
                 self.assertEqual(harpp_wake.get_workflow(wid)["status"], "done")
-                self.assertTrue(any("Workflow complete" in s["body"] for s in sent))
+                self.assertTrue(any("[RELEASE_READY]" in s["body"] for s in sent))
             finally:
                 harpp_wake.harpp_client.send_message = original_send
         finally:
@@ -458,7 +470,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf2["status"], "blocked")
             self.assertEqual(wf2["repair_count"], 1)
             self.assertFalse(any("REPAIR 2" in t for t in launched))
-            self.assertTrue(any("Workflow blocked" in s["body"] for s in sent))
+            self.assertTrue(any("what: unblock workflow" in s["body"] for s in sent))
         finally:
             harpp_wake.launch_job = original_launch
             harpp_wake.harpp_client.send_message = original_send
@@ -480,7 +492,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["status"], "failed")
             self.assertEqual(wf["repair_count"], 0)
             self.assertEqual(len(launched), 1)
-            self.assertTrue(any("Workflow stopped" in s["body"] for s in sent))
+            self.assertTrue(any("Next: remediation required" in s["body"] for s in sent))
         finally:
             harpp_wake.launch_job = original_launch
             harpp_wake.harpp_client.send_message = original_send
@@ -753,9 +765,13 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake.spawn_agent = original
 
     def test_task_prompt_contains_items(self):
+        harpp_wake.record_local_decision(task="workflow:demo", decision="Keep scope narrow",
+                                         constraints=["Never print secrets"], applied_to="stage:implement")
         prompt = harpp_wake.task_prompt(str(self.inbox), [{"kind": "message", "id": 1, "conversation_id": 2}])
         self.assertIn("kind", prompt)
         self.assertIn(str(self.inbox), prompt)
+        self.assertIn("DEC-0001", prompt)
+        self.assertIn("Keep scope narrow", prompt)
 
     def test_run_record_fields_present_on_start_and_job_track(self):
         launched = []
@@ -773,6 +789,8 @@ class HarppWakeTest(unittest.TestCase):
             self.assertRegex(wf["run_id"], r"^HARPP-\d{8}-\d{5}$")
             self.assertEqual(wf["task_id"], "implement_feature")
             self.assertEqual(wf["contract_revision"], 0)
+            self.assertEqual(wf["authority_level"], "L2")
+            self.assertEqual(wf["authority_policy"]["L4"], "human_approval")
             self.assertIn("base_sha", wf)
             self.assertIn("current_sha", wf)
             self.assertEqual(wf["human_decisions"], [])
@@ -786,6 +804,7 @@ class HarppWakeTest(unittest.TestCase):
         self.assertRegex(job["run_id"], r"^HARPP-\d{8}-\d{5}$")
         self.assertEqual(job["task_id"], "do_task")
         self.assertEqual(job["contract_revision"], 0)
+        self.assertEqual(job["authority_level"], "L2")
         self.assertIn("base_sha", job)
         self.assertIn("current_sha", job)
         self.assertEqual(job["human_decisions"], [])
@@ -848,6 +867,238 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.launch_job = original_launch
 
+    def test_authority_gating_escalates_delivery_stage(self):
+        sent, decisions, original_send, original_submit = self._patch_notify()
+        try:
+            wid = harpp_wake.start_workflow(
+                title="delivery wf", conversation_id=7,
+                stages=[self._stage("release-gate")], authority_level="L2")
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "escalated")
+            self.assertEqual(wf["state"], "ESCALATED")
+            self.assertIn("required authority L3 exceeds configured authority L2", wf["escalation_reason"])
+            self.assertEqual(wf["stages"][0]["status"], "escalated")
+            self.assertEqual(len(sent), 1)
+            self.assertTrue(sent[0]["body"].startswith("[DECISION_REQUIRED]"))
+            self.assertEqual(len(decisions), 1)
+            self.assertIn("what:", decisions[0]["body"])
+            self.assertIn("why:", decisions[0]["body"])
+            self.assertIn("options:", decisions[0]["body"])
+            self.assertIn("recommendation:", decisions[0]["body"])
+            self.assertIn("risk:", decisions[0]["body"])
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
+
+    def test_escalation_required_outcome_never_auto_repairs(self):
+        wid = "wf-escalation-code"
+        stages = [self._stage("implement", "job-1", "running"), self._stage("review")]
+        self._seed_workflow(wid, stages, max_repairs=2)
+        self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "FAILED",
+                                     "code": "escalation_required", "reason": "contract would be broken",
+                                     "conversation_id": 7}})
+        sent, original_send = self._patch_send()
+        try:
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "escalated")
+            self.assertEqual(wf["repair_count"], 0)
+            self.assertEqual(wf["stages"][0]["status"], "escalated")
+            self.assertTrue(any("DECISION_REQUIRED" in s["body"] for s in sent))
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+
+    def test_each_override_condition_escalates_without_auto_repair(self):
+        for key in ("architecture_change", "contract_break", "data_loss_risk", "security_exception", "scope_expansion"):
+            with self.subTest(key=key):
+                sent, original_send = self._patch_send()
+                try:
+                    stage = self._stage("implement")
+                    stage[key] = True
+                    wid = harpp_wake.start_workflow(title=f"wf-{key}", conversation_id=7,
+                                                    stages=[stage], max_repairs=2)
+                    wf = harpp_wake.get_workflow(wid)
+                    self.assertEqual(wf["status"], "escalated")
+                    self.assertEqual(wf["repair_count"], 0)
+                    self.assertEqual(wf["stages"][0]["attempt_count"], 0)
+                    self.assertEqual(wf["stages"][0]["status"], "escalated")
+                    self.assertIn("DECISION_REQUIRED", sent[0]["body"])
+                finally:
+                    harpp_wake.harpp_client.send_message = original_send
+
+    def test_l4_policy_always_escalates_for_human_approval(self):
+        sent, decisions, original_send, original_submit = self._patch_notify()
+        try:
+            wid = harpp_wake.start_workflow(
+                title="release wf", conversation_id=7,
+                stages=[self._stage("release")], authority_level="L4")
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "escalated")
+            self.assertIn("requires human approval by policy", wf["escalation_reason"])
+            self.assertIn("configured=L4 required=L4", sent[0]["body"])
+            self.assertEqual(decisions[0]["workbench_state"], "DECISION_REQUIRED")
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
+
+    def test_harpp_notify_prefixes_and_only_actionable_create_decisions(self):
+        sent, decisions, original_send, original_submit = self._patch_notify()
+        try:
+            harpp_wake.harpp_client.harpp_notify(conversation_id=7, message_type="INFO", body="hello")
+            harpp_wake.harpp_client.harpp_notify(conversation_id=7, message_type="PROGRESS", body="working")
+            harpp_wake.harpp_client.harpp_notify(
+                conversation_id=7, message_type="BLOCKED", body="stop",
+                decision={"title": "Blocked", "what": "w", "why": "y", "options": ["A", "B"],
+                          "recommendation": "A", "risk": "r"})
+            self.assertEqual([m["body"] for m in sent[:2]], ["[INFO] hello", "[PROGRESS] working"])
+            self.assertEqual(sent[2]["body"], "[BLOCKED] stop")
+            self.assertEqual(len(decisions), 1)
+            self.assertEqual(decisions[0]["title"], "Blocked")
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
+
+    def test_workflow_done_release_gate_becomes_release_ready(self):
+        wid = "wf-release"
+        stages = [self._stage("release-gate", job_id="job-r", status="running")]
+        self._seed_workflow(wid, stages)
+        self._write_jobs({"job-r": {"id": "job-r", "status": "finished", "outcome": "DONE", "conversation_id": 7}})
+        sent, decisions, original_send, original_submit = self._patch_notify()
+        try:
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            self.assertEqual(harpp_wake.get_workflow(wid)["status"], "done")
+            self.assertTrue(sent[0]["body"].startswith("[RELEASE_READY]"))
+            self.assertEqual(decisions[0]["workbench_state"], "RELEASE_READY")
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
+
+    def test_workflow_blocked_and_failed_are_classified(self):
+        sent, decisions, original_send, original_submit = self._patch_notify()
+        try:
+            wf = {"id": "wf1", "title": "wf", "conversation_id": 7, "stages": [self._stage("implement")],
+                  "blocked_reason": "BLOCKED_BUDGET_EXHAUSTED: x", "repair_count": 0}
+            harpp_wake._notify_workflow(wf, "BLOCKED", wf["stages"][0], reason=wf["blocked_reason"])
+            harpp_wake._notify_workflow(wf, "FAILED", wf["stages"][0], reason="boom")
+            self.assertTrue(sent[0]["body"].startswith("[BLOCKED]"))
+            self.assertTrue(sent[1]["body"].startswith("[FAILED]"))
+            self.assertEqual(len(decisions), 1)
+            self.assertEqual(decisions[0]["workbench_state"], "BLOCKED")
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
+
+    def test_record_and_list_local_decisions(self):
+        rec = harpp_wake.record_local_decision(
+            task="workflow:abc", decision="Use stdlib only",
+            constraints=["Never print secrets"], additional_requirements=["Keep scope to tools/harpp-bridge"],
+            applied_to="stage:slice4")
+        self.assertEqual(rec["id"], "DEC-0001")
+        listed = harpp_wake.load_decisions()
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]["decision"], "Use stdlib only")
+        self.assertEqual(listed[0]["constraints"], ["Never print secrets"])
+
+    def test_auto_record_directive_is_idempotent_by_message_id(self):
+        message = {"kind": "message", "id": 42, "conversation_id": 9, "sender_type": "owner",
+                   "body": "Use gpt sol. Keep scope to tools/harpp-bridge only. Never print secrets.",
+                   "created_at": "2026-08-25 00:00:00"}
+        self.assertEqual(harpp_wake.auto_record_directives([message]), 1)
+        self.assertEqual(harpp_wake.auto_record_directives([message]), 0)
+        records = harpp_wake.load_decisions()
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["source_message_id"], 42)
+        self.assertIn("Keep scope to tools/harpp-bridge only.", records[0]["constraints"])
+        self.assertIn("Never print secrets.", records[0]["constraints"])
+
+    def test_status_and_question_messages_are_not_recorded(self):
+        records = [
+            {"kind": "message", "id": 50, "conversation_id": 9, "sender_type": "owner", "body": "status?"},
+            {"kind": "message", "id": 51, "conversation_id": 9, "sender_type": "owner", "body": "thanks"},
+            {"kind": "message", "id": 52, "conversation_id": 9, "sender_type": "owner", "body": "workflow list"},
+        ]
+        self.assertEqual(harpp_wake.auto_record_directives(records), 0)
+        self.assertEqual(harpp_wake.load_decisions(), [])
+
+    def test_decision_ledger_is_bounded(self):
+        original_limit = harpp_wake.DECISION_LEDGER_LIMIT
+        harpp_wake.DECISION_LEDGER_LIMIT = 3
+        try:
+            for i in range(5):
+                harpp_wake.record_local_decision(task=f"t{i}", decision=f"d{i}")
+            records = harpp_wake.load_decisions()
+            self.assertEqual([r["id"] for r in records], ["DEC-0003", "DEC-0004", "DEC-0005"])
+        finally:
+            harpp_wake.DECISION_LEDGER_LIMIT = original_limit
+
+    def test_summarize_formats_counts_and_next(self):
+        summary = harpp_wake.summarize({
+            "task": "Slice 5",
+            "state": "IMPLEMENTATION COMPLETE",
+            "changed_files": 3,
+            "unit_passed": 5,
+            "unit_total": 5,
+            "integration_passed": 2,
+            "integration_total": 2,
+            "playwright_passed": 1,
+            "playwright_total": 1,
+            "repairs_done": 1,
+            "repairs_max": 3,
+            "scope": True,
+            "review": "PENDING",
+            "next": "release gate / safe to move forward",
+            "details": "short detail",
+        })
+        self.assertIn("Slice 5 — IMPLEMENTATION COMPLETE", summary)
+        self.assertIn("Changed      3 files", summary)
+        self.assertIn("Unit         5/5 ✓", summary)
+        self.assertIn("Integration  2/2 ✓", summary)
+        self.assertIn("Playwright   1/1 ✓", summary)
+        self.assertIn("Repairs      1/3", summary)
+        self.assertIn("Scope        ✓", summary)
+        self.assertIn("Review       PENDING", summary)
+        self.assertIn("Next: release gate / safe to move forward", summary)
+
+    def test_summarize_omits_unknowns_and_redacts_secrets(self):
+        summary = harpp_wake.summarize({
+            "task": "Task",
+            "state": "RUNNING",
+            "next": "awaiting decision",
+            "details": "bridge_key=abc123 token=secret-value",
+        })
+        self.assertNotIn("Changed", summary)
+        self.assertNotIn("Unit", summary)
+        self.assertNotIn("abc123", summary)
+        self.assertNotIn("secret-value", summary)
+        self.assertIn("<redacted>", summary)
+
+    def test_phone_summary_used_for_info_progress_and_headline_kept_for_actionable(self):
+        sent, decisions, original_send, original_submit = self._patch_notify()
+        try:
+            wf = {"id": "wf-sum", "title": "summary wf", "conversation_id": 7,
+                  "workspace": None, "repair_count": 0, "max_repairs": 2,
+                  "stages": [self._stage("implement"), self._stage("review", status="pending")]}
+            harpp_wake._notify_workflow(wf, "DONE", wf["stages"][0])
+            harpp_wake._notify_workflow(wf, "REPAIR", wf["stages"][1], round_no=1, max_repairs=2)
+            harpp_wake._notify_workflow(wf, "BLOCKED", wf["stages"][1], reason="budget")
+            self.assertIn("WORKFLOW COMPLETE", sent[0]["body"])
+            self.assertIn("Next: done — safe to move forward", sent[0]["body"])
+            self.assertIn("REVIEW REMEDIATION", sent[1]["body"])
+            self.assertIn("Next: auto-repair round 1/2 in progress", sent[1]["body"])
+            self.assertIn("summary wf / review — BLOCKED", sent[2]["body"])
+            self.assertIn("what: unblock workflow", sent[2]["body"])
+            self.assertEqual(decisions[0]["workbench_state"], "BLOCKED")
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
+
+    def test_secret_like_values_are_redacted_before_recording(self):
+        rec = harpp_wake.record_local_decision(task="workflow:x",
+                                               decision="bridge_key=abc123 token=secret-value use flash")
+        self.assertNotIn("abc123", rec["decision"])
+        self.assertNotIn("secret-value", rec["decision"])
+        self.assertIn("<redacted>", rec["decision"])
+
     def test_old_records_without_new_fields_still_load(self):
         harpp_wake.save_jobs_state({"jobs": {"j1": {"id": "j1", "pid": 1, "model": "m", "task": "t",
                                                        "conversation_id": 7, "status": "running"}}, "reported": []})
@@ -858,9 +1109,11 @@ class HarppWakeTest(unittest.TestCase):
         wf = harpp_wake.get_workflow("w1")
         self.assertIn("run_id", job)
         self.assertIn("task_id", job)
+        self.assertIn("authority_level", job)
         self.assertIn("run_id", wf)
         self.assertIn("max_total_cycles", wf)
         self.assertIn("human_decisions", wf)
+        self.assertIn("authority_level", wf)
 
 
 if __name__ == "__main__":

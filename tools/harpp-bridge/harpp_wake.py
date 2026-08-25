@@ -39,11 +39,14 @@ PROCESSED_FILE = CONFIG_DIR / "wake-processed.json"
 WAKE_LOG = CONFIG_DIR / "wake.log"
 JOBS_FILE = CONFIG_DIR / "jobs.json"
 WORKFLOWS_FILE = CONFIG_DIR / "workflows.json"
+DECISIONS_FILE = CONFIG_DIR / "decisions.json"
 # Machine-global defaults so monitoring survives workspace switches (any VS Code
 # window reads the same inbox/log). Explicit --inbox/--log still override.
 INBOX_FILE = CONFIG_DIR / "inbox.jsonl"
 AUTOPROCESS_LOG = CONFIG_DIR / "autoprocess.log"
 JOB_HISTORY_LIMIT = 100
+DECISION_LEDGER_LIMIT = 200
+DECISION_PROMPT_LIMIT = 8
 JOB_VERIFY_TIMEOUT = 600
 JOB_REPORT_STALE_AFTER = JOB_VERIFY_TIMEOUT + 300
 
@@ -62,6 +65,14 @@ MODEL_ALIASES = {
     "openai-codex/gpt-5.4": ["gpt 5.4", "gpt-5.4", "5.4"],
     "deepseek/deepseek-v4-pro": ["deepseek pro", "v4 pro"],
     "deepseek/deepseek-v4-flash": ["flash"],
+}
+AUTHORITY_ORDER = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
+ESCALATION_FLAGS = {
+    "architecture_change": "change architecture/contract",
+    "contract_break": "break a contract",
+    "data_loss_risk": "risk data loss",
+    "security_exception": "require a security exception",
+    "scope_expansion": "expand scope beyond the contract",
 }
 
 
@@ -175,6 +186,308 @@ def read_state() -> dict:
     state.setdefault("last_attempt_messages", [])
     state.setdefault("failures", {})
     return state
+
+
+def decisions_path() -> Path:
+    return DECISIONS_FILE
+
+
+def load_decisions() -> list:
+    data = _load_json(decisions_path(), [])
+    return data if isinstance(data, list) else []
+
+
+def save_decisions(records: list) -> None:
+    _save_json(decisions_path(), list(records)[-DECISION_LEDGER_LIMIT:])
+
+
+def _next_decision_id(records: list) -> str:
+    seq = 0
+    for rec in records:
+        try:
+            seq = max(seq, int(str(rec.get("id") or "").split("-", 1)[1]))
+        except Exception:  # noqa: BLE001
+            pass
+    return f"DEC-{seq + 1:04d}"
+
+
+_SECRET_PATTERNS = [
+    re.compile(r"(?i)\b(x-harpp-bridge-key|bridge[_ -]?key|api[_ -]?key|token|secret|password|passwd|authorization)\b\s*[:=]\s*([^\s,;]+)"),
+    re.compile(r"(?i)\b(bearer)\s+[a-z0-9._\-+/=]+"),
+]
+
+
+def sanitize_decision_text(value: str | None) -> str:
+    text = str(value or "")
+    for pattern in _SECRET_PATTERNS:
+        text = pattern.sub(lambda m: f"{m.group(1)}=<redacted>", text)
+    text = re.sub(r"(?i)(https?://[^\s]+)([?&](?:token|key|secret|password)=[^\s&]+)", r"\1\2=<redacted>", text)
+    return " ".join(text.split())
+
+
+def _summary_value(value) -> str:
+    text = sanitize_decision_text(value)
+    return text.strip()
+
+
+def _summary_detail(value: str | None, limit: int = 600) -> str:
+    text = _summary_value(value)
+    if len(text) <= limit:
+        return text
+    return text[:max(0, limit - 1)].rstrip() + "…"
+
+
+def _summary_count_line(label: str, passed, total) -> str | None:
+    if passed is None or total is None:
+        return None
+    try:
+        passed = int(passed)
+        total = int(total)
+    except Exception:  # noqa: BLE001
+        return None
+    mark = " ✓" if total >= 0 and passed == total else ""
+    return f"{label:<13}{passed}/{total}{mark}"
+
+
+def summarize(stage_report: dict | None) -> str:
+    report = dict(stage_report or {})
+    task = _summary_value(report.get("task") or report.get("title") or report.get("stage") or "HARPP")
+    state = _summary_value(report.get("state") or report.get("status") or "STATUS")
+    lines = [f"{task} — {state}"]
+    changed = report.get("changed_files")
+    if changed is not None:
+        try:
+            changed = int(changed)
+            lines.append(f"{'Changed':<13}{changed} file" + ("s" if changed != 1 else ""))
+        except Exception:  # noqa: BLE001
+            pass
+    for label, prefix in (("Unit", "unit"), ("Integration", "integration"), ("Playwright", "playwright")):
+        line = _summary_count_line(label, report.get(f"{prefix}_passed"), report.get(f"{prefix}_total"))
+        if line:
+            lines.append(line)
+    repairs_done = report.get("repairs_done")
+    repairs_max = report.get("repairs_max")
+    if repairs_done is not None or repairs_max is not None:
+        left = "?" if repairs_done is None else str(int(repairs_done))
+        right = "?" if repairs_max is None else str(int(repairs_max))
+        lines.append(f"{'Repairs':<13}{left}/{right}")
+    scope = report.get("scope")
+    if scope is True:
+        lines.append(f"{'Scope':<13}✓")
+    elif scope is False:
+        lines.append(f"{'Scope':<13}remediation…")
+    elif scope:
+        lines.append(f"{'Scope':<13}{_summary_value(scope)}")
+    review = report.get("review")
+    if review is True:
+        lines.append(f"{'Review':<13}✓")
+    elif review is False:
+        lines.append(f"{'Review':<13}remediation…")
+    elif review is not None and str(review).strip():
+        lines.append(f"{'Review':<13}{_summary_value(review)}")
+    next_step = _summary_value(report.get("next"))
+    if next_step:
+        lines.append(f"Next: {next_step}")
+    details = _summary_detail(report.get("details"))
+    if details:
+        lines.append(f"[Details] {details}")
+    return "\n".join(lines)
+
+
+def _summary_headline(stage_report: dict | None) -> str:
+    return summarize(stage_report).splitlines()[0]
+
+
+def _review_status(wf: dict, current_stage: dict | None = None, status: str | None = None):
+    review_stage = None
+    for candidate in wf.get("stages", []) or []:
+        if str(candidate.get("name") or "").strip().lower() == "review":
+            review_stage = candidate
+            break
+    if not review_stage:
+        return None
+    if str((current_stage or {}).get("name") or "").strip().lower() == "review":
+        if status == "DONE":
+            return True
+        if status in ("FAILED", "REPAIR", "BLOCKED"):
+            return False
+    review_status = str(review_stage.get("status") or "").lower()
+    if review_status == "done":
+        return True
+    if review_status in ("failed", "blocked", "escalated"):
+        return False
+    return "PENDING"
+
+
+def _summary_changed_files(repo: str | None) -> int | None:
+    if not repo:
+        return None
+    try:
+        return len(_git_changed_paths(repo))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _summary_stage_task(wf: dict, stage: dict | None) -> str:
+    title = _summary_value(wf.get("title") or wf.get("id") or "HARPP workflow")
+    stage_name = _summary_value((stage or {}).get("name"))
+    return f"{title} / {stage_name}" if stage_name else title
+
+
+def _workflow_summary_report(wf: dict, status: str, stage: dict | None = None,
+                             round_no: int = 0, max_repairs: int = 0,
+                             reason: str | None = None) -> dict:
+    stage_name = _summary_value((stage or {}).get("name") or "workflow")
+    final_stage = stage_name.lower()
+    state_map = {
+        "DONE": "RELEASE READY" if final_stage in ("release-gate", "release", "production-release") else "WORKFLOW COMPLETE",
+        "REPAIR": f"{stage_name.upper()} REMEDIATION",
+        "BLOCKED": "BLOCKED",
+        "ESCALATED": "DECISION REQUIRED",
+        "FAILED": f"{stage_name.upper()} FAILED",
+    }
+    details = reason or wf.get("blocked_reason") or wf.get("escalation_reason")
+    next_map = {
+        "DONE": "awaiting decision — approve/hold/reject release" if final_stage in ("release-gate", "release", "production-release") else "done — safe to move forward",
+        "REPAIR": f"auto-repair round {round_no}/{max_repairs} in progress — no owner action",
+        "BLOCKED": f"blocked({_summary_value(reason or wf.get('blocked_reason') or 'owner action required')})",
+        "ESCALATED": "awaiting decision — approve revised authority/scope or stop",
+        "FAILED": "remediation required — not safe to proceed",
+    }
+    report = {
+        "task": _summary_stage_task(wf, stage),
+        "state": state_map.get(status, _summary_value(status)),
+        "changed_files": _summary_changed_files(wf.get("workspace")),
+        "repairs_done": wf.get("repair_count"),
+        "repairs_max": wf.get("max_repairs"),
+        "review": _review_status(wf, stage, status),
+        "next": next_map.get(status, "status unknown"),
+        "details": details,
+    }
+    if status == "DONE" and final_stage not in ("release-gate", "release", "production-release"):
+        report["scope"] = True
+    return report
+
+
+def _split_sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+|\n+", str(text or "").strip())
+    return [p.strip(" -\t") for p in parts if p and p.strip(" -\t")]
+
+
+def _is_ack_message(body: str) -> bool:
+    low = " ".join(str(body or "").lower().split())
+    return low in {
+        "ok", "okay", "thanks", "thank you", "got it", "sounds good", "sgtm",
+        "roger", "ack", "acknowledged", "cool", "great", "yep", "yes",
+    }
+
+
+def _is_status_or_question(body: str) -> bool:
+    low = " ".join(str(body or "").lower().split())
+    if not low:
+        return True
+    if "?" in low:
+        return True
+    return any(low.startswith(prefix) for prefix in (
+        "status", "what is", "what's", "when will", "when can", "how is", "how's",
+        "did you", "have you", "is it", "are we", "where are", "progress", "eta",
+    ))
+
+
+def is_directive_message(body: str) -> bool:
+    if _is_ack_message(body) or _is_status_or_question(body) or parse_workflow_command(body):
+        return False
+    low = " ".join(str(body or "").lower().split())
+    directive_markers = (
+        "please ", "use ", "keep ", "ensure ", "make ", "implement ", "fix ",
+        "update ", "change ", "add ", "remove ", "avoid ", "strip ", "preserve ",
+        "limit ", "only ", "must ", "should ", "need to ", "do not ", "don't ",
+        "never ", "always ", "without ",
+    )
+    return low.startswith(directive_markers) or any(f" {marker}" in low for marker in directive_markers)
+
+
+def _directive_parts(body: str) -> tuple[str, list[str], list[str]]:
+    decision = ""
+    constraints = []
+    additional = []
+    for sentence in _split_sentences(sanitize_decision_text(body)):
+        low = sentence.lower()
+        if any(token in low for token in ("do not", "don't", "never", "only", "without", "must not", "keep scope", "stdlib only", "no secrets")):
+            constraints.append(sentence)
+        elif not decision:
+            decision = sentence
+        else:
+            additional.append(sentence)
+    return decision or sanitize_decision_text(body), constraints, additional
+
+
+def record_local_decision(*, task: str, decision: str, constraints=None, additional_requirements=None,
+                          source: str = "human", applied_to: str = "", created_at: str | None = None,
+                          source_message_id: int | None = None) -> dict:
+    records = load_decisions()
+    if source_message_id is not None:
+        for rec in records:
+            if int(rec.get("source_message_id") or 0) == int(source_message_id):
+                return rec
+    record = {
+        "id": _next_decision_id(records),
+        "task": sanitize_decision_text(task),
+        "decision": sanitize_decision_text(decision),
+        "constraints": [sanitize_decision_text(v) for v in (constraints or []) if str(v or "").strip()],
+        "additional_requirements": [sanitize_decision_text(v) for v in (additional_requirements or []) if str(v or "").strip()],
+        "source": sanitize_decision_text(source or "human") or "human",
+        "applied_to": sanitize_decision_text(applied_to),
+        "created_at": created_at or time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    if source_message_id is not None:
+        record["source_message_id"] = int(source_message_id)
+    records.append(record)
+    save_decisions(records)
+    return record
+
+
+def auto_record_directives(records) -> int:
+    added = 0
+    for rec in records or []:
+        if rec.get("kind") != "message":
+            continue
+        if str(rec.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        body = str(rec.get("body") or "")
+        if not is_directive_message(body):
+            continue
+        decision, constraints, additional = _directive_parts(body)
+        before = len(load_decisions())
+        record_local_decision(
+            task=f"conversation:{int(rec.get('conversation_id') or 0)}",
+            decision=decision,
+            constraints=constraints,
+            additional_requirements=additional,
+            source="human",
+            applied_to="stage:owner-message",
+            created_at=str(rec.get("created_at") or time.strftime("%Y-%m-%d %H:%M:%S")),
+            source_message_id=int(rec.get("id") or 0),
+        )
+        if len(load_decisions()) > before:
+            added += 1
+    return added
+
+
+def recent_decisions_text(limit: int = DECISION_PROMPT_LIMIT) -> str:
+    records = load_decisions()[-max(0, int(limit)):]
+    if not records:
+        return "- none"
+    lines = []
+    for rec in records:
+        lines.append(f"- {rec.get('id')}: task={rec.get('task')} | decision={rec.get('decision')}")
+        if rec.get("constraints"):
+            lines.append(f"  constraints: {'; '.join(rec['constraints'])}")
+        if rec.get("additional_requirements"):
+            lines.append(f"  additional: {'; '.join(rec['additional_requirements'])}")
+        if rec.get("applied_to"):
+            lines.append(f"  applied_to: {rec.get('applied_to')}")
+    return "\n".join(lines)
 
 
 def save_state(state: dict) -> None:
@@ -487,8 +800,68 @@ def _job_state_label(job: dict) -> str:
     return "RUNNING" if status in ("running", "reporting") else status.upper()
 
 
+def _normalize_authority_level(value: str | None, default: str | None = None) -> str:
+    level = str(value or default or harpp_client.DEFAULT_HARPP_AUTHORITY).strip().upper()
+    return level if level in AUTHORITY_ORDER else str(default or harpp_client.DEFAULT_HARPP_AUTHORITY)
+
+
+def _authority_policy_map(value=None) -> dict:
+    policy = dict(harpp_client.DEFAULT_AUTHORITY_POLICY)
+    if isinstance(value, dict):
+        policy.update({str(k).upper(): str(v) for k, v in value.items()})
+    return policy
+
+
+def _governance_defaults() -> dict:
+    try:
+        cfg = harpp_client.governance_config()
+    except Exception:  # noqa: BLE001
+        cfg = {}
+    return {
+        "harpp_authority": _normalize_authority_level(cfg.get("harpp_authority"), harpp_client.DEFAULT_HARPP_AUTHORITY),
+        "authority_policy": _authority_policy_map(cfg.get("authority_policy")),
+    }
+
+
+def _stage_required_authority(stage: dict | None) -> str:
+    if isinstance(stage, dict) and stage.get("required_authority"):
+        return _normalize_authority_level(stage.get("required_authority"))
+    low = str((stage or {}).get("name") or "").strip().lower()
+    if low in ("release", "deploy", "production-release"):
+        return "L4"
+    if low in ("release-gate", "delivery", "deliver"):
+        return "L3"
+    return "L2"
+
+
+def _authority_requires_human(required: str, policy: dict) -> bool:
+    return str(policy.get(required, "autonomous")).strip().lower() in ("human_approval", "human-approval", "human", "approval_required")
+
+
+def _authority_escalation_reason(workflow: dict, stage: dict | None) -> str | None:
+    required = _stage_required_authority(stage)
+    configured = _normalize_authority_level(workflow.get("authority_level"), harpp_client.DEFAULT_HARPP_AUTHORITY)
+    policy = _authority_policy_map(workflow.get("authority_policy"))
+    if AUTHORITY_ORDER.get(required, 0) > AUTHORITY_ORDER.get(configured, 0):
+        return f"required authority {required} exceeds configured authority {configured}"
+    if _authority_requires_human(required, policy):
+        return f"required authority {required} requires human approval by policy"
+    return None
+
+
+def _override_escalation_reason(source: dict | None) -> str | None:
+    if not isinstance(source, dict):
+        return None
+    for key, label in ESCALATION_FLAGS.items():
+        if source.get(key):
+            return label
+    return None
+
+
 def _workflow_stage_state(name: str | None, workflow_status: str | None = None, repairing: bool = False) -> str:
     status = str(workflow_status or "").lower()
+    if status == "escalated":
+        return "ESCALATED"
     if status == "blocked":
         return "BLOCKED"
     if status == "done":
@@ -514,6 +887,7 @@ def _normalize_job(job: dict) -> dict:
     rec.setdefault("run_id", _next_run_id())
     rec.setdefault("task_id", _task_id(rec.get("task")))
     rec.setdefault("contract_revision", 0)
+    rec.setdefault("authority_level", _normalize_authority_level(rec.get("authority_level")))
     rec["state"] = _job_state_label(rec)
     rec.setdefault("stage_attempts", {})
     rec.setdefault("base_sha", _git_sha(rec.get("repo")))
@@ -540,6 +914,7 @@ def _normalize_stage(stage: dict, index: int) -> dict:
     rec.setdefault("prompt_file", None)
     rec.setdefault("prompt", None)
     rec.setdefault("model", "deepseek/deepseek-v4-pro")
+    rec.setdefault("required_authority", _stage_required_authority(rec))
     rec.setdefault("attempt_count", 0)
     if not isinstance(rec.get("attempt_statuses"), list):
         rec["attempt_statuses"] = []
@@ -551,6 +926,7 @@ def _normalize_stage(stage: dict, index: int) -> dict:
 
 def _normalize_workflow(wf: dict) -> dict:
     rec = dict(wf or {})
+    governance = _governance_defaults()
     rec.setdefault("id", uuid.uuid4().hex[:12])
     rec.setdefault("title", "")
     rec.setdefault("conversation_id", 0)
@@ -574,10 +950,13 @@ def _normalize_workflow(wf: dict) -> dict:
     rec.setdefault("run_id", _next_run_id())
     rec.setdefault("task_id", _task_id(rec.get("title")))
     rec.setdefault("contract_revision", 0)
+    rec.setdefault("authority_level", governance["harpp_authority"])
+    rec.setdefault("authority_policy", governance["authority_policy"])
     rec.setdefault("base_sha", _git_sha(rec.get("workspace")))
     rec.setdefault("current_sha", _git_sha(rec.get("workspace")))
     rec.setdefault("human_decisions", [])
     rec.setdefault("blocked_reason", None)
+    rec.setdefault("escalation_reason", None)
     rec["state"] = _workflow_stage_state(
         rec["stages"][min(max(int(rec.get("current_index", 0)), 0), max(len(rec["stages"]) - 1, 0))].get("name")
         if rec["stages"] else None,
@@ -592,7 +971,8 @@ def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = 
               marker: str | None = None, repo: str | None = None,
               commit: bool = False, timeout: int = 0, run_id: str | None = None,
               task_id: str | None = None, contract_revision: int = 0,
-              state: str | None = None, human_decisions: list | None = None) -> str:
+              state: str | None = None, human_decisions: list | None = None,
+              authority_level: str | None = None) -> str:
     """Register an in-flight delegated model job for completion monitoring."""
     pid = int(pid)
     if pid < 1:
@@ -617,6 +997,7 @@ def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = 
         "run_id": run_id or _next_run_id(),
         "task_id": task_id if task_id is not None else _task_id(task),
         "contract_revision": int(contract_revision or 0),
+        "authority_level": _normalize_authority_level(authority_level),
         "state": state or "RUNNING",
         "stage_attempts": {},
         "base_sha": _git_sha(repo),
@@ -650,7 +1031,7 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
                cwd: str | None = None, open_terminal: bool = True,
                run_id: str | None = None, task_id: str | None = None,
                contract_revision: int = 0, state: str | None = None,
-               human_decisions: list | None = None):
+               human_decisions: list | None = None, authority_level: str | None = None):
     """Spawn a delegated model command AND track it in one atomic step.
 
     The pid is captured directly from the spawned process (never pgrep), and its
@@ -674,7 +1055,8 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
                            verify=verify, marker=marker, repo=repo,
                            commit=commit, timeout=timeout, run_id=run_id,
                            task_id=task_id, contract_revision=contract_revision,
-                           state=state, human_decisions=human_decisions)
+                           state=state, human_decisions=human_decisions,
+                           authority_level=authority_level)
     except Exception:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -683,8 +1065,8 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
         raise
     if not quiet:
         try:
-            harpp_client.send_message(
-                conversation_id=int(conversation_id),
+            harpp_client.harpp_notify(
+                conversation_id=int(conversation_id), message_type="PROGRESS",
                 body=f"🔧 Delegated to {model}: {task} — monitoring started (job {job_id}). "
                      f"You'll be auto-notified when it's done.")
             log(f"job {job_id} start confirmation sent to conversation {conversation_id}")
@@ -844,7 +1226,7 @@ def _report_job(job_id: str, job: dict) -> str:
     if job.get("verify"):
         vok, vout = _run_verify(job["verify"], job.get("repo"))
         checks.append(vok)
-        evidence.append(f"verify exit={'OK' if vok else 'FAIL'}\n{vout}")
+        evidence.append(f"verify exit={'OK' if vok else 'FAIL'} {sanitize_decision_text(vout)}")
     ok = bool(checks) and all(checks)
     if not checks:
         evidence.append("no marker or verification command configured")
@@ -853,16 +1235,23 @@ def _report_job(job_id: str, job: dict) -> str:
     if ok and job.get("commit"):
         commit = _commit_job(job)
     status = "DONE" if ok else "FAILED"
-    lines = [f"[job:{job_id}] {job.get('task')} ({job.get('model')})", f"status: {status}",
-             "evidence: " + "\n".join(evidence)]
-    if tail and not marker:
-        lines.append("log tail:\n" + tail[-600:])
-    if git:
-        lines.append(f"git: {git}")
+    message_type = "PROGRESS" if ok else "FAILED"
+    details = "; ".join(evidence)
     if commit:
-        lines.append(f"commit: {commit}")
-    lines.append("— auto-reported by the harness job monitor; no action needed unless noted.")
-    harpp_client.send_message(conversation_id=int(conv), body="\n".join(lines))
+        details = f"{details}; {commit}" if details else commit
+    elif git:
+        details = f"{details}; {git}" if details else git
+    elif tail and not marker:
+        details = f"{details}; log tail: {tail[-300:]}" if details else f"log tail: {tail[-300:]}"
+    report = {
+        "task": f"{job.get('task')} ({job.get('model')})",
+        "state": "VERIFIED" if ok else "FAILED",
+        "changed_files": _summary_changed_files(job.get("repo")),
+        "next": "workflow monitor will advance automatically — safe to move forward" if ok else "inspect logs / remediate before proceeding",
+        "details": details,
+    }
+    harpp_client.harpp_notify(conversation_id=int(conv), message_type=message_type,
+                              body=summarize(report))
     return status
 
 
@@ -1066,24 +1455,125 @@ def _notify_workflow(wf: dict, status: str, stage: dict | None = None,
                      round_no: int = 0, max_repairs: int = 0,
                      reason: str | None = None) -> None:
     try:
+        conversation_id = int(wf.get("conversation_id") or 0)
+        workflow_title = wf.get("title")
+        workflow_id = wf.get("id")
+        stage_name = stage.get("name") if stage else '?'
+        job_id = stage.get("job_id") if stage else '?'
+        report = _workflow_summary_report(wf, status, stage, round_no=round_no,
+                                          max_repairs=max_repairs, reason=reason)
+        headline = _summary_headline(report)
         if status == "DONE":
-            body = (f"✅ Workflow complete: {wf.get('title')} — all {len(wf.get('stages', []))} stages passed.\n"
-                    "Stages: " + " → ".join(s.get('name', '?') for s in wf.get('stages', [])) + ".")
-        elif status == "REPAIR":
-            body = (f"🔄 Auto-repair round {round_no}/{max_repairs}: '{stage.get('name') if stage else '?'}' failed — "
-                    f"re-running the implementation with the remediation. I'll re-review after; "
-                    f"if it still fails after {max_repairs} rounds the workflow stops.")
-        elif status == "BLOCKED":
-            body = (f"⛔ Workflow blocked: {wf.get('title')} at stage '{stage.get('name') if stage else '?'}' "
-                    f"(job {stage.get('job_id') if stage else '?'}) because {reason or wf.get('blocked_reason') or 'budget exhausted'}. "
-                    "Autonomous advancement has stopped until the owner intervenes.")
-        else:
-            body = (f"❌ Workflow stopped: {wf.get('title')} failed at stage "
-                    f"'{stage.get('name') if stage else '?'}' "
-                    f"(job {stage.get('job_id') if stage else '?'}) after "
-                    f"{wf.get('repair_count', 0)} repair round(s). "
-                    f"See the job report above; fix and retry, or ask the harness.")
-        harpp_client.send_message(conversation_id=int(wf.get("conversation_id") or 0), body=body)
+            final_stage = str(stage_name or "").strip().lower()
+            if final_stage in ("release-gate", "release", "production-release"):
+                body = (headline + "\n"
+                        f"workflow: {workflow_title} ({workflow_id})\n"
+                        f"stage: {stage_name}\n"
+                        "what: decide whether to release to L4/production\n"
+                        "why: the final release gate passed\n"
+                        "options:\n"
+                        "- approve release now\n"
+                        "- hold release pending more validation\n"
+                        "- reject release and request changes\n"
+                        "recommendation: approve only if the release evidence is sufficient\n"
+                        "risk: releasing without owner confirmation could ship incorrect or unsafe changes")
+                decision = {
+                    "title": f"Release ready: {workflow_title}",
+                    "what": f"Decide whether to release workflow {workflow_id} to L4/production.",
+                    "why": f"Final gate stage '{stage_name}' passed and the workflow is awaiting owner release approval.",
+                    "options": [
+                        "Approve release now.",
+                        "Hold release pending more validation.",
+                        "Reject release and request changes.",
+                    ],
+                    "recommendation": "Approve only if the release evidence is sufficient for production.",
+                    "risk": "Releasing without owner confirmation could ship incorrect or unsafe changes.",
+                    "context": f"workflow={workflow_id}\nstage={stage_name}\njob_id={job_id}",
+                    "requested_decision": "Choose release: approve, hold, or reject.",
+                    "priority": "high",
+                    "workbench_state": "RELEASE_READY",
+                    "decision_key": f"release-ready:{workflow_id}:{stage_name}",
+                }
+                harpp_client.harpp_notify(conversation_id=conversation_id, message_type="RELEASE_READY",
+                                          body=body, decision=decision)
+                return
+            harpp_client.harpp_notify(conversation_id=conversation_id, message_type="INFO",
+                                      body=summarize(report))
+            return
+        if status == "REPAIR":
+            harpp_client.harpp_notify(conversation_id=conversation_id, message_type="PROGRESS",
+                                      body=summarize(report))
+            return
+        if status == "BLOCKED":
+            blocked_reason = reason or wf.get('blocked_reason') or 'budget exhausted'
+            body = (headline + "\n"
+                    f"workflow: {workflow_title} ({workflow_id})\n"
+                    f"stage: {stage_name}\n"
+                    f"what: unblock workflow at job {job_id}\n"
+                    f"why: {blocked_reason}\n"
+                    "options:\n"
+                    "- adjust the budget/authority and restart\n"
+                    "- reduce scope and retry within current limits\n"
+                    "- stop the workflow permanently\n"
+                    "recommendation: do not resume until the blocking reason is explicitly addressed\n"
+                    "risk: continuing without intervention could loop, exceed limits, or violate governance")
+            decision = {
+                "title": f"Workflow blocked: {workflow_title}",
+                "what": f"Unblock workflow {workflow_id} at stage '{stage_name}'.",
+                "why": blocked_reason,
+                "options": [
+                    "Adjust the budget/authority and restart.",
+                    "Reduce scope and retry within current limits.",
+                    "Stop the workflow permanently.",
+                ],
+                "recommendation": "Do not resume until the blocking reason is explicitly addressed.",
+                "risk": "Continuing without intervention could loop, exceed limits, or violate governance.",
+                "context": f"workflow={workflow_id}\nstage={stage_name}\njob_id={job_id}",
+                "requested_decision": "Choose how to unblock or stop the workflow.",
+                "priority": "high",
+                "workbench_state": "BLOCKED",
+                "decision_key": f"blocked:{workflow_id}:{stage_name}:{blocked_reason}",
+            }
+            harpp_client.harpp_notify(conversation_id=conversation_id, message_type="BLOCKED",
+                                      body=body, decision=decision)
+            return
+        if status == "ESCALATED":
+            required = _stage_required_authority(stage)
+            escalation_reason = reason or wf.get('escalation_reason') or 'escalation required'
+            body = (headline + "\n"
+                    f"workflow: {workflow_title} ({workflow_id})\n"
+                    f"stage: {stage_name}\n"
+                    f"authority: configured={wf.get('authority_level')} required={required}\n"
+                    "what: review and approve an escalation before this workflow can continue\n"
+                    f"why: {escalation_reason}\n"
+                    "options:\n"
+                    "- approve a revised contract/authority and restart\n"
+                    "- narrow scope to stay within the current contract\n"
+                    "- stop the workflow\n"
+                    "recommendation: require explicit owner approval before any further action\n"
+                    "risk: architecture/contract, safety, security, or scope governance could be violated")
+            decision = {
+                "title": f"Escalation required: {workflow_title}",
+                "what": f"Approve or reject workflow escalation for {workflow_id} at stage '{stage_name}'.",
+                "why": escalation_reason,
+                "options": [
+                    "Approve a revised contract/authority and restart.",
+                    "Narrow scope to stay within the current contract.",
+                    "Stop the workflow.",
+                ],
+                "recommendation": "Require explicit owner approval before any further action.",
+                "risk": "Architecture/contract, safety, security, or scope governance could be violated.",
+                "context": f"workflow={workflow_id}\nstage={stage_name}\nauthority_configured={wf.get('authority_level')}\nauthority_required={required}\njob_id={job_id}",
+                "requested_decision": "Choose approval, scope reduction, or stop.",
+                "priority": "high",
+                "workbench_state": "DECISION_REQUIRED",
+                "decision_key": f"escalation:{workflow_id}:{stage_name}",
+            }
+            harpp_client.harpp_notify(conversation_id=conversation_id, message_type="DECISION_REQUIRED",
+                                      body=body, decision=decision)
+            return
+        harpp_client.harpp_notify(conversation_id=conversation_id, message_type="FAILED",
+                                  body=summarize(report))
     except Exception as e:  # noqa: BLE001
         log(f"workflow notify failed for {wf.get('id')}: {e}")
 
@@ -1099,7 +1589,7 @@ def _record_stage_attempt(stage: dict, status: str, *, job_id: str | None = None
     if status == "running":
         stage["attempt_count"] += 1
         stage["last_started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    if status in ("done", "failed", "blocked"):
+    if status in ("done", "failed", "blocked", "escalated"):
         stage["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     stage["last_run_id"] = run_id or stage.get("last_run_id")
     stage.setdefault("attempt_statuses", [])
@@ -1120,6 +1610,17 @@ def _block_workflow(wf: dict, stage: dict | None, reason: str) -> None:
         _record_stage_attempt(stage, "blocked", job_id=stage.get("job_id"), run_id=stage.get("last_run_id"))
     _update_workflow_state(wf, stage_name=stage.get("name") if stage else None)
     _notify_workflow(wf, "BLOCKED", stage, reason=wf["blocked_reason"])
+
+
+def _escalate_workflow(wf: dict, stage: dict | None, reason: str, *, required_authority: str | None = None) -> None:
+    wf["status"] = "escalated"
+    wf["blocked_reason"] = None
+    wf["escalation_reason"] = reason
+    if stage:
+        stage["status"] = "escalated"
+        _record_stage_attempt(stage, "escalated", job_id=stage.get("job_id"), run_id=stage.get("last_run_id"))
+    _update_workflow_state(wf, stage_name=stage.get("name") if stage else None)
+    _notify_workflow(wf, "ESCALATED", stage, reason=reason or wf.get("escalation_reason"))
 
 
 def _budget_exhausted_reason(wf: dict) -> str | None:
@@ -1168,7 +1669,8 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
         timeout=int(stage.get("timeout") or 1800), cwd=workflow.get("workspace"),
         open_terminal=True, task_id=workflow.get("task_id"), contract_revision=int(workflow.get("contract_revision") or 0),
         state=_workflow_stage_state(stage.get("name"), workflow.get("status"), bool(repair_round)),
-        human_decisions=list(workflow.get("human_decisions") or []))
+        human_decisions=list(workflow.get("human_decisions") or []),
+        authority_level=_stage_required_authority(stage))
     stage["job_id"] = jid
     stage["log_path"] = log_path
     stage["status"] = "running"
@@ -1185,7 +1687,9 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
                   max_browser_repairs: int | None = None,
                   max_tool_retries: int | None = None,
                   max_network_retries: int | None = None,
-                  contract_revision: int = 0) -> str:
+                  contract_revision: int = 0,
+                  authority_level: str | None = None,
+                  authority_policy: dict | None = None) -> str:
     """Register a multi-stage workflow and launch its first stage. Returns workflow id.
 
     max_repairs bounds the auto-repair loop (review FAIL -> re-run implement -> review)
@@ -1220,6 +1724,8 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
         "base_sha": _git_sha(workspace or default_workspace()),
         "current_sha": _git_sha(workspace or default_workspace()),
         "human_decisions": [],
+        **({"authority_level": authority_level} if authority_level is not None else {}),
+        **({"authority_policy": authority_policy} if authority_policy is not None else {}),
         **budgets,
     })
     with _jobs_lock():
@@ -1229,8 +1735,18 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
         state.setdefault("workflows", {})
         state["workflows"][wid] = wf
         _save_json(WORKFLOWS_FILE, state)
+    first_stage = wf["stages"][0]
+    prelaunch_reason = _override_escalation_reason(first_stage) or _authority_escalation_reason(wf, first_stage)
+    if prelaunch_reason:
+        _escalate_workflow(wf, first_stage, prelaunch_reason)
+        with _jobs_lock():
+            state = _load_json(WORKFLOWS_FILE, {})
+            state["workflows"][wid] = wf
+            _save_json(WORKFLOWS_FILE, state)
+        log(f"workflow {wid} escalated before first stage launch: {prelaunch_reason}")
+        return wid
     try:
-        _launch_stage(wid, wf["stages"][0], 0, wf)
+        _launch_stage(wid, first_stage, 0, wf)
     except Exception as e:  # noqa: BLE001
         wf["tool_retries"] = int(wf.get("tool_retries", 0)) + 1
         reason = _budget_exhausted_reason(wf)
@@ -1241,6 +1757,7 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
             wf["stages"][0]["status"] = "failed"
             _record_stage_attempt(wf["stages"][0], "failed", job_id=wf["stages"][0].get("job_id"))
             _update_workflow_state(wf, stage_name=wf["stages"][0].get("name"))
+            _notify_workflow(wf, "FAILED", wf["stages"][0], reason=str(e))
         with _jobs_lock():
             state = _load_json(WORKFLOWS_FILE, {})
             state["workflows"][wid] = wf
@@ -1279,6 +1796,10 @@ def _launch_stage_with_claim(wid: str, wf: dict, stage: dict, index: int, *,
                              remediation: str | None = None, repair_round: int = 0,
                              max_repairs: int = 0) -> bool:
     """Launch a stage under a persisted 'advancing' claim so concurrent passes can't double-launch."""
+    escalation = _override_escalation_reason(stage) or _authority_escalation_reason(wf, stage)
+    if escalation:
+        _escalate_workflow(wf, stage, escalation)
+        return False
     now = _now()
     with _jobs_lock():
         state = _load_json(WORKFLOWS_FILE, {})
@@ -1294,13 +1815,17 @@ def _launch_stage_with_claim(wid: str, wf: dict, stage: dict, index: int, *,
                       repair_round=repair_round, max_repairs=max_repairs)
         ok = True
         return True
-    except Exception:
+    except Exception as exc:
         wf["tool_retries"] = int(wf.get("tool_retries", 0)) + 1
         reason = _budget_exhausted_reason(wf)
         if reason:
             _block_workflow(wf, stage, reason)
         else:
+            wf["status"] = "failed"
+            stage["status"] = "failed"
+            _record_stage_attempt(stage, "failed", job_id=stage.get("job_id"), run_id=stage.get("last_run_id"))
             _update_workflow_state(wf, stage_name=stage.get("name"), repairing=bool(repair_round))
+            _notify_workflow(wf, "FAILED", stage, reason=str(exc))
         return False
     finally:
         with _jobs_lock():
@@ -1378,13 +1903,21 @@ def advance_workflows() -> int:
             outcome = job.get("outcome") or "FAILED"
             stage["job_id"] = job.get("id")
             stage["last_run_id"] = job.get("run_id") or stage.get("last_run_id")
-            if outcome == "DONE":
+            escalation_reason = None
+            if str(job.get("code") or "") == "escalation_required":
+                escalation_reason = str(job.get("reason") or job.get("message") or "stage reported escalation_required")
+            else:
+                escalation_reason = _override_escalation_reason(job) or _override_escalation_reason(stage)
+            if escalation_reason:
+                _escalate_workflow(wf, stage, escalation_reason)
+                advanced += 1
+            elif outcome == "DONE":
                 stage["status"] = "done"
                 _record_stage_attempt(stage, "done", job_id=job.get("id"), run_id=job.get("run_id"))
                 if idx >= len(stages) - 1:
                     wf["status"] = "done"
                     _update_workflow_state(wf, stage_name=stage.get("name"))
-                    _notify_workflow(wf, "DONE")
+                    _notify_workflow(wf, "DONE", stage)
                     advanced += 1
                 else:
                     nxt = idx + 1
@@ -1424,7 +1957,8 @@ def advance_workflows() -> int:
                     _update_workflow_state(wf, stage_name=stage.get("name"))
                     _notify_workflow(wf, "FAILED", stage)
                     advanced += 1
-            _update_workflow_state(wf, stage_name=stage.get("name"))
+            if wf.get("status") != "escalated":
+                _update_workflow_state(wf, stage_name=stage.get("name"))
             dirty = True
         if dirty:
             with _jobs_lock():
@@ -1565,13 +2099,13 @@ def route_workflow_commands(records) -> int:
         try:
             body = _exec_workflow_command(cmd, conv)
             if conv:
-                harpp_client.send_message(conversation_id=conv, body=body)
+                harpp_client.harpp_notify(conversation_id=conv, message_type="INFO", body=body)
             log(f"routed workflow command '{cmd[0]}' for message {r.get('id')}")
         except Exception as e:  # noqa: BLE001
             log(f"workflow command failed for message {r.get('id')}: {e}")
             try:
                 if conv:
-                    harpp_client.send_message(conversation_id=conv,
+                    harpp_client.harpp_notify(conversation_id=conv, message_type="WARNING",
                                               body=f"⚠️ Workflow command could not be processed: {e}")
             except Exception:  # noqa: BLE001
                 pass
@@ -1593,6 +2127,7 @@ def task_prompt(inbox: str, items: list, template: str | None = None, workspace:
     items_json = "\n".join(json.dumps(i, ensure_ascii=False) for i in items)
     return (text.replace("{{INBOX}}", inbox)
                 .replace("{{ITEMS}}", items_json)
+                .replace("{{DECISIONS}}", recent_decisions_text())
                 .replace("{{WORKSPACE}}", workspace or "(no workspace configured)"))
 
 
@@ -1717,8 +2252,8 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                          and int(state["failures"].get(str(r.get("id")), 0)) >= max_retries]
             for r in exhausted:
                 try:
-                    harpp_client.send_message(
-                        conversation_id=int(r["conversation_id"]),
+                    harpp_client.harpp_notify(
+                        conversation_id=int(r["conversation_id"]), message_type="FAILED",
                         body="I’m sorry — the automated worker could not complete this request after multiple attempts. Please retry or ask the harness to handle it interactively.")
                     delivered.append(r)
                     log(f"sent bounded-retry failure reply for message {r.get('id')}")

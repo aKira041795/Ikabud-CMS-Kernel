@@ -14,6 +14,12 @@ Staged owner input (JSONL records), newest appended last:
 
 Inbox file: `{{INBOX}}`
 
+Recent durable owner decisions (DEC-xxxx):
+
+```
+{{DECISIONS}}
+```
+
 ## Required actions
 
 Use the `harpp_*` tools provided by the HARPP extension (preferred), or the `harpp` CLI

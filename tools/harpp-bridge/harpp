@@ -6,8 +6,9 @@ Commands:
   harpp config get [key]
   harpp check                         validate config (no network)
   harpp self-test                     run the local unit tests (no network)
+  harpp decision record --task T --decision D [--constraint C --additional A --source S --applied-to X]
+  harpp decision list [--limit N] [--remote --state S --priority P --workbench-state W]
   harpp decision submit --title T --body B [--context C --requested R --priority P --source S --workbench-state W --decision-key K]
-  harpp decision list [--state S --priority P --workbench-state W --limit N]
   harpp decision ack <id> [--rationale R]
   harpp decision apply <id> [--rationale R]
   harpp msg send --body B [--conversation-id N --title T --harness-session-id S]
@@ -165,6 +166,9 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
         # "run the X loop") — no VS Code / LLM needed. Handled commands are marked
         # processed so the wake agent does not double-handle them.
         try:
+            recorded = harpp_wake.auto_record_directives(emitted)
+            if recorded:
+                print(f"harpp watch: recorded {recorded} durable decision(s)", flush=True)
             harpp_wake.route_workflow_commands(emitted)
         except Exception as e:
             print(f"harpp watch: workflow command routing failed: {e}", flush=True)
@@ -213,7 +217,8 @@ def cmd_job_track(args):
         jid = harpp_wake.track_job(
             pid=args.pid, model=args.model, task=args.task, conversation_id=args.conversation,
             log_path=args.log, verify=args.verify, marker=args.marker,
-            repo=args.repo or workspace, commit=args.commit, timeout=args.timeout)
+            repo=args.repo or workspace, commit=args.commit, timeout=args.timeout,
+            authority_level=args.authority_level)
     except ValueError as exc:
         sys.exit(f"harpp job track: {exc}")
     print(json.dumps({"job_id": jid, "status": "tracked", "pid": args.pid,
@@ -231,7 +236,8 @@ def cmd_job_launch(args):
             model=args.model, task=args.task, conversation_id=args.conversation,
             command=command, log_path=args.log, verify=args.verify, marker=args.marker,
             repo=args.repo or workspace, commit=args.commit, quiet=args.quiet,
-            timeout=args.timeout, cwd=workspace, open_terminal=not args.no_terminal)
+            timeout=args.timeout, cwd=workspace, open_terminal=not args.no_terminal,
+            authority_level=args.authority_level)
     except ValueError as exc:
         sys.exit(f"harpp job launch: {exc}")
     print(json.dumps({"job_id": jid, "status": "tracked", "pid": proc.pid,
@@ -274,7 +280,8 @@ def cmd_workflow_start(args):
                                         max_browser_repairs=int(defaults["max_browser_repairs"]),
                                         max_tool_retries=int(defaults["max_tool_retries"]),
                                         max_network_retries=int(defaults["max_network_retries"]),
-                                        contract_revision=int(getattr(args, "contract_revision", 0) or 0))
+                                        contract_revision=int(getattr(args, "contract_revision", 0) or 0),
+                                        authority_level=getattr(args, "authority_level", None))
     except ValueError as exc:
         sys.exit(f"harpp workflow start: {exc}")
     print(json.dumps({"workflow_id": wid, "status": "running", "stages": len(stages), **defaults}))
@@ -319,6 +326,13 @@ def main():
 
     d = sub.add_parser("decision")
     dsub = d.add_subparsers(dest="dcmd", required=True)
+    dr = dsub.add_parser("record")
+    dr.add_argument("--task", required=True)
+    dr.add_argument("--decision", required=True)
+    dr.add_argument("--constraint", action="append", default=[])
+    dr.add_argument("--additional", action="append", default=[])
+    dr.add_argument("--source", default="human")
+    dr.add_argument("--applied-to", default="")
     ds = dsub.add_parser("submit")
     ds.add_argument("--title", required=True)
     ds.add_argument("--body", required=True)
@@ -329,10 +343,11 @@ def main():
     ds.add_argument("--workbench-state", default="ARCHITECTURE_DECISION_REQUIRED")
     ds.add_argument("--decision-key", default="")
     dl = dsub.add_parser("list")
+    dl.add_argument("--limit", type=int, default=25)
+    dl.add_argument("--remote", action="store_true")
     dl.add_argument("--state", default="")
     dl.add_argument("--priority", default="")
     dl.add_argument("--workbench-state", default="")
-    dl.add_argument("--limit", type=int, default=25)
     da = dsub.add_parser("ack")
     da.add_argument("id", type=int)
     da.add_argument("--rationale", default="Harness acknowledged the owner decision.")
@@ -400,6 +415,7 @@ def main():
     jl2.add_argument("--timeout", type=int, default=0, help="hard kill the job after N seconds (0 = no deadline)")
     jl2.add_argument("--cwd", default=None, help="working directory for the spawned command (default: configured workspace)")
     jl2.add_argument("--no-terminal", action="store_true", help="do not open a visible terminal for live feedback")
+    jl2.add_argument("--authority-level", default=None, help="job authority level (default: configured HARPP authority, else L2)")
     jl2.add_argument("command", nargs=argparse.REMAINDER, help="command to run, after --")
     jl2.set_defaults(func=cmd_job_launch)
     jt = jsub.add_parser("track", help="register an already-running model process")
@@ -413,6 +429,7 @@ def main():
     jt.add_argument("--repo", default=None, help="repo path for git status / auto-commit")
     jt.add_argument("--commit", action="store_true", help="auto commit + push on verified completion")
     jt.add_argument("--timeout", type=int, default=0, help="hard kill the job after N seconds (0 = no deadline)")
+    jt.add_argument("--authority-level", default=None, help="job authority level (default: configured HARPP authority, else L2)")
     jt.set_defaults(func=cmd_job_track)
     jl = jsub.add_parser("list", help="list tracked jobs + status")
     jl.set_defaults(func=cmd_job_list)
@@ -434,6 +451,8 @@ def main():
     ws.add_argument("--max-tool-retries", type=int, default=None)
     ws.add_argument("--max-network-retries", type=int, default=None)
     ws.add_argument("--contract-revision", type=int, default=0)
+    ws.add_argument("--authority-level", default=None,
+                    help="configured workflow authority (default from config harpp_authority, else L2)")
     ws.set_defaults(func=cmd_workflow_start)
     wl = wsub.add_parser("list", help="list workflows + status")
     wl.set_defaults(func=cmd_workflow_list)
@@ -472,14 +491,23 @@ def main():
         result = unittest.TextTestRunner(verbosity=2).run(suite)
         sys.exit(0 if result.wasSuccessful() else 1)
     elif args.cmd == "decision":
-        if args.dcmd == "submit":
+        if args.dcmd == "record":
+            print(json.dumps(harpp_wake.record_local_decision(
+                task=args.task, decision=args.decision, constraints=args.constraint,
+                additional_requirements=args.additional, source=args.source,
+                applied_to=args.applied_to), indent=2))
+        elif args.dcmd == "submit":
             print(json.dumps(harpp_client.submit_decision(
                 title=args.title, body=args.body, context=args.context,
                 requested_decision=args.requested_decision, priority=args.priority,
                 source=args.source, workbench_state=args.workbench_state, decision_key=args.decision_key), indent=2))
         elif args.dcmd == "list":
-            print(json.dumps(harpp_client.list_decisions(
-                state=args.state, priority=args.priority, workbench_state=args.workbench_state, limit=args.limit), indent=2))
+            if args.remote or args.state or args.priority or args.workbench_state:
+                print(json.dumps(harpp_client.list_decisions(
+                    state=args.state, priority=args.priority, workbench_state=args.workbench_state, limit=args.limit), indent=2))
+            else:
+                records = harpp_wake.load_decisions()
+                print(json.dumps({"count": len(records[-args.limit:]), "decisions": records[-args.limit:]}, indent=2))
         elif args.dcmd == "view":
             print(json.dumps(harpp_client.view_decision(args.id, rationale=args.rationale), indent=2))
         elif args.dcmd == "decide":

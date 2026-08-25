@@ -1,0 +1,38 @@
+{
+    "title": "HARPP hardening roadmap: authority -> escalation -> decision recorder -> phone-first summaries",
+    "max_repairs": 2,
+    "stages": [
+        {
+            "name": "slice2-authority",
+            "model": "openai-codex/gpt-5.4",
+            "prompt_file": "stages/slice2-authority.md",
+            "marker": "SOL_SLICE2 status=PASS",
+            "verify": "python3 -m py_compile tools/harpp-bridge/harpp_wake.py tools/harpp-bridge/harpp tools/harpp-bridge/harpp_client.py && python3 tools/harpp-bridge/harpp self-test",
+            "timeout": 2400
+        },
+        {
+            "name": "slice3-escalation",
+            "model": "openai-codex/gpt-5.4",
+            "prompt_file": "stages/slice3-escalation.md",
+            "marker": "SOL_SLICE3 status=PASS",
+            "verify": "python3 -m py_compile tools/harpp-bridge/harpp_wake.py tools/harpp-bridge/harpp tools/harpp-bridge/harpp_client.py && python3 tools/harpp-bridge/harpp self-test",
+            "timeout": 2400
+        },
+        {
+            "name": "slice4-decision-recorder",
+            "model": "openai-codex/gpt-5.4",
+            "prompt_file": "stages/slice4-decision-recorder.md",
+            "marker": "SOL_SLICE4 status=PASS",
+            "verify": "python3 -m py_compile tools/harpp-bridge/harpp_wake.py tools/harpp-bridge/harpp tools/harpp-bridge/harpp_client.py && python3 tools/harpp-bridge/harpp self-test",
+            "timeout": 2400
+        },
+        {
+            "name": "slice5-summaries",
+            "model": "openai-codex/gpt-5.4",
+            "prompt_file": "stages/slice5-summaries.md",
+            "marker": "SOL_SLICE5 status=PASS",
+            "verify": "python3 -m py_compile tools/harpp-bridge/harpp_wake.py tools/harpp-bridge/harpp tools/harpp-bridge/harpp_client.py && python3 tools/harpp-bridge/harpp self-test",
+            "timeout": 2400
+        }
+    ]
+}
