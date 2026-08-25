@@ -182,7 +182,7 @@ def autoprocess(records):
                 conv = rec.get("conversation_id")
                 if not conv:
                     continue
-                r = send_message(body=f"✅ Harness auto-acknowledged your message (id {rec.get('id')}). It is queued for processing — the wake agent will handle it.",
+                r = send_message(body=f"✅ Harness received your message (id {rec.get('id')}). It is queued for processing.",
                                  conversation_id=int(conv))
                 notes.append(f"message {rec.get('id')} ack ok={bool(r.get('ok'))}")
             elif rec.get("kind") == "decision":
