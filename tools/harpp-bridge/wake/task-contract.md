@@ -19,16 +19,23 @@ Inbox file: `{{INBOX}}`
 Use the `harpp_*` tools provided by the HARPP extension (preferred), or the `harpp` CLI
 (`harpp` is on PATH; fallback: `python3 tools/harpp-bridge/harpp`).
 
+The owner already received an instant "Received — working on it" confirmation
+(deterministic auto-ack), so do NOT just re-acknowledge — provide the substantive
+response and, where instructed, the actual work.
+
 For each staged record:
 
-1. **`kind: message`** — an owner message in a conversation. Reply concisely and
-   helpfully through the bridge (use `harpp msg send --conversation-id <id> --body ...`),
-   acknowledging receipt and acting on the instruction if it is clear and safe. Keep the
-   reply short (1–3 sentences).
-2. **`kind: decision`** — the owner decided a decision. Acknowledge then apply it so the
-   loop closes and the ADR is recorded:
-   - `harpp decision ack <id> --rationale "Harness acknowledges the owner decision (wake agent)."`
-   - `harpp decision apply <id> --rationale "Harness applied the owner decision (wake agent)."`
+1. **`kind: message`** — an owner message in a conversation. Provide a substantive,
+   concise reply through the bridge (`harpp msg send --conversation-id <id> --body ...`).
+   - If the message is an **explicit fix/implement request** (e.g. "fix the responsive
+     view", "implement X"), you MAY make the minimal change yourself in the repo, verify
+     it (JS: `node --check <file>`; PHP: `php -l <file>`; DiSyL templates: keep the
+     `{verbatim}` blocks balanced), then reply reporting exactly what you changed and the
+     verification result. Stay strictly scoped to the requested fix.
+   - Otherwise reply with the substantive answer/status (1–3 sentences).
+2. **`kind: decision`** — decisions are already auto-acknowledged + auto-applied by the
+   deterministic layer; do NOT re-process them. (If one is present, just note it in your
+   status line.)
 3. Post a short status: `harpp status --message "wake agent processed N item(s)" --status processing-done --harness-session-id <hostname>`
 
 ## Boundaries (must follow)

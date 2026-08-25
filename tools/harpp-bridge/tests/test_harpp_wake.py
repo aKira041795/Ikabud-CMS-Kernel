@@ -73,11 +73,13 @@ class HarppWakeTest(unittest.TestCase):
         self.assertFalse(self._wake(command="false"))
         self.assertNotIn(1, harpp_wake.read_state()["messages"])
 
-    def test_decision_record_processed(self):
+    def test_decision_skipped_by_wake(self):
+        # Decisions are handled instantly by the deterministic autoprocess layer,
+        # so the wake agent must NOT re-process them (they are filtered out).
         self.inbox.write_text(
             json.dumps({"kind": "decision", "id": 9, "decision": "A"}) + "\n", encoding="utf-8")
-        self.assertTrue(self._wake())
-        self.assertIn(9, harpp_wake.read_state()["decisions"])
+        self.assertFalse(self._wake())
+        self.assertNotIn(9, harpp_wake.read_state()["decisions"])
 
     def test_task_prompt_contains_items(self):
         prompt = harpp_wake.task_prompt(str(self.inbox), [{"kind": "message", "id": 1, "conversation_id": 2}])

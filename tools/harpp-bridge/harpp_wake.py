@@ -124,7 +124,11 @@ def over_hourly_limit(state: dict, max_per_hour: int) -> bool:
 
 
 def unprocessed_items(inbox: str) -> list:
-    """Return inbox records whose ids are not yet in the processed ledger."""
+    """Return inbox MESSAGE records whose ids are not yet in the processed ledger.
+
+    Decisions are handled instantly by the deterministic autoprocess layer (ack/apply),
+    so the wake agent only needs to pick up unprocessed MESSAGES for substantive replies.
+    """
     state = read_state()
     records = []
     try:
@@ -141,13 +145,10 @@ def unprocessed_items(inbox: str) -> list:
     except Exception:  # noqa: BLE001
         return []
     messages = set(state.get("messages", []))
-    decisions = set(state.get("decisions", []))
     new = []
     for r in records:
         rid = int(r.get("id", 0))
         if r.get("kind") == "message" and rid not in messages:
-            new.append(r)
-        elif r.get("kind") == "decision" and rid not in decisions:
             new.append(r)
     return new
 

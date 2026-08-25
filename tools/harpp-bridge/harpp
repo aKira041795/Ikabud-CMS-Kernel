@@ -112,15 +112,17 @@ def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"
         except Exception as e:
             print(f"harpp watch: decision poll failed: {e}", flush=True)
         _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided})
+        # Instant confirmation + decisions: deterministic, always on — the owner must
+        # never be left wondering whether their message was received and is being worked on.
+        if autoprocess and emitted:
+            _autoprocess(emitted, log)
+        # Substantive processing: the wake agent (when enabled) replies/works in the
+        # background, ledger-deduped, bounded by cooldown + max-per-hour.
         if wake:
-            # Mechanism E: the wake agent is the processor. It checks the whole inbox
-            # queue (ledger-deduped) every cycle so cooldown/failure retries happen.
             harpp_wake.maybe_wake(
                 inbox, enabled=True, command=wake_command,
                 model=model or harpp_wake.DEFAULT_MODEL, cooldown=cooldown,
                 max_per_hour=max_per_hour, timeout=timeout)
-        elif autoprocess and emitted:
-            _autoprocess(emitted, log)
         if once:
             return
         time.sleep(max(5, interval))
