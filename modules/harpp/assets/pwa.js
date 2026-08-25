@@ -1,17 +1,23 @@
 (() => {
   'use strict';
   async function api(url, options = {}) {
-    const init = { ...options, credentials: 'same-origin', headers: { 'Accept': 'application/json', ...(options.headers || {}) } };
-    if (init.body && typeof init.body !== 'string') {
-      init.headers['Content-Type'] = 'application/json';
-      init.body = JSON.stringify(init.body);
-    }
-    const response = await fetch(url, init);
-    let payload = null;
-    try { payload = await response.json(); } catch (_) { payload = { ok: false, error: `HTTP ${response.status}` }; }
-    if (response.status === 401 && location.pathname !== '/harpp/login') location.href = '/harpp/login';
-    if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
-    return payload;
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 20000);
+    const init = { ...options, credentials: 'same-origin', signal: controller.signal, headers: { 'Accept': 'application/json', ...(options.headers || {}) } };
+    try {
+      if (init.body && typeof init.body !== 'string') {
+        init.headers['Content-Type'] = 'application/json';
+        init.body = JSON.stringify(init.body);
+      }
+      const response = await fetch(url, init);
+      let payload = null;
+      try { payload = await response.json(); } catch (error) { if (error && error.name === 'AbortError') throw error; payload = { ok: false, error: `HTTP ${response.status}` }; }
+      if (response.status === 401 && location.pathname !== '/harpp/login') location.href = '/harpp/login';
+      if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      return payload;
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw new Error('Request timed out after 20 seconds.');
+      throw error;
+    } finally { clearTimeout(timeout); }
   }
   async function registration() {
     if (!('serviceWorker' in navigator)) throw new Error('Service workers are unavailable.');
@@ -52,7 +58,9 @@
     // Option A: one-time onboarding banner — show only when push is possible,
     // this device is not yet subscribed, and the owner has not dismissed it.
     const banner = document.getElementById('push-banner');
-    if (!banner || !('PushManager' in window) || localStorage.getItem('harpp-push-dismissed') === '1') return;
+    if (!banner) return;
+    banner.hidden = true;
+    if (!('PushManager' in window) || !('Notification' in window) || Notification.permission === 'denied' || localStorage.getItem('harpp-push-dismissed') === '1') return;
     try {
       const reg = await registration();
       if (await reg.pushManager.getSubscription()) return;
