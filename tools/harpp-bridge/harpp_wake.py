@@ -58,7 +58,8 @@ DEFAULT_TIMEOUT = 900
 # (e.g. "use gpt sol", "use flash") and the wake router honors it. If the requested
 # model is unavailable / its usage is exhausted, maybe_wake falls back to the default.
 MODEL_ALIASES = {
-    "openai-codex/gpt-5.6-sol": ["gpt sol", "got sol", "codex sol", "openai codex", "sol"],
+    "openai-codex/gpt-5.6-sol": ["gpt sol", "got sol", "codex sol", "openai codex", "sol", "gpt-5.6"],
+    "openai-codex/gpt-5.4": ["gpt 5.4", "gpt-5.4", "5.4"],
     "deepseek/deepseek-v4-pro": ["deepseek pro", "v4 pro"],
     "deepseek/deepseek-v4-flash": ["flash"],
 }
