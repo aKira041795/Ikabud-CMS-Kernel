@@ -53,6 +53,24 @@ final class HarppBridgeAuthService
         }
     }
 
+    /**
+     * Read-only key status. Never generates or mutates state — safe for GET.
+     */
+    public function status(int $tenantId)
+    {
+        if (!$this->tenantMatches($tenantId)) return HarppServiceResult::failure('Tenant scope mismatch.', 403, 'tenant_scope_mismatch');
+        try {
+            $hash = $this->setting(self::KEY_SETTING);
+            if ($hash === '') {
+                return HarppServiceResult::success(['generated' => false, 'configured' => false]);
+            }
+            return HarppServiceResult::success(['generated' => false, 'configured' => true, 'fingerprint' => $this->fingerprint($hash), 'rotated_at' => $this->setting(self::ROTATED_SETTING)]);
+        } catch (Throwable $e) {
+            $this->logError('bridge key status failed', $e);
+            return HarppServiceResult::failure('Unable to read bridge key status.', 500);
+        }
+    }
+
     public function validate(string $key, int $tenantId, string $clientId = '')
     {
         $current = (int)(\app()->tenant()->current() ?? 0);

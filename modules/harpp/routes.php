@@ -54,6 +54,7 @@ return [
         '/api/v1/harpp/push/unsubscribe' => 'harpp:harppPushUnsubscribe',
         '/api/v1/harpp/adrs' => 'harpp:harppAdrRecord',
         '/api/v1/harpp/bridge/key' => 'harpp:harppBridgeKeyRotate',
+        '/api/v1/harpp/bridge/key/generate' => 'harpp:harppBridgeKeyGenerate',
         '/api/v1/harpp/bridge/decisions' => 'harpp:harppBridgeDecisionCreate',
         '/api/v1/harpp/bridge/decisions/{id}/view' => 'harpp:harppBridgeDecisionView',
         '/api/v1/harpp/bridge/decisions/{id}/decide' => 'harpp:harppBridgeDecisionDecide',

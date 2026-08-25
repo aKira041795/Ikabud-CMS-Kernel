@@ -4,6 +4,17 @@ set -u
 cd "$(dirname "$0")/../../.." || exit 2
 ROOT="$PWD"
 fails=0
+# Isolate the suite from production logs: back up the live app/error logs up
+# front and restore them on exit so the suite never truncates or pollutes the
+# real logs (the forced audit-failure test intentionally writes an [error]
+# entry to app.log that must not survive into production).
+LOG_APP="$ROOT/storage/logs/app.log"
+LOG_ERR="$ROOT/storage/logs/error.log"
+BACKUP_DIR="$(mktemp -d)"
+cp "$LOG_APP" "$BACKUP_DIR/app.log" 2>/dev/null || : > "$BACKUP_DIR/app.log"
+cp "$LOG_ERR" "$BACKUP_DIR/error.log" 2>/dev/null || : > "$BACKUP_DIR/error.log"
+restore_logs() { cp "$BACKUP_DIR/app.log" "$LOG_APP" 2>/dev/null || : > "$LOG_APP"; cp "$BACKUP_DIR/error.log" "$LOG_ERR" 2>/dev/null || : > "$LOG_ERR"; rm -rf "$BACKUP_DIR"; }
+trap restore_logs EXIT
 for t in phase2 phase3 phase4 phase5 review_remediation; do
   printf '=== %s_cli_test ===\n' "$t"
   : > "$ROOT/storage/logs/app.log"

@@ -3,6 +3,11 @@
   async function api(url, options = {}) {
     const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 20000);
     const init = { ...options, credentials: 'same-origin', signal: controller.signal, headers: { 'Accept': 'application/json', ...(options.headers || {}) } };
+    const method = String(init.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+      const csrf = (window.HARPP_CSRF || (document.querySelector('meta[name="csrf-token"]') || {}).content || '').trim();
+      if (csrf) init.headers['X-CSRF-TOKEN'] = csrf;
+    }
     try {
       if (init.body && typeof init.body !== 'string') {
         init.headers['Content-Type'] = 'application/json';
