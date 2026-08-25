@@ -79,18 +79,35 @@ def save_state(state: dict) -> None:
 
 
 def _stale_lock(timeout: int) -> bool:
+    """Recover when the lock holder is dead, or the lock is older than 2x timeout."""
     try:
-        return _now() - int(LOCK_FILE.read_text().strip()) > 2 * timeout
+        raw = LOCK_FILE.read_text().strip()
+        parts = raw.split()
+        pid = int(parts[0]) if parts else 0
+        if 0 < pid < 4194304:  # plausible Linux PID range -> liveness check
+            try:
+                os.kill(pid, 0)  # signal 0 = existence probe
+                return False  # holder alive -> lock legitimately held
+            except ProcessLookupError:
+                log(f"lock holder pid {pid} is dead; recovering")
+                return True
+            except PermissionError:
+                return False
+        # Old timestamp-only format (or unparseable): compare the stored timestamp value.
+        try:
+            return _now() - int(raw) > 2 * timeout
+        except ValueError:
+            return _now() - LOCK_FILE.stat().st_mtime > 2 * timeout
     except Exception:  # noqa: BLE001
         return False
 
 
 def acquire_lock(timeout: int) -> bool:
-    """Single-flight acquire with stale-lock recovery. Returns True if this process owns it."""
+    """Single-flight acquire with PID-liveness recovery. Returns True if this process owns it."""
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
         fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.write(fd, str(_now()).encode())
+        os.write(fd, f"{os.getpid()} {_now()}".encode())
         os.close(fd)
         return True
     except FileExistsError:

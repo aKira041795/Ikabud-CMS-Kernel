@@ -65,7 +65,13 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.release_lock()
 
-    def test_stale_lock_recovery(self):
+    def test_stale_lock_recovery_dead_pid(self):
+        # A lock whose holder PID is dead must be recovered immediately (not wait for TTL).
+        harpp_wake.LOCK_FILE.write_text(f"999999 0", encoding="utf-8")  # implausible/dead PID
+        self.assertTrue(self._wake())
+
+    def test_stale_lock_recovery_old_timestamp(self):
+        # Old timestamp-only format older than 2x timeout recovers via age TTL.
         harpp_wake.LOCK_FILE.write_text(str(harpp_wake._now() - 100000), encoding="utf-8")
         self.assertTrue(self._wake())
 
