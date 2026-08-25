@@ -256,12 +256,23 @@ final class HarppAuthService
 
     private function publicUser(array $user)
     {
+        $id = (int)($user['id'] ?? 0);
+        $email = strtolower(trim((string)($user['email'] ?? '')));
+        $role = strtolower(trim((string)($user['role'] ?? '')));
+        // Old tenants could have the deterministic administrator row with a
+        // blank/invalid role. Do not silently reinterpret that administrator
+        // as a member while the corrective migration is being deployed.
+        if (($id === 2 || $email === 'admin@harpp.local') && !in_array($role, ['owner', 'admin', 'member'], true)) {
+            $role = 'admin';
+        } elseif (!in_array($role, ['owner', 'admin', 'member'], true)) {
+            $role = 'invalid';
+        }
         return [
-            'id' => (int)($user['id'] ?? 0),
-            'email' => (string)($user['email'] ?? ''),
-            'username' => (string)($user['email'] ?? ''),
+            'id' => $id,
+            'email' => $email,
+            'username' => $email,
             'full_name' => (string)($user['full_name'] ?? ''),
-            'role' => (string)($user['role'] ?? 'member'),
+            'role' => $role,
             'source' => 'harpp',
         ];
     }

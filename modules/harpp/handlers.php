@@ -77,6 +77,22 @@ function harppPageMessenger(array $params = []): void { harppRenderShell('messen
 function harppPageDecisions(array $params = []): void { harppRenderShell('decisions', 'decisions'); }
 function harppPageDecisionDetail(array $params = []): void { harppRenderShell('decision-detail', 'decisions', ['decision_id' => max(0, (int)($params['id'] ?? 0))]); }
 function harppPageSettings(array $params = []): void { harppRenderShell('settings', 'settings'); }
+function harppPageUsers(array $params = []): void
+{
+    $user = harppPageUser();
+    if ($user === null) return;
+    $access = harppAuthorize('harpp.users.manage@1', $user);
+    if (empty($access['ok'])) {
+        http_response_code(403);
+        echo 'Admin access is required.';
+        return;
+    }
+    echo app()->render('modules/harpp/users', [
+        'page_title' => 'HARPP Users',
+        'current_page' => 'users',
+        'user' => $user,
+    ]);
+}
 function harppPageNotifications(array $params = []): void { harppRenderShell('notifications', 'notifications'); }
 
 function harppServiceWorker(array $params = []): void { harppPwaAsset(['name' => 'sw.js']); }

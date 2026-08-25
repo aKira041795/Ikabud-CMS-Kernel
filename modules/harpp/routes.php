@@ -12,6 +12,7 @@ return [
         '/harpp/decisions' => 'harpp:harppPageDecisions',
         '/harpp/decisions/{id}' => 'harpp:harppPageDecisionDetail',
         '/harpp/settings' => 'harpp:harppPageSettings',
+        '/harpp/users' => 'harpp:harppPageUsers',
         '/harpp/notifications' => 'harpp:harppPageNotifications',
         '/harpp/sw.js' => 'harpp:harppServiceWorker',
         '/harpp/manifest.webmanifest' => 'harpp:harppManifest',

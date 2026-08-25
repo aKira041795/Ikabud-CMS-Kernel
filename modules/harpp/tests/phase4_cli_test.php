@@ -17,6 +17,7 @@ ob_start();
 $h = new TestHarness('harpp-phase4');
 $h->fingerprint('modules/harpp/handlers.php');
 $h->fingerprint('modules/harpp/assets/sw.js');
+$h->fingerprint('modules/harpp/assets/users.js');
 $assert = static function(string $name, bool $ok, string $detail = '') use ($h): void { $h->test($name, $ok, $detail); };
 $capture = static function (callable $handler): array {
     http_response_code(200);
@@ -40,6 +41,7 @@ $pages = [
     'messenger' => static fn() => harppPageMessenger(),
     'decisions' => static fn() => harppPageDecisions(),
     'settings' => static fn() => harppPageSettings(),
+    'users' => static fn() => harppPageUsers(),
     'notifications' => static fn() => harppPageNotifications(),
 ];
 foreach ($pages as $name => $handler) {
@@ -48,6 +50,13 @@ foreach ($pages as $name => $handler) {
 }
 [$status, $html] = $capture(static fn() => harppPageDecisionDetail(['id' => 1]));
 $assert('decision detail shell authenticated HTTP 200', $status === 200 && str_contains($html, 'decision-detail'));
+$member = harppDb()->query("SELECT id,email,full_name,role FROM harpp_users WHERE role='member' AND is_active=1 ORDER BY id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+if (!is_array($member)) throw new RuntimeException('HARPP member missing.');
+$member['source'] = 'harpp';
+$_COOKIE['harpp_token'] = (new Harpp\Services\HarppAuthService())->issueToken($member);
+[$status] = $capture(static fn() => harppPageUsers());
+$assert('user-management screen rejects member', $status === 403);
+$_COOKIE['harpp_token'] = (new Harpp\Services\HarppAuthService())->issueToken($owner);
 
 $assets = [
     'service worker' => [static fn() => harppServiceWorker(), 'push'],
@@ -67,7 +76,7 @@ $publicKey = (string)($keyResponse['data']['public_key'] ?? '');
 $assert('VAPID public key endpoint returns key', $status === 200 && !empty($keyResponse['ok']) && preg_match('/^[A-Za-z0-9_-]{32,}$/', $publicKey) === 1);
 
 $routes = require dirname(__DIR__) . '/routes.php';
-foreach (['/harpp/login', '/harpp', '/harpp/decisions', '/harpp/settings', '/harpp/notifications', '/harpp/sw.js', '/harpp/manifest.webmanifest', '/harpp/icon.svg'] as $route) {
+foreach (['/harpp/login', '/harpp', '/harpp/decisions', '/harpp/settings', '/harpp/users', '/harpp/notifications', '/harpp/sw.js', '/harpp/manifest.webmanifest', '/harpp/icon.svg'] as $route) {
     $assert('route map ' . $route, isset($routes['GET'][$route]));
 }
 
