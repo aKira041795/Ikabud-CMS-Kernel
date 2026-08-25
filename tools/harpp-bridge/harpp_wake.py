@@ -38,6 +38,25 @@ DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
 DEFAULT_COOLDOWN = 60
 DEFAULT_MAX_PER_HOUR = 20
 DEFAULT_TIMEOUT = 900
+
+# Prompt-driven model routing: the owner can ask for a specific model in their message
+# (e.g. "use gpt sol", "use flash") and the wake router honors it. If the requested
+# model is unavailable / its usage is exhausted, maybe_wake falls back to the default.
+MODEL_ALIASES = {
+    "openai-codex/gpt-5.6-sol": ["gpt sol", "got sol", "codex sol", "openai codex", "sol"],
+    "deepseek/deepseek-v4-pro": ["deepseek pro", "v4 pro"],
+    "deepseek/deepseek-v4-flash": ["flash"],
+}
+
+
+def pick_model(items, default: str) -> str:
+    """Return the model the owner asked for in the staged message bodies, else the default."""
+    text = " ".join(str(i.get("body") or "") for i in (items or [])).lower()
+    for model_id, keywords in MODEL_ALIASES.items():
+        for kw in keywords:
+            if re.search(r"\b" + re.escape(kw) + r"\b", text):
+                return model_id
+    return default
 DEFAULT_MAX_RETRIES = 3
 _LOCK_TOKEN = None
 
@@ -346,14 +365,24 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
         # Count every invocation, including failures, so retries remain rate-bounded.
         record_attempt(items)
         prompt = task_prompt(inbox, items)
-        ok = spawn_agent(prompt, command=command, model=model, timeout=timeout,
-                         expected_replies=len(items))
+        # Prompt-driven model routing + graceful fallback: try the requested model first;
+        # if it fails (incl. usage/balance exhaustion), fall back to the configured default.
+        chosen = pick_model(items, model)
+        chain = [chosen] if chosen == model else [chosen, model]
+        ok = False
+        for attempt_model in chain:
+            log(f"spawning wake agent with model {attempt_model}")
+            if spawn_agent(prompt, command=command, model=attempt_model, timeout=timeout,
+                           expected_replies=len(items)):
+                ok = True
+                log(f"wake complete with {attempt_model}; processed {len(items)} item(s)")
+                break
+            log(f"model {attempt_model} failed; " + ("trying fallback model" if attempt_model != chain[-1] else "giving up this cycle"))
         if ok:
             mark_processed(items)
-            log(f"wake complete; processed {len(items)} item(s)")
         else:
             record_failure(items)
-            log(f"wake agent failed; items remain staged for bounded retry")
+            log("wake agent failed; items remain staged for bounded retry")
         return ok
     except Exception as e:  # noqa: BLE001
         record_failure(items)

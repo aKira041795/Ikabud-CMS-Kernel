@@ -93,6 +93,38 @@ class HarppWakeTest(unittest.TestCase):
         self.assertFalse(self._wake())
         self.assertNotIn(9, harpp_wake.read_state()["decisions"])
 
+    def test_pick_model_routing(self):
+        items = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "use gpt sol to fix the login"}]
+        self.assertEqual(harpp_wake.pick_model(items, "deepseek/deepseek-v4-pro"), "openai-codex/gpt-5.6-sol")
+        items2 = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "check this quickly"}]
+        self.assertEqual(harpp_wake.pick_model(items2, "deepseek/deepseek-v4-pro"), "deepseek/deepseek-v4-pro")
+        items3 = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "use got sol and update"}]
+        self.assertEqual(harpp_wake.pick_model(items3, "deepseek/deepseek-v4-pro"), "openai-codex/gpt-5.6-sol")
+        items4 = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "run with flash"}]
+        self.assertEqual(harpp_wake.pick_model(items4, "deepseek/deepseek-v4-pro"), "deepseek/deepseek-v4-flash")
+
+    def test_wake_falls_back_when_requested_model_fails(self):
+        calls = []
+        original = harpp_wake.spawn_agent
+
+        def fake_spawn(prompt, **kw):
+            calls.append(kw.get("model"))
+            # Requested model (gpt sol) fails; the configured default (deepseek pro) succeeds.
+            return kw.get("model") == "deepseek/deepseek-v4-pro"
+
+        harpp_wake.spawn_agent = fake_spawn
+        try:
+            self.inbox.write_text(
+                json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "use gpt sol"}) + "\n",
+                encoding="utf-8")
+            ok = harpp_wake.maybe_wake(str(self.inbox), enabled=True, command="echo dry",
+                                       cooldown=0, max_per_hour=0, timeout=30,
+                                       model="deepseek/deepseek-v4-pro")
+            self.assertTrue(ok)
+            self.assertEqual(calls, ["openai-codex/gpt-5.6-sol", "deepseek/deepseek-v4-pro"])
+        finally:
+            harpp_wake.spawn_agent = original
+
     def test_task_prompt_contains_items(self):
         prompt = harpp_wake.task_prompt(str(self.inbox), [{"kind": "message", "id": 1, "conversation_id": 2}])
         self.assertIn("kind", prompt)
