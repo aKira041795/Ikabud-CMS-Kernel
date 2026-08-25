@@ -68,19 +68,31 @@ def _emit(record, inbox):
             f.write(line + "\n")
 
 
-def watch_loop(once, interval, inbox):
+def _autoprocess(records, log):
+    """Standard HARPP behavior when enabled: auto-respond to owner input (see client)."""
+    for note in harpp_client.autoprocess(records):
+        print("autoprocess: " + note, flush=True)
+        if log:
+            with open(log, "a", encoding="utf-8") as f:
+                f.write("autoprocess: " + note + "\n")
+
+
+def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"):
     import time
     state = _load_watch_state()
     last_msg = int(state.get("last_msg_id", 0))
     last_decided = int(state.get("last_decided_id", 0))
     while True:
+        emitted = []
         try:
             msgs = harpp_client.poll_messages(limit=100).get("data", {}).get("messages", [])
             for m in msgs:
                 mid = int(m.get("id", 0))
                 if mid > last_msg:
-                    _emit({"kind": "message", "id": mid, "conversation_id": m.get("conversation_id"), "sender_type": m.get("sender_type"), "body": m.get("body"), "created_at": m.get("created_at")}, inbox)
+                    rec = {"kind": "message", "id": mid, "conversation_id": m.get("conversation_id"), "sender_type": m.get("sender_type"), "body": m.get("body"), "created_at": m.get("created_at")}
+                    _emit(rec, inbox)
                     _notify("HARPP message", str(m.get("body", ""))[:120])
+                    emitted.append(rec)
                     last_msg = mid
         except Exception as e:
             print(f"harpp watch: message poll failed: {e}", flush=True)
@@ -88,13 +100,17 @@ def watch_loop(once, interval, inbox):
             ds = harpp_client.list_decisions(limit=100).get("data", {}).get("decisions", [])
             for d in ds:
                 did = int(d.get("id", 0))
-                if d.get("decided_at") and did > last_decided:
-                    _emit({"kind": "decision", "id": did, "decision_key": d.get("decision_key"), "title": d.get("title"), "decision": d.get("decision"), "rationale": d.get("rationale"), "decided_by": d.get("decided_by"), "lifecycle_state": d.get("lifecycle_state")}, inbox)
+                if d.get("decided_at") and d.get("lifecycle_state") == "DECIDED" and did > last_decided:
+                    rec = {"kind": "decision", "id": did, "decision_key": d.get("decision_key"), "title": d.get("title"), "decision": d.get("decision"), "rationale": d.get("rationale"), "decided_by": d.get("decided_by"), "lifecycle_state": d.get("lifecycle_state")}
+                    _emit(rec, inbox)
                     _notify("HARPP decision", f"#{did} {str(d.get('title', ''))[:120]}")
+                    emitted.append(rec)
                     last_decided = did
         except Exception as e:
             print(f"harpp watch: decision poll failed: {e}", flush=True)
         _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided})
+        if autoprocess and emitted:
+            _autoprocess(emitted, log)
         if once:
             return
         time.sleep(max(5, interval))
@@ -172,10 +188,12 @@ def main():
     st.add_argument("--workbench-state", default="")
     st.add_argument("--harness-session-id", default="")
 
-    wt = sub.add_parser("watch", help="actively monitor for owner messages + decided decisions")
+    wt = sub.add_parser("watch", help="actively monitor + auto-process owner messages + decided decisions")
     wt.add_argument("--once", action="store_true", help="single check, then exit")
     wt.add_argument("--interval", type=int, default=60, help="poll interval seconds (default 60)")
     wt.add_argument("--inbox", default=DEFAULT_INBOX, help="append new items to this JSONL file")
+    wt.add_argument("--no-autoprocess", action="store_true", help="disable auto-ack/auto-apply standard behavior")
+    wt.add_argument("--log", default=".ai/harpp-wake.log", help="autoprocess action log (default .ai/harpp-wake.log)")
 
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
     ib.add_argument("--clear", action="store_true")
@@ -233,7 +251,8 @@ def main():
             message=args.message, status=args.status, workbench_state=args.workbench_state,
             harness_session_id=args.harness_session_id), indent=2))
     elif args.cmd == "watch":
-        watch_loop(once=args.once, interval=args.interval, inbox=args.inbox)
+        watch_loop(once=args.once, interval=args.interval, inbox=args.inbox,
+                   autoprocess=not args.no_autoprocess, log=args.log)
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear)
 

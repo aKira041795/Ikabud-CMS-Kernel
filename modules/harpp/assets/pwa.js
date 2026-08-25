@@ -23,8 +23,11 @@
     return Uint8Array.from(bytes, c => c.charCodeAt(0));
   }
   async function subscribe() {
-    if (!('PushManager' in window)) throw new Error('Web Push is unavailable.');
-    if (await Notification.requestPermission() !== 'granted') throw new Error('Notification permission was not granted.');
+    if (!('PushManager' in window)) throw new Error('Web Push is unavailable on this browser.');
+    let permission = Notification.permission;
+    if (permission === 'denied') throw new Error('Notifications are blocked in your browser. Allow them in site settings, then try again.');
+    if (permission !== 'granted') permission = await Notification.requestPermission();
+    if (permission !== 'granted') throw new Error('Notification permission was not granted.');
     const reg = await registration();
     const key = (await api('/api/v1/harpp/push/vapid-public-key')).data.public_key;
     let subscription = await reg.pushManager.getSubscription();
@@ -54,8 +57,20 @@
       const reg = await registration();
       if (await reg.pushManager.getSubscription()) return;
       banner.hidden = false;
-      document.getElementById('push-banner-enable').onclick = async () => {
-        try { await subscribe(); banner.hidden = true; pollUnread(); } catch (_) {}
+      const enable = document.getElementById('push-banner-enable');
+      const bannerStatus = document.getElementById('push-banner-status');
+      enable.onclick = async () => {
+        enable.disabled = true;
+        if (bannerStatus) bannerStatus.textContent = '';
+        try {
+          await subscribe();
+          banner.hidden = true;
+          pollUnread();
+        } catch (err) {
+          if (bannerStatus) bannerStatus.textContent = err && err.message ? err.message : 'Could not enable push.';
+        } finally {
+          enable.disabled = false;
+        }
       };
       document.getElementById('push-banner-dismiss').onclick = () => {
         localStorage.setItem('harpp-push-dismissed', '1');

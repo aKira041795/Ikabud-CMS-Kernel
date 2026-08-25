@@ -36,6 +36,30 @@ class HarppClientTest(unittest.TestCase):
                 os.environ[k] = v
         self.tmp.cleanup()
 
+    def test_autoprocess_routes_owner_input(self):
+        calls = []
+
+        def fake_api(method, url, body=None, **kw):
+            calls.append((method, url, body))
+            return {"ok": True}
+
+        original = harpp_client.api
+        harpp_client.api = fake_api
+        try:
+            notes = harpp_client.autoprocess([
+                {"kind": "message", "id": 5, "conversation_id": 2, "body": "hi"},
+                {"kind": "decision", "id": 9, "decision": "Option A"},
+            ])
+        finally:
+            harpp_client.api = original
+        urls = [c[1] for c in calls]
+        self.assertEqual(len(calls), 3, notes)
+        self.assertTrue(any(u.endswith("/bridge/messages") for u in urls), urls)
+        self.assertTrue(any(u.endswith("/acknowledge") for u in urls), urls)
+        self.assertTrue(any(u.endswith("/applied") for u in urls), urls)
+        self.assertEqual(notes[0], "message 5 ack ok=True", notes)
+        self.assertEqual(notes[1], "decision 9 ack=True apply=True", notes)
+
     def test_config_load(self):
         cfg = harpp_client.load_config()
         self.assertEqual(cfg["base_url"], "https://harpp.example.com")
