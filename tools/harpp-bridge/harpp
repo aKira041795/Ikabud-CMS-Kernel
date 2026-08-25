@@ -13,6 +13,9 @@ Commands:
   harpp msg send --body B [--conversation-id N --title T --harness-session-id S]
   harpp msg poll [--conversation-id N --after A --limit N]
   harpp status --message M [--status S --workbench-state W --harness-session-id S]
+  harpp job track --pid N --model M --task T --conversation C [verification options]
+  harpp job list
+  harpp job untrack <id>
 
 Set HARPP_DRY_RUN=1 to preview requests without sending.
 """
@@ -144,6 +147,12 @@ def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"
             pending = _autoprocess(pending, log)
             _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided,
                                "pending_autoprocess": pending})
+        # Job monitor: track delegated model processes; when one finishes, verify + commit
+        # + report the result to the owner conversation automatically (no reminder needed).
+        try:
+            harpp_wake.monitor_jobs()
+        except Exception as e:
+            print(f"harpp watch: job monitor failed: {e}", flush=True)
         # Substantive processing: the wake agent (when enabled) replies/works in the
         # background, ledger-deduped, bounded by cooldown + max-per-hour.
         if wake:
@@ -172,6 +181,30 @@ def inbox_cmd(clear):
             print(line)
     if clear:
         p.unlink()
+
+
+def cmd_job_track(args):
+    try:
+        jid = harpp_wake.track_job(
+            pid=args.pid, model=args.model, task=args.task, conversation_id=args.conversation,
+            log_path=args.log, verify=args.verify, marker=args.marker,
+            repo=args.repo, commit=args.commit)
+    except ValueError as exc:
+        sys.exit(f"harpp job track: {exc}")
+    print(json.dumps({"job_id": jid, "status": "tracked", "pid": args.pid,
+                      "conversation_id": args.conversation}))
+
+
+def cmd_job_list(args):
+    jobs = harpp_wake.list_jobs()
+    print(json.dumps({"count": len(jobs), "jobs": jobs}, indent=2))
+
+
+def cmd_job_untrack(args):
+    ok = harpp_wake.untrack_job(args.id)
+    print(json.dumps({"job_id": args.id, "untracked": ok}))
+    if not ok:
+        raise SystemExit(1)
 
 
 def main():
@@ -251,6 +284,25 @@ def main():
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
     ib.add_argument("--clear", action="store_true")
 
+    jb = sub.add_parser("job", help="track/monitor delegated model jobs (auto-report on completion)")
+    jsub = jb.add_subparsers(dest="jcmd", required=True)
+    jt = jsub.add_parser("track", help="register an in-flight delegated model job")
+    jt.add_argument("--pid", type=int, required=True, help="pid of the running model process")
+    jt.add_argument("--model", required=True, help="provider-qualified model id, e.g. openai-codex/gpt-5.6-sol")
+    jt.add_argument("--task", required=True, help="short description of the work being done")
+    jt.add_argument("--conversation", type=int, required=True, help="conversation id to auto-report to")
+    jt.add_argument("--log", default=None, help="path to the model's log file")
+    jt.add_argument("--verify", default=None, help="verification command; exit 0 = pass")
+    jt.add_argument("--marker", default=None, help="success marker string to search for in the log")
+    jt.add_argument("--repo", default=None, help="repo path for git status / auto-commit")
+    jt.add_argument("--commit", action="store_true", help="auto commit + push on verified completion")
+    jt.set_defaults(func=cmd_job_track)
+    jl = jsub.add_parser("list", help="list tracked jobs + status")
+    jl.set_defaults(func=cmd_job_list)
+    ju = jsub.add_parser("untrack", help="drop a job from the registry")
+    ju.add_argument("id", help="job id")
+    ju.set_defaults(func=cmd_job_untrack)
+
     args = p.parse_args()
 
     if args.cmd == "config":
@@ -316,6 +368,8 @@ def main():
                    model=args.model or None, max_retries=args.max_retries)
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear)
+    elif args.cmd == "job":
+        args.func(args)
 
 
 if __name__ == "__main__":

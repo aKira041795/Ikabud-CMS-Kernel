@@ -23,7 +23,10 @@ import signal
 import subprocess
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
+
+import fcntl
 
 import harpp_client
 
@@ -31,6 +34,10 @@ CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")
 LOCK_FILE = CONFIG_DIR / "wake.lock"
 PROCESSED_FILE = CONFIG_DIR / "wake-processed.json"
 WAKE_LOG = CONFIG_DIR / "wake.log"
+JOBS_FILE = CONFIG_DIR / "jobs.json"
+JOB_HISTORY_LIMIT = 100
+JOB_VERIFY_TIMEOUT = 600
+JOB_REPORT_STALE_AFTER = JOB_VERIFY_TIMEOUT + 300
 
 DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
 # Production-grade wake limits: max ~1 run/3min (20/hr) keeps replies responsive while
@@ -258,6 +265,376 @@ def record_failure(records: list) -> None:
         key = str(int(r.get("id", 0)))
         state["failures"][key] = int(state["failures"].get(key, 0)) + 1
     save_state(state)
+
+
+# ---------------------------------------------------------------------------
+# Job monitor — close the "did the model finish?" loop so the owner never has
+# to remind the harness. Delegated model processes (e.g. a long GPT-Sol run)
+# are registered via `harpp job track`; the watch daemon then detects when the
+# pid exits, verifies the outcome (marker in log and/or a verify command),
+# optionally commits the repo, and auto-reports the result back to the owner
+# conversation through the bridge — no reminder required.
+# ---------------------------------------------------------------------------
+
+@contextmanager
+def _jobs_lock():
+    """Serialize registry read/modify/write operations across watch processes/threads."""
+    lock_path = Path(str(JOBS_FILE) + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _jobs_state_unlocked() -> dict:
+    state = _load_json(JOBS_FILE, {})
+    if not isinstance(state, dict):
+        state = {}
+    if not isinstance(state.get("jobs"), dict):
+        state["jobs"] = {}
+    if not isinstance(state.get("reported"), list):
+        state["reported"] = []
+    return state
+
+
+def _save_jobs_state_unlocked(state: dict) -> None:
+    """Atomically persist registry state, raising so callers never assume it was saved."""
+    JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = JOBS_FILE.with_name(f".{JOBS_FILE.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp.write_text(json.dumps(state), encoding="utf-8")
+        os.replace(tmp, JOBS_FILE)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _prune_jobs_state(state: dict) -> None:
+    """Bound completed history while retaining every active or delivery-pending job."""
+    jobs = state.get("jobs", {})
+    completed = [j for j in jobs.values() if j.get("id") in set(state.get("reported", []))]
+    completed.sort(key=lambda j: (j.get("reported_at") or "", j.get("finished_at") or ""), reverse=True)
+    keep = {j.get("id") for j in completed[:JOB_HISTORY_LIMIT]}
+    for jid in list(jobs):
+        if jid in state.get("reported", []) and jid not in keep:
+            del jobs[jid]
+    state["reported"] = [jid for jid in state.get("reported", []) if jid in keep]
+
+
+def jobs_state() -> dict:
+    with _jobs_lock():
+        return _jobs_state_unlocked()
+
+
+def save_jobs_state(state: dict) -> None:
+    with _jobs_lock():
+        _save_jobs_state_unlocked(state)
+
+
+def _pid_identity(pid: int) -> str | None:
+    """Return Linux process start ticks, which distinguish a reused PID."""
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        after_comm = raw[raw.rfind(")") + 2:].split()
+        return after_comm[19]  # field 22 (starttime); field 3 starts this list
+    except (OSError, IndexError):
+        return None
+
+
+def _log_identity(path: str | None) -> tuple[int | None, str | None]:
+    if not path:
+        return None, None
+    try:
+        stat = Path(path).stat()
+        return stat.st_size, f"{stat.st_dev}:{stat.st_ino}"
+    except OSError:
+        return None, None
+
+
+def _git_changed_paths(repo: str | None) -> list[str]:
+    if not repo:
+        return []
+    try:
+        proc = subprocess.run(
+            ["git", "-C", repo, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30, check=True)
+        records = (proc.stdout or b"").split(b"\0")
+        paths = set()
+        i = 0
+        while i < len(records) and records[i]:
+            rec = records[i]
+            status = rec[:2]
+            paths.add(rec[3:].decode("utf-8", errors="surrogateescape"))
+            if b"R" in status or b"C" in status:
+                i += 1
+                if i < len(records) and records[i]:
+                    paths.add(records[i].decode("utf-8", errors="surrogateescape"))
+            i += 1
+        return sorted(paths)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def track_job(*, pid: int, model: str, task: str, conversation_id: int | None = None,
+              log_path: str | None = None, verify: str | None = None,
+              marker: str | None = None, repo: str | None = None,
+              commit: bool = False) -> str:
+    """Register an in-flight delegated model job for completion monitoring."""
+    pid = int(pid)
+    if pid < 1:
+        raise ValueError("pid must be a positive integer")
+    if conversation_id is None or int(conversation_id) < 1:
+        raise ValueError("conversation_id must be a positive integer")
+    if not str(model).strip() or not str(task).strip():
+        raise ValueError("model and task must not be empty")
+    if commit and not repo:
+        raise ValueError("--commit requires --repo")
+    log_offset, log_identity = _log_identity(log_path)
+    job_id = uuid.uuid4().hex[:12]
+    job = {
+        "id": job_id, "pid": pid, "pid_identity": _pid_identity(pid),
+        "model": model, "task": task, "conversation_id": int(conversation_id),
+        "log_path": log_path, "log_offset": log_offset, "log_identity": log_identity,
+        "verify": verify, "marker": marker, "repo": repo, "commit": bool(commit),
+        "git_baseline": _git_changed_paths(repo),
+        "status": "running", "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "finished_at": None, "reported_at": None,
+    }
+    with _jobs_lock():
+        state = _jobs_state_unlocked()
+        _prune_jobs_state(state)
+        state["jobs"][job_id] = job
+        _save_jobs_state_unlocked(state)
+    log(f"job {job_id} tracked: pid={pid} model={model} task={task!r}")
+    return job_id
+
+
+def list_jobs() -> list:
+    return sorted(jobs_state().get("jobs", {}).values(), key=lambda j: j.get("started_at", ""))
+
+
+def untrack_job(job_id: str) -> bool:
+    with _jobs_lock():
+        state = _jobs_state_unlocked()
+        if job_id not in state.get("jobs", {}):
+            return False
+        del state["jobs"][job_id]
+        state["reported"] = [jid for jid in state["reported"] if jid != job_id]
+        _save_jobs_state_unlocked(state)
+    log(f"job {job_id} untracked")
+    return True
+
+
+def _pid_alive(pid: int, identity: str | None = None) -> bool:
+    if not pid or pid < 1:
+        return False
+    try:
+        os.kill(pid, 0)
+        if identity is not None:
+            current = _pid_identity(pid)
+            return current is None or current == identity
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists but owned by another user -> still working
+    except (OverflowError, ValueError):
+        return False
+
+
+def _log_tail(path: str | None, limit: int = 40) -> str:
+    if not path:
+        return ""
+    try:
+        p = Path(path)
+        if not p.exists():
+            return "(log file missing)"
+        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        return "\n".join(lines[-limit:])
+    except Exception:  # noqa: BLE001
+        return "(log unreadable)"
+
+
+def _marker_found(job: dict) -> bool:
+    """Search only log output produced after tracking, avoiding stale success markers."""
+    marker = job.get("marker")
+    path = job.get("log_path")
+    if not marker or not path:
+        return False
+    try:
+        p = Path(path)
+        stat = p.stat()
+        identity = f"{stat.st_dev}:{stat.st_ino}"
+        offset = job.get("log_offset")
+        if offset is None or identity != job.get("log_identity") or stat.st_size < int(offset):
+            offset = 0  # legacy state, rotation, or truncation: inspect the replacement log
+        with p.open("rb") as stream:
+            stream.seek(int(offset))
+            data = stream.read()
+        return str(marker).casefold() in data.decode("utf-8", errors="replace").casefold()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _run_verify(verify: str, repo: str | None) -> tuple[bool, str]:
+    """Run a trusted admin-supplied shell command. Returns (ok, output tail)."""
+    try:
+        proc = subprocess.run(verify, shell=True, cwd=repo or None,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              text=True, timeout=JOB_VERIFY_TIMEOUT)
+        tail = (proc.stdout or "")[-500:]
+        return proc.returncode == 0, tail
+    except subprocess.TimeoutExpired:
+        return False, f"(verification timed out after {JOB_VERIFY_TIMEOUT}s)"
+    except Exception as e:  # noqa: BLE001
+        return False, f"(verification failed: {e})"
+
+
+def _git_status(repo: str | None) -> str:
+    if not repo:
+        return ""
+    paths = _git_changed_paths(repo)
+    return f"{len(paths)} changed file(s) uncommitted in {repo}" if paths else "no uncommitted changes"
+
+
+def _commit_job(job: dict) -> str:
+    """Commit only paths that were clean when tracking began, then push."""
+    repo = job.get("repo")
+    if not repo:
+        return "no repo configured for auto-commit"
+    baseline = set(job.get("git_baseline") or [])
+    paths = [path for path in _git_changed_paths(repo) if path not in baseline]
+    if not paths:
+        return "no job-isolated changes to commit (pre-existing changes left untouched)"
+    try:
+        subprocess.run(["git", "-C", repo, "add", "--", *paths], check=True, timeout=60)
+        subprocess.run(["git", "-C", repo, "commit", "-q", "--only",
+                        "-m", f"harpp-job({job.get('model', 'model')}): {job.get('task', 'work')}",
+                        "--", *paths], check=True, timeout=60)
+        subprocess.run(["git", "-C", repo, "push"], check=True, timeout=120)
+        return f"committed + pushed {len(paths)} job-isolated path(s)"
+    except subprocess.CalledProcessError as e:
+        return f"commit attempt failed (exit {e.returncode}); pre-existing paths were not staged"
+    except Exception as e:  # noqa: BLE001
+        return f"commit attempt failed: {e}"
+
+
+def _report_job(job_id: str, job: dict) -> None:
+    """Build + deliver the completion report for a finished job."""
+    conv = job.get("conversation_id")
+    if not conv:
+        raise ValueError("job has no conversation_id")
+    tail = _log_tail(job.get("log_path"))
+    marker = job.get("marker")
+    checks = []
+    evidence = []
+    if marker:
+        found = _marker_found(job)
+        checks.append(found)
+        evidence.append(f"marker {'FOUND' if found else 'NOT FOUND'}: {marker!r}")
+    if job.get("verify"):
+        vok, vout = _run_verify(job["verify"], job.get("repo"))
+        checks.append(vok)
+        evidence.append(f"verify exit={'OK' if vok else 'FAIL'}\n{vout}")
+    ok = bool(checks) and all(checks)
+    if not checks:
+        evidence.append("no marker or verification command configured")
+    git = _git_status(job.get("repo"))
+    commit = ""
+    if ok and job.get("commit"):
+        commit = _commit_job(job)
+    status = "DONE" if ok else "FAILED"
+    lines = [f"[job:{job_id}] {job.get('task')} ({job.get('model')})", f"status: {status}",
+             "evidence: " + "\n".join(evidence)]
+    if tail and not marker:
+        lines.append("log tail:\n" + tail[-600:])
+    if git:
+        lines.append(f"git: {git}")
+    if commit:
+        lines.append(f"commit: {commit}")
+    lines.append("— auto-reported by the harness job monitor; no action needed unless noted.")
+    harpp_client.send_message(conversation_id=int(conv), body="\n".join(lines))
+
+
+def monitor_jobs() -> int:
+    """Claim dead jobs, verify and report once; return successful delivery count.
+
+    Claims serialize concurrent watch threads/processes. Failed delivery is reset to running
+    for retry. A stale claim from a crashed monitor is recovered on a later poll.
+    """
+    claimed = []
+    claim_token = f"{os.getpid()}:{uuid.uuid4().hex}"
+    try:
+        with _jobs_lock():
+            state = _jobs_state_unlocked()
+            reported = set(state.get("reported", []))
+            now = _now()
+            for jid, job in state.get("jobs", {}).items():
+                if jid in reported:
+                    continue
+                if job.get("status") == "reporting":
+                    owner = int(job.get("reporter_pid") or 0)
+                    age = now - int(job.get("report_started_ts") or 0)
+                    if _pid_alive(owner) and age <= JOB_REPORT_STALE_AFTER:
+                        continue
+                    job["status"] = "running"
+                if job.get("status") != "running":
+                    continue
+                if _pid_alive(int(job.get("pid", 0)), job.get("pid_identity")):
+                    continue
+                job["status"] = "reporting"
+                job["finished_at"] = job.get("finished_at") or time.strftime("%Y-%m-%d %H:%M:%S")
+                job["report_token"] = claim_token
+                job["reporter_pid"] = os.getpid()
+                job["report_started_ts"] = now
+                claimed.append((jid, dict(job)))
+            if claimed:
+                _save_jobs_state_unlocked(state)
+    except Exception as e:  # noqa: BLE001
+        log(f"job monitor registry claim failed: {e}")
+        return 0
+
+    reported_count = 0
+    for jid, job in claimed:
+        try:
+            _report_job(jid, job)
+            with _jobs_lock():
+                state = _jobs_state_unlocked()
+                current = state["jobs"].get(jid)
+                if not current or current.get("report_token") != claim_token:
+                    raise RuntimeError("job claim changed before report could be recorded")
+                current["status"] = "finished"
+                current["reported_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                current.pop("report_token", None)
+                current.pop("reporter_pid", None)
+                current.pop("report_started_ts", None)
+                if jid not in state["reported"]:
+                    state["reported"].append(jid)
+                _prune_jobs_state(state)
+                _save_jobs_state_unlocked(state)
+            reported_count += 1
+            log(f"job {jid} reported to conversation {job.get('conversation_id')}")
+        except Exception as e:  # noqa: BLE001
+            log(f"job {jid} report delivery failed: {e}; will retry next pass")
+            try:
+                with _jobs_lock():
+                    state = _jobs_state_unlocked()
+                    current = state["jobs"].get(jid)
+                    if current and current.get("report_token") == claim_token:
+                        current["status"] = "running"
+                        current.pop("report_token", None)
+                        current.pop("reporter_pid", None)
+                        current.pop("report_started_ts", None)
+                        _save_jobs_state_unlocked(state)
+            except Exception as reset_error:  # noqa: BLE001
+                log(f"job {jid} retry-state save failed: {reset_error}")
+    return reported_count
 
 
 def task_prompt(inbox: str, items: list, template: str | None = None) -> str:
