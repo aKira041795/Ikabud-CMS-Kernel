@@ -76,6 +76,13 @@ try {
         && !empty($adminListed['ok']) && isset($adminListedIds[$adminCreatedId])
         && !empty($adminDeleted['ok'])
         && !isset($adminAfterDelete[$adminCreatedId]));
+    $adminCreateOwner = $users->create($adminActor, ['email'=>'forbidden-owner-' . bin2hex(random_bytes(4)) . '@harpp.local', 'full_name'=>'Forbidden Owner', 'role'=>'owner', 'is_active'=>true, 'password'=>'ForbiddenOwner42!']);
+    $adminUpdateOwner = $users->update($adminActor, $ownerId, ['full_name'=>'Admin Must Not Edit Owner']);
+    $adminDeleteOwner = $users->delete($adminActor, $ownerId);
+    $assert('admin cannot create or manage privileged accounts',
+        empty($adminCreateOwner['ok']) && ($adminCreateOwner['code'] ?? '') === 'owner_required'
+        && empty($adminUpdateOwner['ok']) && ($adminUpdateOwner['code'] ?? '') === 'owner_required'
+        && empty($adminDeleteOwner['ok']) && ($adminDeleteOwner['code'] ?? '') === 'owner_required');
 
     // Live-style flow: an owner creates an administrator through the same
     // service used by POST /users; that account logs in and manages a user.

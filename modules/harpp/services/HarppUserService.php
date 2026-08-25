@@ -36,6 +36,7 @@ final class HarppUserService
         if (!$this->isAdmin($actor)) return $this->forbidden();
         $valid = $this->validated($input, true);
         if ($valid instanceof HarppServiceResult) return $valid;
+        if (!$this->canManageRole($actor, $valid['role'])) return $this->ownerRequired();
         try {
             $stmt = $this->db()->prepare('INSERT INTO harpp_users (email,password_hash,full_name,role,is_active,deleted_at,created_at,updated_at) VALUES (:email,:hash,:name,:role,:active,NULL,NOW(),NOW())');
             $stmt->execute([
@@ -61,10 +62,12 @@ final class HarppUserService
             $stmt->execute([':id' => $id]);
             $current = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!is_array($current)) return $this->rollback(HarppServiceResult::failure('User not found.', 404, 'not_found'));
+            if (!$this->canManageRole($actor, (string)$current['role'])) return $this->rollback($this->ownerRequired());
 
             $merged = array_merge($current, $input);
             $valid = $this->validated($merged, false);
             if ($valid instanceof HarppServiceResult) return $this->rollback($valid);
+            if (!$this->canManageRole($actor, $valid['role'])) return $this->rollback($this->ownerRequired());
             $self = ($actor['source'] ?? 'harpp') === 'harpp' && (int)($actor['id'] ?? 0) === $id;
             $roleRank = ['member'=>1, 'admin'=>2, 'owner'=>3];
             $selfDemotion = ($roleRank[$valid['role']] ?? 0) < ($roleRank[(string)$current['role']] ?? 0);
@@ -99,6 +102,7 @@ final class HarppUserService
             $stmt->execute([':id'=>$id]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!is_array($user)) return $this->rollback(HarppServiceResult::failure('User not found.', 404, 'not_found'));
+            if (!$this->canManageRole($actor, (string)$user['role'])) return $this->rollback($this->ownerRequired());
             if ($user['role'] === 'owner' && (int)$user['is_active'] === 1 && $this->activeOwnerCountLocked() <= 1) {
                 return $this->rollback(HarppServiceResult::failure('The last active owner cannot be deleted.', 409, 'last_owner'));
             }
@@ -150,7 +154,14 @@ final class HarppUserService
         return (($actor['source'] ?? 'harpp') === 'harpp' && in_array(($actor['role'] ?? ''), ['owner','admin'], true))
             || (($actor['source'] ?? '') === 'kernel' && ($actor['role'] ?? '') === 'superadmin');
     }
+    private function canManageRole(array $actor, string $role): bool
+    {
+        $ownerAuthority = (($actor['source'] ?? 'harpp') === 'harpp' && ($actor['role'] ?? '') === 'owner')
+            || (($actor['source'] ?? '') === 'kernel' && ($actor['role'] ?? '') === 'superadmin');
+        return $ownerAuthority || $role === 'member';
+    }
     private function forbidden(): HarppServiceResult { return HarppServiceResult::failure('Admin access is required.', 403, 'forbidden'); }
+    private function ownerRequired(): HarppServiceResult { return HarppServiceResult::failure('Owner access is required to manage administrators or owners.', 403, 'owner_required'); }
     private function rollback(HarppServiceResult $result): HarppServiceResult { if ($this->db()->inTransaction()) $this->db()->rollBack(); return $result; }
     private function db(): ModuleDB { if ($this->database instanceof ModuleDB) return $this->database; $db=\module('harpp')->db(); if (!$db instanceof ModuleDB) throw new \RuntimeException('HARPP module database is unavailable.'); return $this->database=$db; }
     private function log(string $message, Throwable $e): void { if (function_exists('write_log')) \write_log($message, 'error', ['module'=>'harpp','error'=>$e->getMessage()]); }
