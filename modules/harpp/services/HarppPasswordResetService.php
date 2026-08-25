@@ -120,24 +120,38 @@ final class HarppPasswordResetService
 
     private function resetUrl(string $token): string
     {
-        $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
-        if ($host === '' || preg_match('/^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/', $host) !== 1) {
-            $host = 'localhost';
+        $baseUrl = function_exists('external_base_url') ? \external_base_url() : '';
+        if ($baseUrl === '') {
+            $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+            if ($host === '' || preg_match('/^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/', $host) !== 1) {
+                $host = 'localhost';
+            }
+            $scheme = function_exists('request_scheme') ? \request_scheme() : 'http';
+            $baseUrl = $scheme . '://' . $host;
         }
-        $scheme = function_exists('is_https') && \is_https() ? 'https' : 'http';
-        return $scheme . '://' . $host . '/harpp/reset-password?token=' . urlencode($token);
+        return rtrim($baseUrl, '/') . '/harpp/reset-password?token=' . urlencode($token);
     }
 
     private function sendResetEmail(array $user, string $url, int $ttl): void
     {
         if (!function_exists('buildEmailTemplate') || !function_exists('sendEmail')) {
+            if (function_exists('write_log')) {
+                \write_log('HARPP reset email helpers unavailable', 'error', ['module' => 'harpp', 'user_id' => (int)$user['id']]);
+            }
             return;
         }
-        $name = htmlspecialchars((string)($user['full_name'] ?? 'HARPP operator'), ENT_QUOTES, 'UTF-8');
-        $content = '<p>Hi ' . $name . ',</p><p>Use the button below to reset your HARPP password. This link expires in ' . $ttl . ' minutes.</p><p>If you did not request this, ignore this email.</p>';
-        $body = \buildEmailTemplate('Reset your HARPP password', $content, 'Reset password', $url);
-        if (!\sendEmail((string)$user['email'], 'HARPP password reset', $body) && function_exists('write_log')) {
-            \write_log('HARPP reset email dispatch failed', 'warning', ['module' => 'harpp', 'user_id' => (int)$user['id']]);
+
+        try {
+            $name = htmlspecialchars((string)($user['full_name'] ?? 'HARPP operator'), ENT_QUOTES, 'UTF-8');
+            $content = '<p>Hi ' . $name . ',</p><p>Use the button below to reset your HARPP password. This link expires in ' . $ttl . ' minutes.</p><p>If you did not request this, ignore this email.</p>';
+            $body = \buildEmailTemplate('Reset your HARPP password', $content, 'Reset password', $url);
+            if (!\sendEmail((string)$user['email'], 'HARPP password reset', $body) && function_exists('write_log')) {
+                \write_log('HARPP reset email dispatch failed', 'error', ['module' => 'harpp', 'user_id' => (int)$user['id']]);
+            }
+        } catch (Throwable $e) {
+            if (function_exists('write_log')) {
+                \write_log('HARPP reset email dispatch failed', 'error', ['module' => 'harpp', 'user_id' => (int)$user['id'], 'error' => $e->getMessage()]);
+            }
         }
     }
 }

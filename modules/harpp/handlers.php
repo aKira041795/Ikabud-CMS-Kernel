@@ -184,7 +184,7 @@ function harppAuthForgotPassword(array $params = []): void
 {
     harppHandle(function (): void {
         $input = harppInput();
-        harppJson((new HarppPasswordResetService())->forgotPassword((string)($input['email'] ?? '')));
+        harppJson((new HarppPasswordResetService())->forgotPassword((string)($input['email'] ?? $input['identity'] ?? '')));
     });
 }
 
