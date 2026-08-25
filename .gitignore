@@ -109,3 +109,4 @@ release-manifest.json
 # Manual HTTP load-testing tool — deliberately excluded from the default
 # composer test suite (scripts/run-tests.php); keep it out of discovery.
 /tests/load_test.php
+harpp-deploy-*.zip
