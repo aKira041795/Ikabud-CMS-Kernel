@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import harpp_client  # noqa: E402
+import harpp_wake  # noqa: E402
 
 DEFAULT_INBOX = ".ai/harpp-inbox.jsonl"
 
@@ -77,7 +78,9 @@ def _autoprocess(records, log):
                 f.write("autoprocess: " + note + "\n")
 
 
-def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"):
+def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log",
+               wake=False, wake_command=None, cooldown=300, max_per_hour=6,
+               timeout=900, model=None):
     import time
     state = _load_watch_state()
     last_msg = int(state.get("last_msg_id", 0))
@@ -109,7 +112,14 @@ def watch_loop(once, interval, inbox, autoprocess=True, log=".ai/harpp-wake.log"
         except Exception as e:
             print(f"harpp watch: decision poll failed: {e}", flush=True)
         _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided})
-        if autoprocess and emitted:
+        if wake:
+            # Mechanism E: the wake agent is the processor. It checks the whole inbox
+            # queue (ledger-deduped) every cycle so cooldown/failure retries happen.
+            harpp_wake.maybe_wake(
+                inbox, enabled=True, command=wake_command,
+                model=model or harpp_wake.DEFAULT_MODEL, cooldown=cooldown,
+                max_per_hour=max_per_hour, timeout=timeout)
+        elif autoprocess and emitted:
             _autoprocess(emitted, log)
         if once:
             return
@@ -194,6 +204,12 @@ def main():
     wt.add_argument("--inbox", default=DEFAULT_INBOX, help="append new items to this JSONL file")
     wt.add_argument("--no-autoprocess", action="store_true", help="disable auto-ack/auto-apply standard behavior")
     wt.add_argument("--log", default=".ai/harpp-wake.log", help="autoprocess action log (default .ai/harpp-wake.log)")
+    wt.add_argument("--wake", action="store_true", help="enable headless Pi-agent wake (mechanism E; env HARPP_WAKE_ENABLED=1)")
+    wt.add_argument("--wake-command", default=os.environ.get("HARPP_WAKE_CMD", ""), help="override agent invocation; {model}/{prompt} substituted")
+    wt.add_argument("--cooldown", type=int, default=int(os.environ.get("HARPP_WAKE_COOLDOWN", "300")))
+    wt.add_argument("--max-per-hour", dest="max_per_hour", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_PER_HOUR", "6")))
+    wt.add_argument("--timeout", type=int, default=int(os.environ.get("HARPP_WAKE_TIMEOUT", "900")))
+    wt.add_argument("--model", default=os.environ.get("HARPP_WAKE_MODEL", "deepseek/deepseek-v4-pro"))
 
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
     ib.add_argument("--clear", action="store_true")
@@ -218,7 +234,11 @@ def main():
     elif args.cmd == "self-test":
         import unittest
         import tests.test_harpp_bridge as t
-        suite = unittest.defaultTestLoader.loadTestsFromModule(t)
+        import tests.test_harpp_wake as tw
+        suite = unittest.TestSuite([
+            unittest.defaultTestLoader.loadTestsFromModule(t),
+            unittest.defaultTestLoader.loadTestsFromModule(tw),
+        ])
         result = unittest.TextTestRunner(verbosity=2).run(suite)
         sys.exit(0 if result.wasSuccessful() else 1)
     elif args.cmd == "decision":
@@ -252,7 +272,11 @@ def main():
             harness_session_id=args.harness_session_id), indent=2))
     elif args.cmd == "watch":
         watch_loop(once=args.once, interval=args.interval, inbox=args.inbox,
-                   autoprocess=not args.no_autoprocess, log=args.log)
+                   autoprocess=not args.no_autoprocess, log=args.log,
+                   wake=args.wake or os.environ.get("HARPP_WAKE_ENABLED", "") == "1",
+                   wake_command=args.wake_command or None, cooldown=args.cooldown,
+                   max_per_hour=args.max_per_hour, timeout=args.timeout,
+                   model=args.model or None)
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear)
 
