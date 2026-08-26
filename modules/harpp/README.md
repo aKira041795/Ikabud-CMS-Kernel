@@ -19,7 +19,7 @@ effects; domain commits never claim push or Kernel audit atomicity.
 | | |
 |---|---|
 | Module id | `harpp` |
-| Version | `2.0.0` |
+| Version | `2.1.0` |
 | Kind | Auth-owned tenant module (own DB + auth shell) |
 | Auth | JWT cookie (`harpp_token`), roles `owner` / `admin` / `member` |
 | Storage | 26 owned `harpp_*` tables in the tenant database |
@@ -86,9 +86,11 @@ harness polls → acknowledges → applies → decision CLOSED + ADR recorded
 | `harpp_push_subscriptions` | Browser Web Push subscriptions |
 | `harpp_adrs` | Architecture Decision Records (auto-created on DECIDED) |
 | `harpp_settings` | Per-tenant settings (secrets redacted; VAPID is env-only) |
+| `harpp_deploy_jobs` | Phone-queued deploy requests + lifecycle state + receipt (R-FTP MVP) |
+| `harpp_deploy_inventory` | Non-secret packages/profiles the local client registered |
 
-The manifest is authoritative for all 26 tables. Migrations `001` through `007` are ordered;
-`007_harpp_integrity_collaboration_foundation.sql` is the additive HARPP 2.0 migration.
+The manifest is authoritative for all 28 tables. Migrations `001` through `008` are ordered;
+`008_harpp_deploy.sql` is the additive R-FTP deploy migration.
 
 ---
 
@@ -337,55 +339,65 @@ bash modules/harpp/tests/run-all.sh        # all phase suites + module:validate 
 Items below are deliberately out of scope for the current phase; each is a separate
 reviewed decision before implementation.
 
-### R-FTP — FTP deployment capability (module side)
+### R-FTP — FTP deployment capability (module side) — **MVP IMPLEMENTED (2.1.0)**
 
 **Driver:** operators deploy/patch files on shared hosts (e.g., Bluehost) over FTP and
-want that driven from HARPP rather than by hand.
+want that driven from HARPP while away from the machine.
 
 **Where FTP runs:** FTP execution stays on the **local machine** — the local client holds
 the saved FTP profiles (host/port/user/secret/transport + optional path root) in its
-secure store (`0600`/encrypted) and performs the upload + unarchive. The module never
-stores or proxies FTP credentials.
+secure store (`0600`/encrypted) and performs the upload. The module never stores or
+proxies FTP credentials; it sees only a named profile reference and non-secret metadata.
 
-**Module contributions (this README):**
-1. **Bridge action endpoint** — a machine-authenticated deploy action (e.g.,
-   `POST /api/v1/harpp/bridge/actions/ftp` or a dedicated `/bridge/ftp/*` surface) that the
-   local client calls to: (a) declare an FTP **upload** of a local file to a saved profile
-   path, and (b) issue the **unarchive** command over that FTP connection (site-specific
-   verb, e.g. `SITE UNARCHIVE <file>`). The module records the request/outcome durably.
-2. **Lifecycle/ADR integration** — an FTP deployment runs as a HARPP decision/action so the
-   outcome is audited and a durable ADR is written (`harpp_adrs`), consistent with the
-   existing `DECIDED → ACKNOWLEDGED → APPLIED → CLOSED` flow and the audit trail.
-3. **Notification parity** — push/notification on completion or failure, honoring the
-   existing `notify_decisions` / `notify_messages` gates.
+**MVP flow (implemented):**
+1. The local client (`tools/harpp-bridge/harpp_deploy_worker.py`) publishes the deploy
+   inventory (packages + profile names/hosts — no secrets) over the bridge and then
+   polls for pending deploys.
+2. The phone GUI (`/harpp/deploy`) lists that inventory, the operator picks a package +
+   profile and confirms the deploy (an explicit second step shows the target host).
+3. The module records a `harpp_deploy_jobs` row (`QUEUED`) and the local worker
+   CAS-claims it (`CLAIMED`), resolves the real profile/package locally, runs
+   `deploy_harpp.py`, and reports live steps (`UPLOADING → EXTRACTING → VERIFYING`) then
+   a redacted receipt (`SUCCEEDED`/`FAILED`) back.
+4. The operator gets a push + notification on completion/failure.
+
+**Module surface (implemented):** user routes `/api/v1/harpp/deploys*` (CSRF + capability
+`harpp.deploy.read/request@1`), bridge routes `/api/v1/harpp/bridge/deploys*` (machine-auth
+`X-HARPP-BRIDGE-KEY`, capabilities `harpp.deploy.inventory/claim/report@1`), and a strict
+append-only state machine with claim-token ownership + optimistic concurrency. Every
+transition writes an immutable audit event + outbox entry via `HarppFoundationService`.
 
 **Security (module side):**
 - FTP credentials are local-machine secrets only; the module sees a named profile
-  reference, never the secret.
-- The unarchive verb is allowlisted and profile-bound; remote filenames are validated —
-  no arbitrary host/command combinations through the module.
-- The action endpoint stays bridge-header-auth (`X-HARPP-BRIDGE-KEY`), idempotent, and
-  rate-limited like the other bridge endpoints.
+  reference, never the secret. `harpp_deploy_inventory` carries host/transport/root/ops
+  metadata only.
+- Only profiles the operator explicitly marked `remote_allowed` locally appear in the
+  phone GUI, and the worker refuses to execute a phone-triggered deploy for any other
+  profile (plain-FTP risk gate is decided locally, never remotely).
+- The bridge endpoints are bridge-header-auth, and deploys are idempotent, claim-token
+  bound, and CAS-versioned.
 
-**Feasibility gate (before implementation):** a raw FTP `SITE` unzip/unarchive verb is
-host-specific and NOT part of the FTP standard (RFC 959 leaves `SITE` as an opaque,
-server-defined hook). Verify against the real target host (Bluehost/cPanel) before
-building: if cPanel does not honor an FTP `SITE` unarchive command, pivot extraction to
-cPanel's Archive Manager (UAPI `Fileman::extract_file`) and keep FTP upload-only, or
-drop the unarchive step and notify "uploaded — extract in cPanel". Do not build an
-FTP-`SITE` unarchive on an assumption.
+**Deferred from the MVP (future):** formal decision/ADR lifecycle integration (a deploy
+as a HARPP decision with quorum/policy), uploading a package *from* the phone, and remote
+unarchive beyond `ssh_unzip`/`manual_cpanel`. The FTP `SITE` unarchive feasibility gate
+still applies — see below.
 
-**Acceptance sketch:** the owner saves an FTP profile on their machine, triggers an upload
-of a build archive to a saved path, issues the unarchive command, and HARPP records the
-success as a decision/ADR + push — with the FTP secret never crossing the module.
+**Feasibility gate (unarchive):** a raw FTP `SITE` unzip/unarchive verb is host-specific
+and NOT part of the FTP standard (RFC 959 leaves `SITE` as an opaque, server-defined
+hook). Verify against the real target host (Bluehost/cPanel) before building: if cPanel
+does not honor an FTP `SITE` unarchive command, pivot extraction to cPanel's Archive
+Manager (UAPI `Fileman::extract_file`) and keep FTP upload-only, or drop the unarchive
+step and notify "uploaded — extract in cPanel". The MVP ships `ssh_unzip` (SSH available)
+and `manual_cpanel` (upload + verify + extract in cPanel) — no FTP-`SITE` assumption.
 
-> Cross-cutting: the local client half of this roadmap is tracked in the standalone
-> HARPP `ARCHITECTURE.md` roadmap as **R3 — FTP capability (saved FTP profiles: uploads +
-> unarchive command)**; implement this module surface together with it.
+> Cross-cutting: the local client half (profiles, worker, local UI) lives in
+> `tools/harpp-bridge/`; the standalone distribution's R3 tracks its own packaging.
 
-Current coverage: 212/212 assertions across auth, decision lifecycle (incl. N×N transition
-matrix), auto-ADR, messaging, Web Push/VAPID, PWA routes/assets, bridge auth/idempotency/rotation,
-secret redaction, SSRF rejection, and audit-failure rollback.
+Static contract checks: **219** (integrity/collaboration/deploy) plus the phase suites and
+the Python bridge + deploy-worker suites. Coverage spans auth, decision lifecycle (incl.
+N×N transition matrix), auto-ADR, messaging, Web Push/VAPID, PWA routes/assets, bridge
+auth/idempotency/rotation, secret redaction, SSRF rejection, audit-failure rollback, and
+the R-FTP deploy slice (phone queue → local executor → receipt).
 
 ---
 

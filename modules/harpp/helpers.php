@@ -10,6 +10,7 @@ use Harpp\Services\HarppMessagingService;
 use Harpp\Services\HarppBridgeAuthService;
 use Harpp\Services\HarppFoundationService;
 use Harpp\Services\HarppCollaborationService;
+use Harpp\Services\HarppDeployService;
 use Ikabud\Kernel\Contracts\ModuleDB;
 
 require_once __DIR__ . '/services/HarppServiceResult.php';
@@ -27,6 +28,7 @@ require_once __DIR__ . '/services/HarppMessagingService.php';
 require_once __DIR__ . '/services/HarppAdrService.php';
 require_once __DIR__ . '/services/HarppBridgeAuthService.php';
 require_once __DIR__ . '/services/HarppBridgeService.php';
+require_once __DIR__ . '/services/HarppDeployService.php';
 
 app()->registerAuthTable('harpp', 'harpp_users');
 
@@ -58,6 +60,11 @@ function harpp_capability_handlers(): array
         'harpp.decision.assign@1' => 'harpp_cap_decision_assign_1',
         'harpp.decision.approve@1' => 'harpp_cap_decision_approve_1',
         'harpp.notification.preferences@1' => 'harpp_cap_notification_preferences_1',
+        'harpp.deploy.read@1' => 'harpp_cap_deploy_read_1',
+        'harpp.deploy.request@1' => 'harpp_cap_deploy_request_1',
+        'harpp.deploy.inventory@1' => 'harpp_cap_deploy_inventory_1',
+        'harpp.deploy.claim@1' => 'harpp_cap_deploy_claim_1',
+        'harpp.deploy.report@1' => 'harpp_cap_deploy_report_1',
         'entity.list.harpp_conversation@1' => 'harpp_cap_entity_list_conversation_1',
         'entity.list.harpp_message@1' => 'harpp_cap_entity_list_message_1',
         'entity.list.harpp_decision@1' => 'harpp_cap_entity_list_decision_1',
@@ -127,6 +134,11 @@ function harppPermissionResult(string $permission, mixed $payload): array
         'harpp.participant.manage' => ['owner', 'admin', 'member'],
         'harpp.decision.assign' => ['owner', 'admin', 'member'],
         'harpp.decision.approve' => ['owner', 'admin', 'member'],
+        'harpp.deploy.read' => ['owner', 'admin', 'member'],
+        'harpp.deploy.request' => ['owner', 'admin'],
+        'harpp.deploy.inventory' => ['owner', 'admin'],
+        'harpp.deploy.claim' => ['owner', 'admin'],
+        'harpp.deploy.report' => ['owner', 'admin'],
     ];
     $kernelSuperadmin = $source === 'kernel' && $role === 'superadmin';
     $moduleUser = in_array($source, ['harpp','harpp_bridge'], true) && in_array($role, $roles[$permission] ?? [], true);
@@ -244,6 +256,8 @@ function harppCapabilityPermission(array $actor, string $permission): bool
         'harpp.project.read'=>['owner','admin','member'], 'harpp.project.manage'=>['owner','admin','member'],
         'harpp.participant.manage'=>['owner','admin','member'], 'harpp.decision.assign'=>['owner','admin','member'],
         'harpp.decision.approve'=>['owner','admin','member'],
+        'harpp.deploy.read'=>['owner','admin','member'], 'harpp.deploy.request'=>['owner','admin'],
+        'harpp.deploy.inventory'=>['owner','admin'], 'harpp.deploy.claim'=>['owner','admin'], 'harpp.deploy.report'=>['owner','admin'],
     ];
     return (int)($actor['id'] ?? 0) > 0 && in_array((string)($actor['role'] ?? ''), $roles[$permission] ?? [], true);
 }
@@ -331,6 +345,26 @@ function harpp_cap_decision_approve_1(mixed $payload, string $capabilityId='', s
 function harpp_cap_notification_preferences_1(mixed $payload, string $capabilityId='', string $providerId=''): array
 {
     [$d,$a,$ok]=harppCapabilityData($payload,'harpp.read');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->notificationPreferences($a,$d));
+}
+function harpp_cap_deploy_read_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    return harppPermissionResult('harpp.deploy.read', $payload);
+}
+function harpp_cap_deploy_request_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    return harppPermissionResult('harpp.deploy.request', $payload);
+}
+function harpp_cap_deploy_inventory_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.bridge');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppDeployService(harppDb()))->registerInventory($a,$d));
+}
+function harpp_cap_deploy_claim_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.bridge');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppDeployService(harppDb()))->claim($a,(int)($d['deploy_id']??0)));
+}
+function harpp_cap_deploy_report_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.bridge');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppDeployService(harppDb()))->report($a,(int)($d['deploy_id']??0),$d));
 }
 function harpp_cap_entity_list_conversation_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {

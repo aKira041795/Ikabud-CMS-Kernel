@@ -1,0 +1,44 @@
+{
+    "profiles": {
+        "bluehost-harpp": {
+            "approved_host": "your-approved-host.example",
+            "host": "your-approved-host.example",
+            "user": "your-sftp-user",
+            "port": 22,
+            "transport": "sftp",
+            "root_path": "/absolute/application/root",
+            "private_key": "/home/you/.ssh/harpp_deploy",
+            "known_hosts": "/home/you/.ssh/known_hosts",
+            "extraction_adapter": "ssh_unzip",
+            "allowed_operations": [
+                "preflight",
+                "backup",
+                "upload",
+                "verify",
+                "extract",
+                "health_check"
+            ],
+            "health_url": "https://your-harpp-host.example/api/v1/harpp/health",
+            "remote_allowed": true
+        },
+        "bluehost-ftps": {
+            "approved_host": "ftps-target.example",
+            "host": "ftps-target.example",
+            "user": "your-ftp-user",
+            "port": 21,
+            "transport": "ftps",
+            "root_path": "/public_html",
+            "password": "YOUR_FTPS_PASSWORD",
+            "tls_pin": "REPLACE_WITH_SERVER_CERT_SHA256_FINGERPRINT",
+            "extraction_adapter": "manual_cpanel",
+            "allowed_operations": [
+                "preflight",
+                "upload",
+                "verify",
+                "health_check"
+            ],
+            "health_url": "https://your-harpp-host.example/api/v1/harpp/health",
+            "remote_allowed": false
+        }
+    }
+}

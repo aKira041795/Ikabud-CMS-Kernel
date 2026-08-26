@@ -1291,6 +1291,44 @@ def _report_job(job_id: str, job: dict) -> str:
     return status
 
 
+def sync_deploys() -> int:
+    """Publish the deploy inventory and, if any deploy is queued, start the deploy
+    worker once (on demand). The FTP worker process runs only when there is work, so
+    the local machine is not continuously connected to the deploy host. Returns the
+    number of pending deploys handed to the worker (0 when idle/absent)."""
+    try:
+        import harpp_deploy_worker as _dw
+    except ImportError:
+        return 0  # deploy tooling is not vendored into this distribution
+    try:
+        _dw.publish_inventory()
+    except Exception as e:  # noqa: BLE001 - watch loop must never break
+        log(f"deploy inventory publish failed: {e}")
+    try:
+        pending = harpp_client.api("GET", "/api/v1/harpp/bridge/deploys/pending?limit=10")
+        jobs = pending.get("data", {}).get("deploys", []) if pending.get("ok") else []
+    except Exception as e:  # noqa: BLE001
+        log(f"deploy pending check failed: {e}")
+        return 0
+    if not jobs:
+        return 0
+    try:
+        import sys
+        worker = Path(__file__).resolve().parent / "harpp_deploy_worker.py"
+        if not worker.is_file():
+            log("deploy worker script missing; cannot run on-demand deploy")
+            return 0
+        subprocess.Popen([sys.executable, str(worker), "--once",
+                          "--log", str(CONFIG_DIR / "deploy-worker.log")],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        log(f"started deploy worker for {len(jobs)} pending deploy(s)")
+        return len(jobs)
+    except Exception as e:  # noqa: BLE001
+        log(f"could not start deploy worker: {e}")
+        return 0
+
+
 def monitor_jobs() -> int:
     """Claim dead jobs, verify and report once; return successful delivery count.
 

@@ -18,6 +18,7 @@ $h = new TestHarness('harpp-phase4');
 $h->fingerprint('modules/harpp/handlers.php');
 $h->fingerprint('modules/harpp/assets/sw.js');
 $h->fingerprint('modules/harpp/assets/users.js');
+$h->fingerprint('modules/harpp/assets/deploy.js');
 $assert = static function(string $name, bool $ok, string $detail = '') use ($h): void { $h->test($name, $ok, $detail); };
 $capture = static function (callable $handler): array {
     http_response_code(200);
@@ -43,6 +44,7 @@ $pages = [
     'settings' => static fn() => harppPageSettings(),
     'users' => static fn() => harppPageUsers(),
     'notifications' => static fn() => harppPageNotifications(),
+    'deploy' => static fn() => harppPageDeploy(),
 ];
 foreach ($pages as $name => $handler) {
     [$status, $html] = $capture($handler);

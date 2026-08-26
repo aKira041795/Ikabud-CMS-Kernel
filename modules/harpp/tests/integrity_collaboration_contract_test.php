@@ -20,9 +20,9 @@ $inboxJs=(string)file_get_contents(__DIR__.'/../assets/decisions.js');
 $detailTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/decision-detail.disyl');
 $inboxTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/decisions.disyl');
 
-$assert($manifest['version']==='2.0.0','manifest semver');
-$assert(count($manifest['owns_tables'])===26,'owned-table inventory');
-$assert(end($manifest['migrations'])==='database/migrations/007_harpp_integrity_collaboration_foundation.sql','foundation migration registration');
+$assert($manifest['version']==='2.1.0','manifest semver');
+$assert(count($manifest['owns_tables'])===28,'owned-table inventory');
+$assert(end($manifest['migrations'])==='database/migrations/008_harpp_deploy.sql','deploy migration registration');
 $capabilities=array_column($manifest['capabilities']['exposes'],'id');
 foreach(['harpp.lifecycle.transition@2','harpp.archive@1','harpp.purge.request@1','harpp.purge.approve@1','harpp.audit.read@1','harpp.outbox.dispatch@1','harpp.workspace.read@1','harpp.workspace.manage@1','harpp.project.read@1','harpp.project.manage@1','harpp.participant.manage@1','harpp.message.receipt@1','harpp.decision.assign@1','harpp.decision.approve@1','harpp.notification.preferences@1'] as $capability){$assert(in_array($capability,$capabilities,true),"capability $capability");$assert(str_contains($helpers,"'$capability' =>"),"handler mapping $capability");}
 foreach(['harpp_workspaces','harpp_workspace_memberships','harpp_projects','harpp_conversation_participants','harpp_message_receipts','harpp_decision_policy_snapshots','harpp_approval_delegations','harpp_audit_events','harpp_outbox','harpp_idempotency_keys','harpp_purge_requests'] as $table){$assert(str_contains($migration,"`$table`"),"migration table $table");}
@@ -53,5 +53,24 @@ $policy=['quorum'=>2,'exclude_creator'=>true,'exclude_executor'=>true,'allow_vet
 $assert(HarppCollaborationPolicy::approvalSatisfied($policy,[['user_id'=>2,'vote'=>'approve'],['user_id'=>3,'vote'=>'approve']],1,4),'quorum satisfied by distinct eligible actors');
 $assert(!HarppCollaborationPolicy::approvalSatisfied($policy,[['user_id'=>1,'vote'=>'approve'],['user_id'=>3,'vote'=>'approve']],1,4),'creator excluded from quorum');
 $assert(!HarppCollaborationPolicy::approvalSatisfied($policy,[['user_id'=>2,'vote'=>'approve'],['user_id'=>3,'vote'=>'veto']],1,4),'veto blocks approval');
+
+$deployService=(string)file_get_contents(__DIR__.'/../services/HarppDeployService.php');
+$deployMigration=(string)file_get_contents(__DIR__.'/../database/migrations/008_harpp_deploy.sql');
+$deployTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/deploy.disyl');
+foreach(['harpp.deploy.read@1','harpp.deploy.request@1','harpp.deploy.inventory@1','harpp.deploy.claim@1','harpp.deploy.report@1'] as $capability){$assert(in_array($capability,$capabilities,true),"deploy capability $capability");$assert(str_contains($helpers,"'$capability' =>"),"deploy handler mapping $capability");}
+foreach(['harpp_deploy_jobs','harpp_deploy_inventory'] as $table){$assert(in_array($table,$manifest['owns_tables'],true),"owned deploy table $table");$assert(str_contains($deployMigration,"`$table`"),"deploy migration table $table");}
+$assert(str_contains($deployMigration,"ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"),'deploy migration is InnoDB/utf8mb4');
+$assert(!preg_match('/DELETE\s+FROM\s+harpp_deploy_jobs/i',$deployService),'deploy service never deletes jobs');
+$assert(str_contains($deployService,'claim_token')&&str_contains($deployService,'version_conflict')&&str_contains($deployService,'deploy_claim_mismatch'),'deploy claims are token-bound and CAS-versioned');
+$assert(str_contains($deployService,"'QUEUED'")&&str_contains($deployService,"'SUCCEEDED'")&&str_contains($deployService,"'UPLOADING'")&&str_contains($deployService,"'FAILED'"),'deploy state machine is strict');
+$assert(!str_contains($deployService,'password')&&!str_contains($deployService,'private_key'),'deploy service never touches FTP credentials');
+$assert(str_contains($deployService,'PROFILE_FIELDS')&&str_contains($deployService,"'root_path'"),'deploy inventory carries non-secret profile metadata only');
+$assert(str_contains($deployTemplate,'deploy-confirm-yes')&&str_contains($deployTemplate,'deploy-confirm-host'),'deploy UI requires an explicit confirm step');
+$deployRoutes=(string)file_get_contents(__DIR__.'/../routes.php');
+$postSection=substr($deployRoutes,strpos($deployRoutes,"'POST' => ["),strpos($deployRoutes,"'PUT' => [")-strpos($deployRoutes,"'POST' => ["));
+foreach(['/api/v1/harpp/bridge/deploys/inventory','/api/v1/harpp/bridge/deploys/{id}/claim','/api/v1/harpp/bridge/deploys/{id}/report','/api/v1/harpp/deploys','/api/v1/harpp/deploys/{id}/cancel'] as $route){$assert(str_contains($postSection,"'$route' =>"),"deploy write route $route must be POST");}
+$assert(str_contains($deployRoutes,"'/api/v1/harpp/deploys/inventory' => 'harpp:harppDeployInventory'"),'deploy inventory read is a GET');
+$assert(preg_match('/function harpp_cap_deploy_read_1.*?harppPermissionResult\(\'harpp\.deploy\.read\'/s',$helpers)===1,'deploy read cap uses the user-facing harppPermissionResult pattern');
+$assert(preg_match('/function harpp_cap_deploy_request_1.*?harppPermissionResult\(\'harpp\.deploy\.request\'/s',$helpers)===1,'deploy request cap uses the user-facing harppPermissionResult pattern');
 
 echo "HARPP integrity/collaboration contract: $checks checks passed\n";

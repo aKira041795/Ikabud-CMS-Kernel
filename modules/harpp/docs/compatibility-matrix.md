@@ -4,7 +4,7 @@ This matrix versions distributions independently. Compatibility means that the l
 
 | Component | Version | Compatible with | Status |
 |---|---:|---|---|
-| Ikabud module | 2.0.0 | Module migrations 001-007; bridge API v1 compatibility reads/writes; Phase 0 and Phase 1 capabilities | Implemented in this repository |
+| Ikabud module | 2.1.0 | Module migrations 001-008; bridge API v1 compatibility reads/writes; Phase 0, Phase 1 capabilities, and the R-FTP deploy MVP | Implemented in this repository |
 | Local bridge/runner | 1.1.0 | `/api/v1/harpp/bridge/*`; decimal server IDs; existing cursor contract | Source-compatible; Phase 2 executor contracts are not implemented |
 | MCP bridge server | 1.1.0 | MCP protocol `2024-11-05`; bridge/runner 1.1.x | Source-compatible |
 | Standalone PWA/PHP BFF | 1.0.x observed | Bridge API v1 only | Separately distributed at `/var/www/html/harpp`; live/browser verification remains external |

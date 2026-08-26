@@ -196,6 +196,9 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             harpp_wake.monitor_jobs()
             # Governed multi-stage workflows advance on each stage's real outcome.
             harpp_wake.advance_workflows()
+            # Phone-queued deploys: publish inventory + run the deploy worker on demand,
+            # so the FTP worker process exists only while a deploy is actually running.
+            harpp_wake.sync_deploys()
         except Exception as e:
             print(f"harpp watch: job monitor failed: {e}", flush=True)
         # Substantive processing: the wake agent (when enabled) replies/works in the
