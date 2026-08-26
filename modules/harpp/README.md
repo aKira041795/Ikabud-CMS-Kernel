@@ -318,6 +318,51 @@ bash modules/harpp/tests/run-all.sh        # all phase suites + module:validate 
                                            # fails (exit 1) if error.log is non-empty
 ```
 
+---
+
+## 11. Roadmap (future work)
+
+Items below are deliberately out of scope for the current phase; each is a separate
+reviewed decision before implementation.
+
+### R-FTP — FTP deployment capability (module side)
+
+**Driver:** operators deploy/patch files on shared hosts (e.g., Bluehost) over FTP and
+want that driven from HARPP rather than by hand.
+
+**Where FTP runs:** FTP execution stays on the **local machine** — the local client holds
+the saved FTP profiles (host/port/user/secret/transport + optional path root) in its
+secure store (`0600`/encrypted) and performs the upload + unarchive. The module never
+stores or proxies FTP credentials.
+
+**Module contributions (this README):**
+1. **Bridge action endpoint** — a machine-authenticated deploy action (e.g.,
+   `POST /api/v1/harpp/bridge/actions/ftp` or a dedicated `/bridge/ftp/*` surface) that the
+   local client calls to: (a) declare an FTP **upload** of a local file to a saved profile
+   path, and (b) issue the **unarchive** command over that FTP connection (site-specific
+   verb, e.g. `SITE UNARCHIVE <file>`). The module records the request/outcome durably.
+2. **Lifecycle/ADR integration** — an FTP deployment runs as a HARPP decision/action so the
+   outcome is audited and a durable ADR is written (`harpp_adrs`), consistent with the
+   existing `DECIDED → ACKNOWLEDGED → APPLIED → CLOSED` flow and the audit trail.
+3. **Notification parity** — push/notification on completion or failure, honoring the
+   existing `notify_decisions` / `notify_messages` gates.
+
+**Security (module side):**
+- FTP credentials are local-machine secrets only; the module sees a named profile
+  reference, never the secret.
+- The unarchive verb is allowlisted and profile-bound; remote filenames are validated —
+  no arbitrary host/command combinations through the module.
+- The action endpoint stays bridge-header-auth (`X-HARPP-BRIDGE-KEY`), idempotent, and
+  rate-limited like the other bridge endpoints.
+
+**Acceptance sketch:** the owner saves an FTP profile on their machine, triggers an upload
+of a build archive to a saved path, issues the unarchive command, and HARPP records the
+success as a decision/ADR + push — with the FTP secret never crossing the module.
+
+> Cross-cutting: the local client half of this roadmap is tracked in the standalone
+> HARPP `ARCHITECTURE.md` roadmap as **R3 — FTP capability (saved FTP profiles: uploads +
+> unarchive command)**; implement this module surface together with it.
+
 Current coverage: 212/212 assertions across auth, decision lifecycle (incl. N×N transition
 matrix), auto-ADR, messaging, Web Push/VAPID, PWA routes/assets, bridge auth/idempotency/rotation,
 secret redaction, SSRF rejection, and audit-failure rollback.
