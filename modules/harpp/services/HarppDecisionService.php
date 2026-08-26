@@ -135,7 +135,7 @@ final class HarppDecisionService
         }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision transition failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to transition decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 
-    /** Retry-safe ACKNOWLEDGED/APPLIED -> APPLIED -> CLOSED transaction. */
+    /** Retry-safe shortcut: any non-terminal state -> APPLIED -> CLOSED transaction. */
     public function applyAndClose(array $actor,int $decisionId,string $applyRationale,string $closeRationale,array $changes=[],?int $tenantId=null)
     {
         if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin']))return HarppServiceResult::failure('Forbidden.',403);
@@ -143,13 +143,34 @@ final class HarppDecisionService
             $this->db()->beginTransaction();$s=$this->db()->prepare('SELECT * FROM harpp_decisions WHERE id=:id FOR UPDATE');$s->execute([':id'=>$decisionId]);$row=$s->fetch(PDO::FETCH_ASSOC);if(!is_array($row))throw new \InvalidArgumentException('Decision not found.');
             $from=(string)$row['lifecycle_state'];
             if($from==='CLOSED'){$this->db()->commit();return HarppServiceResult::success(['decision_id'=>$decisionId,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>true], '', [], 'harpp_decision',$decisionId);}
-            if(!in_array($from,['ACKNOWLEDGED','APPLIED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Illegal decision transition: {$from} -> APPLIED.",409,'illegal_transition');}
+            if(in_array($from,['EXPIRED','SUPERSEDED','CANCELLED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Illegal decision transition: {$from} -> APPLIED.",409,'illegal_transition');}
             $workbench=trim((string)($changes['workbench_state']??$row['workbench_state']??''));
-            if($from==='ACKNOWLEDGED'){$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='APPLIED',applied_at=COALESCE(applied_at,NOW()),workbench_state=:workbench WHERE id=:id")->execute([':workbench'=>$workbench?:null,':id'=>$decisionId]);$this->recordTransition($decisionId,'ACKNOWLEDGED','APPLIED',$actor,$applyRationale,$workbench);}
+            if($from!=='APPLIED'){$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='APPLIED',applied_at=COALESCE(applied_at,NOW()),workbench_state=:workbench WHERE id=:id")->execute([':workbench'=>$workbench?:null,':id'=>$decisionId]);$this->recordTransition($decisionId,$from,'APPLIED',$actor,$applyRationale,$workbench);}
             $this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='CLOSED',closed_at=COALESCE(closed_at,NOW()) WHERE id=:id")->execute([':id'=>$decisionId]);$this->recordTransition($decisionId,'APPLIED','CLOSED',$actor,$closeRationale,$workbench);
             $event=$this->recordDomainEffects('harpp.decision.applied','decision.applied_and_closed',$actor,$decisionId,['state'=>$from],['state'=>'CLOSED']);$this->db()->commit();$this->supplementalAudit('decision.applied_and_closed',$actor,['decision_id'=>$decisionId]);
             return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>$from==='APPLIED'], '', [$event], 'harpp_decision',$decisionId);
         }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision apply/close failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to apply and close decision.',$e instanceof \InvalidArgumentException?404:500);}
+    }
+
+    /** Manual delete for closed/terminal decisions. Removes the decision, its audit trail and notifications, and any linked ADR. */
+    public function delete(array $actor,int $decisionId,?int $tenantId=null)
+    {
+        if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin']))return HarppServiceResult::failure('Forbidden.',403);
+        if($decisionId<=0)return HarppServiceResult::failure('Decision not found.',404);
+        try{
+            $this->db()->beginTransaction();
+            $s=$this->db()->prepare('SELECT id,lifecycle_state FROM harpp_decisions WHERE id=:id FOR UPDATE');$s->execute([':id'=>$decisionId]);$row=$s->fetch(PDO::FETCH_ASSOC);
+            if(!is_array($row))throw new \InvalidArgumentException('Decision not found.');
+            $state=(string)$row['lifecycle_state'];
+            if(!in_array($state,['CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Only closed decisions can be deleted (current state: {$state}).",409,'delete_requires_closed');}
+            // ADRs reference decisions with ON DELETE RESTRICT; remove the linked memory first so the delete can proceed.
+            $this->db()->prepare('DELETE FROM harpp_adrs WHERE decision_ref=:id')->execute([':id'=>$decisionId]);
+            $this->db()->prepare('DELETE FROM harpp_decisions WHERE id=:id')->execute([':id'=>$decisionId]);
+            $event=$this->recordDomainEffects('harpp.decision.deleted','decision.deleted',$actor,$decisionId,['state'=>$state],['deleted'=>true],'Manual delete of closed decision.');
+            $this->db()->commit();
+            $this->supplementalAudit('decision.deleted',$actor,['decision_id'=>$decisionId,'state'=>$state]);
+            return HarppServiceResult::success(['decision_id'=>$decisionId,'state'=>$state,'deleted'=>true], 'Decision deleted.', [$event], 'harpp_decision', $decisionId);
+        }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision delete failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to delete decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 
     public function get(array $actor,int $decisionId,?int $tenantId=null)

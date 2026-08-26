@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('decision-action');
   const select = form.elements.state;
   const applyForm = document.getElementById('decision-apply-close');
+  const deleteForm = document.getElementById('decision-delete');
 
   const transitions = {
     CREATED: ['PENDING', 'CANCELLED'],
@@ -35,7 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
     button.disabled = !first;
 
     if (applyForm) {
-      applyForm.hidden = !(isOwnerOrAdmin && (state === 'ACKNOWLEDGED' || state === 'APPLIED'));
+      const terminal = ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'];
+      applyForm.hidden = !(isOwnerOrAdmin && !terminal.includes(state));
+    }
+
+    if (deleteForm) {
+      const terminal = ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'];
+      deleteForm.hidden = !(isOwnerOrAdmin && terminal.includes(state));
     }
   }
 
@@ -103,6 +110,23 @@ document.addEventListener('DOMContentLoaded', () => {
           body: { apply_rationale: rationale, close_rationale: rationale }
         });
         status.textContent = 'Decision applied and closed. Returning to inbox…';
+        window.setTimeout(() => { window.location.href = '/harpp/decisions'; }, 500);
+      } catch (error) {
+        status.textContent = error.message;
+        button.disabled = false;
+      }
+    };
+  }
+
+  if (deleteForm) {
+    deleteForm.onsubmit = async event => {
+      event.preventDefault();
+      if (!window.confirm('Permanently delete this closed decision? This cannot be undone.')) return;
+      const button = deleteForm.querySelector('button');
+      button.disabled = true;
+      try {
+        await Harpp.fetch(`/api/v1/harpp/decisions/${id}`, { method: 'DELETE' });
+        status.textContent = 'Decision deleted. Returning to inbox…';
         window.setTimeout(() => { window.location.href = '/harpp/decisions'; }, 500);
       } catch (error) {
         status.textContent = error.message;

@@ -104,6 +104,25 @@ final class HarppNotificationService
         return HarppServiceResult::success(['unread' => (int)$stmt->fetchColumn()]);
     }
 
+    public function delete(array $actor, int $notificationId, ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId) || $notificationId <= 0) { return HarppServiceResult::failure('Forbidden or invalid notification.', 403); }
+        try {
+            $this->db()->beginTransaction();
+            $stmt = $this->db()->prepare('SELECT id FROM harpp_notifications WHERE id = :id AND user_id = :user FOR UPDATE');
+            $stmt->execute([':id' => $notificationId, ':user' => (int)$actor['id']]);
+            if ($stmt->fetchColumn() === false) { $this->db()->rollBack(); return HarppServiceResult::failure('Notification not found.', 404); }
+            $this->db()->prepare('DELETE FROM harpp_notifications WHERE id = :id AND user_id = :user')->execute([':id' => $notificationId, ':user' => (int)$actor['id']]);
+            $event = $this->effects('harpp.notification.deleted', 'notification.deleted', $notificationId, (int)$actor['id'], null, ['deleted' => true]);
+            $this->db()->commit();
+            return HarppServiceResult::success(['notification_id' => $notificationId, 'deleted' => true], 'Notification deleted.', [$event], 'harpp_notification', $notificationId);
+        } catch (Throwable $e) {
+            if ($this->db()->inTransaction()) $this->db()->rollBack();
+            $this->log('notification delete failed', $e);
+            return HarppServiceResult::failure('Unable to delete notification.', 500);
+        }
+    }
+
     private function effects(string $event, string $action, int $id, int $userId, ?array $before, array $after): array
     {
         $payload = ['notification_id'=>$id,'user_id'=>$userId,'before'=>$before,'after'=>$after];

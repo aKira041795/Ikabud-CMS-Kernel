@@ -218,6 +218,18 @@ PHP;
     $partialRows = $partialTransitions->fetchAll(PDO::FETCH_ASSOC);
     $assert('partial APPLIED closes successfully', !empty($partialRecovered['ok']) && ($partialRecovered['data']['state'] ?? '') === 'CLOSED' && !empty($partialRecovered['data']['already_applied']));
     $assert('partial APPLIED records only APPLIED -> CLOSED', in_array(['from_state' => 'APPLIED', 'to_state' => 'CLOSED'], $partialRows, true) && !in_array(['from_state' => 'ACKNOWLEDGED', 'to_state' => 'APPLIED'], $partialRows, true));
+
+    $h->section('Pending shortcut apply-and-close'); // @phpstan-ignore-line
+    $shortcutId = $makeDecision('INBOX-SHORTCUT-' . strtoupper(bin2hex(random_bytes(6))), 'Pending shortcut apply-and-close fixture');
+    $shortcutBefore = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $shortcutBefore->execute([':id' => $shortcutId]);
+    $assert('pending shortcut fixture starts at PENDING', ($shortcutBefore->fetchColumn() ?: '') === 'PENDING');
+    $shortcutClosed = $service->applyAndClose($owner, $shortcutId, 'Applied directly from pending.', 'Closed directly from pending.', [], $tenantId);
+    $shortcutAfter = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $shortcutAfter->execute([':id' => $shortcutId]);
+    $assert('pending apply-and-close succeeds', !empty($shortcutClosed['ok']) && ($shortcutClosed['data']['state'] ?? '') === 'CLOSED' && empty($shortcutClosed['data']['already_applied']));
+    $assert('pending apply-and-close persists CLOSED', ($shortcutAfter->fetchColumn() ?: '') === 'CLOSED');
+    $shortcutTransitions = $db->prepare('SELECT from_state,to_state FROM harpp_decision_transitions WHERE decision_id=:id ORDER BY id'); $shortcutTransitions->execute([':id' => $shortcutId]);
+    $shortcutRows = $shortcutTransitions->fetchAll(PDO::FETCH_ASSOC);
+    $assert('pending apply-and-close records PENDING -> APPLIED -> CLOSED', in_array(['from_state' => 'PENDING', 'to_state' => 'APPLIED'], $shortcutRows, true) && in_array(['from_state' => 'APPLIED', 'to_state' => 'CLOSED'], $shortcutRows, true));
 } finally {
     if (is_string($probeFile) && $probeFile !== '') @unlink($probeFile);
     if (is_string($probeStatusFile) && $probeStatusFile !== '') @unlink($probeStatusFile);

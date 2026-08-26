@@ -15,18 +15,41 @@ document.addEventListener('DOMContentLoaded', () => {
       rows = (await Harpp.fetch('/api/v1/harpp/notifications' + q)).data.notifications || [];
       list.replaceChildren();
       for (const n of rows) {
-        const card = document.createElement('a');
+        const card = document.createElement('div');
         card.className = 'panel';
-        card.href = target(n);
+        card.style.display = 'flex';
+        card.style.justifyContent = 'space-between';
+        card.style.alignItems = 'center';
+        card.style.gap = '1rem';
+        const link = document.createElement('a');
+        link.href = target(n);
+        link.style.flex = '1';
         let payload = {};
         try { payload = JSON.parse(n.payload || '{}'); } catch (_) {}
-        card.textContent = `${n.read_at ? '' : '● '}${payload.title || n.notification_type} — ${payload.event || n.status} (${n.created_at})`;
-        card.onclick = () => {
+        link.textContent = `${n.read_at ? '' : '● '}${payload.title || n.notification_type} — ${payload.event || n.status} (${n.created_at})`;
+        link.onclick = () => {
           if (!n.read_at) {
             Harpp.fetch(`/api/v1/harpp/notifications/${n.id}/read`, { method: 'POST' })
               .then(() => load()).catch(() => {});
           }
         };
+        const del = document.createElement('button');
+        del.className = 'button danger';
+        del.type = 'button';
+        del.textContent = 'Delete';
+        del.onclick = async () => {
+          if (!window.confirm('Delete this notification?')) return;
+          del.disabled = true;
+          try {
+            await Harpp.fetch(`/api/v1/harpp/notifications/${n.id}`, { method: 'DELETE' });
+            await load();
+            Harpp.pollUnread();
+          } catch (e) {
+            status.textContent = e.message;
+            del.disabled = false;
+          }
+        };
+        card.append(link, del);
         list.append(card);
       }
       if (!rows.length) list.textContent = includeRead ? 'No notifications.' : 'No unread notifications.';

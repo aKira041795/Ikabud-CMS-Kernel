@@ -326,6 +326,7 @@ function harppDecisionTransition(array $params=[]):void { harppHandle(function()
  * @param array<string,mixed> $params
  */
 function harppDecisionApplyClose(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.manage@1');if($u){$i=harppInput();harppJson((new HarppDecisionService())->applyAndClose($u,(int)($params['id']??0),trim((string)($i['apply_rationale']??$i['rationale']??'Applied by operator.')),trim((string)($i['close_rationale']??$i['rationale']??'Closed by operator.')),$i,harppCurrentTenantId()));}}); }
+function harppDecisionDelete(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.manage@1');if($u)harppJson((new HarppDecisionService())->delete($u,(int)($params['id']??0),harppCurrentTenantId()));}); }
 
 function harppConversationList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppMessagingService())->listConversations($u,harppRequestData(),harppCurrentTenantId()));}); }
 function harppConversationCreate(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppMessagingService())->createConversation($u,harppInput(),harppCurrentTenantId()));}); }
@@ -337,6 +338,7 @@ function harppConversationArchive(array $params=[]):void { harppHandle(function(
 
 function harppNotificationList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppNotificationService())->list($u,harppRequestData(),harppCurrentTenantId()));}); }
 function harppNotificationMarkRead(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppNotificationService())->markRead($u,(int)($params['id']??0),harppCurrentTenantId()));}); }
+function harppNotificationDelete(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppNotificationService())->delete($u,(int)($params['id']??0),harppCurrentTenantId()));}); }
 function harppNotificationUnread(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppNotificationService())->unreadCount($u,harppCurrentTenantId()));}); }
 
 function harppPushSubscribe(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppPushService())->subscribe($u,harppInput(),harppCurrentTenantId()));}); }

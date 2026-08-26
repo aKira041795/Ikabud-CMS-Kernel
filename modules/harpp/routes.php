@@ -80,5 +80,7 @@ return [
     ],
     'DELETE' => [
         '/api/v1/harpp/users/{id}' => 'harpp:harppUserDelete',
+        '/api/v1/harpp/decisions/{id}' => 'harpp:harppDecisionDelete',
+        '/api/v1/harpp/notifications/{id}' => 'harpp:harppNotificationDelete',
     ],
 ];
