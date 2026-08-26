@@ -92,6 +92,21 @@ try {
     $status=$bridge->status($actor,['status'=>'waiting','harness_session_id'=>'phase5-status','message'=>'Waiting for next task.'],$tenantId);$statusNotificationId=(int)($status['data']['notification_id']??0);
     $check=$db->prepare("SELECT COUNT(*) FROM harpp_notifications WHERE id=:id AND notification_type='system'");$check->execute([':id'=>$statusNotificationId]);
     $assert('bridge status creates owner notification',!empty($status['ok'])&&$statusNotificationId>0&&(int)$check->fetchColumn()===1);
+    $conversationList=$bridge->listConversations($actor,[],$tenantId);
+    $openArchive=$bridge->archiveConversation($actor,$messageConversation,['archived'=>true],$tenantId);
+    (new HarppMessagingService($db))->closeConversation($owner,$messageConversation,$tenantId);
+    $archived=$bridge->archiveConversation($actor,$messageConversation,['archived'=>true],$tenantId);
+    $archivedList=$bridge->listConversations($actor,['archived'=>1],$tenantId);
+    $restored=$bridge->archiveConversation($actor,$messageConversation,['archived'=>false],$tenantId);
+    $assert('bridge conversation list exposes metadata',!empty($conversationList['ok'])&&count(array_filter((array)($conversationList['data']['conversations']??[]),fn($c)=>(int)$c['id']===$messageConversation&&array_key_exists('status',$c)&&array_key_exists('archived_at',$c)&&array_key_exists('unread',$c)))===1);
+    $assert('bridge archive preserves closed-only conflict',empty($openArchive['ok'])&&($openArchive['status']??0)===409);
+    $assert('bridge archive filter and restore round-trip',!empty($archived['ok'])&&!empty($restored['ok'])&&count(array_filter((array)($archivedList['data']['conversations']??[]),fn($c)=>(int)$c['id']===$messageConversation&&$c['archived_at']!==null))===1);
+    $notificationList=$bridge->listNotifications($actor,['include_read'=>1,'limit'=>100,'offset'=>0],$tenantId);
+    $unreadBefore=$bridge->notificationUnreadCount($actor,$tenantId);
+    $markedNotification=$bridge->markNotificationRead($actor,$statusNotificationId,$tenantId);
+    $unreadAfter=$bridge->notificationUnreadCount($actor,$tenantId);
+    $assert('bridge notification list exposes paging',!empty($notificationList['ok'])&&($notificationList['data']['limit']??0)===100&&($notificationList['data']['offset']??-1)===0&&count(array_filter((array)($notificationList['data']['notifications']??[]),fn($n)=>(int)$n['id']===$statusNotificationId))===1);
+    $assert('bridge notification mark-read updates unread count',!empty($markedNotification['ok'])&&(int)($unreadAfter['data']['unread']??-1)===(int)($unreadBefore['data']['unread']??0)-1);
 
     $rotated=$auth->rotate($tenantId);$newKey=(string)($rotated['data']['key']??'');$oldRejected=$auth->validate($key,$tenantId,'phase5-old-after-rotate');$newValid=$auth->validate($newKey,$tenantId,'phase5-new-after-rotate');
     $assert('key rotation invalidates old key',empty($oldRejected['ok'])&&($oldRejected['status']??0)===401&&!empty($newValid['ok']));

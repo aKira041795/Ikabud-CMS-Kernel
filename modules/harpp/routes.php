@@ -31,6 +31,9 @@ return [
         '/api/v1/harpp/bridge/key' => 'harpp:harppBridgeKeyGet',
         '/api/v1/harpp/bridge/decisions' => 'harpp:harppBridgeDecisionList',
         '/api/v1/harpp/bridge/messages' => 'harpp:harppBridgeMessageList',
+        '/api/v1/harpp/bridge/conversations' => 'harpp:harppBridgeConversationList',
+        '/api/v1/harpp/bridge/notifications' => 'harpp:harppBridgeNotificationList',
+        '/api/v1/harpp/bridge/notifications/unread-count' => 'harpp:harppBridgeNotificationUnread',
     ],
     'POST' => [
         '/api/v1/harpp/auth/login' => 'harpp:harppAuthLogin',
@@ -64,6 +67,8 @@ return [
         '/api/v1/harpp/bridge/decisions/{id}/cancel' => 'harpp:harppBridgeDecisionCancel',
         '/api/v1/harpp/bridge/decisions/{id}/applied' => 'harpp:harppBridgeDecisionApplied',
         '/api/v1/harpp/bridge/messages' => 'harpp:harppBridgeMessageSend',
+        '/api/v1/harpp/bridge/conversations/{id}/archive' => 'harpp:harppBridgeConversationArchive',
+        '/api/v1/harpp/bridge/notifications/{id}/read' => 'harpp:harppBridgeNotificationMarkRead',
         '/api/v1/harpp/bridge/status' => 'harpp:harppBridgeStatus',
     ],
     'PUT' => [

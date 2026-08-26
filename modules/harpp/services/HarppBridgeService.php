@@ -77,6 +77,36 @@ final class HarppBridgeService
         return (new HarppMessagingService($this->db))->listOwnerMessagesForHarness($actor, $filters, $tenantId);
     }
 
+    public function listConversations(array $actor, array $filters, int $tenantId)
+    {
+        return (new HarppMessagingService($this->db))->listConversations($actor, $filters, $tenantId);
+    }
+
+    public function archiveConversation(array $actor, int $conversationId, array $input, int $tenantId)
+    {
+        return (new HarppMessagingService($this->db))->archiveConversation(
+            $actor,
+            $conversationId,
+            filter_var($input['archived'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            $tenantId
+        );
+    }
+
+    public function listNotifications(array $actor, array $filters, int $tenantId)
+    {
+        return (new HarppNotificationService($this->db))->list($actor, $filters, $tenantId);
+    }
+
+    public function markNotificationRead(array $actor, int $notificationId, int $tenantId)
+    {
+        return (new HarppNotificationService($this->db))->markRead($actor, $notificationId, $tenantId);
+    }
+
+    public function notificationUnreadCount(array $actor, int $tenantId)
+    {
+        return (new HarppNotificationService($this->db))->unreadCount($actor, $tenantId);
+    }
+
     public function status(array $actor, array $input, int $tenantId)
     {
         $status = strtolower(trim((string)($input['status'] ?? '')));
