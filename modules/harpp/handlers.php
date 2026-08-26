@@ -86,6 +86,7 @@ function harppRenderShell(string $template, string $page, array $context = []): 
         'page_title' => 'HARPP ' . ucfirst($page),
         'current_page' => $page,
         'user' => $user,
+        'csrf_token' => app()->csrfToken(),
     ]);
 }
 

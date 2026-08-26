@@ -55,6 +55,17 @@ class HarppWakeTest(unittest.TestCase):
         # second run: no unprocessed items left -> no re-run
         self.assertFalse(self._wake())
 
+    def test_duplicate_inbox_message_is_processed_once(self):
+        duplicate = {"kind": "message", "id": 1, "conversation_id": 2, "body": "updated"}
+        with self.inbox.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(duplicate) + "\n")
+
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["body"], "updated")
+        self.assertTrue(self._wake())
+        self.assertEqual(harpp_wake.read_state()["messages"].count(1), 1)
+
     def test_cooldown_skips(self):
         state = harpp_wake.read_state()
         state["last_wake"] = harpp_wake._now()

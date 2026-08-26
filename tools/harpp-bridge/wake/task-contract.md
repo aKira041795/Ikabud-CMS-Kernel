@@ -53,6 +53,25 @@ successful response; do not claim success merely because a command was attempted
      `workflow start/list/status/show` and "run the X loop" messages deterministically
      (they are marked processed before you run). If you still see one, do NOT start a
      workflow; just confirm it was handled.
+   - **Debate request** (the message asks to "start a debate", "run a debate", etc.):
+     the watch daemon normally handles these deterministically (launching
+     `tools/pi-arch-debate.py` as a tracked background job and auto-reporting the
+     verdict). If one still reaches you, do NOT run the debate inline (it spawns
+     model subprocesses and can run for many minutes — violates single-pass).
+     Instead launch it as a tracked job and reply with the job id:
+     ```
+     python3 tools/harpp-bridge/harpp job launch \
+       --model arch-debate \
+       --conversation <conversation_id> \
+       --task "Architecture debate: <objective>" \
+       --log .ai/debate/debate-job-$(date +%s).log \
+       --marker "verdict: APPROVED" \
+       --cwd "$(pwd)" \
+       -- "python3 tools/pi-arch-debate.py --quiet [--first codex|deepseek] '<objective>'"
+     ```
+     (Use `DEBATE_MAX_ROUNDS=<N>` prefix or `--first` to honour "max depth N" /
+     "<model> starts".) Then reply that the debate is running and will be
+     auto-reported.
    - If the message is an **explicit fix/implement request** (e.g. "fix the responsive
      view", "implement X"), you MAY make the minimal change yourself in the repo, verify
      it (JS: `node --check <file>`; PHP: `php -l <file>`; DiSyL templates: keep the

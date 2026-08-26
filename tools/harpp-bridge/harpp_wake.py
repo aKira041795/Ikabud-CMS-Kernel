@@ -602,12 +602,17 @@ def unprocessed_items(inbox: str) -> list:
     except Exception:  # noqa: BLE001
         return []
     messages = set(state.get("messages", []))
+    # The watch bridge can append the same durable message more than once (for
+    # example after reconnecting). Treat the message id as the inbox identity so
+    # one owner request produces one expected reply and one retry increment.
     new = []
-    for r in records:
+    seen = set()
+    for r in reversed(records):
         rid = int(r.get("id", 0))
-        if r.get("kind") == "message" and rid not in messages:
+        if r.get("kind") == "message" and rid not in messages and rid not in seen:
+            seen.add(rid)
             new.append(r)
-    return new
+    return list(reversed(new))
 
 
 def record_attempt(records: list) -> None:
@@ -2107,6 +2112,122 @@ def route_workflow_commands(records) -> int:
                 if conv:
                     harpp_client.harpp_notify(conversation_id=conv, message_type="WARNING",
                                               body=f"⚠️ Workflow command could not be processed: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+        mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])
+        handled += 1
+    return handled
+
+
+# ---------------------------------------------------------------------------
+# Deterministic debate commands — the owner can start an architecture debate
+# directly from HARPP ("Start debate …"). The daemon launches the debate as a
+# tracked background job (tools/pi-arch-debate.py) and auto-reports the verdict;
+# the single-pass wake agent never runs the debate inline.
+# ---------------------------------------------------------------------------
+
+def parse_debate_command(body) -> dict | None:
+    """Parse an owner message into a debate launch request, or return None."""
+    if not body or not isinstance(body, str):
+        return None
+    low = " ".join(body.split()).lower().strip()
+    if "debate" not in low:
+        return None
+    if not re.search(r"\b(start|run|begin|launch|kick\s*off)\b", low):
+        return None
+
+    # Intent: prefer an explicit "Objective:" clause, else the remainder after "debate".
+    intent = ""
+    m = re.search(r"\bobjective\s*[:：]\s*(.+)", body, flags=re.IGNORECASE | re.DOTALL)
+    if m:
+        intent = m.group(1).strip()
+    else:
+        m = re.search(r"\bdebate\b(.*)", body, flags=re.IGNORECASE | re.DOTALL)
+        if m:
+            intent = m.group(1).strip()
+    intent = re.sub(r"^[,:;.\s]+", "", intent)
+    intent = re.sub(r"\b(?:max\s*depth|max\s*rounds|rounds|depth)\s*[:=]?\s*\d+\b", "",
+                    intent, flags=re.IGNORECASE)
+    intent = " ".join(intent.split())
+    if not intent:
+        return None
+
+    rounds = None
+    m = re.search(r"\b(?:max\s*depth|max\s*rounds|rounds|depth)\s*[:=]?\s*(\d+)", low)
+    if m:
+        rounds = max(1, min(int(m.group(1)), 10))
+
+    # Opener: which model drafts first (the other critiques). Default AUTO (chair decides).
+    first = "auto"
+    if re.search(r"\b(?:gpt|codex|sol)\b[^.;]*\b(?:start|open|draft|begin|first)", low):
+        first = "codex"
+    elif re.search(r"\bdeepseek\b[^.;]*\b(?:start|open|draft|begin|first)", low):
+        first = "deepseek"
+
+    return {"intent": intent, "rounds": rounds, "first": first}
+
+
+def _exec_debate_command(cmd: dict, conv: int) -> str:
+    """Launch an architecture debate as a tracked background job and return the reply."""
+    intent = str(cmd.get("intent") or "").strip()
+    rounds = cmd.get("rounds")
+    first = str(cmd.get("first") or "auto").lower()
+    if first not in ("codex", "deepseek"):
+        first = "auto"
+    workspace = default_workspace()
+    log_path = Path(workspace) / ".ai" / "debate" / f"debate-job-{int(time.time())}.log"
+    argv = ["python3", "tools/pi-arch-debate.py", "--quiet"]
+    if first != "auto":
+        argv += ["--first", first]
+    argv.append(intent)
+    command = " ".join(shlex.quote(a) for a in argv)
+    if rounds:
+        command = f"DEBATE_MAX_ROUNDS={int(rounds)} {command}"
+    jid, _proc = launch_job(
+        model="arch-debate" + (f"/{first}" if first != "auto" else ""),
+        task=f"Architecture debate: {intent[:90]}",
+        conversation_id=conv,
+        command=command,
+        log_path=str(log_path),
+        marker="verdict: APPROVED",
+        cwd=workspace,
+        open_terminal=False,
+    )
+    return (f"🧠 Architecture debate started (job {jid}).\n"
+            f"intent: {intent}\n"
+            f"rounds: {rounds or 'default (3)'}\n"
+            f"opener: {first}\n"
+            "It runs as a tracked job; I'll auto-report the verdict when it finishes.")
+
+
+def route_debate_commands(records) -> int:
+    """Deterministically handle owner debate requests in staged messages.
+
+    Recognized requests launch tools/pi-arch-debate.py as a tracked job, are
+    replied to via the bridge, and are marked processed so the single-pass wake
+    agent never double-handles them. Returns the number handled.
+    """
+    handled = 0
+    for r in records or []:
+        if r.get("kind") != "message":
+            continue
+        if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        cmd = parse_debate_command(r.get("body"))
+        if not cmd:
+            continue
+        conv = int(r.get("conversation_id") or 0)
+        try:
+            body = _exec_debate_command(cmd, conv)
+            if conv:
+                harpp_client.harpp_notify(conversation_id=conv, message_type="INFO", body=body)
+            log(f"routed debate command for message {r.get('id')}")
+        except Exception as e:  # noqa: BLE001
+            log(f"debate command failed for message {r.get('id')}: {e}")
+            try:
+                if conv:
+                    harpp_client.harpp_notify(conversation_id=conv, message_type="WARNING",
+                                              body=f"⚠️ Debate request could not be processed: {e}")
             except Exception:  # noqa: BLE001
                 pass
         mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])

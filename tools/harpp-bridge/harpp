@@ -171,6 +171,9 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             if recorded:
                 print(f"harpp watch: recorded {recorded} durable decision(s)", flush=True)
             harpp_wake.route_workflow_commands(emitted)
+            # Owner debate requests ("Start debate …") launch the arch-debate tool
+            # as a tracked background job, auto-reported on completion.
+            harpp_wake.route_debate_commands(emitted)
         except Exception as e:
             print(f"harpp watch: workflow command routing failed: {e}", flush=True)
         # Job monitor: track delegated model processes; when one finishes, verify + commit
