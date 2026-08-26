@@ -43,9 +43,24 @@ class DeployHarppTest(unittest.TestCase):
         rendered = json.dumps(receipt)
         self.assertEqual(receipt["mode"], "dry-run")
         self.assertEqual(receipt["manifest"]["member_count"], 2)
-        self.assertEqual(receipt["profile"]["password"], "***redacted***")
-        self.assertEqual(receipt["profile"]["private_key"], "***redacted***")
+        # The receipt profile is a strict non-secret allowlist: secret keys are
+        # absent entirely (never serialized), not merely redacted in place.
+        self.assertNotIn("password", receipt["profile"])
+        self.assertNotIn("private_key", receipt["profile"])
+        self.assertEqual(receipt["profile"]["host"], "host.example")
+        self.assertEqual(receipt["profile"]["transport"], "sftp")
         self.assertNotIn("never-print-me", rendered)
+
+    def test_receipt_never_serializes_unknown_secret_like_profile_keys(self):
+        profile = dict(self.profile, passphrase="secret-passphrase", api_token="tok-secret",
+                       custom_credential="custom-secret")
+        artifact = deploy_harpp.inspect_artifact(self.archive)
+        receipt = deploy_harpp.build_receipt(profile, artifact)
+        rendered = json.dumps(receipt)
+        for secret in ("secret-passphrase", "tok-secret", "custom-secret"):
+            self.assertNotIn(secret, rendered)
+        self.assertNotIn("passphrase", receipt["profile"])
+        self.assertNotIn("api_token", receipt["profile"])
 
     def test_profile_requires_0600_and_approved_host(self):
         path = self.root / "deploy.json"

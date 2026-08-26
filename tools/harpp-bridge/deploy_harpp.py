@@ -23,6 +23,14 @@ CONFIG_PATH = Path.home() / ".config" / "harpp" / "deploy.json"
 ALLOWED_PREFIXES = ("modules/harpp/", "templates/modules/harpp/")
 TERMINAL_OPERATIONS = {"preflight", "backup", "upload", "verify", "extract", "health_check"}
 SECRET_KEYS = {"password", "private_key", "HARPP_DEPLOY_PASSWORD", "HARPP_DEPLOY_PRIVATE_KEY"}
+# Non-secret profile fields safe to include in a receipt that is sent to (and
+# stored by) the module. Receipts must never serialize the whole profile dict —
+# unknown secret-like keys (passphrase, tokens, custom fields) would otherwise
+# leak into the module DB. Keep in sync with the worker's _remote_profiles().
+RECEIPT_PROFILE_FIELDS = (
+    "profile_name", "host", "user", "port", "transport", "root_path",
+    "extraction_adapter", "allowed_operations", "health_url",
+)
 
 
 class DeployError(RuntimeError):
@@ -176,11 +184,15 @@ def build_receipt(profile, artifact, execute=False):
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     remote_name = f".harpp-deploy-{stamp}-{artifact['sha256'][:12]}.zip"
     root = profile["root_path"].rstrip("/")
+    # Only allowlisted non-secret profile fields enter the receipt (see
+    # RECEIPT_PROFILE_FIELDS). The original profile may carry secrets (password,
+    # private_key, passphrase, tokens) and must never be serialized wholesale.
+    profile_summary = {key: profile[key] for key in RECEIPT_PROFILE_FIELDS if key in profile}
     return redact({
         "receipt_version": 1,
         "mode": "execute" if execute else "dry-run",
         "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "profile": profile,
+        "profile": profile_summary,
         "artifact": {key: artifact[key] for key in ("path", "name", "size", "sha256")},
         "manifest": {"member_count": len(artifact["members"]),
                      "uncompressed_bytes": sum(item["size"] for item in artifact["members"]),

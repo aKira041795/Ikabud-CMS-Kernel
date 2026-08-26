@@ -74,18 +74,34 @@ class DeployWorkerTest(unittest.TestCase):
         def fake_api(method, path, body=None, config=None):
             sent.update({"method": method, "path": path, "body": body})
             return {"ok": True, "data": {"packages": len(body["packages"]), "profiles": len(body["profiles"])}}
-        with mock.patch.object(harpp_deploy_worker.harpp_client, "api", side_effect=fake_api):
+        with mock.patch.object(harpp_deploy_worker.harpp_client, "api", side_effect=fake_api), \
+             mock.patch.object(harpp_deploy_worker, "_inventory_sig_path", return_value=self.root / "sig1"):
             summary = harpp_deploy_worker.publish_inventory(packages_dir=self.packages, profile_config=self.config)
         self.assertEqual(summary["packages"], 1)
         self.assertEqual(summary["profiles"], 1)
+        self.assertTrue(summary["published"])
         self.assertNotIn("password", json.dumps(sent))
         self.assertEqual(sent["path"], "/api/v1/harpp/bridge/deploys/inventory")
+
+    def test_publish_inventory_skips_when_unchanged(self):
+        sent = []
+        def fake_api(method, path, body=None, config=None):
+            sent.append(path)
+            return {"ok": True, "data": {"packages": 0, "profiles": 0}}
+        with mock.patch.object(harpp_deploy_worker.harpp_client, "api", side_effect=fake_api), \
+             mock.patch.object(harpp_deploy_worker, "_inventory_sig_path", return_value=self.root / "sig2"):
+            first = harpp_deploy_worker.publish_inventory(packages_dir=self.packages, profile_config=self.config)
+            second = harpp_deploy_worker.publish_inventory(packages_dir=self.packages, profile_config=self.config)
+        self.assertTrue(first["published"])
+        self.assertFalse(second["published"])
+        self.assertEqual(len(sent), 1)  # unchanged inventory -> no second network POST
 
     def test_publish_inventory_no_args_uses_defaults(self):
         # The watch (harpp_wake.sync_deploys) calls publish_inventory() with no args;
         # defaults must be applied (Path(None) used to raise every watch pass).
         with mock.patch.object(harpp_deploy_worker.harpp_client, "api",
-                               return_value={"ok": True, "data": {"packages": 0, "profiles": 0}}):
+                               return_value={"ok": True, "data": {"packages": 0, "profiles": 0}}), \
+             mock.patch.object(harpp_deploy_worker, "_inventory_sig_path", return_value=self.root / "sig3"):
             summary = harpp_deploy_worker.publish_inventory()
         self.assertIn("packages", summary)
         self.assertIn("profiles", summary)
@@ -139,6 +155,63 @@ class DeployWorkerTest(unittest.TestCase):
         self.assertEqual(report["status"], "failure")
         self.assertIn("remote_allowed", report["error"])
 
+    def test_worker_plain_ftp_fails_closed_without_remote_opt_in(self):
+        # A remote_allowed plain-FTP profile without the explicit per-profile
+        # remote_allow_plain_ftp opt-in must fail closed (never silently use
+        # plaintext FTP for a phone-triggered deploy).
+        config = self.root / "deploy-ftp.json"
+        config.write_text(json.dumps({"profiles": {
+            "ftp": _profile("ftp", transport="ftp", port=21,
+                            extraction_adapter="manual_cpanel", remote_allowed=True),
+        }}))
+        os.chmod(config, 0o600)
+        calls = []
+        def fake_api(method, path, body=None, config=None):
+            calls.append((path, body))
+            if "deploys/pending" in path:
+                return {"ok": True, "data": {"deploys": [{"id": 21, "package_name": self.archive.name, "profile_name": "ftp"}]}}
+            if path.endswith("/deploys/21/claim"):
+                return {"ok": True, "data": {"deploy_id": 21, "claim_token": "tok-21"}}
+            if path.endswith("/deploys/21/report"):
+                return {"ok": True}
+            raise AssertionError("unexpected " + path)
+        with mock.patch.object(harpp_deploy_worker.harpp_client, "api", side_effect=fake_api):
+            results = harpp_deploy_worker.process_pending_deploys(packages_dir=self.packages, profile_config=config)
+        self.assertEqual(results[0]["result"], "FAILED")
+        report = [c for c in calls if c[0].endswith("/deploys/21/report")][0][1]
+        self.assertEqual(report["status"], "failure")
+        self.assertIn("risk opt-in", report["error"])
+
+    def test_worker_plain_ftp_honors_explicit_remote_opt_in(self):
+        # With the explicit remote_allow_plain_ftp opt-in, the worker passes
+        # allow_plain_ftp=True through to run_deploy.
+        config = self.root / "deploy-ftp-optin.json"
+        config.write_text(json.dumps({"profiles": {
+            "ftp": _profile("ftp", transport="ftp", port=21,
+                            extraction_adapter="manual_cpanel", remote_allowed=True,
+                            remote_allow_plain_ftp=True),
+        }}))
+        os.chmod(config, 0o600)
+        calls = []
+        def fake_api(method, path, body=None, config=None):
+            calls.append((method, path, body))
+            if "deploys/pending" in path:
+                return {"ok": True, "data": {"deploys": [{"id": 22, "package_name": self.archive.name, "profile_name": "ftp"}]}}
+            if path.endswith("/deploys/22/claim"):
+                return {"ok": True, "data": {"deploy_id": 22, "claim_token": "tok-22"}}
+            if path.endswith("/deploys/22/report"):
+                return {"ok": True, "data": {"deploy_id": 22, "status": "SUCCEEDED"}}
+            raise AssertionError("unexpected " + path)
+        seen = {}
+        def fake_run(profile, artifact_path, execute=False, allow_plain_ftp=False, progress=None):
+            seen["allow_plain_ftp"] = allow_plain_ftp
+            return {"receipt_version": 1, "mode": "execute", "receipt_sha256": "xyz"}
+        with mock.patch.object(harpp_deploy_worker.harpp_client, "api", side_effect=fake_api), \
+             mock.patch.object(deploy_harpp, "run_deploy", side_effect=fake_run):
+            results = harpp_deploy_worker.process_pending_deploys(packages_dir=self.packages, profile_config=config)
+        self.assertEqual(results[0]["result"], "SUCCEEDED")
+        self.assertTrue(seen["allow_plain_ftp"])
+
     def test_run_deploy_dry_run_does_not_call_progress(self):
         profile = _profile("prod", transport="ftp", port=21, extraction_adapter="manual_cpanel")
         progress = mock.Mock()
@@ -155,7 +228,8 @@ class DeployWorkerTest(unittest.TestCase):
                 return {"ok": True, "data": {"deploys": [{"id": 1, "package_name": "p.zip", "profile_name": "prod"}]}}
             return {"ok": True, "data": {"packages": 0, "profiles": 0}}
         with mock.patch.object(harpp_wake.harpp_client, "api", side_effect=fake_api), \
-             mock.patch.object(harpp_wake.subprocess, "Popen", return_value=mock.Mock()) as popen:
+             mock.patch.object(harpp_wake.subprocess, "Popen", return_value=mock.Mock()) as popen, \
+             mock.patch.object(harpp_deploy_worker, "_inventory_sig_path", return_value=self.root / "sig4"):
             n = harpp_wake.sync_deploys()
         self.assertEqual(n, 1)
         popen.assert_called_once()
@@ -170,7 +244,8 @@ class DeployWorkerTest(unittest.TestCase):
                 return {"ok": True, "data": {"deploys": []}}
             return {"ok": True, "data": {"packages": 0, "profiles": 0}}
         with mock.patch.object(harpp_wake.harpp_client, "api", side_effect=fake_api), \
-             mock.patch.object(harpp_wake.subprocess, "Popen") as popen:
+             mock.patch.object(harpp_wake.subprocess, "Popen") as popen, \
+             mock.patch.object(harpp_deploy_worker, "_inventory_sig_path", return_value=self.root / "sig5"):
             n = harpp_wake.sync_deploys()
         self.assertEqual(n, 0)
         popen.assert_not_called()

@@ -20,6 +20,7 @@ published to the phone and executed remotely.
 """
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -104,18 +105,38 @@ def _remote_profiles(profile_config):
     return profiles
 
 
-def publish_inventory(config=None, packages_dir=None, profile_config=None):
+def _inventory_sig_path():
+    """Where the last-published inventory signature is cached (0600)."""
+    raw = os.environ.get("HARPP_DEPLOY_INVENTORY_SIG", "")
+    return Path(raw).expanduser() if raw else (Path.home() / ".config" / "harpp" / "deploy-inventory.sig")
+
+
+def publish_inventory(config=None, packages_dir=None, profile_config=None, force=False):
     # Apply documented defaults so callers (e.g. harpp_wake.sync_deploys) can call
     # with no arguments; Path(None) would otherwise raise.
     packages_dir = packages_dir or str(REPO_ROOT)
     profile_config = profile_config or os.environ.get("HARPP_DEPLOY_CONFIG") or str(DEFAULT_PROFILE_CONFIG)
     packages = _list_packages(packages_dir)
     profiles = _remote_profiles(profile_config)
+    signature = hashlib.sha256(json.dumps({"packages": packages, "profiles": profiles}, sort_keys=True).encode()).hexdigest()
+    sig_path = _inventory_sig_path()
+    if not force:
+        try:
+            if sig_path.is_file() and sig_path.read_text(encoding="utf-8").strip() == signature:
+                return {"packages": len(packages), "profiles": len(profiles), "published": False}
+        except Exception:
+            pass
     result = harpp_client.api("POST", "/api/v1/harpp/bridge/deploys/inventory",
                               {"packages": packages, "profiles": profiles}, config=config)
     if not result.get("ok"):
         raise RuntimeError(str(result.get("error") or "inventory publish failed"))
-    return {"packages": len(packages), "profiles": len(profiles)}
+    try:
+        sig_path.parent.mkdir(parents=True, exist_ok=True)
+        sig_path.write_text(signature, encoding="utf-8")
+        sig_path.chmod(0o600)
+    except Exception:
+        pass
+    return {"packages": len(packages), "profiles": len(profiles), "published": True}
 
 
 # ── Deploy execution ─────────────────────────────────────────────────────────
@@ -170,7 +191,12 @@ def process_pending_deploys(config=None, packages_dir=None, profile_config=None,
                         _log(f"progress {step} not reported: {e}", log)
 
             _log(f"deploy #{deploy_id}: {package} -> {profile}", log)
-            allow_plain = profile_data.get("transport") == "ftp"
+            # Plain FTP must never be silently enabled for remote (phone-triggered)
+            # deploys. It requires an explicit operator opt-in on the profile
+            # (remote_allow_plain_ftp: true); otherwise run_deploy fails closed with
+            # the same "risk opt-in" error the CLI enforces.
+            allow_plain = (profile_data.get("transport") == "ftp"
+                           and bool(profile_data.get("remote_allow_plain_ftp")))
             receipt = deploy_harpp.run_deploy(profile_data, artifact, execute=True,
                                               allow_plain_ftp=allow_plain, progress=progress)
             _report(deploy_id, token, {"status": "success", "receipt": receipt}, config)

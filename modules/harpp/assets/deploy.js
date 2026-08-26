@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let pollTimer = null;
     let trackedId = null;
+    let pollErrors = 0;
 
     function fillSelect(el, options, placeholder) {
         el.innerHTML = '';
@@ -123,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
         try {
             const jobs = await loadJobs();
+            pollErrors = 0;
             let active = trackedId ? jobs.find(j => j.id === trackedId) : (jobs.find(j => ACTIVE.includes(j.status)) || null);
             if (active && ACTIVE.includes(active.status)) {
                 status.textContent = 'Deploy #' + active.id + ': ' + (LABEL[active.status] || active.status);
@@ -150,6 +152,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             status.textContent = 'Ready';
         } catch (e) {
+            pollErrors += 1;
+            if (pollErrors >= 6) {
+                status.textContent = 'Live updates paused (' + e.message + '). Reload to resume.';
+                pollTimer = null;
+                return;
+            }
             status.textContent = e.message;
             pollTimer = setTimeout(tick, 5000);
         }
