@@ -322,6 +322,10 @@ function harppDecisionCreate(array $params=[]):void { harppHandle(function():voi
 function harppDecisionList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.decision.review@1');if($u)harppJson((new HarppDecisionService())->list($u,harppRequestData(),harppCurrentTenantId()));}); }
 function harppDecisionGet(array $params=[]):void { harppHandle(function()use($params):void{$u=harppAuthenticated('harpp.decision.review@1');if($u)harppJson((new HarppDecisionService())->get($u,(int)($params['id']??0),harppCurrentTenantId()));}); }
 function harppDecisionTransition(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.decision.review@1');if($u){$i=harppInput();harppJson((new HarppDecisionService())->transition($u,(int)($params['id']??0),(string)($i['state']??$i['to_state']??''),(string)($i['rationale']??''),$i,harppCurrentTenantId()));}}); }
+/**
+ * @param array<string,mixed> $params
+ */
+function harppDecisionApplyClose(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.manage@1');if($u){$i=harppInput();harppJson((new HarppDecisionService())->applyAndClose($u,(int)($params['id']??0),trim((string)($i['apply_rationale']??$i['rationale']??'Applied by operator.')),trim((string)($i['close_rationale']??$i['rationale']??'Closed by operator.')),$i,harppCurrentTenantId()));}}); }
 
 function harppConversationList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppMessagingService())->listConversations($u,harppRequestData(),harppCurrentTenantId()));}); }
 function harppConversationCreate(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppMessagingService())->createConversation($u,harppInput(),harppCurrentTenantId()));}); }

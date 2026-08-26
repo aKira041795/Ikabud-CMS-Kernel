@@ -49,6 +49,7 @@ return [
         '/api/v1/harpp/users' => 'harpp:harppUserCreate',
         '/api/v1/harpp/decisions' => 'harpp:harppDecisionCreate',
         '/api/v1/harpp/decisions/{id}/transition' => 'harpp:harppDecisionTransition',
+        '/api/v1/harpp/decisions/{id}/apply-and-close' => 'harpp:harppDecisionApplyClose',
         '/api/v1/harpp/conversations' => 'harpp:harppConversationCreate',
         '/api/v1/harpp/conversations/{id}/messages' => 'harpp:harppMessageSend',
         '/api/v1/harpp/conversations/{id}/read' => 'harpp:harppMessageMarkRead',

@@ -111,7 +111,7 @@ Capability handlers live in `modules/harpp/helpers.php` (`harpp_capability_handl
 ```
 /api/v1/harpp/auth/*               login, refresh, logout, forgot/reset-password,
                                    register, invite, select-tenant, profile
-/api/v1/harpp/decisions            list/get + {id}/transition
+/api/v1/harpp/decisions            list/get + {id}/transition + {id}/apply-and-close (owner/admin)
 /api/v1/harpp/conversations        list/create + {id}/messages + {id}/read
 /api/v1/harpp/notifications        list + /unread-count
 /api/v1/harpp/push/vapid-public-key

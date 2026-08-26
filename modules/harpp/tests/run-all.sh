@@ -15,7 +15,7 @@ cp "$LOG_APP" "$BACKUP_DIR/app.log" 2>/dev/null || : > "$BACKUP_DIR/app.log"
 cp "$LOG_ERR" "$BACKUP_DIR/error.log" 2>/dev/null || : > "$BACKUP_DIR/error.log"
 restore_logs() { cp "$BACKUP_DIR/app.log" "$LOG_APP" 2>/dev/null || : > "$LOG_APP"; cp "$BACKUP_DIR/error.log" "$LOG_ERR" 2>/dev/null || : > "$LOG_ERR"; rm -rf "$BACKUP_DIR"; }
 trap restore_logs EXIT
-for t in phase2 phase3 phase4 phase5 review_remediation; do
+for t in phase2 phase3 phase4 phase5 review_remediation decision_inbox; do
   printf '=== %s_cli_test ===\n' "$t"
   : > "$ROOT/storage/logs/app.log"
   : > "$ROOT/storage/logs/error.log"
