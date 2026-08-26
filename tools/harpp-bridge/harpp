@@ -102,7 +102,7 @@ def _autoprocess(records, log):
             try:
                 p = Path(log)
                 p.parent.mkdir(parents=True, exist_ok=True)
-                with p.open("a", encoding="utf-8") as f:
+                with harpp_wake._open_capped_log(p) as f:
                     f.write("autoprocess: " + note + "\n")
             except Exception as e:
                 print(f"harpp watch: autoprocess log failed: {e}", flush=True)
@@ -124,7 +124,21 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
     while True:
         emitted = []
         try:
-            msgs = harpp_client.poll_messages(limit=100).get("data", {}).get("messages", [])
+            # Page through every owner message newer than the last processed id.
+            # The bridge API keys polls by id>cursor and caps each page at `limit`;
+            # one uncursored request silently drops messages once the store exceeds
+            # the page size, leaving owner messages unresponded (fixed).
+            msgs = []
+            cursor = last_msg
+            while True:
+                page = harpp_client.poll_messages(limit=100, after=cursor).get("data", {}).get("messages", [])
+                if not page:
+                    break
+                msgs.extend(page)
+                nxt = max(int(m.get("id", 0)) for m in page)
+                if nxt <= cursor:
+                    break
+                cursor = nxt
             for m in sorted(msgs, key=lambda row: int(row.get("id", 0))):
                 mid = int(m.get("id", 0))
                 if mid > last_msg:

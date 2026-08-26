@@ -311,6 +311,79 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.open_agent_terminal = original
 
+    def test_open_capped_log_truncates_oversized_file(self):
+        p = Path(harpp_wake.CONFIG_DIR) / "cap.log"
+        p.write_text("x" * 1024, encoding="utf-8")
+        with harpp_wake._open_capped_log(p, max_bytes=512) as f:
+            f.write("tail\n")
+        self.assertLess(p.stat().st_size, 128)
+        self.assertTrue(p.read_text(encoding="utf-8").endswith("tail\n"))
+
+    def test_open_capped_log_keeps_small_file(self):
+        p = Path(harpp_wake.CONFIG_DIR) / "small.log"
+        p.write_text("keep\n", encoding="utf-8")
+        with harpp_wake._open_capped_log(p, max_bytes=512) as f:
+            f.write("more\n")
+        self.assertEqual(p.read_text(encoding="utf-8"), "keep\nmore\n")
+
+    def test_spawn_agent_caps_oversized_tee_log(self):
+        original = harpp_wake.open_agent_terminal
+        original_cap = harpp_wake.LOG_MAX_BYTES
+        harpp_wake.open_agent_terminal = lambda *a, **k: None
+        harpp_wake.LOG_MAX_BYTES = 1024
+        tee_log = Path(harpp_wake.CONFIG_DIR) / "wake-agent.log"
+        tee_log.write_text("junk" * 4096, encoding="utf-8")  # > capped threshold
+        try:
+            ok = harpp_wake.spawn_agent(
+                "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1'",
+                model="deepseek/deepseek-v4-pro", timeout=30, expected_replies=1,
+                open_terminal=True)
+            self.assertTrue(ok)
+            self.assertLess(tee_log.stat().st_size, 4096)
+            self.assertIn("HARPP_WAKE_RESULT", tee_log.read_text(encoding="utf-8"))
+        finally:
+            harpp_wake.open_agent_terminal = original
+            harpp_wake.LOG_MAX_BYTES = original_cap
+
+    def test_stream_agent_output_waits_for_reader_after_fast_exit(self):
+        """A completed child is not complete until its stdout reader is drained."""
+        original_thread = harpp_wake.threading.Thread
+        joined = []
+
+        class DelayedReader:
+            def __init__(self, *, target, daemon):
+                self.target = target
+                self.running = False
+
+            def start(self):
+                self.running = True
+
+            def join(self, timeout=None):
+                joined.append(timeout)
+                if self.running:
+                    self.target()
+                    self.running = False
+
+            def is_alive(self):
+                return self.running
+
+        proc = subprocess.Popen(
+            ["sh", "-c", "printf 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1\\n'"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            start_new_session=True)
+        harpp_wake.threading.Thread = DelayedReader
+        try:
+            out, timed_out = harpp_wake._stream_agent_output(proc, timeout=30, tee=None)
+            self.assertFalse(timed_out)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("HARPP_WAKE_RESULT replies_sent=1", out)
+            self.assertEqual(joined, [harpp_wake.OUTPUT_DRAIN_TIMEOUT])
+        finally:
+            harpp_wake.threading.Thread = original_thread
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=10)
+
     # --- governed multi-stage workflows ---
 
     def _write_jobs(self, jobs):

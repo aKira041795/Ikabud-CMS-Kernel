@@ -44,6 +44,9 @@ DECISIONS_FILE = CONFIG_DIR / "decisions.json"
 # window reads the same inbox/log). Explicit --inbox/--log still override.
 INBOX_FILE = CONFIG_DIR / "inbox.jsonl"
 AUTOPROCESS_LOG = CONFIG_DIR / "autoprocess.log"
+# Cap each diagnostic log so unbounded tee/append growth can never fill disk.
+# wake-agent.log (agent raw-output tee) reached ~280 MiB before capping was added.
+LOG_MAX_BYTES = 20 * 1024 * 1024  # 20 MiB per file
 JOB_HISTORY_LIMIT = 100
 DECISION_LEDGER_LIMIT = 200
 DECISION_PROMPT_LIMIT = 8
@@ -56,6 +59,7 @@ DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
 DEFAULT_COOLDOWN = 60
 DEFAULT_MAX_PER_HOUR = 20
 DEFAULT_TIMEOUT = 900
+OUTPUT_DRAIN_TIMEOUT = 10
 
 # Prompt-driven model routing: the owner can ask for a specific model in their message
 # (e.g. "use gpt sol", "use flash") and the wake router honors it. If the requested
@@ -152,11 +156,26 @@ def open_agent_terminal(pid: int, tail_path: str, title: str = "HARPP") -> bool:
         return False
 
 
+def _open_capped_log(path: Path, max_bytes: int | None = None):
+    """Open a log in append mode, truncating in place if it exceeds max_bytes.
+
+    Truncate-in-place (not rename) preserves the inode so `tail -f` and already-open
+    append FDs keep following the same file; O_APPEND writers always land at EOF.
+    """
+    max_bytes = LOG_MAX_BYTES if max_bytes is None else max_bytes
+    try:
+        if path.exists() and path.stat().st_size > max_bytes:
+            path.open("w", encoding="utf-8").close()
+    except Exception:  # noqa: BLE001 - never let logging break the watch loop
+        pass
+    return path.open("a", encoding="utf-8", buffering=1)
+
+
 def log(msg: str) -> None:
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
     try:
         WAKE_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with WAKE_LOG.open("a", encoding="utf-8") as f:
+        with _open_capped_log(WAKE_LOG) as f:
             f.write(line + "\n")
     except Exception:  # noqa: BLE001 - logging must never break the watch loop
         pass
@@ -2381,7 +2400,8 @@ def _stream_agent_output(proc, timeout: int, tee):
         except Exception:  # noqa: BLE001
             pass
 
-    threading.Thread(target=_read, daemon=True).start()
+    reader = threading.Thread(target=_read, daemon=True)
+    reader.start()
     timed_out = False
     try:
         proc.wait(timeout=timeout)
@@ -2398,10 +2418,22 @@ def _stream_agent_output(proc, timeout: int, tee):
             proc.wait(timeout=10)
         except Exception:  # noqa: BLE001
             pass
-    try:
-        proc.stdout.close()
-    except Exception:  # noqa: BLE001
-        pass
+    # A fast child can exit before the reader thread is scheduled. Always wait for
+    # the pipe to drain before inspecting output; otherwise a valid completion
+    # marker can be lost and the successful run is reported as failed.
+    reader.join(timeout=OUTPUT_DRAIN_TIMEOUT)
+    if reader.is_alive():
+        log(f"wake agent output did not drain within {OUTPUT_DRAIN_TIMEOUT}s; closing pipe")
+        try:
+            proc.stdout.close()
+        except Exception:  # noqa: BLE001
+            pass
+        reader.join(timeout=1)
+    else:
+        try:
+            proc.stdout.close()
+        except Exception:  # noqa: BLE001
+            pass
     return "".join(chunks), timed_out
 
 
@@ -2423,7 +2455,7 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
     if open_terminal:
         try:
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-            tee = (CONFIG_DIR / "wake-agent.log").open("a", encoding="utf-8", buffering=1)
+            tee = _open_capped_log(CONFIG_DIR / "wake-agent.log")
         except Exception as e:  # noqa: BLE001
             log(f"could not open wake-agent log for terminal tee: {e}")
         open_agent_terminal(proc.pid, str(CONFIG_DIR / "wake-agent.log"), f"HARPP wake ({model})")

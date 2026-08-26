@@ -75,6 +75,28 @@ harpp status --message "Tests green" --status done --workbench-state READY_FOR_R
 harpp self-test          # or: python3 -m unittest tools.harpp-bridge.tests.test_harpp_bridge
 ```
 
+## 5. Deploy a HARPP package
+
+Copy `deploy.example.json` to `~/.config/harpp/deploy.json`, replace placeholders,
+and run `chmod 600 ~/.config/harpp/deploy.json`. Keep passwords out of the file
+when possible; use an SSH agent/private key for SFTP or enter
+`HARPP_DEPLOY_PASSWORD` directly in the terminal for FTPS.
+
+```bash
+php create-harpp-deploy-package.php
+python3 tools/harpp-bridge/deploy_harpp.py harpp-deploy-YYYYMMDD-HHMMSS.zip
+# Review the dry-run receipt, then explicitly execute:
+python3 tools/harpp-bridge/deploy_harpp.py harpp-deploy-YYYYMMDD-HHMMSS.zip --execute
+```
+
+Dry-run is the default and never connects. SFTP requires a pinned `known_hosts`
+file. FTPS verifies the server certificate and leaves extraction as an explicit
+cPanel action. Plain FTP additionally requires `--allow-plain-ftp` and should
+only be used when the owner accepts that credentials and content are unencrypted.
+Successful execution writes a mode-0600 receipt under
+`~/.config/harpp/deploy-receipts/`; record its SHA-256 with `harpp status` after
+owner verification.
+
 ## Workflow example
 
 ```

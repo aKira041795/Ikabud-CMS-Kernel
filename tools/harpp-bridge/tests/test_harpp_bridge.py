@@ -49,7 +49,7 @@ class HarppClientTest(unittest.TestCase):
         try:
             notes = harpp_client.autoprocess([
                 {"kind": "message", "id": 5, "conversation_id": 2, "body": "hi"},
-                {"kind": "decision", "id": 9, "decision": "Option A"},
+                {"kind": "decision", "id": 9, "decision": "Option A", "lifecycle_state": "DECIDED"},
             ])
         finally:
             harpp_client.api = original
@@ -60,6 +60,36 @@ class HarppClientTest(unittest.TestCase):
         self.assertTrue(any(u.endswith("/applied") for u in urls), urls)
         self.assertEqual(notes[0], "message 5 ack ok=True", notes)
         self.assertEqual(notes[1], "decision 9 ack=True apply=True", notes)
+
+    def test_autoprocess_gates_decisions_by_lifecycle(self):
+        calls = []
+
+        def fake_api(method, url, body=None, **kw):
+            calls.append(url)
+            return {"ok": True}
+
+        original = harpp_client.api
+        harpp_client.api = fake_api
+        outcomes = []
+        try:
+            notes = harpp_client.autoprocess([
+                {"kind": "decision", "id": 10, "lifecycle_state": "NOTIFIED"},
+                {"kind": "decision", "id": 11, "lifecycle_state": "DECIDED"},
+                {"kind": "decision", "id": 12, "lifecycle_state": "ACKNOWLEDGED"},
+                {"kind": "decision", "id": 13, "lifecycle_state": "CLOSED"},
+            ], outcomes=outcomes)
+        finally:
+            harpp_client.api = original
+
+        self.assertFalse(any("/decisions/10/" in url for url in calls), calls)
+        self.assertEqual(sum("/decisions/11/acknowledge" in url for url in calls), 1, calls)
+        self.assertEqual(sum("/decisions/11/applied" in url for url in calls), 1, calls)
+        self.assertFalse(any("/decisions/12/acknowledge" in url for url in calls), calls)
+        self.assertEqual(sum("/decisions/12/applied" in url for url in calls), 1, calls)
+        self.assertFalse(any("/decisions/13/" in url for url in calls), calls)
+        self.assertIn("verify HARPP migrations and ADR creation", notes[0])
+        self.assertEqual(notes[-1], "decision 13 already closed; no action")
+        self.assertEqual([ok for _, ok in outcomes], [False, True, True, True])
 
     def test_config_load(self):
         cfg = harpp_client.load_config()
@@ -101,6 +131,18 @@ class HarppClientTest(unittest.TestCase):
         req = harpp_client.list_decisions(state="PENDING", limit=5)
         self.assertIn("state=PENDING", req["url"])
         self.assertIn("limit=5", req["url"])
+
+    def test_dry_run_poll_messages_sends_cursor(self):
+        # Regression: the bridge API keys owner-message polls by id>cursor. The
+        # client must send `cursor` (not `after`); otherwise the watcher only ever
+        # receives the oldest page and silently misses newer owner messages.
+        req = harpp_client.poll_messages(after=473, limit=100)
+        self.assertIn("cursor=473", req["url"])
+        self.assertNotIn("after=", req["url"])
+        self.assertIn("limit=100", req["url"])
+        # A default poll must still send an explicit cursor=0 baseline page.
+        req0 = harpp_client.poll_messages()
+        self.assertIn("cursor=0", req0["url"])
 
     def test_dry_run_ack_apply(self):
         a = harpp_client.acknowledge_decision(3, rationale="ok")

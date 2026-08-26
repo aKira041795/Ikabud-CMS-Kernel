@@ -67,7 +67,7 @@ final class HarppMessagingService
     public function listOwnerMessagesForHarness(array $actor,array $page=[],?int $tenantId=null)
     {
         if(!$this->access($actor,$tenantId) || ($actor['source']??'')!=='harpp_bridge') return HarppServiceResult::failure('Forbidden.',403);
-        $limit=max(1,min(100,(int)($page['limit']??50)));$after=max(0,(int)($page['cursor']??$page['after_id']??0));$conversation=max(0,(int)($page['conversation_id']??0));
+        $limit=max(1,min(100,(int)($page['limit']??50)));$after=max(0,(int)($page['cursor']??$page['after_id']??$page['after']??0));$conversation=max(0,(int)($page['conversation_id']??0));
         $sql="SELECT id,conversation_id,sender_type,sender_user_id,body,payload,read_at,created_at FROM harpp_messages WHERE sender_type='user' AND id>:after";$params=[':after'=>$after];
         if($conversation>0){$sql.=' AND conversation_id=:conversation';$params[':conversation']=$conversation;}
         $sql.=' ORDER BY id ASC LIMIT '.$limit;$s=$this->db()->prepare($sql);$s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC);

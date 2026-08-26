@@ -1,0 +1,14 @@
+{
+  "profile_name": "bluehost-harpp",
+  "approved_host": "your-approved-host.example",
+  "host": "your-approved-host.example",
+  "user": "your-sftp-user",
+  "port": 22,
+  "transport": "sftp",
+  "root_path": "/absolute/application/root",
+  "private_key": "/home/you/.ssh/harpp_deploy",
+  "known_hosts": "/home/you/.ssh/known_hosts",
+  "extraction_adapter": "ssh_unzip",
+  "allowed_operations": ["preflight", "backup", "upload", "verify", "extract", "health_check"],
+  "health_url": "https://your-harpp-host.example/api/v1/harpp/health"
+}

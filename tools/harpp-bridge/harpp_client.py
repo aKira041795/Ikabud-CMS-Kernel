@@ -137,7 +137,9 @@ def workspace_path(config=None):
 
 def _query(params):
     from urllib.parse import urlencode
-    q = {k: str(v) for k, v in params.items() if v not in (None, "", 0) or k == "after"}
+    # `cursor`/`after` are kept even when 0 so the harness always gets an explicit
+    # baseline page from the server (matches the bridge API's id>cursor contract).
+    q = {k: str(v) for k, v in params.items() if v not in (None, "", 0) or k in ("after", "cursor")}
     return ("?" + urlencode(q)) if q else ""
 
 
@@ -254,15 +256,27 @@ def autoprocess(records, outcomes=None):
                 notes.append(f"message {rec.get('id')} ack ok={ok}")
             elif rec.get("kind") == "decision":
                 did = int(rec.get("id"))
-                ack_ok = False
-                try:
-                    a = acknowledge_decision(did, rationale="Harness auto-acknowledged the owner decision.")
-                    ack_ok = bool(a.get("ok"))
-                except Exception:  # Applying an already-acknowledged retry may still succeed.
-                    pass
-                ap = apply_decision(did, rationale="Harness auto-applied the owner decision (standard watch behavior).")
-                ok = bool(ap.get("ok"))
-                notes.append(f"decision {did} ack={ack_ok} apply={ok}")
+                state = str(rec.get("lifecycle_state") or "").upper()
+                if state in ("CLOSED", "EXPIRED", "SUPERSEDED", "CANCELLED"):
+                    ok = True
+                    notes.append(f"decision {did} already {state.lower()}; no action")
+                elif state not in ("DECIDED", "ACKNOWLEDGED", "APPLIED"):
+                    raise HarppError(
+                        f"decision {did} is {state or 'UNKNOWN'}, not eligible for apply; "
+                        "verify HARPP migrations and ADR creation before retrying"
+                    )
+                else:
+                    ack_ok = False
+                    if state == "DECIDED":
+                        a = acknowledge_decision(did, rationale="Harness auto-acknowledged the owner decision.")
+                        ack_ok = bool(a.get("ok"))
+                        if not ack_ok:
+                            raise HarppError(f"decision {did} acknowledge failed; apply was not attempted")
+                    else:
+                        ack_ok = state in ("ACKNOWLEDGED", "APPLIED")
+                    ap = apply_decision(did, rationale="Harness auto-applied the owner decision (standard watch behavior).")
+                    ok = bool(ap.get("ok"))
+                    notes.append(f"decision {did} ack={ack_ok} apply={ok}")
         except Exception as e:  # noqa: BLE001
             notes.append(f"{rec.get('kind')} {rec.get('id')} failed: {e}")
         if outcomes is not None:
@@ -345,8 +359,11 @@ def harpp_notify(*, conversation_id, message_type, body, title=None, harness_ses
 
 
 def poll_messages(config=None, **kw):
+    # The bridge API keys owner-message polls by `id > cursor` and caps each page
+    # at `limit`. Sending the server's `cursor` param (not `after`) is required so
+    # newer pages are returned instead of always the oldest N messages.
     return api("GET", "/api/v1/harpp/bridge/messages" + _query(
-        {"conversation_id": kw.get("conversation_id"), "after": kw.get("after", 0),
+        {"conversation_id": kw.get("conversation_id"), "cursor": kw.get("after", 0),
          "limit": kw.get("limit")}), config=config)
 
 
