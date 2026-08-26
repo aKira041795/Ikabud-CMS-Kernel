@@ -21,6 +21,8 @@ final class HarppDecisionService
         'CLOSED' => [], 'EXPIRED' => [], 'SUPERSEDED' => [], 'CANCELLED' => [],
     ];
 
+    private ?HarppFoundationService $foundation = null;
+
     public function __construct(private ?ModuleDB $database = null, private ?HarppNotificationService $notifications = null) {}
 
     private function db(): ModuleDB
@@ -50,9 +52,10 @@ final class HarppDecisionService
             return HarppServiceResult::failure('Valid title, body, requested_decision, priority, source, and workbench_state are required.');
         }
         $conversationId = (int)($input['conversation_id'] ?? 0);
+        if($this->foundation()->enabled('approval_policies')&&(int)($input['approval_policy_id']??0)<=0)return HarppServiceResult::failure('approval_policy_id is required while approval policies are enabled.');
         $decisionKey = trim((string)($input['decision_key'] ?? '')) ?: 'HARPP-' . strtoupper(bin2hex(random_bytes(8)));
         if (!preg_match('/^[A-Za-z0-9._:-]{4,191}$/', $decisionKey)) return HarppServiceResult::failure('Invalid decision key.');
-        $notificationId = 0; $recipient = 0;
+        $notificationDeliveries = [];
         try {
             $this->db()->beginTransaction();
             $existing = $this->findByKey($decisionKey, true);
@@ -61,28 +64,30 @@ final class HarppDecisionService
                 return HarppServiceResult::success($this->identity($existing) + ['already_exists' => true], '', [], 'harpp_decision', (int)$existing['id']);
             }
             if ($conversationId <= 0) {
-                $stmt = $this->db()->prepare("INSERT INTO harpp_conversations (title,harness_session_id,status,created_by,created_at,updated_at) VALUES (:title,:session,'open',:user,NOW(),NOW())");
+                $workspaceId=$this->legacyWorkspaceId();
+                $stmt = $this->db()->prepare("INSERT INTO harpp_conversations (workspace_id,project_id,visibility,title,harness_session_id,status,version,created_by,created_at,updated_at) VALUES (:workspace,NULL,'workspace',:title,:session,'open',1,:user,NOW(),NOW())");
                 $session = trim((string)($input['harness_session_id'] ?? ''));
-                $stmt->execute([':title'=>$title, ':session'=>$session !== '' ? $session : null, ':user'=>(int)$actor['id']]);
+                $stmt->execute([':workspace'=>$workspaceId,':title'=>$title, ':session'=>$session !== '' ? $session : null, ':user'=>(int)$actor['id']]);
                 $conversationId = (int)$this->db()->lastInsertId();
             } elseif (!$this->conversationExists($conversationId)) {
                 throw new \InvalidArgumentException('Conversation not found.');
             }
-            $stmt = $this->db()->prepare("INSERT INTO harpp_decisions (decision_key,conversation_id,title,body,context,requested_decision,priority,source,workbench_state,created_by,lifecycle_state,escalation_class,risk_level,options,payload,created_at) VALUES (:key,:conversation,:title,:body,:context,:requested,:priority,:source,:workbench,:user,'PENDING',:escalation,:risk,:options,:payload,NOW())");
-            $stmt->execute([':key'=>$decisionKey, ':conversation'=>$conversationId, ':title'=>$title, ':body'=>$body, ':context'=>$context !== '' ? $context : null, ':requested'=>$requested, ':priority'=>$priority, ':source'=>$source, ':workbench'=>$workbench, ':user'=>(int)$actor['id'], ':escalation'=>$input['escalation_class'] ?? null, ':risk'=>$input['risk_level'] ?? null, ':options'=>$this->json($input['options'] ?? null), ':payload'=>$this->json($input['payload'] ?? null)]);
+            $scope=$this->conversationScope($conversationId);if(!$this->canAccessConversationForDecision($conversationId,$scope,$actor))throw new \InvalidArgumentException('Conversation not found.');
+            $stmt = $this->db()->prepare("INSERT INTO harpp_decisions (workspace_id,project_id,visibility,decision_key,conversation_id,title,body,context,requested_decision,priority,source,workbench_state,created_by,lifecycle_state,version,escalation_class,risk_level,options,payload,created_at) VALUES (:workspace,:project,:visibility,:key,:conversation,:title,:body,:context,:requested,:priority,:source,:workbench,:user,'PENDING',1,:escalation,:risk,:options,:payload,NOW())");
+            $stmt->execute([':workspace'=>$scope['workspace_id'],':project'=>$scope['project_id'],':visibility'=>$scope['visibility'],':key'=>$decisionKey, ':conversation'=>$conversationId, ':title'=>$title, ':body'=>$body, ':context'=>$context !== '' ? $context : null, ':requested'=>$requested, ':priority'=>$priority, ':source'=>$source, ':workbench'=>$workbench, ':user'=>(int)$actor['id'], ':escalation'=>$input['escalation_class'] ?? null, ':risk'=>$input['risk_level'] ?? null, ':options'=>$this->json($input['options'] ?? null), ':payload'=>$this->json($input['payload'] ?? null)]);
             $decisionId = (int)$this->db()->lastInsertId();
             $this->recordTransition($decisionId, null, 'CREATED', $actor, 'Decision request created.', $workbench);
             $this->recordTransition($decisionId, 'CREATED', 'PENDING', $actor, (string)($input['rationale'] ?? 'Decision request queued for operator review.'), $workbench);
-            $recipient = $this->recipient((int)($input['notify_user_id'] ?? 0));
-            if ($recipient > 0) {
+            if($this->foundation()->enabled('notification_fanout')){$recipients=(new HarppCollaborationService($this->db()))->notificationRecipients((int)$scope['workspace_id'],$conversationId,'decision.created',(int)$actor['id']);}else{$recipient=$this->recipient((int)($input['notify_user_id']??0));$recipients=$recipient>0?[$recipient]:[];}
+            foreach ($recipients as $recipient) {
                 $notice = ($this->notifications ??= new HarppNotificationService($this->db()))->create($recipient, 'decision', ['event'=>'decision.created','decision_id'=>$decisionId,'title'=>$title,'state'=>'PENDING'], $decisionId, $conversationId, null, false);
                 if (empty($notice['ok'])) throw new \RuntimeException((string)$notice['error']);
-                $notificationId = (int)($notice['data']['notification_id'] ?? 0);
+                $notificationDeliveries[]=['id'=>(int)($notice['data']['notification_id']??0),'user_id'=>$recipient];
             }
-            $event = $this->recordDomainEffects('harpp.decision.created', 'decision.created', $actor, $decisionId, null, ['state'=>'PENDING','workbench_state'=>$workbench]);
+            (new HarppCollaborationService($this->db()))->snapshotPolicy($decisionId,(int)($input['approval_policy_id']??0));
+            $event = $this->recordDomainEffects('harpp.decision.created', 'decision.created', $actor, $decisionId, null, ['state'=>'PENDING','workbench_state'=>$workbench,'version'=>1,'notification_deliveries'=>$notificationDeliveries]);
             $this->db()->commit();
             $this->supplementalAudit('decision.created', $actor, ['decision_id'=>$decisionId]);
-            if ($notificationId > 0) ($this->notifications ??= new HarppNotificationService($this->db()))->dispatch($notificationId, $recipient);
             return HarppServiceResult::success(['decision_id'=>$decisionId,'decision_key'=>$decisionKey,'conversation_id'=>$conversationId,'state'=>'PENDING','already_exists'=>false], '', [$event], 'harpp_decision', $decisionId);
         } catch (Throwable $e) {
             if ($this->db()->inTransaction()) $this->db()->rollBack();
@@ -104,19 +109,24 @@ final class HarppDecisionService
             $this->db()->beginTransaction();
             $stmt=$this->db()->prepare('SELECT * FROM harpp_decisions WHERE id=:id FOR UPDATE'); $stmt->execute([':id'=>$decisionId]); $before=$stmt->fetch(PDO::FETCH_ASSOC);
             if (!is_array($before)) throw new \InvalidArgumentException('Decision not found.');
+            if(!$this->canAccessDecision($before,$actor))throw new \InvalidArgumentException('Decision not found.');
             $from=(string)$before['lifecycle_state'];
             if (!self::isTransitionAllowed($from, $toState)) { $this->db()->rollBack(); return HarppServiceResult::failure("Illegal decision transition: {$from} -> {$toState}.",409,'illegal_transition'); }
             if (($actor['role'] ?? '') === 'member' && !in_array($toState,['PENDING','NOTIFIED','VIEWED','DECIDED'],true)) { $this->db()->rollBack(); return HarppServiceResult::failure('Owner or admin access is required for this transition.',403); }
+            if (($actor['role'] ?? '') === 'member' && $toState==='DECIDED' && (!$this->foundation()->enabled('approval_policies') || !(new HarppCollaborationService($this->db()))->reviewerEligible($decisionId,(int)$actor['id']))) { $this->db()->rollBack(); return HarppServiceResult::failure('An explicit eligible reviewer policy snapshot is required.',403,'reviewer_ineligible'); }
             $decision=trim((string)($changes['decision']??''));
             if ($toState==='DECIDED' && $decision==='') { $this->db()->rollBack(); return HarppServiceResult::failure('Decision text is required when deciding.'); }
             $workbench=trim((string)($changes['workbench_state']??$before['workbench_state']??''));
             if ($workbench!=='' && !preg_match('/^[A-Z][A-Z0-9_]{2,99}$/',$workbench)) { $this->db()->rollBack(); return HarppServiceResult::failure('Invalid workbench state.'); }
-            $sql='UPDATE harpp_decisions SET lifecycle_state=:state,workbench_state=:workbench'; $params=[':state'=>$toState,':workbench'=>$workbench!==''?$workbench:null,':id'=>$decisionId];
+            if($toState==='DECIDED'&&!(new HarppCollaborationService($this->db()))->approvalSatisfied($decisionId,null)){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
+            $expected=(int)($changes['expected_version']??$before['version']);
+            if($expected!==(int)$before['version']){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
+            $sql='UPDATE harpp_decisions SET lifecycle_state=:state,workbench_state=:workbench,version=version+1'; $params=[':state'=>$toState,':workbench'=>$workbench!==''?$workbench:null,':id'=>$decisionId,':version'=>$expected];
             if($toState==='NOTIFIED')$sql.=',notified_at=NOW()';
             if($toState==='DECIDED'){$sql.=',decision=:decision,decided_by=:user,decided_at=NOW()';$params[':decision']=$decision;$params[':user']=(int)$actor['id'];}
             if($toState==='APPLIED')$sql.=',applied_at=NOW()';
             if(in_array($toState,['CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],true))$sql.=',closed_at=NOW()';
-            $this->db()->prepare($sql.' WHERE id=:id')->execute($params);
+            $updated=$this->db()->prepare($sql.' WHERE id=:id AND version=:version');$updated->execute($params);if($updated->rowCount()!==1){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
             $this->recordTransition($decisionId,$from,$toState,$actor,$rationale,$workbench);
             $adrId = null;
             $adrEvent = null;
@@ -124,93 +134,97 @@ final class HarppDecisionService
                 $adrId = $this->recordAutomaticAdr($before, $decision, $rationale, (int)$actor['id']);
                 $adrEvent = $this->recordAdrEffects($actor, $adrId, $decisionId, $before, $decision, $rationale);
             }
-            $notificationId=0; $recipient=$this->recipient((int)($before['created_by']??0));
-            if($recipient>0){$notice=($this->notifications??=new HarppNotificationService($this->db()))->create($recipient,'decision',['event'=>'decision.updated','decision_id'=>$decisionId,'state'=>$toState],$decisionId,(int)$before['conversation_id'],null,false);if(empty($notice['ok']))throw new \RuntimeException((string)$notice['error']);$notificationId=(int)($notice['data']['notification_id']??0);}
-            $after=['state'=>$toState,'workbench_state'=>$workbench,'adr_id'=>$adrId];
+            $notificationDeliveries=[];if($this->foundation()->enabled('notification_fanout')){$recipients=(new HarppCollaborationService($this->db()))->notificationRecipients((int)$before['workspace_id'],(int)$before['conversation_id'],'decision.updated',(int)$actor['id']);}else{$recipient=$this->recipient((int)($before['created_by']??0));$recipients=$recipient>0?[$recipient]:[];}foreach($recipients as $recipient){$notice=($this->notifications??=new HarppNotificationService($this->db()))->create($recipient,'decision',['event'=>'decision.updated','decision_id'=>$decisionId,'state'=>$toState],$decisionId,(int)$before['conversation_id'],null,false);if(empty($notice['ok']))throw new \RuntimeException((string)$notice['error']);if(empty($notice['data']['idempotent_replay']))$notificationDeliveries[]=['id'=>(int)($notice['data']['notification_id']??0),'user_id'=>$recipient];}
+            $after=['state'=>$toState,'workbench_state'=>$workbench,'adr_id'=>$adrId,'version'=>$expected+1,'notification_deliveries'=>$notificationDeliveries];
             $event=$this->recordDomainEffects('harpp.decision.transitioned','decision.transitioned',$actor,$decisionId,['state'=>$from,'workbench_state'=>$before['workbench_state']],$after,$rationale);
             $this->db()->commit();
             $this->supplementalAudit('decision.transitioned',$actor,['decision_id'=>$decisionId,'from'=>$from,'to'=>$toState]);
-            if($notificationId>0)($this->notifications??=new HarppNotificationService($this->db()))->dispatch($notificationId,$recipient);
-            return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>$toState,'workbench_state'=>$workbench,'adr_id'=>$adrId], '', array_values(array_filter([$adrEvent, $event])), 'harpp_decision', $decisionId);
+            return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>$toState,'workbench_state'=>$workbench,'adr_id'=>$adrId,'version'=>$expected+1], '', array_values(array_filter([$adrEvent, $event])), 'harpp_decision', $decisionId);
         }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision transition failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to transition decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 
-    /** Retry-safe shortcut: any non-terminal state -> APPLIED -> CLOSED transaction. */
+    /** Retry-safe convenience for the only legal tail: ACKNOWLEDGED -> APPLIED -> CLOSED. */
     public function applyAndClose(array $actor,int $decisionId,string $applyRationale,string $closeRationale,array $changes=[],?int $tenantId=null)
     {
         if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin']))return HarppServiceResult::failure('Forbidden.',403);
+        $applyRationale=trim($applyRationale);$closeRationale=trim($closeRationale);if($applyRationale===''||$closeRationale===''||strlen($applyRationale)>10000||strlen($closeRationale)>10000)return HarppServiceResult::failure('Apply and close rationales are required.');
         try{
             $this->db()->beginTransaction();$s=$this->db()->prepare('SELECT * FROM harpp_decisions WHERE id=:id FOR UPDATE');$s->execute([':id'=>$decisionId]);$row=$s->fetch(PDO::FETCH_ASSOC);if(!is_array($row))throw new \InvalidArgumentException('Decision not found.');
+            if(!$this->canAccessDecision($row,$actor))throw new \InvalidArgumentException('Decision not found.');
             $from=(string)$row['lifecycle_state'];
             if($from==='CLOSED'){$this->db()->commit();return HarppServiceResult::success(['decision_id'=>$decisionId,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>true], '', [], 'harpp_decision',$decisionId);}
-            if(in_array($from,['EXPIRED','SUPERSEDED','CANCELLED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Illegal decision transition: {$from} -> APPLIED.",409,'illegal_transition');}
+            if(!in_array($from,['ACKNOWLEDGED','APPLIED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Illegal decision transition: {$from} -> APPLIED. A decision and ADR must exist and be acknowledged first.",409,'illegal_transition');}
+            $adr=$this->db()->prepare('SELECT id FROM harpp_adrs WHERE decision_ref=:decision LIMIT 1');$adr->execute([':decision'=>$decisionId]);if($adr->fetchColumn()===false){$this->db()->rollBack();return HarppServiceResult::failure('Cannot apply a decision without its immutable ADR.',409,'adr_required');}
             $workbench=trim((string)($changes['workbench_state']??$row['workbench_state']??''));
-            if($from!=='APPLIED'){$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='APPLIED',applied_at=COALESCE(applied_at,NOW()),workbench_state=:workbench WHERE id=:id")->execute([':workbench'=>$workbench?:null,':id'=>$decisionId]);$this->recordTransition($decisionId,$from,'APPLIED',$actor,$applyRationale,$workbench);}
-            $this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='CLOSED',closed_at=COALESCE(closed_at,NOW()) WHERE id=:id")->execute([':id'=>$decisionId]);$this->recordTransition($decisionId,'APPLIED','CLOSED',$actor,$closeRationale,$workbench);
+            $expected=(int)($changes['expected_version']??$row['version']);if($expected!==(int)$row['version']){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
+            if($from!=='APPLIED'){$u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='APPLIED',applied_at=COALESCE(applied_at,NOW()),workbench_state=:workbench,version=version+1 WHERE id=:id AND version=:version");$u->execute([':workbench'=>$workbench?:null,':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');$this->recordTransition($decisionId,$from,'APPLIED',$actor,$applyRationale,$workbench);$expected++;}
+            $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='CLOSED',closed_at=COALESCE(closed_at,NOW()),version=version+1 WHERE id=:id AND version=:version");$u->execute([':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');$this->recordTransition($decisionId,'APPLIED','CLOSED',$actor,$closeRationale,$workbench);
             $event=$this->recordDomainEffects('harpp.decision.applied','decision.applied_and_closed',$actor,$decisionId,['state'=>$from],['state'=>'CLOSED']);$this->db()->commit();$this->supplementalAudit('decision.applied_and_closed',$actor,['decision_id'=>$decisionId]);
             return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>$from==='APPLIED'], '', [$event], 'harpp_decision',$decisionId);
         }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision apply/close failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to apply and close decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 
-    /** Manual delete for closed/terminal decisions. Removes the decision, its audit trail and notifications, and any linked ADR. */
+    /** Compatibility endpoint: terminal decisions are archived, never physically deleted. */
     public function delete(array $actor,int $decisionId,?int $tenantId=null)
     {
         if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin']))return HarppServiceResult::failure('Forbidden.',403);
         if($decisionId<=0)return HarppServiceResult::failure('Decision not found.',404);
-        try{
-            $this->db()->beginTransaction();
-            $s=$this->db()->prepare('SELECT id,lifecycle_state FROM harpp_decisions WHERE id=:id FOR UPDATE');$s->execute([':id'=>$decisionId]);$row=$s->fetch(PDO::FETCH_ASSOC);
-            if(!is_array($row))throw new \InvalidArgumentException('Decision not found.');
-            $state=(string)$row['lifecycle_state'];
-            if(!in_array($state,['CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Only closed decisions can be deleted (current state: {$state}).",409,'delete_requires_closed');}
-            // ADRs reference decisions with ON DELETE RESTRICT; remove the linked memory first so the delete can proceed.
-            $this->db()->prepare('DELETE FROM harpp_adrs WHERE decision_ref=:id')->execute([':id'=>$decisionId]);
-            $this->db()->prepare('DELETE FROM harpp_decisions WHERE id=:id')->execute([':id'=>$decisionId]);
-            $event=$this->recordDomainEffects('harpp.decision.deleted','decision.deleted',$actor,$decisionId,['state'=>$state],['deleted'=>true],'Manual delete of closed decision.');
-            $this->db()->commit();
-            $this->supplementalAudit('decision.deleted',$actor,['decision_id'=>$decisionId,'state'=>$state]);
-            return HarppServiceResult::success(['decision_id'=>$decisionId,'state'=>$state,'deleted'=>true], 'Decision deleted.', [$event], 'harpp_decision', $decisionId);
-        }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision delete failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to delete decision.',$e instanceof \InvalidArgumentException?404:500);}
+        return $this->foundation()->archiveDecision($actor,$decisionId);
     }
 
-    /** Bulk delete for all terminal (closed) decisions. Removes linked ADRs first so the ON DELETE RESTRICT constraint can proceed, then removes the decisions (audit trail and notifications cascade). */
+    /** Compatibility endpoint: archives all terminal decisions and retains ADR/audit/evidence. */
     public function deleteAllClosed(array $actor, ?int $tenantId = null)
     {
         if (!$this->scope($tenantId) || !$this->role($actor, ['owner', 'admin'])) return HarppServiceResult::failure('Forbidden.', 403);
         try {
             $this->db()->beginTransaction();
             $terminal = "('CLOSED','EXPIRED','SUPERSEDED','CANCELLED')";
-            $this->db()->prepare("DELETE FROM harpp_adrs WHERE decision_ref IN (SELECT id FROM harpp_decisions WHERE lifecycle_state IN {$terminal})")->execute();
-            $s = $this->db()->prepare("DELETE FROM harpp_decisions WHERE lifecycle_state IN {$terminal}");
-            $s->execute();
+            $scope=(string)($actor['role']??'')==='owner'?'':' AND (visibility<>\'private\' OR created_by=:actor)';$s = $this->db()->prepare("UPDATE harpp_decisions SET archived_at=COALESCE(archived_at,NOW(6)),version=version+IF(archived_at IS NULL,1,0) WHERE lifecycle_state IN {$terminal} AND archived_at IS NULL".$scope);
+            $s->execute($scope!==''?[':actor'=>(int)$actor['id']]:[]);
             $count = $s->rowCount();
-            if (function_exists('app')) { \app()->events()->fire('harpp.decisions.deleted', ['deleted' => $count, 'states' => ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'], 'actor_user_id' => (int)($actor['id'] ?? 0)], 'harpp'); }
+            $event=$this->recordDomainEffects('harpp.decisions.archived','decisions.archived',$actor,0,null,['archived'=>$count,'states'=>['CLOSED','EXPIRED','SUPERSEDED','CANCELLED']],'Bulk immutable archive.');
             $this->db()->commit();
-            $this->supplementalAudit('decisions.deleted_all_closed', $actor, ['deleted' => $count]);
-            return HarppServiceResult::success(['deleted' => $count, 'states' => ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED']], 'All closed decisions deleted.');
+            return HarppServiceResult::success(['archived' => $count, 'deleted'=>0,'states' => ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED']], 'Terminal decisions archived; no records were deleted.',[$event]);
         } catch (Throwable $e) {
             if ($this->db()->inTransaction()) $this->db()->rollBack();
-            $this->log('bulk decision delete failed', $e);
-            return HarppServiceResult::failure('Unable to delete closed decisions.', 500);
+            $this->log('bulk decision archive failed', $e);
+            return HarppServiceResult::failure('Unable to archive terminal decisions.', 500);
         }
     }
 
     public function get(array $actor,int $decisionId,?int $tenantId=null)
-    {if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin','member']))return HarppServiceResult::failure('Forbidden.',403);$s=$this->db()->prepare('SELECT * FROM harpp_decisions WHERE id=:id');$s->execute([':id'=>$decisionId]);$d=$s->fetch(PDO::FETCH_ASSOC);if(!is_array($d))return HarppServiceResult::failure('Decision not found.',404);$a=$this->db()->prepare('SELECT id,from_state,to_state,actor_user_id,actor_type,rationale,workbench_state,created_at FROM harpp_decision_transitions WHERE decision_id=:id ORDER BY created_at,id');$a->execute([':id'=>$decisionId]);return HarppServiceResult::success(['decision'=>$d,'audit_trail'=>$a->fetchAll(PDO::FETCH_ASSOC)],'',[],'harpp_decision',$decisionId);}
+    {if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin','member']))return HarppServiceResult::failure('Forbidden.',403);$s=$this->db()->prepare('SELECT * FROM harpp_decisions WHERE id=:id');$s->execute([':id'=>$decisionId]);$d=$s->fetch(PDO::FETCH_ASSOC);if(!is_array($d))return HarppServiceResult::failure('Decision not found.',404);if(!$this->canAccessDecision($d,$actor))return HarppServiceResult::failure('Decision not found.',404);$a=$this->db()->prepare('SELECT id,from_state,to_state,actor_user_id,actor_type,rationale,workbench_state,created_at FROM harpp_decision_transitions WHERE decision_id=:id ORDER BY created_at,id');$a->execute([':id'=>$decisionId]);return HarppServiceResult::success(['decision'=>$d,'audit_trail'=>$a->fetchAll(PDO::FETCH_ASSOC)],'',[],'harpp_decision',$decisionId);}
 
     public function list(array $actor,array $filters=[],?int $tenantId=null)
-    {if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin','member']))return HarppServiceResult::failure('Forbidden.',403);$where=[];$params=[];if(($filters['state']??'')!==''){$state=strtoupper((string)$filters['state']);if(!array_key_exists($state,self::TRANSITIONS))return HarppServiceResult::failure('Invalid state filter.');$where[]='lifecycle_state=:state';$params[':state']=$state;}if(($filters['priority']??'')!==''){$p=strtolower((string)$filters['priority']);if(!in_array($p,['low','normal','high','critical'],true))return HarppServiceResult::failure('Invalid priority filter.');$where[]='priority=:priority';$params[':priority']=$p;}if(($filters['workbench_state']??'')!==''){$w=strtoupper(trim((string)$filters['workbench_state']));if(!preg_match('/^[A-Z][A-Z0-9_]{2,99}$/',$w))return HarppServiceResult::failure('Invalid workbench state filter.');$where[]='workbench_state=:workbench';$params[':workbench']=$w;}if((int)($filters['actor_id']??0)>0){$where[]='(created_by=:actor OR decided_by=:actor)';$params[':actor']=(int)$filters['actor_id'];}$limit=max(1,min(100,(int)($filters['limit']??25)));$offset=max(0,(int)($filters['offset']??0));$sql='SELECT * FROM harpp_decisions'.($where?' WHERE '.implode(' AND ',$where):'').' ORDER BY created_at DESC,id DESC LIMIT '.$limit.' OFFSET '.$offset;$s=$this->db()->prepare($sql);$s->execute($params);return HarppServiceResult::success(['decisions'=>$s->fetchAll(PDO::FETCH_ASSOC),'limit'=>$limit,'offset'=>$offset]);}
+    {
+        if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin','member']))return HarppServiceResult::failure('Forbidden.',403);$where=[];$params=[];
+        if(!filter_var($filters['include_archived']??false,FILTER_VALIDATE_BOOLEAN))$where[]='archived_at IS NULL';
+        if(($filters['state']??'')!==''){$state=strtoupper((string)$filters['state']);if(!array_key_exists($state,self::TRANSITIONS))return HarppServiceResult::failure('Invalid state filter.');$where[]='lifecycle_state=:state';$params[':state']=$state;}
+        if(($filters['priority']??'')!==''){$p=strtolower((string)$filters['priority']);if(!in_array($p,['low','normal','high','critical'],true))return HarppServiceResult::failure('Invalid priority filter.');$where[]='priority=:priority';$params[':priority']=$p;}
+        if(($filters['workbench_state']??'')!==''){$w=strtoupper(trim((string)$filters['workbench_state']));if(!preg_match('/^[A-Z][A-Z0-9_]{2,99}$/',$w))return HarppServiceResult::failure('Invalid workbench state filter.');$where[]='workbench_state=:workbench';$params[':workbench']=$w;}
+        if((int)($filters['actor_id']??0)>0){$where[]='(created_by=:actor OR decided_by=:actor)';$params[':actor']=(int)$filters['actor_id'];}
+        $this->appendDecisionScope($where,$params,$actor);
+        $cursorAt=trim((string)($filters['cursor_created_at']??''));$cursorId=(int)($filters['cursor_id']??0);if($cursorAt!==''||$cursorId>0){if($cursorAt===''||$cursorId<=0||strtotime($cursorAt)===false)return HarppServiceResult::failure('Both valid cursor_created_at and cursor_id are required.');$where[]='(created_at<:cursor_before OR (created_at=:cursor_equal AND id<:cursor_id))';$params[':cursor_before']=$cursorAt;$params[':cursor_equal']=$cursorAt;$params[':cursor_id']=$cursorId;}
+        $limit=max(1,min(100,(int)($filters['limit']??25)));$offset=($cursorAt===''&&$cursorId===0)?max(0,(int)($filters['offset']??0)):0;$sql='SELECT * FROM harpp_decisions'.($where?' WHERE '.implode(' AND ',$where):'').' ORDER BY created_at DESC,id DESC LIMIT '.$limit.' OFFSET '.$offset;$s=$this->db()->prepare($sql);$s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC);$last=$rows?end($rows):null;
+        return HarppServiceResult::success(['decisions'=>$rows,'limit'=>$limit,'offset'=>$offset,'next_cursor'=>$last?['created_at'=>$last['created_at'],'id'=>(int)$last['id']]:null]);
+    }
 
     private function recordAutomaticAdr(array $source,string $decision,string $rationale,int $actorId): int
     {$key='ADR-'.$source['decision_key'];$s=$this->db()->prepare('INSERT INTO harpp_adrs (adr_key,title,context,body,decision,rationale,decision_ref,decided_by,created_at,decided_at) VALUES (:key,:title,:context,:body,:decision,:rationale,:ref,:actor,NOW(),NOW())');$s->execute([':key'=>$key,':title'=>$source['title'],':context'=>trim((string)($source['context']??''))?:$source['body'],':body'=>$source['body'],':decision'=>$decision,':rationale'=>$rationale,':ref'=>(int)$source['id'],':actor'=>$actorId]);return(int)$this->db()->lastInsertId();}
-    private function recordAdrEffects(array $actor,int $adrId,int $decisionId,array $source,string $decision,string $rationale):array{$after=['adr_id'=>$adrId,'decision_id'=>$decisionId,'adr_key'=>'ADR-'.$source['decision_key'],'decision'=>$decision,'rationale'=>$rationale,'decided_by'=>(int)($actor['id']??0)];$payload=$after+['actor_user_id'=>(int)($actor['id']??0)];if(function_exists('app')){\app()->events()->fire('harpp.adr.recorded',$payload,'harpp');$audit=\app()->cap()->call('kernel.audit.record@1',['module'=>'harpp','action'=>'adr.recorded','entity_type'=>'harpp_adr','entity_id'=>(string)$adrId,'new_data'=>$after,'reason'=>$rationale],['mode'=>'first','caller_module'=>'harpp']);if(!is_array($audit)||empty($audit['ok']))throw new \RuntimeException('Kernel audit recording failed.');}return['name'=>'harpp.adr.recorded','payload'=>$payload];}
+    private function recordAdrEffects(array $actor,int $adrId,int $decisionId,array $source,string $decision,string $rationale):array{$after=['adr_id'=>$adrId,'decision_id'=>$decisionId,'adr_key'=>'ADR-'.$source['decision_key'],'decision'=>$decision,'rationale'=>$rationale,'decided_by'=>(int)($actor['id']??0)];return$this->foundation()->recordEffect('harpp.adr.recorded','adr.recorded',$actor,'harpp_adr',$adrId,null,$after,$rationale);}
     private function recordTransition(int$id,?string$from,string$to,array$actor,string$rationale,string$workbench):void{$s=$this->db()->prepare('INSERT INTO harpp_decision_transitions(decision_id,from_state,to_state,actor_user_id,actor_type,rationale,workbench_state,created_at) VALUES(:id,:from,:to,:actor,:type,:rationale,:workbench,NOW())');$s->execute([':id'=>$id,':from'=>$from,':to'=>$to,':actor'=>(int)($actor['id']??0)?:null,':type'=>($actor['source']??'harpp')==='harpp_bridge'?'harness':'user',':rationale'=>$rationale,':workbench'=>$workbench?:null]);}
-    private function recordDomainEffects(string$eventName,string$action,array$actor,int$id,?array$before,array$after,string$reason=''){$payload=['decision_id'=>$id,'actor_user_id'=>(int)($actor['id']??0),'before'=>$before,'after'=>$after];if(function_exists('app')){\app()->events()->fire($eventName,$payload,'harpp');$audit=\app()->cap()->call('kernel.audit.record@1',['module'=>'harpp','action'=>$action,'entity_type'=>'harpp_decision','entity_id'=>(string)$id,'old_data'=>$before,'new_data'=>$after,'reason'=>$reason],['mode'=>'first','caller_module'=>'harpp']);if(!is_array($audit)||empty($audit['ok']))throw new \RuntimeException('Kernel audit recording failed.');}return ['name'=>$eventName,'payload'=>$payload];}
+    private function recordDomainEffects(string$eventName,string$action,array$actor,int$id,?array$before,array$after,string$reason=''){return$this->foundation()->recordEffect($eventName,$action,$actor,'harpp_decision',$id,$before,$after,$reason);}
     private function findByKey(string$key,bool$lock):?array{$s=$this->db()->prepare('SELECT id,decision_key,conversation_id,lifecycle_state FROM harpp_decisions WHERE decision_key=:key'.($lock?' FOR UPDATE':''));$s->execute([':key'=>$key]);$r=$s->fetch(PDO::FETCH_ASSOC);return is_array($r)?$r:null;}
     private function identity(array$row){return['decision_id'=>(int)$row['id'],'decision_key'=>(string)$row['decision_key'],'conversation_id'=>(int)$row['conversation_id'],'state'=>(string)$row['lifecycle_state']];}
     private function isDuplicate(Throwable$e):bool{return(string)$e->getCode()==='23000'||str_contains(strtolower($e->getMessage()),'duplicate');}
     private function recipient(int$p):int{if($p>0){$s=$this->db()->prepare('SELECT id FROM harpp_users WHERE id=:id AND is_active=1');$s->execute([':id'=>$p]);if($s->fetchColumn()!==false)return$p;}$s=$this->db()->query("SELECT id FROM harpp_users WHERE is_active=1 AND role IN ('owner','admin') ORDER BY FIELD(role,'owner','admin'),id LIMIT 1");return(int)($s->fetchColumn()?:0);}
     private function conversationExists(int$id):bool{$s=$this->db()->prepare('SELECT id FROM harpp_conversations WHERE id=:id');$s->execute([':id'=>$id]);return$s->fetchColumn()!==false;}
+    private function conversationScope(int$id):array{$s=$this->db()->prepare('SELECT workspace_id,project_id,visibility FROM harpp_conversations WHERE id=:id');$s->execute([':id'=>$id]);$r=$s->fetch(PDO::FETCH_ASSOC);if(!is_array($r))throw new \InvalidArgumentException('Conversation not found.');return$r;}
+    private function legacyWorkspaceId():int{$s=$this->db()->query("SELECT id FROM harpp_workspaces WHERE workspace_key='legacy' LIMIT 1");$id=(int)($s->fetchColumn()?:0);if($id<=0)throw new \RuntimeException('Legacy workspace is unavailable.');return$id;}
+    private function foundation():HarppFoundationService{return$this->foundation??=new HarppFoundationService($this->db());}
+    private function appendDecisionScope(array&$where,array&$params,array$actor):void{if(!$this->foundation()->enabled('workspace_enforcement')&&!$this->foundation()->enabled('participant_visibility'))return;$role=(string)($actor['role']??'');$user=(int)$actor['id'];if($role==='owner')return;if($role==='admin'){$where[]="(visibility<>'private' OR created_by=:admin_creator OR EXISTS(SELECT 1 FROM harpp_conversation_participants cp WHERE cp.conversation_id=harpp_decisions.conversation_id AND cp.user_id=:admin_grant AND cp.grant_kind='private_grant' AND cp.revoked_at IS NULL))";$params[':admin_creator']=$user;$params[':admin_grant']=$user;return;}$where[]="EXISTS(SELECT 1 FROM harpp_workspace_memberships wm WHERE wm.workspace_id=harpp_decisions.workspace_id AND wm.user_id=:workspace_user AND wm.status='active')";$where[]="(project_id IS NULL OR EXISTS(SELECT 1 FROM harpp_project_memberships pm WHERE pm.project_id=harpp_decisions.project_id AND pm.user_id=:project_user AND pm.status='active'))";$where[]="(visibility='workspace' OR created_by=:decision_creator OR EXISTS(SELECT 1 FROM harpp_conversation_participants cp WHERE cp.conversation_id=harpp_decisions.conversation_id AND cp.user_id=:decision_participant AND cp.revoked_at IS NULL AND (visibility='participants' OR cp.grant_kind='private_grant')))";$params[':workspace_user']=$user;$params[':project_user']=$user;$params[':decision_creator']=$user;$params[':decision_participant']=$user;}
+    private function canAccessDecision(array$row,array$actor):bool{if(!$this->foundation()->enabled('workspace_enforcement')&&!$this->foundation()->enabled('participant_visibility'))return true;$role=(string)($actor['role']??'');if($role==='owner')return true;$user=(int)$actor['id'];if($role==='admin'&&$row['visibility']!=='private')return true;$workspace=$this->db()->prepare("SELECT 1 FROM harpp_workspace_memberships WHERE workspace_id=:workspace AND user_id=:user AND status='active'");$workspace->execute([':workspace'=>$row['workspace_id'],':user'=>$user]);$workspaceOk=$workspace->fetchColumn()!==false;$projectOk=true;if((int)($row['project_id']??0)>0){$p=$this->db()->prepare("SELECT 1 FROM harpp_project_memberships WHERE project_id=:project AND user_id=:user AND status='active'");$p->execute([':project'=>$row['project_id'],':user'=>$user]);$projectOk=$p->fetchColumn()!==false;}$g=$this->db()->prepare('SELECT grant_kind FROM harpp_conversation_participants WHERE conversation_id=:conversation AND user_id=:user AND revoked_at IS NULL');$g->execute([':conversation'=>$row['conversation_id'],':user'=>$user]);$grants=$g->fetchAll(PDO::FETCH_COLUMN);if($role==='admin')return in_array('private_grant',$grants,true);return HarppCollaborationPolicy::canSee((string)$row['visibility'],$user,(int)$row['created_by'],$workspaceOk,$projectOk,in_array('participant',$grants,true),in_array('private_grant',$grants,true));}
+    private function canAccessConversationForDecision(int$id,array$scope,array$actor):bool{if(!$this->foundation()->enabled('workspace_enforcement')&&!$this->foundation()->enabled('participant_visibility'))return true;$s=$this->db()->prepare('SELECT created_by FROM harpp_conversations WHERE id=:id');$s->execute([':id'=>$id]);$creator=(int)$s->fetchColumn();return$this->canAccessDecision($scope+['conversation_id'=>$id,'created_by'=>$creator],$actor);}
     private function json(mixed$v):?string{return$v===null?null:json_encode($v,JSON_THROW_ON_ERROR);}
     private function scope(?int$t):bool{$c=(int)(\app()->tenant()->current()??0);return$c>0&&($t===null||$t===$c);}
     private function role(array$a,array$r):bool{return(int)($a['id']??0)>0&&in_array((string)($a['source']??'harpp'),['harpp','harpp_bridge'],true)&&in_array((string)($a['role']??''),$r,true);}

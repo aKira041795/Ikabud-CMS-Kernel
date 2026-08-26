@@ -10,13 +10,15 @@ An operator can find pending work immediately and complete an acknowledged decis
 - HARPP decision templates/assets, routes, handlers, and decision service/bridge integration under `modules/harpp` and `templates/modules/harpp`.
 - Focused HARPP CLI/static regression tests and module documentation where needed.
 - Reuse `HarppDecisionService::applyAndClose`; add a cookie-authenticated endpoint/handler if required.
+- The owner-approved Phase 0/Phase 1 integrity and collaboration foundation recorded in `.ai/current-task.md` is separately authorized in this change set: additive migration 007 and its resumable Legacy workspace backfill; strict lifecycle and immutable archive/retention contracts; local audit/outbox, idempotency, cursor, optimistic-concurrency, retry/dead-letter, and rollout primitives; workspace/project membership and visibility, participants/private grants, message receipts, assignments/watchers, approval-policy snapshots/approvals, preferences and notification fanout services/capabilities; and the related messaging, notification, push, settings, bridge-auth, bridge compatibility/version, manifest, documentation, and isolated-test changes under `modules/harpp` and `tools/harpp-bridge`.
+- This authorization stops at the Phase 1 foundation: capability/schema/dual-read or dual-write foundations are allowed, while Phase 2+, deployment, provider, credential/executor, and broad UI conversion work remains out of scope.
 
 ## constraints
 - Preserve the canonical lifecycle and append-only transition/audit/ADR records; “prune” means remove from the active UI/list result, never hard-delete.
 - Default the inbox state control and initial request to `PENDING`; explicit filters, including `CLOSED`, must remain available.
 - Apply-and-close is owner/admin only, accepts only `ACKNOWLEDGED`, `APPLIED`, or idempotent `CLOSED`, and records `ACKNOWLEDGED → APPLIED → CLOSED` atomically.
 - The browser apply endpoint must call `harppRequireCsrf()` before authentication/business logic and use the existing same-origin `Harpp.fetch` CSRF header path. Bridge-key endpoints remain unchanged.
-- Maintain tenant scoping, authorization, structured service results, notifications/events/audit behavior, and MySQL compatibility. No schema migration unless proven necessary.
+- Maintain tenant scoping, authorization, structured service results, notifications/events/audit behavior, and MySQL 5.7 compatibility. No schema migration unless proven necessary.
 
 ## acceptance
 - The decision inbox status select visibly starts at `PENDING`, and its first load requests `state=PENDING`.

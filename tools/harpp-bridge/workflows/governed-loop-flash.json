@@ -1,5 +1,5 @@
 {
-    "title": "Governed loop: architect -> implement -> review -> release-gate",
+    "title": "Governed loop (Deepseek flash delegated): architect -> implement -> review -> release-gate",
     "stages": [
         {
             "name": "architect",
@@ -11,7 +11,7 @@
         },
         {
             "name": "implement",
-            "model": "deepseek/deepseek-v4-pro",
+            "model": "deepseek/deepseek-v4-flash",
             "prompt_file": "stages/implement.md",
             "marker": "SOL_IMPL status=PASS",
             "verify": "true",

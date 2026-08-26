@@ -8,6 +8,8 @@ use Harpp\Services\HarppSettingsService;
 use Harpp\Services\HarppDecisionService;
 use Harpp\Services\HarppMessagingService;
 use Harpp\Services\HarppBridgeAuthService;
+use Harpp\Services\HarppFoundationService;
+use Harpp\Services\HarppCollaborationService;
 use Ikabud\Kernel\Contracts\ModuleDB;
 
 require_once __DIR__ . '/services/HarppServiceResult.php';
@@ -17,6 +19,9 @@ require_once __DIR__ . '/services/HarppPasswordResetService.php';
 require_once __DIR__ . '/services/HarppSettingsService.php';
 require_once __DIR__ . '/services/HarppPushService.php';
 require_once __DIR__ . '/services/HarppNotificationService.php';
+require_once __DIR__ . '/services/HarppFoundationService.php';
+require_once __DIR__ . '/services/HarppCollaborationPolicy.php';
+require_once __DIR__ . '/services/HarppCollaborationService.php';
 require_once __DIR__ . '/services/HarppDecisionService.php';
 require_once __DIR__ . '/services/HarppMessagingService.php';
 require_once __DIR__ . '/services/HarppAdrService.php';
@@ -38,6 +43,21 @@ function harpp_capability_handlers(): array
         'harpp.bridge.authenticate@1' => 'harpp_cap_bridge_authenticate_1',
         'harpp.settings.read@1' => 'harpp_cap_settings_read_1',
         'harpp.settings.manage@1' => 'harpp_cap_settings_manage_1',
+        'harpp.lifecycle.transition@2' => 'harpp_cap_lifecycle_transition_2',
+        'harpp.archive@1' => 'harpp_cap_archive_1',
+        'harpp.purge.request@1' => 'harpp_cap_purge_request_1',
+        'harpp.purge.approve@1' => 'harpp_cap_purge_approve_1',
+        'harpp.audit.read@1' => 'harpp_cap_audit_read_1',
+        'harpp.outbox.dispatch@1' => 'harpp_cap_outbox_dispatch_1',
+        'harpp.workspace.read@1' => 'harpp_cap_workspace_read_1',
+        'harpp.workspace.manage@1' => 'harpp_cap_workspace_manage_1',
+        'harpp.project.read@1' => 'harpp_cap_project_read_1',
+        'harpp.project.manage@1' => 'harpp_cap_project_manage_1',
+        'harpp.participant.manage@1' => 'harpp_cap_participant_manage_1',
+        'harpp.message.receipt@1' => 'harpp_cap_message_receipt_1',
+        'harpp.decision.assign@1' => 'harpp_cap_decision_assign_1',
+        'harpp.decision.approve@1' => 'harpp_cap_decision_approve_1',
+        'harpp.notification.preferences@1' => 'harpp_cap_notification_preferences_1',
         'entity.list.harpp_conversation@1' => 'harpp_cap_entity_list_conversation_1',
         'entity.list.harpp_message@1' => 'harpp_cap_entity_list_message_1',
         'entity.list.harpp_decision@1' => 'harpp_cap_entity_list_decision_1',
@@ -100,9 +120,16 @@ function harppPermissionResult(string $permission, mixed $payload): array
         'harpp.bridge' => ['owner', 'admin'],
         'harpp.settings.read' => ['owner', 'admin'],
         'harpp.settings.manage' => ['owner', 'admin'],
+        'harpp.workspace.read' => ['owner', 'admin', 'member'],
+        'harpp.workspace.manage' => ['owner', 'admin', 'member'],
+        'harpp.project.read' => ['owner', 'admin', 'member'],
+        'harpp.project.manage' => ['owner', 'admin', 'member'],
+        'harpp.participant.manage' => ['owner', 'admin', 'member'],
+        'harpp.decision.assign' => ['owner', 'admin', 'member'],
+        'harpp.decision.approve' => ['owner', 'admin', 'member'],
     ];
     $kernelSuperadmin = $source === 'kernel' && $role === 'superadmin';
-    $moduleUser = $source === 'harpp' && in_array($role, $roles[$permission] ?? [], true);
+    $moduleUser = in_array($source, ['harpp','harpp_bridge'], true) && in_array($role, $roles[$permission] ?? [], true);
     $data['ok'] = true;
     $data['allowed'] = harppTenantPayloadMatches($data) && ($kernelSuperadmin || $moduleUser);
     $data['permission'] = $permission;
@@ -186,21 +213,131 @@ function harpp_cap_settings_manage_1(mixed $payload, string $capabilityId = 'har
     return harppPermissionResult('harpp.settings.manage', $payload);
 }
 
-function harppCapabilityActor(mixed $payload): array
+function harppCapabilityActor(mixed $payload = null): array
+{
+    // Payload data is never an identity source. Resolve the authenticated request
+    // principal from infrastructure, then reload role/active state from HARPP's DB.
+    $principal = module('harpp')->user();$moduleAuthenticated=is_array($principal)&&(int)($principal['id']??0)>0;
+    if (!$moduleAuthenticated) {
+        try {
+            $resolved = app()->cap()->call('kernel.auth.user@1', [], ['mode' => 'first', 'caller_module' => 'harpp']);
+            $principal = is_array($resolved) ? ($resolved['data']['user'] ?? $resolved['user'] ?? $resolved) : [];
+            $source=(string)($principal['source']??(is_array($resolved)?($resolved['source']??'') : ''));$sub=(string)($principal['sub']??'');
+            if($source!=='harpp'&&!str_starts_with($sub,'harpp:'))$principal=[];
+        } catch (Throwable) {
+            $principal = [];
+        }
+    }
+    $id = (int)($principal['id'] ?? 0);
+    if ($id <= 0 || harppCurrentTenantId() <= 0) return [];
+    $stmt = harppDb()->prepare('SELECT id,role FROM harpp_users WHERE id=:id AND is_active=1 AND deleted_at IS NULL LIMIT 1');
+    $stmt->execute([':id'=>$id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    return is_array($user) ? ['id'=>(int)$user['id'],'role'=>(string)$user['role'],'source'=>'harpp'] : [];
+}
+function harppCapabilityPermission(array $actor, string $permission): bool
+{
+    $roles = [
+        'harpp.read'=>['owner','admin','member'], 'harpp.manage'=>['owner','admin'],
+        'harpp.decision.review'=>['owner','admin','member'],
+        'harpp.workspace.read'=>['owner','admin','member'], 'harpp.workspace.manage'=>['owner','admin','member'],
+        'harpp.project.read'=>['owner','admin','member'], 'harpp.project.manage'=>['owner','admin','member'],
+        'harpp.participant.manage'=>['owner','admin','member'], 'harpp.decision.assign'=>['owner','admin','member'],
+        'harpp.decision.approve'=>['owner','admin','member'],
+    ];
+    return (int)($actor['id'] ?? 0) > 0 && in_array((string)($actor['role'] ?? ''), $roles[$permission] ?? [], true);
+}
+function harppCapabilityData(mixed $payload, string $permission): array
 {
     $data = is_array($payload) ? $payload : [];
-    return is_array($data['user'] ?? null) ? $data['user'] : (array)module('harpp')->user();
+    foreach (['user', 'actor', 'actor_user_id', 'tenant_id', 'store_id', '_tenant_id'] as $authorityField) {
+        if (array_key_exists($authorityField, $data)) return [$data, [], false];
+    }
+    $actor = harppCapabilityActor();
+    return [$data, $actor, harppCapabilityPermission($actor, $permission)];
+}
+function harppCapabilityResult(array|Harpp\Services\HarppServiceResult $result): array
+{
+    $wire = $result instanceof Harpp\Services\HarppServiceResult ? $result->toArray() : $result;
+    $convert = static function(mixed $value, ?string $key = null) use (&$convert): mixed {
+        if (is_array($value)) {
+            foreach ($value as $childKey => $child) $value[$childKey] = $convert($child, is_string($childKey) ? $childKey : null);
+            return $value;
+        }
+        if (($key === 'id' || ($key !== null && str_ends_with($key, '_id'))) && (is_int($value) || (is_string($value) && ctype_digit($value)))) return (string)$value;
+        return $value;
+    };
+    return $convert($wire);
+}
+function harpp_cap_lifecycle_transition_2(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.decision.review');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];if(!array_key_exists('expected_version',$d)||(int)$d['expected_version']<1||trim((string)($d['idempotency_key']??''))==='')return['ok'=>false,'status'=>422,'code'=>'mutation_contract_required','error'=>'expected_version and Idempotency-Key are required.'];
+    $foundation=new HarppFoundationService(harppDb());$claim=$foundation->claimIdempotency('tenant:'.harppCurrentTenantId().':decision:'.(int)($d['decision_id']??0),$a,'lifecycle.transition',(string)($d['idempotency_key']??''),$d);
+    if($claim['state']==='conflict')return['ok'=>false,'status'=>409,'code'=>'idempotency_conflict','error'=>'Idempotency key was already used with a different payload.'];if($claim['state']==='in_progress')return['ok'=>false,'status'=>409,'code'=>'idempotency_in_progress','error'=>'Idempotent operation is still processing.'];if($claim['state']==='replay')return harppCapabilityResult((array)$claim['response']+['idempotent_replay'=>true]);
+    $r=(new HarppDecisionService(harppDb()))->transition($a,(int)($d['decision_id']??0),(string)($d['to_state']??''),(string)($d['rationale']??''),$d,harppCurrentTenantId());$wire=harppCapabilityResult($r);$foundation->completeIdempotency((int)($claim['id']??0),$wire,(int)($wire['status']??(!empty($wire['ok'])?200:422)));return$wire;
+}
+function harpp_cap_archive_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.manage');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];if(!array_key_exists('expected_version',$d)||(int)$d['expected_version']<1)return['ok'=>false,'status'=>422,'code'=>'expected_version_required','error'=>'expected_version is required.'];return harppCapabilityResult((new HarppFoundationService(harppDb()))->archiveDecision($a,(int)($d['decision_id']??0),(int)$d['expected_version']));
+}
+function harpp_cap_purge_request_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.manage');if(!$ok||($a['role']??'')!=='owner')return['ok'=>false,'status'=>403,'error'=>'Owner access is required.'];return harppCapabilityResult((new HarppFoundationService(harppDb()))->requestPurge($a,(string)($d['resource_type']??''),(string)($d['resource_id']??''),trim((string)($d['reason']??'')),(int)($d['delay_seconds']??86400)));
+}
+function harpp_cap_purge_approve_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.manage');if(!$ok||($a['role']??'')!=='owner')return['ok'=>false,'status'=>403,'error'=>'Owner access is required.'];return harppCapabilityResult((new HarppFoundationService(harppDb()))->approvePurge($a,(int)($d['purge_request_id']??0)));
+}
+function harpp_cap_audit_read_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.read');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppFoundationService(harppDb()))->listAudit((string)($d['aggregate_type']??''),(string)($d['aggregate_id']??''),(int)($d['after_sequence']??0),(int)($d['limit']??100),$a));
+}
+function harpp_cap_outbox_dispatch_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.manage');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppFoundationService(harppDb()))->dispatchOutbox((int)($d['limit']??50)));
+}
+function harpp_cap_workspace_read_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.workspace.read');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->listWorkspaces($a));
+}
+function harpp_cap_workspace_manage_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.workspace.manage');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->manageWorkspace($a,$d));
+}
+function harpp_cap_project_read_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.project.read');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->listProjects($a,(int)($d['workspace_id']??0)));
+}
+function harpp_cap_project_manage_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.project.manage');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->manageProject($a,$d));
+}
+function harpp_cap_participant_manage_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.participant.manage');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->manageParticipant($a,$d));
+}
+function harpp_cap_message_receipt_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.read');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->recordReceipt($a,(int)($d['message_id']??0)));
+}
+function harpp_cap_decision_assign_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.decision.assign');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->assignDecision($a,$d));
+}
+function harpp_cap_decision_approve_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.decision.approve');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->approveDecision($a,$d));
+}
+function harpp_cap_notification_preferences_1(mixed $payload, string $capabilityId='', string $providerId=''): array
+{
+    [$d,$a,$ok]=harppCapabilityData($payload,'harpp.read');if(!$ok)return['ok'=>false,'status'=>403,'error'=>'Forbidden.'];return harppCapabilityResult((new HarppCollaborationService(harppDb()))->notificationPreferences($a,$d));
 }
 function harpp_cap_entity_list_conversation_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];
     $actor = harppCapabilityActor($data);
-    $access = harppPermissionResult('harpp.read', $data + ['user' => $actor]);
-    if (empty($access['allowed'])) { return ['ok' => false, 'allowed' => false, 'rows' => [], 'total' => 0]; }
-    $limit = max(1, min(100, (int)($data['limit'] ?? 25)));
-    $stmt = harppDb()->query('SELECT id, title, harness_session_id, status, created_by, created_at, updated_at FROM harpp_conversations ORDER BY updated_at DESC, id DESC LIMIT ' . $limit);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    return ['ok' => true, 'allowed' => true, 'rows' => $rows, 'total' => count($rows), 'tenant_id' => harppCurrentTenantId()];
+    $result=(new HarppMessagingService(harppDb()))->listConversations($actor,$data,harppCurrentTenantId());$wire=$result->toArray();$rows=(array)($wire['data']['conversations']??[]);
+    return $wire+['allowed'=>!empty($wire['ok']),'rows'=>$rows,'total'=>count($rows),'tenant_id'=>harppCurrentTenantId()];
 }
 function harpp_cap_entity_list_message_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {

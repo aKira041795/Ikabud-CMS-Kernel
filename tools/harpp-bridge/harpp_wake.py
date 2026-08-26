@@ -66,6 +66,15 @@ MODEL_ALIASES = {
     "deepseek/deepseek-v4-pro": ["deepseek pro", "v4 pro"],
     "deepseek/deepseek-v4-flash": ["flash"],
 }
+# Ordered delegation chain when a model's token/usage/quota/balance is exhausted: the
+# engine retries with the next model in this list instead of burning bounded auto-repair
+# rounds on a model that cannot run. The stage's own model is always tried first.
+MODEL_FALLBACK_ORDER = [
+    "openai-codex/gpt-5.6-sol",
+    "openai-codex/gpt-5.4",
+    "deepseek/deepseek-v4-pro",
+    "deepseek/deepseek-v4-flash",
+]
 AUTHORITY_ORDER = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 ESCALATION_FLAGS = {
     "architecture_change": "change architecture/contract",
@@ -342,6 +351,7 @@ def _workflow_summary_report(wf: dict, status: str, stage: dict | None = None,
     state_map = {
         "DONE": "RELEASE READY" if final_stage in ("release-gate", "release", "production-release") else "WORKFLOW COMPLETE",
         "REPAIR": f"{stage_name.upper()} REMEDIATION",
+        "DELEGATED": f"{stage_name.upper()} MODEL DELEGATION",
         "BLOCKED": "BLOCKED",
         "ESCALATED": "DECISION REQUIRED",
         "FAILED": f"{stage_name.upper()} FAILED",
@@ -350,6 +360,7 @@ def _workflow_summary_report(wf: dict, status: str, stage: dict | None = None,
     next_map = {
         "DONE": "awaiting decision — approve/hold/reject release" if final_stage in ("release-gate", "release", "production-release") else "done — safe to move forward",
         "REPAIR": f"auto-repair round {round_no}/{max_repairs} in progress — no owner action",
+        "DELEGATED": f"model usage exhausted — delegated to {_summary_value(reason or 'another model')} — no owner action",
         "BLOCKED": f"blocked({_summary_value(reason or wf.get('blocked_reason') or 'owner action required')})",
         "ESCALATED": "awaiting decision — approve revised authority/scope or stop",
         "FAILED": "remediation required — not safe to proceed",
@@ -948,6 +959,7 @@ def _normalize_workflow(wf: dict) -> dict:
     rec.setdefault("browser_repairs", 0)
     rec.setdefault("tool_retries", 0)
     rec.setdefault("network_retries", 0)
+    rec.setdefault("model_fallbacks", 0)
     rec.setdefault("advancing", False)
     rec.setdefault("advancing_ts", 0)
     rec.setdefault("created_at", time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -1509,6 +1521,10 @@ def _notify_workflow(wf: dict, status: str, stage: dict | None = None,
             harpp_client.harpp_notify(conversation_id=conversation_id, message_type="PROGRESS",
                                       body=summarize(report))
             return
+        if status == "DELEGATED":
+            harpp_client.harpp_notify(conversation_id=conversation_id, message_type="PROGRESS",
+                                      body=summarize(report))
+            return
         if status == "BLOCKED":
             blocked_reason = reason or wf.get('blocked_reason') or 'budget exhausted'
             body = (headline + "\n"
@@ -1643,7 +1659,8 @@ def _budget_exhausted_reason(wf: dict) -> str | None:
 
 def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
                   remediation: str | None = None, repair_round: int = 0,
-                  max_repairs: int = 0) -> None:
+                  max_repairs: int = 0,
+                  delegation_note: str | None = None) -> None:
     """Launch a workflow stage as a tracked job and record its job id on the stage."""
     reason = _budget_exhausted_reason(workflow)
     if reason:
@@ -1661,8 +1678,15 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
                    "If the issues cannot be resolved, say so explicitly and end with the FAIL marker.\n"
                    "Previous stage log (last lines):\n```\n{}\n```\n").format(
                        repair_round, max_repairs, (remediation or "")[-1500:])
+    if delegation_note:
+        prompt += ("\n\n# MODEL DELEGATION CONTEXT\n"
+                   f"{delegation_note}\n"
+                   "This is a delegation run: perform the SAME stage task as before. "
+                   "If it cannot be completed, end with the stage's FAIL marker as usual.\n")
     label = stage.get('name')
-    if repair_round:
+    if delegation_note:
+        label = f"{label} (DELEGATED {stage.get('model')})"
+    elif repair_round:
         label = f"{label} (REPAIR {repair_round}/{max_repairs})"
     task = f"workflow {wid} stage {index + 1}/{len(workflow.get('stages', []))}: {label}"
     cmd = ["pi", "--model", str(stage.get("model")), "--mode", "json", "--print", prompt]
@@ -1719,7 +1743,7 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
         "stages": [dict(s) for s in stages],
         "current_index": 0, "status": "running",
         "repair_count": 0, "total_cycles": 0, "browser_repairs": 0,
-        "tool_retries": 0, "network_retries": 0,
+        "tool_retries": 0, "network_retries": 0, "model_fallbacks": 0,
         "advancing": False, "advancing_ts": 0,
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1797,9 +1821,71 @@ def _remediation_from(stage: dict) -> str:
         return ""
 
 
+_MODEL_EXHAUSTION_PATTERNS = (
+    re.compile(r"(token|usage).{0,40}(exhaust|exceed|limit|quota|deplet|insufficient|ceiling)"),
+    re.compile(r"(exhaust|exceed|limit|quota|deplet|insufficient).{0,40}(token|usage)"),
+    re.compile(r"(quota|rate\s*limit).{0,40}(exceed|reached|hit|limit)"),
+    re.compile(r"(insufficient|low|empty|exhausted|out of|zero).{0,20}balance"),
+    re.compile(r"balance.{0,20}(insufficient|low|empty|exhausted|zero)"),
+    re.compile(r"rate\s*limit|too\s+many\s+requests|\b429\b|\b402\b"),
+    re.compile(r"context\s+length\s+exceeded"),
+)
+
+
+def _job_log_text(job: dict, limit: int = 20000) -> str:
+    path = job.get("log_path")
+    if not path:
+        return ""
+    try:
+        return Path(path).read_text(encoding="utf-8", errors="replace")[-limit:]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _model_exhausted(job: dict) -> bool:
+    """True when a failed job looks like the model's token/usage/quota/balance was exhausted.
+
+    This is the signal the workflow engine uses to delegate the stage to a different
+    model rather than re-running the same exhausted model in an auto-repair round.
+    """
+    text = " ".join([
+        str(job.get("reason") or ""),
+        str(job.get("message") or ""),
+        str(job.get("code") or ""),
+        _job_log_text(job),
+    ]).lower()
+    if not text:
+        return False
+    return any(p.search(text) for p in _MODEL_EXHAUSTION_PATTERNS)
+
+
+def _delegate_stage_model(stage: dict) -> str | None:
+    """Move a failed stage to the next untried fallback model.
+
+    Returns the newly delegated model, or None when every available model has already
+    been tried (the caller must then block/fail instead of looping). Mutates the stage
+    so the persisted workflow records exactly which models were attempted.
+    """
+    tried = [str(m) for m in (stage.get("tried_models") or [])]
+    current = str(stage.get("model") or "")
+    if current and current not in tried:
+        tried.append(current)
+    for model in MODEL_FALLBACK_ORDER:
+        if model not in tried:
+            tried.append(model)
+            stage["tried_models"] = tried
+            stage["model"] = model
+            stage["job_id"] = None
+            stage["status"] = "pending"
+            return model
+    stage["tried_models"] = tried
+    return None
+
+
 def _launch_stage_with_claim(wid: str, wf: dict, stage: dict, index: int, *,
                              remediation: str | None = None, repair_round: int = 0,
-                             max_repairs: int = 0) -> bool:
+                             max_repairs: int = 0,
+                             delegation_note: str | None = None) -> bool:
     """Launch a stage under a persisted 'advancing' claim so concurrent passes can't double-launch."""
     escalation = _override_escalation_reason(stage) or _authority_escalation_reason(wf, stage)
     if escalation:
@@ -1817,7 +1903,8 @@ def _launch_stage_with_claim(wid: str, wf: dict, stage: dict, index: int, *,
     ok = False
     try:
         _launch_stage(wid, stage, index, wf, remediation=remediation,
-                      repair_round=repair_round, max_repairs=max_repairs)
+                      repair_round=repair_round, max_repairs=max_repairs,
+                      delegation_note=delegation_note)
         ok = True
         return True
     except Exception as exc:
@@ -1935,7 +2022,25 @@ def advance_workflows() -> int:
                 _record_stage_attempt(stage, "failed", job_id=job.get("id"), run_id=job.get("run_id"))
                 repairs = int(wf.get("repair_count", 0))
                 max_repairs = int(wf.get("max_repairs", 0))
-                if max_repairs > 0 and repairs < max_repairs:
+                if _model_exhausted(job):
+                    # Token/usage/quota/balance exhausted: delegate the SAME stage to a
+                    # different model instead of burning an auto-repair round on a model
+                    # that cannot run. Still bounded: at most MODEL_FALLBACK_ORDER models
+                    # and the global max_total_cycles budget.
+                    reason = _budget_exhausted_reason(wf)
+                    delegated = None if reason else _delegate_stage_model(stage)
+                    if delegated:
+                        wf["model_fallbacks"] = int(wf.get("model_fallbacks", 0)) + 1
+                        wf["current_index"] = idx
+                        note = (f"The previous run of stage '{stage.get('name')}' failed because the "
+                                "configured model's token/usage/quota was exhausted. This run is "
+                                f"delegated to a different model ({delegated}).")
+                        _launch_stage_with_claim(wid, wf, stage, idx, delegation_note=note)
+                        _notify_workflow(wf, "DELEGATED", stage, reason=f"delegated to {delegated}")
+                    else:
+                        _block_workflow(wf, stage, reason or f"all available models exhausted for stage '{stage.get('name')}'")
+                    advanced += 1
+                elif max_repairs > 0 and repairs < max_repairs:
                     wf["repair_count"] = repairs + 1
                     repair_idx = _repair_target_index(wf, idx)
                     target = stages[repair_idx]
@@ -2403,10 +2508,14 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
         # Count every invocation, including failures, so retries remain rate-bounded.
         record_attempt(items)
         prompt = task_prompt(inbox, items, workspace=workspace)
-        # Prompt-driven model routing + graceful fallback: try the requested model first;
-        # if it fails (incl. usage/balance exhaustion), fall back to the configured default.
+        # Prompt-driven model routing + graceful fallback: try the requested model first,
+        # then the configured default, then every other known model. If a model fails
+        # (incl. token/usage/quota/balance exhaustion) the wake delegates to the next one.
         chosen = pick_model(items, model)
-        chain = [chosen] if chosen == model else [chosen, model]
+        chain = []
+        for candidate in (chosen, model, *MODEL_FALLBACK_ORDER):
+            if candidate and candidate not in chain:
+                chain.append(candidate)
         ok = False
         for attempt_model in chain:
             log(f"spawning wake agent with model {attempt_model}")

@@ -280,7 +280,7 @@ final class HarppPushService
         $sLength = ord($der[++$offset]); $s = substr($der, ++$offset, $sLength);
         return str_pad(ltrim($r, "\0"), 32, "\0", STR_PAD_LEFT) . str_pad(ltrim($s, "\0"), 32, "\0", STR_PAD_LEFT);
     }
-    private function effects(string$event,string$action,array$actor,string$id,array$after):array{if(function_exists('app')){\app()->events()->fire($event,['entity_id'=>$id,'actor_user_id'=>(int)($actor['id']??0),'after'=>$after],'harpp');$r=\app()->cap()->call('kernel.audit.record@1',['module'=>'harpp','action'=>$action,'entity_type'=>'harpp_push_subscription','entity_id'=>substr($id,0,40),'new_data'=>$after],['mode'=>'first','caller_module'=>'harpp']);if(!is_array($r)||empty($r['ok']))throw new \RuntimeException('Kernel audit recording failed.');}return['name'=>$event,'payload'=>['entity_id'=>$id]+$after];}
+    private function effects(string$event,string$action,array$actor,string$id,array$after):array{return(new HarppFoundationService($this->db()))->recordEffect($event,$action,$actor,'harpp_push_subscription',substr($id,0,40),null,$after);}
     private function b64(string $value): string { return rtrim(strtr(base64_encode($value), '+/', '-_'), '='); }
     private function scope(?int $tenantId): bool { $current = (int)(\app()->tenant()->current() ?? 0); return $current > 0 && ($tenantId === null || $tenantId === $current); }
     private function role(array $actor, array $roles): bool { return (int)($actor['id'] ?? 0) > 0 && ($actor['source'] ?? 'harpp') === 'harpp' && in_array((string)($actor['role'] ?? ''), $roles, true); }

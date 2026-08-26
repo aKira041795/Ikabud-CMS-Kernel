@@ -126,9 +126,7 @@ final class HarppBridgeAuthService
         $action = $rotated ? 'bridge.key_rotated' : 'bridge.key_generated';
         $before = $oldHash === '' ? null : ['fingerprint'=>$this->fingerprint($oldHash)];
         $after = ['fingerprint'=>$this->fingerprint($newHash),'rotated_at'=>$at];
-        \app()->events()->fire('harpp.' . $action, ['tenant_id'=>$tenantId,'before'=>$before,'after'=>$after], 'harpp');
-        $audit = \app()->cap()->call('kernel.audit.record@1', ['module'=>'harpp','action'=>$action,'entity_type'=>'harpp_bridge_key','entity_id'=>(string)$tenantId,'old_data'=>$before,'new_data'=>$after], ['mode'=>'first','caller_module'=>'harpp']);
-        if (!is_array($audit) || empty($audit['ok'])) throw new \RuntimeException('Kernel audit recording failed.');
+        (new HarppFoundationService($this->db()))->recordEffect('harpp.'.$action,$action,$this->bridgeActor()??['source'=>'system'],'harpp_bridge_key',$tenantId,$before,$after);
     }
 
     private function bridgeActor(): ?array

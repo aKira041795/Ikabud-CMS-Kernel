@@ -1,0 +1,30 @@
+{
+  "title": "HARPP module auto-repair: fix review blockers (implement -> review -> release-gate)",
+  "max_repairs": 3,
+  "stages": [
+    {
+      "name": "implement",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt": "You are the IMPLEMENT (auto-repair) stage of a governed HARPP workflow: {{TITLE}}.\n\nWorking directory (workspace): {{WORKSPACE}}\nArchitecture contract: {{WORKSPACE}}/ARCHITECTURE.md\nApproved plan / implementation report: {{WORKSPACE}}/.ai/current-task.md\n\nContext: the previous REVIEW stage returned FAIL. The owner approved the Phase 0/1 plan in `.ai/current-task.md` and instructed \"auto repair\". Treat the Phase 0/1 work as owner-authorized; do NOT delete it. Reconcile scope by updating ARCHITECTURE.md so the approved Phase 0/1 changes are explicitly in scope (resolves blocker #1), while preserving the focused decision-flow requirements already specified there.\n\nAddress ALL of the following review blockers in the uncommitted diff under modules/harpp and tools/harpp-bridge:\n\n1. **Scope compliance.** ARCHITECTURE.md currently permits only the focused decision inbox/apply flow. Update ARCHITECTURE.md to record the owner-approved Phase 0/1 scope (integrity + collaboration foundation: migration 007, lifecycle/retention, audit/outbox, idempotency, optimistic concurrency, collaboration services/capabilities, messaging/notification/bridge-version changes) so the bundled changes are separately authorized and documented.\n\n2. **Focused regression suite.** `modules/harpp/tests/decision_inbox_cli_test.php` still expects the prohibited `PENDING -> APPLIED -> CLOSED` shortcut and is skipped by the default runner. Update it to require only `ACKNOWLEDGED|APPLIED|CLOSED` and run it automatically against a generated disposable schema. Cover: CSRF 419 with no mutation; owner/admin success and member denial; atomic rollback on failure between transitions; partial APPLIED recovery; idempotent CLOSED retry without duplicate transitions; PENDING exclusion and durable CLOSED retrieval/audit.\n\n3. **Action visibility.** `modules/harpp/assets/decision-detail.js` shows \"Apply and close\" for every nonterminal state. Show it only for owner/admin decisions in ACKNOWLEDGED or APPLIED; retain endpoint-level idempotent handling for CLOSED.\n\n4. **Destructive/misleading UI semantics.** The inbox/detail still says decisions and audit trails are permanently deleted while the backend archives them. Rename these controls/messages to \"Archive\" (or remove them); ensure explicit retrieval of archived closed records is available if archive remains exposed.\n\n5. **Do not trust caller-supplied actors.** New capability handlers accept a payload-provided `user`, allowing an allowed Kernel caller to assert an owner/admin HARPP identity. Bind actor and tenant exclusively from authenticated infrastructure and reject caller-supplied authority before retaining any new mutable capability.\n\n6. **Re-run release evidence.** After remediation, run the static runner, lint, bridge tests, `module:validate`, and the required mutating decision flow + post-change disposable-MySQL tests so acceptance/regression safety is established.\n\nRules:\n- Stay strictly within the HARPP module + bridge scope. Do NOT commit or push. Do NOT spawn nested agents. Never print secrets or credentials.\n- Verify: `php -l` on changed PHP files, `node --check` on changed JS, and run the focused HARPP module/bridge tests where feasible.\n\nEnd your reply with EXACTLY one line, nothing after it:\nSOL_IMPL status=PASS\nif and only if all six blockers are addressed and your verification passes.\nOtherwise: SOL_IMPL status=FAIL followed by the specific failure.",
+      "marker": "SOL_IMPL status=PASS",
+      "verify": "true",
+      "timeout": 2400
+    },
+    {
+      "name": "review",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt_file": "stages/review.md",
+      "marker": "SOL_REVIEW status=PASS",
+      "verify": "true",
+      "timeout": 1800
+    },
+    {
+      "name": "release-gate",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt_file": "stages/release-gate.md",
+      "marker": "SOL_GATE status=PASS",
+      "verify": "true",
+      "timeout": 1800
+    }
+  ]
+}

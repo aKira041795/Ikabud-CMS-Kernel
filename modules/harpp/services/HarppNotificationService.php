@@ -33,13 +33,13 @@ final class HarppNotificationService
         $ownsTransaction = !$this->db()->inTransaction();
         try {
             if ($ownsTransaction) $this->db()->beginTransaction();
-            $stmt = $this->db()->prepare('INSERT INTO harpp_notifications (user_id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at) VALUES (:user, :decision, :conversation, :message, :type, \'push\', \'pending\', :payload, NOW())');
-            $stmt->execute([':user' => $userId, ':decision' => $decisionId, ':conversation' => $conversationId, ':message' => $messageId, ':type' => $type, ':payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
-            $id = (int)$this->db()->lastInsertId();
-            $event = $this->effects('harpp.notification.created', 'notification.created', $id, $userId, null, ['status'=>'pending','type'=>$type,'channel'=>'push','decision_id'=>$decisionId,'conversation_id'=>$conversationId,'message_id'=>$messageId]);
+            $payloadJson=json_encode($this->canonical($payload),JSON_THROW_ON_ERROR);$dedup=hash('sha256',json_encode(['user_id'=>$userId,'type'=>$type,'decision_id'=>$decisionId,'conversation_id'=>$conversationId,'message_id'=>$messageId,'payload'=>$this->canonical($payload)],JSON_THROW_ON_ERROR));
+            $stmt = $this->db()->prepare('INSERT IGNORE INTO harpp_notifications (user_id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, dedup_key, created_at) VALUES (:user, :decision, :conversation, :message, :type, \'push\', \'pending\', :payload, :dedup, NOW())');
+            $stmt->execute([':user' => $userId, ':decision' => $decisionId, ':conversation' => $conversationId, ':message' => $messageId, ':type' => $type, ':payload' => $payloadJson, ':dedup'=>$dedup]);$created=$stmt->rowCount()===1;
+            if($created){$id=(int)$this->db()->lastInsertId();}else{$existing=$this->db()->prepare('SELECT id FROM harpp_notifications WHERE dedup_key=:dedup LIMIT 1');$existing->execute([':dedup'=>$dedup]);$id=(int)$existing->fetchColumn();if($id<=0)throw new \RuntimeException('Notification dedup replay could not be resolved.');}
+            $after=['status'=>'pending','type'=>$type,'channel'=>'push','decision_id'=>$decisionId,'conversation_id'=>$conversationId,'message_id'=>$messageId];if($created&&$dispatch)$after['notification_deliveries']=[['id'=>$id,'user_id'=>$userId]];$event = $created?$this->effects('harpp.notification.created', 'notification.created', $id, $userId, null, $after):null;
             if ($ownsTransaction) $this->db()->commit();
-            if ($dispatch) { $this->dispatch($id, $userId); }
-            return HarppServiceResult::success(['notification_id' => $id], '', [$event], 'harpp_notification', $id);
+            return HarppServiceResult::success(['notification_id' => $id,'idempotent_replay'=>!$created], '', array_values(array_filter([$event])), 'harpp_notification', $id);
         } catch (Throwable $e) {
             if ($ownsTransaction && $this->db()->inTransaction()) $this->db()->rollBack();
             $this->log('notification create failed', $e);
@@ -131,7 +131,7 @@ final class HarppNotificationService
             $s = $this->db()->prepare("DELETE FROM harpp_notifications WHERE user_id = :user AND notification_type = 'message' AND read_at IS NOT NULL");
             $s->execute([':user' => (int)$actor['id']]);
             $deleted = $s->rowCount();
-            if (function_exists('app')) { \app()->events()->fire('harpp.notifications.messages_deleted', ['user_id' => (int)$actor['id'], 'deleted' => $deleted, 'actor_user_id' => (int)($actor['id'] ?? 0), 'scope' => 'read'], 'harpp'); }
+            (new HarppFoundationService($this->db()))->recordEffect('harpp.notifications.messages_deleted','notifications.messages_deleted',$actor,'harpp_notification_collection',(int)$actor['id'],null,['deleted'=>$deleted,'scope'=>'read']);
             if (function_exists('write_log')) { \write_log('HARPP audit', 'info', ['module' => 'harpp', 'action' => 'notifications.messages_deleted', 'actor_user_id' => (int)$actor['id'], 'deleted' => $deleted, 'scope' => 'read']); }
             $this->db()->commit();
             return HarppServiceResult::success(['deleted' => $deleted], 'All read message notifications deleted.');
@@ -144,13 +144,12 @@ final class HarppNotificationService
 
     private function effects(string $event, string $action, int $id, int $userId, ?array $before, array $after): array
     {
-        $payload = ['notification_id'=>$id,'user_id'=>$userId,'before'=>$before,'after'=>$after];
-        if (function_exists('app')) {
-            \app()->events()->fire($event, $payload, 'harpp');
-            $audit = \app()->cap()->call('kernel.audit.record@1', ['module'=>'harpp','action'=>$action,'entity_type'=>'harpp_notification','entity_id'=>(string)$id,'old_data'=>$before,'new_data'=>$after], ['mode'=>'first','caller_module'=>'harpp']);
-            if (!is_array($audit) || empty($audit['ok'])) throw new \RuntimeException('Kernel audit recording failed.');
-        }
-        return ['name'=>$event,'payload'=>$payload];
+        return (new HarppFoundationService($this->db()))->recordEffect($event,$action,['id'=>$userId,'source'=>'system'],'harpp_notification',$id,$before,$after);
+    }
+
+    private function canonical(array $value): array
+    {
+        if(!array_is_list($value))ksort($value);foreach($value as$key=>$child)if(is_array($child))$value[$key]=$this->canonical($child);return$value;
     }
 
     private function typeEnabled(string $type): bool

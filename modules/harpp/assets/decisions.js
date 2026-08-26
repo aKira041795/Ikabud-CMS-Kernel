@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('decision-filters');
   const list = document.getElementById('decision-list');
   const status = document.getElementById('decision-status');
-  const deleteAllBtn = document.getElementById('delete-all-closed');
+  const archiveAllBtn = document.getElementById('archive-all-closed');
 
   async function load() {
     const query = new URLSearchParams(new FormData(form));
@@ -36,18 +36,18 @@ document.addEventListener('DOMContentLoaded', () => {
     load();
   };
 
-  if (deleteAllBtn) {
-    deleteAllBtn.onclick = async () => {
-      if (!window.confirm('Permanently delete ALL closed decisions? This cannot be undone.')) return;
-      deleteAllBtn.disabled = true;
+  if (archiveAllBtn) {
+    archiveAllBtn.onclick = async () => {
+      if (!window.confirm('Archive all terminal decisions? Their lifecycle audits and linked ADRs remain retrievable.')) return;
+      archiveAllBtn.disabled = true;
       try {
         const result = await Harpp.fetch('/api/v1/harpp/decisions/closed', { method: 'DELETE' });
-        status.textContent = `Deleted ${(result.data && result.data.deleted) || 0} closed decision(s).`;
+        status.textContent = `Archived ${(result.data && result.data.archived) || 0} terminal decision(s).`;
         await load();
       } catch (error) {
         status.textContent = error.message;
       } finally {
-        deleteAllBtn.disabled = false;
+        archiveAllBtn.disabled = false;
       }
     };
   }

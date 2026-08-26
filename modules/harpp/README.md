@@ -9,7 +9,8 @@
 
 This is a first-class **Ikabud module** (auth-owned tenant module): it owns its database
 tables, its auth shell, its settings, and its capabilities. It is MySQL 5.7 / shared-hosting
-(Bluehost) compatible and requires **no background workers**.
+compatible. HARPP 2.0 uses an explicitly invoked, retryable outbox dispatcher for external
+effects; domain commits never claim push or Kernel audit atomicity.
 
 ---
 
@@ -18,11 +19,11 @@ tables, its auth shell, its settings, and its capabilities. It is MySQL 5.7 / sh
 | | |
 |---|---|
 | Module id | `harpp` |
-| Version | `1.0.0` |
+| Version | `2.0.0` |
 | Kind | Auth-owned tenant module (own DB + auth shell) |
 | Auth | JWT cookie (`harpp_token`), roles `owner` / `admin` / `member` |
-| Storage | 9 owned `harpp_*` tables in the tenant database |
-| Capabilities | 9 exposed, 2 depended (`kernel.audit.record@1`, `kernel.auth.user@1`) |
+| Storage | 26 owned `harpp_*` tables in the tenant database |
+| Capabilities | 31 exposed, 2 depended (`kernel.audit.record@1`, `kernel.auth.user@1`) |
 | UI | Installable PWA messenger (DiSyL) + Web Push |
 | Harness bridge | REST API (`/api/v1/harpp/bridge/*`) consumed by the local client |
 
@@ -53,6 +54,11 @@ harness polls → acknowledges → applies → decision CLOSED + ADR recorded
   transition audit, and preserved Workbench state (`ARCHITECTURE_DECISION_REQUIRED`, etc.).
 - **Automatic ADR memory** — every `DECIDED` decision atomically writes a durable ADR row
   (`harpp_adrs`) with context, decision, rationale, actor, and timestamps.
+- **Integrity foundation** — optimistic versions, immutable local audit, transactional outbox,
+  idempotency records, archive-only ordinary deletion, and governed purge request/approval.
+- **Collaboration foundation** — workspaces/projects, memberships, participant/private visibility,
+  per-user receipts, assignments/watchers, policy snapshots/approvals, preferences, and fanout.
+  Scope enforcement features are independently flagged for staged dual-read rollout.
 - **Messenger** — conversations + messages between the harness and the owner, read state, unread counts.
 - **Web Push (PWA)** — installable messenger app with a service worker; ES256 VAPID push with
   SSRF-safe delivery (public-IP-only, DNS-pinned, no redirects). **SMS/email deferred to v2.**
@@ -79,7 +85,8 @@ harness polls → acknowledges → applies → decision CLOSED + ADR recorded
 | `harpp_adrs` | Architecture Decision Records (auto-created on DECIDED) |
 | `harpp_settings` | Per-tenant settings (secrets redacted; VAPID is env-only) |
 
-Migrations: `001_harpp_core.sql`, `002_harpp_bootstrap_users.sql`, `003_harpp_phase3_domain.sql`.
+The manifest is authoritative for all 26 tables. Migrations `001` through `007` are ordered;
+`007_harpp_integrity_collaboration_foundation.sql` is the additive HARPP 2.0 migration.
 
 ---
 
@@ -90,6 +97,9 @@ Migrations: `001_harpp_core.sql`, `002_harpp_bootstrap_users.sql`, `003_harpp_ph
 `harpp.settings.read@1`, `harpp.settings.manage@1`.
 
 **Depends:** `kernel.audit.record@1`, `kernel.auth.user@1`.
+
+HARPP 2.0 additionally exposes the Phase 0 integrity and Phase 1 collaboration capabilities
+listed in `module.json`. See `docs/compatibility-matrix.md` and `docs/phase0-phase1-rollout.md`.
 
 Capability handlers live in `modules/harpp/helpers.php` (`harpp_capability_handlers()`).
 
@@ -153,7 +163,7 @@ GET/POST  /api/v1/harpp/bridge/key                      owner-only: get / rotate
 php ikabud tenant:migrate <tenant_id|tenant_key|domain> harpp
 ```
 
-The three migrations create the tables and seed bootstrap users:
+The ordered migrations create the tables and seed bootstrap users:
 
 | Email | Role |
 |---|---|
@@ -167,8 +177,8 @@ The three migrations create the tables and seed bootstrap users:
 Verify:
 
 ```bash
-php ikabud module:validate harpp
-bash modules/harpp/tests/run-all.sh        # 212/212 assertions
+php modules/harpp/tests/integrity_collaboration_contract_test.php
+php modules/harpp/tests/strict-command-gate.php php ikabud module:validate harpp
 ```
 
 ### 7.2 Configure VAPID (Web Push) — required

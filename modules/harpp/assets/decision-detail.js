@@ -36,8 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     button.disabled = !first;
 
     if (applyForm) {
-      const terminal = ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'];
-      applyForm.hidden = !(isOwnerOrAdmin && !terminal.includes(state));
+      applyForm.hidden = !(isOwnerOrAdmin && ['ACKNOWLEDGED', 'APPLIED'].includes(state));
     }
 
     if (deleteForm) {
@@ -121,12 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (deleteForm) {
     deleteForm.onsubmit = async event => {
       event.preventDefault();
-      if (!window.confirm('Permanently delete this closed decision? This cannot be undone.')) return;
+      if (!window.confirm('Archive this terminal decision? Its lifecycle audit and linked ADR remain retrievable.')) return;
       const button = deleteForm.querySelector('button');
       button.disabled = true;
       try {
         await Harpp.fetch(`/api/v1/harpp/decisions/${id}`, { method: 'DELETE' });
-        status.textContent = 'Decision deleted. Returning to inbox…';
+        status.textContent = 'Decision archived. Returning to inbox…';
         window.setTimeout(() => { window.location.href = '/harpp/decisions'; }, 500);
       } catch (error) {
         status.textContent = error.message;

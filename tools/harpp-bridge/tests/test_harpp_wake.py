@@ -486,6 +486,58 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake.launch_job = original_launch
             harpp_wake.harpp_client.send_message = original_send
 
+    def test_workflow_delegates_to_other_model_on_token_exhaustion(self):
+        wid = "wf-delegate"
+        stages = [self._stage("implement", job_id="job-1", status="running")]
+        self._seed_workflow(wid, stages, max_repairs=2, authority_level="L3")
+        logp = Path(self.tmp.name) / "exhausted.log"
+        logp.write_text("Error: token usage exhausted for this model\n", encoding="utf-8")
+        self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "FAILED",
+                                     "conversation_id": 7, "log_path": str(logp)}})
+        launched, counter = [], {"n": 1}
+        original_launch = harpp_wake.launch_job
+        harpp_wake.launch_job = self._fake_launch_seq(launched, counter)
+        sent, original_send = self._patch_send()
+        try:
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "running")
+            self.assertEqual(wf["model_fallbacks"], 1)
+            self.assertEqual(wf["repair_count"], 0)  # delegation does not burn a repair round
+            stage0 = wf["stages"][0]
+            self.assertEqual(stage0["model"], "openai-codex/gpt-5.6-sol")
+            self.assertIn("openai-codex/gpt-5.6-sol", stage0["tried_models"])
+            self.assertEqual(len(launched), 1)
+            self.assertIn("DELEGATED", launched[-1])
+            self.assertTrue(any("MODEL DELEGATION" in s["body"] for s in sent))
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.harpp_client.send_message = original_send
+
+    def test_workflow_blocks_when_all_models_exhausted(self):
+        wid = "wf-delegate-block"
+        stage = self._stage("implement", job_id="job-1", status="running")
+        stage["tried_models"] = list(harpp_wake.MODEL_FALLBACK_ORDER)
+        self._seed_workflow(wid, [stage], max_repairs=2)
+        logp = Path(self.tmp.name) / "balance.log"
+        logp.write_text("insufficient balance\n", encoding="utf-8")
+        self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "FAILED",
+                                     "conversation_id": 7, "log_path": str(logp)}})
+        launched = []
+        original_launch = harpp_wake.launch_job
+        harpp_wake.launch_job = lambda **kw: (launched.append(kw.get("task")) or ("x", None))
+        sent, original_send = self._patch_send()
+        try:
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "blocked")
+            self.assertIn("all available models exhausted", wf["blocked_reason"])
+            self.assertEqual(len(launched), 0)
+            self.assertTrue(any("what: unblock workflow" in s["body"] for s in sent))
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.harpp_client.send_message = original_send
+
     def test_workflow_max_repairs_zero_disables_repair(self):
         wid = "wf-zero"
         stages = [self._stage("implement", "job-1", "running"), self._stage("review")]
@@ -774,6 +826,47 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(calls, ["openai-codex/gpt-5.6-sol", "deepseek/deepseek-v4-pro"])
         finally:
             harpp_wake.spawn_agent = original
+
+    def test_wake_falls_back_through_all_models_when_default_exhausted(self):
+        calls = []
+        original = harpp_wake.spawn_agent
+
+        def fake_spawn(prompt, **kw):
+            calls.append(kw.get("model"))
+            return kw.get("model") == "deepseek/deepseek-v4-flash"
+
+        harpp_wake.spawn_agent = fake_spawn
+        try:
+            self.inbox.write_text(
+                json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "status please"}) + "\n",
+                encoding="utf-8")
+            ok = harpp_wake.maybe_wake(str(self.inbox), enabled=True, command="echo dry",
+                                       cooldown=0, max_per_hour=0, timeout=30,
+                                       model="deepseek/deepseek-v4-pro")
+            self.assertTrue(ok)
+            self.assertEqual(calls, [
+                "deepseek/deepseek-v4-pro",
+                "openai-codex/gpt-5.6-sol",
+                "openai-codex/gpt-5.4",
+                "deepseek/deepseek-v4-flash",
+            ])
+        finally:
+            harpp_wake.spawn_agent = original
+
+    def test_model_exhausted_detects_usage_signals(self):
+        logp = Path(self.tmp.name) / "tok.log"
+        logp.write_text("request rejected: token usage exhausted\n", encoding="utf-8")
+        self.assertTrue(harpp_wake._model_exhausted({"log_path": str(logp)}))
+        logp.write_text("the implementation logic is wrong\n", encoding="utf-8")
+        self.assertFalse(harpp_wake._model_exhausted({"log_path": str(logp)}))
+
+    def test_delegate_stage_model_walks_fallback_order(self):
+        stage = {"name": "implement", "model": "deepseek/deepseek-v4-pro"}
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.6-sol")
+        self.assertEqual(stage["model"], "openai-codex/gpt-5.6-sol")
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.4")
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "deepseek/deepseek-v4-flash")
+        self.assertIsNone(harpp_wake._delegate_stage_model(stage))
 
     def test_task_prompt_contains_items(self):
         harpp_wake.record_local_decision(task="workflow:demo", decision="Keep scope narrow",

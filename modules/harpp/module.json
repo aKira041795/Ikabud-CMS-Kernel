@@ -1,7 +1,7 @@
 {
     "id": "harpp",
     "name": "HARPP \u2014 Harness App (Decision Center & Messenger)",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Tenant-owned decision center and messenger connecting the local AI harness to operators through durable decisions, notifications, and ADR memory.",
     "author": "Ikabud Kernel Team",
     "reads_tables": [],
@@ -15,7 +15,23 @@
         "harpp_notifications",
         "harpp_push_subscriptions",
         "harpp_adrs",
-        "harpp_settings"
+        "harpp_settings",
+        "harpp_workspaces",
+        "harpp_workspace_memberships",
+        "harpp_projects",
+        "harpp_project_memberships",
+        "harpp_conversation_participants",
+        "harpp_message_receipts",
+        "harpp_approval_policies",
+        "harpp_decision_policy_snapshots",
+        "harpp_decision_approvals",
+        "harpp_decision_assignments",
+        "harpp_approval_delegations",
+        "harpp_notification_preferences",
+        "harpp_audit_events",
+        "harpp_outbox",
+        "harpp_idempotency_keys",
+        "harpp_purge_requests"
     ],
     "migrations": [
         "database/migrations/001_harpp_core.sql",
@@ -23,7 +39,8 @@
         "database/migrations/003_harpp_phase3_domain.sql",
         "database/migrations/004_harpp_user_soft_delete.sql",
         "database/migrations/005_harpp_admin_role_repair.sql",
-        "database/migrations/006_harpp_conversation_archive.sql"
+        "database/migrations/006_harpp_conversation_archive.sql",
+        "database/migrations/007_harpp_integrity_collaboration_foundation.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -98,6 +115,21 @@
                     "first"
                 ]
             },
+            {"id":"harpp.lifecycle.transition@2","priority":50,"modes":["first"],"description":"Strict versioned HARPP lifecycle transition"},
+            {"id":"harpp.archive@1","priority":50,"modes":["first"],"description":"Archive a retained terminal decision"},
+            {"id":"harpp.purge.request@1","priority":50,"modes":["first"],"description":"Request governed purge without deleting records"},
+            {"id":"harpp.purge.approve@1","priority":50,"modes":["first"],"description":"Approve purge under separation of duties"},
+            {"id":"harpp.audit.read@1","priority":50,"modes":["first"],"description":"Read immutable aggregate audit events by cursor"},
+            {"id":"harpp.outbox.dispatch@1","priority":50,"modes":["first"],"description":"Dispatch pending external effects with retry"},
+            {"id":"harpp.workspace.read@1","priority":50,"modes":["first"]},
+            {"id":"harpp.workspace.manage@1","priority":50,"modes":["first"]},
+            {"id":"harpp.project.read@1","priority":50,"modes":["first"]},
+            {"id":"harpp.project.manage@1","priority":50,"modes":["first"]},
+            {"id":"harpp.participant.manage@1","priority":50,"modes":["first"]},
+            {"id":"harpp.message.receipt@1","priority":50,"modes":["first"]},
+            {"id":"harpp.decision.assign@1","priority":50,"modes":["first"]},
+            {"id":"harpp.decision.approve@1","priority":50,"modes":["first"]},
+            {"id":"harpp.notification.preferences@1","priority":50,"modes":["first"]},
             {
                 "id": "entity.list.harpp_conversation@1",
                 "priority": 50,
@@ -158,7 +190,22 @@
                         "harpp",
                         "kernel"
                     ]
-                }
+                },
+                "harpp.lifecycle.transition@2": {"allow_callers":["harpp","kernel"]},
+                "harpp.archive@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.purge.request@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.purge.approve@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.audit.read@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.outbox.dispatch@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.workspace.read@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.workspace.manage@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.project.read@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.project.manage@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.participant.manage@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.message.receipt@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.decision.assign@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.decision.approve@1": {"allow_callers":["harpp","kernel"]},
+                "harpp.notification.preferences@1": {"allow_callers":["harpp","kernel"]}
             }
         }
     },
@@ -187,7 +234,16 @@
     },
     "settings_defaults": {
         "bridge_api_key_hash": "",
-        "bridge_api_key_rotated_at": ""
+        "bridge_api_key_rotated_at": "",
+        "harpp_lifecycle_v2": "1",
+        "harpp_immutable_retention": "1",
+        "harpp_outbox": "1",
+        "harpp_strict_validation": "1",
+        "harpp_workspace_enforcement": "0",
+        "harpp_participant_visibility": "0",
+        "harpp_per_user_receipts": "0",
+        "harpp_approval_policies": "0",
+        "harpp_notification_fanout": "0"
     },
     "settings_fields": [
         {

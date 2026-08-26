@@ -31,7 +31,8 @@ final class HarppBridgeService
     {
         $decision = trim((string)($input['decision'] ?? ''));
         if ($decision === '') return HarppServiceResult::failure('Decision text is required.', 422);
-        return (new HarppDecisionService($this->db))->transition($actor, $decisionId, 'DECIDED', trim((string)($input['rationale'] ?? 'Owner decision recorded via harness.')), ['decision' => $decision], $tenantId);
+        $input['decision']=$decision;
+        return (new HarppDecisionService($this->db))->transition($actor, $decisionId, 'DECIDED', trim((string)($input['rationale'] ?? 'Owner decision recorded via harness.')), $input, $tenantId);
     }
 
     public function acknowledge(array $actor, int $decisionId, array $input, int $tenantId)
@@ -118,19 +119,13 @@ final class HarppBridgeService
         $ownsTransaction = !$this->db->inTransaction();
         try {
             if ($ownsTransaction) $this->db->beginTransaction();
-            $recipient = $this->ownerId();
-            if ($recipient <= 0) throw new \InvalidArgumentException('No active owner is available.');
+            $foundation=new HarppFoundationService($this->db);$recipient=$this->ownerId();if($recipient<=0)throw new \InvalidArgumentException('No active owner is available.');$recipients=[$recipient];
+            if($foundation->enabled('notification_fanout')){$workspace=(int)($this->db->query("SELECT id FROM harpp_workspaces WHERE workspace_key='legacy' LIMIT 1")->fetchColumn()?:0);if($workspace>0)$recipients=(new HarppCollaborationService($this->db))->notificationRecipients($workspace,null,'bridge.status',0);}
             $notifications = new HarppNotificationService($this->db);
-            $notice = $notifications->create($recipient, 'system', [
-                'event' => 'bridge.status', 'status' => $status, 'harness_session_id' => $session,
-                'message' => $message, 'workbench_state' => trim((string)($input['workbench_state'] ?? '')),
-            ], null, null, null, false);
-            if (empty($notice['ok'])) throw new \RuntimeException((string)$notice['error']);
-            $notificationId = (int)($notice['data']['notification_id'] ?? 0);
-            $this->effects($actor, $session, ['status'=>$status,'message'=>$message,'notification_id'=>$notificationId]);
+            $deliveries=[];$notice=null;foreach($recipients as $recipient){$notice=$notifications->create($recipient,'system',['event'=>'bridge.status','status'=>$status,'harness_session_id'=>$session,'message'=>$message,'workbench_state'=>trim((string)($input['workbench_state']??''))],null,null,null,false);if(empty($notice['ok']))throw new \RuntimeException((string)$notice['error']);$deliveries[]=['id'=>(int)($notice['data']['notification_id']??0),'user_id'=>$recipient];}
+            $this->effects($actor, $session, ['status'=>$status,'message'=>$message,'notification_deliveries'=>$deliveries]);
             if ($ownsTransaction) $this->db->commit();
-            if ($notificationId > 0) $notifications->dispatch($notificationId, $recipient);
-            return $notice;
+            return $notice??HarppServiceResult::success(['notification_ids'=>[]]);
         } catch (Throwable $e) {
             if ($ownsTransaction && $this->db->inTransaction()) $this->db->rollBack();
             if (function_exists('write_log')) \write_log('HARPP bridge status failed', 'error', ['module'=>'harpp','error'=>$e->getMessage()]);
@@ -140,10 +135,7 @@ final class HarppBridgeService
 
     private function effects(array $actor, string $session, array $after): void
     {
-        $payload = ['harness_session_id'=>$session,'actor_user_id'=>(int)($actor['id']??0),'after'=>$after];
-        \app()->events()->fire('harpp.bridge.status_updated', $payload, 'harpp');
-        $audit = \app()->cap()->call('kernel.audit.record@1', ['module'=>'harpp','action'=>'bridge.status','entity_type'=>'harpp_bridge_session','entity_id'=>$session,'new_data'=>$after], ['mode'=>'first','caller_module'=>'harpp']);
-        if (!is_array($audit) || empty($audit['ok'])) throw new \RuntimeException('Kernel audit recording failed.');
+        (new HarppFoundationService($this->db))->recordEffect('harpp.bridge.status_updated','bridge.status',$actor,'harpp_bridge_session',$session,null,$after);
     }
 
     private function ownerId(): int

@@ -88,11 +88,7 @@ final class HarppSettingsService
             foreach ($normalized as $key => $value) {
                 $stmt->execute([':key' => $key, ':value' => $value]);
             }
-            if (function_exists('app')) {
-                \app()->events()->fire('harpp.settings.updated', ['keys'=>array_keys($normalized)], 'harpp');
-                $audit=\app()->cap()->call('kernel.audit.record@1',['module'=>'harpp','action'=>'settings.updated','entity_type'=>'harpp_settings','entity_id'=>(string)(\app()->tenant()->current()??0),'new_data'=>['keys'=>array_keys($normalized)]],['mode'=>'first','caller_module'=>'harpp']);
-                if(!is_array($audit)||empty($audit['ok']))throw new \RuntimeException('Kernel audit recording failed.');
-            }
+            (new HarppFoundationService($this->db()))->recordEffect('harpp.settings.updated','settings.updated',['source'=>'system'],'harpp_settings',(string)(\app()->tenant()->current()??0),null,['keys'=>array_keys($normalized)]);
             $this->db()->commit();
             return $this->get($tenantId);
         } catch (Throwable $e) {
