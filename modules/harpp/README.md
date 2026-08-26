@@ -355,6 +355,14 @@ stores or proxies FTP credentials.
 - The action endpoint stays bridge-header-auth (`X-HARPP-BRIDGE-KEY`), idempotent, and
   rate-limited like the other bridge endpoints.
 
+**Feasibility gate (before implementation):** a raw FTP `SITE` unzip/unarchive verb is
+host-specific and NOT part of the FTP standard (RFC 959 leaves `SITE` as an opaque,
+server-defined hook). Verify against the real target host (Bluehost/cPanel) before
+building: if cPanel does not honor an FTP `SITE` unarchive command, pivot extraction to
+cPanel's Archive Manager (UAPI `Fileman::extract_file`) and keep FTP upload-only, or
+drop the unarchive step and notify "uploaded — extract in cPanel". Do not build an
+FTP-`SITE` unarchive on an assumption.
+
 **Acceptance sketch:** the owner saves an FTP profile on their machine, triggers an upload
 of a build archive to a saved path, issues the unarchive command, and HARPP records the
 success as a decision/ADR + push — with the FTP secret never crossing the module.
