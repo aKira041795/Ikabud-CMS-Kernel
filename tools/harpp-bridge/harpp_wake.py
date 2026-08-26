@@ -1525,10 +1525,26 @@ def _stage_prompt(stage: dict) -> str:
                f"Produce the required output and end with your stage marker.\n")
 
 
+def _notify_enabled() -> bool:
+    """Owner workflow notifications (messages + decisions) are on by default and
+    are suppressed in testing/quiet mode so test workflows do not pollute live
+    HARPP (the wf-* escalation test launches previously created real
+    "Escalation required" decisions on the live host). The canonical toggle lives
+    in harpp_client._notify_enabled (env HARPP_NOTIFY / HARPP_TESTING_MODE, or
+    config harpp_notify / harpp_testing_mode). Workflow state still advances
+    locally (escalated/blocked etc.); only the live message + decision are
+    skipped and logged instead.
+    """
+    return harpp_client._notify_enabled()
+
+
 def _notify_workflow(wf: dict, status: str, stage: dict | None = None,
                      round_no: int = 0, max_repairs: int = 0,
                      reason: str | None = None) -> None:
     try:
+        if not _notify_enabled():
+            log(f"workflow notify suppressed for {wf.get('id')} ({status}): testing/quiet mode")
+            return
         conversation_id = int(wf.get("conversation_id") or 0)
         workflow_title = wf.get("title")
         workflow_id = wf.get("id")

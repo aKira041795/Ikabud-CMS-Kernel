@@ -1074,7 +1074,7 @@ class HarppWakeTest(unittest.TestCase):
         self._write_jobs({"job-1": {"id": "job-1", "status": "finished", "outcome": "FAILED",
                                      "code": "escalation_required", "reason": "contract would be broken",
                                      "conversation_id": 7}})
-        sent, original_send = self._patch_send()
+        sent, decisions, original_send, original_submit = self._patch_notify()
         try:
             self.assertEqual(harpp_wake.advance_workflows(), 1)
             wf = harpp_wake.get_workflow(wid)
@@ -1082,13 +1082,15 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["repair_count"], 0)
             self.assertEqual(wf["stages"][0]["status"], "escalated")
             self.assertTrue(any("DECISION_REQUIRED" in s["body"] for s in sent))
+            self.assertEqual(len(decisions), 1)  # decision captured, never sent live
         finally:
             harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
 
     def test_each_override_condition_escalates_without_auto_repair(self):
         for key in ("architecture_change", "contract_break", "data_loss_risk", "security_exception", "scope_expansion"):
             with self.subTest(key=key):
-                sent, original_send = self._patch_send()
+                sent, decisions, original_send, original_submit = self._patch_notify()
                 try:
                     stage = self._stage("implement")
                     stage[key] = True
@@ -1100,8 +1102,35 @@ class HarppWakeTest(unittest.TestCase):
                     self.assertEqual(wf["stages"][0]["attempt_count"], 0)
                     self.assertEqual(wf["stages"][0]["status"], "escalated")
                     self.assertIn("DECISION_REQUIRED", sent[0]["body"])
+                    self.assertEqual(len(decisions), 1)  # decision captured, never sent live
                 finally:
                     harpp_wake.harpp_client.send_message = original_send
+                    harpp_wake.harpp_client.submit_decision = original_submit
+
+    def test_escalation_notifications_suppressed_in_testing_mode(self):
+        # In testing mode (HARPP_TESTING_MODE=1) the workflow still escalates
+        # locally, but no live message or decision is sent — so test workflows
+        # cannot pollute live HARPP with "Escalation required" decisions.
+        sent, decisions, original_send, original_submit = self._patch_notify()
+        old = os.environ.get("HARPP_TESTING_MODE")
+        os.environ["HARPP_TESTING_MODE"] = "1"
+        try:
+            stage = self._stage("implement")
+            stage["scope_expansion"] = True
+            wid = harpp_wake.start_workflow(title="wf-testing", conversation_id=7,
+                                            stages=[stage], max_repairs=2)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "escalated")
+            self.assertEqual(wf["stages"][0]["status"], "escalated")
+            self.assertEqual(sent, [])
+            self.assertEqual(decisions, [])
+        finally:
+            if old is None:
+                os.environ.pop("HARPP_TESTING_MODE", None)
+            else:
+                os.environ["HARPP_TESTING_MODE"] = old
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.submit_decision = original_submit
 
     def test_l4_policy_always_escalates_for_human_approval(self):
         sent, decisions, original_send, original_submit = self._patch_notify()

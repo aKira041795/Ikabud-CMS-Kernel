@@ -38,6 +38,36 @@ DEFAULT_AUTHORITY_POLICY = {
 OWNER_MESSAGE_TYPES = {
     "INFO", "PROGRESS", "WARNING", "DECISION_REQUIRED", "BLOCKED", "RELEASE_READY", "FAILED",
 }
+
+
+def _notify_enabled():
+    """Owner-facing bridge notifications (messages + decisions) are on by default.
+
+    In testing/quiet mode they are suppressed so test runs never pollute the
+    live HARPP with real messages/decisions (the wf-* escalation tests previously
+    created live "Escalation required" decisions on the host). Disable via env
+    HARPP_NOTIFY=0 / HARPP_TESTING_MODE=1 or config keys harpp_notify:false /
+    harpp_testing_mode:true. Suppressed calls return {"ok": True, "suppressed": True}.
+    """
+    env_notify = os.environ.get("HARPP_NOTIFY", "").strip().lower()
+    if env_notify in ("0", "false", "no", "off"):
+        return False
+    env_testing = os.environ.get("HARPP_TESTING_MODE", "").strip().lower()
+    if env_testing in ("1", "true", "yes"):
+        return False
+    try:
+        cfg = governance_config()
+    except Exception:  # noqa: BLE001
+        cfg = {}
+    notify = cfg.get("harpp_notify")
+    if isinstance(notify, bool):
+        if not notify:
+            return False
+    elif str(notify or "").strip().lower() in ("0", "false", "no", "off"):
+        return False
+    if str(cfg.get("harpp_testing_mode", "")).strip().lower() in ("1", "true", "yes"):
+        return False
+    return True
 ACTIONABLE_MESSAGE_TYPES = {"DECISION_REQUIRED", "BLOCKED", "RELEASE_READY"}
 
 
@@ -194,6 +224,8 @@ def _nl(value):
 
 
 def submit_decision(config=None, **kw):
+    if not _notify_enabled():
+        return {"ok": True, "suppressed": True, "reason": "testing/quiet mode"}
     body = {
         "title": kw.get("title", ""),
         "body": _nl(kw.get("body", "")),
@@ -285,6 +317,8 @@ def autoprocess(records, outcomes=None):
 
 
 def send_message(config=None, **kw):
+    if not _notify_enabled():
+        return {"ok": True, "suppressed": True, "reason": "testing/quiet mode"}
     import socket
     body = {"body": _nl(kw.get("body", ""))}
     if kw.get("conversation_id"):
