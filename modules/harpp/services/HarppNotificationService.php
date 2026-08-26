@@ -123,6 +123,25 @@ final class HarppNotificationService
         }
     }
 
+    public function deleteAllMessages(array $actor, ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId)) { return HarppServiceResult::failure('Forbidden.', 403); }
+        try {
+            $this->db()->beginTransaction();
+            $s = $this->db()->prepare("DELETE FROM harpp_notifications WHERE user_id = :user AND notification_type = 'message'");
+            $s->execute([':user' => (int)$actor['id']]);
+            $deleted = $s->rowCount();
+            if (function_exists('app')) { \app()->events()->fire('harpp.notifications.messages_deleted', ['user_id' => (int)$actor['id'], 'deleted' => $deleted, 'actor_user_id' => (int)($actor['id'] ?? 0)], 'harpp'); }
+            if (function_exists('write_log')) { \write_log('HARPP audit', 'info', ['module' => 'harpp', 'action' => 'notifications.messages_deleted', 'actor_user_id' => (int)$actor['id'], 'deleted' => $deleted]); }
+            $this->db()->commit();
+            return HarppServiceResult::success(['deleted' => $deleted], 'All message notifications deleted.');
+        } catch (Throwable $e) {
+            if ($this->db()->inTransaction()) { $this->db()->rollBack(); }
+            $this->log('notification messages delete failed', $e);
+            return HarppServiceResult::failure('Unable to delete message notifications.', 500);
+        }
+    }
+
     private function effects(string $event, string $action, int $id, int $userId, ?array $before, array $after): array
     {
         $payload = ['notification_id'=>$id,'user_id'=>$userId,'before'=>$before,'after'=>$after];

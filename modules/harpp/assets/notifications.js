@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const list = document.getElementById('notification-list');
   const status = document.getElementById('notification-status');
   const showHistoryBtn = document.getElementById('show-history');
+  const deleteAllMessagesBtn = document.getElementById('delete-all-messages');
   let rows = [];
   let includeRead = false;
 
@@ -60,6 +61,21 @@ document.addEventListener('DOMContentLoaded', () => {
     includeRead = !includeRead;
     showHistoryBtn.textContent = includeRead ? 'Hide history' : 'Show history';
     load();
+  };
+
+  if (deleteAllMessagesBtn) deleteAllMessagesBtn.onclick = async () => {
+    if (!window.confirm('Delete all message notifications? This cannot be undone.')) return;
+    deleteAllMessagesBtn.disabled = true;
+    try {
+      const result = await Harpp.fetch('/api/v1/harpp/notifications/messages', { method: 'DELETE' });
+      status.textContent = `Deleted ${(result.data && result.data.deleted) || 0} message notification(s).`;
+      await load();
+      Harpp.pollUnread();
+    } catch (e) {
+      status.textContent = e.message;
+    } finally {
+      deleteAllMessagesBtn.disabled = false;
+    }
   };
 
   document.getElementById('mark-all').onclick = async () => {

@@ -119,29 +119,6 @@ final class HarppMessagingService
         }
     }
 
-    public function deleteAllMessages(array $actor, int $conversationId, ?int $tenantId = null)
-    {
-        if (!$this->access($actor, $tenantId) || $conversationId <= 0) return HarppServiceResult::failure('Forbidden or invalid conversation.', 403);
-        if (!in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true)) return HarppServiceResult::failure('Owner or admin access is required.', 403);
-        try {
-            $this->db()->beginTransaction();
-            $c = $this->db()->prepare('SELECT id FROM harpp_conversations WHERE id=:id FOR UPDATE');
-            $c->execute([':id' => $conversationId]);
-            if ($c->fetchColumn() === false) throw new \InvalidArgumentException('Conversation not found.');
-            $s = $this->db()->prepare('DELETE FROM harpp_messages WHERE conversation_id=:id');
-            $s->execute([':id' => $conversationId]);
-            $deleted = $s->rowCount();
-            $this->db()->prepare('UPDATE harpp_conversations SET updated_at=NOW() WHERE id=:id')->execute([':id' => $conversationId]);
-            $this->db()->commit();
-            $this->audit('messages.deleted_all', $actor, ['conversation_id' => $conversationId, 'count' => $deleted]);
-            return HarppServiceResult::success(['conversation_id' => $conversationId, 'deleted' => $deleted], 'All messages deleted.');
-        } catch (Throwable $e) {
-            if ($this->db()->inTransaction()) $this->db()->rollBack();
-            $this->log('delete all messages failed', $e);
-            return HarppServiceResult::failure($e instanceof \InvalidArgumentException ? $e->getMessage() : 'Unable to delete messages.', $e instanceof \InvalidArgumentException ? 404 : 500);
-        }
-    }
-
     private function setting(string $key, string $default): string
     {
         $stmt = $this->db()->prepare('SELECT setting_value FROM harpp_settings WHERE setting_key = :key LIMIT 1');
