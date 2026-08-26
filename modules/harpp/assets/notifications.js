@@ -57,18 +57,21 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { status.textContent = e.message; }
   }
 
+  if (deleteAllMessagesBtn) deleteAllMessagesBtn.style.display = 'none';
+
   if (showHistoryBtn) showHistoryBtn.onclick = () => {
     includeRead = !includeRead;
     showHistoryBtn.textContent = includeRead ? 'Hide history' : 'Show history';
+    if (deleteAllMessagesBtn) deleteAllMessagesBtn.style.display = includeRead ? '' : 'none';
     load();
   };
 
   if (deleteAllMessagesBtn) deleteAllMessagesBtn.onclick = async () => {
-    if (!window.confirm('Delete all message notifications? This cannot be undone.')) return;
+    if (!window.confirm('Delete all read message notifications? This cannot be undone.')) return;
     deleteAllMessagesBtn.disabled = true;
     try {
       const result = await Harpp.fetch('/api/v1/harpp/notifications/messages', { method: 'DELETE' });
-      status.textContent = `Deleted ${(result.data && result.data.deleted) || 0} message notification(s).`;
+      status.textContent = `Deleted ${(result.data && result.data.deleted) || 0} read message notification(s).`;
       await load();
       Harpp.pollUnread();
     } catch (e) {

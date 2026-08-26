@@ -128,13 +128,13 @@ final class HarppNotificationService
         if (!$this->access($actor, $tenantId)) { return HarppServiceResult::failure('Forbidden.', 403); }
         try {
             $this->db()->beginTransaction();
-            $s = $this->db()->prepare("DELETE FROM harpp_notifications WHERE user_id = :user AND notification_type = 'message'");
+            $s = $this->db()->prepare("DELETE FROM harpp_notifications WHERE user_id = :user AND notification_type = 'message' AND read_at IS NOT NULL");
             $s->execute([':user' => (int)$actor['id']]);
             $deleted = $s->rowCount();
-            if (function_exists('app')) { \app()->events()->fire('harpp.notifications.messages_deleted', ['user_id' => (int)$actor['id'], 'deleted' => $deleted, 'actor_user_id' => (int)($actor['id'] ?? 0)], 'harpp'); }
-            if (function_exists('write_log')) { \write_log('HARPP audit', 'info', ['module' => 'harpp', 'action' => 'notifications.messages_deleted', 'actor_user_id' => (int)$actor['id'], 'deleted' => $deleted]); }
+            if (function_exists('app')) { \app()->events()->fire('harpp.notifications.messages_deleted', ['user_id' => (int)$actor['id'], 'deleted' => $deleted, 'actor_user_id' => (int)($actor['id'] ?? 0), 'scope' => 'read'], 'harpp'); }
+            if (function_exists('write_log')) { \write_log('HARPP audit', 'info', ['module' => 'harpp', 'action' => 'notifications.messages_deleted', 'actor_user_id' => (int)$actor['id'], 'deleted' => $deleted, 'scope' => 'read']); }
             $this->db()->commit();
-            return HarppServiceResult::success(['deleted' => $deleted], 'All message notifications deleted.');
+            return HarppServiceResult::success(['deleted' => $deleted], 'All read message notifications deleted.');
         } catch (Throwable $e) {
             if ($this->db()->inTransaction()) { $this->db()->rollBack(); }
             $this->log('notification messages delete failed', $e);
