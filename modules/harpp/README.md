@@ -52,6 +52,8 @@ harness polls → acknowledges → applies → decision CLOSED + ADR recorded
 - **Decision lifecycle** — `CREATED → PENDING → NOTIFIED → VIEWED → DECIDED → ACKNOWLEDGED → APPLIED → CLOSED`
   (+ `EXPIRED` / `SUPERSEDED` / `CANCELLED`), fail-closed allowed-transition table, append-only
   transition audit, and preserved Workbench state (`ARCHITECTURE_DECISION_REQUIRED`, etc.).
+  **Owner/admin shortcuts:** decide directly from any pre-decision state, and close directly
+  from any non-terminal state (the ADR is created atomically either way — no step cycling needed).
 - **Automatic ADR memory** — every `DECIDED` decision atomically writes a durable ADR row
   (`harpp_adrs`) with context, decision, rationale, actor, and timestamps.
 - **Integrity foundation** — optimistic versions, immutable local audit, transactional outbox,

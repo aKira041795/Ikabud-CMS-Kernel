@@ -227,14 +227,19 @@ PHP;
     $assert('partial APPLIED closes successfully', !empty($partialRecovered['ok']) && ($partialRecovered['data']['state'] ?? '') === 'CLOSED' && !empty($partialRecovered['data']['already_applied']));
     $assert('partial APPLIED records only APPLIED -> CLOSED', in_array(['from_state' => 'APPLIED', 'to_state' => 'CLOSED'], $partialRows, true) && !in_array(['from_state' => 'ACKNOWLEDGED', 'to_state' => 'APPLIED'], $partialRows, true));
 
-    $h->section('PENDING exclusion'); // @phpstan-ignore-line
-    $pendingId = $makeDecision('INBOX-PENDING-' . strtoupper(bin2hex(random_bytes(6))), 'Pending exclusion fixture');
+    $h->section('Direct close from PENDING'); // @phpstan-ignore-line
+    $pendingId = $makeDecision('INBOX-PENDING-' . strtoupper(bin2hex(random_bytes(6))), 'Direct close fixture');
     $pendingBefore = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $pendingBefore->execute([':id' => $pendingId]);
-    $assert('pending exclusion fixture starts at PENDING', ($pendingBefore->fetchColumn() ?: '') === 'PENDING');
-    $pendingRejected = $service->applyAndClose($owner, $pendingId, 'Must not apply.', 'Must not close.', [], $tenantId);
-    $pendingAfter = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $pendingAfter->execute([':id' => $pendingId]);
-    $assert('apply-and-close accepts only ACKNOWLEDGED, APPLIED, or CLOSED', empty($pendingRejected['ok']) && ($pendingRejected['code'] ?? '') === 'illegal_transition');
-    $assert('rejected PENDING apply-and-close causes no mutation', ($pendingAfter->fetchColumn() ?: '') === 'PENDING');
+    $assert('direct-close fixture starts at PENDING', ($pendingBefore->fetchColumn() ?: '') === 'PENDING');
+    $pendingClosed = $service->applyAndClose($owner, $pendingId, 'Applied directly.', 'Closed directly.', [], $tenantId);
+    $pendingState = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $pendingState->execute([':id' => $pendingId]);
+    $pendingAdr = $db->prepare('SELECT COUNT(*) FROM harpp_adrs WHERE decision_ref=:id'); $pendingAdr->execute([':id' => $pendingId]);
+    $pendingChain = $db->prepare('SELECT from_state,to_state FROM harpp_decision_transitions WHERE decision_id=:id ORDER BY id'); $pendingChain->execute([':id' => $pendingId]);
+    $pendingLinks = array_map(static fn(array $r): string => $r['from_state'] . '->' . $r['to_state'], $pendingChain->fetchAll(PDO::FETCH_ASSOC));
+    $assert('apply-and-close closes a PENDING decision directly', !empty($pendingClosed['ok']) && ($pendingClosed['data']['state'] ?? '') === 'CLOSED');
+    $assert('direct close persists CLOSED', ($pendingState->fetchColumn() ?: '') === 'CLOSED');
+    $assert('direct close creates the immutable ADR', (int)$pendingAdr->fetchColumn() === 1);
+    $assert('direct close records the full legal chain', in_array('PENDING->DECIDED', $pendingLinks, true) && in_array('APPLIED->CLOSED', $pendingLinks, true));
 } finally {
     if (is_string($probeFile) && $probeFile !== '') @unlink($probeFile);
     if (is_string($probeStatusFile) && $probeStatusFile !== '') @unlink($probeStatusFile);

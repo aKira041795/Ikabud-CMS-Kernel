@@ -11,13 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const applyForm = document.getElementById('decision-apply-close');
   const deleteForm = document.getElementById('decision-delete');
 
+  // Fewer steps: owner/admin can decide directly from any pre-decision state and
+  // close directly from any non-terminal state. Mirrors HarppDecisionService::TRANSITIONS.
   const transitions = {
-    CREATED: ['PENDING', 'CANCELLED'],
-    PENDING: ['NOTIFIED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
-    NOTIFIED: ['VIEWED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
-    VIEWED: ['DECIDED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
-    DECIDED: ['ACKNOWLEDGED', 'SUPERSEDED', 'CANCELLED'],
-    ACKNOWLEDGED: ['APPLIED', 'SUPERSEDED', 'CANCELLED'],
+    CREATED: ['PENDING', 'DECIDED', 'CANCELLED'],
+    PENDING: ['NOTIFIED', 'VIEWED', 'DECIDED', 'CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
+    NOTIFIED: ['VIEWED', 'DECIDED', 'CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
+    VIEWED: ['DECIDED', 'CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
+    DECIDED: ['ACKNOWLEDGED', 'CLOSED', 'SUPERSEDED', 'CANCELLED'],
+    ACKNOWLEDGED: ['APPLIED', 'CLOSED', 'SUPERSEDED', 'CANCELLED'],
     APPLIED: ['CLOSED'],
     CLOSED: [],
     EXPIRED: [],
@@ -36,7 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
     button.disabled = !first;
 
     if (applyForm) {
-      applyForm.hidden = !(isOwnerOrAdmin && ['ACKNOWLEDGED', 'APPLIED'].includes(state));
+      const terminal = ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'];
+      applyForm.hidden = !(isOwnerOrAdmin && !terminal.includes(state));
     }
 
     if (deleteForm) {
@@ -104,11 +107,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const button = applyForm.querySelector('button');
       button.disabled = true;
       try {
+        const decision = String(body.decision || '').trim();
         await Harpp.fetch(`/api/v1/harpp/decisions/${id}/apply-and-close`, {
           method: 'POST',
-          body: { apply_rationale: rationale, close_rationale: rationale }
+          body: { apply_rationale: rationale, close_rationale: rationale, decision: decision || undefined }
         });
-        status.textContent = 'Decision applied and closed. Returning to inbox…';
+        status.textContent = 'Decision closed. Returning to inbox…';
         window.setTimeout(() => { window.location.href = '/harpp/decisions'; }, 500);
       } catch (error) {
         status.textContent = error.message;
