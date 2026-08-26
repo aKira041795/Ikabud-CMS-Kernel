@@ -173,6 +173,28 @@ final class HarppDecisionService
         }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision delete failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to delete decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 
+    /** Bulk delete for all terminal (closed) decisions. Removes linked ADRs first so the ON DELETE RESTRICT constraint can proceed, then removes the decisions (audit trail and notifications cascade). */
+    public function deleteAllClosed(array $actor, ?int $tenantId = null)
+    {
+        if (!$this->scope($tenantId) || !$this->role($actor, ['owner', 'admin'])) return HarppServiceResult::failure('Forbidden.', 403);
+        try {
+            $this->db()->beginTransaction();
+            $terminal = "('CLOSED','EXPIRED','SUPERSEDED','CANCELLED')";
+            $this->db()->prepare("DELETE FROM harpp_adrs WHERE decision_ref IN (SELECT id FROM harpp_decisions WHERE lifecycle_state IN {$terminal})")->execute();
+            $s = $this->db()->prepare("DELETE FROM harpp_decisions WHERE lifecycle_state IN {$terminal}");
+            $s->execute();
+            $count = $s->rowCount();
+            if (function_exists('app')) { \app()->events()->fire('harpp.decisions.deleted', ['deleted' => $count, 'states' => ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'], 'actor_user_id' => (int)($actor['id'] ?? 0)], 'harpp'); }
+            $this->db()->commit();
+            $this->supplementalAudit('decisions.deleted_all_closed', $actor, ['deleted' => $count]);
+            return HarppServiceResult::success(['deleted' => $count, 'states' => ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED']], 'All closed decisions deleted.');
+        } catch (Throwable $e) {
+            if ($this->db()->inTransaction()) $this->db()->rollBack();
+            $this->log('bulk decision delete failed', $e);
+            return HarppServiceResult::failure('Unable to delete closed decisions.', 500);
+        }
+    }
+
     public function get(array $actor,int $decisionId,?int $tenantId=null)
     {if(!$this->scope($tenantId)||!$this->role($actor,['owner','admin','member']))return HarppServiceResult::failure('Forbidden.',403);$s=$this->db()->prepare('SELECT * FROM harpp_decisions WHERE id=:id');$s->execute([':id'=>$decisionId]);$d=$s->fetch(PDO::FETCH_ASSOC);if(!is_array($d))return HarppServiceResult::failure('Decision not found.',404);$a=$this->db()->prepare('SELECT id,from_state,to_state,actor_user_id,actor_type,rationale,workbench_state,created_at FROM harpp_decision_transitions WHERE decision_id=:id ORDER BY created_at,id');$a->execute([':id'=>$decisionId]);return HarppServiceResult::success(['decision'=>$d,'audit_trail'=>$a->fetchAll(PDO::FETCH_ASSOC)],'',[],'harpp_decision',$decisionId);}
 

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const archiveToggle = document.getElementById('archive-toggle');
   const closeBtn = document.getElementById('close-conversation');
   const archiveBtn = document.getElementById('archive-conversation');
+  const deleteMessagesBtn = document.getElementById('delete-messages');
 
   const escText = (el, text) => { el.textContent = text ?? ''; };
 
@@ -112,6 +113,22 @@ document.addEventListener('DOMContentLoaded', () => {
     title.textContent = showArchived ? 'Archived conversations' : 'Select a conversation';
     history.replaceState(null, '', '/harpp');
     await conversations();
+  };
+
+  if (deleteMessagesBtn) deleteMessagesBtn.onclick = async () => {
+    if (!requireActive()) return;
+    if (!window.confirm('Delete all messages in this conversation? This cannot be undone.')) return;
+    deleteMessagesBtn.disabled = true;
+    try {
+      await Harpp.fetch(`/api/v1/harpp/conversations/${active}/messages`, { method: 'DELETE' });
+      last = 0;
+      await load(false);
+      escText(status, 'All messages deleted.');
+    } catch (e) {
+      escText(status, e.message);
+    } finally {
+      deleteMessagesBtn.disabled = false;
+    }
   };
 
   const createConversation = async () => {
