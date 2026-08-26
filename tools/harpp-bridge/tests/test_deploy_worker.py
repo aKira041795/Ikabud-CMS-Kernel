@@ -123,18 +123,18 @@ class DeployWorkerTest(unittest.TestCase):
         def fake_run(profile, artifact_path, execute=False, allow_plain_ftp=False, progress=None):
             if progress:
                 progress("uploading")
-                progress("extracting")
                 progress("verifying")
+                progress("extracting")
             return fake_receipt
         with mock.patch.object(harpp_deploy_worker.harpp_client, "api", side_effect=fake_api), \
              mock.patch.object(deploy_harpp, "run_deploy", side_effect=fake_run) as rd:
             results = harpp_deploy_worker.process_pending_deploys(packages_dir=self.packages, profile_config=self.config)
         self.assertEqual(results[0]["result"], "SUCCEEDED")
         self.assertEqual(rd.call_args[1]["execute"], True)
-        # order: pending, claim, progress(uploading), progress(extracting), progress(verifying), success
+        # order: pending, claim, progress(uploading), progress(verifying), progress(extracting), success
         reports = [c for c in calls if c[1].endswith("/deploys/7/report")]
         self.assertEqual([r[2]["status"] for r in reports], ["progress", "progress", "progress", "success"])
-        self.assertEqual([r[2]["step"] for r in reports[:3]], ["uploading", "extracting", "verifying"])
+        self.assertEqual([r[2]["step"] for r in reports[:3]], ["uploading", "verifying", "extracting"])
         self.assertEqual(reports[-1][2]["receipt"]["receipt_sha256"], "abc123")
 
     def test_worker_fails_when_profile_not_remote_allowed(self):

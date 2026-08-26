@@ -18,9 +18,12 @@ use Throwable;
  * stores FTP credentials — the profile inventory carries only non-secret
  * metadata (name/host/transport/root/ops).
  *
- * Deploy state machine (append-only, CAS on version, claim-token ownership):
- *   QUEUED -> CLAIMED -> UPLOADING -> EXTRACTING -> VERIFYING -> SUCCEEDED
+ * Deploy state machine (append-only, CAS on version, claim-token ownership,
+ * sliding claim lease with stale reclaim):
+ *   QUEUED -> CLAIMED -> UPLOADING -> VERIFYING -> EXTRACTING -> SUCCEEDED
  *   any in-progress -> FAILED ; QUEUED|CLAIMED -> CANCELLED
+ * A CLAIMED job whose lease (claim_expires_at) lapses is treated as stale and
+ * may be reclaimed by a later worker pass; progress reports slide the lease.
  */
 final class HarppDeployService
 {
@@ -55,7 +58,7 @@ final class HarppDeployService
         $limit = max(1, min(100, (int)($filters['limit'] ?? 25)));
         $after = max(0, (int)($filters['after'] ?? 0));
         $stmt = $this->db->prepare(
-            "SELECT id,requested_by,package_name,profile_name,status,claimed_at,heartbeat_at,error,created_at,updated_at " .
+            "SELECT id,requested_by,package_name,profile_name,status,claimed_at,heartbeat_at,claim_expires_at,error,created_at,updated_at " .
             "FROM harpp_deploy_jobs WHERE id>:after ORDER BY id DESC LIMIT " . $limit
         );
         $stmt->execute([':after' => $after]);
@@ -119,24 +122,36 @@ final class HarppDeployService
         }
 
         $requestHash = hash('sha256', $package . '|' . $profile);
+        $dedupKey = $package . ':' . $profile;
         $owns = !$this->db->inTransaction();
         try {
             if ($owns) $this->db->beginTransaction();
-            $dup = $this->db->prepare(
-                "SELECT id FROM harpp_deploy_jobs WHERE package_name=:p AND profile_name=:f " .
-                "AND status NOT IN ('SUCCEEDED','FAILED','CANCELLED') AND created_at>DATE_SUB(NOW(6),INTERVAL 5 MINUTE) ORDER BY id DESC LIMIT 1"
-            );
-            $dup->execute([':p' => $package, ':f' => $profile]);
+            // Fast path: return the existing in-progress job for this package+profile.
+            $dup = $this->db->prepare("SELECT id FROM harpp_deploy_jobs WHERE active_dedup_key=:dk ORDER BY id DESC LIMIT 1");
+            $dup->execute([':dk' => $dedupKey]);
             $existing = (int)$dup->fetchColumn();
             if ($existing > 0) {
                 if ($owns) $this->db->rollBack();
                 return HarppServiceResult::success(['deploy_id' => $existing, 'status' => 'queued', 'replayed' => true], 'Deploy already queued.');
             }
             $stmt = $this->db->prepare(
-                "INSERT INTO harpp_deploy_jobs (requested_by,package_name,profile_name,status,request_hash,version,created_at,updated_at) " .
-                "VALUES (:actor,:package,:profile,'QUEUED',:hash,1,NOW(6),NOW(6))"
+                "INSERT INTO harpp_deploy_jobs (requested_by,package_name,profile_name,status,request_hash,active_dedup_key,version,created_at,updated_at) " .
+                "VALUES (:actor,:package,:profile,'QUEUED',:hash,:dk,1,NOW(6),NOW(6))"
             );
-            $stmt->execute([':actor' => (int)$actor['id'], ':package' => $package, ':profile' => $profile, ':hash' => $requestHash]);
+            try {
+                $stmt->execute([':actor' => (int)$actor['id'], ':package' => $package, ':profile' => $profile, ':hash' => $requestHash, ':dk' => $dedupKey]);
+            } catch (Throwable $insertError) {
+                // Atomic dedup: a concurrent request won the insert race. Re-read
+                // the winner and replay it as the queued deploy.
+                if ($owns && $this->db->inTransaction()) $this->db->rollBack();
+                $dup->execute([':dk' => $dedupKey]);
+                $existing = (int)$dup->fetchColumn();
+                if ($existing > 0) {
+                    return HarppServiceResult::success(['deploy_id' => $existing, 'status' => 'queued', 'replayed' => true], 'Deploy already queued.');
+                }
+                if (function_exists('write_log')) \write_log('HARPP deploy dedup insert failed', 'error', ['module' => 'harpp', 'error' => $insertError->getMessage()]);
+                return HarppServiceResult::failure('Unable to queue deploy.', 500, 'deploy_request_failed');
+            }
             $id = (int)$this->db->lastInsertId();
             $event = $foundation->recordEffect(
                 'harpp.deploy.requested', 'deploy.requested', $actor, 'harpp_deploy_job', $id, null,
@@ -173,7 +188,7 @@ final class HarppDeployService
                 return HarppServiceResult::failure('Only queued or claimed deploys can be cancelled.', 409, 'deploy_not_cancellable');
             }
             $upd = $this->db->prepare(
-                "UPDATE harpp_deploy_jobs SET status='CANCELLED',version=version+1,error=NULL WHERE id=:id AND status IN ('QUEUED','CLAIMED') AND version=:version"
+                "UPDATE harpp_deploy_jobs SET status='CANCELLED',version=version+1,error=NULL,active_dedup_key=NULL,claim_expires_at=NULL WHERE id=:id AND status IN ('QUEUED','CLAIMED') AND version=:version"
             );
             $upd->execute([':id' => $id, ':version' => (int)$row['version']]);
             if ($upd->rowCount() !== 1) { if ($owns) $this->db->rollBack(); return HarppServiceResult::failure('Deploy changed concurrently.', 409, 'version_conflict'); }
@@ -229,14 +244,20 @@ final class HarppDeployService
     public function pending(array $actor, array $filters): HarppServiceResult
     {
         $limit = max(1, min(20, (int)($filters['limit'] ?? 10)));
-        $stmt = $this->db->prepare("SELECT id,package_name,profile_name,status,created_at FROM harpp_deploy_jobs WHERE status='QUEUED' ORDER BY id ASC LIMIT " . $limit);
+        // QUEUED jobs plus CLAIMED jobs whose claim lease has lapsed (a crashed
+        // worker) so a later worker pass can reclaim them.
+        $stmt = $this->db->prepare(
+            "SELECT id,package_name,profile_name,status,created_at FROM harpp_deploy_jobs " .
+            "WHERE status='QUEUED' OR (status='CLAIMED' AND claim_expires_at IS NOT NULL AND claim_expires_at < NOW(6)) " .
+            "ORDER BY id ASC LIMIT " . $limit
+        );
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as &$row) { $row['id'] = (int)$row['id']; }
         return HarppServiceResult::success(['deploys' => $rows]);
     }
 
-    /** CAS claim QUEUED -> CLAIMED; only the returned claim_token may report. */
+    /** CAS claim QUEUED -> CLAIMED (or reclaim a lapsed lease); only the returned claim_token may report. */
     public function claim(array $actor, int $id): HarppServiceResult
     {
         $token = $this->uuid();
@@ -245,10 +266,12 @@ final class HarppDeployService
         try {
             if ($owns) $this->db->beginTransaction();
             $upd = $this->db->prepare(
-                "UPDATE harpp_deploy_jobs SET status='CLAIMED',claim_token=:token,claimed_at=NOW(6),heartbeat_at=NOW(6),version=version+1,error=NULL WHERE id=:id AND status='QUEUED'"
+                "UPDATE harpp_deploy_jobs SET status='CLAIMED',claim_token=:token,claimed_at=NOW(6),heartbeat_at=NOW(6)," .
+                "claim_expires_at=DATE_ADD(NOW(6),INTERVAL 15 MINUTE),version=version+1,error=NULL " .
+                "WHERE id=:id AND (status='QUEUED' OR (status='CLAIMED' AND claim_expires_at IS NOT NULL AND claim_expires_at < NOW(6)))"
             );
             $upd->execute([':token' => $token, ':id' => $id]);
-            if ($upd->rowCount() !== 1) { if ($owns) $this->db->rollBack(); return HarppServiceResult::failure('Deploy is no longer queued.', 409, 'deploy_already_claimed'); }
+            if ($upd->rowCount() !== 1) { if ($owns) $this->db->rollBack(); return HarppServiceResult::failure('Deploy is not queued or its claim lease is not stale.', 409, 'deploy_already_claimed'); }
             $event = $foundation->recordEffect('harpp.deploy.claimed', 'deploy.claimed', $actor, 'harpp_deploy_job', $id, ['status' => 'QUEUED'], ['status' => 'CLAIMED'], 'Deploy claimed by the local executor.');
             if ($owns) $this->db->commit();
             return HarppServiceResult::success(['deploy_id' => $id, 'claim_token' => $token, 'status' => 'CLAIMED'], 'Deploy claimed.', [$event], 'harpp_deploy_job', $id);
@@ -262,7 +285,7 @@ final class HarppDeployService
      * Report progress or a final outcome. Only the holder of claim_token may
      * report, and transitions are validated (strict state machine).
      *
-     * status: progress (step: uploading|extracting|verifying) | success (receipt) | failure (error)
+     * status: progress (step: uploading|verifying|extracting) | success (receipt) | failure (error)
      */
     public function report(array $actor, int $id, array $input): HarppServiceResult
     {
@@ -282,7 +305,20 @@ final class HarppDeployService
                 return HarppServiceResult::failure('Claim token mismatch; only the claiming executor may report.', 403, 'deploy_claim_mismatch');
             }
             $current = (string)$job['status'];
-            $inProgress = ['CLAIMED', 'UPLOADING', 'EXTRACTING', 'VERIFYING'];
+            $inProgress = ['CLAIMED', 'UPLOADING', 'VERIFYING', 'EXTRACTING'];
+            $terminal = ['SUCCEEDED', 'FAILED', 'CANCELLED'];
+            if (in_array($current, $terminal, true)) {
+                // Idempotent terminal reports: a retried success/failure from the
+                // same claim holder is a no-op replay (worker crash/network retry),
+                // never a new transition.
+                $idempotent = ($kind === 'success' && $current === 'SUCCEEDED') || ($kind === 'failure' && $current === 'FAILED');
+                if ($idempotent) {
+                    if ($owns) $this->db->commit();
+                    return HarppServiceResult::success(['deploy_id' => $id, 'status' => $current], 'Deploy already ' . $current . '.');
+                }
+                if ($owns) $this->db->rollBack();
+                return HarppServiceResult::failure('Deploy already ' . $current, 409, 'deploy_transition');
+            }
             $next = null; $reason = '';
             if ($kind === 'progress') {
                 $step = trim((string)($input['step'] ?? ''));
@@ -307,11 +343,22 @@ final class HarppDeployService
             if (isset($input['receipt']) && is_array($input['receipt'])) {
                 $receiptJson = json_encode($input['receipt'], JSON_UNESCAPED_SLASHES);
             }
+            $isTerminal = in_array($next, ['SUCCEEDED', 'FAILED'], true);
+            // Progress reports slide the claim lease; terminal reports clear the
+            // dedup key and the lease so the package+profile slot frees up.
             $upd = $this->db->prepare(
-                "UPDATE harpp_deploy_jobs SET status=:status,version=version+1,error=:error,receipt_json=COALESCE(:receipt,receipt_json),heartbeat_at=NOW(6) " .
+                "UPDATE harpp_deploy_jobs SET status=:status,version=version+1,error=:error,receipt_json=COALESCE(:receipt,receipt_json),heartbeat_at=NOW(6)," .
+                "claim_expires_at=:lease,active_dedup_key=:dedup " .
                 "WHERE id=:id AND status=:current AND claim_token=:token"
             );
-            $upd->execute([':status' => $next, ':error' => $kind === 'failure' ? substr($reason, 0, 2000) : null, ':receipt' => $receiptJson, ':id' => $id, ':current' => $current, ':token' => $token]);
+            $upd->execute([
+                ':status' => $next,
+                ':error' => $kind === 'failure' ? substr($reason, 0, 2000) : null,
+                ':receipt' => $receiptJson,
+                ':lease' => $isTerminal ? null : date('Y-m-d H:i:s', time() + 900),
+                ':dedup' => $isTerminal ? null : (string)$job['package_name'] . ':' . (string)$job['profile_name'],
+                ':id' => $id, ':current' => $current, ':token' => $token,
+            ]);
             if ($upd->rowCount() !== 1) { if ($owns) $this->db->rollBack(); return HarppServiceResult::failure('Deploy state changed concurrently.', 409, 'version_conflict'); }
 
             $event = $foundation->recordEffect('harpp.deploy.' . strtolower($next), 'deploy.' . strtolower($next), $actor, 'harpp_deploy_job', $id, ['status' => $current], ['status' => $next], $reason);
@@ -337,7 +384,9 @@ final class HarppDeployService
 
     private function order(string $state): ?int
     {
-        return ['CLAIMED' => 1, 'UPLOADING' => 2, 'EXTRACTING' => 3, 'VERIFYING' => 4][$state] ?? null;
+        // upload -> verify -> extract: the transport verifies the uploaded
+        // artifact's integrity before extracting it.
+        return ['CLAIMED' => 1, 'UPLOADING' => 2, 'VERIFYING' => 3, 'EXTRACTING' => 4][$state] ?? null;
     }
 
     private function uuid(): string

@@ -6,15 +6,18 @@ import datetime as dt
 import ftplib
 import getpass
 import hashlib
+import ipaddress
 import json
 import os
 import re
 import shlex
+import socket
 import ssl
 import stat
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -316,10 +319,50 @@ def execute_ftp(profile, artifact, receipt, allow_plain_ftp=False, progress=None
             client.close()
 
 
-def health_check(url):
-    request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "harpp-deploy/1.0"})
+def _assert_public_https_url(url):
+    """Reject non-https, credential-bearing, or non-public health-check targets.
+
+    Resolves the host and fails closed if any resolved address is not globally
+    routable (loopback/private/link-local/reserved/multicast), which also guards
+    against DNS rebinding at the resolve step. Redirects re-run this check on
+    each hop (see _SafeRedirectHandler).
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https":
+        raise DeployError("health_url must use https")
+    host = parsed.hostname
+    if not host:
+        raise DeployError("health_url must include a host")
+    if parsed.username or parsed.password:
+        raise DeployError("health_url must not embed credentials")
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        literal = ipaddress.ip_address(host)
+        candidates = [literal]
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, parsed.port or 443, proto=socket.IPPROTO_TCP)
+        except socket.gaierror as e:
+            raise DeployError(f"health_url host does not resolve: {host}") from e
+        candidates = [ipaddress.ip_address(info[4][0]) for info in infos]
+    for candidate in candidates:
+        if not candidate.is_global:
+            raise DeployError(f"health_url resolves to a non-public address: {host} -> {candidate}")
+
+
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only when every hop passes the same public-https check."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _assert_public_https_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def health_check(url):
+    _assert_public_https_url(url)
+    request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "harpp-deploy/1.0"})
+    opener = urllib.request.build_opener(_SafeRedirectHandler())
+    try:
+        with opener.open(request, timeout=20) as response:
             status = int(response.status)
     except urllib.error.HTTPError as error:
         status = int(error.code)

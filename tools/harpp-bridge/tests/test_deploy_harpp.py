@@ -3,6 +3,7 @@ import json
 import os
 import hashlib
 import re
+import socket
 import ssl
 import stat
 import sys
@@ -61,6 +62,27 @@ class DeployHarppTest(unittest.TestCase):
             self.assertNotIn(secret, rendered)
         self.assertNotIn("passphrase", receipt["profile"])
         self.assertNotIn("api_token", receipt["profile"])
+
+    def test_health_check_rejects_non_public_targets(self):
+        for bad in ("http://host.example/health", "https://127.0.0.1/health",
+                    "https://10.0.0.1/health", "https://192.168.1.1/health",
+                    "https://169.254.169.254/health"):
+            with self.assertRaisesRegex(deploy_harpp.DeployError, "health"):
+                deploy_harpp._assert_public_https_url(bad)
+
+    def test_health_check_rejects_embedded_credentials(self):
+        with self.assertRaisesRegex(deploy_harpp.DeployError, "credentials"):
+            deploy_harpp._assert_public_https_url("https://user:pass@host.example/health")
+
+    def test_health_check_rejects_private_resolved_host(self):
+        with mock.patch("deploy_harpp.socket.getaddrinfo",
+                        return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.1.2.3", 443))]):
+            with self.assertRaisesRegex(deploy_harpp.DeployError, "non-public"):
+                deploy_harpp._assert_public_https_url("https://host.example/health")
+
+    def test_health_check_accepts_public_ip_literal(self):
+        # Globally-routable IP literal passes the URL guard without any network call.
+        deploy_harpp._assert_public_https_url("https://8.8.8.8/health")
 
     def test_profile_requires_0600_and_approved_host(self):
         path = self.root / "deploy.json"

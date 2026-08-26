@@ -77,12 +77,13 @@ try{
     $token=(string)$claimed['data']['claim_token'];if($token==='')throw new RuntimeException('Deploy claim token missing.');
     $secondClaim=$deploy->claim($bridgeActor,$deployId);if(($secondClaim['code']??'')!=='deploy_already_claimed')throw new RuntimeException('Double deploy claim was not rejected.');
     $wrongToken=$deploy->report($bridgeActor,$deployId,['claim_token'=>'wrong','status'=>'success']);if(($wrongToken['code']??'')!=='deploy_claim_mismatch')throw new RuntimeException('Deploy report with a wrong claim token was not rejected.');
-    foreach(['uploading','extracting','verifying'] as $i=>$step){$progress=$deploy->report($bridgeActor,$deployId,['claim_token'=>$token,'status'=>'progress','step'=>$step]);$expected=['UPLOADING','EXTRACTING','VERIFYING'][$i];if(empty($progress['ok'])||($progress['data']['status']??'')!==$expected)throw new RuntimeException("Deploy progress step $step failed.");}
+    foreach(['uploading','verifying','extracting'] as $i=>$step){$progress=$deploy->report($bridgeActor,$deployId,['claim_token'=>$token,'status'=>'progress','step'=>$step]);$expected=['UPLOADING','VERIFYING','EXTRACTING'][$i];if(empty($progress['ok'])||($progress['data']['status']??'')!==$expected)throw new RuntimeException("Deploy progress step $step failed.");}
     $badStep=$deploy->report($bridgeActor,$deployId,['claim_token'=>$token,'status'=>'progress','step'=>'uploading']);if(($badStep['code']??'')!=='deploy_transition')throw new RuntimeException('Non-linear deploy progress step was accepted.');
     $receipt=['receipt_version'=>1,'mode'=>'execute','profile'=>['profile_name'=>'prod','password'=>'***redacted***'],'artifact'=>['name'=>'harpp-deploy-20260827-010000.zip','sha256'=>'abc']];
     $finished=$deploy->report($bridgeActor,$deployId,['claim_token'=>$token,'status'=>'success','receipt'=>$receipt]);
     if(empty($finished['ok'])||($finished['data']['status']??'')!=='SUCCEEDED')throw new RuntimeException('Deploy success report failed.');
-    $succeedAgain=$deploy->report($bridgeActor,$deployId,['claim_token'=>$token,'status'=>'success']);if(($succeedAgain['code']??'')!=='deploy_transition')throw new RuntimeException('Post-terminal deploy success was accepted.');
+    $succeedAgain=$deploy->report($bridgeActor,$deployId,['claim_token'=>$token,'status'=>'success']);if(empty($succeedAgain['ok'])||($succeedAgain['data']['status']??'')!=='SUCCEEDED')throw new RuntimeException('Idempotent post-terminal deploy success replay was rejected.');
+    $flip=$deploy->report($bridgeActor,$deployId,['claim_token'=>$token,'status'=>'failure','error'=>'flip']);if(($flip['code']??'')!=='deploy_transition')throw new RuntimeException('Terminal deploy outcome flip was accepted.');
     $detail=$deploy->get($actor,$deployId);if(empty($detail['ok'])||($detail['data']['job']['status']??'')!=='SUCCEEDED'||($detail['data']['job']['receipt']['artifact']['sha256']??'')!=='abc')throw new RuntimeException('Deploy detail/receipt readback failed.');
     if(array_key_exists('claim_token',$detail['data']['job']))throw new RuntimeException('Deploy detail leaked the claim token.');
     $history=$deploy->list($actor,[]);if(empty($history['ok'])||count($history['data']['jobs'])<1)throw new RuntimeException('Deploy history failed.');
@@ -96,5 +97,29 @@ try{
     if(!harppCapabilityPermission(['id'=>(int)$actor['id'],'role'=>'owner'],'harpp.deploy.read'))throw new RuntimeException('Owner deploy read permission was denied.');
     $memberPermission=harppPermissionResult('harpp.deploy.request',['user'=>$memberActor]);if(empty($memberPermission['allowed'])){}else{throw new RuntimeException('Member deploy request permission was granted via harppPermissionResult.');}
     $ownerPermission=harppPermissionResult('harpp.deploy.request',['user'=>$actor]);if(empty($ownerPermission['allowed']))throw new RuntimeException('Owner deploy request permission was denied via harppPermissionResult.');
-    echo "HARPP migration sandbox: $tables tables; lifecycle, archive/purge retention, idempotency, outbox retry/dead-letter, scoped audit, workspace/project/participant isolation, delegation, receipts, future-user isolation, and R-FTP deploy (queue→claim→progress→receipt, claim-token + CAS, no FTP secrets) pass; teardown pending\n";
+    // Deploy hardening: dedup slot release after terminal, lease reclaim, stale pending.
+    $deploy2=$deploy->request($actor,['package'=>'harpp-deploy-20260827-010000.zip','profile'=>'prod']);
+    if(empty($deploy2['ok'])||($deploy2['data']['status']??'')!=='QUEUED')throw new RuntimeException('Dedup slot was not released after a terminal deploy.');
+    $deployId3=(int)$deploy2['data']['deploy_id'];
+    $reclaimLease=$deploy->claim($bridgeActor,$deployId3);if(empty($reclaimLease['ok']))throw new RuntimeException('Deploy claim failed for reclaim fixture.');
+    $db->exec("UPDATE harpp_deploy_jobs SET claim_expires_at=DATE_SUB(NOW(6),INTERVAL 1 MINUTE) WHERE id=$deployId3");
+    $stalePending=$deploy->pending($bridgeActor,[]);$staleIds=array_column($stalePending['data']['deploys']??[],'id');if(!in_array($deployId3,$staleIds,true))throw new RuntimeException('Stale claimed deploy was not returned by pending().');
+    $reclaim=$deploy->claim($bridgeActor,$deployId3);if(empty($reclaim['ok'])||($reclaim['data']['status']??'')!=='CLAIMED')throw new RuntimeException('Stale claimed deploy was not reclaimable.');
+    $cancelled3=$deploy->cancel($actor,$deployId3);if(empty($cancelled3['ok']))throw new RuntimeException('Reclaimed deploy cancel failed.');
+    $dedupSlotFree=$deploy->request($actor,['package'=>'harpp-deploy-20260827-010000.zip','profile'=>'prod']);if(empty($dedupSlotFree['ok'])||($dedupSlotFree['data']['status']??'')!=='QUEUED')throw new RuntimeException('Dedup slot was not released after cancel.');
+    $deployId4=(int)$dedupSlotFree['data']['deploy_id'];$deploy->cancel($actor,$deployId4);
+    // Bridge auth atomic rate limit: 5 failures -> 429; success clears the bucket.
+    require_once __DIR__.'/../services/HarppBridgeAuthService.php';
+    $auth=new \Harpp\Services\HarppBridgeAuthService($moduleDb);
+    $keyResult=$auth->generate(987654);$goodKey=(string)($keyResult['data']['key']??'');if($goodKey==='')throw new RuntimeException('Bridge key generation failed.');
+    for($i=0;$i<5;$i++){$r=$auth->validate('definitely-wrong',987654,'rate-client');if(($r['code']??'')!=='bridge_unauthorized')throw new RuntimeException('Bridge wrong-key failure #'.($i+1).' was not 401.');}
+    $limited=$auth->validate('definitely-wrong',987654,'rate-client');if(($limited['code']??'')!=='bridge_rate_limited')throw new RuntimeException('Bridge rate limit did not engage after 5 failures.');
+    // Fail-closed: a tripped bucket blocks even the valid key until the window
+    // expires. Force window expiry, then confirm a valid key authenticates and
+    // clears the bucket.
+    $bucketName='bridge_auth_rate_'.substr(hash('sha256','rate-client'),0,32);
+    $db->exec("UPDATE harpp_bridge_rate_limit SET window_start=window_start-120 WHERE bucket=".$db->quote($bucketName));
+    $okAfterClear=$auth->validate($goodKey,987654,'rate-client');if(empty($okAfterClear['ok']))throw new RuntimeException('Successful bridge auth after window expiry did not clear the rate bucket.');
+    $bucketCount=(int)$db->query("SELECT COUNT(*) FROM harpp_bridge_rate_limit")->fetchColumn();if($bucketCount!==0)throw new RuntimeException('Rate bucket was not cleared after successful auth.');
+    echo "HARPP migration sandbox: $tables tables; lifecycle, archive/purge retention, idempotency, outbox retry/dead-letter, scoped audit, workspace/project/participant isolation, delegation, receipts, future-user isolation, R-FTP deploy (queue->claim->progress->receipt, claim-token + CAS, lease reclaim, atomic dedup, idempotent terminal reports, no FTP secrets), and atomic bridge rate-limit pass; teardown pending\n";
 }finally{$admin->exec("DROP DATABASE IF EXISTS `$name`");echo "HARPP migration sandbox: teardown complete\n";}

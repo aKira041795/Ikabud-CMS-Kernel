@@ -158,22 +158,32 @@ final class HarppBridgeAuthService
 
     private function isRateLimited(string $bucket): bool
     {
-        $state = json_decode($this->setting($bucket), true);
-        return is_array($state) && (int)($state['since'] ?? 0) > time() - self::WINDOW_SECONDS && (int)($state['count'] ?? 0) >= self::MAX_FAILURES;
+        $stmt = $this->db()->prepare('SELECT failures,window_start FROM harpp_bridge_rate_limit WHERE bucket=:b');
+        $stmt->execute([':b' => $bucket]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) && (int)($row['window_start'] ?? 0) > time() - self::WINDOW_SECONDS && (int)($row['failures'] ?? 0) >= self::MAX_FAILURES;
     }
 
     private function recordFailure(string $bucket): void
     {
-        $state = json_decode($this->setting($bucket), true);
-        if (!is_array($state) || (int)($state['since'] ?? 0) <= time() - self::WINDOW_SECONDS) $state = ['since' => time(), 'count' => 0];
-        $state['count'] = (int)$state['count'] + 1;
-        $this->upsert($bucket, json_encode($state, JSON_THROW_ON_ERROR));
+        // Atomic increment: a single row-locked statement, so concurrent auth
+        // failures cannot lose increments (fixes the read/modify/upsert race).
+        // Every named parameter appears exactly once: native PDO prepares reject
+        // repeated named parameters with HY093, so values that are needed in
+        // both clauses use distinct aliases (:nowv/:nowv2, :cutoff/:cutoff2).
+        $now = time();
+        $cutoff = $now - self::WINDOW_SECONDS;
+        $stmt = $this->db()->prepare(
+            'INSERT INTO harpp_bridge_rate_limit (bucket,failures,window_start,updated_at) VALUES (:b,1,:nowv,NOW(6)) ' .
+            'ON DUPLICATE KEY UPDATE failures=IF(window_start<:cutoff,1,failures+1),window_start=IF(window_start<:cutoff2,:nowv2,window_start),updated_at=NOW(6)'
+        );
+        $stmt->execute([':b' => $bucket, ':nowv' => $now, ':cutoff' => $cutoff, ':cutoff2' => $cutoff, ':nowv2' => $now]);
     }
 
     private function clearFailures(string $bucket): void
     {
-        $stmt = $this->db()->prepare('DELETE FROM harpp_settings WHERE setting_key=:key');
-        $stmt->execute([':key' => $bucket]);
+        $stmt = $this->db()->prepare('DELETE FROM harpp_bridge_rate_limit WHERE bucket=:b');
+        $stmt->execute([':b' => $bucket]);
     }
 
     private function logFailure(int $tenantId, string $clientId, string $reason): void

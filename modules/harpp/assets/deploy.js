@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pollTimer = null;
     let trackedId = null;
     let pollErrors = 0;
+    let idemKey = '';
 
     function fillSelect(el, options, placeholder) {
         el.innerHTML = '';
@@ -188,6 +189,10 @@ document.addEventListener('DOMContentLoaded', () => {
     goBtn.addEventListener('click', () => {
         const pkg = packageSel.value, prof = currentProfile();
         if (!pkg || !prof) { status.textContent = 'Choose a package and a profile first.'; return; }
+        // Per-submit idempotency key: a retry of the same logical request
+        // (network drop, double-tap) maps back to the same deploy job instead of
+        // queueing a duplicate.
+        idemKey = (crypto.randomUUID ? crypto.randomUUID() : 'dep-' + Date.now() + '-' + Math.random().toString(36).slice(2));
         confirmPkg.textContent = pkg;
         confirmHost.textContent = prof.host;
         confirmBox.hidden = false;
@@ -201,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         receiptEl.hidden = true;
         status.textContent = 'Queuing deploy…';
         try {
-            const data = await Harpp.fetch('/api/v1/harpp/deploys', { method: 'POST', body: { package: pkg, profile: prof } });
+            const data = await Harpp.fetch('/api/v1/harpp/deploys', { method: 'POST', body: { package: pkg, profile: prof, idempotency_key: idemKey } });
             trackedId = data.data.deploy_id;
             status.textContent = 'Deploy #' + trackedId + ' queued.';
             await loadAll();
