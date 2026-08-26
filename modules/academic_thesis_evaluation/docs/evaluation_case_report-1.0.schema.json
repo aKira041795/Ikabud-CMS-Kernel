@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "academic_thesis_evaluation.evaluation_case_report",
+  "title": "Academic Thesis Evaluation Case Report",
+  "type": "object",
+  "required": [
+    "report_schema",
+    "case",
+    "analysis_profile",
+    "stages_completed",
+    "manuscript_versions",
+    "evidence_snapshots",
+    "evidence_decisions",
+    "rubric_summary",
+    "revisions",
+    "disposition",
+    "audit_trail",
+    "content_digest"
+  ],
+  "properties": {
+    "report_schema": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "const": "academic_thesis_evaluation.evaluation_case_report" },
+        "version": { "const": "1.0" }
+      }
+    },
+    "case": { "type": "object" },
+    "analysis_profile": {
+      "type": "object",
+      "required": ["schema_version", "engine", "mode", "extensions", "capabilities", "label", "generated_at"],
+      "properties": {
+        "schema_version": { "const": "1.0" },
+        "engine": {
+          "type": "object",
+          "required": ["id", "version"],
+          "properties": {
+            "id": { "const": "academic_thesis_evaluation" },
+            "version": { "const": "0.2.0" }
+          }
+        },
+        "mode": { "enum": ["standalone", "aiss_assisted"] },
+        "extensions": {
+          "type": "object",
+          "required": ["academic_similarity"],
+          "properties": {
+            "academic_similarity": {
+              "type": "object",
+              "required": ["enabled", "version"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "version": { "type": ["string", "null"] }
+              }
+            }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "required": ["textual_matching", "semantic_resemblance", "citation_detection", "context_analysis"],
+          "additionalProperties": false,
+          "properties": {
+            "textual_matching": { "$ref": "#/definitions/capabilityState" },
+            "semantic_resemblance": { "$ref": "#/definitions/capabilityState" },
+            "citation_detection": { "$ref": "#/definitions/capabilityState" },
+            "context_analysis": { "$ref": "#/definitions/capabilityState" }
+          }
+        },
+        "label": { "type": "string" },
+        "reason": { "type": "string" },
+        "generated_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+00:00$"
+        }
+      }
+    },
+    "stages_completed": {
+      "type": "array",
+      "description": "Sorted by created_at ASC, id ASC.",
+      "items": {
+        "type": "object",
+        "required": ["stage", "status", "outcome", "completed_at"],
+        "properties": {
+          "stage": { "type": ["string", "null"] },
+          "status": { "type": ["string", "null"] },
+          "outcome": { "type": ["string", "null"] },
+          "completed_at": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "manuscript_versions": {
+      "type": "array",
+      "description": "Sorted by version_number ASC, id ASC.",
+      "items": {
+        "type": "object",
+        "required": ["version", "file_hash", "submitted_at", "is_revision"],
+        "properties": {
+          "version": { "type": ["integer", "string"] },
+          "file_hash": { "type": ["string", "null"] },
+          "submitted_at": { "type": ["string", "null"] },
+          "is_revision": { "type": "boolean" }
+        }
+      }
+    },
+    "evidence_snapshots": {
+      "type": "array",
+      "description": "Sorted by generated_at ASC, id ASC. generated_at retains stored DATETIME text.",
+      "items": {
+        "type": "object",
+        "required": ["snapshot_id", "version", "maturity", "warnings", "generated_at"],
+        "properties": {
+          "snapshot_id": { "type": ["integer", "string"] },
+          "version": { "type": ["string", "null"] },
+          "maturity": { "type": ["object", "array"] },
+          "warnings": { "type": "array" },
+          "generated_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$"
+          }
+        }
+      }
+    },
+    "evidence_decisions": {
+      "type": "array",
+      "description": "Sorted by numeric id ASC; confirmed_at is intentionally excluded.",
+      "items": { "type": "object" }
+    },
+    "rubric_summary": {
+      "type": "object",
+      "properties": {
+        "reviewer_summaries": {
+          "type": "array",
+          "description": "Sorted by reviewer_id ASC NULL last, then role; each scores list is sorted by criterion, score, weight, comment with NULL last."
+        }
+      }
+    },
+    "revisions": {
+      "type": "array",
+      "description": "Sorted by created_at ASC, id ASC.",
+      "items": { "type": "object" }
+    },
+    "disposition": { "type": ["object", "null"] },
+    "audit_trail": {
+      "type": "array",
+      "description": "Sorted by created_at ASC, id ASC.",
+      "items": { "type": "object" }
+    },
+    "content_digest": {
+      "type": "object",
+      "description": "Deterministic content identity and accidental-corruption detection only; not authenticity or adversarial tamper evidence.",
+      "required": ["algorithm", "canonicalization_version", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "canonicalization_version": { "const": "1.0" },
+        "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  },
+  "definitions": {
+    "capabilityState": {
+      "oneOf": [
+        { "const": "disabled" },
+        {
+          "type": "object",
+          "required": ["id", "status", "version"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "status": { "enum": ["stable", "beta", "experimental"] },
+            "version": { "type": ["string", "null"] }
+          }
+        }
+      ]
+    }
+  }
+}
