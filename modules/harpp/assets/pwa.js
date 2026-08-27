@@ -41,8 +41,31 @@
     if (permission !== 'granted') throw new Error('Notification permission was not granted.');
     const reg = await registration();
     const key = (await api('/api/v1/harpp/push/vapid-public-key')).data.public_key;
+    // Bump this whenever existing push subscriptions must be re-registered
+    // (e.g. the server switched from ephemeral per-worker VAPID keys to stable
+    // configured keys). A stored subscription is bound to the applicationServerKey
+    // that was active when it was created; if the key changed, the old
+    // subscription can never be authorized and every push is rejected with 403.
+    // The generation marker forces exactly one drop + recreate, then self-heals.
+    const PUSH_GENERATION = 'v2';
     let subscription = await reg.pushManager.getSubscription();
-    if (!subscription) subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(key) });
+    if (subscription) {
+      try {
+        const lastKey = localStorage.getItem('harpp-vapid-key') || '';
+        const lastGen = localStorage.getItem('harpp-push-generation') || '';
+        if (lastGen !== PUSH_GENERATION || (lastKey && lastKey !== key)) {
+          try { await subscription.unsubscribe(); } catch (error) { /* best-effort; recreate below */ }
+          subscription = null;
+        }
+      } catch (error) { /* localStorage unavailable; keep existing subscription */ }
+    }
+    if (!subscription) {
+      subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(key) });
+    }
+    try {
+      localStorage.setItem('harpp-vapid-key', key);
+      localStorage.setItem('harpp-push-generation', PUSH_GENERATION);
+    } catch (error) { /* best-effort */ }
     await api('/api/v1/harpp/push/subscribe', { method: 'POST', body: subscription.toJSON() });
     return subscription;
   }

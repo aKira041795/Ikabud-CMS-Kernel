@@ -177,7 +177,12 @@ final class HarppPushService
                     $status = $this->send($request);
                     if ($status >= 200 && $status < 300) {
                         $sent++;
-                    } elseif (in_array($status, [404, 410], true)) {
+                    } elseif (in_array($status, [403, 404, 410], true)) {
+                        // 403 = the push service rejected VAPID auth for this
+                        // subscription (applicationServerKey no longer matches
+                        // the signing key). That mismatch is permanent for the
+                        // row — the PWA re-registers with the current key, so
+                        // drop the stale row instead of 403-ing on every send.
                         $delete = $this->db()->prepare('DELETE FROM harpp_push_subscriptions WHERE id = :id AND user_id = :user');
                         $delete->execute([':id' => (int)$row['id'], ':user' => $userId]);
                         $expired += $delete->rowCount();
