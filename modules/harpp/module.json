@@ -549,6 +549,22 @@
             ]
         },
         {
+            "key": "push_important_only",
+            "type": "select",
+            "label": "Push Important Messages Only",
+            "default": "0",
+            "options": [
+                {
+                    "label": "Off (push all messages)",
+                    "value": "0"
+                },
+                {
+                    "label": "On (decisions + warnings/blocks/failures only)",
+                    "value": "1"
+                }
+            ]
+        },
+        {
             "key": "conversation_archiving",
             "type": "select",
             "label": "Conversation Archiving",
