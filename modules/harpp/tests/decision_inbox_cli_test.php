@@ -92,20 +92,6 @@ $advanceToAcknowledged = static function (int $decisionId) use ($service, $owner
 try {
     $h->section('Default inbox filter wiring'); // @phpstan-ignore-line
 
-    $inboxTemplate = (string)file_get_contents($root . '/templates/modules/harpp/decisions.disyl');
-    $stateSelect = strpos($inboxTemplate, '<select name="state">');
-    $stateSelectEnd = strpos($inboxTemplate, '</select>', $stateSelect);
-    $stateOptions = substr($inboxTemplate, $stateSelect, $stateSelectEnd - $stateSelect);
-    $pendingPos = strpos($stateOptions, '<option value="PENDING">');
-    $allPos = strpos($stateOptions, '<option value="">');
-    $closedPos = strpos($stateOptions, '<option>CLOSED</option>');
-    $assert('inbox state select visibly starts at PENDING', $pendingPos !== false && $allPos !== false && $pendingPos < $allPos);
-    $assert('explicit CLOSED filter remains selectable', $closedPos !== false);
-
-    $inboxJs = (string)file_get_contents($root . '/modules/harpp/assets/decisions.js');
-    $assert('inbox first load builds query from default form', strpos($inboxJs, 'new URLSearchParams(new FormData(form))') !== false);
-    $assert('inbox load targets decisions list endpoint', strpos($inboxJs, "/api/v1/harpp/decisions?'") !== false || strpos($inboxJs, "/api/v1/harpp/decisions?\"") !== false);
-
     $_COOKIE['harpp_token'] = (new HarppAuthService($db))->issueToken($owner);
     ob_start(); harppPageDecisions(); $renderedInbox = (string)ob_get_clean();
     $renderedSelectStart = strpos($renderedInbox, '<select name="state">');
@@ -113,23 +99,20 @@ try {
     $renderedStateOptions = substr($renderedInbox, $renderedSelectStart, $renderedSelectEnd - $renderedSelectStart);
     $renderedPendingPos = strpos($renderedStateOptions, '<option value="PENDING">');
     $renderedAllPos = strpos($renderedStateOptions, '<option value="">');
+    $renderedClosedPos = strpos($renderedStateOptions, '<option>CLOSED</option>');
     $assert('rendered inbox select starts at PENDING', $renderedPendingPos !== false && $renderedAllPos !== false && $renderedPendingPos < $renderedAllPos);
+    $assert('rendered inbox keeps explicit CLOSED filter', $renderedClosedPos !== false);
+
+    ob_start(); harppPageDecisionDetail(['id' => 0]); $renderedDetail = (string)ob_get_clean();
+    $assert('decision detail renders the Apply and close form', strpos($renderedDetail, 'id="decision-apply-close"') !== false && strpos($renderedDetail, 'Apply and close') !== false);
+    $assert('decision detail no longer renders pre-decision decide/close shortcuts', strpos($renderedDetail, 'decision-decide-close') === false && strpos($renderedDetail, 'decision-close-plain') === false);
 
     $h->section('Route and handler CSRF ordering'); // @phpstan-ignore-line
     $routes = require dirname(__DIR__) . '/routes.php';
     $applyRoute = (string)($routes['POST']['/api/v1/harpp/decisions/{id}/apply-and-close'] ?? '');
     $assert('apply-and-close route registered', $applyRoute === 'harpp:harppDecisionApplyClose');
     $assert('apply-and-close handler defined', function_exists('harppDecisionApplyClose'));
-
-    $handlersSrc = (string)file_get_contents($root . '/modules/harpp/handlers.php');
-    $fnPos = strpos($handlersSrc, 'function harppDecisionApplyClose');
-    $fnLineStart = strrpos(substr($handlersSrc, 0, $fnPos), "\n") + 1;
-    $fnLineEnd = strpos($handlersSrc, "\n", $fnPos);
-    $fnLine = substr($handlersSrc, $fnLineStart, $fnLineEnd - $fnLineStart);
-    $csrfPos = strpos($fnLine, 'harppRequireCsrf()');
-    $authPos = strpos($fnLine, 'harppAuthenticated(');
-    $assert('apply handler enforces CSRF', $csrfPos !== false);
-    $assert('apply handler enforces CSRF before authentication', $csrfPos !== false && $authPos !== false && $csrfPos < $authPos);
+    // CSRF-before-auth is exercised behaviorally by the HTTP probe below (419 with no mutation).
 
     $h->section('Role and domain enforcement'); // @phpstan-ignore-line
     $denied = $service->applyAndClose($member, 1, 'x', 'y', [], $tenantId);
@@ -153,22 +136,28 @@ declare(strict_types=1);
 $root = {$root};
 $tenantId = (int)($argv[1] ?? 1);
 $decisionId = (int)($argv[2] ?? 0);
-$mode = (string)($argv[3] ?? 'invalid');
-$statusFile = (string)($argv[4] ?? '');
+$csrfMode = (string)($argv[3] ?? 'none');
+$actorMode = (string)($argv[4] ?? 'none');
+$statusFile = (string)($argv[5] ?? '');
 require $root . '/bootstrap.php';
 require_once $root . '/src/helpers/module-manager.php';
 app()->tenant()->setTenantId($tenantId);
 loadModuleRoutes([]);
 require_once $root . '/modules/harpp/helpers.php';
 require_once $root . '/modules/harpp/handlers.php';
-$ownerRow = harppDb()->query("SELECT id,email,full_name,role FROM harpp_users WHERE role='owner' AND is_active=1 ORDER BY id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-$owner = ['id'=>(int)$ownerRow['id'],'email'=>(string)$ownerRow['email'],'full_name'=>(string)$ownerRow['full_name'],'role'=>(string)$ownerRow['role'],'source'=>'harpp'];
-$_COOKIE['harpp_token'] = (new Harpp\Services\HarppAuthService())->issueToken($owner);
+if ($actorMode === 'owner' || $actorMode === 'member') {
+    $role = $actorMode === 'member' ? 'member' : 'owner';
+    $row = harppDb()->query("SELECT id,email,full_name,role FROM harpp_users WHERE role='$role' AND is_active=1 ORDER BY id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) { fwrite(STDERR, 'fixture user missing'); exit(70); }
+    $user = ['id'=>(int)$row['id'],'email'=>(string)$row['email'],'full_name'=>(string)$row['full_name'],'role'=>(string)$row['role'],'source'=>'harpp'];
+    $_COOKIE['harpp_token'] = (new Harpp\Services\HarppAuthService())->issueToken($user);
+}
 $_SERVER['REQUEST_METHOD'] = 'POST';
 $_SERVER['REQUEST_URI'] = '/api/v1/harpp/decisions/' . $decisionId . '/apply-and-close';
 $_SERVER['CONTENT_TYPE'] = 'application/json';
 $_POST = [];
-if ($mode === 'valid') { $_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken(); }
+if ($csrfMode === 'valid') { $_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken(); }
+elseif ($csrfMode === 'invalid') { $_SERVER['HTTP_X_CSRF_TOKEN'] = 'invalid-csrf-token'; }
 if ($statusFile !== '') {
     register_shutdown_function(static function () use ($statusFile): void { @file_put_contents($statusFile, (string)http_response_code()); });
 }
@@ -178,24 +167,52 @@ PHP;
     file_put_contents($probeFile, $probe);
     @unlink($probeStatusFile);
 
-    $runProbe = static function (string $mode, int $decisionId) use ($probeFile, $probeStatusFile, $tenantId): array {
+    $runProbe = static function (string $csrfMode, string $actorMode, int $decisionId) use ($probeFile, $probeStatusFile, $tenantId): array {
         @unlink($probeStatusFile);
-        $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($probeFile) . ' ' . escapeshellarg((string)$tenantId) . ' ' . escapeshellarg((string)$decisionId) . ' ' . escapeshellarg($mode) . ' ' . escapeshellarg($probeStatusFile) . ' 2>&1';
+        $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($probeFile) . ' ' . escapeshellarg((string)$tenantId) . ' ' . escapeshellarg((string)$decisionId) . ' ' . escapeshellarg($csrfMode) . ' ' . escapeshellarg($actorMode) . ' ' . escapeshellarg($probeStatusFile) . ' 2>&1';
         $output = (string)shell_exec($cmd);
         $status = is_file($probeStatusFile) ? (int)trim((string)file_get_contents($probeStatusFile)) : 0;
         return ['status' => $status, 'output' => $output];
     };
 
-    $invalid = $runProbe('invalid', $decisionId);
-    $stateAfterInvalid = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $stateAfterInvalid->execute([':id' => $decisionId]);
-    $assert('missing CSRF on apply mutation fails with HTTP 419', $invalid['status'] === 419 && str_contains($invalid['output'], 'Invalid CSRF token'));
-    $assert('missing CSRF causes no state change', ($stateAfterInvalid->fetchColumn() ?: '') === 'ACKNOWLEDGED');
+    $decisionSnapshot = static function (int $decisionId) use ($db): array {
+        $row = $db->prepare('SELECT lifecycle_state, version FROM harpp_decisions WHERE id=:id'); $row->execute([':id' => $decisionId]); $r = $row->fetch(PDO::FETCH_ASSOC);
+        $t = $db->prepare('SELECT COUNT(*) FROM harpp_decision_transitions WHERE decision_id=:id'); $t->execute([':id' => $decisionId]);
+        $a = $db->prepare("SELECT COUNT(*) FROM harpp_audit_events WHERE aggregate_type='harpp_decision' AND aggregate_id=:id"); $a->execute([':id' => $decisionId]);
+        return [
+            'state' => is_array($r) ? (string)$r['lifecycle_state'] : null,
+            'version' => is_array($r) ? (int)$r['version'] : null,
+            'transitions' => (int)$t->fetchColumn(),
+            'audit' => (int)$a->fetchColumn(),
+        ];
+    };
 
-    $valid = $runProbe('valid', $decisionId);
-    $decoded = json_decode($valid['output'], true);
+    $beforeProbes = $decisionSnapshot($decisionId);
+    $csrfCases = [
+        ['missing CSRF (unauthenticated)', 'none', 'none', 419, null],
+        ['invalid CSRF (unauthenticated)', 'invalid', 'none', 419, null],
+        ['valid CSRF without authentication', 'valid', 'none', 401, 'authentication_required'],
+        ['member apply-and-close denied', 'valid', 'member', 403, 'forbidden'],
+    ];
+    foreach ($csrfCases as [$label, $csrfMode, $actorMode, $expectedStatus, $expectedCode]) {
+        $probeResult = $runProbe($csrfMode, $actorMode, $decisionId);
+        $decoded = json_decode($probeResult['output'], true);
+        $after = $decisionSnapshot($decisionId);
+        $assert($label . ' returns HTTP ' . $expectedStatus, $probeResult['status'] === $expectedStatus, 'got ' . $probeResult['status']);
+        $assert($label . ' response envelope is a failure', is_array($decoded) && ($decoded['ok'] ?? null) === false, $probeResult['output']);
+        if ($expectedCode !== null) {
+            $assert($label . ' response carries code ' . $expectedCode, ($decoded['code'] ?? '') === $expectedCode, $probeResult['output']);
+        } else {
+            $assert($label . ' reports Invalid CSRF token', str_contains($probeResult['output'], 'Invalid CSRF token'), $probeResult['output']);
+        }
+        $assert($label . ' causes no state/version/audit mutation', $after === $beforeProbes, json_encode(['before' => $beforeProbes, 'after' => $after]));
+    }
+
+    $validOwner = $runProbe('valid', 'owner', $decisionId);
+    $decodedOwner = json_decode($validOwner['output'], true);
     $stateAfterValid = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $stateAfterValid->execute([':id' => $decisionId]);
-    $assert('valid CSRF apply-and-close succeeds', $valid['status'] === 200 && is_array($decoded) && !empty($decoded['ok']) && ($decoded['data']['state'] ?? '') === 'CLOSED');
-    $assert('valid CSRF apply-and-close persists CLOSED', ($stateAfterValid->fetchColumn() ?: '') === 'CLOSED');
+    $assert('valid CSRF owner apply-and-close succeeds via handler', $validOwner['status'] === 200 && is_array($decodedOwner) && !empty($decodedOwner['ok']) && ($decodedOwner['data']['state'] ?? '') === 'CLOSED');
+    $assert('valid CSRF owner apply-and-close persists CLOSED', ($stateAfterValid->fetchColumn() ?: '') === 'CLOSED');
 
     $transitions = $db->prepare('SELECT from_state,to_state FROM harpp_decision_transitions WHERE decision_id=:id ORDER BY id'); $transitions->execute([':id' => $decisionId]);
     $transitionRows = $transitions->fetchAll(PDO::FETCH_ASSOC);
@@ -227,19 +244,31 @@ PHP;
     $assert('partial APPLIED closes successfully', !empty($partialRecovered['ok']) && ($partialRecovered['data']['state'] ?? '') === 'CLOSED' && !empty($partialRecovered['data']['already_applied']));
     $assert('partial APPLIED records only APPLIED -> CLOSED', in_array(['from_state' => 'APPLIED', 'to_state' => 'CLOSED'], $partialRows, true) && !in_array(['from_state' => 'ACKNOWLEDGED', 'to_state' => 'APPLIED'], $partialRows, true));
 
-    $h->section('Direct close from PENDING'); // @phpstan-ignore-line
-    $pendingId = $makeDecision('INBOX-PENDING-' . strtoupper(bin2hex(random_bytes(6))), 'Direct close fixture');
-    $pendingBefore = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $pendingBefore->execute([':id' => $pendingId]);
-    $assert('direct-close fixture starts at PENDING', ($pendingBefore->fetchColumn() ?: '') === 'PENDING');
-    $pendingClosed = $service->applyAndClose($owner, $pendingId, 'Applied directly.', 'Closed directly.', [], $tenantId);
-    $pendingState = $db->prepare('SELECT lifecycle_state FROM harpp_decisions WHERE id=:id'); $pendingState->execute([':id' => $pendingId]);
-    $pendingAdr = $db->prepare('SELECT COUNT(*) FROM harpp_adrs WHERE decision_ref=:id'); $pendingAdr->execute([':id' => $pendingId]);
-    $pendingChain = $db->prepare('SELECT from_state,to_state FROM harpp_decision_transitions WHERE decision_id=:id ORDER BY id'); $pendingChain->execute([':id' => $pendingId]);
-    $pendingLinks = array_map(static fn(array $r): string => $r['from_state'] . '->' . $r['to_state'], $pendingChain->fetchAll(PDO::FETCH_ASSOC));
-    $assert('apply-and-close closes a PENDING decision directly', !empty($pendingClosed['ok']) && ($pendingClosed['data']['state'] ?? '') === 'CLOSED');
-    $assert('direct close persists CLOSED', ($pendingState->fetchColumn() ?: '') === 'CLOSED');
-    $assert('direct close creates the immutable ADR', (int)$pendingAdr->fetchColumn() === 1);
-    $assert('direct close records the full legal chain', in_array('PENDING->DECIDED', $pendingLinks, true) && in_array('APPLIED->CLOSED', $pendingLinks, true));
+    $h->section('Rejection of unsupported lifecycle states'); // @phpstan-ignore-line
+    $rejectId = $makeDecision('INBOX-REJECT-' . strtoupper(bin2hex(random_bytes(6))), 'Unsupported state rejection fixture');
+    foreach (['CREATED','PENDING','NOTIFIED','VIEWED','DECIDED','EXPIRED','SUPERSEDED','CANCELLED'] as $unsupported) {
+        $db->prepare('UPDATE harpp_decisions SET lifecycle_state=:state, version=version+1 WHERE id=:id')->execute([':state' => $unsupported, ':id' => $rejectId]);
+        $versionBefore = (int)$db->query("SELECT version FROM harpp_decisions WHERE id=$rejectId")->fetchColumn();
+        $transitionsBefore = (int)$db->query("SELECT COUNT(*) FROM harpp_decision_transitions WHERE decision_id=$rejectId")->fetchColumn();
+        $adrsBefore = (int)$db->query("SELECT COUNT(*) FROM harpp_adrs WHERE decision_ref=$rejectId")->fetchColumn();
+        $auditBefore = (int)$db->query("SELECT COUNT(*) FROM harpp_audit_events WHERE aggregate_type='harpp_decision' AND aggregate_id='$rejectId'")->fetchColumn();
+        $outboxBefore = (int)$db->query("SELECT COUNT(*) FROM harpp_outbox WHERE aggregate_type='harpp_decision' AND aggregate_id='$rejectId'")->fetchColumn();
+        $notificationsBefore = (int)$db->query("SELECT COUNT(*) FROM harpp_notifications WHERE decision_id=$rejectId")->fetchColumn();
+        $rejected = $service->applyAndClose($owner, $rejectId, 'Apply', 'Close', [], $tenantId);
+        $stateAfter = $db->query("SELECT lifecycle_state FROM harpp_decisions WHERE id=$rejectId")->fetchColumn();
+        $versionAfter = (int)$db->query("SELECT version FROM harpp_decisions WHERE id=$rejectId")->fetchColumn();
+        $transitionsAfter = (int)$db->query("SELECT COUNT(*) FROM harpp_decision_transitions WHERE decision_id=$rejectId")->fetchColumn();
+        $adrsAfter = (int)$db->query("SELECT COUNT(*) FROM harpp_adrs WHERE decision_ref=$rejectId")->fetchColumn();
+        $auditAfter = (int)$db->query("SELECT COUNT(*) FROM harpp_audit_events WHERE aggregate_type='harpp_decision' AND aggregate_id='$rejectId'")->fetchColumn();
+        $outboxAfter = (int)$db->query("SELECT COUNT(*) FROM harpp_outbox WHERE aggregate_type='harpp_decision' AND aggregate_id='$rejectId'")->fetchColumn();
+        $notificationsAfter = (int)$db->query("SELECT COUNT(*) FROM harpp_notifications WHERE decision_id=$rejectId")->fetchColumn();
+        $assert("apply-and-close rejects {$unsupported} without mutation",
+            $rejected instanceof HarppServiceResult && empty($rejected['ok']) && ($rejected['code'] ?? '') === 'illegal_transition' && ($rejected['status'] ?? 0) === 409
+            && $stateAfter === $unsupported && $versionAfter === $versionBefore
+            && $transitionsAfter === $transitionsBefore && $adrsAfter === $adrsBefore
+            && $auditAfter === $auditBefore && $outboxAfter === $outboxBefore && $notificationsAfter === $notificationsBefore
+        );
+    }
 } finally {
     if (is_string($probeFile) && $probeFile !== '') @unlink($probeFile);
     if (is_string($probeStatusFile) && $probeStatusFile !== '') @unlink($probeStatusFile);

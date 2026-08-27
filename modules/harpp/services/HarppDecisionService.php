@@ -11,10 +11,12 @@ use Throwable;
 final class HarppDecisionService
 {
     public const TRANSITIONS = [
-        // Operator convenience: an owner/admin may decide directly from any
-        // pre-decision state and close directly from any non-terminal state
-        // without cycling through every step. ADRs are still created atomically
-        // (see transition()/applyAndClose()) and transitions remain append-only.
+        // Operator convenience (transition() only): an owner/admin may decide
+        // directly from any pre-decision state and close directly from any
+        // non-terminal state without cycling through every step. ADRs are still
+        // created atomically and transitions remain append-only. The one-click
+        // applyAndClose() endpoint is intentionally stricter and accepts only
+        // ACKNOWLEDGED, APPLIED, or idempotent CLOSED.
         'CREATED' => ['PENDING', 'DECIDED', 'CANCELLED'],
         'PENDING' => ['NOTIFIED', 'VIEWED', 'DECIDED', 'CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
         'NOTIFIED' => ['VIEWED', 'DECIDED', 'CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
@@ -155,10 +157,10 @@ final class HarppDecisionService
     }
 
     /**
-     * One-click close for owner/admin from ANY non-terminal state — no step cycling.
-     * Fast-forwards through the legal chain atomically (creating the ADR when a
-     * pre-DECIDED decision is closed directly), enforcing the approval policy and
-     * recording every transition append-only. CLOSED stays idempotent.
+     * One-click apply-and-close for owner/admin from ACKNOWLEDGED (or retry-safe
+     * APPLIED). Records ACKNOWLEDGED → APPLIED → CLOSED atomically and stays
+     * idempotent for an already-CLOSED decision. Unsupported lifecycle states are
+     * rejected with no mutation.
      */
     public function applyAndClose(array $actor,int $decisionId,string $applyRationale,string $closeRationale,array $changes=[],?int $tenantId=null)
     {
@@ -168,31 +170,20 @@ final class HarppDecisionService
             $this->db()->beginTransaction();$s=$this->db()->prepare('SELECT * FROM harpp_decisions WHERE id=:id FOR UPDATE');$s->execute([':id'=>$decisionId]);$row=$s->fetch(PDO::FETCH_ASSOC);if(!is_array($row))throw new \InvalidArgumentException('Decision not found.');
             if(!$this->canAccessDecision($row,$actor))throw new \InvalidArgumentException('Decision not found.');
             $from=(string)$row['lifecycle_state'];
-            if($from==='CLOSED'){$this->db()->commit();return HarppServiceResult::success(['decision_id'=>$decisionId,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>true], '', [], 'harpp_decision',$decisionId);}
-            if(in_array($from,['EXPIRED','SUPERSEDED','CANCELLED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Illegal decision transition: {$from} -> APPLIED.",409,'illegal_transition');}
-            $decisionText=trim((string)($changes['decision']??$row['decision']??''));
+            if($from==='CLOSED'){$this->db()->commit();return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>'CLOSED','state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>true], '', [], 'harpp_decision',$decisionId);}
+            if(!in_array($from,['ACKNOWLEDGED','APPLIED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Illegal decision transition: {$from} -> APPLIED.",409,'illegal_transition');}
             $workbench=trim((string)($changes['workbench_state']??$row['workbench_state']??''));
+            if($workbench!==''&&!preg_match('/^[A-Z][A-Z0-9_]{2,99}$/',$workbench)){$this->db()->rollBack();return HarppServiceResult::failure('Invalid workbench state.');}
             $expected=(int)($changes['expected_version']??$row['version']);if($expected!==(int)$row['version']){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
-            $adrId=null;$adrEvent=null;$state=$from;$adrText=$decisionText!==''?$decisionText:$applyRationale;
-            if(!in_array($state,['DECIDED','ACKNOWLEDGED','APPLIED'],true)){
-                // Single gated ADR-minting routine (ADR-2): never bypass approval — the
-                // gate, decision UPDATE, append-only transition, and ADR are unified.
-                $minted=$this->mintDecisionAdr($row,$actor,$state,'DECIDED',$adrText,$applyRationale,$workbench,'close_fallback',$expected);
-                if($minted===null){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
-                $adrId=$minted['adr_id'];$adrEvent=$minted['adr_event'];$state='DECIDED';$expected=$minted['version'];
-            }
-            if(!in_array($state,['ACKNOWLEDGED','APPLIED'],true)){
-                $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='ACKNOWLEDGED',version=version+1 WHERE id=:id AND version=:version");$u->execute([':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
-                $this->recordTransition($decisionId,$state,'ACKNOWLEDGED',$actor,$applyRationale,$workbench);$state='ACKNOWLEDGED';$expected++;
-            }
+            $state=$from;
             if($state!=='APPLIED'){
-                $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='APPLIED',applied_at=COALESCE(applied_at,NOW()),workbench_state=:workbench,version=version+1 WHERE id=:id AND version=:version");$u->execute([':workbench'=>$workbench?:null,':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
+                $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='APPLIED',applied_at=COALESCE(applied_at,NOW()),workbench_state=:workbench,version=version+1 WHERE id=:id AND version=:version");$u->execute([':workbench'=>$workbench!==''?$workbench:null,':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
                 $this->recordTransition($decisionId,$state,'APPLIED',$actor,$applyRationale,$workbench);$state='APPLIED';$expected++;
             }
             $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='CLOSED',closed_at=COALESCE(closed_at,NOW()),version=version+1 WHERE id=:id AND version=:version");$u->execute([':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
             $this->recordTransition($decisionId,'APPLIED','CLOSED',$actor,$closeRationale,$workbench);
-            $event=$this->recordDomainEffects('harpp.decision.applied','decision.applied_and_closed',$actor,$decisionId,['state'=>$from],['state'=>'CLOSED','adr_id'=>$adrId]);$this->db()->commit();$this->supplementalAudit('decision.applied_and_closed',$actor,['decision_id'=>$decisionId]);
-            return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>$from==='APPLIED'], '', array_values(array_filter([$adrEvent,$event])), 'harpp_decision',$decisionId);
+            $event=$this->recordDomainEffects('harpp.decision.applied','decision.applied_and_closed',$actor,$decisionId,['state'=>$from],['state'=>'CLOSED','adr_id'=>null]);$this->db()->commit();$this->supplementalAudit('decision.applied_and_closed',$actor,['decision_id'=>$decisionId]);
+            return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>$from==='APPLIED'], '', array_values(array_filter([$event])), 'harpp_decision',$decisionId);
         }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision apply/close failed',$e);if(str_contains($e->getMessage(),'Decision version conflict.'))return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to apply and close decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 

@@ -169,6 +169,58 @@ final class HarppAuthService
         }
     }
 
+    /**
+     * Self-service password change for an authenticated user. Requires the
+     * current password, enforces the shared strength policy, and keeps the
+     * current browser session valid by re-issuing a fresh token.
+     */
+    public function changePassword(int $userId, array $input)
+    {
+        $current = (string)($input['current_password'] ?? '');
+        $new = (string)($input['new_password'] ?? '');
+        $confirm = (string)($input['confirm_password'] ?? '');
+        if ($userId <= 0 || $current === '' || $new === '' || $confirm === '') {
+            return HarppServiceResult::failure('Current password, new password, and confirmation are required.');
+        }
+        if ($new !== $confirm) {
+            return HarppServiceResult::failure('New password confirmation does not match.');
+        }
+        if (!$this->validPassword($new)) {
+            return HarppServiceResult::failure('New password must be at least 12 characters and contain upper, lower, and numeric characters.');
+        }
+        try {
+            $stmt = $this->db()->prepare('SELECT id, password_hash FROM harpp_users WHERE id = :id AND is_active = 1 AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
+            $stmt->execute([':id' => $userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($user)) {
+                return HarppServiceResult::failure('User not found.', 404);
+            }
+            $stored = (string)($user['password_hash'] ?? '');
+            if ($this->isBlockedPasswordHash($stored) || !password_verify($current, $stored)) {
+                return HarppServiceResult::failure('Current password is incorrect.', 403, 'invalid_current_password');
+            }
+            if (password_verify($new, $stored)) {
+                return HarppServiceResult::failure('New password must differ from the current password.');
+            }
+            $update = $this->db()->prepare('UPDATE harpp_users SET password_hash = :hash, updated_at = NOW() WHERE id = :id');
+            $update->execute([':hash' => password_hash($new, PASSWORD_BCRYPT), ':id' => $userId]);
+            $this->log('HARPP audit', 'HARPP', ['module' => 'harpp', 'action' => 'password.changed', 'actor_user_id' => $userId, 'target_user_id' => $userId, 'channel' => 'self_service']);
+            // Keep the current browser session valid by re-issuing a fresh token.
+            $fresh = $this->findActiveUser($userId);
+            $token = $fresh !== null ? $this->issueToken($fresh) : '';
+            $cookieSet = $token !== '' ? $this->setCookie($token) : false;
+            return HarppServiceResult::success([
+                'user' => $fresh,
+                'token' => $token,
+                'cookie_name' => self::COOKIE_NAME,
+                'cookie_set' => $cookieSet,
+            ], 'Password changed.');
+        } catch (Throwable $e) {
+            $this->log('HARPP password change failed', 'error', ['error' => $e->getMessage(), 'user_id' => $userId]);
+            return HarppServiceResult::failure('Unable to change password.', 500);
+        }
+    }
+
     public function register(array $actor, array $input)
     {
         return $this->invite($actor, $input);

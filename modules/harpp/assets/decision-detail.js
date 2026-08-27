@@ -9,13 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('decision-action');
   const select = form.elements.state;
   const applyForm = document.getElementById('decision-apply-close');
-  const decideCloseForm = document.getElementById('decision-decide-close');
-  const closePlainForm = document.getElementById('decision-close-plain');
   const deleteForm = document.getElementById('decision-delete');
   const advanced = document.getElementById('decision-advanced');
 
-  // Fewer steps: owner/admin can decide directly from any pre-decision state and
-  // close directly from any non-terminal state. Mirrors HarppDecisionService::TRANSITIONS.
+  // Manual transition matrix for the advanced form. Mirrors
+  // HarppDecisionService::TRANSITIONS. The one-click Apply-and-close action is
+  // intentionally stricter: it is only offered for ACKNOWLEDGED (or retry-safe
+  // APPLIED) decisions.
   const transitions = {
     CREATED: ['PENDING', 'DECIDED', 'CANCELLED'],
     PENDING: ['NOTIFIED', 'VIEWED', 'DECIDED', 'CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'],
@@ -41,14 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
     button.disabled = !first;
 
     const terminal = ['CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'];
+    const applyReady = ['ACKNOWLEDGED', 'APPLIED'];
     if (applyForm) {
-      applyForm.hidden = !(isOwnerOrAdmin && !terminal.includes(state));
-    }
-    if (decideCloseForm) {
-      decideCloseForm.hidden = !(isOwnerOrAdmin && !terminal.includes(state));
-    }
-    if (closePlainForm) {
-      closePlainForm.hidden = !(isOwnerOrAdmin && !terminal.includes(state));
+      applyForm.hidden = !(isOwnerOrAdmin && applyReady.includes(state));
     }
     if (deleteForm) {
       deleteForm.hidden = !(isOwnerOrAdmin && terminal.includes(state));
@@ -64,13 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const decision = data.decision;
       document.getElementById('decision-title').textContent = decision.title;
       actions(decision.lifecycle_state);
-
-      if (decideCloseForm) {
-        const decisionField = decideCloseForm.elements.decision;
-        const requestedDecision = String(decision.requested_decision || '').trim();
-        const notYetDecided = !['DECIDED', 'ACKNOWLEDGED', 'APPLIED', 'CLOSED', 'EXPIRED', 'SUPERSEDED', 'CANCELLED'].includes(decision.lifecycle_state);
-        decisionField.value = requestedDecision && notYetDecided ? requestedDecision : '';
-      }
 
       content.replaceChildren();
       for (const [label, value] of [
@@ -112,41 +100,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  if (decideCloseForm) {
-    decideCloseForm.onsubmit = async event => {
+  if (applyForm) {
+    applyForm.onsubmit = async event => {
       event.preventDefault();
       const currentForm = event.currentTarget;
       const body = Object.fromEntries(new FormData(currentForm));
-      const rationale = String(body.rationale || '').trim();
-      if (!rationale) {
-        status.textContent = 'Rationale is required.';
-        return;
-      }
-      const button = currentForm.querySelector('button');
-      button.disabled = true;
-      try {
-        const decision = String(body.decision || '').trim();
-        await Harpp.fetch(`/api/v1/harpp/decisions/${id}/apply-and-close`, {
-          method: 'POST',
-          body: { apply_rationale: rationale, close_rationale: rationale, decision: decision || undefined }
-        });
-        status.textContent = 'Decision recorded & closed. Returning to inbox…';
-        window.setTimeout(() => { window.location.href = '/harpp/decisions'; }, 500);
-      } catch (error) {
-        status.textContent = error.message;
-        button.disabled = false;
-      }
-    };
-  }
-
-  if (closePlainForm) {
-    closePlainForm.onsubmit = async event => {
-      event.preventDefault();
-      const currentForm = event.currentTarget;
-      const body = Object.fromEntries(new FormData(currentForm));
-      const rationale = String(body.rationale || '').trim();
-      if (!rationale) {
-        status.textContent = 'Rationale is required.';
+      const applyRationale = String(body.apply_rationale || '').trim();
+      const closeRationale = String(body.close_rationale || '').trim();
+      if (!applyRationale || !closeRationale) {
+        status.textContent = 'Apply and close rationales are required.';
         return;
       }
       const button = currentForm.querySelector('button');
@@ -154,9 +116,9 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await Harpp.fetch(`/api/v1/harpp/decisions/${id}/apply-and-close`, {
           method: 'POST',
-          body: { apply_rationale: rationale, close_rationale: rationale }
+          body: { apply_rationale: applyRationale, close_rationale: closeRationale }
         });
-        status.textContent = 'Decision closed. Returning to inbox…';
+        status.textContent = 'Decision applied & closed. Returning to inbox…';
         window.setTimeout(() => { window.location.href = '/harpp/decisions'; }, 500);
       } catch (error) {
         status.textContent = error.message;

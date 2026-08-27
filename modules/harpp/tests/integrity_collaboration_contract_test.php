@@ -65,12 +65,12 @@ $assert(!HarppDecisionService::isTransitionAllowed('VIEWED','APPLIED'),'no lifec
 $assert(!preg_match('/DELETE\s+FROM\s+harpp_(decisions|adrs)/i',$decision),'ordinary service cannot erase decision or ADR');
 $assert(!str_contains($helpers,'FROM harpp_conversations ORDER BY updated_at'),'entity conversation discovery uses scoped messaging service');
 $assert(str_contains($migration,"harpp_migration_007_progress','complete"),'migration completion progress marker');
-$assert(str_contains($decision,"in_array(\$from,['EXPIRED','SUPERSEDED','CANCELLED'],true)"),'applyAndClose closes from any non-terminal state');$assert(str_contains($decision,'ensureAdr('),'applyAndClose fast-forwards and creates the ADR');
+$assert(str_contains($decision,"in_array(\$from,['ACKNOWLEDGED','APPLIED'],true)"),'applyAndClose accepts only ACKNOWLEDGED or APPLIED');$assert(str_contains($decision,"if(\$from==='CLOSED')"),'applyAndClose stays idempotent for CLOSED');
 $assert(str_contains($decision,'recordAutomaticAdr'),'DECIDED path creates ADR');
 $assert(str_contains($decision,'mintDecisionAdr')&&str_contains($decision,'approvalSatisfied('),'unified ADR-minting routine enforces the approval gate');
 $assert(str_contains($decision,"'close_fallback'"),'close fallback ADR provenance is threaded');
 $applyHandlerStart=strpos($handlers,'function harppDecisionApplyClose');$applyHandlerEnd=strpos($handlers,"\nfunction ",$applyHandlerStart+1);$applyHandler=substr($handlers,$applyHandlerStart,$applyHandlerEnd-$applyHandlerStart);$assert(strpos($applyHandler,'harppRequireCsrf()')<strpos($applyHandler,'harppAuthenticated('),'apply endpoint checks CSRF before auth and mutation');
-$assert(str_contains($detailJs,"!terminal.includes(state)"),'apply-and-close UI visible for every non-terminal state');
+$assert(str_contains($detailJs,"const applyReady = ['ACKNOWLEDGED', 'APPLIED']"),'apply-and-close UI restricted to ACKNOWLEDGED/APPLIED');$assert(!str_contains($detailJs,'decision-decide-close')&&!str_contains($detailJs,'decision-close-plain'),'pre-decision decide/close shortcuts no longer submit apply-and-close');
 $assert(!str_contains($detailJs,'Permanently delete')&&!str_contains($inboxJs,'Permanently delete')&&!str_contains($detailTemplate,'Permanently removes'),'decision UI does not claim permanent deletion');
 $assert(str_contains($inboxTemplate,'name="include_archived"')&&str_contains($inboxTemplate,'Archive all terminal'),'archived decisions have explicit retrieval and archive semantics');
 $assert(str_contains($helpers,"foreach (['user', 'actor', 'actor_user_id', 'tenant_id', 'store_id', '_tenant_id']")&&str_contains($helpers,"SELECT id,role FROM harpp_users WHERE id=:id AND is_active=1")&&str_contains($helpers,"app()->cap()->call('kernel.auth.user@1'"),'new capabilities reject caller authority and bind/revalidate infrastructure actor');

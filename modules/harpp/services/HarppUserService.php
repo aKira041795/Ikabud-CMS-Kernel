@@ -89,6 +89,40 @@ final class HarppUserService
         }
     }
 
+    /**
+     * Admin reset of another user's password. Uses the shared strength policy;
+     * self-reset is rejected so the current-password-verified change-password
+     * path is used instead.
+     */
+    public function resetPassword(array $actor, int $id, string $password): HarppServiceResult
+    {
+        if (!$this->isAdmin($actor)) return $this->forbidden();
+        if ($id <= 0) return HarppServiceResult::failure('User not found.', 404, 'not_found');
+        if (($actor['source'] ?? 'harpp') === 'harpp' && (int)($actor['id'] ?? 0) === $id) {
+            return HarppServiceResult::failure('Use Change password to set your own password.', 409, 'self_protected');
+        }
+        if (!(new HarppAuthService($this->db()))->validPassword($password)) {
+            return HarppServiceResult::failure('Password must be at least 12 characters and contain upper, lower, and numeric characters.');
+        }
+        try {
+            $this->db()->beginTransaction();
+            $stmt = $this->db()->prepare('SELECT id, role, is_active FROM harpp_users WHERE id=:id AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
+            $stmt->execute([':id' => $id]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($user)) return $this->rollback(HarppServiceResult::failure('User not found.', 404, 'not_found'));
+            if (!$this->canManageRole($actor, (string)$user['role'])) return $this->rollback($this->ownerRequired());
+            $update = $this->db()->prepare('UPDATE harpp_users SET password_hash=:hash, updated_at=NOW() WHERE id=:id AND deleted_at IS NULL');
+            $update->execute([':hash' => password_hash($password, PASSWORD_BCRYPT), ':id' => $id]);
+            $this->db()->commit();
+            if (function_exists('write_log')) \write_log('HARPP audit', 'HARPP', ['module'=>'harpp','action'=>'password.reset','actor_user_id'=>(int)($actor['id']??0),'target_user_id'=>$id]);
+            return HarppServiceResult::success(['user_id' => $id, 'reset' => true], 'Password reset.', [], 'harpp_user', $id);
+        } catch (Throwable $e) {
+            if ($this->db()->inTransaction()) $this->db()->rollBack();
+            $this->log('HARPP user password reset failed', $e);
+            return HarppServiceResult::failure('Unable to reset the password.', 500);
+        }
+    }
+
     public function delete(array $actor, int $id): HarppServiceResult
     {
         if (!$this->isAdmin($actor)) return $this->forbidden();

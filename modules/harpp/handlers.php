@@ -39,15 +39,29 @@ function harppHandle(callable $handler): void
  *
  * The kernel dispatcher exempts API routes from automatic CSRF enforcement, so
  * every user-facing POST/PUT/PATCH/DELETE handler must call this first. On a
- * token mismatch the kernel emits a 419 JSON response and exits (fail-closed).
+ * token mismatch HARPP emits a 419 JSON response and exits (fail-closed).
  * Bridge (X-HARPP-BRIDGE-KEY header) and pre-auth routes are intentionally not
  * covered here.
  */
 function harppRequireCsrf(): void
 {
-    if (method_exists(app(), 'csrfEnforce')) {
-        app()->csrfEnforce();
-    }
+    // Delegate token validation to the kernel CsrfManager (single source of
+    // truth for the token/header contract). We only customize the response:
+    // App::json(419) is coerced to HTTP 500 by this PHP/Apache runtime for the
+    // non-standard 419 code, so emit a true 419 status line directly to keep the
+    // contract's browser assertion (HTTP 419) valid for every HARPP mutation.
+    \Ikabud\Kernel\Http\CsrfManager::enforce(static function (array $data): void {
+        if (function_exists('request_id')) {
+            $data['request_id'] = request_id();
+        }
+        if (!headers_sent()) {
+            http_response_code(419);
+            header('HTTP/1.1 419 CSRF Token Mismatch');
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
+    });
 }
 
 /**
@@ -256,6 +270,8 @@ function harppAuthProfile(array $params = []): void
     });
 }
 
+function harppAuthChangePassword(array $params = []): void { harppHandle(function (): void { harppRequireCsrf(); $u = harppAuthenticated('harpp.read@1'); if ($u) harppJson((new HarppAuthService())->changePassword((int)$u['id'], harppInput())); }); }
+
 function harppAuthForgotPassword(array $params = []): void
 {
     harppHandle(function (): void {
@@ -312,6 +328,8 @@ function harppUserUpdate(array $params = []): void
         if ($user !== null) harppJson((new HarppUserService())->update($user, (int)($params['id'] ?? 0), harppInput()));
     });
 }
+
+function harppUserResetPassword(array $params = []): void { harppHandle(function () use ($params): void { harppRequireCsrf(); $u = harppAuthenticated('harpp.users.manage@1'); if ($u) harppJson((new HarppUserService())->resetPassword($u, (int)($params['id'] ?? 0), (string)(harppInput()['password'] ?? ''))); }); }
 
 function harppUserDelete(array $params = []): void
 {

@@ -31,7 +31,7 @@ if [ "${HARPP_ALLOW_MUTATING_TESTS:-0}" = "1" ] && [ -n "${HARPP_ISOLATED_TENANT
   cp "$LOG_ERR" "$BACKUP_DIR/error.log" 2>/dev/null || : > "$BACKUP_DIR/error.log"
   restore_logs() { cp "$BACKUP_DIR/app.log" "$LOG_APP" 2>/dev/null || : > "$LOG_APP"; cp "$BACKUP_DIR/error.log" "$LOG_ERR" 2>/dev/null || : > "$LOG_ERR"; rm -rf "$BACKUP_DIR"; }
   trap restore_logs EXIT
-  for t in phase2 phase3 phase4 phase5 review_remediation decision_inbox; do
+  for t in phase2 phase3 phase4 phase5 review_remediation decision_inbox password_management; do
     printf '=== %s_cli_test ===\n' "$t"
     : > "$ROOT/storage/logs/app.log"
     : > "$ROOT/storage/logs/error.log"
