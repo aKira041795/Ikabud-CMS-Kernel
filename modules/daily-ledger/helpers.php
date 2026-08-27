@@ -942,13 +942,22 @@ function dlCsvRowsFromString(string $csvContent): array
             continue;
         }
 
-        $values = str_getcsv($line);
+        // Pass the escape parameter explicitly (PHP 8.4 deprecates the default
+        // `\` escape when omitted). ',', '"', '\\' preserves current behavior.
+        $values = str_getcsv($line, ',', '"', '\\');
         if ($headers === null) {
             $headers = array_map(static fn(string $header): string => dlCsvNormalizeHeader($header), $values);
             continue;
         }
 
-        $values = array_pad($values, count($headers), null);
+        // A data row may be SHORTER than the header (e.g. a missing name/price
+        // cell) or LONGER (extra trailing column). array_pad() alone only fills
+        // short rows, so a longer row would make array_combine() throw and abort
+        // the whole import with a cryptic error. Normalize to exactly the header
+        // count: short cells become null, extra cells are dropped — per-row
+        // validation downstream then reports the real problem (e.g. missing
+        // name/price) and skips only that row.
+        $values = array_slice(array_pad($values, count($headers), null), 0, count($headers));
         $rows[] = array_combine($headers, array_map(
             static fn(mixed $value): mixed => is_string($value) ? trim($value) : $value,
             $values

@@ -508,4 +508,63 @@ try {
     }
 }
 
+// ─── CSV Product Import — row parsing robustness ────────────────
+$h->section('CSV Product Import (row parsing)');
+
+// A row with fewer cells than the header (e.g. missing name/price) must NOT
+// crash the whole import with array_combine(); it becomes nulls that the
+// per-row validator then rejects.
+$shortCsv = "Name,Price,SKU\nBread,12.50\nCake";
+try {
+    $shortRows = dlCsvRowsFromString($shortCsv);
+    $h->test('short row parses without array_combine crash', count($shortRows) === 2);
+    // Use array_key_exists: `??` treats a null value as unset and falls back.
+    $h->test('short row pads missing cells to null',
+        array_key_exists('price', $shortRows[1]) && $shortRows[1]['price'] === null
+        && array_key_exists('sku', $shortRows[1]) && $shortRows[1]['sku'] === null);
+    $h->test('short row keeps name', ($shortRows[0]['name'] ?? '') === 'Bread');
+} catch (\Throwable $e) {
+    $h->test('short row parses without array_combine crash', false);
+    $h->test('short row pads missing cells to null', false);
+    $h->test('short row keeps name', false);
+}
+
+// A row with MORE cells than the header (extra trailing column) must be
+// truncated, not crash array_combine().
+$longCsv = "Name,Price\nBread,12.50,EXTRA1,EXTRA2";
+try {
+    $longRows = dlCsvRowsFromString($longCsv);
+    $h->test('long row parses without array_combine crash', count($longRows) === 1);
+    $h->test('long row drops extra trailing columns', count($longRows[0]) === 2);
+    $h->test('long row keeps price', ($longRows[0]['price'] ?? '') === '12.50');
+} catch (\Throwable $e) {
+    $h->test('long row parses without array_combine crash', false);
+    $h->test('long row drops extra trailing columns', false);
+    $h->test('long row keeps price', false);
+}
+
+// Normal row maps correctly and trims whitespace.
+$normalCsv = "Name,Price,SKU\n  Pan de Sal  , 8.00 , PS1";
+try {
+    $normalRows = dlCsvRowsFromString($normalCsv);
+    $h->test('normal row trims values', ($normalRows[0]['name'] ?? '') === 'Pan de Sal' && ($normalRows[0]['price'] ?? '') === '8.00');
+} catch (\Throwable $e) {
+    $h->test('normal row trims values', false);
+}
+
+// A row that still ends up missing name/price must be rejected by the row
+// validator with a clear message (so the import loop skips just that row).
+try {
+    $rejected = dl_normalizeProductCsvRow(['name' => '', 'price' => '5.00']);
+    $h->test('row validator rejects missing name', false);
+} catch (\Throwable $e) {
+    $h->test('row validator rejects missing name', str_contains($e->getMessage(), 'Missing or invalid product name/price'));
+}
+try {
+    $rejected = dl_normalizeProductCsvRow(['name' => 'Bread', 'price' => '']);
+    $h->test('row validator rejects missing price', false);
+} catch (\Throwable $e) {
+    $h->test('row validator rejects missing price', str_contains($e->getMessage(), 'Missing or invalid product name/price'));
+}
+
 $h->done();

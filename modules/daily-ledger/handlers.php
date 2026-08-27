@@ -9583,6 +9583,7 @@ function apiProductsImportCsv(): void
         $updated = 0;
         $created = 0;
         $skipped = 0;
+        $skippedReasons = [];
         
         foreach ($rows as $rowIndex => $row) {
             // A malformed cell must skip only its own row (counted in $skipped),
@@ -9718,11 +9719,19 @@ function apiProductsImportCsv(): void
             $created++;
             } catch (\Throwable $e) {
                 $skipped++;
+                $skippedReasons[] = 'row ' . ($rowIndex + 2) . ': ' . $e->getMessage();
                 write_log('dl products import row skipped (row ' . ($rowIndex + 2) . '): ' . $e->getMessage(), 'warning', ['module' => 'daily-ledger']);
             }
         }
         
         $msg = "Imported: $created created, $updated updated, $skipped skipped.";
+        if ($skipped > 0 && $skippedReasons !== []) {
+            $sample = array_slice(array_unique($skippedReasons), 0, 3);
+            $msg .= ' Skipped: ' . implode('; ', $sample);
+            if ($skipped > count($sample)) {
+                $msg .= ' (+' . ($skipped - count($sample)) . ' more)';
+            }
+        }
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $msg, 'type' => 'success'], 'reloadProducts' => true]));
         $ctx->json(['ok' => true, 'message' => $msg]);
