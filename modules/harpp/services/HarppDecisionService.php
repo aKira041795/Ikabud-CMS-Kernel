@@ -260,6 +260,6 @@ final class HarppDecisionService
     private function json(mixed$v):?string{return$v===null?null:json_encode($v,JSON_THROW_ON_ERROR);}
     private function scope(?int$t):bool{$c=(int)(\app()->tenant()->current()??0);return$c>0&&($t===null||$t===$c);}
     private function role(array$a,array$r):bool{return(int)($a['id']??0)>0&&in_array((string)($a['source']??'harpp'),['harpp','harpp_bridge'],true)&&in_array((string)($a['role']??''),$r,true);}
-    private function supplementalAudit(string$a,array$actor,array$c):void{if(function_exists('write_log'))\write_log('HARPP audit','info',['module'=>'harpp','action'=>$a,'actor_user_id'=>(int)($actor['id']??0)]+$c);}
+    private function supplementalAudit(string$a,array$actor,array$c):void{if(function_exists('write_log'))\write_log('HARPP audit','HARPP',['module'=>'harpp','action'=>$a,'actor_user_id'=>(int)($actor['id']??0)]+$c);}
     private function log(string$m,Throwable$e):void{if(function_exists('write_log'))\write_log('HARPP '.$m,'error',['module'=>'harpp','error'=>$e->getMessage()]);}
 }

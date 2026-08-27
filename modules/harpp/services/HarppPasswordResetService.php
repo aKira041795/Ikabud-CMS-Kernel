@@ -59,7 +59,7 @@ final class HarppPasswordResetService
 
             $url = $this->resetUrl($rawToken);
             if (function_exists('write_log')) {
-                \write_log('HARPP password reset link issued', 'info', ['module' => 'harpp', 'user_id' => (int)$user['id'], 'reset_url' => $url]);
+                \write_log('HARPP password reset link issued', 'HARPP', ['module' => 'harpp', 'user_id' => (int)$user['id'], 'reset_url' => $url]);
             }
             $this->sendResetEmail($user, $url, $ttl);
             return HarppServiceResult::success([], $generic);

@@ -135,7 +135,7 @@ final class HarppNotificationService
             $s->execute([':user' => (int)$actor['id']]);
             $deleted = $s->rowCount();
             (new HarppFoundationService($this->db()))->recordEffect('harpp.notifications.messages_deleted','notifications.messages_deleted',$actor,'harpp_notification_collection',(int)$actor['id'],null,['deleted'=>$deleted,'scope'=>'read']);
-            if (function_exists('write_log')) { \write_log('HARPP audit', 'info', ['module' => 'harpp', 'action' => 'notifications.messages_deleted', 'actor_user_id' => (int)$actor['id'], 'deleted' => $deleted, 'scope' => 'read']); }
+            if (function_exists('write_log')) { \write_log('HARPP audit', 'HARPP', ['module' => 'harpp', 'action' => 'notifications.messages_deleted', 'actor_user_id' => (int)$actor['id'], 'deleted' => $deleted, 'scope' => 'read']); }
             $this->db()->commit();
             return HarppServiceResult::success(['deleted' => $deleted], 'All read message notifications deleted.');
         } catch (Throwable $e) {

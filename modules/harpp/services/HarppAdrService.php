@@ -45,6 +45,6 @@ final class HarppAdrService
     }
     private function decisionVisible(array $actor,int $decisionId,?int $tenantId):bool{if($decisionId<=0)return in_array((string)($actor['role']??''),['owner','admin'],true);$result=(new HarppDecisionService($this->db()))->get($actor,$decisionId,$tenantId);return!empty($result['ok']);}
     private function access(array $actor,?int $tenantId,array $roles):bool{$current=(int)(\app()->tenant()->current()??0);return$current>0&&($tenantId===null||$tenantId===$current)&&(int)($actor['id']??0)>0&&($actor['source']??'harpp')==='harpp'&&in_array((string)($actor['role']??''),$roles,true);}
-    private function audit(string $action,array $actor,array $context):void{if(function_exists('write_log'))\write_log('HARPP audit','info',['module'=>'harpp','action'=>$action,'actor_user_id'=>(int)$actor['id']]+$context);}
+    private function audit(string $action,array $actor,array $context):void{if(function_exists('write_log'))\write_log('HARPP audit','HARPP',['module'=>'harpp','action'=>$action,'actor_user_id'=>(int)$actor['id']]+$context);}
     private function log(Throwable $e):void{if(function_exists('write_log'))\write_log('HARPP ADR operation failed','error',['module'=>'harpp','error'=>$e->getMessage()]);}
 }

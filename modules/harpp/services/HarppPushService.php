@@ -240,11 +240,113 @@ final class HarppPushService
         }
         if ($public !== '') throw new \RuntimeException('HARPP_VAPID_PRIVATE_KEY is required when a public key is configured.');
         if (self::$ephemeralVapid !== null) return self::$ephemeralVapid;
+
+        // No env-configured keys: use a stable key pair persisted to shared
+        // storage so every FPM worker signs VAPID with the SAME key. Without
+        // this, each worker generated its own process-local ephemeral key, so a
+        // subscription created on worker A (via /push/vapid-public-key) was
+        // rejected by the push service (403) when delivery ran on worker B with
+        // a different public key.
+        $file = $this->vapidKeyFile();
+        $loaded = $file !== null ? $this->loadVapidKeys($file, $subject) : null;
+        if (is_array($loaded)) {
+            return self::$ephemeralVapid = $loaded;
+        }
+
         if (!function_exists('openssl_pkey_new')) throw new \RuntimeException('OpenSSL EC support is required for VAPID.');
         $resource=openssl_pkey_new(['private_key_type'=>OPENSSL_KEYTYPE_EC,'curve_name'=>'prime256v1']);
         if($resource===false||!openssl_pkey_export($resource,$privatePem))throw new \RuntimeException('Unable to generate a VAPID key pair.');
         $details=openssl_pkey_get_details($resource);
-        return self::$ephemeralVapid=['public'=>$this->publicFromDetails($details),'private'=>$privatePem,'subject'=>$subject];
+        $keys=['public'=>$this->publicFromDetails($details),'private'=>$privatePem,'subject'=>$subject];
+        if ($file !== null) {
+            // Persist atomically so concurrent workers converge on one key.
+            $this->persistVapidKeys($file, $keys);
+            $loaded = $this->loadVapidKeys($file, $subject);
+            if (is_array($loaded)) $keys = $loaded;
+        }
+        return self::$ephemeralVapid = $keys;
+    }
+
+    /**
+     * Path of the shared VAPID key file (storage/harpp/harpp-vapid.json).
+     * Returns null when no writable storage location can be determined.
+     */
+    private function vapidKeyFile(): ?string
+    {
+        if (defined('STORAGE_PATH')) {
+            $dir = STORAGE_PATH . '/harpp';
+        } else {
+            // Fallback for standalone usage (no bootstrap): storage sits at the
+            // app root — modules/harpp/services/__DIR__ → up 3 → app root.
+            $dir = dirname(__DIR__, 3) . '/storage/harpp';
+        }
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return null;
+        }
+        if (!is_writable($dir)) {
+            return null;
+        }
+        return rtrim($dir, '/') . '/harpp-vapid.json';
+    }
+
+    /**
+     * Load a persisted key pair, validating that the public key matches the
+     * private key. Returns null when absent or invalid.
+     */
+    private function loadVapidKeys(string $file, string $fallbackSubject): ?array
+    {
+        if (!is_file($file)) {
+            return null;
+        }
+        $raw = @file_get_contents($file);
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        try {
+            $data = json_decode($raw, true, 4, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            return null;
+        }
+        if (!is_array($data)) {
+            return null;
+        }
+        $public = trim((string)($data['public'] ?? ''));
+        $privatePem = trim((string)($data['private'] ?? ''));
+        $subject = trim((string)($data['subject'] ?? $fallbackSubject));
+        if ($public === '' || $privatePem === '') {
+            return null;
+        }
+        $resource = openssl_pkey_get_private($privatePem);
+        if ($resource === false) {
+            return null;
+        }
+        $details = openssl_pkey_get_details($resource);
+        $derived = $this->publicFromDetails($details);
+        if (!hash_equals($derived, $public)) {
+            return null;
+        }
+        return ['public'=>$public,'private'=>$privatePem,'subject'=>$subject];
+    }
+
+    /**
+     * Atomically persist a key pair to the shared file with restrictive
+     * permissions (it contains a private key).
+     */
+    private function persistVapidKeys(string $file, array $keys): void
+    {
+        $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        $json = json_encode([
+            'public' => $keys['public'],
+            'private' => $keys['private'],
+            'subject' => $keys['subject'],
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        if (@file_put_contents($tmp, $json . "\n") === false) {
+            return;
+        }
+        @chmod($tmp, 0600);
+        if (!@rename($tmp, $file)) {
+            @unlink($tmp);
+        }
     }
 
     /** Encrypt a notification as an RFC 8291 aes128gcm Web Push record. */
@@ -356,6 +458,6 @@ final class HarppPushService
     private function b64(string $value): string { return rtrim(strtr(base64_encode($value), '+/', '-_'), '='); }
     private function scope(?int $tenantId): bool { $current = (int)(\app()->tenant()->current() ?? 0); return $current > 0 && ($tenantId === null || $tenantId === $current); }
     private function role(array $actor, array $roles): bool { return (int)($actor['id'] ?? 0) > 0 && ($actor['source'] ?? 'harpp') === 'harpp' && in_array((string)($actor['role'] ?? ''), $roles, true); }
-    private function audit(string $action, array $actor, array $context): void { if (function_exists('write_log')) { \write_log('HARPP audit', 'info', ['module' => 'harpp', 'action' => $action, 'actor_user_id' => (int)($actor['id'] ?? 0)] + $context); } }
+    private function audit(string $action, array $actor, array $context): void { if (function_exists('write_log')) { \write_log('HARPP audit', 'HARPP', ['module' => 'harpp', 'action' => $action, 'actor_user_id' => (int)($actor['id'] ?? 0)] + $context); } }
     private function log(string $message, Throwable $e, array $context = []): void { if (function_exists('write_log')) { \write_log('HARPP ' . $message, 'error', ['module' => 'harpp', 'error' => $e->getMessage()] + $context); } }
 }

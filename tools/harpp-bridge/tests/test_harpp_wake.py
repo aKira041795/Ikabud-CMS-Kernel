@@ -1351,7 +1351,7 @@ class HarppWakeTest(unittest.TestCase):
                 conversation_id=7, message_type="BLOCKED", body="stop",
                 decision={"title": "Blocked", "what": "w", "why": "y", "options": ["A", "B"],
                           "recommendation": "A", "risk": "r"})
-            self.assertEqual([m["body"] for m in sent[:2]], ["[INFO] hello", "[PROGRESS] working"])
+            self.assertEqual([m["body"] for m in sent[:2]], ["[HARPP] hello", "[PROGRESS] working"])
             self.assertEqual(sent[2]["body"], "[BLOCKED] stop")
             self.assertEqual(len(decisions), 1)
             self.assertEqual(decisions[0]["title"], "Blocked")

@@ -348,7 +348,11 @@ def _prefix_message(message_type, body):
     if kind not in OWNER_MESSAGE_TYPES:
         raise ValueError(f"unsupported HARPP owner message type: {kind}")
     text = _nl(body or "")
-    prefix = f"[{kind}]"
+    # Generic conversational replies are branded [HARPP] instead of [INFO];
+    # semantic types (WARNING, BLOCKED, FAILED, ...) keep their own tag so the
+    # owner can still triage by severity.
+    display = "HARPP" if kind == "INFO" else kind
+    prefix = f"[{display}]"
     stripped = text.lstrip()
     return text if stripped.startswith(prefix) else (prefix if not text else f"{prefix} {text}")
 
