@@ -94,16 +94,17 @@ TOOLS = [
     },
     {
         "name": "harpp_send_message",
-        "description": "Send a message into a HARPP conversation (owner sees it in the HARPP messenger).",
+        "description": "Send a message into an existing HARPP conversation (owner sees it in the HARPP messenger). The harness cannot create conversations — only the owner can — so conversation_id is required.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "body": {"type": "string", "description": "Message text"},
-                "conversation_id": {"type": "integer", "description": "Existing conversation id (optional; auto-creates)"},
-                "title": {"type": "string", "description": "Conversation title when auto-creating"},
+                "conversation_id": {"type": "integer", "description": "Existing conversation id (required; the harness cannot auto-create conversations)"},
+                "title": {"type": "string", "description": "Optional message title"},
                 "harness_session_id": {"type": "string"},
+                "idempotency_key": {"type": "string", "description": "Stable delivery key; retries with the same key and payload return the original message"},
             },
-            "required": ["body"],
+            "required": ["body", "conversation_id"],
         },
     },
     {

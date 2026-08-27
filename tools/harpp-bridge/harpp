@@ -12,7 +12,7 @@ Commands:
   harpp decision ack <id> [--rationale R]
   harpp decision cancel <id> [--rationale R]
   harpp decision apply <id> [--rationale R]
-  harpp msg send --body B [--conversation-id N --title T --harness-session-id S]
+  harpp msg send --body B [--conversation-id N --title T --harness-session-id S --idempotency-key K]
   harpp msg poll [--conversation-id N --after A --limit N]
   harpp status --message M [--status S --workbench-state W --harness-session-id S]
   harpp job track --pid N --model M --task T --conversation C [verification options]
@@ -417,6 +417,7 @@ def main():
     ms.add_argument("--conversation-id", type=int)
     ms.add_argument("--title", default="")
     ms.add_argument("--harness-session-id", default="")
+    ms.add_argument("--idempotency-key", default="")
     mp = msub.add_parser("poll")
     mp.add_argument("--conversation-id", type=int)
     mp.add_argument("--after", type=int, default=0)
@@ -570,7 +571,8 @@ def main():
         if args.mcmd == "send":
             print(json.dumps(harpp_client.send_message(
                 body=args.body, conversation_id=args.conversation_id, title=args.title,
-                harness_session_id=args.harness_session_id), indent=2))
+                harness_session_id=args.harness_session_id,
+                idempotency_key=args.idempotency_key), indent=2))
         else:
             print(json.dumps(harpp_client.poll_messages(
                 conversation_id=args.conversation_id, after=args.after, limit=args.limit), indent=2))

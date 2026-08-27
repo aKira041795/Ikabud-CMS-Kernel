@@ -25,15 +25,15 @@ Recent durable owner decisions (DEC-xxxx):
 Use the `harpp_*` tools provided by the HARPP extension (preferred), or the `harpp` CLI
 (`harpp` is on PATH; fallback: `python3 tools/harpp-bridge/harpp`).
 
-The owner already received an instant "Received — working on it" confirmation
-(deterministic auto-ack), so do NOT just re-acknowledge — provide the substantive
-response and, where instructed, the actual work.
+The watcher stages input silently; it does not emit a useless "Received" message. Provide
+one substantive response per owner message and, where instructed, the actual work.
 
 For each staged record. A reply counts as sent only when the bridge tool/CLI returns a
 successful response; do not claim success merely because a command was attempted:
 
 1. **`kind: message`** — an owner message in a conversation. Provide a substantive,
-   concise reply through the bridge (`harpp msg send --conversation-id <id> --body ...`).
+   concise reply through the bridge using the source message id as the stable delivery key:
+   `harpp msg send --conversation-id <id> --idempotency-key wake-message-<message_id> --body ...`.
    - **Multi-stage pipeline request** (the message asks for a governed loop, e.g.
      "/architect then the rest of the loop", "run the loop", "workflow", "set <model> to
      do the architect and then implement/review/release", or any chain of
@@ -93,8 +93,8 @@ successful response; do not claim success merely because a command was attempted
 - **Do not self-release.** Do not approve architecture, close release gates, or bypass the
   governed /architect → /implement → /review → /release-gate workflow.
 - **No secrets.** Never print the bridge key or credentials.
-- **Idempotency.** Only process the staged records shown above. Do not re-process already
-  handled items.
+- **Idempotency.** Only process the staged records shown above. Every message delivery must
+  use `wake-message-<source message id>` as its idempotency key, including failure replies.
 
 ## Output
 

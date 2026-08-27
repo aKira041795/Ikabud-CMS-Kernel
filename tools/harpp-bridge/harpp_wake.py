@@ -2697,6 +2697,7 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                 try:
                     harpp_client.harpp_notify(
                         conversation_id=int(r["conversation_id"]), message_type="FAILED",
+                        idempotency_key=f"wake-message-{int(r['id'])}",
                         body="I’m sorry — the automated worker could not complete this request after multiple attempts. Please retry or ask the harness to handle it interactively.")
                     delivered.append(r)
                     log(f"sent bounded-retry failure reply for message {r.get('id')}")

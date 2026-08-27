@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await Harpp.fetch(`/api/v1/harpp/conversations/${active}/messages`, { method: 'POST', body: { body } });
       form.reset();
-      try { await load(); } catch (_) {}
+      try { await load(); } catch (_) { }
       escText(status, 'Sent.');
     } catch (x) { escText(status, x.message); }
   };

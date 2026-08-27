@@ -279,13 +279,10 @@ def autoprocess(records, outcomes=None):
         ok = False
         try:
             if rec.get("kind") == "message":
-                conv = rec.get("conversation_id")
-                if not conv:
-                    raise HarppError("message has no conversation_id")
-                r = harpp_notify(body="✅ Received — the harness is working on it.",
-                                 conversation_id=int(conv), message_type="INFO")
-                ok = bool(r.get("ok"))
-                notes.append(f"message {rec.get('id')} ack ok={ok}")
+                # Staging the message is the receipt. A visible auto-reply adds no useful
+                # information and an ambiguous HTTP failure used to resend it every poll.
+                ok = True
+                notes.append(f"message {rec.get('id')} staged; no auto-reply")
             elif rec.get("kind") == "decision":
                 did = int(rec.get("id"))
                 state = str(rec.get("lifecycle_state") or "").upper()
@@ -332,6 +329,8 @@ def send_message(config=None, **kw):
         body["title"] = kw["title"]
     if kw.get("harness_session_id"):
         body["harness_session_id"] = kw["harness_session_id"]
+    if kw.get("idempotency_key"):
+        body["idempotency_key"] = str(kw["idempotency_key"])
     return api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
 
 
@@ -368,10 +367,11 @@ def _decision_lines(payload=None):
 
 
 def harpp_notify(*, conversation_id, message_type, body, title=None, harness_session_id=None,
-                 decision=None, config=None):
+                 idempotency_key=None, decision=None, config=None):
     message_type = str(message_type or "INFO").strip().upper() or "INFO"
     response = send_message(config=config, conversation_id=conversation_id, title=title,
-                            harness_session_id=harness_session_id,
+                             harness_session_id=harness_session_id,
+                             idempotency_key=idempotency_key,
                             body=_prefix_message(message_type, body))
     if message_type in ACTIONABLE_MESSAGE_TYPES:
         decision = dict(decision or {})

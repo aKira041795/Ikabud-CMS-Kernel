@@ -54,11 +54,13 @@ class HarppClientTest(unittest.TestCase):
         finally:
             harpp_client.api = original
         urls = [c[1] for c in calls]
-        self.assertEqual(len(calls), 3, notes)
-        self.assertTrue(any(u.endswith("/bridge/messages") for u in urls), urls)
+        # Messages are staged as received (no auto-reply is sent), so only the
+        # decision triggers bridge calls: acknowledge + applied.
+        self.assertEqual(len(calls), 2, notes)
+        self.assertFalse(any(u.endswith("/bridge/messages") for u in urls), urls)
         self.assertTrue(any(u.endswith("/acknowledge") for u in urls), urls)
         self.assertTrue(any(u.endswith("/applied") for u in urls), urls)
-        self.assertEqual(notes[0], "message 5 ack ok=True", notes)
+        self.assertEqual(notes[0], "message 5 staged; no auto-reply", notes)
         self.assertEqual(notes[1], "decision 9 ack=True apply=True", notes)
 
     def test_autoprocess_gates_decisions_by_lifecycle(self):
