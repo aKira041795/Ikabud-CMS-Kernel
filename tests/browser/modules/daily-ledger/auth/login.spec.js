@@ -32,6 +32,7 @@ test.describe('Daily Ledger — Authentication', () => {
 
             // Form fields
             await expect(page.locator('input[name="username"]'), 'Username field required').toBeVisible();
+            await expect(page.locator('input[name="full_name"]'), 'Full name field required').toBeVisible();
             await expect(page.locator('input[name="password"]'), 'Password field required').toBeVisible();
             await expect(page.locator('button[type="submit"]'), 'Submit button required').toBeVisible();
 
@@ -44,6 +45,7 @@ test.describe('Daily Ledger — Authentication', () => {
         test('login with valid admin credentials redirects to admin dashboard', async ({ page }) => {
             await page.goto(APP_URL + '/daily-ledger/login');
             await page.fill('input[name="username"]', process.env.TEST_ADMIN_USER || 'Ledger-Admin');
+            await page.fill('input[name="full_name"]', process.env.TEST_ADMIN_NAME || 'Test Admin');
             await page.fill('input[name="password"]', process.env.TEST_ADMIN_PASS || 'ledger123');
             await page.click('button[type="submit"]');
 
@@ -53,6 +55,12 @@ test.describe('Daily Ledger — Authentication', () => {
             // Should be on an authenticated page
             await expect(page.locator('[data-wb-component="app-shell"]').first(),
                 'Must render app shell after admin login').toBeVisible({ timeout: 10000 });
+
+            // Top nav must show the entered full name beside the username
+            await expect(page.locator('header'), 'Top nav must show entered full name')
+                .toContainText(process.env.TEST_ADMIN_NAME || 'Test Admin');
+            await expect(page.locator('header'), 'Top nav must show the username')
+                .toContainText(process.env.TEST_ADMIN_USER || 'Ledger-Admin');
         });
 
         test('login with invalid credentials shows error message', async ({ page, integrity }) => {

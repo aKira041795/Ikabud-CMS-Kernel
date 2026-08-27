@@ -479,8 +479,8 @@
                 <div class="flex items-center gap-4">
                     {block header_shift}{/block}
                     <div class="text-right">
-                        <div class="text-sm font-semibold text-gray-900">{user_name}</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide">{user_role}</div>
+                        <div class="text-sm font-semibold text-gray-900">{user_full_name | default:user_name}</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-wide">{if user_username}{user_username} · {/if}{user_role}</div>
                     </div>
                     <a href="/daily-ledger/logout" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Logout</a>
                 </div>

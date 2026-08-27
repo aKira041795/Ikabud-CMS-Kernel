@@ -431,4 +431,81 @@ $h->test('sales reset supports dry run', str_contains($handlersSource, "['sales_
 $h->test('sales reset preserves master data flag', str_contains($handlersSource, "'preserved_master_data' => true"));
 $h->test('sales reset audits the action', str_contains($handlersSource, "dl_auditLog('sales_data_reset'"));
 
+// ─── Cashier Full Name at Login (top nav identity) ──────────────
+$h->section('Cashier Full Name (login → top nav)');
+
+// JWT round-trip: a token carrying the cashier-entered full name must surface
+// it through dl_navUserContext (what the top nav reads) as user_full_name,
+// beside the branch-shift username.
+$testCashierName = 'Cashier ' . mt_rand(1000, 9999);
+$navToken = dl_generateAuthTokens([
+    'sub' => 'cashier:999901',
+    'id' => 999901,
+    'username' => 'branch-am',
+    'name' => $testCashierName,
+    'role' => 'cashier',
+    'source' => 'daily-ledger',
+]);
+$navCookie = dlCookieName();
+$prevCookie = $_COOKIE[$navCookie] ?? null;
+$_COOKIE[$navCookie] = $navToken['token'];
+
+try {
+    $navUser = dlUserFromRequest();
+    $h->test('entered full name reaches JWT payload', is_array($navUser) && ($navUser['name'] ?? '') === $testCashierName);
+
+    $navCtx = dl_navUserContext(['user_name' => 'ignored']);
+    $h->test('dl_navUserContext injects user_full_name', ($navCtx['user_full_name'] ?? '') === $testCashierName);
+    $h->test('dl_navUserContext injects user_username', ($navCtx['user_username'] ?? '') === 'branch-am');
+
+    $preservedCtx = dl_navUserContext(['user_username' => 'explicit', 'user_full_name' => 'Explicit Name']);
+    $h->test('dl_navUserContext preserves explicit values', ($preservedCtx['user_username'] ?? '') === 'explicit' && ($preservedCtx['user_full_name'] ?? '') === 'Explicit Name');
+
+    // Unauthenticated: drop the token first, then confirm no nav identity is
+    // injected (e.g. the login page, which also flows through dlRender).
+    unset($_COOKIE[$navCookie]);
+    $anonCtx = dl_navUserContext(['user_name' => 'x']);
+    $h->test('dl_navUserContext leaves unauthenticated context intact', !isset($anonCtx['user_full_name']));
+} catch (\Throwable $e) {
+    $h->gap('Cashier full name JWT nav context: ' . $e->getMessage());
+} finally {
+    if ($prevCookie === null) {
+        unset($_COOKIE[$navCookie]);
+    } else {
+        $_COOKIE[$navCookie] = $prevCookie;
+    }
+}
+
+// Persistence: the exact UPDATE the login handler runs against dl_users must
+// persist the entered full name (schema contract). Cleaned up afterwards.
+$persistUid = 0;
+try {
+    $dlDb = dlCtx()->db();
+    $tmpUser = 't_fullname_' . mt_rand(10000, 99999);
+    $dlDb->prepare(
+        'INSERT INTO dl_users (username, password_hash, full_name, role, is_active)
+         VALUES (:u, :p, :f, :r, 1)'
+    )->execute([':u' => $tmpUser, ':p' => 'x', ':f' => 'Original Name', ':r' => 'cashier']);
+    $persistUid = (int)$dlDb->lastInsertId();
+
+    $dlDb->prepare(
+        'UPDATE dl_users SET full_name = :fn
+          WHERE id = :id AND deleted_at IS NULL'
+    )->execute([':fn' => mb_substr('Juan Dela Cruz', 0, 100), ':id' => $persistUid]);
+
+    $check = $dlDb->prepare('SELECT full_name FROM dl_users WHERE id = :id');
+    $check->execute([':id' => $persistUid]);
+    $h->test('login full name persists to dl_users.full_name', $check->fetchColumn() === 'Juan Dela Cruz');
+} catch (\Throwable $e) {
+    $h->gap('Cashier full name persistence (DB): ' . $e->getMessage());
+} finally {
+    if ($persistUid > 0) {
+        try {
+            dlCtx()->db()->prepare('DELETE FROM dl_users WHERE id = :id')->execute([':id' => $persistUid]);
+        } catch (\Throwable $e) {
+            // Best-effort cleanup.
+        }
+    }
+}
+
 $h->done();

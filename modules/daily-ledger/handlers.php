@@ -3012,6 +3012,42 @@ function dailyLedgerAuthLogin(): void
         'role' => $role,
         'source' => 'daily-ledger',
     ];
+
+    // Cashier-entered full name: cashier usernames are branch-shift labels
+    // (e.g. "Branch-AM"), so the real name is typed at login. Persist it on
+    // the user profile (survives logout/login) and surface it in the session
+    // payload so the top nav can show the full name beside the username.
+    // API/mobile clients may omit it — the field is only saved when provided.
+    $enteredFullName = trim((string)($input['full_name'] ?? ''));
+    if ($enteredFullName !== '') {
+        $payload['name'] = $enteredFullName;
+        $payload['full_name'] = $enteredFullName;
+        if ($payloadId > 0) {
+            try {
+                $persist = dlCtx()->db()->prepare(
+                    'UPDATE dl_users SET full_name = :fn
+                      WHERE id = :id AND deleted_at IS NULL'
+                );
+                $persist->execute([
+                    ':fn' => mb_substr($enteredFullName, 0, 100),
+                    ':id' => $payloadId,
+                ]);
+                write_log('daily-ledger auth full_name persisted', 'info', [
+                    'user_id' => $payloadId,
+                    'username' => $username,
+                    'role' => $role,
+                ]);
+            } catch (Throwable $e) {
+                write_log('daily-ledger auth full_name persist failed', 'warning', [
+                    'user_id' => $payloadId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+    } else {
+        $payload['full_name'] = (string)($u['full_name'] ?? $payload['name']);
+    }
+
     $tokens = dl_generateAuthTokens($payload);
     dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
 

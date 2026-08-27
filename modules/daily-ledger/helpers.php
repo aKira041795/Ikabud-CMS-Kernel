@@ -228,6 +228,8 @@ function dlLoginPageContext(array $overrides = []): array
         'login_brand_html' => $escapedAppName,
         'login_subtitle' => 'Sign in to continue',
         'login_username_label' => 'Username or Email',
+        'login_full_name_label' => 'Full Name',
+        'login_full_name_placeholder' => 'e.g. Juan Dela Cruz',
         'login_endpoint' => $baseUrl . '/auth/login',
         'login_button_text' => 'Sign In',
         'login_loading_text' => 'Signing in...',
@@ -570,7 +572,42 @@ function dlRender(string $template, array $context = []): string
             }
         }
     }
+    // Surface the authenticated user's real name + username to the shared top
+    // nav. Handlers may override explicitly; otherwise derive from the JWT
+    // payload so the cashier's entered full name shows beside the branch-shift
+    // username. Non-fatal: on failure the layout falls back to user_name/role.
+    $context = dl_navUserContext($context);
     return dlCtx()->render($template, kernelPrepareRenderContext($template, $context));
+}
+
+/**
+ * Inject top-nav display identity (user_username / user_full_name) into a
+ * render context, derived from the authenticated daily-ledger JWT payload.
+ * Existing context values win; safe to call on unauthenticated pages (login).
+ */
+function dl_navUserContext(array $context): array
+{
+    if (array_key_exists('user_username', $context) && array_key_exists('user_full_name', $context)) {
+        return $context;
+    }
+    try {
+        $navUser = function_exists('dlUserFromRequest') ? dlUserFromRequest() : null;
+        if (is_array($navUser)) {
+            if (!array_key_exists('user_username', $context)) {
+                $context['user_username'] = (string)($navUser['username'] ?? '');
+            }
+            if (!array_key_exists('user_full_name', $context)) {
+                $navFullName = (string)($navUser['name'] ?? $navUser['full_name'] ?? '');
+                if ($navFullName === '') {
+                    $navFullName = (string)($navUser['username'] ?? '');
+                }
+                $context['user_full_name'] = $navFullName;
+            }
+        }
+    } catch (Throwable $e) {
+        // Ignore: top nav keeps existing user_name/user_role display.
+    }
+    return $context;
 }
 
 function dlNormalizeLoginRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
@@ -583,6 +620,8 @@ function dlNormalizeLoginRenderContext(array $context, string $template, array &
         'resolved_favicon_url' => dlDefaultFaviconUrl(),
         'login_forgot_url' => '/daily-ledger/forgot-password',
         'login_username_label' => 'Username or Email',
+        'login_full_name_label' => 'Full Name',
+        'login_full_name_placeholder' => 'e.g. Juan Dela Cruz',
     ], ['page_title', 'app_name'], $missingKeys, $typeMismatches);
 }
 

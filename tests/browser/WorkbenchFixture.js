@@ -106,6 +106,12 @@ function createWorkbenchTest(config) {
 
             await page.goto('' + appUrl + loginPath);
             await page.fill('input[name="username"]', adminUser);
+            // Modules with a login-time full name field (e.g. daily-ledger)
+            // fill it; modules without one are unaffected.
+            var dlFullName = page.locator('input[name="full_name"]');
+            if (await dlFullName.count()) {
+                await dlFullName.fill(adminUser);
+            }
             await page.fill('input[name="password"]', adminPass);
             await page.click('button[type="submit"]');
             await page.waitForURL('**' + landingPath);
@@ -130,6 +136,10 @@ function createWorkbenchTest(config) {
             await use(async function (username, password) {
                 await page.goto('' + appUrl + loginPath);
                 await page.fill('input[name="username"]', username);
+                var dlFullName = page.locator('input[name="full_name"]');
+                if (await dlFullName.count()) {
+                    await dlFullName.fill(username);
+                }
                 await page.fill('input[name="password"]', password);
                 await page.click('button[type="submit"]');
                 await page.waitForURL('**' + landingPath);

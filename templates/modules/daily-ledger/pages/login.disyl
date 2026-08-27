@@ -100,6 +100,10 @@
                     <label class="form-label block mb-1.5" for="username">{login_username_label | default:'Username or Email'}</label>
                     <input class="form-input mt-0.5 block w-full rounded-lg border px-3 py-2.5 text-sm shadow-sm transition-colors" type="text" id="username" name="username" autocomplete="username" required autofocus>
                 </div>
+                <div class="mb-4">
+                    <label class="form-label block mb-1.5" for="full_name">{login_full_name_label | default:'Full Name'}</label>
+                    <input class="form-input mt-0.5 block w-full rounded-lg border px-3 py-2.5 text-sm shadow-sm transition-colors" type="text" id="full_name" name="full_name" autocomplete="name" placeholder="{login_full_name_placeholder | default:'e.g. Juan Dela Cruz'}" required>
+                </div>
                 <div class="mb-6">
                     <label class="form-label block mb-1.5" for="password">Password</label>
                     <input class="form-input mt-0.5 block w-full rounded-lg border px-3 py-2.5 text-sm shadow-sm transition-colors" type="password" id="password" name="password" autocomplete="current-password" required>
@@ -123,6 +127,7 @@
 
             var data = {
                 username: document.getElementById('username').value,
+                full_name: document.getElementById('full_name').value,
                 password: document.getElementById('password').value
             };
 
