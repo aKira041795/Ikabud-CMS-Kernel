@@ -268,6 +268,38 @@ class HarppWakeTest(unittest.TestCase):
         self.assertFalse(harpp_wake._marker_found(
             self._job_with_log("no marker here\n", marker="DONE")))
 
+    def test_marker_reassembles_split_pi_json_text_deltas_after_offset(self):
+        p = Path(self.tmp.name) / "pi.log"
+        old = json.dumps({"type": "message_update", "assistantMessageEvent": {
+            "type": "text_delta", "delta": "JOB status=FAIL"}}) + "\n"
+        current = "".join(json.dumps({"type": "message_update", "assistantMessageEvent": {
+            "type": "text_delta", "delta": delta}}) + "\n" for delta in (
+                "work complete\nJOB status=", "PASS"))
+        p.write_text(old + current, encoding="utf-8")
+        st = p.stat()
+        job = {"marker": "JOB status=PASS", "log_path": str(p),
+               "log_offset": len(old.encode("utf-8")),
+               "log_identity": f"{st.st_dev}:{st.st_ino}"}
+        self.assertTrue(harpp_wake._marker_found(job))
+        self.assertNotIn("status=FAIL", harpp_wake._job_output_text(job))
+
+    def test_remediation_extracts_full_assistant_text_without_protocol_noise(self):
+        p = Path(self.tmp.name) / "review.jsonl"
+        remediation = "BLOCKER-FIRST\n" + ("detail " * 700) + "\nSOL_REVIEW status=FAIL"
+        records = [
+            {"type": "toolcall_start", "name": "shell", "arguments": "secret protocol noise"},
+            {"type": "message_update", "assistantMessageEvent": {
+                "type": "text_delta", "delta": remediation}},
+        ]
+        p.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+        st = p.stat()
+        job = {"log_path": str(p), "log_offset": 0,
+               "log_identity": f"{st.st_dev}:{st.st_ino}"}
+        extracted = harpp_wake._remediation_from({"log_path": str(p)}, job)
+        self.assertIn("BLOCKER-FIRST", extracted)
+        self.assertIn("SOL_REVIEW status=FAIL", extracted)
+        self.assertNotIn("secret protocol noise", extracted)
+
     # --- wake terminal (visual feedback) ---
 
     def test_open_agent_terminal_opens_when_emulator_present(self):
@@ -385,6 +417,22 @@ class HarppWakeTest(unittest.TestCase):
                 proc.wait(timeout=10)
 
     # --- governed multi-stage workflows ---
+
+    def test_default_governed_manifest_uses_strong_separation_and_real_checks(self):
+        workflows = Path(harpp_wake.__file__).resolve().parent / "workflows"
+        path = workflows / "governed-loop.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        stages = {stage["name"]: stage for stage in manifest["stages"]}
+        self.assertEqual(stages["architect"]["model"], "openai-codex/gpt-5.6-sol")
+        self.assertEqual(stages["implement"]["model"], "deepseek/deepseek-v4-pro")
+        self.assertEqual(stages["review"]["model"], "openai-codex/gpt-5.6-sol")
+        self.assertEqual(stages["release-gate"]["model"], "openai-codex/gpt-5.6-sol")
+        self.assertTrue(all(stage.get("verify") not in (None, "", "true", ":")
+                            for stage in manifest["stages"]))
+        for manifest_path in workflows.glob("*.json"):
+            candidate = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertTrue(all(stage.get("verify") not in (None, "", "true", ":")
+                                for stage in candidate["stages"]), manifest_path.name)
 
     def _write_jobs(self, jobs):
         with harpp_wake._jobs_lock():

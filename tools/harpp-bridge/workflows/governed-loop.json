@@ -3,10 +3,10 @@
     "stages": [
         {
             "name": "architect",
-            "model": "deepseek/deepseek-v4-flash",
+            "model": "openai-codex/gpt-5.6-sol",
             "prompt_file": "stages/architect.md",
             "marker": "SOL_ARCH status=PASS",
-            "verify": "test -f ARCHITECTURE.md",
+            "verify": "test -s ARCHITECTURE.md && test \"$(tail -n 1 ARCHITECTURE.md)\" = \"status: READY_FOR_IMPLEMENTATION\"",
             "timeout": 1800
         },
         {
@@ -14,23 +14,23 @@
             "model": "deepseek/deepseek-v4-pro",
             "prompt_file": "stages/implement.md",
             "marker": "SOL_IMPL status=PASS",
-            "verify": "true",
+            "verify": "git diff --check",
             "timeout": 2400
         },
         {
             "name": "review",
-            "model": "deepseek/deepseek-v4-flash",
+            "model": "openai-codex/gpt-5.6-sol",
             "prompt_file": "stages/review.md",
             "marker": "SOL_REVIEW status=PASS",
-            "verify": "true",
+            "verify": "git diff --check",
             "timeout": 1800
         },
         {
             "name": "release-gate",
-            "model": "deepseek/deepseek-v4-flash",
+            "model": "openai-codex/gpt-5.6-sol",
             "prompt_file": "stages/release-gate.md",
             "marker": "SOL_GATE status=PASS",
-            "verify": "true",
+            "verify": "git diff --check",
             "timeout": 1800
         }
     ]

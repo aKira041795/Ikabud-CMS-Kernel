@@ -52,6 +52,7 @@ DECISION_LEDGER_LIMIT = 200
 DECISION_PROMPT_LIMIT = 8
 JOB_VERIFY_TIMEOUT = 600
 JOB_REPORT_STALE_AFTER = JOB_VERIFY_TIMEOUT + 300
+WORKFLOW_REMEDIATION_MAX_CHARS = 12000
 
 DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
 # Production-grade wake limits: max ~1 run/3min (20/hr) keeps replies responsive while
@@ -1171,6 +1172,47 @@ def _log_tail(path: str | None, limit: int = 40) -> str:
         return "(log unreadable)"
 
 
+def _job_output_text(job: dict) -> str:
+    """Return assistant text for a Pi JSONL job, falling back to raw log text.
+
+    Respect the tracked offset because retry attempts append to the same stage log.
+    Parsing text-delta events avoids splitting markers and feeding tool protocol
+    noise back into the implementation model during an auto-repair.
+    """
+    path = job.get("log_path")
+    if not path:
+        return ""
+    try:
+        p = Path(path)
+        stat = p.stat()
+        identity = f"{stat.st_dev}:{stat.st_ino}"
+        offset = job.get("log_offset")
+        if offset is None or identity != job.get("log_identity") or stat.st_size < int(offset):
+            offset = 0
+        with p.open("rb") as stream:
+            stream.seek(int(offset))
+            raw = stream.read().decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return ""
+
+    parts = []
+    parsed_event = False
+    for line in raw.splitlines():
+        try:
+            event = json.loads(line)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        parsed_event = True
+        assistant_event = event.get("assistantMessageEvent")
+        if (event.get("type") == "message_update"
+                and isinstance(assistant_event, dict)
+                and assistant_event.get("type") == "text_delta"):
+            parts.append(str(assistant_event.get("delta") or ""))
+    return "".join(parts) if parsed_event and parts else raw
+
+
 def _marker_found(job: dict) -> bool:
     """Accurate marker check over post-tracking log output.
 
@@ -1181,20 +1223,11 @@ def _marker_found(job: dict) -> bool:
     presence after tracking.
     """
     marker = job.get("marker")
-    path = job.get("log_path")
-    if not marker or not path:
+    if not marker or not job.get("log_path"):
         return False
     m = re.match(r"^(?P<prefix>.+?)\s+status=(?P<expected>[A-Za-z0-9_]+)\s*$", marker)
     try:
-        p = Path(path)
-        stat = p.stat()
-        identity = f"{stat.st_dev}:{stat.st_ino}"
-        offset = job.get("log_offset")
-        if offset is None or identity != job.get("log_identity") or stat.st_size < int(offset):
-            offset = 0  # legacy state, rotation, or truncation: inspect the replacement log
-        with p.open("rb") as stream:
-            stream.seek(int(offset))
-            data = stream.read().decode("utf-8", errors="replace")
+        data = _job_output_text(job)
         if m is None:
             return str(marker).casefold() in data.casefold()
         found = re.findall(re.escape(m.group("prefix")) + r"\s+status=([A-Za-z0-9_]+)", data)
@@ -1749,8 +1782,9 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
                    "This is an auto-repair run: the previous stage reported a failure. "
                    "Fix the issues below and re-verify; do NOT redo unrelated work. "
                    "If the issues cannot be resolved, say so explicitly and end with the FAIL marker.\n"
-                   "Previous stage log (last lines):\n```\n{}\n```\n").format(
-                       repair_round, max_repairs, (remediation or "")[-1500:])
+                   "Previous stage assistant remediation:\n```\n{}\n```\n").format(
+                       repair_round, max_repairs,
+                       (remediation or "")[-WORKFLOW_REMEDIATION_MAX_CHARS:])
     if delegation_note:
         prompt += ("\n\n# MODEL DELEGATION CONTEXT\n"
                    f"{delegation_note}\n"
@@ -1882,16 +1916,12 @@ def _repair_target_index(wf: dict, failed_idx: int) -> int:
     return failed_idx
 
 
-def _remediation_from(stage: dict) -> str:
-    """Tail of a failed stage's log — carries the reviewer's FAIL rationale/remediation."""
-    p = stage.get("log_path")
-    if not p:
-        return ""
-    try:
-        pp = Path(p)
-        return pp.read_text(encoding="utf-8", errors="replace")[-1500:] if pp.exists() else ""
-    except Exception:  # noqa: BLE001
-        return ""
+def _remediation_from(stage: dict, job: dict | None = None) -> str:
+    """Extract the failed agent response rather than a raw JSON protocol tail."""
+    source = dict(job or {})
+    source.setdefault("log_path", stage.get("log_path"))
+    text = _job_output_text(source).strip()
+    return text[-WORKFLOW_REMEDIATION_MAX_CHARS:]
 
 
 _MODEL_EXHAUSTION_PATTERNS = (
@@ -2126,7 +2156,7 @@ def advance_workflows() -> int:
                         _block_workflow(wf, stage, reason)
                     else:
                         wf["current_index"] = repair_idx
-                        remediation = _remediation_from(stage)
+                        remediation = _remediation_from(stage, job)
                         _launch_stage_with_claim(wid, wf, target, repair_idx,
                                                  remediation=remediation, repair_round=repairs + 1,
                                                  max_repairs=max_repairs)
