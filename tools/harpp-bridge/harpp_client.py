@@ -279,10 +279,19 @@ def autoprocess(records, outcomes=None):
         ok = False
         try:
             if rec.get("kind") == "message":
-                # Staging the message is the receipt. A visible auto-reply adds no useful
-                # information and an ambiguous HTTP failure used to resend it every poll.
-                ok = True
-                notes.append(f"message {rec.get('id')} staged; no auto-reply")
+                conv = rec.get("conversation_id")
+                if not conv:
+                    raise HarppError("message has no conversation_id")
+                # One idempotent "Received" confirmation per owner message. The
+                # idempotency key makes a retry a no-op server-side, so the owner
+                # gets exactly one confirmation (the earlier unbounded auto-reply
+                # flood came from retrying without an idempotency key).
+                r = harpp_notify(
+                    body="✅ Received — the harness is working on it.",
+                    conversation_id=int(conv), message_type="INFO",
+                    idempotency_key=f"ack-{int(rec.get('id', 0))}")
+                ok = bool(r.get("ok"))
+                notes.append(f"message {rec.get('id')} ack ok={ok}")
             elif rec.get("kind") == "decision":
                 did = int(rec.get("id"))
                 state = str(rec.get("lifecycle_state") or "").upper()

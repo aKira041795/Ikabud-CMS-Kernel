@@ -163,7 +163,17 @@ final class HarppPushService
                 $attempted++;
                 try {
                     $subscriptionKeys = json_decode((string)$row['keys'], true, 8, JSON_THROW_ON_ERROR);
-                    $request = $this->buildRequest((string)$row['endpoint'], null, $subscriptionKeys, $payload);
+                    try {
+                        $request = $this->buildRequest((string)$row['endpoint'], null, $subscriptionKeys, $payload);
+                    } catch (Throwable $e) {
+                        if ($payload === []) throw $e;
+                        // Encrypted payload could not be prepared on this host (e.g. no
+                        // openssl_pkey_derive / ECDH on older PHP). Fall back to an empty
+                        // push so the notification still reaches the device; the service
+                        // worker shows a default notification.
+                        $this->log('push encryption unavailable; sending empty push', $e, ['subscription_id' => (int)$row['id']]);
+                        $request = $this->buildRequest((string)$row['endpoint'], null, $subscriptionKeys, []);
+                    }
                     $status = $this->send($request);
                     if ($status >= 200 && $status < 300) {
                         $sent++;

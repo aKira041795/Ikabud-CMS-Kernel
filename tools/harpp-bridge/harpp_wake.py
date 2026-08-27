@@ -54,7 +54,11 @@ JOB_VERIFY_TIMEOUT = 600
 JOB_REPORT_STALE_AFTER = JOB_VERIFY_TIMEOUT + 300
 WORKFLOW_REMEDIATION_MAX_CHARS = 12000
 
-DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
+# Flash by default: simple Q&A replies should be fast (deepseek-v4-pro routinely
+# took 9-15 min per wake run, hitting the 900s timeout for ordinary questions).
+# Explicit per-message preferences ("use deepseek pro" / "use gpt sol") and the
+# governed-loop stage models still override this for heavier coding/review work.
+DEFAULT_MODEL = "deepseek/deepseek-v4-flash"
 # Production-grade wake limits: max ~1 run/3min (20/hr) keeps replies responsive while
 # bounded; cooldown 60s is the min gap between runs (new-message bypass covers bursts).
 DEFAULT_COOLDOWN = 60
