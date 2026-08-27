@@ -50,13 +50,14 @@ final class HarppNotificationService
 
     public function dispatch(int $notificationId, int $userId)
     {
-        $check = $this->db()->prepare('SELECT notification_type, channel, status FROM harpp_notifications WHERE id = :id AND user_id = :user');
+        $check = $this->db()->prepare('SELECT id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at FROM harpp_notifications WHERE id = :id AND user_id = :user');
         $check->execute([':id' => $notificationId, ':user' => $userId]);
         $notice = $check->fetch(PDO::FETCH_ASSOC);
         if (!is_array($notice) || !$this->channelEnabled((string)$notice['channel']) || !$this->typeEnabled((string)$notice['notification_type'])) {
             return HarppServiceResult::success(['attempted' => 0, 'sent' => 0, 'skipped' => true]);
         }
-        $result = ($this->push ??= new HarppPushService($this->db()))->dispatchToUser($userId);
+        $payload = json_decode((string)($notice['payload'] ?? '{}'), true);
+        $result = ($this->push ??= new HarppPushService($this->db()))->dispatchToUser($userId, $this->pushPayload($notice, is_array($payload) ? $payload : []));
         $sent = !empty($result['ok']) && (int)($result['data']['sent'] ?? 0) > 0;
         $ownsTransaction = !$this->db()->inTransaction();
         try {
@@ -81,6 +82,7 @@ final class HarppNotificationService
         $offset = max(0, (int)($filters['offset'] ?? 0));
         $sql = 'SELECT id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at, sent_at, read_at FROM harpp_notifications WHERE user_id = :user';
         $params = [':user' => (int)$actor['id']];
+        $sql .= " AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.in_app_visible')), 'true') <> 'false' AND NOT (notification_type = 'message' AND message_id IS NOT NULL AND EXISTS (SELECT 1 FROM harpp_messages hm WHERE hm.id = harpp_notifications.message_id AND hm.sender_type IN ('harness', 'system')))";
         $includeRead = array_key_exists('include_read', $filters) && filter_var($filters['include_read'], FILTER_VALIDATE_BOOLEAN);
         $unreadOnly = !$includeRead || (array_key_exists('unread', $filters) && filter_var($filters['unread'], FILTER_VALIDATE_BOOLEAN));
         if ($unreadOnly) { $sql .= ' AND read_at IS NULL'; }
@@ -100,7 +102,7 @@ final class HarppNotificationService
     public function unreadCount(array $actor, ?int $tenantId = null)
     {
         if (!$this->access($actor, $tenantId)) { return HarppServiceResult::failure('Forbidden.', 403); }
-        $stmt = $this->db()->prepare('SELECT COUNT(*) FROM harpp_notifications WHERE user_id = :user AND read_at IS NULL');
+        $stmt = $this->db()->prepare("SELECT COUNT(*) FROM harpp_notifications WHERE user_id = :user AND read_at IS NULL AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.in_app_visible')), 'true') <> 'false' AND NOT (notification_type = 'message' AND message_id IS NOT NULL AND EXISTS (SELECT 1 FROM harpp_messages hm WHERE hm.id = harpp_notifications.message_id AND hm.sender_type IN ('harness', 'system')))");
         $stmt->execute([':user' => (int)$actor['id']]);
         return HarppServiceResult::success(['unread' => (int)$stmt->fetchColumn()]);
     }
@@ -166,6 +168,7 @@ final class HarppNotificationService
             $stmt->execute([':id' => $conversationId]);
             $subject = trim((string)($stmt->fetchColumn() ?: 'HARPP message'));
             $payload['title'] = $subject;
+            $payload['subject'] = $subject;
             if ($messageId !== null && trim((string)($payload['body'] ?? '')) === '') {
                 $message = $this->db()->prepare('SELECT body FROM harpp_messages WHERE id = :id AND conversation_id = :conversation');
                 $message->execute([':id' => $messageId, ':conversation' => $conversationId]);
@@ -184,6 +187,33 @@ final class HarppNotificationService
             }
         }
         return $payload;
+    }
+
+    /** Exact OS notification data; the service worker must never guess from an unread row. */
+    private function pushPayload(array $notice, array $payload): array
+    {
+        $type = (string)($notice['notification_type'] ?? 'system');
+        $conversationId = (int)($notice['conversation_id'] ?? 0);
+        $decisionId = (int)($notice['decision_id'] ?? 0);
+        $subject = trim((string)($payload['subject'] ?? $payload['title'] ?? ''));
+        $body = $this->preview((string)($payload['body'] ?? $payload['message'] ?? $payload['event'] ?? 'Open HARPP for details.'));
+        if ($subject === '') $subject = $type === 'decision' ? 'HARPP — Action required' : 'HARPP — Update';
+        return [
+            'id' => (int)$notice['id'],
+            'notification_id' => (int)$notice['id'],
+            'notification_type' => $type,
+            'subject' => $subject,
+            'title' => $subject,
+            'body' => $body,
+            'conversation_id' => $conversationId ?: null,
+            'decision_id' => $decisionId ?: null,
+            'message_id' => (int)($notice['message_id'] ?? 0) ?: null,
+            'url' => $decisionId > 0 ? '/harpp/decisions/' . $decisionId : ($conversationId > 0 ? '/harpp?conversation=' . $conversationId : '/harpp/notifications'),
+            'tag' => $conversationId > 0 ? 'harpp-conversation-' . $conversationId : ($decisionId > 0 ? 'harpp-decision-' . $decisionId : 'harpp-notification-' . (int)$notice['id']),
+            'urgency' => $type === 'decision' ? 'high' : 'normal',
+            'ttl' => $type === 'decision' ? 86400 : 14400,
+            'created_at' => (string)($notice['created_at'] ?? ''),
+        ];
     }
 
     private function preview(string $value): string

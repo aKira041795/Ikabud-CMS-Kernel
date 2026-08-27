@@ -4,6 +4,8 @@ set -u
 cd "$(dirname "$0")/../../.." || exit 2
 ROOT="$PWD"
 fails=0
+printf '=== push_payload_crypto_test ===\n'
+if php modules/harpp/tests/push_payload_crypto_test.php; then echo 'PASS push_payload_crypto_test'; else echo 'FAIL push_payload_crypto_test'; fails=$((fails+1)); fi
 printf '=== integrity_collaboration_contract_test ===\n'
 if php modules/harpp/tests/integrity_collaboration_contract_test.php; then echo 'PASS integrity_collaboration_contract_test'; else echo 'FAIL integrity_collaboration_contract_test'; fails=$((fails+1)); fi
 LOG_APP="$ROOT/storage/logs/app.log"

@@ -105,7 +105,7 @@ final class HarppPushService
     }
 
     /** Build the network request separately so it is testable without delivery. */
-    public function buildRequest(string $endpoint, ?int $now = null)
+    public function buildRequest(string $endpoint, ?int $now = null, array $subscriptionKeys = [], array $payload = [])
     {
         if (!$this->validEndpoint($endpoint)) {
             throw new \InvalidArgumentException('Invalid push endpoint.');
@@ -122,11 +122,24 @@ final class HarppPushService
             throw new \RuntimeException('Unable to sign the VAPID request.');
         }
         $jwt = $input . '.' . $this->b64($this->derToJose($derSignature));
+        $body = '';
+        $ttl = (int)($payload['ttl'] ?? 14400);
+        $headers = ['TTL: ' . max(60, min(86400, $ttl))];
+        if ($payload !== []) {
+            $body = $this->encryptPayload($payload, $subscriptionKeys);
+            $headers[] = 'Content-Encoding: aes128gcm';
+            $headers[] = 'Content-Type: application/octet-stream';
+            $headers[] = 'Urgency: ' . (($payload['urgency'] ?? '') === 'high' ? 'high' : 'normal');
+            if (trim((string)($payload['tag'] ?? '')) !== '') $headers[] = 'Topic: ' . substr(hash('sha256', (string)$payload['tag']), 0, 32);
+        }
+        $headers[] = 'Content-Length: ' . strlen($body);
+        $headers[] = 'Authorization: vapid t=' . $jwt . ', k=' . $keys['public'];
+        $headers[] = 'Crypto-Key: p256ecdsa=' . $keys['public'];
         return [
             'url' => $endpoint,
             'method' => 'POST',
-            'headers' => ['TTL: 60', 'Content-Length: 0', 'Authorization: vapid t=' . $jwt . ', k=' . $keys['public'], 'Crypto-Key: p256ecdsa=' . $keys['public']],
-            'body' => '',
+            'headers' => $headers,
+            'body' => $body,
             'jwt' => $jwt,
             'resolved_ip' => $target['ip'],
             'host' => $target['host'],
@@ -134,46 +147,55 @@ final class HarppPushService
         ];
     }
 
-    public function dispatchToUser(int $userId)
+    public function dispatchToUser(int $userId, array $payload = [])
     {
         try {
             $enabled = $this->setting('push_enabled', '1') === '1';
             if (!$enabled || $userId <= 0) {
                 return HarppServiceResult::success(['attempted' => 0, 'sent' => 0]);
             }
-            $stmt = $this->db()->prepare('SELECT id, endpoint FROM harpp_push_subscriptions WHERE user_id = :user AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY id ASC');
+            $stmt = $this->db()->prepare('SELECT id, endpoint, `keys` FROM harpp_push_subscriptions WHERE user_id = :user AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY id ASC');
             $stmt->execute([':user' => $userId]);
             $sent = 0;
             $attempted = 0;
+            $expired = 0;
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $attempted++;
                 try {
-                    $request = $this->buildRequest((string)$row['endpoint']);
-                    if ($this->send($request)) {
+                    $subscriptionKeys = json_decode((string)$row['keys'], true, 8, JSON_THROW_ON_ERROR);
+                    $request = $this->buildRequest((string)$row['endpoint'], null, $subscriptionKeys, $payload);
+                    $status = $this->send($request);
+                    if ($status >= 200 && $status < 300) {
                         $sent++;
+                    } elseif (in_array($status, [404, 410], true)) {
+                        $delete = $this->db()->prepare('DELETE FROM harpp_push_subscriptions WHERE id = :id AND user_id = :user');
+                        $delete->execute([':id' => (int)$row['id'], ':user' => $userId]);
+                        $expired += $delete->rowCount();
+                    } else {
+                        throw new \RuntimeException('Push endpoint returned HTTP ' . $status);
                     }
                 } catch (Throwable $e) {
                     $this->log('push send failed', $e, ['subscription_id' => (int)$row['id']]);
                 }
             }
-            return HarppServiceResult::success(['attempted' => $attempted, 'sent' => $sent]);
+            return HarppServiceResult::success(['attempted' => $attempted, 'sent' => $sent, 'expired_removed' => $expired]);
         } catch (Throwable $e) {
             $this->log('push dispatch failed', $e);
             return HarppServiceResult::failure('Push dispatch failed.', 500);
         }
     }
 
-    private function send(array $request): bool
+    private function send(array $request): int
     {
         if (!function_exists('curl_init')) {
             $this->log('push send failed', new \RuntimeException('cURL unavailable'));
-            return false;
+            return 0;
         }
         $curl = curl_init($request['url']);
         $ip = str_contains((string)$request['resolved_ip'], ':') ? '[' . $request['resolved_ip'] . ']' : $request['resolved_ip'];
         curl_setopt_array($curl, [
             CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => '',
+            CURLOPT_POSTFIELDS => (string)$request['body'],
             CURLOPT_HTTPHEADER => $request['headers'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 3,
@@ -188,10 +210,8 @@ final class HarppPushService
         $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
         $error = curl_error($curl);
         curl_close($curl);
-        if ($status < 200 || $status >= 300) {
-            throw new \RuntimeException('Push endpoint returned HTTP ' . $status . ($error !== '' ? ': ' . $error : ''));
-        }
-        return true;
+        if ($status === 0 && $error !== '') throw new \RuntimeException('Push transport failed: ' . $error);
+        return $status;
     }
 
     private function vapidKeys()
@@ -215,6 +235,48 @@ final class HarppPushService
         if($resource===false||!openssl_pkey_export($resource,$privatePem))throw new \RuntimeException('Unable to generate a VAPID key pair.');
         $details=openssl_pkey_get_details($resource);
         return self::$ephemeralVapid=['public'=>$this->publicFromDetails($details),'private'=>$privatePem,'subject'=>$subject];
+    }
+
+    /** Encrypt a notification as an RFC 8291 aes128gcm Web Push record. */
+    private function encryptPayload(array $payload, array $subscriptionKeys): string
+    {
+        $clientPublic = $this->decodeB64(trim((string)($subscriptionKeys['p256dh'] ?? '')));
+        $authSecret = $this->decodeB64(trim((string)($subscriptionKeys['auth'] ?? '')));
+        if (strlen($clientPublic) !== 65 || $clientPublic[0] !== "\x04" || strlen($authSecret) < 16) {
+            throw new \InvalidArgumentException('Invalid Web Push encryption keys.');
+        }
+        $serverPrivate = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
+        if ($serverPrivate === false) throw new \RuntimeException('Unable to create Web Push encryption key.');
+        $serverDetails = openssl_pkey_get_details($serverPrivate);
+        $serverPublic = $this->decodeB64($this->publicFromDetails($serverDetails));
+        $clientKey = openssl_pkey_get_public($this->publicKeyPem($clientPublic));
+        if ($clientKey === false || !function_exists('openssl_pkey_derive')) throw new \RuntimeException('OpenSSL ECDH support is required for Web Push.');
+        $sharedSecret = openssl_pkey_derive($clientKey, $serverPrivate, 32);
+        if (!is_string($sharedSecret) || strlen($sharedSecret) !== 32) throw new \RuntimeException('Unable to derive Web Push encryption secret.');
+
+        $keyInfo = "WebPush: info\0" . $clientPublic . $serverPublic;
+        $prkKey = hash_hmac('sha256', $sharedSecret, $authSecret, true);
+        $ikm = $this->hkdfExpand($prkKey, $keyInfo, 32);
+        $salt = random_bytes(16);
+        $prk = hash_hmac('sha256', $ikm, $salt, true);
+        $cek = $this->hkdfExpand($prk, "Content-Encoding: aes128gcm\0", 16);
+        $nonce = $this->hkdfExpand($prk, "Content-Encoding: nonce\0", 12);
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        if (strlen($json) > 3500) throw new \InvalidArgumentException('Web Push payload is too large.');
+        $ciphertext = openssl_encrypt($json . "\x02", 'aes-128-gcm', $cek, OPENSSL_RAW_DATA, $nonce, $tag);
+        if (!is_string($ciphertext) || strlen($tag) !== 16) throw new \RuntimeException('Unable to encrypt Web Push payload.');
+        return $salt . pack('N', 4096) . chr(strlen($serverPublic)) . $serverPublic . $ciphertext . $tag;
+    }
+
+    private function hkdfExpand(string $prk, string $info, int $length): string
+    {
+        return substr(hash_hmac('sha256', $info . "\x01", $prk, true), 0, $length);
+    }
+
+    private function publicKeyPem(string $point): string
+    {
+        $der = hex2bin('3059301306072a8648ce3d020106082a8648ce3d030107034200') . $point;
+        return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($der), 64, "\n") . "-----END PUBLIC KEY-----\n";
     }
 
     private function publicFromDetails(array|false $details): string

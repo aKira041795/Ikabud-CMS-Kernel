@@ -54,6 +54,10 @@
     return subscription.unsubscribe();
   }
   async function subscribed() { const reg = await registration(); return !!(await reg.pushManager.getSubscription()); }
+  async function syncPush() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try { await subscribe(); } catch (_) { /* Retry on the next authenticated HARPP page load. */ }
+  }
   async function pollUnread() {
     const badge = document.getElementById('harpp-unread');
     if (!badge) return;
@@ -95,6 +99,7 @@
   window.Harpp = { fetch: api, register: registration, subscribe, unsubscribe, subscribed, pollUnread };
   document.addEventListener('DOMContentLoaded', () => {
     registration().catch(() => { });
+    syncPush();
     maybePromptPush();
     pollUnread();
     window.setInterval(pollUnread, 30000);
