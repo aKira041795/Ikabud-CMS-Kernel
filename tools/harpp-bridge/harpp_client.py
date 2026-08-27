@@ -423,3 +423,12 @@ def post_status(config=None, **kw):
     if kw.get("harness_session_id"):
         body["harness_session_id"] = kw["harness_session_id"]
     return api("POST", "/api/v1/harpp/bridge/status", body, config=config)
+
+
+def release_idempotency(config=None, **kw):
+    """Delete a stuck idempotency key so its scope can be re-claimed (owner/admin)."""
+    body = {
+        "scope": kw.get("scope", "harpp_message"),
+        "idempotency_key": kw.get("idempotency_key", ""),
+    }
+    return api("POST", "/api/v1/harpp/bridge/idempotency/release", body, config=config)

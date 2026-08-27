@@ -435,6 +435,7 @@ function harppBridgeNotificationList(array $params=[]):void { harppHandle(functi
 function harppBridgeNotificationMarkRead(array $params=[]):void { harppHandle(function()use($params):void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->markNotificationRead($a,(int)($params['id']??0),harppCurrentTenantId()));}); }
 function harppBridgeNotificationUnread(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->notificationUnreadCount($a,harppCurrentTenantId()));}); }
 function harppBridgeStatus(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppBridgeRespond((new HarppBridgeService(harppDb()))->status($a,harppInput(),harppCurrentTenantId()));}); }
+function harppBridgeIdempotencyRelease(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->releaseIdempotency($a,harppInput(),harppCurrentTenantId()));}); }
 
 function harppDeployList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.deploy.read@1');if($u)harppJson((new HarppDeployService(harppDb()))->list($u,harppRequestData()));}); }
 function harppDeployGet(array $params=[]):void { harppHandle(function()use($params):void{$u=harppAuthenticated('harpp.deploy.read@1');if($u)harppJson((new HarppDeployService(harppDb()))->get($u,(int)($params['id']??0)));}); }

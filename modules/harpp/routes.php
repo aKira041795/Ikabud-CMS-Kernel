@@ -81,6 +81,7 @@ return [
         '/api/v1/harpp/bridge/conversations/{id}/archive' => 'harpp:harppBridgeConversationArchive',
         '/api/v1/harpp/bridge/notifications/{id}/read' => 'harpp:harppBridgeNotificationMarkRead',
         '/api/v1/harpp/bridge/status' => 'harpp:harppBridgeStatus',
+        '/api/v1/harpp/bridge/idempotency/release' => 'harpp:harppBridgeIdempotencyRelease',
     ],
     'PUT' => [
         '/api/v1/harpp/users/{id}' => 'harpp:harppUserUpdate',

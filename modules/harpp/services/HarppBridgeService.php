@@ -131,6 +131,26 @@ final class HarppBridgeService
         }
     }
 
+    /**
+     * Delete a stuck idempotency key so the scope can be re-claimed. Owner/admin
+     * only (bridge actor is always an owner/admin). Used to unblock a message
+     * whose key was completed under a different request hash (permanent 409).
+     */
+    public function releaseIdempotency(array $actor, array $input, int $tenantId)
+    {
+        $scope = trim((string)($input['scope'] ?? 'harpp_message'));
+        $key = trim((string)($input['idempotency_key'] ?? ''));
+        if ($scope === '' || $key === '' || strlen($key) > 191) {
+            return HarppServiceResult::failure('A valid scope and idempotency_key are required.', 422);
+        }
+        if (!in_array((string)($actor['source'] ?? ''), ['harpp_bridge', 'harpp'], true)
+            || !in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true)) {
+            return HarppServiceResult::failure('Owner or admin access is required.', 403);
+        }
+        $removed = (new HarppFoundationService($this->db))->releaseIdempotency($scope, $key);
+        return HarppServiceResult::success(['idempotency_key' => $key, 'scope' => $scope, 'released' => $removed]);
+    }
+
     private function effects(array $actor, string $session, array $after): void
     {
         (new HarppFoundationService($this->db))->recordEffect('harpp.bridge.status_updated','bridge.status',$actor,'harpp_bridge_session',$session,null,$after);

@@ -449,6 +449,12 @@ def main():
     ib.add_argument("--clear", action="store_true")
     ib.add_argument("--inbox", default=None, help="override the inbox path (default machine-global)")
 
+    idem = sub.add_parser("idempotency", help="manage server-side idempotency keys")
+    idemsub = idem.add_subparsers(dest="icmd", required=True)
+    idr = idemsub.add_parser("release", help="delete a stuck idempotency key (owner/admin) so its scope can be re-claimed")
+    idr.add_argument("--key", required=True, help="the idempotency key to release, e.g. wake-message-566")
+    idr.add_argument("--scope", default="harpp_message", help="idempotency scope (default harpp_message)")
+
     jb = sub.add_parser("job", help="track/monitor delegated model jobs (auto-report on completion)")
     jsub = jb.add_subparsers(dest="jcmd", required=True)
     jl2 = jsub.add_parser("launch", help="spawn a delegated model command AND track it in one step (auto-report on completion)")
@@ -590,6 +596,10 @@ def main():
                    open_terminal=not args.no_terminal and os.environ.get("HARPP_WAKE_TERMINAL", "1") != "0")
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear, path=args.inbox)
+    elif args.cmd == "idempotency":
+        if args.icmd == "release":
+            print(json.dumps(harpp_client.release_idempotency(
+                scope=args.scope, idempotency_key=args.key), indent=2))
     elif args.cmd == "job":
         args.func(args)
     elif args.cmd == "workflow":

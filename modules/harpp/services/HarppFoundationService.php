@@ -93,6 +93,20 @@ final class HarppFoundationService
         $stmt->execute([':code'=>$code, ':response'=>$json, ':hash'=>hash('sha256',$json), ':id'=>$id]);
     }
 
+    /**
+     * Delete a stuck idempotency key so its scope can be re-claimed.
+     * Owner/operator action only — used to unblock a message whose key was
+     * completed under a different request hash (permanent 409 conflict).
+     */
+    public function releaseIdempotency(string $scope, string $key): bool
+    {
+        if ($key === '' || strlen($key) > 191) return false;
+        $keyHash = hash('sha256', $key);
+        $stmt = $this->database->prepare("DELETE FROM harpp_idempotency_keys WHERE scope_key=:scope AND idempotency_key_hash=:key_hash");
+        $stmt->execute([':scope'=>$scope, ':key_hash'=>$keyHash]);
+        return $stmt->rowCount() > 0;
+    }
+
     public function archiveDecision(array $actor, int $decisionId, ?int $expectedVersion=null): HarppServiceResult
     {
         try {
