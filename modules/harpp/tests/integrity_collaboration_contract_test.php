@@ -67,7 +67,7 @@ $assert(!str_contains($helpers,'FROM harpp_conversations ORDER BY updated_at'),'
 $assert(str_contains($migration,"harpp_migration_007_progress','complete"),'migration completion progress marker');
 $assert(str_contains($decision,"in_array(\$from,['EXPIRED','SUPERSEDED','CANCELLED'],true)"),'applyAndClose closes from any non-terminal state');$assert(str_contains($decision,'ensureAdr('),'applyAndClose fast-forwards and creates the ADR');
 $assert(str_contains($decision,'recordAutomaticAdr'),'DECIDED path creates ADR');
-$assert(str_contains($decision,"approvalSatisfied(\$decisionId,null)"),'approval gate remains enforced for ADR-creating paths');
+$assert(str_contains($decision,'mintDecisionAdr')&&str_contains($decision,'approvalSatisfied('),'unified ADR-minting routine enforces the approval gate');
 $assert(str_contains($decision,"'close_fallback'"),'close fallback ADR provenance is threaded');
 $applyHandlerStart=strpos($handlers,'function harppDecisionApplyClose');$applyHandlerEnd=strpos($handlers,"\nfunction ",$applyHandlerStart+1);$applyHandler=substr($handlers,$applyHandlerStart,$applyHandlerEnd-$applyHandlerStart);$assert(strpos($applyHandler,'harppRequireCsrf()')<strpos($applyHandler,'harppAuthenticated('),'apply endpoint checks CSRF before auth and mutation');
 $assert(str_contains($detailJs,"!terminal.includes(state)"),'apply-and-close UI visible for every non-terminal state');

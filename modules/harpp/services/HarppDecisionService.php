@@ -125,22 +125,25 @@ final class HarppDecisionService
             // A direct close from a pre-decision state also records the decision
             // (rationale fallback) so the atomic ADR below has durable context.
             $isDirectClose = $toState==='CLOSED' && !in_array($from,['DECIDED','ACKNOWLEDGED','APPLIED','CLOSED'],true);
-            if(($toState==='DECIDED' || $isDirectClose)&&!(new HarppCollaborationService($this->db()))->approvalSatisfied($decisionId,null)){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
             $expected=(int)($changes['expected_version']??$before['version']);
             if($expected!==(int)$before['version']){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
-            $sql='UPDATE harpp_decisions SET lifecycle_state=:state,workbench_state=:workbench,version=version+1'; $params=[':state'=>$toState,':workbench'=>$workbench!==''?$workbench:null,':id'=>$decisionId,':version'=>$expected];
-            if($toState==='NOTIFIED')$sql.=',notified_at=NOW()';
-            if($toState==='DECIDED' || $isDirectClose){$sql.=',decision=:decision,decided_by=:user,decided_at=COALESCE(decided_at,NOW())';$params[':decision']=$decision!==''?$decision:$rationale;$params[':user']=(int)$actor['id'];}
-            if($toState==='APPLIED')$sql.=',applied_at=NOW()';
-            if(in_array($toState,['CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],true))$sql.=',closed_at=NOW()';
-            $updated=$this->db()->prepare($sql.' WHERE id=:id AND version=:version');$updated->execute($params);if($updated->rowCount()!==1){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
-            $this->recordTransition($decisionId,$from,$toState,$actor,$rationale,$workbench);
             $adrId = null;
             $adrEvent = null;
             if ($toState === 'DECIDED' || $isDirectClose) {
                 $adrDecision = $decision !== '' ? $decision : $rationale;
-                $adrId = $this->ensureAdr($before, $adrDecision, $rationale, (int)$actor['id'], $toState === 'DECIDED' ? 'decision' : 'close_fallback');
-                $adrEvent = $this->recordAdrEffects($actor, $adrId, $decisionId, $before, $adrDecision, $rationale);
+                // Single gated ADR-minting routine (ADR-2): the approval gate, the
+                // decision UPDATE, the append-only transition, and the ADR creation
+                // are unified here and cannot drift from applyAndClose().
+                $minted=$this->mintDecisionAdr($before,$actor,$from,$toState,$adrDecision,$rationale,$workbench,$toState === 'DECIDED' ? 'decision' : 'close_fallback',$expected);
+                if($minted===null){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
+                $adrId=$minted['adr_id'];$adrEvent=$minted['adr_event'];
+            } else {
+                $sql='UPDATE harpp_decisions SET lifecycle_state=:state,workbench_state=:workbench,version=version+1'; $params=[':state'=>$toState,':workbench'=>$workbench!==''?$workbench:null,':id'=>$decisionId,':version'=>$expected];
+                if($toState==='NOTIFIED')$sql.=',notified_at=NOW()';
+                if($toState==='APPLIED')$sql.=',applied_at=NOW()';
+                if(in_array($toState,['CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],true))$sql.=',closed_at=NOW()';
+                $updated=$this->db()->prepare($sql.' WHERE id=:id AND version=:version');$updated->execute($params);if($updated->rowCount()!==1){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
+                $this->recordTransition($decisionId,$from,$toState,$actor,$rationale,$workbench);
             }
             $notificationDeliveries=[];if($this->foundation()->enabled('notification_fanout')){$recipients=(new HarppCollaborationService($this->db()))->notificationRecipients((int)$before['workspace_id'],(int)$before['conversation_id'],'decision.updated',(int)$actor['id']);}else{$recipient=$this->recipient((int)($before['created_by']??0));$recipients=$recipient>0?[$recipient]:[];}foreach($recipients as $recipient){$notice=($this->notifications??=new HarppNotificationService($this->db()))->create($recipient,'decision',['event'=>'decision.updated','decision_id'=>$decisionId,'state'=>$toState],$decisionId,(int)$before['conversation_id'],null,false);if(empty($notice['ok']))throw new \RuntimeException((string)$notice['error']);if(empty($notice['data']['idempotent_replay']))$notificationDeliveries[]=['id'=>(int)($notice['data']['notification_id']??0),'user_id'=>$recipient];}
             $after=['state'=>$toState,'workbench_state'=>$workbench,'adr_id'=>$adrId,'version'=>$expected+1,'notification_deliveries'=>$notificationDeliveries];
@@ -148,7 +151,7 @@ final class HarppDecisionService
             $this->db()->commit();
             $this->supplementalAudit('decision.transitioned',$actor,['decision_id'=>$decisionId,'from'=>$from,'to'=>$toState]);
             return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>$toState,'workbench_state'=>$workbench,'adr_id'=>$adrId,'version'=>$expected+1], '', array_values(array_filter([$adrEvent, $event])), 'harpp_decision', $decisionId);
-        }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision transition failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to transition decision.',$e instanceof \InvalidArgumentException?404:500);}
+        }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision transition failed',$e);if(str_contains($e->getMessage(),'Decision version conflict.'))return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to transition decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 
     /**
@@ -168,16 +171,15 @@ final class HarppDecisionService
             if($from==='CLOSED'){$this->db()->commit();return HarppServiceResult::success(['decision_id'=>$decisionId,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>true], '', [], 'harpp_decision',$decisionId);}
             if(in_array($from,['EXPIRED','SUPERSEDED','CANCELLED'],true)){$this->db()->rollBack();return HarppServiceResult::failure("Illegal decision transition: {$from} -> APPLIED.",409,'illegal_transition');}
             $decisionText=trim((string)($changes['decision']??$row['decision']??''));
-            // Never bypass approval: deciding (even via fast-forward) requires a satisfied policy snapshot.
-            if(!in_array($from,['DECIDED','ACKNOWLEDGED','APPLIED'],true)&&!(new HarppCollaborationService($this->db()))->approvalSatisfied($decisionId,null)){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
             $workbench=trim((string)($changes['workbench_state']??$row['workbench_state']??''));
             $expected=(int)($changes['expected_version']??$row['version']);if($expected!==(int)$row['version']){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
             $adrId=null;$adrEvent=null;$state=$from;$adrText=$decisionText!==''?$decisionText:$applyRationale;
             if(!in_array($state,['DECIDED','ACKNOWLEDGED','APPLIED'],true)){
-                $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='DECIDED',decision=:decision,decided_by=:user,decided_at=COALESCE(decided_at,NOW()),version=version+1 WHERE id=:id AND version=:version");$u->execute([':decision'=>$adrText,':user'=>(int)$actor['id'],':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
-                $this->recordTransition($decisionId,$state,'DECIDED',$actor,$applyRationale,$workbench);
-                $adrId=$this->ensureAdr($row,$adrText,$applyRationale,(int)$actor['id'],'close_fallback');$adrEvent=$this->recordAdrEffects($actor,$adrId,$decisionId,$row,$adrText,$applyRationale);
-                $state='DECIDED';$expected++;
+                // Single gated ADR-minting routine (ADR-2): never bypass approval — the
+                // gate, decision UPDATE, append-only transition, and ADR are unified.
+                $minted=$this->mintDecisionAdr($row,$actor,$state,'DECIDED',$adrText,$applyRationale,$workbench,'close_fallback',$expected);
+                if($minted===null){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
+                $adrId=$minted['adr_id'];$adrEvent=$minted['adr_event'];$state='DECIDED';$expected=$minted['version'];
             }
             if(!in_array($state,['ACKNOWLEDGED','APPLIED'],true)){
                 $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='ACKNOWLEDGED',version=version+1 WHERE id=:id AND version=:version");$u->execute([':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
@@ -191,7 +193,7 @@ final class HarppDecisionService
             $this->recordTransition($decisionId,'APPLIED','CLOSED',$actor,$closeRationale,$workbench);
             $event=$this->recordDomainEffects('harpp.decision.applied','decision.applied_and_closed',$actor,$decisionId,['state'=>$from],['state'=>'CLOSED','adr_id'=>$adrId]);$this->db()->commit();$this->supplementalAudit('decision.applied_and_closed',$actor,['decision_id'=>$decisionId]);
             return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>'CLOSED','applied_state'=>'APPLIED','already_applied'=>$from==='APPLIED'], '', array_values(array_filter([$adrEvent,$event])), 'harpp_decision',$decisionId);
-        }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision apply/close failed',$e);return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to apply and close decision.',$e instanceof \InvalidArgumentException?404:500);}
+        }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision apply/close failed',$e);if(str_contains($e->getMessage(),'Decision version conflict.'))return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to apply and close decision.',$e instanceof \InvalidArgumentException?404:500);}
     }
 
     /** Compatibility endpoint: terminal decisions are archived, never physically deleted. */
@@ -237,6 +239,30 @@ final class HarppDecisionService
         $cursorAt=trim((string)($filters['cursor_created_at']??''));$cursorId=(int)($filters['cursor_id']??0);if($cursorAt!==''||$cursorId>0){if($cursorAt===''||$cursorId<=0||strtotime($cursorAt)===false)return HarppServiceResult::failure('Both valid cursor_created_at and cursor_id are required.');$where[]='(created_at<:cursor_before OR (created_at=:cursor_equal AND id<:cursor_id))';$params[':cursor_before']=$cursorAt;$params[':cursor_equal']=$cursorAt;$params[':cursor_id']=$cursorId;}
         $limit=max(1,min(100,(int)($filters['limit']??25)));$offset=($cursorAt===''&&$cursorId===0)?max(0,(int)($filters['offset']??0)):0;$sql='SELECT * FROM harpp_decisions'.($where?' WHERE '.implode(' AND ',$where):'').' ORDER BY created_at DESC,id DESC LIMIT '.$limit.' OFFSET '.$offset;$s=$this->db()->prepare($sql);$s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC);$last=$rows?end($rows):null;
         return HarppServiceResult::success(['decisions'=>$rows,'limit'=>$limit,'offset'=>$offset,'next_cursor'=>$last?['created_at'=>$last['created_at'],'id'=>(int)$last['id']]:null]);
+    }
+
+    /**
+     * ONE gated, version-locked, append-only ADR-minting routine (ADR-2).
+     * Shared by transition() (DECIDED + direct-close) and applyAndClose() (fast-forward):
+     * the approval gate, the decision UPDATE, the append-only transition, and the ADR
+     * creation all live here, so every ADR-creating path is correct by construction and
+     * can never drift between callers.
+     *
+     * Returns null when the snapshotted approval policy is not satisfied (callers map to
+     * 409 approval_required). Throws RuntimeException('Decision version conflict.') on a
+     * CAS version clash (callers map to 409 version_conflict).
+     */
+    private function mintDecisionAdr(array $before, array $actor, string $fromState, string $toState, string $decision, string $rationale, string $workbench, string $adrOrigin, int $expectedVersion): ?array
+    {
+        if(!(new HarppCollaborationService($this->db()))->approvalSatisfied((int)$before['id'],null))return null;
+        $sql="UPDATE harpp_decisions SET lifecycle_state=:state,workbench_state=:workbench,decision=:decision,decided_by=:user,decided_at=COALESCE(decided_at,NOW()),version=version+1";
+        if(in_array($toState,['CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],true))$sql.=',closed_at=NOW()';
+        $sql.=' WHERE id=:id AND version=:version';
+        $u=$this->db()->prepare($sql);$u->execute([':state'=>$toState,':workbench'=>$workbench!==''?$workbench:null,':decision'=>$decision,':user'=>(int)$actor['id'],':id'=>(int)$before['id'],':version'=>$expectedVersion]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
+        $this->recordTransition((int)$before['id'],$fromState,$toState,$actor,$rationale,$workbench);
+        $adrId=$this->ensureAdr($before,$decision,$rationale,(int)$actor['id'],$adrOrigin);
+        $adrEvent=$this->recordAdrEffects($actor,$adrId,(int)$before['id'],$before,$decision,$rationale);
+        return ['version'=>$expectedVersion+1,'adr_id'=>$adrId,'adr_event'=>$adrEvent];
     }
 
     private function recordAutomaticAdr(array $source,string $decision,string $rationale,int $actorId,string $adrOrigin='decision'): int
