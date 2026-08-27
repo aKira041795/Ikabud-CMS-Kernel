@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmPkg = document.getElementById('deploy-confirm-pkg');
     const confirmHost = document.getElementById('deploy-confirm-host');
     const receiptEl = document.getElementById('deploy-receipt');
+    const receiptSummaryEl = document.getElementById('deploy-receipt-summary');
+    const receiptToggle = document.getElementById('deploy-receipt-toggle');
 
     const ACTIVE = ['QUEUED', 'CLAIMED', 'UPLOADING', 'EXTRACTING', 'VERIFYING'];
     const LABEL = {
@@ -20,6 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let trackedId = null;
     let pollErrors = 0;
     let idemKey = '';
+
+    function resetReceipt() {
+        receiptSummaryEl.hidden = true;
+        receiptSummaryEl.innerHTML = '';
+        receiptEl.hidden = true;
+        receiptEl.textContent = '';
+        receiptToggle.hidden = true;
+        receiptToggle.textContent = 'Show raw receipt';
+    }
 
     function fillSelect(el, options, placeholder) {
         el.innerHTML = '';
@@ -106,12 +117,41 @@ document.addEventListener('DOMContentLoaded', () => {
         return jobs;
     }
 
+    function renderReceiptSummary(r) {
+        const rows = [];
+        const a = r.artifact || {};
+        const p = r.profile || {};
+        const m = r.manifest || {};
+        if (a.name) rows.push('<div><b>Package</b> ' + esc(a.name) + '</div>');
+        if (a.size != null) rows.push('<div><b>Size</b> ' + esc(fmtBytes(a.size)) + '</div>');
+        if (a.sha256) rows.push('<div><b>SHA-256</b> <span class="mono">' + esc(a.sha256) + '</span></div>');
+        if (r.created_at) rows.push('<div><b>Completed</b> ' + esc(String(r.created_at).replace('T', ' ').slice(0, 19)) + '</div>');
+        if (p.host) rows.push('<div><b>Target</b> ' + esc(p.host + (p.port ? ':' + p.port : '')) + ' · ' + esc(p.transport || '') + (p.user ? ' · ' + esc(p.user) : '') + '</div>');
+        if (p.root_path) rows.push('<div><b>Remote path</b> <span class="mono">' + esc(p.root_path) + '</span></div>');
+        if (p.extraction_adapter) rows.push('<div><b>Extraction</b> ' + esc(p.extraction_adapter) + '</div>');
+        if (Array.isArray(p.allowed_operations) && p.allowed_operations.length) rows.push('<div><b>Allowed ops</b> ' + esc(p.allowed_operations.join(', ')) + '</div>');
+        if (Array.isArray(r.steps) && r.steps.length) rows.push('<div><b>Steps</b> ' + esc(r.steps.join(' → ')) + '</div>');
+        if (m.member_count != null || m.uncompressed_bytes != null) {
+            let txt = (m.member_count != null ? esc(String(m.member_count)) + ' files' : '');
+            if (m.uncompressed_bytes != null) txt += (txt ? ', ' : '') + esc(fmtBytes(m.uncompressed_bytes)) + ' uncompressed';
+            rows.push('<div><b>Contents</b> ' + txt + '</div>');
+        }
+        if (Array.isArray(m.allowed_prefixes) && m.allowed_prefixes.length) rows.push('<div><b>Prefixes</b> <span class="mono">' + esc(m.allowed_prefixes.join(', ')) + '</span></div>');
+        if (r.remote_temp) rows.push('<div><b>Remote file</b> <span class="mono">' + esc(r.remote_temp) + '</span></div>');
+        if (r.rollback) rows.push('<div><b>Rollback</b> ' + esc(r.rollback) + '</div>');
+        if (r.manual_action) rows.push('<div class="dim"><b>Manual action</b> ' + esc(r.manual_action) + '</div>');
+        return rows.join('');
+    }
+
     async function showReceipt(id) {
+        resetReceipt();
         try {
             const job = (await fetchNoStore('/api/v1/harpp/deploys/' + id)).data.job;
             if (job && job.receipt) {
+                receiptSummaryEl.innerHTML = '<h3>Receipt</h3>' + renderReceiptSummary(job.receipt);
+                receiptSummaryEl.hidden = false;
                 receiptEl.textContent = JSON.stringify(job.receipt, null, 2);
-                receiptEl.hidden = false;
+                receiptToggle.hidden = false;
             }
             return job;
         } catch (e) {
@@ -203,7 +243,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pkg || !prof) return;
         confirmBox.hidden = true;
         goBtn.disabled = true;
+        receiptSummaryEl.hidden = true;
         receiptEl.hidden = true;
+        receiptToggle.hidden = true;
         status.textContent = 'Queuing deploy…';
         try {
             const data = await Harpp.fetch('/api/v1/harpp/deploys', { method: 'POST', body: { package: pkg, profile: prof, idempotency_key: idemKey } });
@@ -214,7 +256,14 @@ document.addEventListener('DOMContentLoaded', () => {
         finally { goBtn.disabled = false; }
     });
 
+    receiptToggle.addEventListener('click', () => {
+        const showRaw = receiptEl.hidden;
+        receiptEl.hidden = !showRaw;
+        receiptToggle.textContent = showRaw ? 'Hide raw receipt' : 'Show raw receipt';
+    });
+
     profileSel.addEventListener('change', renderProfileDetail);
+    resetReceipt();
     loadAll();
 });
 
