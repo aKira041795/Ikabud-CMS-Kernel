@@ -2682,16 +2682,24 @@ function dlUserFromRequest(): ?array
             }
         }
     }
+    $headerToken = '';
     if ($authHeader !== '' && preg_match('/Bearer\s+(.+)$/i', $authHeader, $m)) {
-        $token = trim((string)($m[1] ?? ''));
+        $headerToken = trim((string)($m[1] ?? ''));
     }
-    // Fallback to module cookie for browser page requests
-    if ($token === null || $token === '') {
-        if (is_string($cookieToken) && $cookieToken !== '') {
-            $token = $cookieToken;
-        }
+
+    // Build the candidate token list: the Authorization header first, then the
+    // module cookie. When the header carries a stale/expired token (e.g. the
+    // mobile client holds an access token past its TTL while the browser cookie
+    // is still valid), a hard failure on the header would lock the user out —
+    // so each candidate is verified in order until one succeeds.
+    $candidates = [];
+    if ($headerToken !== '') {
+        $candidates[] = $headerToken;
     }
-    if (!is_string($token) || $token === '') {
+    if (is_string($cookieToken) && $cookieToken !== '' && $cookieToken !== $headerToken) {
+        $candidates[] = $cookieToken;
+    }
+    if ($candidates === []) {
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
         if (str_starts_with($path, '/daily-ledger/api/')) {
             $authHeaderPresent = false;
@@ -2713,43 +2721,48 @@ function dlUserFromRequest(): ?array
         }
         return null;
     }
-    try {
-        $payload = app()->jwt()->verify($token);
-        if (!is_array($payload)) {
+
+    foreach ($candidates as $candidate) {
+        try {
+            $payload = app()->jwt()->verify($candidate);
+            if (!is_array($payload)) {
+                continue;
+            }
+            if (($payload['source'] ?? '') !== 'daily-ledger') {
+                $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+                if (str_starts_with($path, '/daily-ledger/api/')) {
+                    write_log('daily-ledger api auth wrong source', 'error', [
+                        'path' => $path,
+                        'source' => $payload['source'] ?? null,
+                        'role' => $payload['role'] ?? null,
+                        'sub' => $payload['sub'] ?? null,
+                    ]);
+                }
+                return null;
+            }
+            return $payload;
+        } catch (Throwable $e) {
             $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
             if (str_starts_with($path, '/daily-ledger/api/')) {
-                write_log('daily-ledger api auth invalid jwt', 'error', [
+                write_log('daily-ledger api auth exception', 'error', [
                     'path' => $path,
-                    'token_len' => strlen($token),
-                    'auth_header_present' => ($authHeader !== ''),
-                    'cookie_present' => (is_string($cookieToken) && $cookieToken !== ''),
+                    'message' => $e->getMessage(),
                 ]);
             }
-            return null;
+            continue;
         }
-        if (($payload['source'] ?? '') !== 'daily-ledger') {
-            $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-            if (str_starts_with($path, '/daily-ledger/api/')) {
-                write_log('daily-ledger api auth wrong source', 'error', [
-                    'path' => $path,
-                    'source' => $payload['source'] ?? null,
-                    'role' => $payload['role'] ?? null,
-                    'sub' => $payload['sub'] ?? null,
-                ]);
-            }
-            return null;
-        }
-        return $payload;
-    } catch (Throwable $e) {
-        $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-        if (str_starts_with($path, '/daily-ledger/api/')) {
-            write_log('daily-ledger api auth exception', 'error', [
-                'path' => $path,
-                'message' => $e->getMessage(),
-            ]);
-        }
-        return null;
     }
+
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    if (str_starts_with($path, '/daily-ledger/api/')) {
+        write_log('daily-ledger api auth invalid jwt', 'error', [
+            'path' => $path,
+            'token_len' => strlen($headerToken !== '' ? $headerToken : (string)$cookieToken),
+            'auth_header_present' => ($headerToken !== ''),
+            'cookie_present' => (is_string($cookieToken) && $cookieToken !== ''),
+        ]);
+    }
+    return null;
 }
 
 function dlRequireAuth(array $roles = ['cashier', 'supervisor', 'admin']): array
