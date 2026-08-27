@@ -2707,26 +2707,51 @@ def _quick_completion(prompt: str, *, max_tokens: int = 200, timeout: int = QUIC
     return str(content).strip()
 
 
-# Conservative: any of these makes the message "work" (agent tier). Only short,
-# clearly conversational messages take the fast tier — a misclassification toward
-# the agent is safe; toward the fast tier would skip real work.
-_QUICK_EXCLUSIONS = (
+# Fast-tier classifier. Ordered signals (a message is "simple" only if none of the
+# stronger work signals fire):
+# 1. Strong action verbs → the owner wants work done (agent), even phrased as a
+#    question ("can you fix X" is work, not conversation).
+# 2. Topic/explanation questions → fast tier, even if an ambiguous term appears
+#    ("how does deploy work?" / "explain push notifications" are conversation).
+# 3. Ambiguous work/technical terms without question framing → agent (conservative).
+# 4. Social/plain short messages → fast tier.
+_QUICK_STRONG_VERBS = (
     "implement", "build", "create", "write ", "edit", "fix", "refactor", "debug",
-    "test", "run ", "deploy", "workflow", "architect", "review", "release", "commit",
-    "push", "migrat", "repair", "analy", "investigat", "troubleshoot", "set up",
-    "install", "error", "crash", "code", "function", "class", "file", "repo", "branch",
-    "add ", "change ", "update ", "make ", "remove ", "delete ", "configure",
-    "check", "verify", "lint", "compile", "script", "sql", "migration", "schema",
+    "migrat", "repair", "set up", "install", "lint", "compile",
+    "add ", "change ", "update ", "make ", "remove ", "delete ",
+    "configure", "commit",
 )
+_QUICK_TOPIC_QUESTIONS = (
+    "what is", "what's", "what does", "what are", "why", "how does", "how do",
+    "how is", "how can", "explain", "tell me", "describe", "define", "meaning",
+    "difference between", "is it", "is the", "is there", "was the", "are the",
+    "does the", "did you",
+)
+_QUICK_SOFT_WORK = (
+    "deploy", "test", "run ", "push", "review", "workflow", "architect", "start ",
+    "analy", "investigat", "troubleshoot", "check", "verify", "code", "function",
+    "class", "file", "repo", "branch", "error", "crash", "sql", "schema",
+    "migration", "script", "api", "module", "database", "query", "bug",
+)
+_QUICK_SOCIAL = ("thanks", "okay", "ok ", "hello", "hi ", "good ", "yes", "no ", "sure")
 
 
 def _is_simple_message(text: str) -> bool:
-    """True only for short, conversational messages with no work/code keywords."""
+    """Fast-tier classifier: conversational questions/statements get the direct reply;
+    anything that requests work or is substantive/technical goes to the agent."""
     t = str(text or "").strip()
     if not t or len(t) > 220:
         return False
     low = t.lower()
-    return not any(kw in low for kw in _QUICK_EXCLUSIONS)
+    if any(v in low for v in _QUICK_STRONG_VERBS):
+        return False  # unambiguous action → work
+    if any(q in low for q in _QUICK_TOPIC_QUESTIONS):
+        return True  # question/explanation framing → conversational
+    if any(w in low for w in _QUICK_SOFT_WORK):
+        return False  # ambiguous work/technical term without question framing → agent
+    if any(c in low for c in _QUICK_SOCIAL):
+        return True
+    return True
 
 
 def _quick_reply(item: dict) -> bool:

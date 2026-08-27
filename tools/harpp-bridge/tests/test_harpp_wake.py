@@ -68,12 +68,21 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(harpp_wake.read_state()["messages"].count(1), 1)
 
     def test_is_simple_message_classification(self):
+        # conversational → fast tier
         self.assertTrue(harpp_wake._is_simple_message("hi"))
-        self.assertTrue(harpp_wake._is_simple_message("what does HARPP do?"))
         self.assertTrue(harpp_wake._is_simple_message("thanks"))
+        self.assertTrue(harpp_wake._is_simple_message("what does HARPP do?"))
+        self.assertTrue(harpp_wake._is_simple_message("what is the error?"))
+        self.assertTrue(harpp_wake._is_simple_message("explain push notifications"))
+        self.assertTrue(harpp_wake._is_simple_message("how does the workflow work?"))
+        # work / coding → agent tier
+        self.assertFalse(harpp_wake._is_simple_message("fix the login"))
+        self.assertFalse(harpp_wake._is_simple_message("can you fix the login"))
         self.assertFalse(harpp_wake._is_simple_message("use gpt sol to fix the login"))
         self.assertFalse(harpp_wake._is_simple_message("implement the workflow"))
         self.assertFalse(harpp_wake._is_simple_message("check the error in the code"))
+        self.assertFalse(harpp_wake._is_simple_message("push the changes"))
+        self.assertFalse(harpp_wake._is_simple_message("review my approach"))
         self.assertFalse(harpp_wake._is_simple_message(""))
 
     def test_maybe_wake_quick_reply_path(self):
