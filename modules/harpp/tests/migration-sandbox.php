@@ -121,5 +121,33 @@ try{
     $db->exec("UPDATE harpp_bridge_rate_limit SET window_start=window_start-120 WHERE bucket=".$db->quote($bucketName));
     $okAfterClear=$auth->validate($goodKey,987654,'rate-client');if(empty($okAfterClear['ok']))throw new RuntimeException('Successful bridge auth after window expiry did not clear the rate bucket.');
     $bucketCount=(int)$db->query("SELECT COUNT(*) FROM harpp_bridge_rate_limit")->fetchColumn();if($bucketCount!==0)throw new RuntimeException('Rate bucket was not cleared after successful auth.');
+    // Approval-gate behavioral regression (F1): with an unsatisfiable snapshotted
+    // approval policy, DECIDED AND direct-close AND applyAndClose fast-forward must
+    // ALL return 409 approval_required; satisfying the policy unblocks deciding.
+    $db->exec("UPDATE harpp_settings SET setting_value='1' WHERE setting_key='harpp_approval_policies'");
+    $policyResult=$collaboration->manageWorkspace($actor,['action'=>'policy','workspace_id'=>$workspace,'policy_key'=>'unapprovable-gate','name'=>'Unapprovable gate','eligible_roles'=>['reviewer'],'quorum'=>1,'exclude_creator'=>1,'allow_owner_override'=>0]);
+    if(empty($policyResult['ok']))throw new RuntimeException('Approval policy fixture failed.');
+    $policyId=(int)$policyResult['data']['approval_policy_id'];
+    $approvalThread=$messaging->createConversation($actor,['workspace_id'=>$workspace,'visibility'=>'workspace','title'=>'Approval gate','harness_session_id'=>'approval-gate-thread'],987654);
+    if(empty($approvalThread['ok']))throw new RuntimeException('Approval conversation fixture failed.');
+    $approvalConversation=(int)$approvalThread['data']['conversation_id'];
+    $approvalFixture=$service->create($actor,['conversation_id'=>$approvalConversation,'decision_key'=>'SANDBOX-APPROVAL-'.strtoupper(bin2hex(random_bytes(4))),'title'=>'Approval gate','body'=>'Must require approval before deciding or closing','requested_decision'=>'Approve','source'=>'harness','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED','approval_policy_id'=>$policyId],987654);
+    if(empty($approvalFixture['ok']))throw new RuntimeException('Approval fixture creation failed: '.(string)($approvalFixture['error']??''));
+    $approvalId=(int)$approvalFixture['data']['decision_id'];
+    if($collaboration->approvalSatisfied($approvalId,null)!==false)throw new RuntimeException('Unsatisfied approval policy reported satisfied.');
+    $decidedBlocked=$service->transition($actor,$approvalId,'DECIDED','Needs approval',['decision'=>'Approve'],987654);
+    if(($decidedBlocked['code']??'')!=='approval_required')throw new RuntimeException('DECIDED bypassed an unsatisfied approval policy.');
+    $directCloseBlocked=$service->transition($actor,$approvalId,'CLOSED','Needs approval first',[],987654);
+    if(($directCloseBlocked['code']??'')!=='approval_required')throw new RuntimeException('Direct close bypassed the approval gate (F1 regression).');
+    $applyCloseBlocked=$service->applyAndClose($actor,$approvalId,'Apply','Close',[],987654);
+    if(($applyCloseBlocked['code']??'')!=='approval_required')throw new RuntimeException('applyAndClose bypassed an unsatisfied approval policy.');
+    $approverId=(int)$db->query("SELECT id FROM harpp_users WHERE role='member' ORDER BY id LIMIT 1")->fetchColumn();
+    $approver=['id'=>$approverId,'role'=>'member','source'=>'harpp'];
+    $approve=$collaboration->approveDecision($approver,['decision_id'=>$approvalId,'vote'=>'approve','reason'=>'Eligible reviewer approves']);
+    if(empty($approve['ok']))throw new RuntimeException('Eligible reviewer approval failed: '.(string)($approve['error']??''));
+    if($collaboration->approvalSatisfied($approvalId,null)!==true)throw new RuntimeException('Satisfied approval policy reported unsatisfied.');
+    $decidedUnblocked=$service->transition($actor,$approvalId,'DECIDED','Approved',['decision'=>'Approve'],987654);
+    if(empty($decidedUnblocked['ok']))throw new RuntimeException('DECIDED remained blocked after policy satisfied: '.(string)($decidedUnblocked['error']??''));
+    $db->exec("UPDATE harpp_settings SET setting_value='0' WHERE setting_key='harpp_approval_policies'");
     echo "HARPP migration sandbox: $tables tables; lifecycle, archive/purge retention, idempotency, outbox retry/dead-letter, scoped audit, workspace/project/participant isolation, delegation, receipts, future-user isolation, R-FTP deploy (queue->claim->progress->receipt, claim-token + CAS, lease reclaim, atomic dedup, idempotent terminal reports, no FTP secrets), and atomic bridge rate-limit pass; teardown pending\n";
 }finally{$admin->exec("DROP DATABASE IF EXISTS `$name`");echo "HARPP migration sandbox: teardown complete\n";}

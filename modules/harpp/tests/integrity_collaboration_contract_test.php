@@ -8,6 +8,36 @@ require_once __DIR__.'/../services/HarppDecisionService.php';
 use Harpp\Services\HarppCollaborationPolicy;
 use Harpp\Services\HarppDecisionService;
 
+function harppParseClientTransitionMatrix(string $detailJs): array
+{
+	// Robustness: strip JS comments and tolerate trailing commas so the parser
+	// does not false-fail on cosmetic formatting in the client matrix.
+	$detailJs = (string)preg_replace('#/\*.*?\*/#s', '', $detailJs);
+	$detailJs = (string)preg_replace('#//[^\n]*#', '', $detailJs);
+	if (!preg_match('/const\s+transitions\s*=\s*(\{.*?\})\s*;/s', $detailJs, $matches)) {
+		throw new RuntimeException('Client transitions object not found.');
+	}
+
+	$json = preg_replace('/(\s*)([A-Z][A-Z0-9_]*)(\s*):/', '$1"$2"$3:', $matches[1]);
+	$json = str_replace("'", '"', (string)$json);
+	$json = (string)preg_replace('/,\s*([}\]])/', '$1', $json); // tolerate trailing commas
+	$matrix = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+	if (!is_array($matrix)) {
+		throw new RuntimeException('Client transitions object is not a JSON-like object.');
+	}
+
+	$normalized = [];
+	foreach ($matrix as $from => $targets) {
+		$normalized[strtoupper((string)$from)] = array_map(
+			static fn($target): string => strtoupper((string)$target),
+			is_array($targets) ? $targets : []
+		);
+	}
+
+	ksort($normalized);
+	return $normalized;
+}
+
 $checks=0;
 $assert=function(bool $condition,string $message)use(&$checks):void{$checks++;if(!$condition)throw new RuntimeException("Contract failure: $message");};
 $manifest=json_decode((string)file_get_contents(__DIR__.'/../module.json'),true,512,JSON_THROW_ON_ERROR);
@@ -22,19 +52,23 @@ $inboxTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/
 
 $assert($manifest['version']==='2.2.0','manifest semver');
 $assert(count($manifest['owns_tables'])===29,'owned-table inventory');
-$assert(end($manifest['migrations'])==='database/migrations/009_harpp_deploy_hardening.sql','deploy hardening migration registration');
+$assert(end($manifest['migrations'])==='database/migrations/011_harpp_adr_origin.sql','ADR origin migration registration');
 $capabilities=array_column($manifest['capabilities']['exposes'],'id');
 foreach(['harpp.lifecycle.transition@2','harpp.archive@1','harpp.purge.request@1','harpp.purge.approve@1','harpp.audit.read@1','harpp.outbox.dispatch@1','harpp.workspace.read@1','harpp.workspace.manage@1','harpp.project.read@1','harpp.project.manage@1','harpp.participant.manage@1','harpp.message.receipt@1','harpp.decision.assign@1','harpp.decision.approve@1','harpp.notification.preferences@1'] as $capability){$assert(in_array($capability,$capabilities,true),"capability $capability");$assert(str_contains($helpers,"'$capability' =>"),"handler mapping $capability");}
 foreach(['harpp_workspaces','harpp_workspace_memberships','harpp_projects','harpp_conversation_participants','harpp_message_receipts','harpp_decision_policy_snapshots','harpp_approval_delegations','harpp_audit_events','harpp_outbox','harpp_idempotency_keys','harpp_purge_requests'] as $table){$assert(str_contains($migration,"`$table`"),"migration table $table");}
 foreach(['harpp_lifecycle_v2','harpp_immutable_retention','harpp_outbox','harpp_strict_validation','harpp_workspace_enforcement','harpp_participant_visibility','harpp_per_user_receipts','harpp_approval_policies','harpp_notification_fanout'] as $flag){$assert(array_key_exists($flag,$manifest['settings_defaults']),"flag $flag");}
 
 $transitionMatrix=['CREATED'=>['PENDING','DECIDED','CANCELLED'],'PENDING'=>['NOTIFIED','VIEWED','DECIDED','CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],'NOTIFIED'=>['VIEWED','DECIDED','CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],'VIEWED'=>['DECIDED','CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],'DECIDED'=>['ACKNOWLEDGED','CLOSED','SUPERSEDED','CANCELLED'],'ACKNOWLEDGED'=>['APPLIED','CLOSED','SUPERSEDED','CANCELLED'],'APPLIED'=>['CLOSED'],'CLOSED'=>[],'EXPIRED'=>[],'SUPERSEDED'=>[],'CANCELLED'=>[]];foreach(array_keys($transitionMatrix)as$from)foreach(array_keys($transitionMatrix)as$to)$assert(HarppDecisionService::isTransitionAllowed($from,$to)===in_array($to,$transitionMatrix[$from],true),"transition matrix $from -> $to");
+$serverMatrix=[];foreach(HarppDecisionService::TRANSITIONS as $from=>$targets){$serverMatrix[strtoupper((string)$from)]=array_map(static fn(string $target): string=>strtoupper($target),$targets);}ksort($serverMatrix);
+$assert(harppParseClientTransitionMatrix($detailJs)===$serverMatrix,'client transitions match HarppDecisionService::TRANSITIONS');
 $assert(!HarppDecisionService::isTransitionAllowed('VIEWED','APPLIED'),'no lifecycle bypass');
 $assert(!preg_match('/DELETE\s+FROM\s+harpp_(decisions|adrs)/i',$decision),'ordinary service cannot erase decision or ADR');
 $assert(!str_contains($helpers,'FROM harpp_conversations ORDER BY updated_at'),'entity conversation discovery uses scoped messaging service');
 $assert(str_contains($migration,"harpp_migration_007_progress','complete"),'migration completion progress marker');
 $assert(str_contains($decision,"in_array(\$from,['EXPIRED','SUPERSEDED','CANCELLED'],true)"),'applyAndClose closes from any non-terminal state');$assert(str_contains($decision,'ensureAdr('),'applyAndClose fast-forwards and creates the ADR');
 $assert(str_contains($decision,'recordAutomaticAdr'),'DECIDED path creates ADR');
+$assert(str_contains($decision,"approvalSatisfied(\$decisionId,null)"),'approval gate remains enforced for ADR-creating paths');
+$assert(str_contains($decision,"'close_fallback'"),'close fallback ADR provenance is threaded');
 $applyHandlerStart=strpos($handlers,'function harppDecisionApplyClose');$applyHandlerEnd=strpos($handlers,"\nfunction ",$applyHandlerStart+1);$applyHandler=substr($handlers,$applyHandlerStart,$applyHandlerEnd-$applyHandlerStart);$assert(strpos($applyHandler,'harppRequireCsrf()')<strpos($applyHandler,'harppAuthenticated('),'apply endpoint checks CSRF before auth and mutation');
 $assert(str_contains($detailJs,"!terminal.includes(state)"),'apply-and-close UI visible for every non-terminal state');
 $assert(!str_contains($detailJs,'Permanently delete')&&!str_contains($inboxJs,'Permanently delete')&&!str_contains($detailTemplate,'Permanently removes'),'decision UI does not claim permanent deletion');

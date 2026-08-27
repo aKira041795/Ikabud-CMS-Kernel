@@ -122,12 +122,12 @@ final class HarppDecisionService
             if ($toState==='DECIDED' && $decision==='') { $this->db()->rollBack(); return HarppServiceResult::failure('Decision text is required when deciding.'); }
             $workbench=trim((string)($changes['workbench_state']??$before['workbench_state']??''));
             if ($workbench!=='' && !preg_match('/^[A-Z][A-Z0-9_]{2,99}$/',$workbench)) { $this->db()->rollBack(); return HarppServiceResult::failure('Invalid workbench state.'); }
-            if($toState==='DECIDED'&&!(new HarppCollaborationService($this->db()))->approvalSatisfied($decisionId,null)){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
-            $expected=(int)($changes['expected_version']??$before['version']);
-            if($expected!==(int)$before['version']){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
             // A direct close from a pre-decision state also records the decision
             // (rationale fallback) so the atomic ADR below has durable context.
             $isDirectClose = $toState==='CLOSED' && !in_array($from,['DECIDED','ACKNOWLEDGED','APPLIED','CLOSED'],true);
+            if(($toState==='DECIDED' || $isDirectClose)&&!(new HarppCollaborationService($this->db()))->approvalSatisfied($decisionId,null)){$this->db()->rollBack();return HarppServiceResult::failure('The snapshotted approval policy is not satisfied.',409,'approval_required');}
+            $expected=(int)($changes['expected_version']??$before['version']);
+            if($expected!==(int)$before['version']){$this->db()->rollBack();return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');}
             $sql='UPDATE harpp_decisions SET lifecycle_state=:state,workbench_state=:workbench,version=version+1'; $params=[':state'=>$toState,':workbench'=>$workbench!==''?$workbench:null,':id'=>$decisionId,':version'=>$expected];
             if($toState==='NOTIFIED')$sql.=',notified_at=NOW()';
             if($toState==='DECIDED' || $isDirectClose){$sql.=',decision=:decision,decided_by=:user,decided_at=COALESCE(decided_at,NOW())';$params[':decision']=$decision!==''?$decision:$rationale;$params[':user']=(int)$actor['id'];}
@@ -139,7 +139,7 @@ final class HarppDecisionService
             $adrEvent = null;
             if ($toState === 'DECIDED' || $isDirectClose) {
                 $adrDecision = $decision !== '' ? $decision : $rationale;
-                $adrId = $this->ensureAdr($before, $adrDecision, $rationale, (int)$actor['id']);
+                $adrId = $this->ensureAdr($before, $adrDecision, $rationale, (int)$actor['id'], $toState === 'DECIDED' ? 'decision' : 'close_fallback');
                 $adrEvent = $this->recordAdrEffects($actor, $adrId, $decisionId, $before, $adrDecision, $rationale);
             }
             $notificationDeliveries=[];if($this->foundation()->enabled('notification_fanout')){$recipients=(new HarppCollaborationService($this->db()))->notificationRecipients((int)$before['workspace_id'],(int)$before['conversation_id'],'decision.updated',(int)$actor['id']);}else{$recipient=$this->recipient((int)($before['created_by']??0));$recipients=$recipient>0?[$recipient]:[];}foreach($recipients as $recipient){$notice=($this->notifications??=new HarppNotificationService($this->db()))->create($recipient,'decision',['event'=>'decision.updated','decision_id'=>$decisionId,'state'=>$toState],$decisionId,(int)$before['conversation_id'],null,false);if(empty($notice['ok']))throw new \RuntimeException((string)$notice['error']);if(empty($notice['data']['idempotent_replay']))$notificationDeliveries[]=['id'=>(int)($notice['data']['notification_id']??0),'user_id'=>$recipient];}
@@ -176,7 +176,7 @@ final class HarppDecisionService
             if(!in_array($state,['DECIDED','ACKNOWLEDGED','APPLIED'],true)){
                 $u=$this->db()->prepare("UPDATE harpp_decisions SET lifecycle_state='DECIDED',decision=:decision,decided_by=:user,decided_at=COALESCE(decided_at,NOW()),version=version+1 WHERE id=:id AND version=:version");$u->execute([':decision'=>$adrText,':user'=>(int)$actor['id'],':id'=>$decisionId,':version'=>$expected]);if($u->rowCount()!==1)throw new \RuntimeException('Decision version conflict.');
                 $this->recordTransition($decisionId,$state,'DECIDED',$actor,$applyRationale,$workbench);
-                $adrId=$this->ensureAdr($row,$adrText,$applyRationale,(int)$actor['id']);$adrEvent=$this->recordAdrEffects($actor,$adrId,$decisionId,$row,$adrText,$applyRationale);
+                $adrId=$this->ensureAdr($row,$adrText,$applyRationale,(int)$actor['id'],'close_fallback');$adrEvent=$this->recordAdrEffects($actor,$adrId,$decisionId,$row,$adrText,$applyRationale);
                 $state='DECIDED';$expected++;
             }
             if(!in_array($state,['ACKNOWLEDGED','APPLIED'],true)){
@@ -239,10 +239,10 @@ final class HarppDecisionService
         return HarppServiceResult::success(['decisions'=>$rows,'limit'=>$limit,'offset'=>$offset,'next_cursor'=>$last?['created_at'=>$last['created_at'],'id'=>(int)$last['id']]:null]);
     }
 
-    private function recordAutomaticAdr(array $source,string $decision,string $rationale,int $actorId): int
-    {$key='ADR-'.$source['decision_key'];$s=$this->db()->prepare('INSERT INTO harpp_adrs (adr_key,title,context,body,decision,rationale,decision_ref,decided_by,created_at,decided_at) VALUES (:key,:title,:context,:body,:decision,:rationale,:ref,:actor,NOW(),NOW())');$s->execute([':key'=>$key,':title'=>$source['title'],':context'=>trim((string)($source['context']??''))?:$source['body'],':body'=>$source['body'],':decision'=>$decision,':rationale'=>$rationale,':ref'=>(int)$source['id'],':actor'=>$actorId]);return(int)$this->db()->lastInsertId();}
-    private function ensureAdr(array $source,string $decision,string $rationale,int $actorId): int
-    {$s=$this->db()->prepare('SELECT id FROM harpp_adrs WHERE decision_ref=:id LIMIT 1');$s->execute([':id'=>(int)$source['id']]);$existing=$s->fetchColumn();return $existing!==false?(int)$existing:$this->recordAutomaticAdr($source,$decision,$rationale,$actorId);}
+    private function recordAutomaticAdr(array $source,string $decision,string $rationale,int $actorId,string $adrOrigin='decision'): int
+    {$key='ADR-'.$source['decision_key'];$s=$this->db()->prepare('INSERT INTO harpp_adrs (adr_key,title,context,body,decision,rationale,adr_origin,decision_ref,decided_by,created_at,decided_at) VALUES (:key,:title,:context,:body,:decision,:rationale,:origin,:ref,:actor,NOW(),NOW())');$s->execute([':key'=>$key,':title'=>$source['title'],':context'=>trim((string)($source['context']??''))?:$source['body'],':body'=>$source['body'],':decision'=>$decision,':rationale'=>$rationale,':origin'=>$adrOrigin,':ref'=>(int)$source['id'],':actor'=>$actorId]);return(int)$this->db()->lastInsertId();}
+    private function ensureAdr(array $source,string $decision,string $rationale,int $actorId,string $adrOrigin='decision'): int
+    {$s=$this->db()->prepare('SELECT id FROM harpp_adrs WHERE decision_ref=:id LIMIT 1');$s->execute([':id'=>(int)$source['id']]);$existing=$s->fetchColumn();return $existing!==false?(int)$existing:$this->recordAutomaticAdr($source,$decision,$rationale,$actorId,$adrOrigin);}
     private function recordAdrEffects(array $actor,int $adrId,int $decisionId,array $source,string $decision,string $rationale):array{$after=['adr_id'=>$adrId,'decision_id'=>$decisionId,'adr_key'=>'ADR-'.$source['decision_key'],'decision'=>$decision,'rationale'=>$rationale,'decided_by'=>(int)($actor['id']??0)];return$this->foundation()->recordEffect('harpp.adr.recorded','adr.recorded',$actor,'harpp_adr',$adrId,null,$after,$rationale);}
     private function recordTransition(int$id,?string$from,string$to,array$actor,string$rationale,string$workbench):void{$s=$this->db()->prepare('INSERT INTO harpp_decision_transitions(decision_id,from_state,to_state,actor_user_id,actor_type,rationale,workbench_state,created_at) VALUES(:id,:from,:to,:actor,:type,:rationale,:workbench,NOW())');$s->execute([':id'=>$id,':from'=>$from,':to'=>$to,':actor'=>(int)($actor['id']??0)?:null,':type'=>($actor['source']??'harpp')==='harpp_bridge'?'harness':'user',':rationale'=>$rationale,':workbench'=>$workbench?:null]);}
     private function recordDomainEffects(string$eventName,string$action,array$actor,int$id,?array$before,array$after,string$reason=''){return$this->foundation()->recordEffect($eventName,$action,$actor,'harpp_decision',$id,$before,$after,$reason);}
