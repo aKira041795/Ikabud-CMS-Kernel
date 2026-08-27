@@ -4,6 +4,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const status = document.getElementById('decision-status');
   const archiveAllBtn = document.getElementById('archive-all-closed');
 
+  function priorityColor(priority) {
+    switch (String(priority || '').toLowerCase()) {
+      case 'critical':
+        return '#7f1d1d';
+      case 'high':
+        return '#78350f';
+      case 'low':
+        return '#334155';
+      case 'normal':
+      default:
+        return '#1e3a8a';
+    }
+  }
+
   async function load() {
     const query = new URLSearchParams(new FormData(form));
     for (const [key, value] of [...query]) {
@@ -19,10 +33,24 @@ document.addEventListener('DOMContentLoaded', () => {
         card.href = `/harpp/decisions/${row.id}`;
         const title = document.createElement('h3');
         title.textContent = row.title;
+        const chips = document.createElement('p');
+        chips.className = 'decision-card-meta';
+        if (row.lifecycle_state === 'PENDING') {
+          const actionBadge = document.createElement('span');
+          actionBadge.className = 'pill pill-action';
+          actionBadge.textContent = 'action required';
+          chips.append(actionBadge);
+        }
+        const priority = document.createElement('span');
+        priority.className = `pill pill-priority pill-${String(row.priority || 'normal').toLowerCase()}`;
+        priority.style.background = priorityColor(row.priority);
+        priority.style.color = '#fff';
+        priority.textContent = String(row.priority || 'normal');
+        chips.append(priority);
         const meta = document.createElement('p');
         meta.className = 'muted';
-        meta.textContent = `${row.lifecycle_state} · ${row.priority} · ${row.decision_key}`;
-        card.append(title, meta);
+        meta.textContent = `${row.lifecycle_state} · ${row.decision_key}`;
+        card.append(title, chips, meta);
         list.append(card);
       }
       if (!rows.length) list.textContent = 'No decisions match these filters.';
