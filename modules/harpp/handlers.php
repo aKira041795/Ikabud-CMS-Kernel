@@ -55,16 +55,28 @@ function harppRequireCsrf(): void
  */
 function harppBridgeRespond(array $result): void
 {
+    // Emit the JSON response first, then drain committed bridge effects with any
+    // output discarded. Running the outbox/push dispatch before responding let a
+    // slow or noisy delivery delay/corrupt the client response, so the bridge
+    // client retried an already-delivered message and duplicated conversation
+    // replies and push notifications.
+    harppJson($result);
     if (!empty($result['ok'])) {
         try {
-            (new HarppFoundationService(harppDb()))->dispatchOutbox(5, true);
+            $buffered = ob_start();
+            try {
+                (new HarppFoundationService(harppDb()))->dispatchOutbox(5, true);
+            } finally {
+                if ($buffered !== false) {
+                    ob_end_clean();
+                }
+            }
         } catch (Throwable $e) {
             if (function_exists('write_log')) {
                 write_log('HARPP bridge outbox dispatch failed', 'error', ['module' => 'harpp', 'error' => $e->getMessage()]);
             }
         }
     }
-    harppJson($result);
 }
 
 function harppLoginPageContext(array $overrides = []): array

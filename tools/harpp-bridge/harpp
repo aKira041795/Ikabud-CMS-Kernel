@@ -93,8 +93,18 @@ def _emit(record, inbox):
             print(f"harpp watch: inbox append failed: {e}", flush=True)
 
 
-def _autoprocess(records, log):
-    """Auto-respond and return only records that still need retrying."""
+AUTOPROCESS_MAX_RETRIES = 3
+
+
+def _autoprocess(records, log, failures=None):
+    """Auto-respond and return only records that still need retrying (bounded).
+
+    A record that keeps failing (server 4xx/5xx, closed conversation, unparsable
+    response) is dropped after AUTOPROCESS_MAX_RETRIES consecutive failures so the
+    watch loop never re-acks the same owner message every poll — that unbounded
+    retry loop duplicated "Received" replies and push notifications.
+    """
+    failures = {} if failures is None else failures
     outcomes = []
     for note in harpp_client.autoprocess(records, outcomes=outcomes):
         print("autoprocess: " + note, flush=True)
@@ -106,7 +116,20 @@ def _autoprocess(records, log):
                     f.write("autoprocess: " + note + "\n")
             except Exception as e:
                 print(f"harpp watch: autoprocess log failed: {e}", flush=True)
-    return [rec for rec, ok in outcomes if not ok]
+    keep = []
+    for rec, ok in outcomes:
+        key = f"{rec.get('kind')}:{rec.get('id')}"
+        if ok:
+            failures.pop(key, None)
+            continue
+        count = failures.get(key, 0) + 1
+        if count < AUTOPROCESS_MAX_RETRIES:
+            failures[key] = count
+            keep.append(rec)
+        else:
+            failures.pop(key, None)
+            print(f"autoprocess: dropped {key} after {AUTOPROCESS_MAX_RETRIES} failed ack attempts", flush=True)
+    return keep
 
 
 def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
@@ -121,6 +144,7 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
     last_msg = int(state.get("last_msg_id", 0))
     last_decided = int(state.get("last_decided_id", 0))
     pending = state.get("pending_autoprocess", []) if autoprocess else []
+    failures = state.get("autoprocess_failures", {}) if autoprocess else {}
     while True:
         emitted = []
         try:
@@ -170,12 +194,12 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             pending.extend(r for r in emitted if (r.get("kind"), r.get("id")) not in known)
         # Persist pending receipts before network delivery so a crash cannot lose them.
         _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided,
-                           "pending_autoprocess": pending})
+                           "pending_autoprocess": pending, "autoprocess_failures": failures})
         # Instant confirmation + decisions are deterministic and retried every poll.
         if autoprocess and pending:
-            pending = _autoprocess(pending, log)
+            pending = _autoprocess(pending, log, failures)
             _save_watch_state({"last_msg_id": last_msg, "last_decided_id": last_decided,
-                               "pending_autoprocess": pending})
+                               "pending_autoprocess": pending, "autoprocess_failures": failures})
         # Deterministic workflow commands from the messenger: the owner drives
         # multi-stage work directly from HARPP (workflow start/list/status/show,
         # "run the X loop") — no VS Code / LLM needed. Handled commands are marked
