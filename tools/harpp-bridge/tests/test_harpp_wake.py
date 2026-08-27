@@ -26,6 +26,7 @@ class HarppWakeTest(unittest.TestCase):
         base = Path(self.tmp.name)
         harpp_wake.CONFIG_DIR = base
         harpp_wake.LOCK_FILE = base / "wake.lock"
+        harpp_wake.QUICK_LOCK_FILE = base / "wake-quick.lock"
         harpp_wake.PROCESSED_FILE = base / "wake-processed.json"
         harpp_wake.WAKE_LOG = base / "wake.log"
         harpp_wake.JOBS_FILE = base / "jobs.json"
@@ -65,6 +66,47 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(items[0]["body"], "updated")
         self.assertTrue(self._wake())
         self.assertEqual(harpp_wake.read_state()["messages"].count(1), 1)
+
+    def test_is_simple_message_classification(self):
+        self.assertTrue(harpp_wake._is_simple_message("hi"))
+        self.assertTrue(harpp_wake._is_simple_message("what does HARPP do?"))
+        self.assertTrue(harpp_wake._is_simple_message("thanks"))
+        self.assertFalse(harpp_wake._is_simple_message("use gpt sol to fix the login"))
+        self.assertFalse(harpp_wake._is_simple_message("implement the workflow"))
+        self.assertFalse(harpp_wake._is_simple_message("check the error in the code"))
+        self.assertFalse(harpp_wake._is_simple_message(""))
+
+    def test_maybe_wake_quick_reply_path(self):
+        # Real mode (command=None): a simple message is answered by the fast tier,
+        # not the agent, and is marked processed.
+        calls = []
+        original = harpp_wake._quick_reply
+        harpp_wake._quick_reply = lambda item: (calls.append(item["id"]) or True)
+        try:
+            ok = harpp_wake.maybe_wake(
+                str(self.inbox), enabled=True, command=None,
+                cooldown=0, max_per_hour=0, timeout=30)
+        finally:
+            harpp_wake._quick_reply = original
+        self.assertTrue(ok)
+        self.assertEqual(calls, [1])
+        self.assertIn(1, harpp_wake.read_state()["messages"])
+
+    def test_maybe_wake_quick_reply_falls_back_to_agent(self):
+        # If the fast-tier reply fails, the simple item falls through to the agent.
+        original_quick = harpp_wake._quick_reply
+        original_spawn = harpp_wake.spawn_agent
+        harpp_wake._quick_reply = lambda item: False
+        harpp_wake.spawn_agent = lambda *a, **k: (True, None)
+        try:
+            ok = harpp_wake.maybe_wake(
+                str(self.inbox), enabled=True, command=None,
+                cooldown=0, max_per_hour=0, timeout=30)
+        finally:
+            harpp_wake._quick_reply = original_quick
+            harpp_wake.spawn_agent = original_spawn
+        self.assertTrue(ok)
+        self.assertIn(1, harpp_wake.read_state()["messages"])
 
     def test_cooldown_skips(self):
         state = harpp_wake.read_state()

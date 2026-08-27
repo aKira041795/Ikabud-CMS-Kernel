@@ -25,6 +25,7 @@ import signal
 import subprocess
 import threading
 import time
+import urllib.request
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -112,6 +113,13 @@ def pick_model(items, default: str) -> str:
             return chosen
     return default
 DEFAULT_MAX_RETRIES = 3
+
+# Fast tier: simple conversational messages get a direct, tool-free reply (a single
+# completion, no agent loop, no single-flight lock) so plain Q&A is answered in
+# seconds while heavy coding runs through the agent with its own bound.
+QUICK_REPLY_MODEL = "deepseek/deepseek-v4-flash"
+QUICK_REPLY_TIMEOUT = 60
+QUICK_LOCK_FILE = CONFIG_DIR / "wake-quick.lock"
 _LOCK_TOKEN = None
 
 
@@ -2664,6 +2672,123 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
     return finish(True, None)
 
 
+_QUICK_API_KEY: str | None = None
+
+
+def _quick_api_key() -> str:
+    """DeepSeek API key resolved once via `pi auth` (never logged)."""
+    global _QUICK_API_KEY
+    if _QUICK_API_KEY:
+        return _QUICK_API_KEY
+    out = subprocess.run(
+        ["pi", "auth", "print-api-key", "--provider", "deepseek"],
+        capture_output=True, text=True, timeout=15)
+    key = out.stdout.strip()
+    if not key:
+        raise RuntimeError("deepseek API key unavailable")
+    _QUICK_API_KEY = key
+    return key
+
+
+def _quick_completion(prompt: str, *, max_tokens: int = 200, timeout: int = QUICK_REPLY_TIMEOUT) -> str:
+    """One-shot, tool-free completion for simple replies (no agent loop, no lock)."""
+    body = json.dumps({
+        "model": QUICK_REPLY_MODEL.split("/")[-1],
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.deepseek.com/chat/completions", data=body,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + _quick_api_key()})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+    return str(content).strip()
+
+
+# Conservative: any of these makes the message "work" (agent tier). Only short,
+# clearly conversational messages take the fast tier — a misclassification toward
+# the agent is safe; toward the fast tier would skip real work.
+_QUICK_EXCLUSIONS = (
+    "implement", "build", "create", "write ", "edit", "fix", "refactor", "debug",
+    "test", "run ", "deploy", "workflow", "architect", "review", "release", "commit",
+    "push", "migrat", "repair", "analy", "investigat", "troubleshoot", "set up",
+    "install", "error", "crash", "code", "function", "class", "file", "repo", "branch",
+    "add ", "change ", "update ", "make ", "remove ", "delete ", "configure",
+    "check", "verify", "lint", "compile", "script", "sql", "migration", "schema",
+)
+
+
+def _is_simple_message(text: str) -> bool:
+    """True only for short, conversational messages with no work/code keywords."""
+    t = str(text or "").strip()
+    if not t or len(t) > 220:
+        return False
+    low = t.lower()
+    return not any(kw in low for kw in _QUICK_EXCLUSIONS)
+
+
+def _quick_reply(item: dict) -> bool:
+    """Generate a short reply with a direct completion and send it via the bridge
+    under the same idempotency key the agent would use, so a reply is never doubled."""
+    conv = item.get("conversation_id")
+    if not conv:
+        return False
+    prompt = (
+        "You are the HARPP assistant replying to the owner in a messenger conversation.\n"
+        "Answer the owner's message conversationally in 1-3 short sentences.\n"
+        "Do NOT use any tools, do NOT read files, do NOT edit code, do NOT call any bridge.\n"
+        "Reply with only the message text.\n\n"
+        f"Owner message:\n{str(item.get('body', ''))[:1000]}"
+    )
+    text = _quick_completion(prompt)
+    if not text:
+        return False
+    r = harpp_client.harpp_notify(
+        conversation_id=int(conv), message_type="INFO",
+        idempotency_key=f"wake-message-{int(item.get('id', 0))}",
+        body=text[:3000])
+    return bool(r.get("ok"))
+
+
+_QUICK_LOCK_FD: int | None = None
+
+
+def _acquire_quick_lock() -> bool:
+    """Non-blocking flock for the fast tier so simple replies are never serialized
+    behind the heavy agent's single-flight lock. Released by the OS on crash."""
+    global _QUICK_LOCK_FD
+    try:
+        QUICK_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(QUICK_LOCK_FILE, os.O_CREAT | os.O_RDWR, 0o600)
+    except OSError:
+        _QUICK_LOCK_FD = None
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _QUICK_LOCK_FD = fd
+        return True
+    except OSError:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        _QUICK_LOCK_FD = None
+        return False
+
+
+def _release_quick_lock() -> None:
+    global _QUICK_LOCK_FD
+    if _QUICK_LOCK_FD is not None:
+        try:
+            fcntl.flock(_QUICK_LOCK_FD, fcntl.LOCK_UN)
+            os.close(_QUICK_LOCK_FD)
+        except OSError:
+            pass
+        _QUICK_LOCK_FD = None
+
+
 def _temporary_model_batches(items: list, default_model: str) -> list[tuple[str, list]]:
     """Group pending requests by their one-run model without persisting preference."""
     batches: dict[str, list] = {}
@@ -2715,23 +2840,58 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
         if not items:
             return bool(delivered)
         state = read_state()
+    # --- Fast tier: simple conversational messages get a direct, tool-free reply ---
+    # (single-shot completion, no agent loop) so plain Q&A is answered in seconds
+    # instead of waiting behind a heavy agent run or its single-flight lock. Uses a
+    # separate quick lock so it never blocks on (or is blocked by) the agent lock.
+    # Only active in real mode (command is None) — injected/custom commands and the
+    # hermetic test suite stay on the agent path. Failures fall through to the agent.
+    quick_items = [r for r in items if command is None and _is_simple_message(r.get("body"))]
+    quick_done = False
+    if quick_items and _acquire_quick_lock():
+        try:
+            pending = {int(x.get("id", 0)) for x in unprocessed_items(inbox)}
+            for r in quick_items:
+                rid = int(r.get("id", 0))
+                if rid not in pending:
+                    continue
+                try:
+                    if _quick_reply(r):
+                        mark_processed([r])
+                        quick_done = True
+                        log(f"quick reply sent for message {rid}")
+                    else:
+                        log(f"quick reply could not be delivered for message {rid}; deferring to agent")
+                except Exception as e:  # noqa: BLE001
+                    log(f"quick reply failed for message {rid}: {e}; deferring to agent")
+        finally:
+            _release_quick_lock()
+
+    # Heavy tier: everything still unprocessed (work requests + any simple item whose
+    # quick reply failed) goes through the bounded single-flight agent.
+    items = unprocessed_items(inbox)
+    if not items:
+        return quick_done
+    state = read_state()
+    work = items
+
     attempted = set(state.get("last_attempt_messages", []))
-    has_new_item = bool(attempted) and any(int(r.get("id", 0)) not in attempted for r in items)
+    has_new_item = bool(attempted) and any(int(r.get("id", 0)) not in attempted for r in work)
     if in_cooldown(state, cooldown) and not has_new_item:
-        log(f"cooldown skip ({cooldown}s); {len(items)} item(s) remain staged")
-        return False
+        log(f"cooldown skip ({cooldown}s); {len(work)} work item(s) remain staged")
+        return quick_done
     if over_hourly_limit(state, max_per_hour):
-        log(f"max-per-hour ({max_per_hour}) reached; {len(items)} item(s) remain staged")
-        return False
+        log(f"max-per-hour ({max_per_hour}) reached; {len(work)} work item(s) remain staged")
+        return quick_done
     if not acquire_lock(timeout):
-        log(f"single-flight lock held; {len(items)} item(s) remain staged")
-        return False
+        log(f"single-flight lock held; {len(work)} work item(s) remain staged")
+        return quick_done
     try:
         # Count every invocation, including failures, so retries remain rate-bounded.
-        record_attempt(items)
+        record_attempt(work)
         all_ok = True
         successful = 0
-        for chosen, batch in _temporary_model_batches(items, model):
+        for chosen, batch in _temporary_model_batches(work, model):
             prompt = task_prompt(inbox, batch, workspace=workspace)
             chain = []
             for candidate in (chosen, model, *MODEL_FALLBACK_ORDER):
@@ -2769,9 +2929,9 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                 record_failure(batch)
                 all_ok = False
                 log(f"wake agent failed for {len(batch)} request(s); items remain staged for bounded retry")
-        return all_ok and successful == len(items)
+        return all_ok and successful == len(work)
     except Exception as e:  # noqa: BLE001
-        record_failure(items)
+        record_failure(work)
         log(f"wake failed gracefully: {e}; items remain staged for bounded retry")
         return False
     finally:
