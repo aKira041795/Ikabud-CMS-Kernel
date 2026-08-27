@@ -33,6 +33,7 @@ final class HarppNotificationService
         $ownsTransaction = !$this->db()->inTransaction();
         try {
             if ($ownsTransaction) $this->db()->beginTransaction();
+            $payload = $this->presentablePayload($type, $payload, $decisionId, $conversationId, $messageId);
             $payloadJson=json_encode($this->canonical($payload),JSON_THROW_ON_ERROR);$dedup=hash('sha256',json_encode(['user_id'=>$userId,'type'=>$type,'decision_id'=>$decisionId,'conversation_id'=>$conversationId,'message_id'=>$messageId,'payload'=>$this->canonical($payload)],JSON_THROW_ON_ERROR));
             $stmt = $this->db()->prepare('INSERT IGNORE INTO harpp_notifications (user_id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, dedup_key, created_at) VALUES (:user, :decision, :conversation, :message, :type, \'push\', \'pending\', :payload, :dedup, NOW())');
             $stmt->execute([':user' => $userId, ':decision' => $decisionId, ':conversation' => $conversationId, ':message' => $messageId, ':type' => $type, ':payload' => $payloadJson, ':dedup'=>$dedup]);$created=$stmt->rowCount()===1;
@@ -150,6 +151,45 @@ final class HarppNotificationService
     private function canonical(array $value): array
     {
         if(!array_is_list($value))ksort($value);foreach($value as$key=>$child)if(is_array($child))$value[$key]=$this->canonical($child);return$value;
+    }
+
+    /** Add a concise subject and preview for the service worker's visible notification. */
+    private function presentablePayload(string $type, array $payload, ?int $decisionId, ?int $conversationId, ?int $messageId): array
+    {
+        if ($type === 'decision' && $decisionId !== null && trim((string)($payload['title'] ?? '')) === '') {
+            $stmt = $this->db()->prepare('SELECT title FROM harpp_decisions WHERE id = :id');
+            $stmt->execute([':id' => $decisionId]);
+            $payload['title'] = trim((string)($stmt->fetchColumn() ?: 'Decision requires review'));
+        }
+        if ($type === 'message' && $conversationId !== null) {
+            $stmt = $this->db()->prepare('SELECT title FROM harpp_conversations WHERE id = :id');
+            $stmt->execute([':id' => $conversationId]);
+            $subject = trim((string)($stmt->fetchColumn() ?: 'HARPP message'));
+            $payload['title'] = $subject;
+            if ($messageId !== null && trim((string)($payload['body'] ?? '')) === '') {
+                $message = $this->db()->prepare('SELECT body FROM harpp_messages WHERE id = :id AND conversation_id = :conversation');
+                $message->execute([':id' => $messageId, ':conversation' => $conversationId]);
+                $payload['body'] = $this->preview((string)($message->fetchColumn() ?: 'Open HARPP to read the message.'));
+            }
+        }
+        if ($type === 'system') {
+            $status = strtolower(trim((string)($payload['status'] ?? '')));
+            $payload['title'] ??= match (true) {
+                str_contains($status, 'block'), str_contains($status, 'fail'), str_contains($status, 'decision') => 'HARPP — Action required',
+                str_contains($status, 'done'), str_contains($status, 'complete'), str_contains($status, 'pass') => 'HARPP — Work complete',
+                default => 'HARPP — Update',
+            };
+            if (trim((string)($payload['body'] ?? '')) === '' && trim((string)($payload['message'] ?? '')) !== '') {
+                $payload['body'] = $this->preview((string)$payload['message']);
+            }
+        }
+        return $payload;
+    }
+
+    private function preview(string $value): string
+    {
+        $value = trim((string)preg_replace('/\s+/', ' ', strip_tags($value)));
+        return strlen($value) > 180 ? substr($value, 0, 177) . '...' : $value;
     }
 
     private function typeEnabled(string $type): bool
