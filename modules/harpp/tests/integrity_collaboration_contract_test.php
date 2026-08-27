@@ -52,7 +52,7 @@ $inboxTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/
 
 $assert($manifest['version']==='2.2.0','manifest semver');
 $assert(count($manifest['owns_tables'])===29,'owned-table inventory');
-$assert(end($manifest['migrations'])==='database/migrations/011_harpp_adr_origin.sql','ADR origin migration registration');
+$assert(end($manifest['migrations'])==='database/migrations/012_harpp_perf_read_model.sql','latest migration registration');
 $capabilities=array_column($manifest['capabilities']['exposes'],'id');
 foreach(['harpp.lifecycle.transition@2','harpp.archive@1','harpp.purge.request@1','harpp.purge.approve@1','harpp.audit.read@1','harpp.outbox.dispatch@1','harpp.workspace.read@1','harpp.workspace.manage@1','harpp.project.read@1','harpp.project.manage@1','harpp.participant.manage@1','harpp.message.receipt@1','harpp.decision.assign@1','harpp.decision.approve@1','harpp.notification.preferences@1'] as $capability){$assert(in_array($capability,$capabilities,true),"capability $capability");$assert(str_contains($helpers,"'$capability' =>"),"handler mapping $capability");}
 foreach(['harpp_workspaces','harpp_workspace_memberships','harpp_projects','harpp_conversation_participants','harpp_message_receipts','harpp_decision_policy_snapshots','harpp_approval_delegations','harpp_audit_events','harpp_outbox','harpp_idempotency_keys','harpp_purge_requests'] as $table){$assert(str_contains($migration,"`$table`"),"migration table $table");}

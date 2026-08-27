@@ -47,7 +47,8 @@
         "database/migrations/008_harpp_deploy.sql",
         "database/migrations/009_harpp_deploy_hardening.sql",
         "database/migrations/010_harpp_conversation_soft_delete.sql",
-        "database/migrations/011_harpp_adr_origin.sql"
+        "database/migrations/011_harpp_adr_origin.sql",
+        "database/migrations/012_harpp_perf_read_model.sql"
     ],
     "capabilities": {
         "exposes": [

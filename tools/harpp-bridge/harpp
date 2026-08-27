@@ -178,7 +178,32 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
         except Exception as e:
             print(f"harpp watch: message poll failed: {e}", flush=True)
         try:
-            ds = harpp_client.list_decisions(limit=100).get("data", {}).get("decisions", [])
+            # Keyset-cursor paging (ADR-6): a single uncursored limit=100 fetch
+            # silently drops decisions once the store exceeds a page. Page through
+            # ALL of them (no arbitrary cap -> no silent tail loss). Termination is
+            # deterministic: each page advances the keyset cursor to strictly older
+            # rows, and we stop once everything newer than last_decided is seen.
+            ds = []
+            _cursor_at = None
+            _cursor_id = None
+            while True:
+                page = harpp_client.list_decisions(limit=100, cursor_created_at=_cursor_at, cursor_id=_cursor_id).get("data", {})
+                rows = page.get("decisions", []) or []
+                if not rows:
+                    break
+                ds.extend(rows)
+                if max(int(r.get("id", 0)) for r in rows) <= int(last_decided or 0):
+                    break
+                nxt = page.get("next_cursor") or {}
+                if not nxt.get("created_at"):
+                    break
+                _cursor_at = nxt.get("created_at")
+                _cursor_id = int(nxt.get("id", 0))
+                if _cursor_id >= max(int(r.get("id", 0)) for r in rows):
+                    # Non-advancing cursor (protocol/anomaly): bail loudly so the next
+                    # poll re-scans instead of silently looping.
+                    print("harpp watch: decision paging cursor did not advance; stopping this poll", flush=True)
+                    break
             for d in sorted(ds, key=lambda row: int(row.get("id", 0))):
                 did = int(d.get("id", 0))
                 if d.get("decided_at") and d.get("lifecycle_state") == "DECIDED" and did > last_decided:

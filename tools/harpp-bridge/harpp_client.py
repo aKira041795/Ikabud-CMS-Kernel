@@ -243,7 +243,8 @@ def submit_decision(config=None, **kw):
 def list_decisions(config=None, **kw):
     return api("GET", "/api/v1/harpp/bridge/decisions" + _query(
         {"state": kw.get("state"), "priority": kw.get("priority"),
-         "workbench_state": kw.get("workbench_state"), "limit": kw.get("limit")}), config=config)
+         "workbench_state": kw.get("workbench_state"), "limit": kw.get("limit"),
+         "cursor_created_at": kw.get("cursor_created_at"), "cursor_id": kw.get("cursor_id")}), config=config)
 
 
 def view_decision(decision_id, config=None, rationale="Owner viewed the decision via messenger."):

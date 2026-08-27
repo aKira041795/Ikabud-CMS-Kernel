@@ -35,8 +35,21 @@ final class HarppNotificationService
             if ($ownsTransaction) $this->db()->beginTransaction();
             $payload = $this->presentablePayload($type, $payload, $decisionId, $conversationId, $messageId);
             $payloadJson=json_encode($this->canonical($payload),JSON_THROW_ON_ERROR);$dedup=hash('sha256',json_encode(['user_id'=>$userId,'type'=>$type,'decision_id'=>$decisionId,'conversation_id'=>$conversationId,'message_id'=>$messageId,'payload'=>$this->canonical($payload)],JSON_THROW_ON_ERROR));
-            $stmt = $this->db()->prepare('INSERT IGNORE INTO harpp_notifications (user_id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, dedup_key, created_at) VALUES (:user, :decision, :conversation, :message, :type, \'push\', \'pending\', :payload, :dedup, NOW())');
-            $stmt->execute([':user' => $userId, ':decision' => $decisionId, ':conversation' => $conversationId, ':message' => $messageId, ':type' => $type, ':payload' => $payloadJson, ':dedup'=>$dedup]);$created=$stmt->rowCount()===1;
+            // Write-time visibility stamp (ADR-4): the in-app list/unread scans rely on
+            // this indexed column instead of a per-row correlated EXISTS + JSON_EXTRACT.
+            // Strict parity with the pre-migration rule and migration-012 backfill:
+            // only an explicit false (JSON false or the string "false") hides a row;
+            // other falsy values ("0", "", etc.) stay visible exactly as before.
+            $inAppVisible=1;
+            if (array_key_exists('in_app_visible',$payload)) {
+                $flag = $payload['in_app_visible'];
+                $inAppVisible = ($flag === false || $flag === 'false') ? 0 : 1;
+            } elseif ($type === 'message' && $messageId !== null) {
+                $sender=$this->db()->prepare('SELECT sender_type FROM harpp_messages WHERE id=:id');$sender->execute([':id'=>$messageId]);
+                $inAppVisible = (string)$sender->fetchColumn() === 'user' ? 1 : 0;
+            }
+            $stmt = $this->db()->prepare('INSERT IGNORE INTO harpp_notifications (user_id, decision_id, conversation_id, message_id, notification_type, channel, status, in_app_visible, payload, dedup_key, created_at) VALUES (:user, :decision, :conversation, :message, :type, \'push\', \'pending\', :in_app_visible, :payload, :dedup, NOW())');
+            $stmt->execute([':user' => $userId, ':decision' => $decisionId, ':conversation' => $conversationId, ':message' => $messageId, ':type' => $type, ':in_app_visible'=>$inAppVisible, ':payload' => $payloadJson, ':dedup'=>$dedup]);$created=$stmt->rowCount()===1;
             if($created){$id=(int)$this->db()->lastInsertId();}else{$existing=$this->db()->prepare('SELECT id FROM harpp_notifications WHERE dedup_key=:dedup LIMIT 1');$existing->execute([':dedup'=>$dedup]);$id=(int)$existing->fetchColumn();if($id<=0)throw new \RuntimeException('Notification dedup replay could not be resolved.');}
             $after=['status'=>'pending','type'=>$type,'channel'=>'push','decision_id'=>$decisionId,'conversation_id'=>$conversationId,'message_id'=>$messageId];if($created&&$dispatch)$after['notification_deliveries']=[['id'=>$id,'user_id'=>$userId]];$event = $created?$this->effects('harpp.notification.created', 'notification.created', $id, $userId, null, $after):null;
             if ($ownsTransaction) $this->db()->commit();
@@ -104,7 +117,7 @@ final class HarppNotificationService
         $offset = max(0, (int)($filters['offset'] ?? 0));
         $sql = 'SELECT id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at, sent_at, read_at FROM harpp_notifications WHERE user_id = :user';
         $params = [':user' => (int)$actor['id']];
-        $sql .= " AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.in_app_visible')), 'true') <> 'false' AND NOT (notification_type = 'message' AND message_id IS NOT NULL AND EXISTS (SELECT 1 FROM harpp_messages hm WHERE hm.id = harpp_notifications.message_id AND hm.sender_type IN ('harness', 'system')))";
+        $sql .= " AND in_app_visible = 1";
         $includeRead = array_key_exists('include_read', $filters) && filter_var($filters['include_read'], FILTER_VALIDATE_BOOLEAN);
         $unreadOnly = !$includeRead || (array_key_exists('unread', $filters) && filter_var($filters['unread'], FILTER_VALIDATE_BOOLEAN));
         if ($unreadOnly) { $sql .= ' AND read_at IS NULL'; }
@@ -124,7 +137,7 @@ final class HarppNotificationService
     public function unreadCount(array $actor, ?int $tenantId = null)
     {
         if (!$this->access($actor, $tenantId)) { return HarppServiceResult::failure('Forbidden.', 403); }
-        $stmt = $this->db()->prepare("SELECT COUNT(*) FROM harpp_notifications WHERE user_id = :user AND read_at IS NULL AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.in_app_visible')), 'true') <> 'false' AND NOT (notification_type = 'message' AND message_id IS NOT NULL AND EXISTS (SELECT 1 FROM harpp_messages hm WHERE hm.id = harpp_notifications.message_id AND hm.sender_type IN ('harness', 'system')))");
+        $stmt = $this->db()->prepare("SELECT COUNT(*) FROM harpp_notifications WHERE user_id = :user AND read_at IS NULL AND in_app_visible = 1");
         $stmt->execute([':user' => (int)$actor['id']]);
         return HarppServiceResult::success(['unread' => (int)$stmt->fetchColumn()]);
     }
