@@ -59,18 +59,16 @@ final class HarppBridgeService
 
     public function sendMessage(array $actor, array $input, int $tenantId)
     {
-        $messaging = new HarppMessagingService($this->db);
         $conversationId = (int)($input['conversation_id'] ?? 0);
         if ($conversationId <= 0) {
-            $created = $messaging->createConversation($actor, [
-                'title' => $input['title'] ?? 'Harness session',
-                'harness_session_id' => $input['harness_session_id'] ?? '',
-            ], $tenantId);
-            if (empty($created['ok'])) return $created;
-            $conversationId = (int)$created['data']['conversation_id'];
+            // Only the owner can start conversations. Autocreation here flooded the
+            // inbox with useless conversations whenever the bridge sent a message
+            // without a conversation id, so the harness must reply inside an
+            // existing conversation instead of creating one.
+            return HarppServiceResult::failure('A conversation_id is required. Only the owner can start new conversations.', 422, 'conversation_required');
         }
         $input['sender_type'] = 'harness';
-        return $messaging->sendMessage($actor, $conversationId, $input, $tenantId);
+        return (new HarppMessagingService($this->db))->sendMessage($actor, $conversationId, $input, $tenantId);
     }
 
     public function pollMessages(array $actor, array $filters, int $tenantId)

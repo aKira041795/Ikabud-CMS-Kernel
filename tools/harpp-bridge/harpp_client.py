@@ -319,19 +319,19 @@ def autoprocess(records, outcomes=None):
 def send_message(config=None, **kw):
     if not _notify_enabled():
         return {"ok": True, "suppressed": True, "reason": "testing/quiet mode"}
-    import socket
-    body = {"body": _nl(kw.get("body", ""))}
-    if kw.get("conversation_id"):
-        body["conversation_id"] = int(kw["conversation_id"])
+    conversation_id = kw.get("conversation_id")
+    if not conversation_id:
+        # Only the owner can start conversations; the harness must reply within an
+        # existing conversation. Sending without one used to autocreate useless
+        # conversations on the server (now rejected there as well).
+        return {"ok": False,
+                "error": "conversation_id is required; only the owner can start new conversations.",
+                "status": 422, "code": "conversation_required"}
+    body = {"body": _nl(kw.get("body", "")), "conversation_id": int(conversation_id)}
     if kw.get("title"):
         body["title"] = kw["title"]
-    # The bridge auto-creates a conversation only when title + harness_session_id
-    # are both provided; default the session id to the hostname for convenience.
-    session = kw.get("harness_session_id")
-    if not session and not kw.get("conversation_id"):
-        session = socket.gethostname()
-    if session:
-        body["harness_session_id"] = session
+    if kw.get("harness_session_id"):
+        body["harness_session_id"] = kw["harness_session_id"]
     return api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
 
 

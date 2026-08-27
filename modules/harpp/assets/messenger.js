@@ -69,6 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
   async function load(incremental = true) {
     if (!active) return false;
     try {
+      // While backreading, never yank the thread to the bottom: remember whether
+      // the user is near the bottom, and only auto-scroll to follow new messages
+      // when they are (or on a full reload / conversation switch).
+      const nearBottom = messages.scrollTop + messages.clientHeight >= messages.scrollHeight - 80;
       const data = (await Harpp.fetch(`/api/v1/harpp/conversations/${active}/messages?after_id=${incremental ? last : 0}&limit=100`)).data;
       if (!incremental) messages.replaceChildren();
       for (const row of data.messages || []) {
@@ -80,7 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       await Harpp.fetch(`/api/v1/harpp/conversations/${active}/read`, { method: 'POST', body: { through_id: last } });
       title.textContent = `Conversation #${active}`;
-      messages.scrollTop = messages.scrollHeight;
+      if (!incremental || nearBottom) {
+        messages.scrollTop = messages.scrollHeight;
+      }
       return true;
     } catch (e) { escText(status, e.message); return false; }
   }
@@ -161,5 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('new-conversation').onclick = createConversation;
   document.getElementById('new-conversation-plus').onclick = createConversation;
   conversations();
-  setInterval(() => { conversations(); load(); }, 10000);
+  // New messages also arrive via Web Push, so polling is a fallback rather than
+  // the primary delivery path — refresh at a pace that does not interrupt
+  // backreading in the thread.
+  setInterval(() => { conversations(); load(); }, 30000);
 });
