@@ -476,6 +476,30 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.launch_job = original_launch
 
+    def test_start_workflow_applies_temporary_model_without_mutating_input(self):
+        launched = []
+        original_launch = harpp_wake.launch_job
+        stages = [self._stage("implement"), self._stage("review")]
+        stages[0]["model"] = "deepseek/deepseek-v4-pro"
+        stages[1]["model"] = "openai-codex/gpt-5.6-sol"
+        original_models = [stage["model"] for stage in stages]
+        harpp_wake.launch_job = lambda **kw: (launched.append(kw) or ("job-pref", None))
+        try:
+            wid = harpp_wake.start_workflow(
+                title="temporary preference", conversation_id=7, stages=stages,
+                preferred_model="deepseek/deepseek-v4-flash")
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual([stage["model"] for stage in stages], original_models)
+            self.assertEqual(wf["preferred_model"], "deepseek/deepseek-v4-flash")
+            self.assertEqual(wf["model_selection"], "conversation_once")
+            self.assertTrue(all(stage["model"] == "deepseek/deepseek-v4-flash"
+                                for stage in wf["stages"]))
+            self.assertEqual(wf["stages"][0]["configured_model"], "deepseek/deepseek-v4-pro")
+            self.assertEqual(wf["stages"][1]["configured_model"], "openai-codex/gpt-5.6-sol")
+            self.assertEqual(launched[0]["model"], "deepseek/deepseek-v4-flash")
+        finally:
+            harpp_wake.launch_job = original_launch
+
     def test_workflow_requires_valid_args(self):
         with self.assertRaises(ValueError):
             harpp_wake.start_workflow(title="x", conversation_id=7, stages=[])
@@ -700,6 +724,15 @@ class HarppWakeTest(unittest.TestCase):
         c3 = harpp_wake.parse_workflow_command("run the governed loop")
         self.assertEqual(c3[0], "start")
         self.assertEqual(c3[1]["name"], "governed loop")
+        c4 = harpp_wake.parse_workflow_command(
+            "workflow start governed-loop --model gpt-sol --max-repairs 1")
+        self.assertEqual(c4[1]["name"], "governed-loop")
+        self.assertEqual(c4[1]["model"], "openai-codex/gpt-5.6-sol")
+        self.assertEqual(c4[1]["max_repairs"], 1)
+        c5 = harpp_wake.parse_workflow_command("run the governed loop using deepseek flash")
+        self.assertEqual(c5[1]["model"], "deepseek/deepseek-v4-flash")
+        with self.assertRaises(ValueError):
+            harpp_wake.parse_workflow_command("workflow start governed-loop --model mystery")
 
     def test_route_workflow_commands_list_replies_and_marks_processed(self):
         sent, original = self._patch_send()
@@ -722,11 +755,12 @@ class HarppWakeTest(unittest.TestCase):
         try:
             n = harpp_wake.route_workflow_commands([
                 {"kind": "message", "id": 901, "conversation_id": 8, "sender_type": "user",
-                 "body": "workflow start standalone harpp loop"}])
+                 "body": "workflow start standalone harpp loop using gpt sol"}])
             self.assertEqual(n, 1)
             self.assertEqual(len(started), 1)
             self.assertEqual(started[0]["conversation_id"], 8)
             self.assertEqual(started[0]["workspace"], "/var/www/html/harpp")
+            self.assertEqual(started[0]["preferred_model"], "openai-codex/gpt-5.6-sol")
             self.assertEqual(len(sent), 1)
             self.assertIn("Workflow started", sent[0]["body"])
             self.assertIn(901, harpp_wake.read_state()["messages"])
@@ -933,7 +967,9 @@ class HarppWakeTest(unittest.TestCase):
         def fake_spawn(prompt, **kw):
             calls.append(kw.get("model"))
             # Requested model (gpt sol) fails; the configured default (deepseek pro) succeeds.
-            return kw.get("model") == "deepseek/deepseek-v4-pro"
+            if kw.get("model") == "deepseek/deepseek-v4-pro":
+                return (True, None)
+            return (False, "usage_exhausted")
 
         harpp_wake.spawn_agent = fake_spawn
         try:
@@ -954,7 +990,9 @@ class HarppWakeTest(unittest.TestCase):
 
         def fake_spawn(prompt, **kw):
             calls.append(kw.get("model"))
-            return kw.get("model") == "deepseek/deepseek-v4-flash"
+            if kw.get("model") == "deepseek/deepseek-v4-flash":
+                return (True, None)
+            return (False, "usage_exhausted")
 
         harpp_wake.spawn_agent = fake_spawn
         try:
@@ -974,6 +1012,57 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.spawn_agent = original
 
+    def test_wake_does_not_switch_model_for_invalid_result(self):
+        calls = []
+        original = harpp_wake.spawn_agent
+        harpp_wake.spawn_agent = lambda prompt, **kw: (
+            calls.append(kw.get("model")) or (False, "invalid_result"))
+        try:
+            self.inbox.write_text(
+                json.dumps({"kind": "message", "id": 1, "conversation_id": 2,
+                            "body": "use gpt sol"}) + "\n", encoding="utf-8")
+            self.assertFalse(harpp_wake.maybe_wake(
+                str(self.inbox), enabled=True, command="echo dry", cooldown=0,
+                max_per_hour=0, timeout=30, model="deepseek/deepseek-v4-pro"))
+            self.assertEqual(calls, ["openai-codex/gpt-5.6-sol"])
+        finally:
+            harpp_wake.spawn_agent = original
+
+    def test_wake_batches_mixed_conversation_preferences_temporarily(self):
+        calls = []
+        original = harpp_wake.spawn_agent
+
+        def fake_spawn(prompt, **kw):
+            calls.append((kw.get("model"), kw.get("expected_replies")))
+            return (True, None)
+
+        harpp_wake.spawn_agent = fake_spawn
+        try:
+            records = [
+                {"kind": "message", "id": 1, "conversation_id": 2, "body": "use gpt sol for this"},
+                {"kind": "message", "id": 2, "conversation_id": 3, "body": "use flash for this"},
+                {"kind": "message", "id": 3, "conversation_id": 4, "body": "default is fine"},
+            ]
+            self.inbox.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+            self.assertTrue(harpp_wake.maybe_wake(
+                str(self.inbox), enabled=True, command="echo dry", cooldown=0,
+                max_per_hour=0, timeout=30, model="deepseek/deepseek-v4-pro"))
+            self.assertEqual(calls, [
+                ("openai-codex/gpt-5.6-sol", 1),
+                ("deepseek/deepseek-v4-flash", 1),
+                ("deepseek/deepseek-v4-pro", 1),
+            ])
+            self.assertEqual(harpp_wake.read_state()["messages"], [1, 2, 3])
+        finally:
+            harpp_wake.spawn_agent = original
+
+    def test_spawn_agent_classifies_usage_exhaustion_for_fallback(self):
+        ok, reason = harpp_wake.spawn_agent(
+            "prompt", command="echo 'token usage limit exceeded'; exit 1",
+            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "usage_exhausted")
+
     def test_model_exhausted_detects_usage_signals(self):
         logp = Path(self.tmp.name) / "tok.log"
         logp.write_text("request rejected: token usage exhausted\n", encoding="utf-8")
@@ -988,6 +1077,13 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.4")
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "deepseek/deepseek-v4-flash")
         self.assertIsNone(harpp_wake._delegate_stage_model(stage))
+
+    def test_delegate_stage_model_tries_manifest_model_after_temporary_preference(self):
+        stage = {"name": "implement", "model": "deepseek/deepseek-v4-flash",
+                 "configured_model": "deepseek/deepseek-v4-pro"}
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "deepseek/deepseek-v4-pro")
+        self.assertEqual(stage["tried_models"], [
+            "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro"])
 
     def test_task_prompt_contains_items(self):
         harpp_wake.record_local_decision(task="workflow:demo", decision="Keep scope narrow",

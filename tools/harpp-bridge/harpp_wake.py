@@ -66,10 +66,10 @@ OUTPUT_DRAIN_TIMEOUT = 10
 # (e.g. "use gpt sol", "use flash") and the wake router honors it. If the requested
 # model is unavailable / its usage is exhausted, maybe_wake falls back to the default.
 MODEL_ALIASES = {
-    "openai-codex/gpt-5.6-sol": ["gpt sol", "got sol", "codex sol", "openai codex", "sol", "gpt-5.6"],
+    "openai-codex/gpt-5.6-sol": ["openai-codex/gpt-5.6-sol", "gpt 5.6 sol", "gpt-5.6-sol", "gpt-sol", "gpt sol", "got sol", "codex sol", "openai codex", "sol", "gpt-5.6"],
     "openai-codex/gpt-5.4": ["gpt 5.4", "gpt-5.4", "5.4"],
-    "deepseek/deepseek-v4-pro": ["deepseek pro", "v4 pro"],
-    "deepseek/deepseek-v4-flash": ["flash"],
+    "deepseek/deepseek-v4-pro": ["deepseek/deepseek-v4-pro", "deepseek pro", "v4 pro"],
+    "deepseek/deepseek-v4-flash": ["deepseek/deepseek-v4-flash", "deepseek flash", "v4 flash", "flash"],
 }
 # Ordered delegation chain when a model's token/usage/quota/balance is exhausted: the
 # engine retries with the next model in this list instead of burning bounded auto-repair
@@ -90,13 +90,22 @@ ESCALATION_FLAGS = {
 }
 
 
-def pick_model(items, default: str) -> str:
-    """Return the model the owner asked for in the staged message bodies, else the default."""
-    text = " ".join(str(i.get("body") or "") for i in (items or [])).lower()
+def requested_model(text: str | None) -> str | None:
+    """Resolve an explicit owner model preference without changing configuration."""
+    text = str(text or "").lower()
     for model_id, keywords in MODEL_ALIASES.items():
         for kw in keywords:
-            if re.search(r"\b" + re.escape(kw) + r"\b", text):
+            if re.search(r"(?<![\w-])" + re.escape(kw) + r"(?![\w-])", text):
                 return model_id
+    return None
+
+
+def pick_model(items, default: str) -> str:
+    """Return the latest explicit per-request preference, otherwise the default."""
+    for item in reversed(items or []):
+        chosen = requested_model(item.get("body"))
+        if chosen:
+            return chosen
     return default
 DEFAULT_MAX_RETRIES = 3
 _LOCK_TOKEN = None
@@ -950,6 +959,7 @@ def _normalize_stage(stage: dict, index: int) -> dict:
     rec.setdefault("prompt_file", None)
     rec.setdefault("prompt", None)
     rec.setdefault("model", "deepseek/deepseek-v4-pro")
+    rec.setdefault("configured_model", rec.get("model"))
     rec.setdefault("required_authority", _stage_required_authority(rec))
     rec.setdefault("attempt_count", 0)
     if not isinstance(rec.get("attempt_statuses"), list):
@@ -980,6 +990,8 @@ def _normalize_workflow(wf: dict) -> dict:
     rec.setdefault("tool_retries", 0)
     rec.setdefault("network_retries", 0)
     rec.setdefault("model_fallbacks", 0)
+    rec.setdefault("preferred_model", None)
+    rec.setdefault("model_selection", "manifest")
     rec.setdefault("advancing", False)
     rec.setdefault("advancing_ts", 0)
     rec.setdefault("created_at", time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -1195,9 +1207,20 @@ def _job_output_text(job: dict) -> str:
     except Exception:  # noqa: BLE001
         return ""
 
+    return _reassemble_text(raw)
+
+
+def _reassemble_text(raw: str) -> str:
+    """Reassemble Pi JSONL assistant text_delta events into one contiguous string.
+
+    Markers like `HARPP_WAKE_RESULT replies_sent=N` can be split across multiple
+    text-delta events; scanning the raw JSONL would miss them, the wake agent would
+    be treated as failed and re-run, and its reply would be duplicated (the flooding
+    the owner saw). Falls back to the raw text for plain-text / older outputs.
+    """
     parts = []
     parsed_event = False
-    for line in raw.splitlines():
+    for line in str(raw or "").splitlines():
         try:
             event = json.loads(line)
         except (json.JSONDecodeError, TypeError):
@@ -1210,7 +1233,7 @@ def _job_output_text(job: dict) -> str:
                 and isinstance(assistant_event, dict)
                 and assistant_event.get("type") == "text_delta"):
             parts.append(str(assistant_event.get("delta") or ""))
-    return "".join(parts) if parsed_event and parts else raw
+    return "".join(parts) if parsed_event and parts else str(raw or "")
 
 
 def _marker_found(job: dict) -> bool:
@@ -1530,6 +1553,10 @@ def resume_workflow(wid: str) -> dict | None:
         "state": wf.get("state"),
         "blocked_reason": wf.get("blocked_reason"),
         "current_stage": stage.get("name") if stage else None,
+        "current_model": stage.get("model") if stage else None,
+        "preferred_model": wf.get("preferred_model"),
+        "model_selection": wf.get("model_selection"),
+        "model_fallbacks": int(wf.get("model_fallbacks", 0)),
         "current_index": int(wf.get("current_index", 0)),
         "job_id": stage.get("job_id") if stage else None,
         "repair_count": int(wf.get("repair_count", 0)),
@@ -1825,7 +1852,8 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
                   max_network_retries: int | None = None,
                   contract_revision: int = 0,
                   authority_level: str | None = None,
-                  authority_policy: dict | None = None) -> str:
+                  authority_policy: dict | None = None,
+                  preferred_model: str | None = None) -> str:
     """Register a multi-stage workflow and launch its first stage. Returns workflow id.
 
     max_repairs bounds the auto-repair loop (review FAIL -> re-run implement -> review)
@@ -1834,6 +1862,8 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
     """
     if not str(title).strip() or int(conversation_id) < 1 or not stages:
         raise ValueError("title, conversation_id and at least one stage are required")
+    if preferred_model is not None and preferred_model not in MODEL_ALIASES:
+        raise ValueError(f"unsupported temporary model preference: {preferred_model}")
     wid = uuid.uuid4().hex[:12]
     budgets = _workflow_budget_defaults(max_repairs)
     if max_total_cycles is not None:
@@ -1844,13 +1874,21 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
         budgets["max_tool_retries"] = max(0, int(max_tool_retries))
     if max_network_retries is not None:
         budgets["max_network_retries"] = max(0, int(max_network_retries))
+    stage_records = [dict(s) for s in stages]
+    if preferred_model:
+        for stage in stage_records:
+            stage["configured_model"] = stage.get("model") or DEFAULT_MODEL
+            stage["model"] = preferred_model
+            stage["tried_models"] = []
     wf = _normalize_workflow({
         "id": wid, "title": str(title).strip(), "conversation_id": int(conversation_id),
         "workspace": workspace or default_workspace(),
-        "stages": [dict(s) for s in stages],
+        "stages": stage_records,
         "current_index": 0, "status": "running",
         "repair_count": 0, "total_cycles": 0, "browser_repairs": 0,
         "tool_retries": 0, "network_retries": 0, "model_fallbacks": 0,
+        "preferred_model": preferred_model,
+        "model_selection": "conversation_once" if preferred_model else "manifest",
         "advancing": False, "advancing_ts": 0,
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1973,7 +2011,11 @@ def _delegate_stage_model(stage: dict) -> str | None:
     current = str(stage.get("model") or "")
     if current and current not in tried:
         tried.append(current)
-    for model in MODEL_FALLBACK_ORDER:
+    candidates = [stage.get("configured_model"), *MODEL_FALLBACK_ORDER]
+    for model in candidates:
+        model = str(model or "")
+        if not model:
+            continue
         if model not in tried:
             tried.append(model)
             stage["tried_models"] = tried
@@ -2204,6 +2246,20 @@ def _workflow_manifest_path(name: str) -> Path:
     return Path(__file__).resolve().parent / "workflows" / name
 
 
+def _strip_temporary_model_preference(value: str, model: str | None) -> str:
+    """Remove routing words from a workflow name without persisting the choice."""
+    value = re.sub(r"--model\s+\S+", "", value, flags=re.IGNORECASE)
+    if not model:
+        return " ".join(value.split())
+    aliases = sorted({model, *MODEL_ALIASES.get(model, [])}, key=len, reverse=True)
+    for alias in aliases:
+        token = r"(?<![\w-])" + re.escape(alias) + r"(?![\w-])"
+        value = re.sub(r"(?:use|using|with|via|run\s+with)\s+(?:model\s+)?" + token,
+                       "", value, flags=re.IGNORECASE)
+        value = re.sub(token + r"\s*$", "", value, flags=re.IGNORECASE)
+    return " ".join(value.split())
+
+
 def parse_workflow_command(body) -> tuple | None:
     """Parse an owner message into a workflow command: ('list'|'show'|'start', args)."""
     if not body or not isinstance(body, str):
@@ -2218,23 +2274,33 @@ def parse_workflow_command(body) -> tuple | None:
     if m:
         rest = m.group(1).strip()
         args = {}
+        preferred = requested_model(body)
+        if re.search(r"--model\s+\S+", rest) and not preferred:
+            raise ValueError("unknown --model preference; use a supported provider/model or alias")
+        if preferred:
+            args["model"] = preferred
         ws = re.search(r"--workspace\s+(\S+)", rest)
         if ws:
             args["workspace"] = ws.group(1)
-        ti = re.search(r"--title\s+(.+)", rest)
+        ti = re.search(r"--title\s+(.+?)(?=\s+--(?:workspace|max-repairs|model)\b|$)", rest)
         if ti:
             args["title"] = ti.group(1).strip()
         mr = re.search(r"--max-repairs\s+(\d+)", rest)
         if mr:
             args["max_repairs"] = int(mr.group(1))
         rest = re.sub(r"--workspace\s+\S+", "", rest)
-        rest = re.sub(r"--title\s+.+", "", rest)
+        rest = re.sub(r"--title\s+(.+?)(?=\s+--(?:workspace|max-repairs|model)\b|$)", "", rest)
         rest = re.sub(r"--max-repairs\s+\d+", "", rest)
+        rest = _strip_temporary_model_preference(rest, preferred)
         args["name"] = " ".join(rest.split()).strip() or "governed-loop"
         return ("start", args)
     for alias in WORKFLOW_COMMANDS:
         if alias in low and any(w in low for w in ("run", "start")):
-            return ("start", {"name": alias})
+            args = {"name": alias}
+            preferred = requested_model(body)
+            if preferred:
+                args["model"] = preferred
+            return ("start", args)
     return None
 
 
@@ -2250,14 +2316,19 @@ def _exec_workflow_command(cmd, conv: int) -> str:
             total = len(w.get("stages", []))
             idx = int(w.get("current_index", 0))
             cur = w.get("stages", [])[idx].get("name", "?") if total else "?"
-            lines.append(f"- {w.get('id')}: {w.get('status')} — stage {idx + 1}/{total} ({cur}) — {w.get('title')}")
+            active_model = w.get("stages", [])[idx].get("model", "?") if total else "?"
+            lines.append(f"- {w.get('id')}: {w.get('status')} — stage {idx + 1}/{total} "
+                         f"({cur}, {active_model}) — {w.get('title')}")
         return "\n".join(lines)
     if kind == "show":
         w = get_workflow(cmd[1]["id"])
         if not w:
             return f"❓ Workflow {cmd[1]['id']} not found."
+        preference = w.get("preferred_model") or "manifest defaults"
         return (f"🔍 Workflow {w['id']}: {w.get('title')}\nstatus: {w.get('status')}\n"
-                + "\n".join(f"- {i + 1}. {s.get('name')} [{s.get('status')}] job {s.get('job_id')}"
+                f"model preference: {preference} ({w.get('model_selection', 'manifest')})\n"
+                + "\n".join(f"- {i + 1}. {s.get('name')} [{s.get('status')}] "
+                            f"model {s.get('model')} job {s.get('job_id')}"
                             for i, s in enumerate(w.get('stages', []))))
     if kind == "start":
         args = cmd[1]
@@ -2275,6 +2346,8 @@ def _exec_workflow_command(cmd, conv: int) -> str:
         stages = manifest.get("stages") if isinstance(manifest, dict) else None
         if not isinstance(stages, list) or not stages:
             raise RuntimeError("workflow manifest has no stages")
+        stages = [dict(stage) for stage in stages]
+        preferred_model = args.get("model")
         title = args.get("title") or (manifest.get("title") if isinstance(manifest, dict) else "") or name
         ws = args.get("workspace") or default_ws or default_workspace()
         max_repairs = args.get("max_repairs")
@@ -2283,10 +2356,12 @@ def _exec_workflow_command(cmd, conv: int) -> str:
         if max_repairs is None:
             max_repairs = 2
         wid = start_workflow(title=title, conversation_id=conv, stages=stages, workspace=ws,
-                             max_repairs=int(max_repairs))
+                             max_repairs=int(max_repairs), preferred_model=preferred_model)
         names = ", ".join(s.get("name", "?") for s in stages)
         first = stages[0].get("name", "?")
         return (f"🔁 Workflow started: {wid}\ntitle: {title}\nstages ({len(stages)}): {names}\n"
+                f"model: {preferred_model or 'manifest defaults'}"
+                f"{' (temporary for this workflow)' if preferred_model else ''}\n"
                 f"auto-repair: {max_repairs} round(s)\n"
                 f"stage 1 ({first}) launched — each stage result will be auto-reported here.")
     return "❓ Unrecognized workflow command."
@@ -2523,18 +2598,26 @@ def _stream_agent_output(proc, timeout: int, tee):
 
 def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 expected_replies: int | None = None, cwd: str | None = None,
-                open_terminal: bool = False) -> bool:
-    """Run the headless Pi agent once. Returns True on exit 0. Kills on timeout."""
-    if command:
-        cmd = command.replace("{model}", model).replace("{prompt}", prompt)
-        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, start_new_session=True, cwd=cwd)
-    else:
-        proc = subprocess.Popen(
-            ["pi", "--model", model, "--mode", "json", "--print", prompt],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
-            cwd=cwd,
-        )
+                open_terminal: bool = False,
+                return_reason: bool = False) -> bool | tuple[bool, str | None]:
+    """Run Pi once and optionally classify why it failed for safe model fallback."""
+    def finish(ok: bool, reason: str | None = None):
+        return (ok, reason) if return_reason else ok
+
+    try:
+        if command:
+            cmd = command.replace("{model}", model).replace("{prompt}", prompt)
+            proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, start_new_session=True, cwd=cwd)
+        else:
+            proc = subprocess.Popen(
+                ["pi", "--model", model, "--mode", "json", "--print", prompt],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
+                cwd=cwd,
+            )
+    except OSError as exc:
+        log(f"wake agent could not start with {model}: {exc}")
+        return finish(False, "model_unavailable")
     tee = None
     if open_terminal:
         try:
@@ -2553,19 +2636,37 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 pass
     if timed_out:
         log(f"wake agent timed out after {timeout}s; killed")
-        return False
+        return finish(False, "timeout")
     log(f"wake agent exit={proc.returncode} output_tail={out[-200:]!r}")
+    if _model_exhausted({"message": out}):
+        log(f"wake agent model usage exhausted for {model}")
+        return finish(False, "usage_exhausted")
     if proc.returncode == 0 and not out.strip():
         log("wake agent returned empty output; treating run as failed")
-        return False
-    result = re.search(r"HARPP_WAKE_RESULT replies_sent=(\d+)", out)
-    if proc.returncode == 0 and not result:
+        return finish(False, "empty_output")
+    # Reassemble split text-delta events so a marker split across JSONL lines is
+    # still detected; otherwise a delivered reply is treated as failed, the agent
+    # is re-run, and the owner receives duplicate replies.
+    marker_text = _reassemble_text(out)
+    marker_result = re.search(r"HARPP_WAKE_RESULT replies_sent=(\d+)", marker_text)
+    if proc.returncode == 0 and not marker_result:
         log("wake agent output lacked a valid HARPP_WAKE_RESULT marker; treating delivery as failed")
-        return False
-    if proc.returncode == 0 and expected_replies is not None and int(result.group(1)) != expected_replies:
-        log(f"wake agent reported {result.group(1)} replies; expected {expected_replies}; treating delivery as failed")
-        return False
-    return proc.returncode == 0
+        return finish(False, "invalid_result")
+    if proc.returncode == 0 and expected_replies is not None and int(marker_result.group(1)) != expected_replies:
+        log(f"wake agent reported {marker_result.group(1)} replies; expected {expected_replies}; treating delivery as failed")
+        return finish(False, "invalid_result")
+    if proc.returncode != 0:
+        return finish(False, "exit_error")
+    return finish(True, None)
+
+
+def _temporary_model_batches(items: list, default_model: str) -> list[tuple[str, list]]:
+    """Group pending requests by their one-run model without persisting preference."""
+    batches: dict[str, list] = {}
+    for item in items or []:
+        selected = requested_model(item.get("body")) or default_model
+        batches.setdefault(selected, []).append(item)
+    return list(batches.items())
 
 
 def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
@@ -2623,31 +2724,47 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
     try:
         # Count every invocation, including failures, so retries remain rate-bounded.
         record_attempt(items)
-        prompt = task_prompt(inbox, items, workspace=workspace)
-        # Prompt-driven model routing + graceful fallback: try the requested model first,
-        # then the configured default, then every other known model. If a model fails
-        # (incl. token/usage/quota/balance exhaustion) the wake delegates to the next one.
-        chosen = pick_model(items, model)
-        chain = []
-        for candidate in (chosen, model, *MODEL_FALLBACK_ORDER):
-            if candidate and candidate not in chain:
-                chain.append(candidate)
-        ok = False
-        for attempt_model in chain:
-            log(f"spawning wake agent with model {attempt_model}")
-            if spawn_agent(prompt, command=command, model=attempt_model, timeout=timeout,
-                           expected_replies=len(items), cwd=workspace,
-                           open_terminal=open_terminal):
-                ok = True
-                log(f"wake complete with {attempt_model}; processed {len(items)} item(s)")
+        all_ok = True
+        successful = 0
+        for chosen, batch in _temporary_model_batches(items, model):
+            prompt = task_prompt(inbox, batch, workspace=workspace)
+            chain = []
+            for candidate in (chosen, model, *MODEL_FALLBACK_ORDER):
+                if candidate and candidate not in chain:
+                    chain.append(candidate)
+            batch_ok = False
+            explicitly_selected = any(requested_model(item.get("body")) for item in batch)
+            if explicitly_selected:
+                log(f"temporary conversation model preference: {chosen} ({len(batch)} request(s))")
+            for attempt_model in chain:
+                log(f"spawning wake agent with model {attempt_model}")
+                attempt = spawn_agent(
+                    prompt, command=command, model=attempt_model, timeout=timeout,
+                    expected_replies=len(batch), cwd=workspace,
+                    open_terminal=open_terminal, return_reason=True)
+                if isinstance(attempt, tuple):
+                    attempt_ok, failure_kind = attempt
+                else:  # compatibility for injected/custom runners returning a boolean
+                    attempt_ok, failure_kind = bool(attempt), None
+                if attempt_ok:
+                    batch_ok = True
+                    log(f"wake complete with {attempt_model}; processed {len(batch)} item(s)")
+                    break
+                can_delegate = failure_kind in ("usage_exhausted", "model_unavailable")
+                if can_delegate and attempt_model != chain[-1]:
+                    log(f"model {attempt_model} {failure_kind}; temporarily delegating to next model")
+                    continue
+                log(f"model {attempt_model} failed ({failure_kind or 'unclassified'}); "
+                    "not delegating because rerun could duplicate or hide a task failure")
                 break
-            log(f"model {attempt_model} failed; " + ("trying fallback model" if attempt_model != chain[-1] else "giving up this cycle"))
-        if ok:
-            mark_processed(items)
-        else:
-            record_failure(items)
-            log("wake agent failed; items remain staged for bounded retry")
-        return ok
+            if batch_ok:
+                mark_processed(batch)
+                successful += len(batch)
+            else:
+                record_failure(batch)
+                all_ok = False
+                log(f"wake agent failed for {len(batch)} request(s); items remain staged for bounded retry")
+        return all_ok and successful == len(items)
     except Exception as e:  # noqa: BLE001
         record_failure(items)
         log(f"wake failed gracefully: {e}; items remain staged for bounded retry")

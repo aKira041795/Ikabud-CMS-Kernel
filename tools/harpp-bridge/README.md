@@ -220,6 +220,27 @@ reports progress + receipt (`/deploys/{id}/report`). Deploys are recorded in
 
 ## Workflow example
 
+### Temporary model selection
+
+An owner can select a model in a HARPP message for that request only:
+
+```text
+use gpt sol to review this change
+workflow start governed-loop --model gpt-sol --max-repairs 2
+run the governed loop using deepseek flash
+```
+
+Supported aliases resolve to provider-qualified model IDs. The preference is
+stored only on the resulting job/workflow record for observability; it does not
+rewrite a workflow manifest or HARPP configuration. Different pending
+conversations are batched by their own temporary preference.
+
+If the chosen model reports token/usage/quota exhaustion or cannot start, HARPP
+delegates that request or workflow stage to the next untried model. It does not
+switch models for timeouts, malformed completion markers, or ordinary task
+failures because rerunning those can duplicate side effects or hide a real defect.
+Fallback is bounded by the known model list and the workflow cycle budget.
+
 ```
 harness hits a decision point (BLOCKED_DECISION_REQUIRED)
   → harpp_submit_decision(...)      → owner gets Web Push on their phone
