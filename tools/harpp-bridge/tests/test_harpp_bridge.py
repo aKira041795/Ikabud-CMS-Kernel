@@ -6,6 +6,7 @@ Run:  python3 -m unittest tools.harpp-bridge.tests.test_harpp_bridge
 """
 import json
 import os
+import runpy
 import sys
 import subprocess
 import tempfile
@@ -62,6 +63,29 @@ class HarppClientTest(unittest.TestCase):
         self.assertTrue(any(u.endswith("/applied") for u in urls), urls)
         self.assertEqual(notes[0], "message 5 ack ok=True", notes)
         self.assertEqual(notes[1], "decision 9 ack=True apply=True", notes)
+
+    def test_successful_idempotent_message_writes_delivery_receipt(self):
+        original = harpp_client.api
+        harpp_client.api = lambda *args, **kwargs: {"ok": True, "data": {"message_id": 77}}
+        try:
+            result = harpp_client.send_message(
+                body="secret body is not persisted", conversation_id=2,
+                idempotency_key="wake-message-55")
+        finally:
+            harpp_client.api = original
+        self.assertTrue(result["ok"])
+        records = [json.loads(line) for line in harpp_client.delivery_receipts_path().read_text().splitlines()]
+        self.assertEqual(records[-1]["idempotency_key"], "wake-message-55")
+        self.assertEqual(records[-1]["message_id"], 77)
+        self.assertNotIn("body", records[-1])
+
+    def test_emit_reports_failure_instead_of_claiming_staging(self):
+        module = runpy.run_path(str(Path(__file__).resolve().parent.parent / "harpp"))
+        record = {"kind": "message", "id": 8, "conversation_id": 2}
+        inbox = Path(self.tmp.name) / "inbox.jsonl"
+        self.assertTrue(module["_emit"](record, str(inbox)))
+        self.assertEqual(json.loads(inbox.read_text()), record)
+        self.assertFalse(module["_emit"](record, self.tmp.name))
 
     def test_autoprocess_gates_decisions_by_lifecycle(self):
         calls = []

@@ -232,14 +232,18 @@ run the governed loop using deepseek flash
 
 Supported aliases resolve to provider-qualified model IDs. The preference is
 stored only on the resulting job/workflow record for observability; it does not
-rewrite a workflow manifest or HARPP configuration. Different pending
-conversations are batched by their own temporary preference.
+rewrite a workflow manifest or HARPP configuration. Pending requests are batched
+by conversation, workspace hint, and temporary model preference so prompts never
+combine unrelated conversations.
 
 If the chosen model reports token/usage/quota exhaustion or cannot start, HARPP
 delegates that request or workflow stage to the next untried model. It does not
 switch models for timeouts, malformed completion markers, or ordinary task
 failures because rerunning those can duplicate side effects or hide a real defect.
-Fallback is bounded by the known model list and the workflow cycle budget.
+Fallback is bounded by the known model list and the workflow cycle budget. Before
+a wake request changes models, the daemon persists the route and requires an
+owner-visible bridge receipt naming the fallback; if that notice fails, fallback
+execution is blocked.
 
 ```
 harness hits a decision point (BLOCKED_DECISION_REQUIRED)

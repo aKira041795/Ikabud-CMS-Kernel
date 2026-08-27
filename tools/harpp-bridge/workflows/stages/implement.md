@@ -1,7 +1,7 @@
 You are the IMPLEMENT stage of a governed HARPP workflow: {{TITLE}}.
 
 Working directory (workspace): {{WORKSPACE}}
-Architecture contract: {{WORKSPACE}}/ARCHITECTURE.md
+Architecture contract: {{CONTRACT_PATH}}
 Previous stage output: {{PREV_OUTPUT}}
 
 Read the workspace's `AGENTS.md` and repository AI-development directive when

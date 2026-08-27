@@ -14,7 +14,7 @@ Staged owner input (JSONL records), newest appended last:
 
 Inbox file: `{{INBOX}}`
 
-Recent durable owner decisions (DEC-xxxx):
+Durable owner decisions for this staged conversation only (DEC-xxxx):
 
 ```
 {{DECISIONS}}
@@ -25,7 +25,8 @@ Recent durable owner decisions (DEC-xxxx):
 Use the `harpp_*` tools provided by the HARPP extension (preferred), or the `harpp` CLI
 (`harpp` is on PATH; fallback: `python3 tools/harpp-bridge/harpp`).
 
-The watcher stages input silently; it does not emit a useless "Received" message. Provide
+The watcher has already sent one deterministic receipt using `ack-<message_id>`. That receipt
+is not substantive, does not count toward `replies_sent`, and must not be repeated. Provide
 one substantive response per owner message and, where instructed, the actual work.
 
 For each staged record. A reply counts as sent only when the bridge tool/CLI returns a
@@ -34,58 +35,25 @@ successful response; do not claim success merely because a command was attempted
 1. **`kind: message`** — an owner message in a conversation. Provide a substantive,
    concise reply through the bridge using the source message id as the stable delivery key:
    `harpp msg send --conversation-id <id> --idempotency-key wake-message-<message_id> --body ...`.
-   - **Multi-stage pipeline request** (the message asks for a governed loop, e.g.
-     "/architect then the rest of the loop", "run the loop", "workflow", "set <model> to
-     do the architect and then implement/review/release", or any chain of
-     architect→implement→review→release-gate): do NOT attempt the stages yourself and do
-     NOT just acknowledge. Register it as a governed workflow so each stage runs as a
-     tracked, monitored job:
-     ```
-     python3 tools/harpp-bridge/harpp workflow start \
-       --conversation <conversation_id> \
-       --title "<short task title>" \
-       --manifest tools/harpp-bridge/workflows/governed-loop.json \
-       [--workspace <target folder if the owner names one>]
-     ```
-     Then reply that the pipeline is registered (give the workflow id) and will be
-     monitored stage-by-stage, with each stage's result auto-reported.
-   - **Explicit workflow commands are NOT yours to handle** — the watch daemon handles
-     `workflow start/list/status/show` and "run the X loop" messages deterministically
-     (they are marked processed before you run). If you still see one, do NOT start a
-     workflow; just confirm it was handled.
-   - **Debate request** (the message asks to "start a debate", "run a debate", etc.):
-     the watch daemon normally handles these deterministically (launching
-     `tools/pi-arch-debate.py` as a tracked background job and auto-reporting the
-     verdict). If one still reaches you, do NOT run the debate inline (it spawns
-     model subprocesses and can run for many minutes — violates single-pass).
-     Instead launch it as a tracked job and reply with the job id:
-     ```
-     python3 tools/harpp-bridge/harpp job launch \
-       --model arch-debate \
-       --conversation <conversation_id> \
-       --task "Architecture debate: <objective>" \
-       --log .ai/debate/debate-job-$(date +%s).log \
-       --marker "verdict: APPROVED" \
-       --cwd "$(pwd)" \
-       -- "python3 tools/pi-arch-debate.py --quiet [--first codex|deepseek] '<objective>'"
-     ```
-     (Use `DEBATE_MAX_ROUNDS=<N>` prefix or `--first` to honour "max depth N" /
-     "<model> starts".) Then reply that the debate is running and will be
-     auto-reported.
+   - **Workflow and debate requests are deterministic-dispatcher-only.** Never start a
+     workflow, debate, or delegated model subprocess from this wake agent. Such requests
+     should have been claimed before this prompt was built. If one appears here, send one
+     failure response describing the routing fault; do not claim that a job was launched.
    - If the message is an **explicit fix/implement request** (e.g. "fix the responsive
      view", "implement X"), you MAY make the minimal change yourself in the repo, verify
      it (JS: `node --check <file>`; PHP: `php -l <file>`; DiSyL templates: keep the
      `{verbatim}` blocks balanced), then reply reporting exactly what you changed and the
      verification result. Stay strictly scoped to the requested fix.
    - Otherwise reply with the substantive answer/status (1–3 sentences).
-2. **`kind: decision`** — decisions are already auto-acknowledged + auto-applied by the
-   deterministic layer; do NOT re-process them. (If one is present, just note it in your
-   status line.)
+2. **`kind: decision`** — this is invalid wake-agent input. Decisions are consumed exclusively
+   by the deterministic layer. Do not acknowledge, apply, or otherwise mutate one; report a
+   dispatcher fault.
 3. Post a short status: `harpp status --message "wake agent processed N item(s)" --status processing-done --harness-session-id <hostname>`
 
 ## Boundaries (must follow)
 
-- **Reply + ack/apply only.** Do NOT edit code, run tests, git push, install packages, or
+- **Substantive reply only.** Do not acknowledge or apply decisions; those lifecycle actions
+  belong exclusively to the deterministic layer. Do NOT edit code, run tests, git push, install packages, or
   take any other autonomous action beyond the required actions above, unless the owner
   message explicitly instructs otherwise and it is safe.
 - **Single pass.** Do not loop, do not re-read the inbox, do not spawn sub-agents, do not
@@ -99,5 +67,7 @@ successful response; do not claim success merely because a command was attempted
 ## Output
 
 End with exactly one machine-readable result line after your summary:
-`HARPP_WAKE_RESULT replies_sent=<N> items_processed=<N>`
-Use the actual count of successful substantive message deliveries. Then stop.
+`HARPP_WAKE_RESULT replies_sent=<N> items_processed=<N> delivered_ids=<comma-separated source ids>`
+Both counts and `delivered_ids` must describe only source messages whose exact
+`wake-message-<source id>` bridge call returned `ok=true`. Do not count attempts,
+receipts, status posts, suppressed sends, or failed deliveries. Then stop.

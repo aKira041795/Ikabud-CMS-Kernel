@@ -1,7 +1,7 @@
 You are the REVIEW stage of the Standalone HARPP workflow.
 
 Working directory (workspace): {{WORKSPACE}}  (= /var/www/html/harpp)
-Architecture contract: {{WORKSPACE}}/ARCHITECTURE.md
+Architecture contract: {{CONTRACT_PATH}}
 Previous stage output: {{PREV_OUTPUT}}  (the IMPLEMENT stage's result)
 
 Review the implementation against the architecture contract. Assess: scope compliance (public/ + server/ + client/ + tests/ + deploy/ only), contract preservation, security (bridge-key never client-visible; allowlist BFF; token/cookie/CSRF; fail-closed), correctness, test adequacy, and any Kernel/DiSyL/JWT leakage.

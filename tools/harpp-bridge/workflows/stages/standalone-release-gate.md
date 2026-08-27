@@ -1,7 +1,7 @@
 You are the RELEASE-GATE stage of the Standalone HARPP workflow.
 
 Working directory (workspace): {{WORKSPACE}}  (= /var/www/html/harpp)
-Architecture contract: {{WORKSPACE}}/ARCHITECTURE.md
+Architecture contract: {{CONTRACT_PATH}}
 Previous stage output: {{PREV_OUTPUT}}
 
 Run the contract's deterministic release checks against the implementation in /var/www/html/harpp:

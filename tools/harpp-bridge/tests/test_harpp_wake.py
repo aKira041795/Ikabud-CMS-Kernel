@@ -41,7 +41,8 @@ class HarppWakeTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _wake(self, **kw):
-        defaults = dict(command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1'",
+        defaults = dict(command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1 delivered_ids=1'",
+                        verify_delivery_receipts=False,
                         cooldown=0, max_per_hour=0, timeout=30, enabled=True)
         defaults.update(kw)
         return harpp_wake.maybe_wake(str(self.inbox), **defaults)
@@ -228,9 +229,22 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(job["status"], "running")
             self.assertNotIn(job["id"], harpp_wake.jobs_state()["reported"])
             sent = []
-            harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw)
+            harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw) or {"ok": True}
             self.assertEqual(harpp_wake.monitor_jobs(), 1)
             self.assertEqual(len(sent), 1)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+
+    def test_monitor_retries_when_delivery_receipt_is_not_ok(self):
+        harpp_wake.track_job(pid=self._dead_pid(), model="model", task="non-ok",
+                             conversation_id=5, verify="true")
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = lambda **kw: {"ok": False, "error": "rejected"}
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)
+            job = harpp_wake.list_jobs()[0]
+            self.assertEqual(job["status"], "running")
+            self.assertNotIn(job["id"], harpp_wake.jobs_state()["reported"])
         finally:
             harpp_wake.harpp_client.send_message = original
 
@@ -384,7 +398,7 @@ class HarppWakeTest(unittest.TestCase):
         harpp_wake.open_agent_terminal = lambda *a, **k: calls.append(a)
         try:
             ok = harpp_wake.spawn_agent(
-                "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1'",
+            "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1 delivered_ids=1'",
                 model="deepseek/deepseek-v4-pro", timeout=30, expected_replies=1,
                 open_terminal=True)
             self.assertTrue(ok)
@@ -418,7 +432,7 @@ class HarppWakeTest(unittest.TestCase):
         tee_log.write_text("junk" * 4096, encoding="utf-8")  # > capped threshold
         try:
             ok = harpp_wake.spawn_agent(
-                "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1'",
+            "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1 delivered_ids=1'",
                 model="deepseek/deepseek-v4-pro", timeout=30, expected_replies=1,
                 open_terminal=True)
             self.assertTrue(ok)
@@ -451,7 +465,7 @@ class HarppWakeTest(unittest.TestCase):
                 return self.running
 
         proc = subprocess.Popen(
-            ["sh", "-c", "printf 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1\\n'"],
+                ["sh", "-c", "printf 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1 delivered_ids=1\\n'"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             start_new_session=True)
         harpp_wake.threading.Thread = DelayedReader
@@ -819,6 +833,26 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake.start_workflow = original_start
             harpp_wake.harpp_client.send_message = original_send
 
+    def test_route_workflow_retries_delivery_without_reexecuting(self):
+        calls = []
+        original_exec = harpp_wake._exec_workflow_command
+        original_notify = harpp_wake.harpp_client.harpp_notify
+        harpp_wake._exec_workflow_command = lambda cmd, conv: calls.append((cmd, conv)) or "saved result"
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: {"ok": False}
+        record = {"kind": "message", "id": 902, "conversation_id": 8,
+                  "sender_type": "user", "body": "workflow list"}
+        try:
+            self.assertEqual(harpp_wake.route_workflow_commands([record]), 0)
+            self.assertNotIn(902, harpp_wake.read_state()["messages"])
+            self.assertIn("902", harpp_wake.read_state()["routing_results"])
+            harpp_wake.harpp_client.harpp_notify = lambda **kw: {"ok": True}
+            self.assertEqual(harpp_wake.route_workflow_commands([record]), 1)
+            self.assertEqual(len(calls), 1)
+            self.assertIn(902, harpp_wake.read_state()["messages"])
+        finally:
+            harpp_wake._exec_workflow_command = original_exec
+            harpp_wake.harpp_client.harpp_notify = original_notify
+
     def test_missing_log_is_reported_as_failure(self):
         logp = Path(self.tmp.name) / "deleted.log"
         logp.write_text("starting\n")
@@ -885,6 +919,7 @@ class HarppWakeTest(unittest.TestCase):
         def slow_send(**kw):
             time.sleep(0.05)
             sent.append(kw)
+            return {"ok": True}
 
         harpp_wake.harpp_client.send_message = slow_send
         try:
@@ -993,6 +1028,23 @@ class HarppWakeTest(unittest.TestCase):
         self.assertFalse(self._wake(command="echo garbage"))
         self.assertNotIn(1, harpp_wake.read_state()["messages"])
 
+    def test_agent_marker_without_daemon_delivery_receipt_is_rejected(self):
+        old_receipts = os.environ.get("HARPP_DELIVERY_RECEIPTS")
+        os.environ["HARPP_DELIVERY_RECEIPTS"] = str(Path(self.tmp.name) / "receipts.jsonl")
+        original_notify_enabled = harpp_wake.harpp_client._notify_enabled
+        harpp_wake.harpp_client._notify_enabled = lambda: True
+        try:
+            self.assertFalse(harpp_wake.spawn_agent(
+                "prompt",
+                command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1 delivered_ids=1'",
+                model="model", timeout=30, expected_replies=1, expected_source_ids=[1]))
+        finally:
+            harpp_wake.harpp_client._notify_enabled = original_notify_enabled
+            if old_receipts is None:
+                os.environ.pop("HARPP_DELIVERY_RECEIPTS", None)
+            else:
+                os.environ["HARPP_DELIVERY_RECEIPTS"] = old_receipts
+
     def test_decision_skipped_by_wake(self):
         # Decisions are handled instantly by the deterministic autoprocess layer,
         # so the wake agent must NOT re-process them (they are filtered out).
@@ -1011,9 +1063,29 @@ class HarppWakeTest(unittest.TestCase):
         items4 = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "run with flash"}]
         self.assertEqual(harpp_wake.pick_model(items4, "deepseek/deepseek-v4-pro"), "deepseek/deepseek-v4-flash")
 
+    def test_model_batches_never_mix_conversations(self):
+        items = [
+            {"id": 1, "conversation_id": 10, "body": "use gpt sol"},
+            {"id": 2, "conversation_id": 11, "body": "use gpt sol"},
+        ]
+        batches = harpp_wake._temporary_model_batches(items, "deepseek/deepseek-v4-pro")
+        self.assertEqual(len(batches), 2)
+        self.assertEqual([{row["conversation_id"] for row in batch} for _, batch in batches], [{10}, {11}])
+
+    def test_processed_ledger_concurrent_updates_do_not_lose_ids(self):
+        threads = [threading.Thread(
+            target=harpp_wake.mark_processed,
+            args=([{"kind": "message", "id": rid}],)) for rid in range(100, 120)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertTrue(set(range(100, 120)).issubset(set(harpp_wake.read_state()["messages"])))
+
     def test_wake_falls_back_when_requested_model_fails(self):
         calls = []
         original = harpp_wake.spawn_agent
+        original_notify = harpp_wake.harpp_client.harpp_notify
 
         def fake_spawn(prompt, **kw):
             calls.append(kw.get("model"))
@@ -1023,6 +1095,7 @@ class HarppWakeTest(unittest.TestCase):
             return (False, "usage_exhausted")
 
         harpp_wake.spawn_agent = fake_spawn
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: {"ok": True}
         try:
             self.inbox.write_text(
                 json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "use gpt sol"}) + "\n",
@@ -1034,10 +1107,12 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(calls, ["openai-codex/gpt-5.6-sol", "deepseek/deepseek-v4-pro"])
         finally:
             harpp_wake.spawn_agent = original
+            harpp_wake.harpp_client.harpp_notify = original_notify
 
     def test_wake_falls_back_through_all_models_when_default_exhausted(self):
         calls = []
         original = harpp_wake.spawn_agent
+        original_notify = harpp_wake.harpp_client.harpp_notify
 
         def fake_spawn(prompt, **kw):
             calls.append(kw.get("model"))
@@ -1046,6 +1121,7 @@ class HarppWakeTest(unittest.TestCase):
             return (False, "usage_exhausted")
 
         harpp_wake.spawn_agent = fake_spawn
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: {"ok": True}
         try:
             self.inbox.write_text(
                 json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "status please"}) + "\n",
@@ -1062,6 +1138,7 @@ class HarppWakeTest(unittest.TestCase):
             ])
         finally:
             harpp_wake.spawn_agent = original
+            harpp_wake.harpp_client.harpp_notify = original_notify
 
     def test_wake_does_not_switch_model_for_invalid_result(self):
         calls = []
@@ -1137,13 +1214,16 @@ class HarppWakeTest(unittest.TestCase):
             "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro"])
 
     def test_task_prompt_contains_items(self):
-        harpp_wake.record_local_decision(task="workflow:demo", decision="Keep scope narrow",
+        harpp_wake.record_local_decision(task="conversation:2", decision="Keep scope narrow",
                                          constraints=["Never print secrets"], applied_to="stage:implement")
+        harpp_wake.record_local_decision(task="conversation:3", decision="Do not leak this",
+                                         applied_to="stage:implement")
         prompt = harpp_wake.task_prompt(str(self.inbox), [{"kind": "message", "id": 1, "conversation_id": 2}])
         self.assertIn("kind", prompt)
         self.assertIn(str(self.inbox), prompt)
         self.assertIn("DEC-0001", prompt)
         self.assertIn("Keep scope narrow", prompt)
+        self.assertNotIn("Do not leak this", prompt)
 
     def test_run_record_fields_present_on_start_and_job_track(self):
         launched = []

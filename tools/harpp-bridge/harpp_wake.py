@@ -216,8 +216,11 @@ def _load_json(path: Path, default):
 def _save_json(path: Path, obj) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(obj), encoding="utf-8")
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+        with tmp.open("w", encoding="utf-8") as stream:
+            stream.write(json.dumps(obj))
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(tmp, path)
     except Exception as e:  # noqa: BLE001
         try:
@@ -227,7 +230,7 @@ def _save_json(path: Path, obj) -> None:
         print(f"harpp wake: state save failed for {path}: {e}", flush=True)
 
 
-def read_state() -> dict:
+def _normalized_state() -> dict:
     state = _load_json(PROCESSED_FILE, {})
     state.setdefault("messages", [])
     state.setdefault("decisions", [])
@@ -235,7 +238,29 @@ def read_state() -> dict:
     state.setdefault("wake_hour", [])
     state.setdefault("last_attempt_messages", [])
     state.setdefault("failures", {})
+    state.setdefault("routing_claims", {})
+    state.setdefault("routing_results", {})
+    state.setdefault("abandoned", [])
+    state.setdefault("model_routes", [])
     return state
+
+
+@contextmanager
+def _processed_state_lock():
+    """Serialize every processed-ledger read/modify/write transaction."""
+    lock_path = Path(str(PROCESSED_FILE) + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def read_state() -> dict:
+    with _processed_state_lock():
+        return _normalized_state()
 
 
 def decisions_path() -> Path:
@@ -526,8 +551,13 @@ def auto_record_directives(records) -> int:
     return added
 
 
-def recent_decisions_text(limit: int = DECISION_PROMPT_LIMIT) -> str:
-    records = load_decisions()[-max(0, int(limit)):]
+def recent_decisions_text(limit: int = DECISION_PROMPT_LIMIT,
+                          conversation_id: int | None = None) -> str:
+    records = load_decisions()
+    if conversation_id is not None:
+        task = f"conversation:{int(conversation_id)}"
+        records = [record for record in records if str(record.get("task") or "") == task]
+    records = records[-max(0, int(limit)):]
     if not records:
         return "- none"
     lines = []
@@ -543,7 +573,8 @@ def recent_decisions_text(limit: int = DECISION_PROMPT_LIMIT) -> str:
 
 
 def save_state(state: dict) -> None:
-    _save_json(PROCESSED_FILE, state)
+    with _processed_state_lock():
+        _save_json(PROCESSED_FILE, state)
 
 
 def _stale_lock(timeout: int) -> bool:
@@ -654,6 +685,7 @@ def unprocessed_items(inbox: str) -> list:
     except Exception:  # noqa: BLE001
         return []
     messages = set(state.get("messages", []))
+    abandoned = set(state.get("abandoned", []))
     # The watch bridge can append the same durable message more than once (for
     # example after reconnecting). Treat the message id as the inbox identity so
     # one owner request produces one expected reply and one retry increment.
@@ -661,40 +693,130 @@ def unprocessed_items(inbox: str) -> list:
     seen = set()
     for r in reversed(records):
         rid = int(r.get("id", 0))
-        if r.get("kind") == "message" and rid not in messages and rid not in seen:
+        if r.get("kind") == "message" and rid not in messages and rid not in abandoned and rid not in seen:
             seen.add(rid)
             new.append(r)
     return list(reversed(new))
 
 
 def record_attempt(records: list) -> None:
-    state = read_state()
-    now = _now()
-    state["wake_hour"] = [t for t in state.get("wake_hour", []) if t > now - 3600]
-    state["wake_hour"].append(now)
-    state["last_wake"] = now
-    state["last_attempt_messages"] = [int(r.get("id", 0)) for r in records]
-    save_state(state)
+    with _processed_state_lock():
+        state = _normalized_state()
+        now = _now()
+        state["wake_hour"] = [t for t in state.get("wake_hour", []) if t > now - 3600]
+        state["wake_hour"].append(now)
+        state["last_wake"] = now
+        state["last_attempt_messages"] = [int(r.get("id", 0)) for r in records]
+        _save_json(PROCESSED_FILE, state)
 
 
 def mark_processed(records: list) -> None:
-    state = read_state()
-    for r in records or []:
-        rid = int(r.get("id", 0))
-        if r.get("kind") == "message" and rid not in state["messages"]:
-            state["messages"].append(rid)
-        elif r.get("kind") == "decision" and rid not in state["decisions"]:
-            state["decisions"].append(rid)
-        state["failures"].pop(str(rid), None)
-    save_state(state)
+    with _processed_state_lock():
+        state = _normalized_state()
+        for r in records or []:
+            rid = int(r.get("id", 0))
+            if r.get("kind") == "message" and rid not in state["messages"]:
+                state["messages"].append(rid)
+            elif r.get("kind") == "decision" and rid not in state["decisions"]:
+                state["decisions"].append(rid)
+            key = str(rid)
+            state["failures"].pop(key, None)
+            state["routing_claims"].pop(key, None)
+            state["routing_results"].pop(key, None)
+        _save_json(PROCESSED_FILE, state)
 
 
 def record_failure(records: list) -> None:
-    state = read_state()
-    for r in records:
-        key = str(int(r.get("id", 0)))
-        state["failures"][key] = int(state["failures"].get(key, 0)) + 1
-    save_state(state)
+    with _processed_state_lock():
+        state = _normalized_state()
+        for r in records:
+            key = str(int(r.get("id", 0)))
+            state["failures"][key] = int(state["failures"].get(key, 0)) + 1
+        _save_json(PROCESSED_FILE, state)
+
+
+def mark_abandoned(record: dict, reason: str) -> None:
+    """Record a permanent terminal state without mislabelling it delivered."""
+    with _processed_state_lock():
+        state = _normalized_state()
+        rid = int(record.get("id", 0))
+        if rid not in state["abandoned"]:
+            state["abandoned"].append(rid)
+        state["failures"].pop(str(rid), None)
+        state["routing_claims"].pop(str(rid), None)
+        state["routing_results"].pop(str(rid), None)
+        state.setdefault("abandonment_reasons", {})[str(rid)] = str(reason)[:500]
+        _save_json(PROCESSED_FILE, state)
+
+
+def record_model_route(records: list, requested: str, actual: str, reason: str) -> None:
+    with _processed_state_lock():
+        state = _normalized_state()
+        state["model_routes"].append({
+            "source_ids": [int(record.get("id", 0)) for record in records],
+            "conversation_id": int(records[0].get("conversation_id") or 0) if records else 0,
+            "requested": requested,
+            "actual": actual,
+            "reason": reason,
+            "at": _now(),
+        })
+        state["model_routes"] = state["model_routes"][-200:]
+        _save_json(PROCESSED_FILE, state)
+
+
+def announce_model_delegation(records: list, requested: str, actual: str, reason: str) -> bool:
+    """Persist and disclose a model change before running the fallback model."""
+    record_model_route(records, requested, actual, reason)
+    conversations = {int(record.get("conversation_id") or 0) for record in records}
+    if 0 in conversations or len(conversations) != 1:
+        log("model delegation blocked: batch does not have exactly one conversation")
+        return False
+    source_id = int(records[0].get("id", 0))
+    model_key = re.sub(r"[^a-z0-9]+", "-", actual.lower()).strip("-")[-48:]
+    try:
+        response = harpp_client.harpp_notify(
+            conversation_id=next(iter(conversations)), message_type="WARNING",
+            idempotency_key=f"wake-model-fallback-{source_id}-{model_key}",
+            body=(f"⚠️ Requested model {requested} is unavailable ({reason}). "
+                  f"The harness will continue this request with {actual}."))
+        return bool(response.get("ok"))
+    except Exception as exc:  # noqa: BLE001
+        log(f"model delegation notice failed for message {source_id}: {exc}")
+        return False
+
+
+def claim_routing_record(record: dict, route: str) -> tuple[str, str | None]:
+    """Claim one source id for one deterministic router, or resume its saved result."""
+    rid = int(record.get("id", 0))
+    key = str(rid)
+    with _processed_state_lock():
+        state = _normalized_state()
+        if rid in state["messages"] or rid in state["abandoned"]:
+            return "skip", None
+        saved = state["routing_results"].get(key)
+        if saved:
+            return ("deliver", str(saved.get("body") or "")) if saved.get("route") == route else ("skip", None)
+        claim = state["routing_claims"].get(key)
+        if claim and (_now() - int(claim.get("at", 0))) < DEFAULT_TIMEOUT * 2:
+            return "skip", None
+        state["routing_claims"][key] = {"route": route, "at": _now(), "pid": os.getpid()}
+        _save_json(PROCESSED_FILE, state)
+        return "execute", None
+
+
+def store_routing_result(record: dict, route: str, body: str) -> None:
+    with _processed_state_lock():
+        state = _normalized_state()
+        key = str(int(record.get("id", 0)))
+        state["routing_results"][key] = {"route": route, "body": str(body), "at": _now()}
+        _save_json(PROCESSED_FILE, state)
+
+
+def release_routing_claim(record: dict) -> None:
+    with _processed_state_lock():
+        state = _normalized_state()
+        state["routing_claims"].pop(str(int(record.get("id", 0))), None)
+        _save_json(PROCESSED_FILE, state)
 
 
 # ---------------------------------------------------------------------------
@@ -1354,8 +1476,11 @@ def _report_job(job_id: str, job: dict) -> str:
         "next": "workflow monitor will advance automatically — safe to move forward" if ok else "inspect logs / remediate before proceeding",
         "details": details,
     }
-    harpp_client.harpp_notify(conversation_id=int(conv), message_type=message_type,
-                              body=summarize(report))
+    response = harpp_client.harpp_notify(
+        conversation_id=int(conv), message_type=message_type,
+        idempotency_key=f"job-report-{job_id}", body=summarize(report))
+    if not response.get("ok"):
+        raise RuntimeError(f"job report bridge receipt was not ok: {response!r}")
     return status
 
 
@@ -1811,7 +1936,10 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
     if reason:
         raise RuntimeError(reason)
     prompt = _stage_prompt(stage)
-    prompt = (prompt.replace("{{WORKSPACE}}", workflow.get("workspace") or "(no workspace)")
+    workspace_value = workflow.get("workspace") or default_workspace() or os.getcwd()
+    prompt = (prompt.replace("{{WORKSPACE}}", workspace_value)
+                   .replace("{{CONTRACT_PATH}}", workflow.get("contract_path")
+                            or str(Path(workspace_value) / "ARCHITECTURE.md"))
                    .replace("{{TITLE}}", workflow.get("title") or ""))
     if index > 0:
         prev = workflow.get("stages", [])[index - 1]
@@ -1892,9 +2020,15 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
             stage["configured_model"] = stage.get("model") or DEFAULT_MODEL
             stage["model"] = preferred_model
             stage["tried_models"] = []
+    resolved_workspace = workspace or default_workspace() or os.getcwd()
     wf = _normalize_workflow({
         "id": wid, "title": str(title).strip(), "conversation_id": int(conversation_id),
-        "workspace": workspace or default_workspace(),
+        "workspace": resolved_workspace,
+        "contract_path": str(
+            Path(resolved_workspace) / ".ai" / "harpp-workflows" / wid / "ARCHITECTURE.md"
+        ) if str(stage_records[0].get("name") or "").lower() == "architect" else str(
+            Path(resolved_workspace) / "ARCHITECTURE.md"
+        ),
         "stages": stage_records,
         "current_index": 0, "status": "running",
         "repair_count": 0, "total_cycles": 0, "browser_repairs": 0,
@@ -1907,8 +2041,8 @@ def start_workflow(*, title: str, conversation_id: int, stages: list,
         "run_id": _next_run_id(),
         "task_id": _task_id(title),
         "contract_revision": int(contract_revision or 0),
-        "base_sha": _git_sha(workspace or default_workspace()),
-        "current_sha": _git_sha(workspace or default_workspace()),
+        "base_sha": _git_sha(resolved_workspace),
+        "current_sha": _git_sha(resolved_workspace),
         "human_decisions": [],
         **({"authority_level": authority_level} if authority_level is not None else {}),
         **({"authority_policy": authority_policy} if authority_policy is not None else {}),
@@ -2396,21 +2530,35 @@ def route_workflow_commands(records) -> int:
         if not cmd:
             continue
         conv = int(r.get("conversation_id") or 0)
+        action, saved_body = claim_routing_record(r, "workflow")
+        if action == "skip":
+            continue
         try:
-            body = _exec_workflow_command(cmd, conv)
+            body = saved_body if action == "deliver" else _exec_workflow_command(cmd, conv)
+            if action == "execute":
+                store_routing_result(r, "workflow", body)
             if conv:
-                harpp_client.harpp_notify(conversation_id=conv, message_type="INFO", body=body)
+                response = harpp_client.harpp_notify(
+                    conversation_id=conv, message_type="INFO",
+                    idempotency_key=f"wake-message-{int(r.get('id', 0))}", body=body)
+                if not response.get("ok"):
+                    raise RuntimeError(f"workflow reply bridge receipt was not ok: {response!r}")
+            else:
+                raise RuntimeError("workflow command has no conversation_id")
+            mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])
+            handled += 1
             log(f"routed workflow command '{cmd[0]}' for message {r.get('id')}")
         except Exception as e:  # noqa: BLE001
             log(f"workflow command failed for message {r.get('id')}: {e}")
+            if action == "execute" and not read_state()["routing_results"].get(str(int(r.get("id", 0)))):
+                release_routing_claim(r)
             try:
                 if conv:
                     harpp_client.harpp_notify(conversation_id=conv, message_type="WARNING",
+                                              idempotency_key=f"route-warning-{int(r.get('id', 0))}",
                                               body=f"⚠️ Workflow command could not be processed: {e}")
             except Exception:  # noqa: BLE001
                 pass
-        mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])
-        handled += 1
     return handled
 
 
@@ -2511,22 +2659,40 @@ def route_debate_commands(records) -> int:
         cmd = parse_debate_command(r.get("body"))
         if not cmd:
             continue
+        # One exclusive deterministic dispatcher owns a source id. Workflow
+        # syntax wins if a message happens to satisfy both parsers.
+        if parse_workflow_command(r.get("body")):
+            continue
         conv = int(r.get("conversation_id") or 0)
+        action, saved_body = claim_routing_record(r, "debate")
+        if action == "skip":
+            continue
         try:
-            body = _exec_debate_command(cmd, conv)
+            body = saved_body if action == "deliver" else _exec_debate_command(cmd, conv)
+            if action == "execute":
+                store_routing_result(r, "debate", body)
             if conv:
-                harpp_client.harpp_notify(conversation_id=conv, message_type="INFO", body=body)
+                response = harpp_client.harpp_notify(
+                    conversation_id=conv, message_type="INFO",
+                    idempotency_key=f"wake-message-{int(r.get('id', 0))}", body=body)
+                if not response.get("ok"):
+                    raise RuntimeError(f"debate reply bridge receipt was not ok: {response!r}")
+            else:
+                raise RuntimeError("debate command has no conversation_id")
+            mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])
+            handled += 1
             log(f"routed debate command for message {r.get('id')}")
         except Exception as e:  # noqa: BLE001
             log(f"debate command failed for message {r.get('id')}: {e}")
+            if action == "execute" and not read_state()["routing_results"].get(str(int(r.get("id", 0)))):
+                release_routing_claim(r)
             try:
                 if conv:
                     harpp_client.harpp_notify(conversation_id=conv, message_type="WARNING",
+                                              idempotency_key=f"route-warning-{int(r.get('id', 0))}",
                                               body=f"⚠️ Debate request could not be processed: {e}")
             except Exception:  # noqa: BLE001
                 pass
-        mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])
-        handled += 1
     return handled
 
 
@@ -2541,9 +2707,11 @@ def task_prompt(inbox: str, items: list, template: str | None = None, workspace:
             "through the harness bridge. Then EXIT. Do not edit code or run tests unless asked.\n"
         )
     items_json = "\n".join(json.dumps(i, ensure_ascii=False) for i in items)
+    conversations = {int(i.get("conversation_id")) for i in items if i.get("conversation_id")}
+    conversation_id = next(iter(conversations)) if len(conversations) == 1 else None
     return (text.replace("{{INBOX}}", inbox)
                 .replace("{{ITEMS}}", items_json)
-                .replace("{{DECISIONS}}", recent_decisions_text())
+                .replace("{{DECISIONS}}", recent_decisions_text(conversation_id=conversation_id))
                 .replace("{{WORKSPACE}}", workspace or "(no workspace configured)"))
 
 
@@ -2608,14 +2776,43 @@ def _stream_agent_output(proc, timeout: int, tee):
     return "".join(chunks), timed_out
 
 
+def _delivery_receipt_offset() -> int:
+    try:
+        return harpp_client.delivery_receipts_path().stat().st_size
+    except OSError:
+        return 0
+
+
+def _delivery_keys_since(offset: int) -> set[str]:
+    path = harpp_client.delivery_receipts_path()
+    try:
+        with path.open("rb") as stream:
+            if path.stat().st_size >= offset:
+                stream.seek(offset)
+            keys = set()
+            for raw in stream.read().decode("utf-8", "replace").splitlines():
+                try:
+                    record = json.loads(raw)
+                except Exception:  # noqa: BLE001
+                    continue
+                if record.get("idempotency_key"):
+                    keys.add(str(record["idempotency_key"]))
+            return keys
+    except OSError:
+        return set()
+
+
 def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 expected_replies: int | None = None, cwd: str | None = None,
+                expected_source_ids: list[int] | None = None,
+                verify_delivery_receipts: bool = True,
                 open_terminal: bool = False,
                 return_reason: bool = False) -> bool | tuple[bool, str | None]:
     """Run Pi once and optionally classify why it failed for safe model fallback."""
     def finish(ok: bool, reason: str | None = None):
         return (ok, reason) if return_reason else ok
 
+    receipt_offset = _delivery_receipt_offset()
     try:
         if command:
             cmd = command.replace("{model}", model).replace("{prompt}", prompt)
@@ -2660,13 +2857,31 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
     # still detected; otherwise a delivered reply is treated as failed, the agent
     # is re-run, and the owner receives duplicate replies.
     marker_text = _reassemble_text(out)
-    marker_result = re.search(r"HARPP_WAKE_RESULT replies_sent=(\d+)", marker_text)
+    marker_result = re.search(
+        r"HARPP_WAKE_RESULT replies_sent=(\d+) items_processed=(\d+) delivered_ids=([0-9,]*)",
+        marker_text)
     if proc.returncode == 0 and not marker_result:
         log("wake agent output lacked a valid HARPP_WAKE_RESULT marker; treating delivery as failed")
         return finish(False, "invalid_result")
     if proc.returncode == 0 and expected_replies is not None and int(marker_result.group(1)) != expected_replies:
         log(f"wake agent reported {marker_result.group(1)} replies; expected {expected_replies}; treating delivery as failed")
         return finish(False, "invalid_result")
+    if proc.returncode == 0 and expected_replies is not None and int(marker_result.group(2)) != expected_replies:
+        log(f"wake agent reported {marker_result.group(2)} processed items; expected {expected_replies}; treating delivery as failed")
+        return finish(False, "invalid_result")
+    if proc.returncode == 0 and expected_source_ids is not None:
+        delivered_ids = {int(value) for value in marker_result.group(3).split(",") if value}
+        expected_ids = {int(value) for value in expected_source_ids}
+        if delivered_ids != expected_ids:
+            log(f"wake agent reported delivered ids {sorted(delivered_ids)}; expected {sorted(expected_source_ids)}; treating delivery as failed")
+            return finish(False, "invalid_result")
+        if harpp_client._notify_enabled() and verify_delivery_receipts:
+            receipt_keys = _delivery_keys_since(receipt_offset)
+            expected_keys = {f"wake-message-{value}" for value in expected_ids}
+            if not expected_keys.issubset(receipt_keys):
+                missing = sorted(expected_keys - receipt_keys)
+                log(f"wake agent lacked daemon-observed bridge receipts for {missing}; treating delivery as failed")
+                return finish(False, "invalid_result")
     if proc.returncode != 0:
         return finish(False, "exit_error")
     return finish(True, None)
@@ -2815,18 +3030,20 @@ def _release_quick_lock() -> None:
 
 
 def _temporary_model_batches(items: list, default_model: str) -> list[tuple[str, list]]:
-    """Group pending requests by their one-run model without persisting preference."""
-    batches: dict[str, list] = {}
+    """Group requests by conversation, workspace hint, and one-run model."""
+    batches: dict[tuple[int, str, str], list] = {}
     for item in items or []:
         selected = requested_model(item.get("body")) or default_model
-        batches.setdefault(selected, []).append(item)
-    return list(batches.items())
+        key = (int(item.get("conversation_id") or 0), str(item.get("workspace") or ""), selected)
+        batches.setdefault(key, []).append(item)
+    return [(key[2], batch) for key, batch in batches.items()]
 
 
 def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                model: str = DEFAULT_MODEL, cooldown: int = DEFAULT_COOLDOWN,
                max_per_hour: int = DEFAULT_MAX_PER_HOUR, timeout: int = DEFAULT_TIMEOUT,
                max_retries: int = DEFAULT_MAX_RETRIES, workspace: str | None = None,
+               verify_delivery_receipts: bool = True,
                open_terminal: bool = False) -> bool:
     """Attempt one guarded wake for unprocessed inbox items. Returns True if an agent ran."""
     if not enabled:
@@ -2849,18 +3066,21 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                          and int(state["failures"].get(str(r.get("id")), 0)) >= max_retries]
             for r in exhausted:
                 try:
-                    harpp_client.harpp_notify(
+                    response = harpp_client.harpp_notify(
                         conversation_id=int(r["conversation_id"]), message_type="FAILED",
-                        idempotency_key=f"wake-failure-{int(r['id'])}",
+                        idempotency_key=f"wake-message-{int(r['id'])}",
                         body="I’m sorry — the automated worker could not complete this request after multiple attempts. Please retry or ask the harness to handle it interactively.")
-                    delivered.append(r)
-                    log(f"sent bounded-retry failure reply for message {r.get('id')}")
+                    if response.get("ok"):
+                        delivered.append(r)
+                        log(f"sent bounded-retry failure reply for message {r.get('id')}")
+                    else:
+                        log(f"failure reply for message {r.get('id')} returned a non-ok receipt; will retry")
                 except harpp_client.HarppError as e:
                     if e.status == 404:
                         # Conversation is closed/removed — the terminal failure
                         # reply can never be delivered. Treat the message as
                         # abandoned so the daemon stops retrying it forever.
-                        delivered.append(r)
+                        mark_abandoned(r, f"conversation closed/not found: {e}")
                         log(f"message {r.get('id')} abandoned: conversation closed/not found ({e})")
                     else:
                         log(f"failure reply for message {r.get('id')} could not be delivered: {e}")
@@ -2935,11 +3155,13 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
             explicitly_selected = any(requested_model(item.get("body")) for item in batch)
             if explicitly_selected:
                 log(f"temporary conversation model preference: {chosen} ({len(batch)} request(s))")
-            for attempt_model in chain:
+            for model_index, attempt_model in enumerate(chain):
                 log(f"spawning wake agent with model {attempt_model}")
                 attempt = spawn_agent(
                     prompt, command=command, model=attempt_model, timeout=timeout,
                     expected_replies=len(batch), cwd=workspace,
+                    expected_source_ids=[int(item.get("id", 0)) for item in batch],
+                    verify_delivery_receipts=verify_delivery_receipts,
                     open_terminal=open_terminal, return_reason=True)
                 if isinstance(attempt, tuple):
                     attempt_ok, failure_kind = attempt
@@ -2951,6 +3173,11 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                     break
                 can_delegate = failure_kind in ("usage_exhausted", "model_unavailable")
                 if can_delegate and attempt_model != chain[-1]:
+                    next_model = chain[model_index + 1]
+                    if not announce_model_delegation(batch, attempt_model, next_model,
+                                                     failure_kind or "unavailable"):
+                        log("model fallback blocked because the owner-visible delegation receipt failed")
+                        break
                     log(f"model {attempt_model} {failure_kind}; temporarily delegating to next model")
                     continue
                 log(f"model {attempt_model} failed ({failure_kind or 'unclassified'}); "

@@ -15,6 +15,7 @@ Set HARPP_INSECURE=1 only for local dev against self-signed HTTPS.
 import json
 import os
 import ssl
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -83,6 +84,41 @@ class HarppError(RuntimeError):
 def config_path():
     raw = os.environ.get("HARPP_CONFIG", "")
     return Path(raw).expanduser() if raw else DEFAULT_CONFIG_PATH
+
+
+def delivery_receipts_path():
+    raw = os.environ.get("HARPP_DELIVERY_RECEIPTS", "")
+    return Path(raw).expanduser() if raw else config_path().parent / "delivery-receipts.jsonl"
+
+
+def _record_delivery_receipt(response: dict, request: dict) -> None:
+    """Durably record a successful bridge response without storing message bodies."""
+    if not response.get("ok") or response.get("suppressed") or response.get("dry_run"):
+        return
+    key = request.get("idempotency_key")
+    if not key:
+        return
+    record = {
+        "idempotency_key": str(key),
+        "conversation_id": int(request.get("conversation_id") or 0),
+        "recorded_at": int(time.time()),
+    }
+    data = response.get("data")
+    if isinstance(data, dict) and data.get("message_id") is not None:
+        record["message_id"] = data.get("message_id")
+    try:
+        path = delivery_receipts_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, separators=(",", ":")) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except OSError as exc:
+        # A receipt write must never crash the CLI: the message is already
+        # delivered and the server-side idempotency key dedups retries, while the
+        # wake daemon's receipt cross-check independently refuses to mark the
+        # reply delivered when the receipt is absent.
+        print(f"harpp: delivery receipt not persisted: {exc}", flush=True)
 
 
 def governance_config(config=None):
@@ -347,7 +383,9 @@ def send_message(config=None, **kw):
     message_type = str(kw.get("message_type") or "INFO").strip().upper()
     if message_type:
         body["message_type"] = message_type
-    return api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
+    response = api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
+    _record_delivery_receipt(response, body)
+    return response
 
 
 def _prefix_message(message_type, body):

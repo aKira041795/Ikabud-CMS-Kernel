@@ -1,7 +1,7 @@
 You are the IMPLEMENT stage of the Standalone HARPP workflow (remediation pass).
 
 Working directory (workspace): {{WORKSPACE}}  (= /var/www/html/harpp)
-Architecture contract: {{WORKSPACE}}/ARCHITECTURE.md  (already reviewed and accepted — status: READY_FOR_IMPLEMENTATION)
+Architecture contract: {{CONTRACT_PATH}}  (already reviewed and accepted — status: READY_FOR_IMPLEMENTATION)
 Previous stage output: {{PREV_OUTPUT}}
 
 IMPLEMENT the standalone HARPP EXACTLY as the architecture contract specifies. Build, in /var/www/html/harpp:

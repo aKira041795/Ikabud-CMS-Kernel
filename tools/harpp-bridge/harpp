@@ -23,6 +23,7 @@ Commands:
 Set HARPP_DRY_RUN=1 to preview requests without sending.
 """
 import argparse
+import fcntl
 import json
 import os
 import sys
@@ -50,6 +51,10 @@ def _watch_state_path():
     return base / "watch-state.json"
 
 
+def _watch_lock_path():
+    return _watch_state_path().with_name("watch.lock")
+
+
 def _load_watch_state():
     p = _watch_state_path()
     try:
@@ -63,10 +68,15 @@ def _save_watch_state(state):
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_name(f".{p.name}.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(state))
+        with tmp.open("w", encoding="utf-8") as stream:
+            stream.write(json.dumps(state))
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(tmp, p)
+        return True
     except Exception as e:
         print(f"harpp watch: state save failed: {e}", flush=True)
+        return False
 
 
 def _notify(title, body):
@@ -88,9 +98,13 @@ def _emit(record, inbox):
             p.parent.mkdir(parents=True, exist_ok=True)
             with p.open("a", encoding="utf-8") as f:
                 f.write(line + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            return True
         except Exception as e:
-            # Staging failure must not suppress the immediate bridge receipt.
             print(f"harpp watch: inbox append failed: {e}", flush=True)
+            return False
+    return True
 
 
 AUTOPROCESS_MAX_RETRIES = 3
@@ -140,6 +154,15 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
     inbox = inbox or _default_inbox()
     log = log or _default_log()
     workspace = harpp_wake.default_workspace()
+    lock_path = _watch_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    watch_lock = lock_path.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(watch_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        watch_lock.close()
+        print(f"harpp watch: another watcher owns {lock_path}", flush=True)
+        return
     state = _load_watch_state()
     last_msg = int(state.get("last_msg_id", 0))
     last_decided = int(state.get("last_decided_id", 0))
@@ -166,13 +189,17 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             for m in sorted(msgs, key=lambda row: int(row.get("id", 0))):
                 mid = int(m.get("id", 0))
                 if mid > last_msg:
-                    last_msg = mid
                     # Never receipt/re-wake on the harness's own replies.
                     sender = str(m.get("sender_type") or "owner").lower()
                     if sender not in ("owner", "user"):
+                        last_msg = mid
                         continue
                     rec = {"kind": "message", "id": mid, "conversation_id": m.get("conversation_id"), "sender_type": m.get("sender_type"), "body": m.get("body"), "created_at": m.get("created_at")}
-                    _emit(rec, inbox)
+                    if not _emit(rec, inbox):
+                        # Do not advance past an unstaged owner message. It will be
+                        # fetched and durably appended on the next poll.
+                        break
+                    last_msg = mid
                     _notify("HARPP message", str(m.get("body", ""))[:120])
                     emitted.append(rec)
         except Exception as e:
@@ -208,10 +235,11 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
                 did = int(d.get("id", 0))
                 if d.get("decided_at") and d.get("lifecycle_state") == "DECIDED" and did > last_decided:
                     rec = {"kind": "decision", "id": did, "decision_key": d.get("decision_key"), "title": d.get("title"), "decision": d.get("decision"), "rationale": d.get("rationale"), "decided_by": d.get("decided_by"), "lifecycle_state": d.get("lifecycle_state")}
-                    _emit(rec, inbox)
+                    if not _emit(rec, inbox):
+                        break
+                    last_decided = did
                     _notify("HARPP decision", f"#{did} {str(d.get('title', ''))[:120]}")
                     emitted.append(rec)
-                    last_decided = did
         except Exception as e:
             print(f"harpp watch: decision poll failed: {e}", flush=True)
         if autoprocess:
@@ -265,6 +293,7 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
                 threading.Thread(target=harpp_wake.maybe_wake, args=(inbox,),
                                  kwargs=wake_kw, daemon=True).start()
         if once:
+            watch_lock.close()
             return
         time.sleep(max(5, interval))
 
@@ -343,6 +372,9 @@ def cmd_workflow_start(args):
         elif isinstance(manifest, dict) and manifest.get(key) is not None:
             defaults[key] = manifest.get(key)
     try:
+        preferred_model = harpp_wake.requested_model(getattr(args, "model", None))
+        if getattr(args, "model", None) and not preferred_model:
+            raise ValueError("unknown --model preference; use a supported provider/model or alias")
         wid = harpp_wake.start_workflow(title=title, conversation_id=args.conversation,
                                         stages=stages, workspace=args.workspace,
                                         max_repairs=int(defaults["max_repairs"]),
@@ -351,6 +383,7 @@ def cmd_workflow_start(args):
                                         max_tool_retries=int(defaults["max_tool_retries"]),
                                         max_network_retries=int(defaults["max_network_retries"]),
                                         contract_revision=int(getattr(args, "contract_revision", 0) or 0),
+                                        preferred_model=preferred_model,
                                         authority_level=getattr(args, "authority_level", None))
     except ValueError as exc:
         sys.exit(f"harpp workflow start: {exc}")
@@ -524,6 +557,7 @@ def main():
     ws.add_argument("--conversation", type=int, required=True, help="conversation id to report to")
     ws.add_argument("--manifest", required=True, help="JSON manifest with a non-empty 'stages' array")
     ws.add_argument("--workspace", default=None, help="working dir for stages (default: configured workspace)")
+    ws.add_argument("--model", default=None, help="temporary model preference for every workflow stage")
     ws.add_argument("--max-repairs", type=int, default=None,
                     help="bounded auto-repair rounds on stage failure (default from manifest, else 3; 0 disables)")
     ws.add_argument("--max-total-cycles", type=int, default=None)
