@@ -15,6 +15,7 @@ use Harpp\Services\HarppBridgeAuthService;
 use Harpp\Services\HarppBridgeService;
 use Harpp\Services\HarppDeployService;
 use Harpp\Services\HarppFoundationService;
+use Harpp\Services\HarppServiceResult;
 
 require_once __DIR__ . '/helpers.php';
 
@@ -53,8 +54,12 @@ function harppRequireCsrf(): void
  * Drain committed bridge effects before returning. Phase 0 moved push delivery to the
  * outbox, so bridge traffic is also the lightweight dispatcher trigger.
  */
-function harppBridgeRespond(array $result): void
+function harppBridgeRespond(array|HarppServiceResult $result): void
 {
+    // Service methods return HarppServiceResult; normalize to the wire array
+    // before responding so the typed path and the JSON response stay consistent.
+    $result = $result instanceof HarppServiceResult ? $result->toArray() : $result;
+
     // Emit the JSON response first, then drain committed bridge effects with any
     // output discarded. Running the outbox/push dispatch before responding let a
     // slow or noisy delivery delay/corrupt the client response, so the bridge
