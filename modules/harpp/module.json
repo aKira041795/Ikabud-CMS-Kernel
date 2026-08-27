@@ -45,7 +45,8 @@
         "database/migrations/006_harpp_conversation_archive.sql",
         "database/migrations/007_harpp_integrity_collaboration_foundation.sql",
         "database/migrations/008_harpp_deploy.sql",
-        "database/migrations/009_harpp_deploy_hardening.sql"
+        "database/migrations/009_harpp_deploy_hardening.sql",
+        "database/migrations/010_harpp_conversation_soft_delete.sql"
     ],
     "capabilities": {
         "exposes": [

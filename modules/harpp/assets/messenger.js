@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const rows = (await Harpp.fetch('/api/v1/harpp/conversations' + q)).data.conversations || [];
       list.replaceChildren();
       rows.forEach(row => {
+        const rowBox = document.createElement('div');
+        rowBox.className = 'conversation-row';
         const b = document.createElement('button');
         b.className = 'conversation' + (Number(row.id) === active ? ' selected' : '');
         const unread = Number(row.unread || 0);
@@ -29,7 +31,35 @@ document.addEventListener('DOMContentLoaded', () => {
           load(false);
           conversations();
         };
-        list.append(b);
+        rowBox.append(b);
+        if (showArchived) {
+          const del = document.createElement('button');
+          del.className = 'button danger conversation-delete';
+          del.type = 'button';
+          del.textContent = 'Delete';
+          del.onclick = async (e) => {
+            e.stopPropagation();
+            if (!window.confirm('Delete this archived conversation? Its messages, decisions, and history are retained but hidden.')) return;
+            del.disabled = true;
+            try {
+              await Harpp.fetch(`/api/v1/harpp/conversations/${row.id}`, { method: 'DELETE' });
+              if (active === Number(row.id)) {
+                active = 0;
+                last = 0;
+                messages.replaceChildren();
+                title.textContent = 'Select a conversation';
+                history.replaceState(null, '', '/harpp');
+              }
+              await conversations();
+              escText(status, 'Conversation deleted.');
+            } catch (x) {
+              escText(status, x.message);
+              del.disabled = false;
+            }
+          };
+          rowBox.append(del);
+        }
+        list.append(rowBox);
       });
       if (archiveToggle) archiveToggle.textContent = showArchived ? 'Show active' : 'Show archived';
       if (!active && rows.length) { active = Number(rows[0].id); load(false); }

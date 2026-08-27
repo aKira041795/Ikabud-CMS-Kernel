@@ -19,7 +19,7 @@ final class HarppMessagingService
         if (!$this->access($actor, $tenantId)) return HarppServiceResult::failure('Forbidden.', 403);
         $archived = array_key_exists('archived', $filters) && filter_var($filters['archived'], FILTER_VALIDATE_BOOLEAN);
         $includeArchived = array_key_exists('include_archived', $filters) && filter_var($filters['include_archived'], FILTER_VALIDATE_BOOLEAN);
-        $clauses=[];$params=[];$user=(int)$actor['id'];$role=(string)($actor['role']??'');if(!$includeArchived)$clauses[]=$archived?'c.archived_at IS NOT NULL':'c.archived_at IS NULL';if($this->foundation()->enabled('workspace_enforcement')&&$role==='member'){$clauses[]="EXISTS(SELECT 1 FROM harpp_workspace_memberships wm WHERE wm.workspace_id=c.workspace_id AND wm.user_id=:membership_user AND wm.status='active')";$clauses[]="(c.project_id IS NULL OR EXISTS(SELECT 1 FROM harpp_project_memberships pm WHERE pm.project_id=c.project_id AND pm.user_id=:project_user AND pm.status='active'))";$params[':membership_user']=$user;$params[':project_user']=$user;}if($this->foundation()->enabled('participant_visibility')&&$role==='member'){$clauses[]="(c.visibility='workspace' OR c.created_by=:creator_user OR (c.visibility='participants' AND EXISTS(SELECT 1 FROM harpp_conversation_participants cp WHERE cp.conversation_id=c.id AND cp.user_id=:participant_user AND cp.revoked_at IS NULL)) OR (c.visibility='private' AND EXISTS(SELECT 1 FROM harpp_conversation_participants pg WHERE pg.conversation_id=c.id AND pg.user_id=:private_user AND pg.grant_kind='private_grant' AND pg.revoked_at IS NULL)))";$params[':creator_user']=$user;$params[':participant_user']=$user;$params[':private_user']=$user;}elseif($this->foundation()->enabled('participant_visibility')&&$role==='admin'){$clauses[]="(c.visibility<>'private' OR c.created_by=:admin_creator OR EXISTS(SELECT 1 FROM harpp_conversation_participants cp WHERE cp.conversation_id=c.id AND cp.user_id=:admin_grant AND cp.grant_kind='private_grant' AND cp.revoked_at IS NULL))";$params[':admin_creator']=$user;$params[':admin_grant']=$user;}$where=$clauses?' WHERE '.implode(' AND ',$clauses):'';
+        $clauses=[];$params=[];$user=(int)$actor['id'];$role=(string)($actor['role']??'');if(!$includeArchived)$clauses[]=$archived?'c.archived_at IS NOT NULL':'c.archived_at IS NULL';$clauses[]='c.deleted_at IS NULL';if($this->foundation()->enabled('workspace_enforcement')&&$role==='member'){$clauses[]="EXISTS(SELECT 1 FROM harpp_workspace_memberships wm WHERE wm.workspace_id=c.workspace_id AND wm.user_id=:membership_user AND wm.status='active')";$clauses[]="(c.project_id IS NULL OR EXISTS(SELECT 1 FROM harpp_project_memberships pm WHERE pm.project_id=c.project_id AND pm.user_id=:project_user AND pm.status='active'))";$params[':membership_user']=$user;$params[':project_user']=$user;}if($this->foundation()->enabled('participant_visibility')&&$role==='member'){$clauses[]="(c.visibility='workspace' OR c.created_by=:creator_user OR (c.visibility='participants' AND EXISTS(SELECT 1 FROM harpp_conversation_participants cp WHERE cp.conversation_id=c.id AND cp.user_id=:participant_user AND cp.revoked_at IS NULL)) OR (c.visibility='private' AND EXISTS(SELECT 1 FROM harpp_conversation_participants pg WHERE pg.conversation_id=c.id AND pg.user_id=:private_user AND pg.grant_kind='private_grant' AND pg.revoked_at IS NULL)))";$params[':creator_user']=$user;$params[':participant_user']=$user;$params[':private_user']=$user;}elseif($this->foundation()->enabled('participant_visibility')&&$role==='admin'){$clauses[]="(c.visibility<>'private' OR c.created_by=:admin_creator OR EXISTS(SELECT 1 FROM harpp_conversation_participants cp WHERE cp.conversation_id=c.id AND cp.user_id=:admin_grant AND cp.grant_kind='private_grant' AND cp.revoked_at IS NULL))";$params[':admin_creator']=$user;$params[':admin_grant']=$user;}$where=$clauses?' WHERE '.implode(' AND ',$clauses):'';
         if($this->foundation()->enabled('per_user_receipts')){$receiptJoin=' LEFT JOIN harpp_message_receipts mr ON mr.message_id=m.id AND mr.user_id=:receipt_user';$unread='COUNT(CASE WHEN mr.id IS NULL AND (m.sender_user_id IS NULL OR m.sender_user_id<>:sender_user) THEN 1 END)';$params[':receipt_user']=$user;$params[':sender_user']=$user;}else{$receiptJoin='';$unread="COUNT(CASE WHEN m.read_at IS NULL AND m.sender_type<>'user' THEN 1 END)";}
         $stmt=$this->db()->prepare("SELECT c.id,c.workspace_id,c.project_id,c.visibility,c.title,c.harness_session_id,c.status,c.version,c.archived_at,c.created_by,c.created_at,c.updated_at,$unread AS unread FROM harpp_conversations c LEFT JOIN harpp_messages m ON m.conversation_id=c.id$receiptJoin$where GROUP BY c.id,c.workspace_id,c.project_id,c.visibility,c.title,c.harness_session_id,c.status,c.version,c.archived_at,c.created_by,c.created_at,c.updated_at ORDER BY c.updated_at DESC,c.id DESC LIMIT 100");$stmt->execute($params);
         return HarppServiceResult::success(['conversations' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
@@ -120,6 +120,31 @@ final class HarppMessagingService
             if ($this->db()->inTransaction()) $this->db()->rollBack();
             $this->log('conversation archive failed', $e);
             return HarppServiceResult::failure($e instanceof \InvalidArgumentException ? $e->getMessage() : 'Unable to update conversation archive state.', $e instanceof \InvalidArgumentException ? 409 : 500);
+        }
+    }
+
+    public function deleteConversation(array $actor, int $conversationId, ?int $tenantId = null)
+    {
+        if (!$this->access($actor, $tenantId) || $conversationId <= 0) return HarppServiceResult::failure('Forbidden.', 403);
+        if (!in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true)) return HarppServiceResult::failure('Owner or admin access is required.', 403);
+        try {
+            $this->db()->beginTransaction();
+            $c = $this->db()->prepare('SELECT archived_at, deleted_at FROM harpp_conversations WHERE id=:id FOR UPDATE');
+            $c->execute([':id' => $conversationId]);
+            $row = $c->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($row)) throw new \InvalidArgumentException('Conversation not found.');
+            $scope=$this->db()->prepare('SELECT created_by,workspace_id,project_id,visibility FROM harpp_conversations WHERE id=:id');$scope->execute([':id'=>$conversationId]);$conversation=$scope->fetch(PDO::FETCH_ASSOC);if(!is_array($conversation)||!$this->canAccessConversation($conversationId,$conversation,$actor))throw new \InvalidArgumentException('Conversation not found.');
+            if ($row['archived_at'] === null) throw new \InvalidArgumentException('Only archived conversations can be deleted.');
+            if ($row['deleted_at'] !== null) throw new \InvalidArgumentException('Conversation is already deleted.');
+            $s = $this->db()->prepare('UPDATE harpp_conversations SET deleted_at = NOW(), updated_at = NOW() WHERE id = :id');
+            $s->execute([':id' => $conversationId]);
+            $this->audit('conversation.deleted', $actor, ['conversation_id' => $conversationId]);
+            $this->db()->commit();
+            return HarppServiceResult::success(['conversation_id' => $conversationId, 'deleted' => true], 'Conversation deleted; history retained.');
+        } catch (Throwable $e) {
+            if ($this->db()->inTransaction()) $this->db()->rollBack();
+            $this->log('conversation delete failed', $e);
+            return HarppServiceResult::failure($e instanceof \InvalidArgumentException ? $e->getMessage() : 'Unable to delete conversation.', $e instanceof \InvalidArgumentException ? 409 : 500);
         }
     }
 
