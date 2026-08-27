@@ -340,6 +340,12 @@ def send_message(config=None, **kw):
         body["harness_session_id"] = kw["harness_session_id"]
     if kw.get("idempotency_key"):
         body["idempotency_key"] = str(kw["idempotency_key"])
+    # Structured message type (INFO/PROGRESS/WARNING/BLOCKED/DECISION_REQUIRED/
+    # RELEASE_READY/FAILED) so the server can gate push importance without
+    # parsing the body prefix.
+    message_type = str(kw.get("message_type") or "INFO").strip().upper()
+    if message_type:
+        body["message_type"] = message_type
     return api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
 
 
@@ -385,6 +391,7 @@ def harpp_notify(*, conversation_id, message_type, body, title=None, harness_ses
     response = send_message(config=config, conversation_id=conversation_id, title=title,
                              harness_session_id=harness_session_id,
                              idempotency_key=idempotency_key,
+                             message_type=message_type,
                             body=_prefix_message(message_type, body))
     if message_type in ACTIONABLE_MESSAGE_TYPES:
         decision = dict(decision or {})

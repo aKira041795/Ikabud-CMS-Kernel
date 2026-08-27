@@ -48,6 +48,22 @@ final class HarppNotificationService
         }
     }
 
+    /**
+     * Non-actionable message types never warrant an OS-level push when the
+     * "important only" toggle is on. Decisions are always actionable.
+     */
+    private const IMPORTANT_MESSAGE_TYPES = ['WARNING', 'DECISION_REQUIRED', 'BLOCKED', 'RELEASE_READY', 'FAILED'];
+
+    private function isImportant(array $notice, array $payload): bool
+    {
+        $type = (string)($notice['notification_type'] ?? 'system');
+        if ($type === 'decision') return true;
+        if ($type !== 'message') return true; // system notifications stay on
+        if ($this->setting('push_important_only', '0') !== '1') return true;
+        $messageType = strtoupper(trim((string)($payload['message_type'] ?? 'INFO'))) ?: 'INFO';
+        return in_array($messageType, self::IMPORTANT_MESSAGE_TYPES, true);
+    }
+
     public function dispatch(int $notificationId, int $userId)
     {
         $check = $this->db()->prepare('SELECT id, decision_id, conversation_id, message_id, notification_type, channel, status, payload, created_at FROM harpp_notifications WHERE id = :id AND user_id = :user');
@@ -57,6 +73,12 @@ final class HarppNotificationService
             return HarppServiceResult::success(['attempted' => 0, 'sent' => 0, 'skipped' => true]);
         }
         $payload = json_decode((string)($notice['payload'] ?? '{}'), true);
+        // "Important messages only": keep the in-app notification but skip the
+        // OS push for conversational INFO/PROGRESS messages (the common chatter
+        // that used to flood the phone).
+        if (!$this->isImportant($notice, is_array($payload) ? $payload : [])) {
+            return HarppServiceResult::success(['attempted' => 0, 'sent' => 0, 'skipped' => true, 'reason' => 'not_important']);
+        }
         $result = ($this->push ??= new HarppPushService($this->db()))->dispatchToUser($userId, $this->pushPayload($notice, is_array($payload) ? $payload : []));
         $sent = !empty($result['ok']) && (int)($result['data']['sent'] ?? 0) > 0;
         $ownsTransaction = !$this->db()->inTransaction();
