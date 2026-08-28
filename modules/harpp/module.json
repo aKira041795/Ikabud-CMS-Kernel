@@ -36,7 +36,8 @@
         "harpp_deploy_inventory",
         "harpp_bridge_rate_limit",
         "harpp_runners",
-        "harpp_work_runs"
+        "harpp_work_runs",
+        "harpp_context_summary"
     ],
     "migrations": [
         "database/migrations/001_harpp_core.sql",
@@ -52,7 +53,8 @@
         "database/migrations/011_harpp_adr_origin.sql",
         "database/migrations/012_harpp_perf_read_model.sql",
         "database/migrations/013_harpp_runner_work_queue.sql",
-        "database/migrations/014_harpp_runner_reconcile.sql"
+        "database/migrations/014_harpp_runner_reconcile.sql",
+        "database/migrations/015_harpp_context_summary.sql"
     ],
     "capabilities": {
         "exposes": [

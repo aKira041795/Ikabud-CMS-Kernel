@@ -153,7 +153,12 @@ final class HarppRunService
         $messages = array_reverse($m->fetchAll(PDO::FETCH_ASSOC));
         $r = $this->db->prepare("SELECT id,source_message_id,state,report_state,runner_key,last_status,created_at,updated_at FROM harpp_work_runs WHERE conversation_id=:id ORDER BY id DESC LIMIT 5");
         $r->execute([':id' => $conversationId]);
-        return HarppServiceResult::success(['conversation' => $conversation, 'messages' => $messages, 'runs' => $r->fetchAll(PDO::FETCH_ASSOC), 'cache' => ['version' => (int)$conversation['version'], 'message_limit' => $limit]]);
+        // Durable, bounded, versioned conversation summary (memory flywheel): recent
+        // turns + active/latest run + applicable durable decisions. Version advances
+        // with the conversation's latest message aggregate sequence, which is what
+        // the bounded client context cache uses to invalidate.
+        $summary = (new HarppContextSummaryService($this->db))->build($conversationId);
+        return HarppServiceResult::success(['conversation' => $conversation, 'messages' => $messages, 'runs' => $r->fetchAll(PDO::FETCH_ASSOC), 'summary' => $summary, 'cache' => ['version' => (int)($summary['version'] ?? 0), 'message_limit' => $limit]]);
     }
 
     private function runner(string $runnerKey): ?array
