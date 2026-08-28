@@ -72,7 +72,7 @@ OUTPUT_DRAIN_TIMEOUT = 10
 # (e.g. "use gpt sol", "use flash") and the wake router honors it. If the requested
 # model is unavailable / its usage is exhausted, maybe_wake falls back to the default.
 MODEL_ALIASES = {
-    "openai-codex/gpt-5.6-sol": ["openai-codex/gpt-5.6-sol", "gpt 5.6 sol", "gpt-5.6-sol", "gpt-sol", "gpt sol", "got sol", "codex sol", "openai codex", "sol", "gpt-5.6"],
+    "openai-codex/gpt-5.6-sol": ["openai-codex/gpt-5.6-sol", "gpt 5.6 sol", "gpt-5.6-sol", "gpt-sol", "gpt sol", "got sol", "codex sol", "openai codex", "codex", "sol", "gpt-5.6"],
     "openai-codex/gpt-5.4": ["gpt 5.4", "gpt-5.4", "5.4"],
     "deepseek/deepseek-v4-pro": ["deepseek/deepseek-v4-pro", "deepseek pro", "v4 pro"],
     "deepseek/deepseek-v4-flash": ["deepseek/deepseek-v4-flash", "deepseek flash", "v4 flash", "flash"],
@@ -243,6 +243,7 @@ def _normalized_state() -> dict:
     state.setdefault("routing_results", {})
     state.setdefault("abandoned", [])
     state.setdefault("model_routes", [])
+    state.setdefault("plans", {})
     return state
 
 
@@ -2902,6 +2903,186 @@ def route_debate_commands(records) -> int:
     return handled
 
 
+# ---------------------------------------------------------------------------
+# Deterministic plan execution — an owner's multi-task plan (T1..Tn) becomes a
+# governed workflow. Plan messages are stored per-conversation and plan-execution
+# requests ("start T1..", "restart the <x> tasks and implement", "proceed with
+# the workflow", "/implement", "resume the failed tasks") are claimed HERE, before
+# the wake agent. The wake agent cannot run plans and would otherwise burn tokens
+# replying with a routing fault and leave the workflow interrupted.
+# ---------------------------------------------------------------------------
+
+def _plan_storage() -> dict:
+    return read_state().get("plans") or {}
+
+
+def _store_plan(conv: int, plan_body: str) -> None:
+    with _processed_state_lock():
+        state = _normalized_state()
+        state.setdefault("plans", {})[str(int(conv))] = str(plan_body)
+        _save_json(PROCESSED_FILE, state)
+
+
+def _parse_plan_tasks(plan_body: str) -> list:
+    """Parse 'T<N> - <description> [. Assign: <model>]' lines into task records."""
+    tasks = []
+    for line in (plan_body or "").splitlines():
+        m = re.match(r"^\s*T\s*([0-9]+)\s*[-–—:.]\s*(.+?)\s*$", line, flags=re.IGNORECASE)
+        if not m:
+            continue
+        desc = m.group(2).strip()
+        if not desc:
+            continue
+        tasks.append({"num": int(m.group(1)), "desc": desc})
+    return tasks
+
+
+def _find_plan_body(conv: int) -> str | None:
+    """Return the stored plan for a conversation, else scan the inbox for the most
+    recent plan-bearing message in that conversation."""
+    stored = _plan_storage().get(str(int(conv)))
+    if stored:
+        return stored
+    try:
+        p = Path(INBOX_FILE)
+        if p.exists():
+            for line in reversed(p.read_text(encoding="utf-8", errors="replace").splitlines()):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except Exception:  # noqa: BLE001
+                    continue
+                if r.get("kind") != "message" or int(r.get("conversation_id") or 0) != int(conv):
+                    continue
+                if _parse_plan_tasks(r.get("body")):
+                    return str(r.get("body") or "")
+    except OSError:
+        return None
+    return None
+
+
+def parse_plan_command(body) -> bool:
+    """True when the owner message is an imperative plan-execution request."""
+    if not body or not isinstance(body, str):
+        return False
+    low = " ".join(body.split()).lower().strip()
+    if low == "/implement":
+        return True
+    m = re.match(r"^(start|run|begin|launch|restart|resume|continue|proceed)\b(.*)$", low)
+    if not m:
+        return False
+    rest = m.group(2)
+    return bool(re.search(r"\b(t\s*[0-9]+|task|tasks|workflow|plan|implement)\b", rest))
+
+
+def _build_plan_stages(tasks, default_model: str) -> list:
+    stages = []
+    for t in tasks:
+        model = requested_model(t["desc"]) or default_model
+        marker = "SOL_TASK status=PASS"
+        stages.append({
+            "name": f"T{t['num']}",
+            "model": model,
+            "prompt": (
+                f"You are stage T{t['num']} of a governed HARPP workflow in the repo at {{WORKSPACE}}.\n"
+                "Complete this task only, verify it, and end with the marker line "
+                "`SOL_TASK status=PASS` (or `SOL_TASK status=FAIL` if you cannot complete it).\n\n"
+                f"# Task\n{t['desc']}\n\n"
+                "# Rules\n"
+                "- Stay strictly scoped to this task; do not expand scope or touch unrelated files.\n"
+                "- Verify changes (php -l for PHP, node --check for JS, keep DiSyL blocks balanced).\n"
+                "- Do NOT push, merge, or bypass the governed workflow; the review stage will gate it.\n"
+                "- End with exactly one final line: `SOL_TASK status=PASS` (or status=FAIL)."
+            ),
+            "marker": marker,
+            "verify": "git diff --check",
+            "timeout": 2400,
+        })
+    return stages
+
+
+def _exec_plan_command(record: dict, conv: int, default_model: str) -> str:
+    body = _find_plan_body(conv)
+    tasks = _parse_plan_tasks(body) if body else []
+    if not tasks:
+        return ("📋 No plan found for this conversation to execute. "
+                "Send the plan first (lines like `T1 - <task>` / `T2 - <task>`), then "
+                "re-issue the run command (e.g. `start T1, T2...` or `/implement`).")
+    stages = _build_plan_stages(tasks, default_model)
+    title = f"Owner plan execution ({', '.join(s['name'] for s in stages)})"
+    wid = start_workflow(
+        title=title, conversation_id=conv, stages=stages,
+        workspace=default_workspace(), max_repairs=2,
+        preferred_model=None,
+    )
+    names = ", ".join(s["name"] for s in stages)
+    return (f"🔁 Plan workflow started: {wid}\n"
+            f"title: {title}\n"
+            f"stages ({len(stages)}): {names}\n"
+            "auto-repair: 2 round(s)\n"
+            "Each stage runs as a tracked governed job; results are auto-reported here.")
+
+
+def route_plan_commands(records, default_model: str = DEFAULT_MODEL) -> int:
+    """Deterministically claim owner plan messages + plan-execution requests so the
+    wake agent never re-drives them (saving tokens) and the plan runs as a governed
+    workflow (resolving interrupted requests). Returns the number of messages handled.
+    """
+    handled = 0
+    for r in records or []:
+        if r.get("kind") != "message":
+            continue
+        if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        body = r.get("body") or ""
+        conv = int(r.get("conversation_id") or 0)
+        if not conv:
+            continue
+        is_exec = parse_plan_command(body)
+        is_plan = not is_exec and bool(_parse_plan_tasks(body))
+        if not is_exec and not is_plan:
+            continue
+        # Workflow/debate routers own their explicit commands.
+        if parse_workflow_command(body) or parse_debate_command(body):
+            continue
+        action, saved_body = claim_routing_record(r, "plan")
+        if action == "skip":
+            continue
+        try:
+            if is_plan:
+                _store_plan(conv, body)
+                reply = ("📋 Plan recorded for execution. "
+                         "When you're ready, send `start T1, T2...` (or `/implement`) to run it.")
+            else:
+                reply = saved_body if action == "deliver" else _exec_plan_command(r, conv, default_model)
+                if action == "execute":
+                    store_routing_result(r, "plan", reply)
+            if conv:
+                response = harpp_client.harpp_notify(
+                    conversation_id=conv, message_type="INFO",
+                    idempotency_key=f"wake-message-{int(r.get('id', 0))}", body=reply)
+                if not response.get("ok"):
+                    raise RuntimeError(f"plan reply bridge receipt was not ok: {response!r}")
+            mark_processed([{"kind": "message", "id": int(r.get("id", 0))}])
+            handled += 1
+            log(f"routed plan {'record' if is_plan else 'execution'} command for message {r.get('id')}")
+        except Exception as e:  # noqa: BLE001
+            log(f"plan command failed for message {r.get('id')}: {e}")
+            if action == "execute" and not read_state()["routing_results"].get(str(int(r.get("id", 0)))):
+                release_routing_claim(r)
+            try:
+                if conv:
+                    harpp_client.harpp_notify(
+                        conversation_id=conv, message_type="WARNING",
+                        idempotency_key=f"route-warning-{int(r.get('id', 0))}",
+                        body=f"⚠️ Plan request could not be processed: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+    return handled
+
+
 def conversation_context_block(conversation_id, config=None, max_chars=4000):
     """Return a bounded, redacted conversation-context block for a worker prompt.
 
@@ -3116,28 +3297,45 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
     marker_result = re.search(
         r"HARPP_WAKE_RESULT replies_sent=(\d+) items_processed=(\d+) delivered_ids=([0-9,]*)",
         marker_text)
+    expected_ids = ({int(value) for value in expected_source_ids}
+                    if expected_source_ids is not None else None)
+    receipt_keys = set()
+    expected_keys = set()
+    receipts_verified = False
+    if proc.returncode == 0 and expected_ids is not None and harpp_client._notify_enabled() and verify_delivery_receipts:
+        receipt_keys = _delivery_keys_since(receipt_offset)
+        expected_keys = {f"wake-message-{value}" for value in expected_ids}
+        receipts_verified = expected_keys.issubset(receipt_keys)
+    if proc.returncode == 0 and receipts_verified and not marker_result:
+        log("wake agent output lacked a valid HARPP_WAKE_RESULT marker, but daemon-observed bridge receipts verified delivery; accepting run")
+        return finish(True, None)
     if proc.returncode == 0 and not marker_result:
         log("wake agent output lacked a valid HARPP_WAKE_RESULT marker; treating delivery as failed")
         return finish(False, "invalid_result")
+    if proc.returncode == 0 and receipts_verified:
+        marker_ids = {int(value) for value in marker_result.group(3).split(",") if value}
+        if marker_ids != expected_ids:
+            log(f"wake agent reported delivered ids {sorted(marker_ids)}, but daemon-observed bridge receipts verified {sorted(expected_ids)}; accepting run")
+        elif expected_replies is not None and (
+                int(marker_result.group(1)) != expected_replies
+                or int(marker_result.group(2)) != expected_replies):
+            log(f"wake agent reported reply/process counts {marker_result.group(1)}/{marker_result.group(2)}; expected {expected_replies}, but daemon-observed bridge receipts verified delivery; accepting run")
+        return finish(True, None)
     if proc.returncode == 0 and expected_replies is not None and int(marker_result.group(1)) != expected_replies:
         log(f"wake agent reported {marker_result.group(1)} replies; expected {expected_replies}; treating delivery as failed")
         return finish(False, "invalid_result")
     if proc.returncode == 0 and expected_replies is not None and int(marker_result.group(2)) != expected_replies:
         log(f"wake agent reported {marker_result.group(2)} processed items; expected {expected_replies}; treating delivery as failed")
         return finish(False, "invalid_result")
-    if proc.returncode == 0 and expected_source_ids is not None:
+    if proc.returncode == 0 and expected_ids is not None:
         delivered_ids = {int(value) for value in marker_result.group(3).split(",") if value}
-        expected_ids = {int(value) for value in expected_source_ids}
         if delivered_ids != expected_ids:
             log(f"wake agent reported delivered ids {sorted(delivered_ids)}; expected {sorted(expected_source_ids)}; treating delivery as failed")
             return finish(False, "invalid_result")
-        if harpp_client._notify_enabled() and verify_delivery_receipts:
-            receipt_keys = _delivery_keys_since(receipt_offset)
-            expected_keys = {f"wake-message-{value}" for value in expected_ids}
-            if not expected_keys.issubset(receipt_keys):
-                missing = sorted(expected_keys - receipt_keys)
-                log(f"wake agent lacked daemon-observed bridge receipts for {missing}; treating delivery as failed")
-                return finish(False, "invalid_result")
+        if harpp_client._notify_enabled() and verify_delivery_receipts and not receipts_verified:
+            missing = sorted(expected_keys - receipt_keys)
+            log(f"wake agent lacked daemon-observed bridge receipts for {missing}; treating delivery as failed")
+            return finish(False, "invalid_result")
     if proc.returncode != 0:
         # Only classify as model exhaustion when the run actually failed. A
         # successful run whose prose merely mentions quota/rate/context limits
@@ -3462,7 +3660,18 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                     batch_ok = True
                     log(f"wake complete with {attempt_model}; processed {len(batch)} item(s)")
                     break
-                can_delegate = failure_kind in ("usage_exhausted", "model_unavailable")
+                # A verified wake-message receipt is the authoritative side-effect
+                # boundary. If none of this batch's replies was delivered, trying the
+                # next model cannot duplicate an owner reply and is preferable to
+                # burning another daemon pass toward the generic retry-exhausted notice.
+                # If any receipt exists, stop: the next pass will mark that item
+                # processed and must not re-run potentially completed work.
+                delivered_during_attempt = any(
+                    _wake_receipt_exists(int(item.get("id", 0))) for item in batch)
+                can_delegate = failure_kind in (
+                    "usage_exhausted", "model_unavailable", "timeout",
+                    "invalid_result", "empty_output", "exit_error",
+                ) and not delivered_during_attempt
                 if can_delegate and attempt_model != chain[-1]:
                     next_model = chain[model_index + 1]
                     if not announce_model_delegation(batch, attempt_model, next_model,
@@ -3471,8 +3680,11 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                         break
                     log(f"model {attempt_model} {failure_kind}; temporarily delegating to next model")
                     continue
+                reason = ("an owner reply was already delivered"
+                          if delivered_during_attempt else
+                          "no safe fallback remains")
                 log(f"model {attempt_model} failed ({failure_kind or 'unclassified'}); "
-                    "not delegating because rerun could duplicate or hide a task failure")
+                    f"not delegating because {reason}")
                 break
             if batch_ok:
                 mark_processed(batch)
