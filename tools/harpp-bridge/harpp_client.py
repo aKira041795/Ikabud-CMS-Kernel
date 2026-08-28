@@ -524,6 +524,19 @@ def stall_run(run_id, claim_token, config=None, status="Stalled."):
                {"claim_token": claim_token, "status": status}, config=config)
 
 
+def cancel_run(config=None, run_id=0, message_id=0, claim_token=""):
+    """Cancel a run by run id or source message id. Claimable/stalled runs cancel
+    unconditionally; a runner may also retire its own CLAIMED/RUNNING run by passing
+    the matching claim_token. Idempotent on terminal runs; 409 run_in_progress for
+    an in-progress run without the matching token. Used by the wake agent to retire
+    the run-queue entry for a message it has already answered, so the runner never
+    re-executes already-answered work."""
+    return api("POST", "/api/v1/harpp/bridge/runs/cancel",
+               {"run_id": int(run_id or 0), "message_id": int(message_id or 0),
+                "claim_token": str(claim_token or "")},
+               config=config)
+
+
 def reconcile_runs(healthy, runner_key, config=None):
     """Report the set of run ids the runner is actively supervising."""
     return api("POST", "/api/v1/harpp/bridge/runs/reconcile",

@@ -97,6 +97,11 @@ final class HarppBridgeService
         return (new HarppRunService($this->db))->claim($actor, $input);
     }
 
+    public function cancelRun(array $actor, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->cancelRun($actor, $input);
+    }
+
     public function runRunning(array $actor, int $runId, array $input, int $tenantId)
     {
         return (new HarppRunService($this->db))->transition($actor, $runId, $input, 'RUNNING');

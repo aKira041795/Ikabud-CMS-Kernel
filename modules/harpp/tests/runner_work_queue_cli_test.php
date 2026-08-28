@@ -26,7 +26,7 @@ $db->prepare("DELETE FROM harpp_runners WHERE runner_key='desktop-test'")->execu
 
 $h = new TestHarness('harpp-runner-work-queue');
 $assert = static function(string $name, bool $ok, string $detail = '') use ($h): void { $h->test($name, $ok, $detail); };
-$conversationId=0;$messageId=0;$runId=0;
+$conversationId=0;$messageId=0;$runId=0;$extraConversationIds=[];$extraRunIds=[];
 try {
     $bridge=new HarppBridgeService($db);
     $messaging=new HarppMessagingService($db);
@@ -46,7 +46,7 @@ try {
     $pollMessage=(array)($poll['data']['messages'][0]??[]);
     $assert('poll payload includes title version and run state',!empty($poll['ok'])&&($pollMessage['conversation_title']??'')==='Runner queue context'&&(int)($pollMessage['conversation_version']??0)>0&&(int)($pollMessage['run_id']??0)===$runId&&($pollMessage['run_state']??'')==='WAITING_FOR_RUNNER');
 
-    $registered=$bridge->registerRunner($actor,['runner_key'=>'desktop-test','display_name'=>'Desktop Test','capabilities'=>['runner-test','shell']],$tenantId);
+    $registered=$bridge->registerRunner($actor,['runner_key'=>'desktop-test','display_name'=>'Desktop Test','capabilities'=>['runner-test','desktop','shell']],$tenantId);
     $claim=$bridge->claimRun($actor,['runner_key'=>'desktop-test','lease_seconds'=>120],$tenantId);
     $token=(string)($claim['data']['claim_token']??'');
     $claimed=(array)($claim['data']['run']??[]);
@@ -63,9 +63,43 @@ try {
 
     $context=$bridge->conversationContext($actor,$conversationId,['limit'=>10],$tenantId);
     $assert('context endpoint returns title history run summary and cache version',!empty($context['ok'])&&($context['data']['conversation']['title']??'')==='Runner queue context'&&count((array)($context['data']['messages']??[]))>=1&&count((array)($context['data']['runs']??[]))>=1&&(int)($context['data']['cache']['version']??0)>0);
+
+    $missing=$bridge->cancelRun($actor,[],$tenantId);
+    $assert('cancel run requires run_id or message_id',empty($missing['ok'])&&(int)($missing['status']??0)===422,'cancel='.json_encode($missing));
+
+    $cancelMessage=$messaging->sendMessage($owner,$conversationId,['body'=>'Cancel by run id.','sender_type'=>'user'],$tenantId);
+    $cancelMessageId=(int)($cancelMessage['data']['message_id']??0);
+    $cancelQueued=$bridge->queueMessageRun($actor,['message_id'=>$cancelMessageId,'required_capabilities'=>['desktop']],$tenantId);
+    $cancelRunId=(int)($cancelQueued['data']['run']['id']??0);$extraRunIds[]=$cancelRunId;
+    $cancelled=$bridge->cancelRun($actor,['run_id'=>$cancelRunId],$tenantId);
+    $afterCancelClaim=$bridge->claimRun($actor,['runner_key'=>'desktop-test','lease_seconds'=>120],$tenantId);
+    $assert('cancel by run_id prevents a later claim',!empty($cancelled['ok'])&&($cancelled['data']['run']['state']??'')==='CANCELLED'&&(int)($afterCancelClaim['data']['run']['id']??0)!==$cancelRunId,'cancelled='.json_encode($cancelled).' claim='.json_encode($afterCancelClaim));
+
+    $cancelByMessage=$messaging->sendMessage($owner,$conversationId,['body'=>'Cancel by message id.','sender_type'=>'user'],$tenantId);
+    $cancelByMessageId=(int)($cancelByMessage['data']['message_id']??0);
+    $cancelByMessageQueued=$bridge->queueMessageRun($actor,['message_id'=>$cancelByMessageId,'required_capabilities'=>['desktop']],$tenantId);
+    $cancelByMessageRunId=(int)($cancelByMessageQueued['data']['run']['id']??0);$extraRunIds[]=$cancelByMessageRunId;
+    $cancelledByMessage=$bridge->cancelRun($actor,['message_id'=>$cancelByMessageId],$tenantId);
+    $assert('cancel by message_id resolves and cancels the run',!empty($cancelledByMessage['ok'])&&(int)($cancelledByMessage['data']['run']['id']??0)===$cancelByMessageRunId&&($cancelledByMessage['data']['run']['state']??'')==='CANCELLED','cancelled='.json_encode($cancelledByMessage));
+
+    foreach (['A','B'] as $label) {
+        $recentConversation=$messaging->createConversation($owner,['title'=>'Claim order '.$label,'harness_session_id'=>'runner-order-'.strtolower($label)],$tenantId);
+        $recentConversationId=(int)($recentConversation['data']['conversation_id']??0);$extraConversationIds[]=$recentConversationId;
+        $recentMessage=$messaging->sendMessage($owner,$recentConversationId,['body'=>'Desktop run '.$label.'.','sender_type'=>'user'],$tenantId);
+        $recentQueued=$bridge->queueMessageRun($actor,['message_id'=>(int)($recentMessage['data']['message_id']??0),'required_capabilities'=>['desktop']],$tenantId);
+        $orderRunIds[$label]=(int)($recentQueued['data']['run']['id']??0);$extraRunIds[]=$orderRunIds[$label];
+        $orderConversationIds[$label]=$recentConversationId;
+    }
+    $db->prepare('UPDATE harpp_conversations SET updated_at=DATE_ADD(NOW(6),INTERVAL 10 SECOND) WHERE id=:id')->execute([':id'=>$orderConversationIds['A']]);
+    $firstOrderClaim=$bridge->claimRun($actor,['runner_key'=>'desktop-test','lease_seconds'=>120],$tenantId);
+    $secondOrderClaim=$bridge->claimRun($actor,['runner_key'=>'desktop-test','lease_seconds'=>120],$tenantId);
+    $assert('claim prioritizes the most recently updated conversation',!empty($firstOrderClaim['ok'])&&!empty($secondOrderClaim['ok'])&&(int)($firstOrderClaim['data']['run']['id']??0)===$orderRunIds['A']&&(int)($secondOrderClaim['data']['run']['id']??0)===$orderRunIds['B'],'first='.json_encode($firstOrderClaim).' second='.json_encode($secondOrderClaim));
 } finally {
     if($runId>0)$db->prepare('DELETE FROM harpp_work_runs WHERE id=:id')->execute([':id'=>$runId]);
+    foreach($extraRunIds as $id){if($id>0)$db->prepare('DELETE FROM harpp_work_runs WHERE id=:id')->execute([':id'=>$id]);}
     $db->prepare("DELETE FROM harpp_runners WHERE runner_key='desktop-test'")->execute();
+    foreach($extraConversationIds as $id){if($id>0)$db->prepare('DELETE FROM harpp_notifications WHERE conversation_id=:id')->execute([':id'=>$id]);}
+    foreach($extraConversationIds as $id){if($id>0)$db->prepare('DELETE FROM harpp_conversations WHERE id=:id')->execute([':id'=>$id]);}
     if($conversationId>0)$db->prepare('DELETE FROM harpp_notifications WHERE conversation_id=:id')->execute([':id'=>$conversationId]);
     if($conversationId>0)$db->prepare('DELETE FROM harpp_conversations WHERE id=:id')->execute([':id'=>$conversationId]);
 }

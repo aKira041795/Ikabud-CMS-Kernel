@@ -123,6 +123,9 @@ try {
     $done=(array)($comp['data']['run']??[]);
     $assert('terminal run report is retained as PENDING',($done['state']??'')==='SUCCEEDED'&&($done['report_state']??'')==='PENDING'&&(int)($done['delivery_attempts']??-1)===0,'done='.json_encode($done));
 
+    $terminalCancel=$bridge->cancelRun($actor,['run_id'=>$runId5],$tenantId);
+    $assert('cancel terminal run is idempotent',!empty($terminalCancel['ok'])&&($terminalCancel['data']['run']['state']??'')==='SUCCEEDED','cancel='.json_encode($terminalCancel));
+
     $delivered=$bridge->reportDelivered($actor,$runId5,[],$tenantId);
     $d=(array)($delivered['data']['run']??[]);
     $assert('successful report delivery is DELIVERED',!empty($delivered['ok'])&&($d['report_state']??'')==='DELIVERED'&&(int)($d['delivery_attempts']??0)>=1,'delivered='.json_encode($d));
@@ -161,6 +164,23 @@ try {
     $dl=$bridge->reportDeadLetter($actor,$runId7,['error'=>'push channel down'],$tenantId);
     $dlr=(array)($dl['data']['run']??[]);
     $assert('explicit dead-letter records inspectable error',!empty($dl['ok'])&&($dlr['report_state']??'')==='DEAD_LETTER'&&($dlr['last_delivery_error']??'')==='push channel down','dl='.json_encode($dl));
+
+    $sent8=$messaging->sendMessage($owner,$conversationId,['body'=>'Claimed cancellation conflict.','sender_type'=>'user'],$tenantId);
+    $messageId8=(int)($sent8['data']['message_id']??0);
+    $q8=$bridge->queueMessageRun($actor,['message_id'=>$messageId8,'required_capabilities'=>['reconcile-test']],$tenantId);
+    $runId8=(int)($q8['data']['run']['id']??0);$runIds[]=$runId8;
+    $claim8=$bridge->claimRun($actor,['runner_key'=>'reconcile-test','lease_seconds'=>120],$tenantId);
+    $claimedCancel=$bridge->cancelRun($actor,['run_id'=>$runId8],$tenantId);
+    $assert('cancel claimed run returns run_in_progress',empty($claimedCancel['ok'])&&(int)($claimedCancel['status']??0)===409&&($claimedCancel['code']??'')==='run_in_progress'&&(int)($claim8['data']['run']['id']??0)===$runId8,'cancel='.json_encode($claimedCancel));
+
+    // A runner may retire its own CLAIMED run with the matching claim token (the
+    // duplicate-guard path: the wake agent already answered the source message).
+    $token8=(string)($claim8['data']['claim_token']??'');
+    $selfCancelled=$bridge->cancelRun($actor,['run_id'=>$runId8,'claim_token'=>$token8],$tenantId);
+    $selfRun=(array)($selfCancelled['data']['run']??[]);
+    $assert('runner self-cancels its own CLAIMED run with matching token',!empty($selfCancelled['ok'])&&($selfRun['state']??'')==='CANCELLED'&&($selfRun['claim_token']??null)===null,'self='.json_encode($selfCancelled));
+    $afterSelfCancelClaim=$bridge->claimRun($actor,['runner_key'=>'reconcile-test','lease_seconds'=>120],$tenantId);
+    $assert('self-cancelled run is not re-claimable',!empty($afterSelfCancelClaim['ok'])&&(int)($afterSelfCancelClaim['data']['run']['id']??0)!==$runId8,'claim='.json_encode($afterSelfCancelClaim));
 } finally {
     foreach ($runIds as $id) { if($id>0)$db->prepare('DELETE FROM harpp_work_runs WHERE id=:id')->execute([':id'=>$id]); }
     $db->prepare("DELETE FROM harpp_runners WHERE runner_key IN ('reconcile-test','reconcile-r2')")->execute();

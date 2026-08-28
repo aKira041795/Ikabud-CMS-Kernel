@@ -3618,6 +3618,19 @@ def _temporary_model_batches(items: list, default_model: str) -> list[tuple[str,
     return [(key[2], batch) for key, batch in batches.items()]
 
 
+def _cancel_answered_runs(items) -> None:
+    """Best-effort: retire the run-queue entry for messages the wake agent has
+    already answered so the runner never re-executes them. Never raises."""
+    for item in items or []:
+        run_id = int(item.get("run_id") or 0)
+        if run_id <= 0:
+            continue
+        try:
+            harpp_client.cancel_run(run_id=run_id)
+        except Exception as exc:
+            log(f"run {run_id} cancel after wake reply failed: {exc}")
+
+
 def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                model: str = DEFAULT_MODEL, cooldown: int = DEFAULT_COOLDOWN,
                max_per_hour: int = DEFAULT_MAX_PER_HOUR, timeout: int = DEFAULT_TIMEOUT,
@@ -3701,6 +3714,7 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                     continue
                 try:
                     if _quick_reply(r):
+                        _cancel_answered_runs([r])
                         mark_processed([r])
                         quick_done = True
                         log(f"quick reply sent for message {rid}")
@@ -3771,6 +3785,7 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                 if attempt_ok:
                     batch_ok = True
                     log(f"wake complete with {attempt_model}; processed {len(batch)} item(s)")
+                    _cancel_answered_runs(batch)
                     break
                 # A verified wake-message receipt is the authoritative side-effect
                 # boundary. If none of this batch's replies was delivered, trying the

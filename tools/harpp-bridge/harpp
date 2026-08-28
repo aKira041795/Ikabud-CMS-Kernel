@@ -76,6 +76,15 @@ def _run_desktop_pass(*, workspace, wake_command, model, timeout, open_terminal)
         if not run_id or not claim_token or not conversation_id:
             raise ValueError("claimed run is missing id, claim_token, or conversation_id")
 
+        if harpp_wake._wake_receipt_exists(int(run.get("source_message_id") or 0)):
+            try:
+                # Self-cancel with our claim token so the run retires cleanly instead
+                # of being reconciled to STALLED by the finally block below.
+                harpp_client.cancel_run(run_id=run_id, claim_token=claim_token)
+            except Exception as exc:
+                print(f"harpp watch: run {run_id} already answered; cancel failed: {exc}", flush=True)
+            return
+
         context_response = harpp_client.conversation_context(conversation_id, limit=20)
         context = (context_response.get("data") or {}) if isinstance(context_response, dict) else {}
         task = str(run.get("task") or run.get("message_body") or run.get("body") or "Process the queued HARPP run.")
@@ -93,6 +102,11 @@ def _run_desktop_pass(*, workspace, wake_command, model, timeout, open_terminal)
                     harpp_client.renew_run(run_id, claim_token, lease_seconds=300)
                 except Exception as exc:
                     print(f"harpp watch: run {run_id} lease renewal failed: {exc}", flush=True)
+                try:
+                    harpp_client.register_runner(runner_key=runner_key, display_name="HARPP desktop",
+                                                 capabilities=["desktop"])
+                except Exception as exc:
+                    print(f"harpp watch: runner {runner_key} heartbeat failed: {exc}", flush=True)
 
         renewer = threading.Thread(target=renew_lease, daemon=True)
         renewer.start()

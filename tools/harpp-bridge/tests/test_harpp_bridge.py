@@ -244,6 +244,19 @@ class HarppClientTest(unittest.TestCase):
         self.assertEqual(req["body"]["claim_token"], "lease-token")
         self.assertEqual(req["body"]["lease_seconds"], 180)
 
+    def test_dry_run_cancel_run_posts_run_and_message_ids(self):
+        req = harpp_client.cancel_run(run_id=12, message_id=34)
+        self.assertTrue(req["url"].endswith("/api/v1/harpp/bridge/runs/cancel"))
+        self.assertEqual(req["body"]["run_id"], 12)
+        self.assertEqual(req["body"]["message_id"], 34)
+        self.assertEqual(req["body"]["claim_token"], "")
+
+    def test_dry_run_cancel_run_sends_claim_token(self):
+        req = harpp_client.cancel_run(run_id=12, claim_token="tok-abc")
+        self.assertEqual(req["body"]["run_id"], 12)
+        self.assertEqual(req["body"]["claim_token"], "tok-abc")
+        self.assertEqual(req["body"]["message_id"], 0)
+
     def test_dry_run_message_and_status(self):
         m = harpp_client.send_message(body="hi", conversation_id=9)
         self.assertEqual(m["body"]["conversation_id"], 9)

@@ -99,6 +99,7 @@ return [
         '/api/v1/harpp/bridge/messages' => 'harpp:harppBridgeMessageSend',
         '/api/v1/harpp/bridge/runs' => 'harpp:harppBridgeRunQueue',
         '/api/v1/harpp/bridge/runs/claim' => 'harpp:harppBridgeRunClaim',
+        '/api/v1/harpp/bridge/runs/cancel' => 'harpp:harppBridgeRunCancel',
         '/api/v1/harpp/bridge/runs/{id}/running' => 'harpp:harppBridgeRunRunning',
         '/api/v1/harpp/bridge/runs/{id}/renew' => 'harpp:harppBridgeRunRenew',
         '/api/v1/harpp/bridge/runs/{id}/complete' => 'harpp:harppBridgeRunComplete',

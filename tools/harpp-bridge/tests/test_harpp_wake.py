@@ -28,13 +28,16 @@ class HarppDesktopRunnerTest(unittest.TestCase):
         self.wake = self.module["harpp_wake"]
         self.originals = {name: getattr(self.client, name) for name in (
             "register_runner", "reconcile_runs", "claim_run", "conversation_context",
-            "mark_run_running", "complete_run", "fail_run")}
+            "mark_run_running", "renew_run", "complete_run", "fail_run", "cancel_run")}
         self.original_spawn = self.wake.spawn_agent
+        self.runner_globals = self.module["_run_desktop_pass"].__globals__
+        self.original_interval = self.runner_globals["RUN_LEASE_RENEW_INTERVAL"]
 
     def tearDown(self):
         for name, value in self.originals.items():
             setattr(self.client, name, value)
         self.wake.spawn_agent = self.original_spawn
+        self.runner_globals["RUN_LEASE_RENEW_INTERVAL"] = self.original_interval
 
     def _start(self):
         return self.module["_start_desktop_pass"](
@@ -43,7 +46,72 @@ class HarppDesktopRunnerTest(unittest.TestCase):
 
     def _claimed_run(self):
         return {"data": {"claim_token": "token", "run": {
-            "id": 41, "conversation_id": 7, "task": "Do the work"}}}
+            "id": 41, "conversation_id": 7, "source_message_id": 987654321,
+            "task": "Do the work"}}}
+
+    def test_desktop_runner_renews_runner_heartbeat(self):
+        started = threading.Event()
+        release = threading.Event()
+        completed = threading.Event()
+        register_calls = []
+        self.client.register_runner = lambda **kw: register_calls.append(kw) or {"ok": True}
+        self.client.reconcile_runs = lambda *a, **kw: {"ok": True}
+        self.client.claim_run = lambda **kw: self._claimed_run()
+        self.client.conversation_context = lambda *a, **kw: {"data": {}}
+        self.client.mark_run_running = lambda *a, **kw: {"ok": True}
+        self.client.renew_run = lambda *a, **kw: {"ok": True}
+        self.client.complete_run = lambda *a, **kw: completed.set() or {"ok": True}
+        self.client.fail_run = lambda *a, **kw: {"ok": True}
+        self.runner_globals["RUN_LEASE_RENEW_INTERVAL"] = 0.05
+
+        def blocking_spawn(*args, **kwargs):
+            started.set()
+            release.wait(2)
+            return True, None
+
+        self.wake.spawn_agent = blocking_spawn
+        self.assertTrue(self._start())
+        self.assertTrue(started.wait(1))
+        deadline = time.monotonic() + 1
+        while len(register_calls) <= 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        release.set()
+        self.assertGreater(len(register_calls), 1)
+        self.assertTrue(completed.wait(1))
+
+    def test_desktop_runner_skips_already_answered_run(self):
+        old_receipts = os.environ.get("HARPP_DELIVERY_RECEIPTS")
+        with tempfile.TemporaryDirectory() as tmp:
+            receipts = Path(tmp) / "receipts.jsonl"
+            os.environ["HARPP_DELIVERY_RECEIPTS"] = str(receipts)
+            receipts.write_text(json.dumps({"idempotency_key": "wake-message-4321"}) + "\n",
+                                encoding="utf-8")
+            calls = []
+            self.client.register_runner = lambda **kw: {"ok": True}
+            self.client.reconcile_runs = lambda *a, **kw: calls.append(("reconcile", a)) or {"ok": True}
+            self.client.claim_run = lambda **kw: {"data": {"claim_token": "token", "run": {
+                "id": 55, "conversation_id": 7, "source_message_id": 4321,
+                "task": "Already answered"}}}
+            self.client.complete_run = lambda *a, **kw: calls.append(("complete", a)) or {"ok": True}
+            self.client.fail_run = lambda *a, **kw: calls.append(("fail", a)) or {"ok": True}
+            self.client.cancel_run = lambda **kw: calls.append(("cancel", kw)) or {"ok": True}
+            self.wake.spawn_agent = lambda *a, **kw: calls.append(("spawn", a)) or (True, None)
+            try:
+                self.module["_run_desktop_pass"](
+                    workspace="/tmp", wake_command=None, model="model", timeout=10,
+                    open_terminal=False)
+            finally:
+                if old_receipts is None:
+                    os.environ.pop("HARPP_DELIVERY_RECEIPTS", None)
+                else:
+                    os.environ["HARPP_DELIVERY_RECEIPTS"] = old_receipts
+        names = [call[0] for call in calls]
+        self.assertNotIn("spawn", names)
+        self.assertNotIn("complete", names)
+        self.assertNotIn("fail", names)
+        # The runner self-cancels with its claim token so the run retires cleanly
+        # instead of being reconciled to STALLED.
+        self.assertIn(("cancel", {"run_id": 55, "claim_token": "token"}), calls)
 
     def test_desktop_runner_pass_returns_while_claimed_run_executes(self):
         started = threading.Event()
@@ -205,6 +273,45 @@ class HarppWakeTest(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(calls, [1])
         self.assertIn(1, harpp_wake.read_state()["messages"])
+
+    def test_maybe_wake_quick_reply_cancels_answered_run(self):
+        self.inbox.write_text(json.dumps({
+            "kind": "message", "id": 2, "conversation_id": 2, "body": "hi", "run_id": 72,
+        }) + "\n", encoding="utf-8")
+        cancelled = []
+        original_quick = harpp_wake._quick_reply
+        original_cancel = harpp_wake.harpp_client.cancel_run
+        harpp_wake._quick_reply = lambda item: True
+        harpp_wake.harpp_client.cancel_run = lambda **kw: cancelled.append(kw) or {"ok": True}
+        try:
+            ok = harpp_wake.maybe_wake(
+                str(self.inbox), enabled=True, command=None,
+                cooldown=0, max_per_hour=0, timeout=30)
+        finally:
+            harpp_wake._quick_reply = original_quick
+            harpp_wake.harpp_client.cancel_run = original_cancel
+        self.assertTrue(ok)
+        self.assertEqual(cancelled, [{"run_id": 72}])
+        self.assertIn(2, harpp_wake.read_state()["messages"])
+
+    def test_cancel_answered_runs(self):
+        calls = []
+        original = harpp_wake.harpp_client.cancel_run
+
+        def cancel_run(**kw):
+            calls.append(kw)
+            if kw["run_id"] == 81:
+                raise RuntimeError("client unavailable")
+            return {"ok": True}
+
+        harpp_wake.harpp_client.cancel_run = cancel_run
+        try:
+            harpp_wake._cancel_answered_runs([
+                {"run_id": 80}, {}, {"run_id": 81}, {"run_id": 0},
+            ])
+        finally:
+            harpp_wake.harpp_client.cancel_run = original
+        self.assertEqual(calls, [{"run_id": 80}, {"run_id": 81}])
 
     def test_maybe_wake_quick_reply_falls_back_to_agent(self):
         # If the fast-tier reply fails, the simple item falls through to the agent.

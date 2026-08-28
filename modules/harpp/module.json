@@ -1,7 +1,7 @@
 {
     "id": "harpp",
     "name": "HARPP \u2014 Harness App (Decision Center & Messenger)",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "Tenant-owned decision center and messenger connecting the local AI harness to operators through durable decisions, notifications, and ADR memory.",
     "author": "Ikabud Kernel Team",
     "reads_tables": [],

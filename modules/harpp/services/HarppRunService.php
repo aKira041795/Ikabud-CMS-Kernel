@@ -109,7 +109,11 @@ final class HarppRunService
         $capabilities = (array)json_decode((string)$runner['capabilities_json'], true);
         $leaseSeconds = max(30, min(3600, (int)($input['lease_seconds'] ?? 300)));
         $this->recoverExpiredLeases();
-        $rows = $this->db->query("SELECT id,required_capabilities_json FROM harpp_work_runs WHERE state IN ('QUEUED','WAITING_FOR_RUNNER') ORDER BY id ASC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
+        // Priority by conversation recency so new work is never starved by old orphaned
+        // runs. Bounded tradeoff: with heterogeneous capability fleets, a burst of
+        // non-matching recent runs can occupy the candidate slice for one pass; the
+        // duplicate guard (wake cancels answered runs) and reconcile keep it bounded.
+        $rows = $this->db->query("SELECT wr.id,wr.required_capabilities_json FROM harpp_work_runs wr JOIN harpp_conversations c ON c.id=wr.conversation_id WHERE wr.state IN ('QUEUED','WAITING_FOR_RUNNER') ORDER BY c.updated_at DESC, wr.id ASC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $row) {
             if (!$this->hasCapabilities($capabilities, (array)json_decode((string)$row['required_capabilities_json'], true))) continue;
             $token = $this->uuid();
@@ -118,6 +122,56 @@ final class HarppRunService
             if ($u->rowCount() === 1) return HarppServiceResult::success(['run' => $this->publicRun($this->load((int)$row['id'])), 'claim_token' => $token]);
         }
         return HarppServiceResult::success(['run' => null, 'state' => 'WAITING_FOR_RUNNER']);
+    }
+
+    public function cancelRun(array $actor, array $input): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $runId = (int)($input['run_id'] ?? 0);
+        $messageId = (int)($input['message_id'] ?? 0);
+        $claimToken = trim((string)($input['claim_token'] ?? ''));
+        if ($runId <= 0 && $messageId <= 0) return HarppServiceResult::failure('run_id or message_id is required.', 422);
+        if ($runId <= 0) {
+            $m = $this->db->prepare("SELECT id FROM harpp_work_runs WHERE source_message_id=:m");
+            $m->execute([':m' => $messageId]);
+            $found = (int)$m->fetchColumn();
+            if ($found <= 0) return HarppServiceResult::success(['run' => null]);
+            $runId = $found;
+        }
+        try {
+            $this->db->beginTransaction();
+            // Locking read: the 409-vs-idempotent classification below must reflect the
+            // latest committed state even under the claim-vs-cancel race (REPEATABLE READ).
+            $before = $this->load($runId, true);
+            if (!is_array($before)) {
+                $this->db->rollBack();
+                return HarppServiceResult::failure('Run not found.', 404);
+            }
+            $state = (string)($before['state'] ?? '');
+            // Claimable/stalled runs cancel unconditionally. A runner may also retire its
+            // own CLAIMED/RUNNING run (e.g. the wake agent already answered the source
+            // message) by presenting the matching claim token, so no STALLED artifact is
+            // left behind by the duplicate guard.
+            $u = $this->db->prepare("UPDATE harpp_work_runs SET state='CANCELLED',last_status='Cancelled before a runner claimed it (already answered or owner-cancelled).',claim_token=NULL,runner_key=NULL,lease_expires_at=NULL,finished_at=NOW(6) WHERE id=:id AND ((state IN ('QUEUED','WAITING_FOR_RUNNER','STALLED')) OR (state IN ('CLAIMED','RUNNING') AND claim_token=:token))");
+            $u->execute([':id' => $runId, ':token' => $claimToken]);
+            if ($u->rowCount() === 1) {
+                $run = $this->load($runId);
+                $this->effect($actor, 'harpp.work_run.cancelled', 'work_run.cancelled', $runId, $before, ['state' => 'CANCELLED']);
+                $this->db->commit();
+                return HarppServiceResult::success(['run' => $this->publicRun($run)]);
+            }
+            $this->db->commit();
+            if ($state === 'AWAITING_APPROVAL') {
+                return HarppServiceResult::failure('Run is awaiting owner approval and cannot be cancelled here; use the reject flow.', 409, 'not_cancellable');
+            }
+            if (in_array($state, ['CLAIMED', 'RUNNING'], true)) {
+                return HarppServiceResult::failure('Run is already in progress.', 409, 'run_in_progress');
+            }
+            return HarppServiceResult::success(['run' => $this->publicRun($before)]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            return HarppServiceResult::failure('Unable to cancel work run.', 500);
+        }
     }
 
     public function renew(array $actor, int $runId, array $input): HarppServiceResult
@@ -447,9 +501,10 @@ final class HarppRunService
         return is_array($row) ? $row : null;
     }
 
-    private function load(int $runId): ?array
+    private function load(int $runId, bool $locked = false): ?array
     {
-        $s = $this->db->prepare('SELECT * FROM harpp_work_runs WHERE id=:id');
+        $sql = 'SELECT * FROM harpp_work_runs WHERE id=:id'.($locked ? ' FOR UPDATE' : '');
+        $s = $this->db->prepare($sql);
         $s->execute([':id' => $runId]);
         $row = $s->fetch(PDO::FETCH_ASSOC);
         return is_array($row) ? $row : null;
