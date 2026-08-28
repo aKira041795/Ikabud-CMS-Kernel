@@ -13,13 +13,16 @@ the owner, poll for decisions/replies, and post status, exactly as the
 
 | File | Purpose |
 |---|---|
-| `harpp_client.py` | Core: config + HTTPS bridge calls (7 operations) |
+| `harpp_client.py` | Core: config + HTTPS bridge calls, work-queue/runner APIs, bounded context cache |
 | `harpp_mcp.py` | **MCP server** over stdio (newline-delimited JSON-RPC) — 7 tools |
 | `harpp` | Thin CLI for shell / Pi (`harpp ...`) |
+| `harpp_wake.py` | Guarded wake daemon + workflow engine + unified child-process supervisor + optional Wake-on-LAN adapter |
+| `harpp_deploy_worker.py` | FTP deploy worker (driven by `harpp watch`) |
 | `deploy_harpp.py` | Profile-bound deploy helper (multi-profile, dry-run by default) |
 | `harpp_deploy_ui.py` | Local deploy UI on 127.0.0.1 — choose package + FTP profile, upload |
 | `deploy.example.json` / `deploy.profiles.example.json` | Single / multi-profile templates |
 | `tests/test_harpp_bridge.py` | Local unit tests (no network) |
+| `tests/test_harpp_wake.py` | Wake/context/workflow/supervision/wake-on-LAN tests (no network) |
 
 ## 1. Configure
 
@@ -217,6 +220,57 @@ The worker publishes the inventory (non-secret), polls `/deploys/pending`,
 CAS-claims (`/deploys/{id}/claim`), executes `deploy_harpp.py` locally, and
 reports progress + receipt (`/deploys/{id}/report`). Deploys are recorded in
 `harpp_deploy_jobs` on the host; FTP credentials never leave this machine.
+
+## 5d. Offline queue, runners, supervision, context cache, workflows, Wake-on-LAN
+
+The HARPP module is the durable coordinator. The desktop (`harpp watch`) is the default runner;
+a Raspberry Pi / NAS / LAN runner can execute or broker work continuously.
+
+### Work requests while the desktop is offline
+- A request submitted with no compatible runner online is durably queued as
+  `WAITING_FOR_RUNNER` and owner-visible — never lost, never described as running.
+- `harpp watch` registers its runner (`harpp_client.register_runner`), claims a queued item
+  (`claim_run`), heartbeats/renews the lease, and reports the terminal outcome
+  (`complete_run` / `fail_run` / `stall_run`). Lease expiry is recoverable without duplicate
+  replies (one work item per source message).
+
+### Supervised child processes
+- Every wake / workflow / debate / deploy / verify child is tracked with PID identity, and the
+  monitor transitions a finished/dead child to a terminal outcome. A dead child whose report
+  never delivered is reconciled server-side (`reconcile_runs` with a healthy set) to `STALLED` —
+  it is never left `RUNNING`. Owner-visible report delivery is separate (`PENDING` →
+  `DELIVERED`/`DEAD_LETTER`), so delivery failure never alters the true execution outcome.
+
+### Conversation memory (context cache)
+- `harpp_client.context_for_conversation()` fetches title, bounded history, run state, and the
+  durable summary. It is cached locally (keyed by tenant+conversation, mode `0600`, bounded,
+  versioned) and invalidated when the conversation version advances. Missing/corrupt/oversized/
+  stale entries are refetched safely; secrets and bridge credentials never enter the cache.
+- Location: `~/.config/harpp/context-cache/` (override with `HARPP_CONTEXT_CACHE`).
+- `harpp_wake` injects this bounded context into every worker prompt (`task_prompt` and quick
+  replies), so "status?"/update answers are conversation-specific.
+
+### Versioned workflow manifests
+- Manifests are validated against a versioned schema before any run is persisted or process
+  launched:
+  ```bash
+  harpp workflow validate --manifest workflows/governed-loop.json
+  harpp workflow start --manifest workflows/governed-loop.json --conversation <id> --dry-run
+  ```
+- `validate`/`start --dry-run` fail with the exact field (unsupported model, missing prompt,
+  invalid budget/authority, owner-text interpolation in `verify`, missing workspace, …). Stage
+  results are structured + identity-checked, so a marker from another run cannot advance a stage.
+
+### Wake-on-LAN (optional)
+- Enable under `~/.config/harpp/config.json` → `wake_on_lan`. It is strictly optional and is
+  **never the sole delivery guarantee**: a failed wake leaves the item safely queued with a
+  truthful status. Only the single configured MAC/broadcast target is ever addressed (owner
+  input cannot select a target), it is rate-limited, and every attempt is audit-logged.
+  ```json
+  { "wake_on_lan": { "enabled": true, "mac": "00:11:22:33:44:55",
+                     "broadcast": "192.168.1.255", "port": 9, "min_interval": 60 } }
+  ```
+- In CI, tests use a `FakeWakeAdapter` rather than real hardware.
 
 ## Workflow example
 

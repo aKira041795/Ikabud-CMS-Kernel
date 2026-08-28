@@ -88,9 +88,14 @@ harness polls → acknowledges → applies → decision CLOSED + ADR recorded
 | `harpp_settings` | Per-tenant settings (secrets redacted; VAPID is env-only) |
 | `harpp_deploy_jobs` | Phone-queued deploy requests + lifecycle state + receipt (R-FTP MVP) |
 | `harpp_deploy_inventory` | Non-secret packages/profiles the local client registered |
+| `harpp_runners` | Registered runner identities, capabilities, online status, heartbeat |
+| `harpp_work_runs` | One durable work item per eligible owner message; state machine + lease + report delivery |
+| `harpp_context_summary` | Bounded, versioned per-conversation memory read-model (title, history, run, decisions) |
 
-The manifest is authoritative for all 28 tables. Migrations `001` through `008` are ordered;
-`008_harpp_deploy.sql` is the additive R-FTP deploy migration.
+The manifest is authoritative for all owned tables. Migrations `001`–`015` are ordered:
+`013` adds the runner + work-queue schema, `014` adds reconciliation (attempt/stalled) and
+report-delivery (delivery_attempts/last_delivery_error) columns, and `015` adds the
+`harpp_context_summary` read-model.
 
 ---
 
@@ -144,7 +149,29 @@ POST      /api/v1/harpp/bridge/decisions/{id}/applied
 POST/GET  /api/v1/harpp/bridge/messages                 send / poll (cursor)
 POST      /api/v1/harpp/bridge/status                   harness status → notification
 GET/POST  /api/v1/harpp/bridge/key                      owner-only: get / rotate bridge key
+
+**Work-queue / runner / memory bridge** (machine auth; durable, tenant-scoped):
+
 ```
+POST      /api/v1/harpp/bridge/runs                      queue one work item for an owner message
+POST      /api/v1/harpp/bridge/runs/claim                runner claims a queued item (lease token)
+POST      /api/v1/harpp/bridge/runs/{id}/running         mark started (attempt_count++)
+POST      /api/v1/harpp/bridge/runs/{id}/renew           extend a lease
+POST      /api/v1/harpp/bridge/runs/{id}/complete        → SUCCEEDED (report_state=PENDING)
+POST      /api/v1/harpp/bridge/runs/{id}/fail            → FAILED
+POST      /api/v1/harpp/bridge/runs/{id}/stall           → STALLED (dead child / no heartbeat)
+POST      /api/v1/harpp/bridge/runs/reconcile            runner reports healthy set; others → STALLED
+POST      /api/v1/harpp/bridge/runs/{id}/report/delivered       PENDING → DELIVERED
+POST      /api/v1/harpp/bridge/runs/{id}/report/dead-letter     PENDING → DEAD_LETTER (+ error)
+GET       /api/v1/harpp/bridge/runs/{id}                 owner-visible run status
+GET       /api/v1/harpp/bridge/conversations/{id}/context  title + history + run + durable summary
+POST      /api/v1/harpp/bridge/runners                   register / heartbeat a runner
+```
+
+Run lifecycle states: `QUEUED` → `WAITING_FOR_RUNNER` → `CLAIMED` → `RUNNING` →
+(`STALLED` | `SUCCEEDED` | `FAILED` | `CANCELLED`). Report delivery is tracked
+separately as `PENDING` / `DELIVERED` / `DEAD_LETTER` so execution outcome never
+collapses into delivery state.
 
 ---
 
@@ -293,6 +320,46 @@ See `tools/harpp-bridge/README.md` for the full client reference.
 
 ---
 
+## 8b. Work queue, runners, reconciliation, and conversation memory
+
+The HARPP module is the **durable coordinator**. Files under `~/.config/harpp` on the desktop
+may be caches or migration inputs only — they are never the sole authority for an accepted run.
+
+### Offline semantics
+- A work request submitted while no compatible runner is online is durably recorded as
+  `WAITING_FOR_RUNNER` within normal request latency — never lost, never described as running.
+- The web request never launches local models/shell processes. A runner claims work through the
+  authenticated tenant-bound bridge using a **lease token, heartbeat, expiry, attempt count, and
+  stable runner identity**.
+- Exactly **one work item per eligible owner source message** (`uq_harpp_work_runs_source_message`),
+  so replay/retry cannot create duplicate substantive replies.
+
+### Lease recovery & child-process reconciliation
+- An expired **never-started** claim (`CLAIMED`) is requeued for retry.
+- An expired **RUNNING** run with retry budget is requeued; with the budget exhausted it is
+  reconciled to `STALLED` (`stalled_at` set) — a dead child process is never left represented as
+  `RUNNING` merely because its owner report never arrived.
+- `POST /runs/reconcile`: the supervising runner reports its **healthy set** of run ids; any run
+  it claimed that is not in the set is independently repaired to `STALLED` (covers watcher/runner
+  restart and report-delivery loss).
+
+### Report delivery is separate from execution
+- Terminal runs set `report_state='PENDING'`; delivery advances it to `DELIVERED` or, after the
+  attempt ceiling, to `DEAD_LETTER` with an inspectable `last_delivery_error`. Failed status
+  delivery is retained and retried — never swallowed.
+
+### Conversation memory (durable context)
+- `harpp_context_summary` holds a bounded, versioned per-conversation digest: title, recent turns,
+  active/latest run, and applicable durable decisions. It is derived only from the canonical
+  `harpp_messages` / `harpp_decisions` / `harpp_work_runs` tables and versioned by the latest
+  message aggregate sequence, so the client context cache invalidates on new content.
+- `GET /conversations/{id}/context` returns title, history, run state, and the summary; the client
+  caches it locally at `~/.config/harpp/context-cache/` (mode `0600`, bounded, version-invalidated).
+- Every worker prompt receives this bounded, redacted context (title + recent turns + active run +
+  applicable durable decisions), making "status?"/update answers conversation-specific.
+
+---
+
 ## 9. Deployment to Bluehost (shared hosting)
 
 1. **Package:** build the deploy archive (includes this module):
@@ -330,7 +397,18 @@ See `tools/harpp-bridge/README.md` for the full client reference.
 ```bash
 bash modules/harpp/tests/run-all.sh        # all phase suites + module:validate + lint
                                            # fails (exit 1) if error.log is non-empty
+
+# Work queue / reconciliation / report delivery / context memory (PHP CLI, no PHPUnit)
+php modules/harpp/tests/runner_work_queue_cli_test.php 1
+php modules/harpp/tests/runner_reconcile_cli_test.php 1
+php modules/harpp/tests/context_summary_cli_test.php 1
 ```
+
+Coverage includes: one-work-item-per-message; explicit `WAITING_FOR_RUNNER` when offline;
+lease claim/renew/complete and invalid-token rejection; `reconcileRuns` stalling a dead child;
+expired-lease recovery (retry vs `STALLED`); report delivery `PENDING → DELIVERED` and
+dead-letter with inspectable error; and the context-summary read-model (run-N+1 decision reuse,
+per-conversation isolation, version advance, bounded lists).
 
 ---
 
