@@ -42,6 +42,8 @@ WAKE_LOG = CONFIG_DIR / "wake.log"
 JOBS_FILE = CONFIG_DIR / "jobs.json"
 WORKFLOWS_FILE = CONFIG_DIR / "workflows.json"
 DECISIONS_FILE = CONFIG_DIR / "decisions.json"
+_LAST_DAEMON_REPORT_TS: float = 0.0
+DAEMON_REPORT_INTERVAL = 60.0
 # Machine-global defaults so monitoring survives workspace switches (any VS Code
 # window reads the same inbox/log). Explicit --inbox/--log still override.
 INBOX_FILE = CONFIG_DIR / "inbox.jsonl"
@@ -1722,6 +1724,45 @@ def workflows_state() -> dict:
         state.setdefault("workflows", {})
         state["workflows"] = {wid: _normalize_workflow(wf) for wid, wf in state["workflows"].items() if isinstance(wf, dict)}
         return state
+
+
+def _workflow_summary(limit: int = 5) -> tuple[dict, list]:
+    """Compact workflow summary from the local workflow store (never raises)."""
+    try:
+        raw = _load_json(WORKFLOWS_FILE, {})
+        wf = raw.get("workflows", raw) if isinstance(raw, dict) else raw
+        items = wf if isinstance(wf, list) else list(wf.values() or [])
+        items = [item for item in items if isinstance(item, dict)]
+    except Exception:  # noqa: BLE001
+        return {}, []
+    counts: dict = {}
+    for item in items:
+        status = str(item.get("status") or "unknown")
+        counts[status] = counts.get(status, 0) + 1
+    recent = [{
+        "id": str(item.get("id") or "")[:191],
+        "title": str(item.get("title") or "")[:255],
+        "status": str(item.get("status") or "unknown")[:40],
+        "updated_at": str(item.get("updated_at") or "")[:32],
+    } for item in items[-limit:]]
+    return counts, recent
+
+
+def report_daemon_status(runner_key: str, workspace: str | None = None) -> None:
+    """Best-effort daemon liveness + workflow report to the server. Never raises.
+    Throttled to at most one report per DAEMON_REPORT_INTERVAL seconds."""
+    global _LAST_DAEMON_REPORT_TS
+    now = time.time()
+    if now - _LAST_DAEMON_REPORT_TS < DAEMON_REPORT_INTERVAL:
+        return
+    _LAST_DAEMON_REPORT_TS = now
+    try:
+        counts, recent = _workflow_summary()
+        harpp_client.report_daemon_status(
+            runner_key=runner_key, daemon_version="1.0.0",
+            workflow_counts=counts, recent_workflows=recent)
+    except Exception as exc:  # noqa: BLE001
+        log(f"daemon status report failed: {exc}")
 
 
 def save_workflows_state(state: dict) -> None:

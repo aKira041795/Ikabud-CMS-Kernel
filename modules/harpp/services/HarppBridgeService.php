@@ -102,6 +102,11 @@ final class HarppBridgeService
         return (new HarppRunService($this->db))->cancelRun($actor, $input);
     }
 
+    public function reportDaemonStatus(array $actor, array $input, int $tenantId)
+    {
+        return (new HarppStatusService($this->db))->reportDaemonStatus($actor, $input, $tenantId);
+    }
+
     public function runRunning(array $actor, int $runId, array $input, int $tenantId)
     {
         return (new HarppRunService($this->db))->transition($actor, $runId, $input, 'RUNNING');

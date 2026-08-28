@@ -35,6 +35,7 @@ require_once __DIR__ . '/services/HarppAdrService.php';
 require_once __DIR__ . '/services/HarppBridgeAuthService.php';
 require_once __DIR__ . '/services/HarppBridgeService.php';
 require_once __DIR__ . '/services/HarppDeployService.php';
+require_once __DIR__ . '/services/HarppStatusService.php';
 
 app()->registerAuthTable('harpp', 'harpp_users');
 

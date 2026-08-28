@@ -204,12 +204,14 @@ class HarppWakeTest(unittest.TestCase):
         harpp_wake.JOBS_FILE = base / "jobs.json"
         harpp_wake.WORKFLOWS_FILE = base / "workflows.json"
         harpp_wake.DECISIONS_FILE = base / "decisions.json"
+        harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
         self.inbox = base / "inbox.jsonl"
         self.inbox.write_text(
             json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "hi"}) + "\n",
             encoding="utf-8")
 
     def tearDown(self):
+        harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
         self.tmp.cleanup()
 
     def _wake(self, **kw):
@@ -221,6 +223,42 @@ class HarppWakeTest(unittest.TestCase):
 
     def test_disabled_returns_false(self):
         self.assertFalse(harpp_wake.maybe_wake(str(self.inbox), enabled=False))
+
+    def test_report_daemon_status_posts_summary(self):
+        harpp_wake.WORKFLOWS_FILE.write_text(json.dumps({"workflows": {
+            "wf-1": {"id": "wf-1", "title": "One", "status": "done", "updated_at": "2026-08-29"},
+            "wf-2": {"id": "wf-2", "title": "Two", "status": "running", "updated_at": "2026-08-29"},
+            "wf-3": {"id": "wf-3", "title": "Three", "status": "done", "updated_at": "2026-08-29"},
+        }}), encoding="utf-8")
+        calls = []
+        original = harpp_wake.harpp_client.report_daemon_status
+        harpp_wake.harpp_client.report_daemon_status = lambda **kw: calls.append(kw) or {"ok": True}
+        try:
+            self.assertIsNone(harpp_wake.report_daemon_status("desktop-test", workspace="/tmp"))
+        finally:
+            harpp_wake.harpp_client.report_daemon_status = original
+        self.assertEqual(calls[0]["runner_key"], "desktop-test")
+        self.assertEqual(calls[0]["workflow_counts"], {"done": 2, "running": 1})
+        self.assertLessEqual(len(calls[0]["recent_workflows"]), 5)
+
+    def test_report_daemon_status_throttles(self):
+        calls = []
+        original = harpp_wake.harpp_client.report_daemon_status
+        harpp_wake.harpp_client.report_daemon_status = lambda **kw: calls.append(kw) or {"ok": True}
+        try:
+            harpp_wake.report_daemon_status("desktop-test")
+            harpp_wake.report_daemon_status("desktop-test")
+        finally:
+            harpp_wake.harpp_client.report_daemon_status = original
+        self.assertEqual(len(calls), 1)
+
+    def test_report_daemon_status_tolerates_client_error(self):
+        original = harpp_wake.harpp_client.report_daemon_status
+        harpp_wake.harpp_client.report_daemon_status = lambda **kw: (_ for _ in ()).throw(RuntimeError("offline"))
+        try:
+            self.assertIsNone(harpp_wake.report_daemon_status("desktop-test"))
+        finally:
+            harpp_wake.harpp_client.report_daemon_status = original
 
     def test_spawns_and_marks_processed_idempotently(self):
         self.assertTrue(self._wake())

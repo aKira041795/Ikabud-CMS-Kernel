@@ -392,6 +392,8 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             # Phone-queued deploys: publish inventory + run the deploy worker on demand,
             # so the FTP worker process exists only while a deploy is actually running.
             harpp_wake.sync_deploys()
+            # Daemon liveness + workflow summary for the /harpp/status page.
+            harpp_wake.report_daemon_status(runner_key=_desktop_runner_key())
         except Exception as e:
             print(f"harpp watch: job monitor failed: {e}", flush=True)
         if wake:

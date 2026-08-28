@@ -472,6 +472,17 @@ def register_runner(config=None, **kw):
     }, config=config)
 
 
+def report_daemon_status(runner_key, daemon_version="", workflow_counts=None, recent_workflows=None, config=None):
+    """Report daemon liveness + workflow summary to the server (status page).
+    Best-effort call site; the daemon treats any failure as non-fatal."""
+    return api("POST", "/api/v1/harpp/bridge/status/report", {
+        "runner_key": str(runner_key or ""),
+        "daemon_version": str(daemon_version or "")[:64],
+        "workflow_counts": dict(workflow_counts or {}),
+        "recent_workflows": [dict(x) for x in (recent_workflows or [])][:10],
+    }, config=config)
+
+
 def claim_run(config=None, **kw):
     return api("POST", "/api/v1/harpp/bridge/runs/claim", {
         "runner_key": kw.get("runner_key", ""),

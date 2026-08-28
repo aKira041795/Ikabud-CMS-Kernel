@@ -144,6 +144,7 @@ function harppRenderShell(string $template, string $page, array $context = []): 
 function harppPageMessenger(array $params = []): void { harppRenderShell('messenger', 'messenger'); }
 function harppPageDecisions(array $params = []): void { harppRenderShell('decisions', 'decisions'); }
 function harppRunnersPage(array $params = []): void { harppRenderShell('runners', 'runners'); }
+function harppPageStatus(array $params = []): void { harppRenderShell('status', 'status'); }
 function harppPageDecisionDetail(array $params = []): void { harppRenderShell('decision-detail', 'decisions', ['decision_id' => max(0, (int)($params['id'] ?? 0))]); }
 function harppPageSettings(array $params = []): void { harppRenderShell('settings', 'settings'); }
 function harppPageUsers(array $params = []): void
@@ -377,6 +378,7 @@ function harppSettingsSave(array $params = []): void
 function harppRequestData(): array { return array_merge(is_array($_GET) ? $_GET : [], harppInput()); }
 function harppDecisionCreate(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.manage@1');if($u)harppJson((new HarppDecisionService())->create($u,harppInput(),harppCurrentTenantId()));}); }
 function harppRunnerListOwner(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new \Harpp\Services\HarppRunService(harppDb()))->listRunnersForOwner($u,harppCurrentTenantId()));}); }
+function harppStatusOverview(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new \Harpp\Services\HarppStatusService(harppDb()))->overview($u,harppCurrentTenantId()));}); }
 function harppDecisionList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.decision.review@1');if($u)harppJson((new HarppDecisionService())->list($u,harppRequestData(),harppCurrentTenantId()));}); }
 function harppDecisionGet(array $params=[]):void { harppHandle(function()use($params):void{$u=harppAuthenticated('harpp.decision.review@1');if($u)harppJson((new HarppDecisionService())->get($u,(int)($params['id']??0),harppCurrentTenantId()));}); }
 function harppDecisionTransition(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.decision.review@1');if($u){$i=harppInput();harppJson((new HarppDecisionService())->transition($u,(int)($params['id']??0),(string)($i['state']??$i['to_state']??''),(string)($i['rationale']??''),$i,harppCurrentTenantId()));}}); }
@@ -453,6 +455,7 @@ function harppBridgeRunQueue(array $params=[]):void { harppHandle(function():voi
 function harppBridgeRunnerRegister(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->registerRunner($a,harppInput(),harppCurrentTenantId()));}); }
 function harppBridgeRunClaim(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->claimRun($a,harppInput(),harppCurrentTenantId()));}); }
 function harppBridgeRunCancel(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppBridgeRespond((new HarppBridgeService(harppDb()))->cancelRun($a,harppInput(),harppCurrentTenantId()));}); }
+function harppBridgeDaemonStatusReport(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppBridgeRespond((new HarppBridgeService(harppDb()))->reportDaemonStatus($a,harppInput(),harppCurrentTenantId()));}); }
 function harppBridgeRunRunning(array $params=[]):void { harppHandle(function()use($params):void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->runRunning($a,(int)($params['id']??0),harppInput(),harppCurrentTenantId()));}); }
 function harppBridgeRunRenew(array $params=[]):void { harppHandle(function()use($params):void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->renewRun($a,(int)($params['id']??0),harppInput(),harppCurrentTenantId()));}); }
 function harppBridgeRunComplete(array $params=[]):void { harppHandle(function()use($params):void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->completeRun($a,(int)($params['id']??0),harppInput(),harppCurrentTenantId()));}); }

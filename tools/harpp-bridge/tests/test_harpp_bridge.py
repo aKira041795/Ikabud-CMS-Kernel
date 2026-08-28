@@ -263,6 +263,16 @@ class HarppClientTest(unittest.TestCase):
         s = harpp_client.post_status(message="running", workbench_state="IMPLEMENTING")
         self.assertEqual(s["body"]["workbench_state"], "IMPLEMENTING")
 
+    def test_dry_run_report_daemon_status(self):
+        req = harpp_client.report_daemon_status(
+            runner_key="desktop-x", workflow_counts={"done": 1},
+            recent_workflows=[{"id": "a", "title": "t", "status": "done", "updated_at": ""}])
+        self.assertTrue(req["url"].endswith("/api/v1/harpp/bridge/status/report"))
+        self.assertEqual(req["body"]["runner_key"], "desktop-x")
+        self.assertEqual(req["body"]["workflow_counts"], {"done": 1})
+        self.assertEqual(len(req["body"]["recent_workflows"]), 1)
+        self.assertIn("daemon_version", req["body"])
+
 
 class HarppCliDecisionLedgerTest(unittest.TestCase):
     def test_local_decision_record_and_list_cli(self):

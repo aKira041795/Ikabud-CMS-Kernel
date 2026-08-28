@@ -1,7 +1,7 @@
 {
     "id": "harpp",
     "name": "HARPP \u2014 Harness App (Decision Center & Messenger)",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "description": "Tenant-owned decision center and messenger connecting the local AI harness to operators through durable decisions, notifications, and ADR memory.",
     "author": "Ikabud Kernel Team",
     "reads_tables": [],
@@ -40,7 +40,8 @@
         "harpp_context_summary",
         "harpp_artifact_bundles",
         "harpp_artifacts",
-        "harpp_artifact_shares"
+        "harpp_artifact_shares",
+        "harpp_daemon_status"
     ],
     "migrations": [
         "database/migrations/001_harpp_core.sql",
@@ -59,7 +60,8 @@
         "database/migrations/014_harpp_runner_reconcile.sql",
         "database/migrations/015_harpp_context_summary.sql",
         "database/migrations/016_harpp_artifact_bundle.sql",
-        "database/migrations/017_harpp_risk_gate.sql"
+        "database/migrations/017_harpp_risk_gate.sql",
+        "database/migrations/018_harpp_daemon_status.sql"
     ],
     "capabilities": {
         "exposes": [
