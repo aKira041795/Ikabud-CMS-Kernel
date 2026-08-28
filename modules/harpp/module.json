@@ -34,7 +34,9 @@
         "harpp_purge_requests",
         "harpp_deploy_jobs",
         "harpp_deploy_inventory",
-        "harpp_bridge_rate_limit"
+        "harpp_bridge_rate_limit",
+        "harpp_runners",
+        "harpp_work_runs"
     ],
     "migrations": [
         "database/migrations/001_harpp_core.sql",
@@ -48,7 +50,8 @@
         "database/migrations/009_harpp_deploy_hardening.sql",
         "database/migrations/010_harpp_conversation_soft_delete.sql",
         "database/migrations/011_harpp_adr_origin.sql",
-        "database/migrations/012_harpp_perf_read_model.sql"
+        "database/migrations/012_harpp_perf_read_model.sql",
+        "database/migrations/013_harpp_runner_work_queue.sql"
     ],
     "capabilities": {
         "exposes": [

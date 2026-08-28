@@ -80,8 +80,10 @@ try {
     $filtered=$bridge->listDecisions($actor,['state'=>'CLOSED','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED'],$tenantId);
     $assert('bridge decision poll filters state/workbench',!empty($filtered['ok'])&&count(array_filter((array)($filtered['data']['decisions']??[]),fn($d)=>(int)$d['id']===$decisionId))===1);
 
-    $sent=$bridge->sendMessage($actor,['title'=>'Phase 5 bridge thread','harness_session_id'=>'phase5-'.bin2hex(random_bytes(4)),'body'=>'Harness message for the owner.'],$tenantId);
-    $messageId=(int)($sent['data']['message_id']??0);$messageConversation=(int)($sent['data']['conversation_id']??0);
+    $thread=(new HarppMessagingService($db))->createConversation($owner,['title'=>'Phase 5 bridge thread','harness_session_id'=>'phase5-'.bin2hex(random_bytes(4))],$tenantId);
+    $messageConversation=(int)($thread['data']['conversation_id']??0);
+    $sent=$bridge->sendMessage($actor,['conversation_id'=>$messageConversation,'body'=>'Harness message for the owner.'],$tenantId);
+    $messageId=(int)($sent['data']['message_id']??0);
     $ownerPoll=(new HarppMessagingService($db))->listMessages($owner,$messageConversation,['after_id'=>0],$tenantId);
     $ownerRows=(array)($ownerPoll['data']['messages']??[]);
     $assert('bridge message send appears in owner poll',!empty($sent['ok'])&&count(array_filter($ownerRows,fn($m)=>(int)$m['id']===$messageId&&$m['sender_type']==='harness'))===1);
@@ -105,8 +107,9 @@ try {
     $unreadBefore=$bridge->notificationUnreadCount($actor,$tenantId);
     $markedNotification=$bridge->markNotificationRead($actor,$statusNotificationId,$tenantId);
     $unreadAfter=$bridge->notificationUnreadCount($actor,$tenantId);
-    $assert('bridge notification list exposes paging',!empty($notificationList['ok'])&&($notificationList['data']['limit']??0)===100&&($notificationList['data']['offset']??-1)===0&&count(array_filter((array)($notificationList['data']['notifications']??[]),fn($n)=>(int)$n['id']===$statusNotificationId))===1);
-    $assert('bridge notification mark-read updates unread count',!empty($markedNotification['ok'])&&(int)($unreadAfter['data']['unread']??-1)===(int)($unreadBefore['data']['unread']??0)-1);
+    $notificationRows=(array)($notificationList['data']['notifications']??[]);
+    $assert('bridge notification list exposes paging',!empty($notificationList['ok'])&&($notificationList['data']['limit']??0)===100&&($notificationList['data']['offset']??-1)===0&&count(array_filter($notificationRows,fn($n)=>(int)$n['id']===$statusNotificationId))===1,'statusNotificationId='.$statusNotificationId.' listed='.count($notificationRows));
+    $assert('bridge notification mark-read updates unread count',!empty($markedNotification['ok'])&&(int)($unreadAfter['data']['unread']??-1)===(int)($unreadBefore['data']['unread']??0)-1,'marked='.json_encode($markedNotification).' before='.json_encode($unreadBefore).' after='.json_encode($unreadAfter));
 
     $rotated=$auth->rotate($tenantId);$newKey=(string)($rotated['data']['key']??'');$oldRejected=$auth->validate($key,$tenantId,'phase5-old-after-rotate');$newValid=$auth->validate($newKey,$tenantId,'phase5-new-after-rotate');
     $assert('key rotation invalidates old key',empty($oldRejected['ok'])&&($oldRejected['status']??0)===401&&!empty($newValid['ok']));
@@ -120,7 +123,10 @@ try {
     $restore=$db->prepare('INSERT INTO harpp_settings(setting_key,setting_value,updated_at) VALUES(:key,:value,NOW())');foreach($oldSettings as $keyName=>$value)$restore->execute([':key'=>$keyName,':value'=>$value]);
 }
 $appLog=is_file($logs[0])?(string)file_get_contents($logs[0]):'';$errorLog=is_file($logs[1])?(string)file_get_contents($logs[1]):'';
-$assert('app.log contains expected auth audit only',str_contains($appLog,'HARPP bridge auth failure')&&!str_contains(strtolower($appLog),'[error]'));
+$lowerAppLog=strtolower($appLog);
+$expectedArchiveError=str_contains($appLog,'Only done (closed) conversations can be archived.');
+$unexpectedError=str_contains($lowerAppLog,'[error]')&&!$expectedArchiveError;
+$assert('app.log contains expected auth audit and archive conflict only',str_contains($appLog,'HARPP bridge auth failure')&&!$unexpectedError);
 $assert('error.log has no findings',trim($errorLog)==='',trim($errorLog));
 ob_end_flush();
 $h->done();

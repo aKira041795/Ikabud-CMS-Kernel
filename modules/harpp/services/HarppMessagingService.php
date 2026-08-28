@@ -79,9 +79,9 @@ final class HarppMessagingService
     {
         if(!$this->access($actor,$tenantId) || ($actor['source']??'')!=='harpp_bridge') return HarppServiceResult::failure('Forbidden.',403);
         $limit=max(1,min(100,(int)($page['limit']??50)));$after=max(0,(int)($page['cursor']??$page['after_id']??$page['after']??0));$conversation=max(0,(int)($page['conversation_id']??0));
-        $sql="SELECT id,conversation_id,sender_type,sender_user_id,body,payload,read_at,created_at FROM harpp_messages WHERE sender_type='user' AND id>:after";$params=[':after'=>$after];
-        if($conversation>0){$sql.=' AND conversation_id=:conversation';$params[':conversation']=$conversation;}
-        $sql.=' ORDER BY id ASC LIMIT '.$limit;$s=$this->db()->prepare($sql);$s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC);
+        $sql="SELECT m.id,m.conversation_id,m.sender_type,m.sender_user_id,m.body,m.payload,m.read_at,m.created_at,c.title conversation_title,c.harness_session_id,c.version conversation_version,wr.id run_id,wr.state run_state,wr.report_state run_report_state,wr.runner_key run_runner_key,wr.last_status run_last_status FROM harpp_messages m JOIN harpp_conversations c ON c.id=m.conversation_id LEFT JOIN harpp_work_runs wr ON wr.source_message_id=m.id WHERE m.sender_type='user' AND m.id>:after";$params=[':after'=>$after];
+        if($conversation>0){$sql.=' AND m.conversation_id=:conversation';$params[':conversation']=$conversation;}
+        $sql.=' ORDER BY m.id ASC LIMIT '.$limit;$s=$this->db()->prepare($sql);$s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC);
         return HarppServiceResult::success(['messages'=>$rows,'limit'=>$limit,'next_cursor'=>$rows?(int)end($rows)['id']:$after]);
     }
 

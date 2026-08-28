@@ -279,7 +279,10 @@ final class HarppNotificationService
     private function access(array $actor, ?int $tenantId): bool
     {
         $current = (int)(\app()->tenant()->current() ?? 0);
-        return $current > 0 && ($tenantId === null || $tenantId === $current) && (int)($actor['id'] ?? 0) > 0 && ($actor['source'] ?? 'harpp') === 'harpp' && in_array((string)($actor['role'] ?? ''), ['owner', 'admin', 'member'], true);
+        $source = (string)($actor['source'] ?? 'harpp');
+        $role = (string)($actor['role'] ?? '');
+        $roleAllowed = $source === 'harpp_bridge' ? in_array($role, ['owner', 'admin'], true) : in_array($role, ['owner', 'admin', 'member'], true);
+        return $current > 0 && ($tenantId === null || $tenantId === $current) && (int)($actor['id'] ?? 0) > 0 && in_array($source, ['harpp', 'harpp_bridge'], true) && $roleAllowed;
     }
     private function log(string $message, Throwable $e): void { if (function_exists('write_log')) { \write_log('HARPP ' . $message, 'error', ['module' => 'harpp', 'error' => $e->getMessage()]); } }
 }

@@ -55,13 +55,13 @@ class HarppClientTest(unittest.TestCase):
         finally:
             harpp_client.api = original
         urls = [c[1] for c in calls]
-        # Each owner message gets one idempotent "Received" confirmation, and the
-        # DECIDED decision triggers acknowledge + applied.
+        # Each owner message creates/resolves one durable run, and the DECIDED
+        # decision triggers acknowledge + applied.
         self.assertEqual(len(calls), 3, notes)
-        self.assertTrue(any(u.endswith("/bridge/messages") for u in urls), urls)
+        self.assertTrue(any(u.endswith("/bridge/runs") for u in urls), urls)
         self.assertTrue(any(u.endswith("/acknowledge") for u in urls), urls)
         self.assertTrue(any(u.endswith("/applied") for u in urls), urls)
-        self.assertEqual(notes[0], "message 5 ack ok=True", notes)
+        self.assertEqual(notes[0], "message 5 queued state=unknown ok=True", notes)
         self.assertEqual(notes[1], "decision 9 ack=True apply=True", notes)
 
     def test_successful_idempotent_message_writes_delivery_receipt(self):
@@ -175,6 +175,12 @@ class HarppClientTest(unittest.TestCase):
         self.assertIn("/decisions/3/acknowledge", a["url"])
         ap = harpp_client.apply_decision(3)
         self.assertIn("/decisions/3/applied", ap["url"])
+
+    def test_dry_run_renew_run_posts_claim_token(self):
+        req = harpp_client.renew_run(12, "lease-token", lease_seconds=180)
+        self.assertTrue(req["url"].endswith("/api/v1/harpp/bridge/runs/12/renew"))
+        self.assertEqual(req["body"]["claim_token"], "lease-token")
+        self.assertEqual(req["body"]["lease_seconds"], 180)
 
     def test_dry_run_message_and_status(self):
         m = harpp_client.send_message(body="hi", conversation_id=9)

@@ -73,7 +73,58 @@ final class HarppBridgeService
 
     public function pollMessages(array $actor, array $filters, int $tenantId)
     {
+        $result = (new HarppMessagingService($this->db))->listOwnerMessagesForHarness($actor, $filters, $tenantId);
+        if (empty($result['ok'])) return $result;
+        $runner = new HarppRunService($this->db);
+        foreach ((array)($result['data']['messages'] ?? []) as $message) {
+            $runner->ensureForMessage($actor, (int)$message['id'], (array)($filters['required_capabilities'] ?? ['desktop']));
+        }
         return (new HarppMessagingService($this->db))->listOwnerMessagesForHarness($actor, $filters, $tenantId);
+    }
+
+    public function queueMessageRun(array $actor, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->ensureForMessage($actor, (int)($input['message_id'] ?? 0), (array)($input['required_capabilities'] ?? ['desktop']));
+    }
+
+    public function registerRunner(array $actor, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->registerRunner($actor, $input);
+    }
+
+    public function claimRun(array $actor, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->claim($actor, $input);
+    }
+
+    public function runRunning(array $actor, int $runId, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->transition($actor, $runId, $input, 'RUNNING');
+    }
+
+    public function renewRun(array $actor, int $runId, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->renew($actor, $runId, $input);
+    }
+
+    public function completeRun(array $actor, int $runId, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->transition($actor, $runId, $input, 'SUCCEEDED');
+    }
+
+    public function failRun(array $actor, int $runId, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->transition($actor, $runId, $input, 'FAILED');
+    }
+
+    public function runStatus(array $actor, int $runId, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->status($actor, $runId);
+    }
+
+    public function conversationContext(array $actor, int $conversationId, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->context($actor, $conversationId, (int)($input['limit'] ?? 20));
     }
 
     public function listConversations(array $actor, array $filters, int $tenantId)
@@ -120,10 +171,10 @@ final class HarppBridgeService
             $foundation=new HarppFoundationService($this->db);$recipient=$this->ownerId();if($recipient<=0)throw new \InvalidArgumentException('No active owner is available.');$recipients=[$recipient];
             if($foundation->enabled('notification_fanout')){$workspace=(int)($this->db->query("SELECT id FROM harpp_workspaces WHERE workspace_key='legacy' LIMIT 1")->fetchColumn()?:0);if($workspace>0)$recipients=(new HarppCollaborationService($this->db))->notificationRecipients($workspace,null,'bridge.status',0);}
             $notifications = new HarppNotificationService($this->db);
-            $deliveries=[];$notice=null;foreach($recipients as $recipient){$notice=$notifications->create($recipient,'system',['event'=>'bridge.status','status'=>$status,'harness_session_id'=>$session,'message'=>$message,'workbench_state'=>trim((string)($input['workbench_state']??''))],null,null,null,false);if(empty($notice['ok']))throw new \RuntimeException((string)$notice['error']);$deliveries[]=['id'=>(int)($notice['data']['notification_id']??0),'user_id'=>$recipient];}
+            $deliveries=[];$notice=null;$actorNotice=null;foreach($recipients as $recipient){$notice=$notifications->create($recipient,'system',['event'=>'bridge.status','status'=>$status,'harness_session_id'=>$session,'message'=>$message,'workbench_state'=>trim((string)($input['workbench_state']??''))],null,null,null,false);if(empty($notice['ok']))throw new \RuntimeException((string)$notice['error']);$deliveries[]=['id'=>(int)($notice['data']['notification_id']??0),'user_id'=>$recipient];if((int)$recipient===(int)($actor['id']??0))$actorNotice=$notice;}
             $this->effects($actor, $session, ['status'=>$status,'message'=>$message,'notification_deliveries'=>$deliveries]);
             if ($ownsTransaction) $this->db->commit();
-            return $notice??HarppServiceResult::success(['notification_ids'=>[]]);
+            return $actorNotice??$notice??HarppServiceResult::success(['notification_ids'=>[]]);
         } catch (Throwable $e) {
             if ($ownsTransaction && $this->db->inTransaction()) $this->db->rollBack();
             if (function_exists('write_log')) \write_log('HARPP bridge status failed', 'error', ['module'=>'harpp','error'=>$e->getMessage()]);

@@ -310,7 +310,7 @@ def apply_decision(decision_id, config=None, rationale="Harness applied the owne
 
 
 def autoprocess(records, outcomes=None):
-    """Deterministically receipt messages and close decisions; optionally report success."""
+    """Deterministically queue messages and close decisions; optionally report success."""
     notes = []
     for rec in records or []:
         ok = False
@@ -319,16 +319,13 @@ def autoprocess(records, outcomes=None):
                 conv = rec.get("conversation_id")
                 if not conv:
                     raise HarppError("message has no conversation_id")
-                # One idempotent "Received" confirmation per owner message. The
-                # idempotency key makes a retry a no-op server-side, so the owner
-                # gets exactly one confirmation (the earlier unbounded auto-reply
-                # flood came from retrying without an idempotency key).
-                r = harpp_notify(
-                    body="✅ Received — the harness is working on it.",
-                    conversation_id=int(conv), message_type="INFO",
-                    idempotency_key=f"ack-{int(rec.get('id', 0))}")
+                r = queue_run(
+                    message_id=int(rec.get("id", 0)),
+                    required_capabilities=rec.get("required_capabilities") or ["desktop"],
+                )
                 ok = bool(r.get("ok"))
-                notes.append(f"message {rec.get('id')} ack ok={ok}")
+                run = (r.get("data") or {}).get("run") or {}
+                notes.append(f"message {rec.get('id')} queued state={run.get('state', 'unknown')} ok={ok}")
             elif rec.get("kind") == "decision":
                 did = int(rec.get("id"))
                 state = str(rec.get("lifecycle_state") or "").upper()
@@ -458,6 +455,60 @@ def poll_messages(config=None, **kw):
     return api("GET", "/api/v1/harpp/bridge/messages" + _query(
         {"conversation_id": kw.get("conversation_id"), "cursor": kw.get("after", 0),
          "limit": kw.get("limit")}), config=config)
+
+
+def queue_run(config=None, **kw):
+    return api("POST", "/api/v1/harpp/bridge/runs", {
+        "message_id": int(kw.get("message_id") or 0),
+        "required_capabilities": kw.get("required_capabilities") or ["desktop"],
+    }, config=config)
+
+
+def register_runner(config=None, **kw):
+    return api("POST", "/api/v1/harpp/bridge/runners", {
+        "runner_key": kw.get("runner_key", ""),
+        "display_name": kw.get("display_name", kw.get("runner_key", "")),
+        "capabilities": kw.get("capabilities") or ["desktop"],
+    }, config=config)
+
+
+def claim_run(config=None, **kw):
+    return api("POST", "/api/v1/harpp/bridge/runs/claim", {
+        "runner_key": kw.get("runner_key", ""),
+        "lease_seconds": kw.get("lease_seconds", 300),
+    }, config=config)
+
+
+def mark_run_running(run_id, claim_token, config=None, status="Running."):
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/running", {
+        "claim_token": claim_token,
+        "status": status,
+    }, config=config)
+
+
+def renew_run(run_id, claim_token, config=None, lease_seconds=300):
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/renew", {
+        "claim_token": claim_token,
+        "lease_seconds": lease_seconds,
+    }, config=config)
+
+
+def complete_run(run_id, claim_token, config=None, status="Complete.", result=None):
+    body = {"claim_token": claim_token, "status": status}
+    if isinstance(result, dict):
+        body["result"] = result
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/complete", body, config=config)
+
+
+def fail_run(run_id, claim_token, config=None, status="Failed.", result=None):
+    body = {"claim_token": claim_token, "status": status}
+    if isinstance(result, dict):
+        body["result"] = result
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/fail", body, config=config)
+
+
+def conversation_context(conversation_id, config=None, limit=20):
+    return api("GET", f"/api/v1/harpp/bridge/conversations/{int(conversation_id)}/context" + _query({"limit": limit}), config=config)
 
 
 def post_status(config=None, **kw):

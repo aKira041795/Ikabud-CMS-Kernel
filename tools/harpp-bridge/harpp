@@ -194,7 +194,7 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
                     if sender not in ("owner", "user"):
                         last_msg = mid
                         continue
-                    rec = {"kind": "message", "id": mid, "conversation_id": m.get("conversation_id"), "sender_type": m.get("sender_type"), "body": m.get("body"), "created_at": m.get("created_at")}
+                    rec = {"kind": "message", "id": mid, "conversation_id": m.get("conversation_id"), "conversation_title": m.get("conversation_title"), "conversation_version": m.get("conversation_version"), "run_id": m.get("run_id"), "run_state": m.get("run_state"), "sender_type": m.get("sender_type"), "body": m.get("body"), "created_at": m.get("created_at")}
                     if not _emit(rec, inbox):
                         # Do not advance past an unstaged owner message. It will be
                         # fetched and durably appended on the next poll.
