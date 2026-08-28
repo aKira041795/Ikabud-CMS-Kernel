@@ -51,8 +51,16 @@ $detailTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules
 $inboxTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/decisions.disyl');
 
 $assert($manifest['version']==='2.2.0','manifest semver');
-$assert(count($manifest['owns_tables'])===29,'owned-table inventory');
-$assert(end($manifest['migrations'])==='database/migrations/012_harpp_perf_read_model.sql','latest migration registration');
+// Owned-table inventory is contract-validated against the actual migration files so the
+// count cannot silently drift (was previously a hard-coded magic number).
+$migrationGlob=(array)glob(__DIR__.'/../database/migrations/*.sql');
+$migrationText=implode("\n",array_map(static fn(string $f): string => (string)file_get_contents($f), $migrationGlob));
+foreach($manifest['owns_tables'] as $table){$assert((bool)preg_match('/`'.preg_quote((string)$table,'/').'`/i',$migrationText),"owned table $table has a migration");}
+// Latest migration registration must exist on disk and equal the newest migration file.
+$latestRegistered=(string)end($manifest['migrations']);
+$assert((bool)preg_match('/^database\/migrations\/[0-9]{3}_.+\.sql$/',$latestRegistered),'latest migration uses canonical registration path');
+$assert(in_array(basename($latestRegistered),array_map('basename',$migrationGlob),true),"latest migration $latestRegistered exists on disk");
+$assert(basename($latestRegistered)===basename((string)end($migrationGlob)),'latest migration registration matches newest migration file');
 $capabilities=array_column($manifest['capabilities']['exposes'],'id');
 foreach(['harpp.lifecycle.transition@2','harpp.archive@1','harpp.purge.request@1','harpp.purge.approve@1','harpp.audit.read@1','harpp.outbox.dispatch@1','harpp.workspace.read@1','harpp.workspace.manage@1','harpp.project.read@1','harpp.project.manage@1','harpp.participant.manage@1','harpp.message.receipt@1','harpp.decision.assign@1','harpp.decision.approve@1','harpp.notification.preferences@1'] as $capability){$assert(in_array($capability,$capabilities,true),"capability $capability");$assert(str_contains($helpers,"'$capability' =>"),"handler mapping $capability");}
 foreach(['harpp_workspaces','harpp_workspace_memberships','harpp_projects','harpp_conversation_participants','harpp_message_receipts','harpp_decision_policy_snapshots','harpp_approval_delegations','harpp_audit_events','harpp_outbox','harpp_idempotency_keys','harpp_purge_requests'] as $table){$assert(str_contains($migration,"`$table`"),"migration table $table");}
