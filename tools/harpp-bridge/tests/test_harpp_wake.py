@@ -1045,6 +1045,34 @@ class HarppWakeTest(unittest.TestCase):
             else:
                 os.environ["HARPP_DELIVERY_RECEIPTS"] = old_receipts
 
+    def test_already_delivered_message_is_marked_processed_not_retried(self):
+        """A message whose wake-message-<id> receipt exists is answered; the wake
+        loop must mark it processed instead of re-running the agent (which would
+        409-conflict on the locked idempotency key and burn toward a FAILED reply)."""
+        old_receipts = os.environ.get("HARPP_DELIVERY_RECEIPTS")
+        receipts = Path(self.tmp.name) / "receipts.jsonl"
+        os.environ["HARPP_DELIVERY_RECEIPTS"] = str(receipts)
+        try:
+            # A delivered reply already exists for wake-message-1.
+            receipts.write_text(
+                json.dumps({"idempotency_key": "wake-message-1", "conversation_id": 2}) + "\n",
+                encoding="utf-8")
+            marker = Path(self.tmp.name) / "agent-ran"
+            ok = harpp_wake.maybe_wake(
+                str(self.inbox), enabled=True, command=f"touch {marker}",
+                cooldown=0, max_per_hour=0, timeout=30)
+            # Guard short-circuits before the agent: no invocation, marked processed.
+            self.assertFalse(ok)
+            self.assertFalse(marker.exists(), "agent should not run for an already-delivered message")
+            state = harpp_wake.read_state()
+            self.assertIn(1, state["messages"])
+            self.assertNotIn("1", state["failures"])
+        finally:
+            if old_receipts is None:
+                os.environ.pop("HARPP_DELIVERY_RECEIPTS", None)
+            else:
+                os.environ["HARPP_DELIVERY_RECEIPTS"] = old_receipts
+
     def test_decision_skipped_by_wake(self):
         # Decisions are handled instantly by the deterministic autoprocess layer,
         # so the wake agent must NOT re-process them (they are filtered out).

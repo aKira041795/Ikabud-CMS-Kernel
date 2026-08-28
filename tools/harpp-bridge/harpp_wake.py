@@ -1345,6 +1345,34 @@ def _job_output_text(job: dict) -> str:
     return _reassemble_text(raw)
 
 
+def _wake_receipt_exists(message_id: int) -> bool:
+    """True when a `wake-message-<id>` bridge delivery receipt already exists.
+
+    A delivered reply locks its idempotency key. If the wake loop ever retries that
+    message with a different body the bridge returns 409 Conflict, so the retry can
+    never succeed and the message would otherwise exhaust its bounded retries into a
+    terminal FAILED reply. Such messages are already answered and must be treated as
+    processed, not re-driven.
+    """
+    path = harpp_client.delivery_receipts_path()
+    needle = "wake-message-%s" % int(message_id)
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as stream:
+            for raw in stream:
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except Exception:  # noqa: BLE001
+                    continue
+                if str(record.get("idempotency_key") or "") == needle:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
 def _reassemble_text(raw: str) -> str:
     """Reassemble Pi JSONL assistant text_delta events into one contiguous string.
 
@@ -3078,9 +3106,6 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
         log(f"wake agent timed out after {timeout}s; killed")
         return finish(False, "timeout")
     log(f"wake agent exit={proc.returncode} output_tail={out[-200:]!r}")
-    if _model_exhausted({"message": out}):
-        log(f"wake agent model usage exhausted for {model}")
-        return finish(False, "usage_exhausted")
     if proc.returncode == 0 and not out.strip():
         log("wake agent returned empty output; treating run as failed")
         return finish(False, "empty_output")
@@ -3114,6 +3139,13 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 log(f"wake agent lacked daemon-observed bridge receipts for {missing}; treating delivery as failed")
                 return finish(False, "invalid_result")
     if proc.returncode != 0:
+        # Only classify as model exhaustion when the run actually failed. A
+        # successful run whose prose merely mentions quota/rate/context limits
+        # must not be re-run: that produced duplicate replies and spurious
+        # bounded-retry FAILED notices for already-delivered work.
+        if _model_exhausted({"message": out}):
+            log(f"wake agent model usage exhausted for {model}")
+            return finish(False, "usage_exhausted")
         return finish(False, "exit_error")
     return finish(True, None)
 
@@ -3288,6 +3320,17 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
     items = unprocessed_items(inbox)
     if not items:
         return False
+    # A message whose wake-message-<id> reply is already delivered was answered. It
+    # cannot be retried with a new body (idempotency 409 Conflict) and must never be
+    # escalated to the terminal FAILED reply. Mark it processed up front so it is not
+    # re-driven and does not consume bounded retries.
+    already_answered = [r for r in items if _wake_receipt_exists(int(r.get("id", 0)))]
+    if already_answered:
+        mark_processed(already_answered)
+        log(f"marked {len(already_answered)} already-delivered message(s) processed (skipped retry)")
+        items = [r for r in items if r not in already_answered]
+        if not items:
+            return False
     state = read_state()
     exhausted = [r for r in items if int(state["failures"].get(str(r.get("id")), 0)) >= max_retries]
     if exhausted:
@@ -3363,6 +3406,17 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
     items = unprocessed_items(inbox)
     if not items:
         return quick_done
+    # A message whose wake-message-<id> reply was already delivered is answered. It
+    # cannot be retried with a new body (idempotency 409 Conflict), so retrying it
+    # only burns bounded retries toward a terminal FAILED reply. Mark it processed
+    # and skip it instead of re-driving the agent.
+    already_answered = [r for r in items if _wake_receipt_exists(int(r.get("id", 0)))]
+    if already_answered:
+        mark_processed(already_answered)
+        log(f"marked {len(already_answered)} already-delivered message(s) processed (skipped retry)")
+        items = [r for r in items if r not in already_answered]
+        if not items:
+            return quick_done
     state = read_state()
     work = items
 
