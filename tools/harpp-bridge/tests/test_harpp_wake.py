@@ -856,6 +856,8 @@ class HarppWakeTest(unittest.TestCase):
     def test_parse_plan_command_recognizes_plan_execution_requests(self):
         for body in ["Start T1, T2 has option B selected. Then T3, T4",
                      "Restart the guidance tasks created and implement",
+                     "re-implement the approved tasks T1 to T4. T2, I selected option B",
+                     "implement the approved tasks",
                      "proceed with the workflow",
                      "resume the failed tasks",
                      "/implement"]:

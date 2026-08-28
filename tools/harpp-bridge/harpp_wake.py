@@ -2970,7 +2970,7 @@ def parse_plan_command(body) -> bool:
     low = " ".join(body.split()).lower().strip()
     if low == "/implement":
         return True
-    m = re.match(r"^(start|run|begin|launch|restart|resume|continue|proceed)\b(.*)$", low)
+    m = re.match(r"^(start|run|begin|launch|restart|resume|continue|proceed|implement|re-implement|redo|re-run|re-do)\b(.*)$", low)
     if not m:
         return False
     rest = m.group(2)
