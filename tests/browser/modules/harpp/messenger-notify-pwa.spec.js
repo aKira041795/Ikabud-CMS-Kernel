@@ -225,6 +225,21 @@ test.describe.serial('HARPP PW-2 messenger/notify/archive/PWA isolated browser j
         expect(consoleErrors.filter((e) => !e.includes('Failed to load resource')), 'no unhandled page JS errors on mobile').toEqual([]);
     });
 
+    test('runner fleet: owner-visible runner status page renders on a phone viewport', async ({ page }) => {
+        test.setTimeout(120000);
+        const appUrl = process.env.APP_URL || ('http://' + state.domain);
+        await page.setViewportSize({ width: 390, height: 844 });
+        const consoleErrors = [];
+        page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+        await login(page, appUrl, state.owner_email, OWNER_PASSWORD);
+        await page.goto(appUrl + '/harpp/runners');
+        await page.waitForLoadState('networkidle');
+        expect(await page.locator('body').isVisible(), 'runner fleet page must render on mobile viewport').toBe(true);
+        const fleet = page.locator('#runner-fleet');
+        expect(await fleet.count(), 'runner fleet container must be present').toBeGreaterThan(0);
+        expect(consoleErrors.filter((e) => !e.includes('Failed to load resource')), 'no unhandled page JS errors on runner fleet').toEqual([]);
+    });
+
     test('workflow preflight (bridge/CLI tier): harpp workflow validate passes', async () => {
         test.setTimeout(60000);
         const out = execSync(

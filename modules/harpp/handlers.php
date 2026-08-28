@@ -143,6 +143,7 @@ function harppRenderShell(string $template, string $page, array $context = []): 
 
 function harppPageMessenger(array $params = []): void { harppRenderShell('messenger', 'messenger'); }
 function harppPageDecisions(array $params = []): void { harppRenderShell('decisions', 'decisions'); }
+function harppRunnersPage(array $params = []): void { harppRenderShell('runners', 'runners'); }
 function harppPageDecisionDetail(array $params = []): void { harppRenderShell('decision-detail', 'decisions', ['decision_id' => max(0, (int)($params['id'] ?? 0))]); }
 function harppPageSettings(array $params = []): void { harppRenderShell('settings', 'settings'); }
 function harppPageUsers(array $params = []): void
@@ -375,6 +376,7 @@ function harppSettingsSave(array $params = []): void
 
 function harppRequestData(): array { return array_merge(is_array($_GET) ? $_GET : [], harppInput()); }
 function harppDecisionCreate(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.manage@1');if($u)harppJson((new HarppDecisionService())->create($u,harppInput(),harppCurrentTenantId()));}); }
+function harppRunnerListOwner(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new \Harpp\Services\HarppRunService(harppDb()))->listRunnersForOwner($u,harppCurrentTenantId()));}); }
 function harppDecisionList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.decision.review@1');if($u)harppJson((new HarppDecisionService())->list($u,harppRequestData(),harppCurrentTenantId()));}); }
 function harppDecisionGet(array $params=[]):void { harppHandle(function()use($params):void{$u=harppAuthenticated('harpp.decision.review@1');if($u)harppJson((new HarppDecisionService())->get($u,(int)($params['id']??0),harppCurrentTenantId()));}); }
 function harppDecisionTransition(array $params=[]):void { harppHandle(function()use($params):void{harppRequireCsrf();$u=harppAuthenticated('harpp.decision.review@1');if($u){$i=harppInput();harppJson((new HarppDecisionService())->transition($u,(int)($params['id']??0),(string)($i['state']??$i['to_state']??''),(string)($i['rationale']??''),$i,harppCurrentTenantId()));}}); }

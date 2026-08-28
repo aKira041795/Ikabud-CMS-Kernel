@@ -72,6 +72,33 @@ final class HarppRunService
         return HarppServiceResult::success(['runner_key' => $key, 'status' => 'online', 'capabilities' => $capabilities]);
     }
 
+    /**
+     * S4: owner-visible runner-fleet status. Returns every registered runner with
+     * live/stale health (a stale heartbeat is marked offline), decoded
+     * capabilities, and timestamps. Requires an authenticated owner/admin (module
+     * owner/admin, bridge owner/admin, or kernel superadmin). Parameterized and
+     * MySQL 5.7-safe (no window functions / CTEs).
+     */
+    public function listRunnersForOwner(array $actor, ?int $tenantId = null): HarppServiceResult
+    {
+        if (!$this->ownerActor($actor)) return HarppServiceResult::failure('Owner access is required.', 403, 'forbidden');
+        // Mark runners with a stale heartbeat offline (idempotent; MySQL 5.7-safe).
+        $this->db->prepare("UPDATE harpp_runners SET status='offline' WHERE last_heartbeat_at<DATE_SUB(NOW(6),INTERVAL 2 MINUTE)")->execute();
+        $rows = $this->db->query("SELECT runner_key,display_name,status,capabilities_json,last_heartbeat_at,created_at FROM harpp_runners ORDER BY runner_key")->fetchAll(PDO::FETCH_ASSOC);
+        $runners = [];
+        foreach ($rows as $row) {
+            $runners[] = [
+                'runner_key' => (string)$row['runner_key'],
+                'display_name' => (string)$row['display_name'],
+                'status' => (string)$row['status'],
+                'capabilities' => (array)json_decode((string)$row['capabilities_json'], true),
+                'last_heartbeat_at' => $row['last_heartbeat_at'],
+                'created_at' => $row['created_at'],
+            ];
+        }
+        return HarppServiceResult::success(['runners' => $runners]);
+    }
+
     public function claim(array $actor, array $input): HarppServiceResult
     {
         if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
@@ -443,6 +470,14 @@ final class HarppRunService
     private function bridgeActor(array $actor): bool
     {
         return ($actor['source'] ?? '') === 'harpp_bridge' && in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true);
+    }
+
+    /** S4: owner/admin (module, bridge, or kernel superadmin) gate for owner-visible reads. */
+    private function ownerActor(array $actor): bool
+    {
+        return (($actor['source'] ?? 'harpp') === 'harpp' && in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true))
+            || (($actor['source'] ?? '') === 'harpp_bridge' && in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true))
+            || (($actor['source'] ?? '') === 'kernel' && ($actor['role'] ?? '') === 'superadmin');
     }
 
     private function json(mixed $value): string
