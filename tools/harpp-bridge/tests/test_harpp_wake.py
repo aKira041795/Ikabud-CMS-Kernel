@@ -891,6 +891,42 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(harpp_wake.parse_debate_command("start debate: logging failures")["intent"],
                          "logging failures")
 
+    def test_debate_job_uses_verdict_presence_and_value_verification(self):
+        captured = []
+        original_launch = harpp_wake.launch_job
+        original_workspace = harpp_wake.default_workspace
+        harpp_wake.default_workspace = lambda: self.tmp.name
+        harpp_wake.launch_job = lambda **kw: captured.append(kw) or ("debate-1", object())
+        try:
+            harpp_wake._exec_debate_command({"intent": "Improve boundaries", "rounds": 5}, 9)
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.default_workspace = original_workspace
+        self.assertEqual(captured[0]["marker"], "verdict:")
+        self.assertIn("approved.txt", captured[0]["verify"])
+        self.assertIn("DEBATE_MAX_ROUNDS=5", captured[0]["verify"])
+
+    def test_debate_verifier_reports_approved_and_revisions_honestly(self):
+        verdict_file = Path(self.tmp.name) / ".ai" / "debate" / "approved.txt"
+        verdict_file.parent.mkdir(parents=True)
+        original_workspace = harpp_wake.default_workspace
+        original_launch = harpp_wake.launch_job
+        captured = []
+        harpp_wake.default_workspace = lambda: self.tmp.name
+        harpp_wake.launch_job = lambda **kw: captured.append(kw) or ("debate-2", object())
+        try:
+            harpp_wake._exec_debate_command({"intent": "Test outcomes"}, 9)
+            verdict_file.write_text("approved\n")
+            self.assertTrue(harpp_wake._run_verify(captured[0]["verify"], None)[0])
+            verdict_file.write_text("revisions\n")
+            ok, output = harpp_wake._run_verify(captured[0]["verify"], None)
+            self.assertFalse(ok)
+            self.assertIn("critic requested revisions", output)
+            self.assertIn("verdict: REVISIONS", output)
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.default_workspace = original_workspace
+
     def test_parse_plan_tasks_extracts_task_lines(self):
         tasks = harpp_wake._parse_plan_tasks(
             "Proposed plan:\nT1 - Fix doc drift (docs only). Assign: GPT Sol\n"

@@ -87,6 +87,68 @@ class HarppClientTest(unittest.TestCase):
         self.assertEqual(json.loads(inbox.read_text()), record)
         self.assertFalse(module["_emit"](record, self.tmp.name))
 
+    def test_desktop_runner_claims_executes_and_completes(self):
+        module = runpy.run_path(str(Path(__file__).resolve().parent.parent / "harpp"))
+        client = module["harpp_client"]
+        wake = module["harpp_wake"]
+        calls = []
+        originals = {name: getattr(client, name) for name in (
+            "register_runner", "reconcile_runs", "claim_run", "conversation_context",
+            "mark_run_running", "renew_run", "complete_run", "fail_run")}
+        original_spawn = wake.spawn_agent
+        runner_globals = module["_run_desktop_pass"].__globals__
+        original_interval = runner_globals["RUN_LEASE_RENEW_INTERVAL"]
+        try:
+            client.register_runner = lambda **kw: calls.append(("register", kw)) or {"ok": True}
+            client.reconcile_runs = lambda healthy, key: calls.append(("reconcile", healthy, key)) or {"ok": True}
+            client.claim_run = lambda **kw: {"data": {"claim_token": "token", "run": {
+                "id": 41, "conversation_id": 7, "task": "Do the work"}}}
+            client.conversation_context = lambda *a, **kw: {"data": {"summary": "bounded"}}
+            client.mark_run_running = lambda *a, **kw: calls.append(("running", a)) or {"ok": True}
+            client.complete_run = lambda *a, **kw: calls.append(("complete", a, kw)) or {"ok": True}
+            client.fail_run = lambda *a, **kw: calls.append(("fail", a, kw)) or {"ok": True}
+            client.renew_run = lambda *a, **kw: calls.append(("renew", a, kw)) or {"ok": True}
+            runner_globals["RUN_LEASE_RENEW_INTERVAL"] = 0.01
+            def fake_spawn(prompt, **kw):
+                calls.append(("spawn", prompt, kw))
+                import time
+                time.sleep(0.03)
+                return True, None
+            wake.spawn_agent = fake_spawn
+            module["_run_desktop_pass"](workspace=self.tmp.name, wake_command=None,
+                                         model="model", timeout=10, open_terminal=False)
+        finally:
+            for name, value in originals.items():
+                setattr(client, name, value)
+            wake.spawn_agent = original_spawn
+            runner_globals["RUN_LEASE_RENEW_INTERVAL"] = original_interval
+        names = [call[0] for call in calls]
+        self.assertEqual(names[:4], ["register", "reconcile", "running", "spawn"])
+        self.assertIn("renew", names)
+        self.assertEqual(names[-2:], ["complete", "reconcile"])
+        self.assertIn("Do the work", calls[3][1])
+
+    def test_desktop_runner_contains_errors_and_fails_claim(self):
+        module = runpy.run_path(str(Path(__file__).resolve().parent.parent / "harpp"))
+        client = module["harpp_client"]
+        calls = []
+        originals = {name: getattr(client, name) for name in (
+            "register_runner", "reconcile_runs", "claim_run", "conversation_context", "fail_run")}
+        try:
+            client.register_runner = lambda **kw: {"ok": True}
+            client.reconcile_runs = lambda healthy, key: calls.append(("reconcile", healthy)) or {"ok": True}
+            client.claim_run = lambda **kw: {"data": {"claim_token": "token", "run": {
+                "id": 42, "conversation_id": 8}}}
+            client.conversation_context = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("context down"))
+            client.fail_run = lambda *a, **kw: calls.append(("fail", a, kw)) or {"ok": True}
+            module["_run_desktop_pass"](workspace=self.tmp.name, wake_command=None,
+                                         model="model", timeout=10, open_terminal=False)
+        finally:
+            for name, value in originals.items():
+                setattr(client, name, value)
+        self.assertEqual(calls[1][0], "fail")
+        self.assertEqual(calls[-1][0], "reconcile")
+
     def test_autoprocess_gates_decisions_by_lifecycle(self):
         calls = []
 

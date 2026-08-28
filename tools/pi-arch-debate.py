@@ -41,6 +41,7 @@ Artifacts:
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -154,6 +155,10 @@ def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
     diagnostics: list[str] = []
     reader_errors: list[str] = []
 
+    pi_executable = shutil.which("pi")
+    if not pi_executable:
+        raise DebateError("pi executable not found on PATH")
+
     def banner() -> None:
         print()
         print("=" * 62)
@@ -162,7 +167,7 @@ def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
 
     try:
         proc = subprocess.Popen(
-            ["pi", "--model", model, "--mode", "json", "--print", prompt],
+            [pi_executable, "--model", model, "--mode", "json", "--print", prompt],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
     except OSError as exc:

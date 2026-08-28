@@ -2896,13 +2896,25 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
     command = " ".join(shlex.quote(a) for a in argv)
     if rounds:
         command = f"DEBATE_MAX_ROUNDS={int(rounds)} {command}"
+    verdict_file = Path(workspace) / ".ai" / "debate" / "approved.txt"
+    verify_script = (
+        "import pathlib,sys; "
+        f"p=pathlib.Path({str(verdict_file)!r}); "
+        "v=p.read_text(encoding='utf-8').strip().upper() if p.exists() else 'MISSING'; "
+        "print('verdict: '+v); "
+        "print(('The debate reached approval.' if v == 'APPROVED' else "
+        "'The debate did not reach approval within the configured round(s); the critic requested revisions. "
+        "Remedy: re-run with more rounds (e.g. DEBATE_MAX_ROUNDS=5) or sharpen the intent.')); "
+        "sys.exit(0 if v == 'APPROVED' else 2)"
+    )
     jid, _proc = launch_job(
         model="arch-debate" + (f"/{first}" if first != "auto" else ""),
         task=f"Architecture debate: {intent[:90]}",
         conversation_id=conv,
         command=command,
         log_path=str(log_path),
-        marker="verdict: APPROVED",
+        marker="verdict:",
+        verify="python3 -c " + shlex.quote(verify_script),
         cwd=workspace,
         open_terminal=False,
     )

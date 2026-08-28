@@ -105,6 +105,12 @@ class DebateHarnessTest(unittest.TestCase):
         self.assert_preserved()
         self.assertEqual("failed\n", (self.work_dir / "approved.txt").read_text())
 
+    def test_missing_pi_reports_clear_error(self) -> None:
+        result = self.run_harness("approved", env_overrides={"PATH": "/usr/bin:/bin"})
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("pi executable not found on PATH", result.stderr)
+        self.assert_preserved()
+
     def test_zero_text_provider_exit_preserves_task(self) -> None:
         result = self.run_harness("empty")
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
