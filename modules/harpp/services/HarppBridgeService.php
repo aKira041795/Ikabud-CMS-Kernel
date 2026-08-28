@@ -142,6 +142,50 @@ final class HarppBridgeService
         return (new HarppRunService($this->db))->status($actor, $runId);
     }
 
+    /**
+     * S1 MCP spine: return the approved decision's artifact bundle (ADR + decision
+     * + files) as an authorized owner/admin bridge read. Builds the bundle if the
+     * decision is terminal and a bundle is not yet present, then views it with
+     * artifact payloads included (the bridge actor is always an owner/admin).
+     */
+    public function artifactBundleForDecision(array $actor, int $decisionId, int $tenantId)
+    {
+        $bridgeActor = $actor;
+        $bridgeActor['source'] = 'harpp_bridge';
+        $bridgeActor['role'] = 'owner';
+        $service = new \Harpp\Services\HarppArtifactService($this->db);
+        $built = $service->buildForDecision($decisionId, $bridgeActor, $tenantId);
+        if (empty($built['ok'])) return $built;
+        $bundleId = (int)(($built['data'] ?? [])['bundle_id'] ?? 0);
+        if ($bundleId <= 0) return HarppServiceResult::failure('Artifact bundle not found.', 404);
+        return $service->view($bundleId, $bridgeActor, $tenantId);
+    }
+
+    /** S1 MCP spine: list registered runners with live/stale heartbeat status. */
+    public function listRunners(array $actor, int $tenantId)
+    {
+        // Mark runners with a stale heartbeat offline (idempotent; MySQL 5.7-safe).
+        $this->db->prepare("UPDATE harpp_runners SET status='offline' WHERE last_heartbeat_at<DATE_SUB(NOW(6),INTERVAL 2 MINUTE)")->execute();
+        $rows = $this->db->query("SELECT runner_key,display_name,status,capabilities_json,last_heartbeat_at FROM harpp_runners ORDER BY runner_key")->fetchAll(PDO::FETCH_ASSOC);
+        $runners = [];
+        foreach ($rows as $row) {
+            $runners[] = [
+                'runner_key' => (string)$row['runner_key'],
+                'display_name' => (string)$row['display_name'],
+                'status' => (string)$row['status'],
+                'capabilities' => (array)json_decode((string)$row['capabilities_json'], true),
+                'last_heartbeat_at' => $row['last_heartbeat_at'],
+            ];
+        }
+        return HarppServiceResult::success(['runners' => $runners]);
+    }
+
+    /** S1 MCP spine: get a single decision's full detail (reuses the decision service). */
+    public function getDecision(array $actor, int $decisionId, int $tenantId)
+    {
+        return (new HarppDecisionService($this->db))->get($actor, $decisionId, $tenantId);
+    }
+
     public function conversationContext(array $actor, int $conversationId, array $input, int $tenantId)
     {
         return (new HarppRunService($this->db))->context($actor, $conversationId, (int)($input['limit'] ?? 20));

@@ -23,16 +23,20 @@ from harpp_client import (
     HarppError,
     acknowledge_decision,
     apply_decision,
+    artifact_bundle_for_decision,
+    get_decision,
     list_decisions,
+    list_runners,
     load_config,
     poll_messages,
     post_status,
+    run_status,
     send_message,
     submit_decision,
 )
 
 SERVER_NAME = "harpp-bridge"
-SERVER_VERSION = "1.1.0"
+SERVER_VERSION = "1.2.0"
 PROTOCOL_VERSION = "2024-11-05"
 
 TOOLS = [
@@ -133,6 +137,47 @@ TOOLS = [
             "required": ["message"],
         },
     },
+    {
+        "name": "harpp_get_run",
+        "description": "Get the live status of a HARPP work run (state, runner, result).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer", "description": "Work run id"},
+            },
+            "required": ["run_id"],
+        },
+    },
+    {
+        "name": "harpp_list_runners",
+        "description": "List registered HARPP runners and their health/status (offline when heartbeat is stale).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "harpp_get_artifact_bundle",
+        "description": "Get the approved ADR + decision + downloadable files bundle for an approved decision.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision_id": {"type": "integer", "description": "Decision id"},
+            },
+            "required": ["decision_id"],
+        },
+    },
+    {
+        "name": "harpp_get_decision",
+        "description": "Get a single HARPP decision's full detail (title, body, decision, lifecycle_state, adr).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "Decision id"},
+            },
+            "required": ["id"],
+        },
+    },
 ]
 
 TOOL_IMPLS = {
@@ -143,6 +188,10 @@ TOOL_IMPLS = {
     "harpp_send_message": lambda c, a: send_message(config=c, **a),
     "harpp_poll_messages": lambda c, a: poll_messages(config=c, **a),
     "harpp_post_status": lambda c, a: post_status(config=c, **a),
+    "harpp_get_run": lambda c, a: run_status(a["run_id"], config=c),
+    "harpp_list_runners": lambda c, a: list_runners(config=c),
+    "harpp_get_artifact_bundle": lambda c, a: artifact_bundle_for_decision(a["decision_id"], config=c),
+    "harpp_get_decision": lambda c, a: get_decision(a["id"], config=c),
 }
 
 

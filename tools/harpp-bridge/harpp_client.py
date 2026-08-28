@@ -531,6 +531,26 @@ def conversation_context(conversation_id, config=None, limit=20):
     return api("GET", f"/api/v1/harpp/bridge/conversations/{int(conversation_id)}/context" + _query({"limit": limit}), config=config)
 
 
+# ── S1 MCP spine: read-only run/runner/artifact/decision access ──────────────
+# Exposes approved decision artifact bundles (ADR + decision + files) and live
+# run/runner status so an MCP client can verify governance end-to-end.
+
+def run_status(run_id, config=None):
+    return api("GET", f"/api/v1/harpp/bridge/runs/{int(run_id)}", config=config)
+
+
+def list_runners(config=None):
+    return api("GET", "/api/v1/harpp/bridge/runners", config=config)
+
+
+def artifact_bundle_for_decision(decision_id, config=None):
+    return api("GET", f"/api/v1/harpp/bridge/artifacts/bundles/decision/{int(decision_id)}", config=config)
+
+
+def get_decision(decision_id, config=None):
+    return api("GET", f"/api/v1/harpp/bridge/decisions/{int(decision_id)}", config=config)
+
+
 # ── Derived client context cache ────────────────────────────────────────────
 # A bounded, invalidatable local cache of the server-authoritative conversation
 # context envelope. Keyed by tenant + conversation, stored with mode 0600, a

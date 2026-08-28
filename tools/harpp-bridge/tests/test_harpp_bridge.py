@@ -228,7 +228,9 @@ class HarppMcpTest(unittest.TestCase):
         names = [t["name"] for t in resp["result"]["tools"]]
         self.assertIn("harpp_submit_decision", names)
         self.assertIn("harpp_poll_messages", names)
-        self.assertEqual(len(names), 7)
+        for spine in ("harpp_get_run", "harpp_list_runners", "harpp_get_artifact_bundle", "harpp_get_decision"):
+            self.assertIn(spine, names)
+        self.assertEqual(len(names), 11)
 
     def test_unknown_tool(self):
         resp = self._call("tools/call", {"name": "nope", "arguments": {}})
@@ -243,6 +245,95 @@ class HarppMcpTest(unittest.TestCase):
             os.environ.pop("HARPP_TENANT_ID", None)
             resp = self._call("tools/call", {"name": "harpp_post_status", "arguments": {"message": "x"}})
             self.assertTrue(resp["result"]["isError"])
+
+
+class HarppMcpSpineTest(unittest.TestCase):
+    """S1 MCP spine: run/runner/artifact/decision read-only tools."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cfg_path = Path(self.tmp.name) / "config.json"
+        self.cfg_path.write_text(json.dumps({
+            "base_url": "https://harpp.example.com", "bridge_key": "k-spine", "tenant_id": "7",
+        }))
+        self._old = {k: os.environ.get(k) for k in (
+            "HARPP_CONFIG", "HARPP_BASE_URL", "HARPP_BRIDGE_KEY", "HARPP_TENANT_ID", "HARPP_DRY_RUN")}
+        os.environ["HARPP_CONFIG"] = str(self.cfg_path)
+        os.environ["HARPP_DRY_RUN"] = "1"
+
+    def tearDown(self):
+        for k, v in self._old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        self.tmp.cleanup()
+
+    def test_tools_list_includes_spine_tools(self):
+        resp = harpp_mcp.handle_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        names = [t["name"] for t in resp["result"]["tools"]]
+        for spine in ("harpp_get_run", "harpp_list_runners", "harpp_get_artifact_bundle", "harpp_get_decision"):
+            self.assertIn(spine, names)
+        self.assertEqual(len(names), 11)
+
+    def test_client_functions_route_to_correct_urls_and_methods(self):
+        calls = []
+
+        def fake_api(method, url, body=None, **kw):
+            calls.append((method, url))
+            return {"ok": True}
+
+        original = harpp_client.api
+        harpp_client.api = fake_api
+        try:
+            harpp_client.run_status(7)
+            harpp_client.list_runners()
+            harpp_client.artifact_bundle_for_decision(9)
+            harpp_client.get_decision(4)
+        finally:
+            harpp_client.api = original
+        self.assertEqual(calls, [
+            ("GET", "/api/v1/harpp/bridge/runs/7"),
+            ("GET", "/api/v1/harpp/bridge/runners"),
+            ("GET", "/api/v1/harpp/bridge/artifacts/bundles/decision/9"),
+            ("GET", "/api/v1/harpp/bridge/decisions/4"),
+        ])
+
+    def _dispatch(self, name, args):
+        calls = []
+
+        def fake_api(method, url, body=None, **kw):
+            calls.append((method, url))
+            return {"ok": True}
+
+        original = harpp_client.api
+        harpp_client.api = fake_api
+        try:
+            resp = harpp_mcp.handle_message({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": name, "arguments": args},
+            })
+        finally:
+            harpp_client.api = original
+        self.assertNotIn("error", resp, resp)
+        self.assertTrue(resp["result"]["content"], resp)
+        return calls
+
+    def test_get_artifact_bundle_tool_dispatches(self):
+        calls = self._dispatch("harpp_get_artifact_bundle", {"decision_id": 7})
+        self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/artifacts/bundles/decision/7"))
+
+    def test_get_run_tool_dispatches(self):
+        calls = self._dispatch("harpp_get_run", {"run_id": 12})
+        self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/runs/12"))
+
+    def test_list_runners_tool_dispatches(self):
+        calls = self._dispatch("harpp_list_runners", {})
+        self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/runners"))
+
+    def test_get_decision_tool_dispatches(self):
+        calls = self._dispatch("harpp_get_decision", {"id": 3})
+        self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/decisions/3"))
 
 
 class HarppContextCacheTest(unittest.TestCase):
