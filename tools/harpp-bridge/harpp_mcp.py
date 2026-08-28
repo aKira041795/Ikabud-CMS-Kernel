@@ -189,6 +189,8 @@ TOOLS = [
             "properties": {
                 "q": {"type": "string", "description": "Search query (approved ADRs/decisions/artifacts)"},
                 "limit": {"type": "integer", "default": 5, "description": "1..20, default 5"},
+                "include_historical": {"type": "boolean", "default": False, "description": "Include historical/unknown records tagged NOT AUTHORITATIVE (default false; stale-is-worse-than-none)"},
+                "budget_limit": {"type": "integer", "description": "Token budget cap for the result set (500..20000, default 8000)"},
             },
             "required": ["q"],
         },
@@ -231,7 +233,7 @@ TOOL_IMPLS = {
     "harpp_list_runners": lambda c, a: list_runners(config=c),
     "harpp_get_artifact_bundle": lambda c, a: artifact_bundle_for_decision(a["decision_id"], config=c),
     "harpp_get_decision": lambda c, a: get_decision(a["id"], config=c),
-    "harpp_memory_search": lambda c, a: memory_search(a["q"], config=c, limit=a.get("limit", 5)),
+    "harpp_memory_search": lambda c, a: memory_search(a["q"], config=c, limit=a.get("limit", 5), include_historical=a.get("include_historical", False), budget_limit=a.get("budget_limit")),
     "harpp_approve_run": lambda c, a: approve_run(a["run_id"], a["approval_token"], config=c),
     "harpp_reject_run": lambda c, a: reject_run(a["run_id"], config=c, rationale=a.get("rationale", "Rejected.")),
 }

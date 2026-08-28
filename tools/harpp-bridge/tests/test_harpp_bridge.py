@@ -345,6 +345,46 @@ class HarppMcpSpineTest(unittest.TestCase):
         calls = self._dispatch("harpp_memory_search", {"q": "approved layout", "limit": 4})
         self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/memory/search?q=approved+layout&limit=4"))
 
+    def test_memory_search_sends_fail_closed_params(self):
+        # Slice B: the client must forward include_historical + budget_limit so
+        # the server's fail-closed retrieval params reach the bridge unchanged.
+        calls = []
+
+        def fake_api(method, url, body=None, **kw):
+            calls.append((method, url))
+            return {"ok": True}
+
+        original = harpp_client.api
+        harpp_client.api = fake_api
+        try:
+            harpp_client.memory_search("x", limit=3, include_historical=True, budget_limit=5000)
+        finally:
+            harpp_client.api = original
+        method, url = calls[0]
+        self.assertEqual(method, "GET")
+        self.assertIn("memory/search", url)
+        self.assertIn("q=x", url)
+        self.assertIn("limit=3", url)
+        self.assertIn("include_historical=True", url)
+        self.assertIn("budget_limit=5000", url)
+
+    def test_memory_search_tool_dispatches_with_fail_closed_params(self):
+        # The MCP impl must thread include_historical + budget_limit through and
+        # not fall back to "unknown tool" when they are supplied.
+        calls = self._dispatch("harpp_memory_search", {
+            "q": "cache", "limit": 3, "include_historical": True, "budget_limit": 5000})
+        self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/memory/search?q=cache&limit=3&include_historical=True&budget_limit=5000"))
+
+    def test_memory_search_tool_schema_exposes_fail_closed_params(self):
+        resp = harpp_mcp.handle_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        tools = {t["name"]: t for t in resp["result"]["tools"]}
+        self.assertIn("harpp_memory_search", tools)
+        props = tools["harpp_memory_search"]["inputSchema"]["properties"]
+        self.assertIn("include_historical", props)
+        self.assertIn("budget_limit", props)
+        # No new tool added: still 14.
+        self.assertEqual(len(tools), 14)
+
     def test_approve_run_tool_dispatches(self):
         calls = self._dispatch("harpp_approve_run", {"run_id": 12, "approval_token": "tok-123"})
         self.assertEqual(calls[0], ("POST", "/api/v1/harpp/bridge/runs/12/approve"))

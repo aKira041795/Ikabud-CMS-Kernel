@@ -567,8 +567,11 @@ def get_decision(decision_id, config=None):
 # Search HARPP's approved memory (ADRs + approved decisions + artifact bundles)
 # to cite prior approved work — never raw conversation messages.
 
-def memory_search(q, config=None, limit=5):
-    return api("GET", "/api/v1/harpp/bridge/memory/search" + _query({"q": q, "limit": limit}), config=config)
+def memory_search(q, config=None, limit=5, include_historical=False, budget_limit=None):
+    params = {"q": q, "limit": limit, "include_historical": include_historical}
+    if budget_limit is not None:
+        params["budget_limit"] = budget_limit
+    return api("GET", "/api/v1/harpp/bridge/memory/search" + _query(params), config=config)
 
 
 # ── Derived client context cache ────────────────────────────────────────────
