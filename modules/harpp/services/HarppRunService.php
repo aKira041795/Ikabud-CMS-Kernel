@@ -11,7 +11,7 @@ use Throwable;
 
 final class HarppRunService
 {
-    private const STATES = ['QUEUED','WAITING_FOR_RUNNER','CLAIMED','RUNNING','STALLED','SUCCEEDED','FAILED','CANCELLED'];
+    private const STATES = ['QUEUED','WAITING_FOR_RUNNER','CLAIMED','RUNNING','STALLED','AWAITING_APPROVAL','SUCCEEDED','FAILED','CANCELLED'];
     private const TERMINAL = ['SUCCEEDED','FAILED','CANCELLED'];
     private const MAX_REPORT_DELIVERY_ATTEMPTS = 5;
     private ?Closure $reportDispatcher;
@@ -115,10 +115,45 @@ final class HarppRunService
             $before = $this->load($runId);
             $result = isset($input['result']) && is_array($input['result']) ? $input['result'] : null;
             $status = trim((string)($input['status'] ?? $target));
+
+            // S3 risk gate: a HIGH/CRITICAL completion must not silently reach
+            // SUCCEEDED. Park the run in AWAITING_APPROVAL with a hashed owner
+            // approval token so approveRun()/rejectRun() (owner/admin bridge) are
+            // the only promotion/revocation path. No artifact bundle is built here.
+            if ($target === 'SUCCEEDED') {
+                $tier = (new HarppRiskService())->classifyResult($result ?? []);
+                $alreadyApproved = is_array($before) && (($before['approval_token_hash'] ?? null) !== null || ($before['approved_at'] ?? null) !== null);
+                if ((new HarppRiskService())->requiresApproval($tier) && !$alreadyApproved) {
+                    $approval = (new HarppRiskService())->newApprovalToken();
+                    $s = $this->db->prepare("UPDATE harpp_work_runs SET state='AWAITING_APPROVAL',last_status=:status,result_json=:result,risk_level=:tier,approval_required=1,approval_token_hash=:hash WHERE id=:id AND claim_token=:token AND state IN ('CLAIMED','RUNNING','STALLED')");
+                    $s->execute([
+                        ':status' => substr('Run completed but requires owner approval before it can be marked SUCCEEDED.', 0, 2000),
+                        ':result' => $result === null ? null : $this->json($result),
+                        ':tier' => $tier,
+                        ':hash' => $approval['hash'],
+                        ':id' => $runId,
+                        ':token' => $token,
+                    ]);
+                    if ($s->rowCount() !== 1) {
+                        $this->db->rollBack();
+                        return HarppServiceResult::failure('Run claim is no longer valid.', 409, 'claim_invalid');
+                    }
+                    $run = $this->load($runId);
+                    $this->effect($actor, 'harpp.work_run.pending_approval', 'work_run.pending_approval', $runId, $before, ['state' => 'AWAITING_APPROVAL', 'risk_level' => $tier]);
+                    $this->db->commit();
+                    return HarppServiceResult::success(['run' => $this->publicRun($run), 'approval_required' => true, 'approval_token' => $approval['token'], 'risk_level' => $tier]);
+                }
+            }
+
             $finished = in_array($target, self::TERMINAL, true) ? ',finished_at=NOW(6),report_state=\'PENDING\',delivery_attempts=0,last_delivery_error=NULL' : '';
             $started = $target === 'RUNNING' ? ',started_at=COALESCE(started_at,NOW(6)),attempt_count=attempt_count+1' : '';
-            $s = $this->db->prepare("UPDATE harpp_work_runs SET state=:state,last_status=:status,result_json=:result{$started}{$finished} WHERE id=:id AND claim_token=:token AND state IN ('CLAIMED','RUNNING','STALLED')");
-            $s->execute([':state' => $target, ':status' => substr($status, 0, 2000), ':result' => $result === null ? null : $this->json($result), ':id' => $runId, ':token' => $token]);
+            // On SUCCEEDED always record the classified risk tier; approval_required
+            // is cleared (already-approved runs were approved via the risk gate).
+            $riskCols = $target === 'SUCCEEDED' ? ',risk_level=:tier,approval_required=0' : '';
+            $params = [':state' => $target, ':status' => substr($status, 0, 2000), ':result' => $result === null ? null : $this->json($result), ':id' => $runId, ':token' => $token];
+            if ($target === 'SUCCEEDED') $params[':tier'] = $tier;
+            $s = $this->db->prepare("UPDATE harpp_work_runs SET state=:state,last_status=:status,result_json=:result{$riskCols}{$started}{$finished} WHERE id=:id AND claim_token=:token AND state IN ('CLAIMED','RUNNING','STALLED','AWAITING_APPROVAL')");
+            $s->execute($params);
             if ($s->rowCount() !== 1) {
                 $this->db->rollBack();
                 return HarppServiceResult::failure('Run claim is no longer valid.', 409, 'claim_invalid');
@@ -133,6 +168,80 @@ final class HarppRunService
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             return HarppServiceResult::failure('Unable to update work run.', 500);
+        }
+    }
+
+    /**
+     * S3: owner/admin (bridge) approves a risk-gated run, promoting it from
+     * AWAITING_APPROVAL to SUCCEEDED, then auto-builds the artifact bundle.
+     */
+    public function approveRun(array $actor, int $runId, array $input, ?int $tenantId = null): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        if ($runId <= 0) return HarppServiceResult::failure('run_id is required.', 422);
+        $token = trim((string)($input['approval_token'] ?? ''));
+        if ($token === '') return HarppServiceResult::failure('approval_token is required.', 422);
+        try {
+            $this->db->beginTransaction();
+            $before = $this->load($runId);
+            if ($before === null) { $this->db->rollBack(); return HarppServiceResult::failure('Run not found.', 404); }
+            if (($before['state'] ?? '') !== 'AWAITING_APPROVAL') {
+                $this->db->rollBack();
+                return HarppServiceResult::failure('Run is not awaiting approval.', 409, 'not_awaiting_approval');
+            }
+            $hash = (string)($before['approval_token_hash'] ?? '');
+            if ($hash === '' || !hash_equals($hash, hash('sha256', $token))) {
+                $this->db->rollBack();
+                return HarppServiceResult::failure('Approval token is invalid.', 409, 'claim_invalid');
+            }
+            $u = $this->db->prepare("UPDATE harpp_work_runs SET state='SUCCEEDED',approved_by=:by,approved_at=NOW(6),approval_token_hash=NULL,approval_required=0,finished_at=NOW(6),report_state='PENDING',delivery_attempts=0,last_delivery_error=NULL,last_status='Run approved by owner.' WHERE id=:id AND state='AWAITING_APPROVAL'");
+            $u->execute([':by' => (int)$actor['id'], ':id' => $runId]);
+            if ($u->rowCount() !== 1) {
+                $this->db->rollBack();
+                return HarppServiceResult::failure('Run is no longer awaiting approval.', 409, 'claim_invalid');
+            }
+            $run = $this->load($runId);
+            $this->effect($actor, 'harpp.work_run.approved', 'work_run.approved', $runId, $before, ['state' => 'SUCCEEDED']);
+            $this->db->commit();
+            try { (new HarppArtifactService($this->db))->buildForRun($runId, $actor, $tenantId); } catch (\Throwable $e) {}
+            return HarppServiceResult::success(['run' => $this->publicRun($run)]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            return HarppServiceResult::failure('Unable to approve work run.', 500);
+        }
+    }
+
+    /**
+     * S3: owner/admin (bridge) rejects a risk-gated run, revoking it from
+     * AWAITING_APPROVAL to CANCELLED (with the owner's rationale recorded).
+     */
+    public function rejectRun(array $actor, int $runId, array $input, ?int $tenantId = null): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        if ($runId <= 0) return HarppServiceResult::failure('run_id is required.', 422);
+        $rationale = substr(trim((string)($input['rationale'] ?? '')), 0, 2000);
+        if ($rationale === '') return HarppServiceResult::failure('A rejection rationale is required.', 422);
+        try {
+            $this->db->beginTransaction();
+            $before = $this->load($runId);
+            if ($before === null) { $this->db->rollBack(); return HarppServiceResult::failure('Run not found.', 404); }
+            if (($before['state'] ?? '') !== 'AWAITING_APPROVAL') {
+                $this->db->rollBack();
+                return HarppServiceResult::failure('Run is not awaiting approval.', 409, 'not_awaiting_approval');
+            }
+            $u = $this->db->prepare("UPDATE harpp_work_runs SET state='CANCELLED',approval_token_hash=NULL,approval_required=0,finished_at=NOW(6),report_state='PENDING',delivery_attempts=0,last_delivery_error=NULL,last_status=:status WHERE id=:id AND state='AWAITING_APPROVAL'");
+            $u->execute([':status' => substr('Run rejected by owner: '.$rationale, 0, 2000), ':id' => $runId]);
+            if ($u->rowCount() !== 1) {
+                $this->db->rollBack();
+                return HarppServiceResult::failure('Run is no longer awaiting approval.', 409, 'claim_invalid');
+            }
+            $run = $this->load($runId);
+            $this->effect($actor, 'harpp.work_run.rejected', 'work_run.rejected', $runId, $before, ['state' => 'CANCELLED', 'rationale' => $rationale]);
+            $this->db->commit();
+            return HarppServiceResult::success(['run' => $this->publicRun($run)]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            return HarppServiceResult::failure('Unable to reject work run.', 500);
         }
     }
 

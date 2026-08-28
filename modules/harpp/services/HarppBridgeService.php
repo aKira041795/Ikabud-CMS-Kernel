@@ -112,6 +112,16 @@ final class HarppBridgeService
         return (new HarppRunService($this->db))->transition($actor, $runId, $input, 'SUCCEEDED');
     }
 
+    public function approveRun(array $actor, int $runId, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->approveRun($actor, $runId, $input, $tenantId);
+    }
+
+    public function rejectRun(array $actor, int $runId, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->rejectRun($actor, $runId, $input, $tenantId);
+    }
+
     public function failRun(array $actor, int $runId, array $input, int $tenantId)
     {
         return (new HarppRunService($this->db))->transition($actor, $runId, $input, 'FAILED');

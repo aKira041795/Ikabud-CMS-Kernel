@@ -500,6 +500,18 @@ def complete_run(run_id, claim_token, config=None, status="Complete.", result=No
     return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/complete", body, config=config)
 
 
+def approve_run(run_id, approval_token, config=None, rationale="Approved."):
+    """Owner approves a risk-gated run using the approval_token from completion."""
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/approve",
+               {"approval_token": approval_token, "rationale": rationale}, config=config)
+
+
+def reject_run(run_id, config=None, rationale="Rejected."):
+    """Owner rejects a risk-gated run, revoking it to CANCELLED."""
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/reject",
+               {"rationale": rationale}, config=config)
+
+
 def fail_run(run_id, claim_token, config=None, status="Failed.", result=None):
     body = {"claim_token": claim_token, "status": status}
     if isinstance(result, dict):

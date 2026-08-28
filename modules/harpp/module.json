@@ -58,7 +58,8 @@
         "database/migrations/013_harpp_runner_work_queue.sql",
         "database/migrations/014_harpp_runner_reconcile.sql",
         "database/migrations/015_harpp_context_summary.sql",
-        "database/migrations/016_harpp_artifact_bundle.sql"
+        "database/migrations/016_harpp_artifact_bundle.sql",
+        "database/migrations/017_harpp_risk_gate.sql"
     ],
     "capabilities": {
         "exposes": [

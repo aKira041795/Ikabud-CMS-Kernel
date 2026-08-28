@@ -100,6 +100,8 @@ return [
         '/api/v1/harpp/bridge/runs/{id}/running' => 'harpp:harppBridgeRunRunning',
         '/api/v1/harpp/bridge/runs/{id}/renew' => 'harpp:harppBridgeRunRenew',
         '/api/v1/harpp/bridge/runs/{id}/complete' => 'harpp:harppBridgeRunComplete',
+        '/api/v1/harpp/bridge/runs/{id}/approve' => 'harpp:harppBridgeRunApprove',
+        '/api/v1/harpp/bridge/runs/{id}/reject' => 'harpp:harppBridgeRunReject',
         '/api/v1/harpp/bridge/runs/{id}/fail' => 'harpp:harppBridgeRunFail',
         '/api/v1/harpp/bridge/runs/{id}/stall' => 'harpp:harppBridgeRunStall',
         '/api/v1/harpp/bridge/runs/reconcile' => 'harpp:harppBridgeRunReconcile',

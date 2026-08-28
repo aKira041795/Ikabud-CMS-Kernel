@@ -23,6 +23,7 @@ from harpp_client import (
     HarppError,
     acknowledge_decision,
     apply_decision,
+    approve_run,
     artifact_bundle_for_decision,
     get_decision,
     list_decisions,
@@ -31,13 +32,14 @@ from harpp_client import (
     memory_search,
     poll_messages,
     post_status,
+    reject_run,
     run_status,
     send_message,
     submit_decision,
 )
 
 SERVER_NAME = "harpp-bridge"
-SERVER_VERSION = "1.3.0"
+SERVER_VERSION = "1.4.0"
 PROTOCOL_VERSION = "2024-11-05"
 
 TOOLS = [
@@ -191,6 +193,30 @@ TOOLS = [
             "required": ["q"],
         },
     },
+    {
+        "name": "harpp_approve_run",
+        "description": "Owner approves a risk-gated HARPP run (AWAITING_APPROVAL -> SUCCEEDED + artifact bundle) using the approval_token surfaced at completion.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer", "description": "Work run id awaiting approval"},
+                "approval_token": {"type": "string", "description": "One-time approval token returned by run completion"},
+            },
+            "required": ["run_id", "approval_token"],
+        },
+    },
+    {
+        "name": "harpp_reject_run",
+        "description": "Owner rejects a risk-gated HARPP run (AWAITING_APPROVAL -> CANCELLED) with a rationale.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer", "description": "Work run id awaiting approval"},
+                "rationale": {"type": "string", "description": "Rejection rationale"},
+            },
+            "required": ["run_id", "rationale"],
+        },
+    },
 ]
 
 TOOL_IMPLS = {
@@ -206,6 +232,8 @@ TOOL_IMPLS = {
     "harpp_get_artifact_bundle": lambda c, a: artifact_bundle_for_decision(a["decision_id"], config=c),
     "harpp_get_decision": lambda c, a: get_decision(a["id"], config=c),
     "harpp_memory_search": lambda c, a: memory_search(a["q"], config=c, limit=a.get("limit", 5)),
+    "harpp_approve_run": lambda c, a: approve_run(a["run_id"], a["approval_token"], config=c),
+    "harpp_reject_run": lambda c, a: reject_run(a["run_id"], config=c, rationale=a.get("rationale", "Rejected.")),
 }
 
 
