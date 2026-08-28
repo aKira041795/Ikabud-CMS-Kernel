@@ -28,6 +28,7 @@ from harpp_client import (
     list_decisions,
     list_runners,
     load_config,
+    memory_search,
     poll_messages,
     post_status,
     run_status,
@@ -36,7 +37,7 @@ from harpp_client import (
 )
 
 SERVER_NAME = "harpp-bridge"
-SERVER_VERSION = "1.2.0"
+SERVER_VERSION = "1.3.0"
 PROTOCOL_VERSION = "2024-11-05"
 
 TOOLS = [
@@ -178,6 +179,18 @@ TOOLS = [
             "required": ["id"],
         },
     },
+    {
+        "name": "harpp_memory_search",
+        "description": "Search HARPP's approved ADRs/decisions/artifacts to cite prior approved work.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "q": {"type": "string", "description": "Search query (approved ADRs/decisions/artifacts)"},
+                "limit": {"type": "integer", "default": 5, "description": "1..20, default 5"},
+            },
+            "required": ["q"],
+        },
+    },
 ]
 
 TOOL_IMPLS = {
@@ -192,6 +205,7 @@ TOOL_IMPLS = {
     "harpp_list_runners": lambda c, a: list_runners(config=c),
     "harpp_get_artifact_bundle": lambda c, a: artifact_bundle_for_decision(a["decision_id"], config=c),
     "harpp_get_decision": lambda c, a: get_decision(a["id"], config=c),
+    "harpp_memory_search": lambda c, a: memory_search(a["q"], config=c, limit=a.get("limit", 5)),
 }
 
 

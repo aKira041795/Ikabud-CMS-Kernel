@@ -69,7 +69,7 @@ final class HarppContextSummaryService
 
         $current = $this->get($conversationId);
         if ($current !== null && (int)$current['version'] === $version && (int)$current['message_count'] === count($messages)) {
-            return $current; // already fresh — avoid write churn on every read
+            return $this->withMemory($current, $conversationId); // already fresh — avoid write churn on every read
         }
 
         $recent = [];
@@ -106,7 +106,15 @@ final class HarppContextSummaryService
             ':run' => $run === null ? null : $this->json($run),
             ':budget' => self::SUMMARY_CHAR_BUDGET,
         ]);
-        return $this->get($conversationId);
+        return $this->withMemory($this->get($conversationId), $conversationId);
+    }
+
+    /** Attach the bounded approved-memory block (additive, never secrets/raw messages). */
+    private function withMemory(?array $summary, int $conversationId): ?array
+    {
+        if ($summary === null) return null;
+        $summary['memory'] = (new HarppMemoryService($this->db))->integrate($conversationId);
+        return $summary;
     }
 
     /** Return the stored bounded summary for a conversation, or null. */

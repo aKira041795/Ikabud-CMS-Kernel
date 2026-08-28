@@ -186,6 +186,11 @@ final class HarppBridgeService
         return (new HarppDecisionService($this->db))->get($actor, $decisionId, $tenantId);
     }
 
+    public function memorySearch(array $actor, array $input, int $tenantId)
+    {
+        return (new HarppMemoryService($this->db))->search($actor, $input, $tenantId);
+    }
+
     public function conversationContext(array $actor, int $conversationId, array $input, int $tenantId)
     {
         return (new HarppRunService($this->db))->context($actor, $conversationId, (int)($input['limit'] ?? 20));

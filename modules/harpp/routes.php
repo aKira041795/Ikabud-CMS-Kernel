@@ -48,6 +48,7 @@ return [
         '/api/v1/harpp/bridge/conversations' => 'harpp:harppBridgeConversationList',
         '/api/v1/harpp/bridge/notifications' => 'harpp:harppBridgeNotificationList',
         '/api/v1/harpp/bridge/notifications/unread-count' => 'harpp:harppBridgeNotificationUnread',
+        '/api/v1/harpp/bridge/memory/search' => 'harpp:harppBridgeMemorySearch',
     ],
     'POST' => [
         '/api/v1/harpp/auth/login' => 'harpp:harppAuthLogin',

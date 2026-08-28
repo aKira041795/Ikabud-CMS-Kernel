@@ -551,6 +551,14 @@ def get_decision(decision_id, config=None):
     return api("GET", f"/api/v1/harpp/bridge/decisions/{int(decision_id)}", config=config)
 
 
+# ── S2 approved-memory retrieval ────────────────────────────────────────────
+# Search HARPP's approved memory (ADRs + approved decisions + artifact bundles)
+# to cite prior approved work — never raw conversation messages.
+
+def memory_search(q, config=None, limit=5):
+    return api("GET", "/api/v1/harpp/bridge/memory/search" + _query({"q": q, "limit": limit}), config=config)
+
+
 # ── Derived client context cache ────────────────────────────────────────────
 # A bounded, invalidatable local cache of the server-authoritative conversation
 # context envelope. Keyed by tenant + conversation, stored with mode 0600, a

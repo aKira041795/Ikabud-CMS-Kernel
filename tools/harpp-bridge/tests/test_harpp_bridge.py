@@ -228,9 +228,9 @@ class HarppMcpTest(unittest.TestCase):
         names = [t["name"] for t in resp["result"]["tools"]]
         self.assertIn("harpp_submit_decision", names)
         self.assertIn("harpp_poll_messages", names)
-        for spine in ("harpp_get_run", "harpp_list_runners", "harpp_get_artifact_bundle", "harpp_get_decision"):
+        for spine in ("harpp_get_run", "harpp_list_runners", "harpp_get_artifact_bundle", "harpp_get_decision", "harpp_memory_search"):
             self.assertIn(spine, names)
-        self.assertEqual(len(names), 11)
+        self.assertEqual(len(names), 12)
 
     def test_unknown_tool(self):
         resp = self._call("tools/call", {"name": "nope", "arguments": {}})
@@ -272,9 +272,9 @@ class HarppMcpSpineTest(unittest.TestCase):
     def test_tools_list_includes_spine_tools(self):
         resp = harpp_mcp.handle_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         names = [t["name"] for t in resp["result"]["tools"]]
-        for spine in ("harpp_get_run", "harpp_list_runners", "harpp_get_artifact_bundle", "harpp_get_decision"):
+        for spine in ("harpp_get_run", "harpp_list_runners", "harpp_get_artifact_bundle", "harpp_get_decision", "harpp_memory_search"):
             self.assertIn(spine, names)
-        self.assertEqual(len(names), 11)
+        self.assertEqual(len(names), 12)
 
     def test_client_functions_route_to_correct_urls_and_methods(self):
         calls = []
@@ -290,6 +290,7 @@ class HarppMcpSpineTest(unittest.TestCase):
             harpp_client.list_runners()
             harpp_client.artifact_bundle_for_decision(9)
             harpp_client.get_decision(4)
+            harpp_client.memory_search("cache invalidation", limit=3)
         finally:
             harpp_client.api = original
         self.assertEqual(calls, [
@@ -297,6 +298,7 @@ class HarppMcpSpineTest(unittest.TestCase):
             ("GET", "/api/v1/harpp/bridge/runners"),
             ("GET", "/api/v1/harpp/bridge/artifacts/bundles/decision/9"),
             ("GET", "/api/v1/harpp/bridge/decisions/4"),
+            ("GET", "/api/v1/harpp/bridge/memory/search?q=cache+invalidation&limit=3"),
         ])
 
     def _dispatch(self, name, args):
@@ -334,6 +336,10 @@ class HarppMcpSpineTest(unittest.TestCase):
     def test_get_decision_tool_dispatches(self):
         calls = self._dispatch("harpp_get_decision", {"id": 3})
         self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/decisions/3"))
+
+    def test_memory_search_tool_dispatches(self):
+        calls = self._dispatch("harpp_memory_search", {"q": "approved layout", "limit": 4})
+        self.assertEqual(calls[0], ("GET", "/api/v1/harpp/bridge/memory/search?q=approved+layout&limit=4"))
 
 
 class HarppContextCacheTest(unittest.TestCase):
