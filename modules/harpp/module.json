@@ -594,6 +594,22 @@
             ]
         },
         {
+            "key": "country",
+            "type": "text",
+            "label": "Country (ISO code)",
+            "default": "",
+            "placeholder": "e.g. PH",
+            "help": "Owner's country (ISO 3166-1 alpha-2) used to localize chat message timestamps."
+        },
+        {
+            "key": "region",
+            "type": "text",
+            "label": "Region / City",
+            "default": "",
+            "placeholder": "e.g. Manila",
+            "help": "Owner's region or city used to pick the local timezone for chat messages."
+        },
+        {
             "key": "vapid_subject",
             "type": "text",
             "label": "VAPID Subject",

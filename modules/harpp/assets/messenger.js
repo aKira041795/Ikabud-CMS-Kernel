@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const time = document.createElement('time');
           time.className = 'message-time';
           time.dateTime = row.created_at;
-          time.textContent = row.created_at;
+          time.textContent = row.created_at_local || row.created_at;
           box.append(time);
         }
         messages.append(box);

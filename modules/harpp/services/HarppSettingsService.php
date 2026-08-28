@@ -117,6 +117,13 @@ final class HarppSettingsService
             }
             return implode(',', $channels);
         }
+        if ($key === 'country') {
+            $value = strtoupper(trim((string)$value));
+            if ($value !== '' && !preg_match('/^[A-Z]{2}$/', $value)) {
+                throw new \InvalidArgumentException('country must be a 2-letter ISO country code (e.g. PH).');
+            }
+            return $value;
+        }
         $value = trim(strip_tags((string)$value));
         if (strlen($value) > 255) {
             throw new \InvalidArgumentException($key . ' must be at most 255 characters.');

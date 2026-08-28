@@ -72,7 +72,8 @@ final class HarppMessagingService
         $limit=max(1,min(100,(int)($page['limit']??50)));$after=max(0,(int)($page['after_id']??0));
         $check=$this->db()->prepare('SELECT created_by,workspace_id,project_id,visibility FROM harpp_conversations WHERE id=:id');$check->execute([':id'=>$conversationId]);$conversation=$check->fetch(PDO::FETCH_ASSOC);if(!is_array($conversation))return HarppServiceResult::failure('Conversation not found.',404);if(!$this->canAccessConversation($conversationId,$conversation,$actor))return HarppServiceResult::failure('Conversation access denied.',403);
         $s=$this->db()->prepare('SELECT id,conversation_id,aggregate_sequence,sender_type,sender_user_id,body,payload,read_at,created_at FROM harpp_messages WHERE conversation_id=:conversation AND id>:after ORDER BY aggregate_sequence ASC,id ASC LIMIT '.$limit);$s->execute([':conversation'=>$conversationId,':after'=>$after]);$rows=$s->fetchAll(PDO::FETCH_ASSOC);
-        return HarppServiceResult::success(['messages'=>$rows,'limit'=>$limit,'next_after_id'=>$rows?(int)end($rows)['id']:$after,'next_sequence'=>$rows?(int)end($rows)['aggregate_sequence']:0]);
+        $timezone=$this->ownerTimezone();foreach($rows as &$row){$row['created_at_local']=$this->localizeTimestamp($row['created_at']??null,$timezone);}unset($row);
+        return HarppServiceResult::success(['messages'=>$rows,'timezone'=>$timezone,'limit'=>$limit,'next_after_id'=>$rows?(int)end($rows)['id']:$after,'next_sequence'=>$rows?(int)end($rows)['aggregate_sequence']:0]);
     }
 
     public function listOwnerMessagesForHarness(array $actor,array $page=[],?int $tenantId=null)
@@ -165,6 +166,46 @@ final class HarppMessagingService
         $stmt->execute([':key' => $key]);
         $value = $stmt->fetchColumn();
         return $value === false ? $default : (string)$value;
+    }
+    private function ownerTimezone(): string
+    {
+        $country = strtoupper(trim($this->setting('country', '')));
+        $region = trim($this->setting('region', ''));
+        if ($country !== '' && preg_match('/^[A-Z]{2}$/', $country)) {
+            try {
+                $zones = \DateTimeZone::listIdentifiers(\DateTimeZone::PER_COUNTRY, $country);
+                if (is_array($zones) && $zones !== []) {
+                    if ($region !== '') {
+                        $needle = strtolower(str_replace(['_', '-'], ' ', $region));
+                        foreach ($zones as $zone) {
+                            $parts = explode('/', $zone);
+                            $city = (string)end($parts);
+                            if (strtolower(str_replace(['_', '-'], ' ', $city)) === $needle) {
+                                return $zone;
+                            }
+                        }
+                    }
+                    return $zones[0];
+                }
+            } catch (\Throwable $e) {
+                // Fall through to the application default timezone below.
+            }
+        }
+        return (string)(date_default_timezone_get() ?: 'UTC');
+    }
+    private function localizeTimestamp(?string $createdAt, string $timezone): ?string
+    {
+        if ($createdAt === null || $createdAt === '') {
+            return $createdAt;
+        }
+        try {
+            $server = (string)(date_default_timezone_get() ?: 'UTC');
+            $dt = new \DateTime($createdAt, new \DateTimeZone($server));
+            $dt->setTimezone(new \DateTimeZone($timezone));
+            return $dt->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return $createdAt;
+        }
     }
     private function effects(string $event,string $action,array $actor,string $type,int $id,?array $before,array $after):array{return$this->foundation()->recordEffect($event,$action,$actor,$type,$id,$before,$after);}
     private function otherOperator(int $exclude): int{$s=$this->db()->prepare("SELECT id FROM harpp_users WHERE is_active=1 AND id<>:id AND role IN ('owner','admin') ORDER BY FIELD(role,'owner','admin'),id LIMIT 1");$s->execute([':id'=>$exclude]);return(int)($s->fetchColumn()?:0);}
