@@ -2228,13 +2228,13 @@
             "id": "appointment-transition-enforced",
             "severity": "critical",
             "scope": "lifecycle",
-            "description": "Appointment status changes must go through the documented transition matrix; generic PUT /api/appointments/{id} currently accepts status bypassing all transition rules."
+            "description": "Appointment status changes go through the documented transition matrix via dedicated transition endpoints; generic PUT /api/appointments/{id} does not accept a status field."
         },
         {
             "id": "appointment-scheduled-time-enforced",
             "severity": "critical",
             "scope": "lifecycle",
-            "description": "Future appointments must not be completable or marked no-show; complete/no-show endpoints do not verify scheduled time has been reached."
+            "description": "Appointments must not be completed or marked no-show until their scheduled time has been reached."
         }
     ],
     "scenarios": [

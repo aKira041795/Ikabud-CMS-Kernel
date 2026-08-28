@@ -3,11 +3,11 @@
  * Guidance Route Resolution Test
  *
  * Proves every route handler reference resolves from modules/guidance/handlers.php.
- * Verifies that the split handler directory (modules/guidance/handlers/) is NOT
- * the runtime source for route callables.
+ * Verifies that the deleted split handler directory (modules/guidance/handlers/)
+ * is neither restored nor imported as a second runtime source.
  *
- * Uses token_get_all() for function extraction (more robust than regex alone)
- * and searches the repository for any imports from the split handler directory.
+ * Uses token_get_all() for function extraction and import-statement inspection,
+ * avoiding regex-only checks that can miss concatenated PHP paths.
  *
  * Pure logic — no bootstrap, no DB required. handlers.php cannot be require'd
  * directly without kernel bootstrap, so we validate by token analysis + php -l.
@@ -111,6 +111,52 @@ $h->section('Repository-wide split-handler import prohibition');
 $importHits = [];
 $repoRoot = realpath(__DIR__ . '/../..');
 $excludedSegments = ['/.git/', '/vendor/', '/node_modules/', '/storage/cache/', '/test_results/'];
+$splitImportStatements = static function (string $content, string $sourceRelativePath): array {
+    $hits = [];
+    $tokens = token_get_all($content);
+    $importTokens = [T_REQUIRE, T_REQUIRE_ONCE, T_INCLUDE, T_INCLUDE_ONCE];
+    $tokenCount = count($tokens);
+    $isGuidanceSource = str_starts_with(str_replace('\\', '/', $sourceRelativePath), 'modules/guidance/');
+
+    for ($i = 0; $i < $tokenCount; $i++) {
+        if (!is_array($tokens[$i]) || !in_array($tokens[$i][0], $importTokens, true)) {
+            continue;
+        }
+        $statement = $tokens[$i][1];
+        $stringLiterals = [];
+        for ($j = $i + 1; $j < $tokenCount; $j++) {
+            $statement .= is_array($tokens[$j]) ? $tokens[$j][1] : $tokens[$j];
+            if (is_array($tokens[$j]) && $tokens[$j][0] === T_CONSTANT_ENCAPSED_STRING) {
+                $stringLiterals[] = str_replace('\\', '/', substr($tokens[$j][1], 1, -1));
+            }
+            if ($tokens[$j] === ';') {
+                break;
+            }
+        }
+
+        $normalized = str_replace('\\', '/', $statement);
+        $referencesSplit = str_contains($normalized, 'guidance/handlers/');
+        if (!$referencesSplit && $isGuidanceSource) {
+            foreach ($stringLiterals as $literal) {
+                $trimmedLiteral = trim($literal, '/.');
+                if ($trimmedLiteral === 'handlers' || str_starts_with($trimmedLiteral, 'handlers/')) {
+                    $referencesSplit = true;
+                    break;
+                }
+            }
+        }
+        if ($referencesSplit) {
+            $hits[] = trim($statement);
+        }
+    }
+
+    return $hits;
+};
+$guardFixture = "<?php require_once __DIR__ . '/handlers/10-auth.php';";
+$h->test(
+    'Split-handler import guard detects guidance-relative imports',
+    $splitImportStatements($guardFixture, 'modules/guidance/handlers.php') !== []
+);
 if ($repoRoot !== false) {
     $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($repoRoot));
     foreach ($it as $fileInfo) {
@@ -118,29 +164,8 @@ if ($repoRoot !== false) {
         $path = str_replace('\\', '/', $fileInfo->getPathname());
         if (array_filter($excludedSegments, static fn(string $segment): bool => str_contains($path, $segment))) { continue; }
         $rel = ltrim(str_replace(str_replace('\\', '/', $repoRoot), '', $path), '/');
-        // Skip the monolithic handlers.php itself — it's the runtime source
-        if ($rel === 'modules/guidance/handlers.php') { continue; }
-        $content = file_get_contents($fileInfo->getPathname());
-
-        // Pattern 1: absolute paths containing "guidance/handlers/"
-        $absoluteMatch = preg_match(
-            '/(require|include)(_once)?\s*\(?\s*[\"\'][^\"\']*guidance\/handlers\//',
-            $content
-        );
-
-        // Pattern 2: relative paths via __DIR__ or ./ referencing handler files
-        // Matches: __DIR__ . '/handlers/...', __DIR__ . "./handlers/...",
-        //          './handlers/...', or bare 'handlers/...'
-        $relativeMatch = (str_starts_with($rel, 'modules/guidance/') || str_starts_with($rel, 'tests/guidance/'))
-            && preg_match(
-                '/(require|include)(_once)?\s*\(?\s*('
-                    . '(__DIR__\s*\.\s*[\"\'][\/.]?handlers\/)'
-                    . '|([\"\'][.]?\/?handlers\/)'
-                . ')/',
-                $content
-            );
-
-        if ($absoluteMatch || $relativeMatch) {
+        $content = (string)file_get_contents($fileInfo->getPathname());
+        if ($splitImportStatements($content, $rel) !== []) {
             $importHits[] = $rel;
         }
     }
@@ -159,20 +184,14 @@ if (empty($importHits)) {
 // ---- Step 6: Verify handlers.php does NOT import from split dir ----
 $h->test(
     'handlers.php does not import from handlers/ subdirectory',
-    !preg_match('/(require|include)(_once)?\s+(__DIR__\s*\.\s*)?[\'"](\/handlers|\.\/)/', $handlersContent)
+    $splitImportStatements($handlersContent, 'modules/guidance/handlers.php') === []
 );
 
-// ---- Step 7: Document split directory inventory ----
+// ---- Step 7: Guard against restoring the dead split ----
 $splitDir = __DIR__ . '/../../modules/guidance/handlers';
-$splitFiles = [];
-if (is_dir($splitDir)) {
-    foreach (scandir($splitDir) as $entry) {
-        if (str_ends_with($entry, '.php')) { $splitFiles[] = $entry; }
-    }
-}
 $h->test(
-    'Split handler directory (' . count($splitFiles) . ' files) exists but is not the runtime source',
-    true
+    'Deleted split handler directory is not present',
+    !is_dir($splitDir)
 );
 
 // ---- Step 8: Document runtime source ----

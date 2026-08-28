@@ -12,7 +12,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../harness/TestHarness.php';
 
-$h = new TestHarness('guidance-manifest');
+$h = new TestHarness('guidance-manifest', TestHarness::MODE_INTEGRATION, 'applicationos.test');
 $h->fingerprint('modules/guidance/module.json');
 
 $manifestPath = $h->basePath() . '/modules/guidance/module.json';
@@ -50,9 +50,127 @@ foreach ($allPhp as $f) {
 }
 if ($syntaxOk) $h->test('All PHP files pass syntax check', true);
 
+$auth = is_array($manifest['auth_owned'] ?? null) ? $manifest['auth_owned'] : [];
+$userTable = (string)($auth['users_table'] ?? '');
+$userColumns = [
+    'id' => (string)($auth['id_column'] ?? ''),
+    'email' => (string)($auth['email_column'] ?? ''),
+    'password' => (string)($auth['password_column'] ?? ''),
+    'name' => (string)($auth['name_column'] ?? ''),
+    'role' => (string)($auth['role_column'] ?? ''),
+    'active' => (string)($auth['active_column'] ?? ''),
+];
+$settingsFields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+$settingKey = (string)($settingsFields[0]['key'] ?? '');
+$identifiers = array_merge([$userTable], array_values($userColumns));
+$validIdentifiers = array_reduce(
+    $identifiers,
+    static fn (bool $valid, string $identifier): bool => $valid && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier) === 1,
+    true
+);
+
+$h->section('Manifest-backed integration database');
+$h->test('auth_owned declares safe user table and column identifiers', $validIdentifiers);
+$h->test('auth_owned.users_table declares owned gm_users', $userTable === 'gm_users' && in_array($userTable, $manifest['owns_tables'] ?? [], true));
+$h->test('settings_fields declares a writable setting key', $settingKey !== '');
+$h->test('gm_settings is owned by guidance', in_array('gm_settings', $manifest['owns_tables'] ?? [], true));
+
+$tenantDb = null;
+if ($validIdentifiers && $settingKey !== '') {
+    try {
+        $tenantRows = app()->controlDb()->query(
+            "SELECT id FROM kernel_tenants WHERE status = 'active' AND entry_module_id = 'guidance' ORDER BY id"
+        );
+        foreach ($tenantRows ? ($tenantRows->fetchAll(PDO::FETCH_COLUMN) ?: []) : [] as $tenantId) {
+            $candidate = app()->dbForTenant((int)$tenantId);
+            if (!$candidate instanceof PDO) {
+                continue;
+            }
+            $usersExist = $candidate->query("SHOW TABLES LIKE " . $candidate->quote($userTable));
+            $settingsExist = $candidate->query("SHOW TABLES LIKE 'gm_settings'");
+            if ($usersExist && $usersExist->fetchColumn() && $settingsExist && $settingsExist->fetchColumn()) {
+                $tenantDb = $candidate;
+                break;
+            }
+        }
+    } catch (Throwable $e) {
+        $h->detail($e->getMessage());
+    }
+}
+$h->test('active Guidance tenant exposes manifest-owned tables', $tenantDb instanceof PDO);
+
+if ($tenantDb instanceof PDO) {
+    $quoteIdentifier = static fn (string $identifier): string => '`' . $identifier . '`';
+    $tableSql = $quoteIdentifier($userTable);
+    $columnSql = array_map($quoteIdentifier, $userColumns);
+    $stamp = bin2hex(random_bytes(8));
+    $email = "manifest-crud-{$stamp}@example.test";
+
+    $tenantDb->beginTransaction();
+    try {
+        $h->section('Auth-owned gm_users CRUD via manifest contract');
+        $insertUser = $tenantDb->prepare(
+            "INSERT INTO {$tableSql} ({$columnSql['email']}, {$columnSql['password']}, {$columnSql['name']}, {$columnSql['role']}, {$columnSql['active']}) "
+            . 'VALUES (?, ?, ?, ?, ?)'
+        );
+        $created = $insertUser->execute([
+            $email,
+            password_hash('manifest-contract-test', PASSWORD_DEFAULT),
+            'Manifest Create',
+            (string)($auth['default_admin_role'] ?? 'admin'),
+            1,
+        ]);
+        $userId = (int)$tenantDb->lastInsertId();
+        $h->test('create gm_users row using auth_owned table and columns', $created && $userId > 0);
+
+        $readUser = $tenantDb->prepare(
+            "SELECT {$columnSql['email']}, {$columnSql['name']} FROM {$tableSql} WHERE {$columnSql['id']} = ?"
+        );
+        $readUser->execute([$userId]);
+        $createdUser = $readUser->fetch(PDO::FETCH_ASSOC) ?: [];
+        $h->test('read created gm_users row through auth_owned contract', ($createdUser[$userColumns['email']] ?? '') === $email);
+
+        $updateUser = $tenantDb->prepare(
+            "UPDATE {$tableSql} SET {$columnSql['name']} = ? WHERE {$columnSql['id']} = ?"
+        );
+        $updateUser->execute(['Manifest Update', $userId]);
+        $readUser->execute([$userId]);
+        $updatedUser = $readUser->fetch(PDO::FETCH_ASSOC) ?: [];
+        $h->test('update gm_users row through auth_owned contract', ($updatedUser[$userColumns['name']] ?? '') === 'Manifest Update');
+
+        $deleteUser = $tenantDb->prepare("DELETE FROM {$tableSql} WHERE {$columnSql['id']} = ?");
+        $deleteUser->execute([$userId]);
+        $readUser->execute([$userId]);
+        $h->test('delete gm_users row through auth_owned contract', $readUser->fetchColumn() === false);
+
+        $h->section('Settings read/write via manifest contract');
+        $tenantDb->prepare('DELETE FROM gm_settings WHERE setting_key = ?')->execute([$settingKey]);
+        $writeSetting = $tenantDb->prepare(
+            'INSERT INTO gm_settings (setting_key, setting_value, setting_type, updated_at) VALUES (?, ?, ?, NOW())'
+        );
+        $writeSetting->execute([$settingKey, 'manifest-write-' . $stamp, 'string']);
+        $readSetting = $tenantDb->prepare('SELECT setting_value FROM gm_settings WHERE setting_key = ?');
+        $readSetting->execute([$settingKey]);
+        $h->test('write and read manifest-declared setting', $readSetting->fetchColumn() === 'manifest-write-' . $stamp);
+
+        $updateSetting = $tenantDb->prepare('UPDATE gm_settings SET setting_value = ? WHERE setting_key = ?');
+        $updateSetting->execute(['manifest-update-' . $stamp, $settingKey]);
+        $readSetting->execute([$settingKey]);
+        $h->test('update and read manifest-declared setting', $readSetting->fetchColumn() === 'manifest-update-' . $stamp);
+
+        $tenantDb->prepare('DELETE FROM gm_settings WHERE setting_key = ?')->execute([$settingKey]);
+        $readSetting->execute([$settingKey]);
+        $h->test('delete manifest-declared setting', $readSetting->fetchColumn() === false);
+    } catch (Throwable $e) {
+        $h->test('manifest-backed CRUD operations complete without exception', false, $e->getMessage());
+    } finally {
+        if ($tenantDb->inTransaction()) {
+            $tenantDb->rollBack();
+        }
+    }
+}
+
 $h->section('Gap analysis');
-$h->gap('Auth-owned user table CRUD operations');
-$h->gap('Settings read/write through manifest contract');
 $h->gap('Navigation items resolve to valid handlers');
 $h->gap('Entity view contracts in helpers/views/');
 
