@@ -289,9 +289,11 @@ test.describe.serial('HARPP decision inbox isolated browser journey', () => {
             const response = await fetch('/api/v1/harpp/decisions', {
                 method: 'POST', credentials: 'same-origin',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-                body: JSON.stringify({ title: 'Artifact download test', body: 'body', requested_decision: 'pick',
+                body: JSON.stringify({
+                    title: 'Artifact download test', body: 'body', requested_decision: 'pick',
                     decision_key: 'ART-DL-' + Date.now(), priority: 'normal', source: 'harness',
-                    workbench_state: 'ARCHITECTURE_DECISION_REQUIRED' }),
+                    workbench_state: 'ARCHITECTURE_DECISION_REQUIRED'
+                }),
             });
             const body = await response.json();
             return { status: response.status, body };
