@@ -1767,5 +1767,82 @@ class WakeAdapterTest(unittest.TestCase):
         self.assertEqual(packet[6:12], bytes.fromhex("001122334455"))
 
 
+class ContextBlockTest(unittest.TestCase):
+    """Slice A/B: conversation context block into worker + quick-reply prompts."""
+
+    def _envelope(self):
+        return {
+            "conversation": {"id": 2, "title": "Memory conversation"},
+            "summary": {
+                "version": 7, "title": "Memory conversation",
+                "recent": [
+                    {"sender_type": "user", "body": "Please run the task."},
+                    {"sender_type": "harness", "body": "Will do."},
+                ],
+                "active_run": {"id": 5, "state": "SUCCEEDED", "report_state": "DELIVERED",
+                               "last_status": "Done."},
+                "decisions": [{"decision_key": "DEC-REUSE-1", "decision": "Use option B",
+                               "title": "Reuse decision"}],
+            },
+        }
+
+    def test_context_block_includes_title_run_and_decisions(self):
+        original = harpp_wake.harpp_client.context_for_conversation
+        harpp_wake.harpp_client.context_for_conversation = lambda *a, **k: self._envelope()
+        try:
+            block = harpp_wake.conversation_context_block(2)
+        finally:
+            harpp_wake.harpp_client.context_for_conversation = original
+        self.assertIn("Memory conversation", block)
+        self.assertIn("state=SUCCEEDED", block)
+        self.assertIn("DEC-REUSE-1", block)
+        self.assertIn("Use option B", block)
+        self.assertIn("owner:", block)
+
+    def test_context_block_graceful_on_miss(self):
+        original = harpp_wake.harpp_client.context_for_conversation
+
+        def boom(*a, **k):
+            raise RuntimeError("no config")
+        harpp_wake.harpp_client.context_for_conversation = boom
+        try:
+            block = harpp_wake.conversation_context_block(2)
+        finally:
+            harpp_wake.harpp_client.context_for_conversation = original
+        self.assertEqual(block, "")
+
+    def test_task_prompt_appends_context_block(self):
+        original = harpp_wake.conversation_context_block
+        harpp_wake.conversation_context_block = lambda cid, **k: "Conversation: X\nActive run: #1 state=RUNNING"
+        try:
+            prompt = harpp_wake.task_prompt("inbox.jsonl", [{"id": 1, "conversation_id": 2, "body": "status?"}],
+                                           template="T: {{ITEMS}} {{CONTEXT}}")
+        finally:
+            harpp_wake.conversation_context_block = original
+        self.assertIn("Active run: #1 state=RUNNING", prompt)
+        self.assertIn("# Conversation context", prompt)
+
+    def test_quick_reply_is_conversation_grounded(self):
+        original_block = harpp_wake.conversation_context_block
+        harpp_wake.conversation_context_block = lambda cid, **k: "Conversation: Memory conversation\nstate=SUCCEEDED"
+        original_completion = harpp_wake._quick_completion
+        prompts = []
+        harpp_wake._quick_completion = lambda *a, **k: prompts.append(a[0]) or "The task completed."
+        sent = {}
+        original_notify = harpp_wake.harpp_client.harpp_notify
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: sent.update(kw) or {"ok": True}
+        try:
+            ok = harpp_wake._quick_reply({"id": 9, "conversation_id": 2, "body": "what changed?"})
+        finally:
+            harpp_wake.conversation_context_block = original_block
+            harpp_wake._quick_completion = original_completion
+            harpp_wake.harpp_client.harpp_notify = original_notify
+        self.assertTrue(ok)
+        self.assertTrue(prompts)
+        self.assertIn("Relevant conversation context", prompts[0])
+        self.assertIn("Memory conversation", prompts[0])
+        self.assertIn("state=SUCCEEDED", prompts[0])
+
+
 if __name__ == "__main__":
     unittest.main()

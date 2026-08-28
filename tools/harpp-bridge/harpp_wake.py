@@ -2874,6 +2874,54 @@ def route_debate_commands(records) -> int:
     return handled
 
 
+def conversation_context_block(conversation_id, config=None, max_chars=4000):
+    """Return a bounded, redacted conversation-context block for a worker prompt.
+
+    Sourced from the server-authoritative summary (harpp_context_summary) via the
+    bounded client context cache (P1-1): title, recent turns, active/latest run, and
+    applicable durable decisions. Never includes secrets or bridge credentials. Falls
+    back gracefully (never raises) so a network/config miss never breaks the wake loop.
+    """
+    if not conversation_id:
+        return ""
+    try:
+        env = harpp_client.context_for_conversation(int(conversation_id), config=config, use_cache=True)
+    except Exception as exc:  # noqa: BLE001 - config/network miss must never break the loop
+        log(f"context block unavailable for conversation {conversation_id}: {exc}")
+        return ""
+    if not isinstance(env, dict):
+        return ""
+    summary = env.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
+    conv = env.get("conversation")
+    conv = conv if isinstance(conv, dict) else {}
+    lines = []
+    title = summary.get("title") or conv.get("title") or ""
+    if title:
+        lines.append(f"Conversation: {title}")
+    version = summary.get("version") or (env.get("cache") or {}).get("version") or 0
+    if version:
+        lines.append(f"Context version: {version}")
+    recent = summary.get("recent") or []
+    for turn in recent[-6:]:  # bounded: last 6 turns in the block
+        who = "owner" if str(turn.get("sender_type") or "") in ("user", "owner") else "harness"
+        body = str(turn.get("body") or "")[:200]
+        lines.append(f"- {who}: {body}")
+    run = summary.get("active_run")
+    if isinstance(run, dict) and run.get("id"):
+        lines.append(f"Active/latest run: #{run.get('id')} state={run.get('state')} "
+                     f"report={run.get('report_state')} status={str(run.get('last_status') or '')[:120]}")
+    decisions = summary.get("decisions") or []
+    if decisions:
+        lines.append("Applicable durable decisions:")
+        for dec in decisions[:4]:
+            lines.append(f"- {dec.get('decision_key')}: {dec.get('decision') or dec.get('title')}")
+    block = "\n".join(lines)
+    if len(block) > max_chars:
+        block = block[:max_chars] + "…"
+    return block
+
+
 def task_prompt(inbox: str, items: list, template: str | None = None, workspace: str | None = None) -> str:
     """Build the single-pass agent prompt from the task-contract template + staged items."""
     default = Path(__file__).resolve().parent / "wake" / "task-contract.md"
@@ -2887,10 +2935,15 @@ def task_prompt(inbox: str, items: list, template: str | None = None, workspace:
     items_json = "\n".join(json.dumps(i, ensure_ascii=False) for i in items)
     conversations = {int(i.get("conversation_id")) for i in items if i.get("conversation_id")}
     conversation_id = next(iter(conversations)) if len(conversations) == 1 else None
-    return (text.replace("{{INBOX}}", inbox)
-                .replace("{{ITEMS}}", items_json)
-                .replace("{{DECISIONS}}", recent_decisions_text(conversation_id=conversation_id))
-                .replace("{{WORKSPACE}}", workspace or "(no workspace configured)"))
+    context_block = conversation_context_block(conversation_id) if conversation_id else ""
+    prompt = (text.replace("{{INBOX}}", inbox)
+                 .replace("{{ITEMS}}", items_json)
+                 .replace("{{DECISIONS}}", recent_decisions_text(conversation_id=conversation_id))
+                 .replace("{{WORKSPACE}}", workspace or "(no workspace configured)")
+                 .replace("{{CONTEXT}}", context_block or "no context block available"))
+    if context_block:
+        prompt = prompt + "\n\n# Conversation context\n" + context_block
+    return prompt
 
 
 def _stream_agent_output(proc, timeout: int, tee):
@@ -3153,12 +3206,18 @@ def _quick_reply(item: dict) -> bool:
     conv = item.get("conversation_id")
     if not conv:
         return False
+    # Ground the reply in this conversation's durable summary (title, active/latest
+    # run, applicable decisions) so "status?"/"update" answers are conversation-specific
+    # rather than global. Bounded + redacted; empty on any miss (never raises).
+    context_block = conversation_context_block(int(conv))
+    context_section = f"\n\nRelevant conversation context:\n{context_block}" if context_block else ""
     prompt = (
         "You are the HARPP assistant replying to the owner in a messenger conversation.\n"
         "Answer the owner's message conversationally in 1-3 short sentences.\n"
         "Do NOT use any tools, do NOT read files, do NOT edit code, do NOT call any bridge.\n"
         "Reply with only the message text.\n\n"
         f"Owner message:\n{str(item.get('body', ''))[:1000]}"
+        f"{context_section}"
     )
     text = _quick_completion(prompt)
     if not text:
