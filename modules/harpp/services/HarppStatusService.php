@@ -80,18 +80,19 @@ final class HarppStatusService
         $recentDecisions = (array)($decisionResult['data']['decisions'] ?? []);
         // Daemon panel is optional: if migration 018 is not yet applied the rest
         // of the status page still works and daemon renders as unavailable.
+        // age_seconds/online are computed in SQL against NOW(6) so they never mix
+        // the MySQL session timezone with the PHP timezone (which can differ by
+        // hours on shared hosting, previously making a live daemon look offline).
         $daemon = null;
         if ($this->tableExists('harpp_daemon_status')) {
-            $daemonRow = $this->db->query('SELECT runner_key,last_seen_at,daemon_version,workflow_counts_json,recent_workflows_json FROM harpp_daemon_status ORDER BY updated_at DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+            $daemonRow = $this->db->query("SELECT runner_key,last_seen_at,daemon_version,workflow_counts_json,recent_workflows_json,TIMESTAMPDIFF(SECOND,last_seen_at,NOW(6)) AS age_seconds,(last_seen_at > DATE_SUB(NOW(6), INTERVAL 300 SECOND)) AS is_online FROM harpp_daemon_status ORDER BY updated_at DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             if (is_array($daemonRow)) {
-                $lastSeen = strtotime((string)$daemonRow['last_seen_at']);
-                $age = $lastSeen === false ? 0 : max(0, time() - $lastSeen);
                 $daemon = [
                     'runner_key' => (string)$daemonRow['runner_key'],
                     'last_seen_at' => $daemonRow['last_seen_at'],
                     'daemon_version' => $daemonRow['daemon_version'],
-                    'online' => $lastSeen !== false && $lastSeen > time() - 300,
-                    'age_seconds' => $age,
+                    'online' => (bool)$daemonRow['is_online'],
+                    'age_seconds' => max(0, (int)$daemonRow['age_seconds']),
                     'workflow_counts' => (array)json_decode((string)$daemonRow['workflow_counts_json'], true),
                     'recent_workflows' => (array)json_decode((string)$daemonRow['recent_workflows_json'], true),
                 ];
