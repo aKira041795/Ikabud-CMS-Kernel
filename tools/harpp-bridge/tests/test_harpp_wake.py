@@ -6,6 +6,7 @@ Run:  python3 -m unittest tools.harpp-bridge.tests.test_harpp_wake
 """
 import json
 import os
+import runpy
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,109 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import harpp_wake  # noqa: E402
+
+
+class HarppDesktopRunnerTest(unittest.TestCase):
+    def setUp(self):
+        self.module = runpy.run_path(str(Path(__file__).resolve().parent.parent / "harpp"))
+        self.client = self.module["harpp_client"]
+        self.wake = self.module["harpp_wake"]
+        self.originals = {name: getattr(self.client, name) for name in (
+            "register_runner", "reconcile_runs", "claim_run", "conversation_context",
+            "mark_run_running", "complete_run", "fail_run")}
+        self.original_spawn = self.wake.spawn_agent
+
+    def tearDown(self):
+        for name, value in self.originals.items():
+            setattr(self.client, name, value)
+        self.wake.spawn_agent = self.original_spawn
+
+    def _start(self):
+        return self.module["_start_desktop_pass"](
+            workspace="/tmp", wake_command=None, model="model", timeout=10,
+            open_terminal=False)
+
+    def _claimed_run(self):
+        return {"data": {"claim_token": "token", "run": {
+            "id": 41, "conversation_id": 7, "task": "Do the work"}}}
+
+    def test_desktop_runner_pass_returns_while_claimed_run_executes(self):
+        started = threading.Event()
+        release = threading.Event()
+        completed = threading.Event()
+        self.client.register_runner = lambda **kw: {"ok": True}
+        self.client.reconcile_runs = lambda *a, **kw: {"ok": True}
+        self.client.claim_run = lambda **kw: self._claimed_run()
+        self.client.conversation_context = lambda *a, **kw: {"data": {}}
+        self.client.mark_run_running = lambda *a, **kw: {"ok": True}
+        self.client.complete_run = lambda *a, **kw: completed.set() or {"ok": True}
+        self.client.fail_run = lambda *a, **kw: {"ok": True}
+
+        def blocking_spawn(*args, **kwargs):
+            started.set()
+            release.wait(2)
+            return True, None
+
+        self.wake.spawn_agent = blocking_spawn
+        before = time.monotonic()
+        self.assertTrue(self._start())
+        elapsed = time.monotonic() - before
+        self.assertTrue(started.wait(1))
+        self.assertLess(elapsed, 0.2)
+        self.assertFalse(completed.is_set())
+        release.set()
+        self.assertTrue(completed.wait(1))
+
+    def test_desktop_runner_pass_is_single_flight(self):
+        started = threading.Event()
+        release = threading.Event()
+        claims = []
+        self.client.register_runner = lambda **kw: {"ok": True}
+        self.client.reconcile_runs = lambda *a, **kw: {"ok": True}
+        self.client.claim_run = lambda **kw: claims.append(kw) or self._claimed_run()
+        self.client.conversation_context = lambda *a, **kw: {"data": {}}
+        self.client.mark_run_running = lambda *a, **kw: {"ok": True}
+        self.client.complete_run = lambda *a, **kw: {"ok": True}
+        self.client.fail_run = lambda *a, **kw: {"ok": True}
+
+        def blocking_spawn(*args, **kwargs):
+            started.set()
+            release.wait(2)
+            return True, None
+
+        self.wake.spawn_agent = blocking_spawn
+        self.assertTrue(self._start())
+        self.assertTrue(started.wait(1))
+        self.assertFalse(self._start())
+        self.assertEqual(len(claims), 1)
+        release.set()
+        deadline = time.monotonic() + 1
+        lock = self.module["_DESKTOP_RUN_LOCK"]
+        while lock.locked() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertFalse(lock.locked())
+
+    def test_desktop_runner_pass_contains_claim_and_execute_errors(self):
+        for failure_point in ("claim", "execute"):
+            with self.subTest(failure_point=failure_point):
+                reconciled = threading.Event()
+                self.client.register_runner = lambda **kw: {"ok": True}
+                self.client.reconcile_runs = lambda *a, **kw: reconciled.set() or {"ok": True}
+                self.client.claim_run = (
+                    (lambda **kw: (_ for _ in ()).throw(RuntimeError("claim failed")))
+                    if failure_point == "claim" else (lambda **kw: self._claimed_run()))
+                self.client.conversation_context = lambda *a, **kw: {"data": {}}
+                self.client.mark_run_running = lambda *a, **kw: {"ok": True}
+                self.client.complete_run = lambda *a, **kw: {"ok": True}
+                self.client.fail_run = lambda *a, **kw: {"ok": True}
+                self.wake.spawn_agent = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("execute failed"))
+                self.assertTrue(self._start())
+                self.assertTrue(reconciled.wait(1))
+                deadline = time.monotonic() + 1
+                lock = self.module["_DESKTOP_RUN_LOCK"]
+                while lock.locked() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertFalse(lock.locked())
 
 
 class HarppWakeTest(unittest.TestCase):

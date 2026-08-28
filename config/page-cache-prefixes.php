@@ -29,4 +29,8 @@ return [
     '/ehr/queue-monitor',
     '/attendance-wage/',
     '/assets/',
+    // HARPP pages embed a session-bound CSRF token in a <meta name="csrf-token">
+    // tag (modules/harpp templates layout.disyl). Caching them would serve a stale
+    // per-session token to another session and cause 419 on the auto mark-read POST.
+    '/harpp',
 ];

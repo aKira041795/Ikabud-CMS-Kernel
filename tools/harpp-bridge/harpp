@@ -38,6 +38,7 @@ import harpp_wake  # noqa: E402
 
 DEFAULT_INBOX = ".ai/harpp-inbox.jsonl"  # legacy workspace-relative path
 RUN_LEASE_RENEW_INTERVAL = 120
+_DESKTOP_RUN_LOCK = threading.Lock()
 
 
 def _default_inbox():
@@ -120,6 +121,29 @@ def _run_desktop_pass(*, workspace, wake_command, model, timeout, open_terminal)
             harpp_client.reconcile_runs([], runner_key)
         except Exception as exc:
             print(f"harpp watch: desktop runner reconciliation failed: {exc}", flush=True)
+
+
+def _start_desktop_pass(*, workspace, wake_command, model, timeout, open_terminal):
+    """Start one desktop runner pass without blocking the watch poll loop."""
+    if not _DESKTOP_RUN_LOCK.acquire(blocking=False):
+        return False
+
+    def run_pass():
+        try:
+            _run_desktop_pass(workspace=workspace, wake_command=wake_command, model=model,
+                              timeout=timeout, open_terminal=open_terminal)
+        except Exception as exc:
+            print(f"harpp watch: desktop runner thread failed: {exc}", flush=True)
+        finally:
+            _DESKTOP_RUN_LOCK.release()
+
+    try:
+        threading.Thread(target=run_pass, daemon=True).start()
+    except Exception as exc:
+        _DESKTOP_RUN_LOCK.release()
+        print(f"harpp watch: desktop runner start failed: {exc}", flush=True)
+        return False
+    return True
 
 
 def _watch_state_path():
@@ -357,8 +381,8 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
         except Exception as e:
             print(f"harpp watch: job monitor failed: {e}", flush=True)
         if wake:
-            _run_desktop_pass(workspace=workspace, wake_command=wake_command, model=model,
-                              timeout=timeout, open_terminal=open_terminal)
+            _start_desktop_pass(workspace=workspace, wake_command=wake_command, model=model,
+                                timeout=timeout, open_terminal=open_terminal)
         # Substantive processing: the wake agent (when enabled) replies/works in the
         # background, ledger-deduped, bounded by cooldown + max-per-hour.
         if wake:

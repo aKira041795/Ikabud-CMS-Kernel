@@ -285,14 +285,19 @@ function pageCacheSet(string $uri, string $html, string $moduleId, int $status =
  */
 function pageCacheHtmlHasCsrfToken(string $html): bool
 {
-    // Fast pre-check: only scan if HTML contains a hidden input
-    if (!str_contains($html, 'type="hidden"') && !str_contains($html, "type='hidden'")) {
+    // Fast pre-check: only scan if HTML contains a hidden input or a CSRF meta tag
+    if (!str_contains($html, 'type="hidden"')
+        && !str_contains($html, "type='hidden'")
+        && !preg_match('/<meta[^>]+name=["\']csrf-token["\'][^>]*>/i', $html)) {
         return false;
     }
 
     $patterns = [
         '/<input[^>]+name=["\'](?:csrf_token|_token|ikabud_csrf|csrf|__csrf)["\'][^>]*>/i',
         '/<input[^>]+name=["\']csrf_token["\'][^>]*>/i',
+        // HARPP (and future pages) expose the session token via a meta tag
+        // (modules/harpp templates layout.disyl emits <meta name="csrf-token" ...>).
+        '/<meta[^>]+name=["\']csrf-token["\'][^>]*>/i',
     ];
 
     foreach ($patterns as $pattern) {
