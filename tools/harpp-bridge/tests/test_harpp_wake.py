@@ -923,6 +923,32 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake.default_workspace = original_ws
             harpp_wake.harpp_client.harpp_notify = original_notify
 
+    def test_spawn_agent_signal_kill_not_usage_exhausted(self):
+        # A process terminated by a signal (negative rc) must NOT be classified
+        # usage_exhausted even if its partial output mentions rate-limit words.
+        ok, reason = harpp_wake.spawn_agent(
+            "prompt", command="echo 'rate limit 429'; kill -TERM $$",
+            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+        self.assertFalse(ok)
+        self.assertNotEqual(reason, "usage_exhausted")
+        self.assertEqual(reason, "exit_error")
+
+    def test_spawn_agent_shell_reported_signal_exit_not_usage_exhausted(self):
+        # A shell-reported signal exit (128+signal) is also not exhaustion.
+        ok, reason = harpp_wake.spawn_agent(
+            "prompt", command="sh -c 'echo rate limit 429; kill -TERM $$'",
+            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+        self.assertFalse(ok)
+        self.assertNotEqual(reason, "usage_exhausted")
+
+    def test_spawn_agent_genuine_error_exit_is_usage_exhausted(self):
+        # A genuine normal non-zero exit with exhaustion text IS usage_exhausted.
+        ok, reason = harpp_wake.spawn_agent(
+            "prompt", command="echo 'rate limit 429'; exit 1",
+            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "usage_exhausted")
+
     def test_missing_log_is_reported_as_failure(self):
         logp = Path(self.tmp.name) / "deleted.log"
         logp.write_text("starting\n")

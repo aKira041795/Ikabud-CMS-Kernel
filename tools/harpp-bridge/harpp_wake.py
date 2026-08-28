@@ -3337,11 +3337,14 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
             log(f"wake agent lacked daemon-observed bridge receipts for {missing}; treating delivery as failed")
             return finish(False, "invalid_result")
     if proc.returncode != 0:
-        # Only classify as model exhaustion when the run actually failed. A
-        # successful run whose prose merely mentions quota/rate/context limits
-        # must not be re-run: that produced duplicate replies and spurious
-        # bounded-retry FAILED notices for already-delivered work.
-        if _model_exhausted({"message": out}):
+        # Only classify as model exhaustion when the run failed with a genuine
+        # normal exit (0 < rc < 128). A process terminated by a signal reports a
+        # negative rc (e.g. -15=SIGTERM, -9=SIGKILL) or a shell-reported 128+signal
+        # (e.g. 143, 137); its partial output is NOT evidence of model exhaustion
+        # and must never be misclassified as usage_exhausted (that spawned spurious
+        # delegation notices for killed/timed-out runs). A successful run whose
+        # prose merely mentions quota/rate/context limits never reaches here.
+        if 0 < proc.returncode < 128 and _model_exhausted({"message": out}):
             log(f"wake agent model usage exhausted for {model}")
             return finish(False, "usage_exhausted")
         return finish(False, "exit_error")
