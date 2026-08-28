@@ -1216,7 +1216,8 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
                cwd: str | None = None, open_terminal: bool = True,
                run_id: str | None = None, task_id: str | None = None,
                contract_revision: int = 0, state: str | None = None,
-               human_decisions: list | None = None, authority_level: str | None = None):
+               human_decisions: list | None = None, authority_level: str | None = None,
+               suggested_command: str | None = None):
     """Spawn a delegated model command AND track it in one atomic step.
 
     The pid is captured directly from the spawned process (never pgrep), and its
@@ -1250,10 +1251,13 @@ def launch_job(*, model: str, task: str, conversation_id: int, command,
         raise
     if not quiet:
         try:
+            body = (f"🔧 Delegated to {model}: {task} — monitoring started (job {job_id}).")
+            if suggested_command:
+                body += f"\nTo run it yourself or follow progress: {suggested_command}"
+            body += "\nYou'll be auto-notified when it's done."
             harpp_client.harpp_notify(
                 conversation_id=int(conversation_id), message_type="PROGRESS",
-                body=f"🔧 Delegated to {model}: {task} — monitoring started (job {job_id}). "
-                     f"You'll be auto-notified when it's done.")
+                body=body)
             log(f"job {job_id} start confirmation sent to conversation {conversation_id}")
         except Exception as e:  # noqa: BLE001
             log(f"job {job_id} start confirmation failed: {e}")
@@ -1401,13 +1405,20 @@ def _reassemble_text(raw: str) -> str:
 
 
 def _marker_found(job: dict) -> bool:
-    """Accurate marker check over post-tracking log output.
+    """Accurate, never-raising marker check over post-tracking log output.
 
     Agents routinely mention their marker (both PASS and FAIL) in intermediate
     thinking/tool output, so presence alone is misleading. For markers of the form
     `PREFIX status=STATUS`, the LAST occurrence is the agent's final stated status
     and is the only one that counts. Plain markers (no status value) fall back to
     presence after tracking.
+
+    Marker matching degrades gracefully instead of hard-failing: when the strict
+    `PREFIX status=STATUS` pattern finds no occurrence at all, it falls back to a
+    whitespace-normalized, case-insensitive match of the full marker string, so an
+    agent that emitted the marker with unusual spacing/punctuation (for example
+    `PREFIX status = PASS`) still counts. Any parse error is treated as not found
+    and is never raised to the dispatcher.
     """
     marker = job.get("marker")
     if not marker or not job.get("log_path"):
@@ -1418,7 +1429,13 @@ def _marker_found(job: dict) -> bool:
         if m is None:
             return str(marker).casefold() in data.casefold()
         found = re.findall(re.escape(m.group("prefix")) + r"\s+status=([A-Za-z0-9_]+)", data)
-        return bool(found) and found[-1] == m.group("expected")
+        if found:
+            return found[-1] == m.group("expected")
+        # Graceful fallback: no `PREFIX status=STATUS` occurrence was parsed, so
+        # match the full marker string with whitespace collapsed and case folded.
+        needle = re.sub(r"\s+", " ", str(marker)).casefold()
+        haystack = re.sub(r"\s+", " ", data).casefold()
+        return needle in haystack
     except Exception:  # noqa: BLE001
         return False
 
@@ -1473,19 +1490,31 @@ def _report_job(job_id: str, job: dict) -> str:
         raise ValueError("job has no conversation_id")
     tail = _log_tail(job.get("log_path"))
     marker = job.get("marker")
+    verify_cmd = job.get("verify")
     checks = []
     evidence = []
     if marker:
         found = _marker_found(job)
         checks.append(found)
-        evidence.append(f"marker {'FOUND' if found else 'NOT FOUND'}: {marker!r}")
-    if job.get("verify"):
-        vok, vout = _run_verify(job["verify"], job.get("repo"))
+        if found:
+            evidence.append(f"success marker {marker!r} confirmed in the agent's output")
+        else:
+            evidence.append(
+                f"the agent did not finish with its required success marker {marker!r}; "
+                f"remedy: re-run the task and have the agent end its final message with the exact line {marker!r}")
+    if verify_cmd:
+        vok, vout = _run_verify(verify_cmd, job.get("repo"))
         checks.append(vok)
-        evidence.append(f"verify exit={'OK' if vok else 'FAIL'} {sanitize_decision_text(vout)}")
+        if vok:
+            evidence.append(f"verification passed: {sanitize_decision_text(vout)}")
+        else:
+            evidence.append(
+                f"verification command {verify_cmd!r} failed"
+                + (f" ({sanitize_decision_text(vout)})" if vout else "")
+                + "; remedy: fix the issue the verification reported and re-run the task")
     ok = bool(checks) and all(checks)
     if not checks:
-        evidence.append("no marker or verification command configured")
+        evidence.append("no marker or verification command configured, so completion could not be verified")
     git = _git_status(job.get("repo"))
     commit = ""
     if ok and job.get("commit"):
@@ -1499,11 +1528,17 @@ def _report_job(job_id: str, job: dict) -> str:
         details = f"{details}; {git}" if details else git
     elif tail and not marker:
         details = f"{details}; log tail: {tail[-300:]}" if details else f"log tail: {tail[-300:]}"
+    if not ok:
+        raw_details = details
+        if tail and f"log tail: {tail[-300:]}" not in raw_details:
+            raw_details = f"{raw_details}; log tail: {tail[-300:]}" if raw_details else f"log tail: {tail[-300:]}"
+        details = _humanize_job_failure(raw_details, marker, job.get("log_path"))
     report = {
         "task": f"{job.get('task')} ({job.get('model')})",
         "state": "VERIFIED" if ok else "FAILED",
         "changed_files": _summary_changed_files(job.get("repo")),
-        "next": "workflow monitor will advance automatically — safe to move forward" if ok else "inspect logs / remediate before proceeding",
+        "next": ("workflow monitor will advance automatically — safe to move forward" if ok
+                 else f"remediation required — see details; log: {job.get('log_path') or 'n/a'}"),
         "details": details,
     }
     response = harpp_client.harpp_notify(
@@ -1512,6 +1547,32 @@ def _report_job(job_id: str, job: dict) -> str:
     if not response.get("ok"):
         raise RuntimeError(f"job report bridge receipt was not ok: {response!r}")
     return status
+
+
+def _humanize_job_failure(raw_detail: str, marker: str | None, log_path: str | None) -> str:
+    """Lead with an actionable explanation while retaining the original failure detail."""
+    raw_detail = str(raw_detail or "").strip()
+    missing_executable = re.search(
+        r'(?:\[Errno 2\].*?["\']([^"\']+)["\']|missing executable\s+["\']?([^"\';\s]+))',
+        raw_detail, flags=re.IGNORECASE)
+    exit_code = re.search(r"(?:exited with code|exit(?:ed)?(?: code)?|return code)\s*[:=]?\s*(-?\d+)",
+                          raw_detail, flags=re.IGNORECASE)
+    marker_match = re.search(r'marker NOT FOUND:\s*["\']([^"\']+)["\']', raw_detail,
+                             flags=re.IGNORECASE)
+    if missing_executable:
+        executable = missing_executable.group(1) or missing_executable.group(2)
+        lead = (f"The job's command could not start (missing executable {executable!r}); "
+                "remedy: ensure the tool is installed/on PATH")
+    elif exit_code:
+        lead = (f"The job exited with code {exit_code.group(1)}; "
+                f"remedy: inspect {log_path or 'the job log'}")
+    elif marker_match or marker:
+        required_marker = marker_match.group(1) if marker_match else str(marker)
+        lead = (f"The agent finished but did not include its required completion marker "
+                f"{required_marker!r}; remedy: re-run and have the agent end with exactly that line")
+    else:
+        lead = f"The job failed validation; remedy: inspect {log_path or 'the job log'}"
+    return f"{lead}\nDetails: {raw_detail or 'No additional detail was recorded.'}"
 
 
 def sync_deploys() -> int:
@@ -2003,7 +2064,8 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
         open_terminal=True, task_id=workflow.get("task_id"), contract_revision=int(workflow.get("contract_revision") or 0),
         state=_workflow_stage_state(stage.get("name"), workflow.get("status"), bool(repair_round)),
         human_decisions=list(workflow.get("human_decisions") or []),
-        authority_level=_stage_required_authority(stage))
+        authority_level=_stage_required_authority(stage),
+        suggested_command=f"harpp workflow show {wid}   (see all: harpp workflow list)")
     stage["job_id"] = jid
     stage["log_path"] = log_path
     stage["status"] = "running"
@@ -2716,7 +2778,8 @@ def _exec_workflow_command(cmd, conv: int) -> str:
                 f"model: {preferred_model or 'manifest defaults'}"
                 f"{' (temporary for this workflow)' if preferred_model else ''}\n"
                 f"auto-repair: {max_repairs} round(s)\n"
-                f"stage 1 ({first}) launched — each stage result will be auto-reported here.")
+            f"stage 1 ({first}) launched — each stage result will be auto-reported here.\n"
+            f"To track: run \"harpp workflow list\" or \"harpp workflow show {wid}\".")
     return "❓ Unrecognized workflow command."
 
 
@@ -2781,7 +2844,7 @@ def parse_debate_command(body) -> dict | None:
     if not body or not isinstance(body, str):
         return None
     low = " ".join(body.split()).lower().strip()
-    if "debate" not in low:
+    if not re.search(r"(?<![\w-])debate(?![\w-])", low):
         return None
     if not re.search(r"\b(start|run|begin|launch|kick\s*off)\b", low):
         return None
@@ -2847,7 +2910,8 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
             f"intent: {intent}\n"
             f"rounds: {rounds or 'default (3)'}\n"
             f"opener: {first}\n"
-            "It runs as a tracked job; I'll auto-report the verdict when it finishes.")
+            "It runs as a tracked job; I'll auto-report the verdict when it finishes.\n"
+            f"To inspect: run \"harpp workflow show {jid}\" or open .ai/debate/debate-job-*.log.")
 
 
 def route_debate_commands(records) -> int:
@@ -2924,16 +2988,19 @@ def _store_plan(conv: int, plan_body: str) -> None:
 
 
 def _parse_plan_tasks(plan_body: str) -> list:
-    """Parse 'T<N> - <description> [. Assign: <model>]' lines into task records."""
+    """Parse T-prefixed or naturally numbered plan items into task records."""
     tasks = []
-    for line in (plan_body or "").splitlines():
-        m = re.match(r"^\s*T\s*([0-9]+)\s*[-–—:.]\s*(.+?)\s*$", line, flags=re.IGNORECASE)
-        if not m:
-            continue
-        desc = m.group(2).strip()
+    text = plan_body or ""
+    item_pattern = re.compile(
+        r"(?im)(?:^|\n|(?<=\s))(?:(?:T\s*([0-9]+)\s*[-–—:.])|(?:\(([0-9]+)\)|([0-9]+)[.)]))\s*")
+    matches = list(item_pattern.finditer(text))
+    for index, match in enumerate(matches):
+        desc_end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        desc = text[match.end():desc_end].strip()
         if not desc:
             continue
-        tasks.append({"num": int(m.group(1)), "desc": desc})
+        task_num = next(group for group in match.groups() if group is not None)
+        tasks.append({"num": int(task_num), "desc": desc})
     return tasks
 
 
@@ -2974,7 +3041,22 @@ def parse_plan_command(body) -> bool:
     if not m:
         return False
     rest = m.group(2)
-    return bool(re.search(r"\b(t\s*[0-9]+|task|tasks|workflow|plan|implement)\b", rest))
+    command_clause = re.split(r"[.!?]", rest, maxsplit=1)[0]
+    return bool(
+        re.search(r"\bt\s*[0-9]+\b", command_clause)
+        or re.search(r"\b(tasks?|workflow)\b", command_clause)
+        or re.search(r"\bthe\s+plan\b", command_clause)
+        or re.search(r"\bimplement\s+the\s+approved\s+tasks\b", low)
+        or low.startswith("re-implement ")
+    )
+
+
+def _requested_plan_task_numbers(command_body: str) -> set[int]:
+    """Return explicitly requested plan task numbers, or an empty set for all tasks."""
+    numbers = {int(value) for value in re.findall(r"\bT\s*([0-9]+)\b", command_body or "", re.IGNORECASE)}
+    numbers.update(int(value) for value in re.findall(
+        r"\btask\s+([0-9]+)\b", command_body or "", re.IGNORECASE))
+    return numbers
 
 
 def _build_plan_stages(tasks, default_model: str) -> list:
@@ -3008,8 +3090,11 @@ def _exec_plan_command(record: dict, conv: int, default_model: str) -> str:
     tasks = _parse_plan_tasks(body) if body else []
     if not tasks:
         return ("📋 No plan found for this conversation to execute. "
-                "Send the plan first (lines like `T1 - <task>` / `T2 - <task>`), then "
-                "re-issue the run command (e.g. `start T1, T2...` or `/implement`).")
+                "To fix: send the plan as lines like \"T1 - <task>\" / \"T2 - <task>\", "
+                "then reply \"start T1...\" or \"/implement\".")
+    requested_numbers = _requested_plan_task_numbers(str(record.get("body") or ""))
+    if requested_numbers:
+        tasks = [task for task in tasks if task["num"] in requested_numbers]
     stages = _build_plan_stages(tasks, default_model)
     title = f"Owner plan execution ({', '.join(s['name'] for s in stages)})"
     wid = start_workflow(
@@ -3125,6 +3210,18 @@ def conversation_context_block(conversation_id, config=None, max_chars=4000):
         lines.append("Applicable durable decisions:")
         for dec in decisions[:4]:
             lines.append(f"- {dec.get('decision_key')}: {dec.get('decision') or dec.get('title')}")
+    memory = summary.get("memory") or []
+    current_memory = [
+        item for item in memory
+        if isinstance(item, dict)
+        and (item.get("status") == "current"
+             or item.get("authority") in ("adr_current", "decision_current"))
+    ] if isinstance(memory, list) else []
+    if current_memory:
+        lines.append("Approved memory (RAG):")
+        for item in current_memory:
+            snippet = " ".join(str(item.get("decision") or item.get("title") or "").split())[:140]
+            lines.append(f"- {item.get('decision_key')}: {item.get('title')} — {snippet}")
     block = "\n".join(lines)
     if len(block) > max_chars:
         block = block[:max_chars] + "…"

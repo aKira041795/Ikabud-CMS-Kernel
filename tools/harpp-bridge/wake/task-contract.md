@@ -50,6 +50,15 @@ successful response; do not claim success merely because a command was attempted
    dispatcher fault.
 3. Post a short status: `harpp status --message "wake agent processed N item(s)" --status processing-done --harness-session-id <hostname>`
 
+## Human-first replies
+
+- End every substantive reply with a plain-language `Next step:` line containing the exact
+  command or action the owner can take, for example: `Next step: reply Approved to proceed,
+  or run: harpp workflow show <id>`.
+- When an action cannot proceed because of a routing fault, approval, runner, or other
+  dependency, give the owner one concrete next action and its exact command. Do not merely
+  tell them to re-route through the dispatcher.
+
 ## Boundaries (must follow)
 
 - **Substantive reply only.** Do not acknowledge or apply decisions; those lifecycle actions

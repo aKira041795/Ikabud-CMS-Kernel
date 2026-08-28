@@ -194,9 +194,24 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(harpp_wake.monitor_jobs(), 1)
             self.assertEqual(len(sent), 1)
             self.assertIn("FAILED", sent[0]["body"])
-            self.assertIn("marker NOT FOUND", sent[0]["body"])
+            self.assertIn("did not include its required completion marker", sent[0]["body"])
+            self.assertIn("Details:", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original
+
+    def test_humanize_job_failure_interprets_known_failures_and_keeps_details(self):
+        marker = harpp_wake._humanize_job_failure(
+            "marker NOT FOUND: 'verdict: APPROVED'", None, "/tmp/job.log")
+        missing = harpp_wake._humanize_job_failure(
+            "[Errno 2] No such file or directory: 'pi'", "SOL_TASK status=PASS", "/tmp/job.log")
+        exited = harpp_wake._humanize_job_failure("process exited with code 7", None, "/tmp/job.log")
+
+        self.assertIn("required completion marker 'verdict: APPROVED'", marker)
+        self.assertIn("missing executable 'pi'", missing)
+        self.assertIn("ensure the tool is installed/on PATH", missing)
+        self.assertIn("exited with code 7; remedy: inspect /tmp/job.log", exited)
+        for message in [marker, missing, exited]:
+            self.assertIn("Details:", message)
 
     def test_monitor_skips_alive_pid(self):
         harpp_wake.track_job(pid=os.getpid(), model="deepseek/deepseek-v4-pro",
@@ -212,7 +227,7 @@ class HarppWakeTest(unittest.TestCase):
         try:
             self.assertEqual(harpp_wake.monitor_jobs(), 1)
             self.assertIn("VERIFIED", sent[0]["body"])
-            self.assertIn("verify exit=OK", sent[0]["body"])
+            self.assertIn("verification passed", sent[0]["body"])
             self.assertIn("Next: workflow monitor will advance automatically", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original
@@ -867,8 +882,14 @@ class HarppWakeTest(unittest.TestCase):
                      "Assessment received and logged; nothing implemented",
                      "Approved. T2, use option B",
                      "It will be good to show time of HARPP responses. Implement",
+                      "Start inspect logs. Find the issues and fix. Create the plan when finished",
                      "workflow list", "Start debate on the topic"]:
             self.assertFalse(harpp_wake.parse_plan_command(body), f"should ignore: {body}")
+
+    def test_parse_debate_command_rejects_compound_debate_word(self):
+        self.assertIsNone(harpp_wake.parse_debate_command("Start inspect-debate-logs"))
+        self.assertEqual(harpp_wake.parse_debate_command("start debate: logging failures")["intent"],
+                         "logging failures")
 
     def test_parse_plan_tasks_extracts_task_lines(self):
         tasks = harpp_wake._parse_plan_tasks(
@@ -878,6 +899,13 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(tasks[0]["num"], 1)
         self.assertIn("Fix doc drift", tasks[0]["desc"])
         self.assertEqual(tasks[1]["num"], 2)
+
+    def test_parse_plan_tasks_accepts_natural_numbering(self):
+        tasks = harpp_wake._parse_plan_tasks(
+            "(1) Fix parser (2) Add tests\n3. Verify behavior\n4) Report results")
+        self.assertEqual([task["num"] for task in tasks], [1, 2, 3, 4])
+        self.assertEqual([task["desc"] for task in tasks],
+                         ["Fix parser", "Add tests", "Verify behavior", "Report results"])
 
     def test_route_plan_commands_records_plan_message(self):
         sent = []
@@ -923,6 +951,22 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake.default_workspace = original_ws
             harpp_wake.harpp_client.harpp_notify = original_notify
 
+    def test_exec_plan_command_start_t4_builds_only_stage_t4(self):
+        started = []
+        original_start = harpp_wake.start_workflow
+        original_ws = harpp_wake.default_workspace
+        harpp_wake.start_workflow = lambda **kw: started.append(kw) or "wf-t4"
+        harpp_wake.default_workspace = lambda: str(self.tmp.name)
+        try:
+            harpp_wake._store_plan(12, "T1 - One\nT2 - Two\nT3 - Three\nT4 - Four")
+            result = harpp_wake._exec_plan_command(
+                {"body": "Start T4"}, 12, "deepseek/deepseek-v4-pro")
+            self.assertEqual([stage["name"] for stage in started[0]["stages"]], ["T4"])
+            self.assertIn("stages (1): T4", result)
+        finally:
+            harpp_wake.start_workflow = original_start
+            harpp_wake.default_workspace = original_ws
+
     def test_spawn_agent_signal_kill_not_usage_exhausted(self):
         # A process terminated by a signal (negative rc) must NOT be classified
         # usage_exhausted even if its partial output mentions rate-limit words.
@@ -959,7 +1003,7 @@ class HarppWakeTest(unittest.TestCase):
         try:
             self.assertEqual(harpp_wake.monitor_jobs(), 1)
             self.assertIn("FAILED", sent[0]["body"])
-            self.assertIn("marker NOT FOUND", sent[0]["body"])
+            self.assertIn("did not finish with its required success marker", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original
 
@@ -973,7 +1017,7 @@ class HarppWakeTest(unittest.TestCase):
         try:
             self.assertEqual(harpp_wake.monitor_jobs(), 1)
             self.assertIn("FAILED", sent[0]["body"])
-            self.assertIn("marker NOT FOUND", sent[0]["body"])
+            self.assertIn("did not finish with its required success marker", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original
 
@@ -1947,6 +1991,28 @@ class ContextBlockTest(unittest.TestCase):
         self.assertIn("Use option B", block)
         self.assertIn("owner:", block)
 
+    def test_context_block_includes_only_current_approved_memory(self):
+        envelope = self._envelope()
+        envelope["summary"]["memory"] = [
+            {"decision_key": "ADR-CURRENT-1", "title": "Current architecture",
+             "decision": "Use the approved event boundary", "lifecycle_state": "APPLIED",
+             "kind": "adr", "authority": "adr_current", "status": "current", "revision": 2},
+            {"decision_key": "DEC-HISTORICAL-1", "title": "Old architecture",
+             "decision": "Use the retired direct path", "lifecycle_state": "CLOSED",
+             "kind": "decision", "authority": "decision_historical",
+             "status": "historical", "revision": 1},
+        ]
+        original = harpp_wake.harpp_client.context_for_conversation
+        harpp_wake.harpp_client.context_for_conversation = lambda *a, **k: envelope
+        try:
+            block = harpp_wake.conversation_context_block(2)
+        finally:
+            harpp_wake.harpp_client.context_for_conversation = original
+        self.assertIn("Approved memory (RAG):", block)
+        self.assertIn("ADR-CURRENT-1: Current architecture — Use the approved event boundary", block)
+        self.assertNotIn("DEC-HISTORICAL-1", block)
+        self.assertNotIn("retired direct path", block)
+
     def test_context_block_graceful_on_miss(self):
         original = harpp_wake.harpp_client.context_for_conversation
 
@@ -1969,6 +2035,19 @@ class ContextBlockTest(unittest.TestCase):
             harpp_wake.conversation_context_block = original
         self.assertIn("Active run: #1 state=RUNNING", prompt)
         self.assertIn("# Conversation context", prompt)
+
+    def test_task_prompt_appends_approved_memory_for_single_conversation(self):
+        original = harpp_wake.conversation_context_block
+        harpp_wake.conversation_context_block = lambda cid, **k: "Approved memory (RAG):\n- ADR-1: Keep the boundary"
+        try:
+            prompt = harpp_wake.task_prompt(
+                "inbox.jsonl",
+                [{"id": 1, "conversation_id": 2, "body": "start"}],
+                template="T: {{ITEMS}} {{CONTEXT}}",
+            )
+        finally:
+            harpp_wake.conversation_context_block = original
+        self.assertIn("Approved memory (RAG):", prompt)
 
     def test_quick_reply_is_conversation_grounded(self):
         original_block = harpp_wake.conversation_context_block
