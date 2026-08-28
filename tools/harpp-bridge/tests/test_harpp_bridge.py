@@ -245,5 +245,142 @@ class HarppMcpTest(unittest.TestCase):
             self.assertTrue(resp["result"]["isError"])
 
 
+class HarppContextCacheTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cfg_path = Path(self.tmp.name) / "config.json"
+        self.cfg_path.write_text(json.dumps({
+            "base_url": "https://harpp.example.com", "bridge_key": "k-secret", "tenant_id": "7",
+        }))
+        self._old = {k: os.environ.get(k) for k in (
+            "HARPP_CONFIG", "HARPP_CONTEXT_CACHE", "HARPP_BASE_URL",
+            "HARPP_BRIDGE_KEY", "HARPP_TENANT_ID", "HARPP_DRY_RUN")}
+        os.environ["HARPP_CONFIG"] = str(self.cfg_path)
+        os.environ["HARPP_CONTEXT_CACHE"] = str(Path(self.tmp.name) / "ctx-cache")
+        for k in ("HARPP_BASE_URL", "HARPP_BRIDGE_KEY", "HARPP_TENANT_ID", "HARPP_DRY_RUN"):
+            os.environ.pop(k, None)
+
+    def tearDown(self):
+        for k, v in self._old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        self.tmp.cleanup()
+
+    def _envelope(self, version=3):
+        return {
+            "conversation": {"id": 2, "title": "Cache conv", "harness_session_id": "s1",
+                             "version": version, "status": "active", "updated_at": "2026-01-01"},
+            "messages": [{"id": 1, "conversation_id": 2, "aggregate_sequence": 1,
+                          "sender_type": "owner", "sender_user_id": 1, "body": "hi",
+                          "payload": {"secret": "x"}, "created_at": "2026-01-01"}],
+            "runs": [],
+            "cache": {"version": version, "message_limit": 20},
+        }
+
+    def _patch_api(self, calls, version=3):
+        original = harpp_client.api
+
+        def fake(method, url, body=None, **kw):
+            calls.append(url)
+            return {"ok": True, "data": self._envelope(version=version)}
+        harpp_client.api = fake
+        return original
+
+    def test_cache_write_is_0600_and_excludes_secrets(self):
+        harpp_client.store_cached_context("7", 2, self._envelope())
+        path = harpp_client._context_cache_path("7", 2)
+        self.assertTrue(path.is_file())
+        self.assertEqual(oct(path.stat().st_mode & 0o777), "0o600")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(raw["_meta"]["schema_version"], harpp_client.CONTEXT_CACHE_SCHEMA_VERSION)
+        self.assertEqual(raw["_meta"]["tenant_id"], 7)
+        self.assertEqual(raw["_meta"]["conversation_id"], 2)
+        # bridge credentials never enter the cache
+        self.assertNotIn("k-secret", json.dumps(raw))
+        self.assertNotIn("bridge_key", json.dumps(raw))
+        # message payload blobs are stripped from the cached envelope
+        self.assertNotIn("payload", raw["data"]["messages"][0])
+
+    def test_cache_hit_avoids_api(self):
+        calls = []
+        original = self._patch_api(calls)
+        try:
+            first = harpp_client.context_for_conversation(2)
+            second = harpp_client.context_for_conversation(2)
+        finally:
+            harpp_client.api = original
+        self.assertEqual(len(calls), 1, calls)  # second read served from cache
+        self.assertEqual(first["cache"]["version"], 3)
+        self.assertEqual(second["cache"]["version"], 3)
+
+    def test_version_invalidation_refetches(self):
+        calls = []
+        original = self._patch_api(calls, version=4)
+        try:
+            harpp_client.context_for_conversation(2)          # fetch + cache (version 4)
+            harpp_client.context_for_conversation(2)          # cache hit
+            harpp_client.context_for_conversation(2, expected_version=10)  # stale -> refetch
+        finally:
+            harpp_client.api = original
+        self.assertEqual(len(calls), 2, calls)
+
+    def test_corrupt_cache_refetches(self):
+        path = harpp_client._context_cache_path("7", 2)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not valid json", encoding="utf-8")
+        calls = []
+        original = self._patch_api(calls)
+        try:
+            env = harpp_client.context_for_conversation(2)
+        finally:
+            harpp_client.api = original
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(env["conversation"]["id"], 2)
+
+    def test_wrong_tenant_cache_is_not_reused(self):
+        # cached under tenant 7/conversation 2; reading as tenant 9 must not reuse
+        # it and must refetch, proving no cross-tenant cache reuse.
+        harpp_client.store_cached_context("7", 2, self._envelope())
+        self.assertIsNone(harpp_client.get_cached_context("9", 2))
+        # switch the active config to tenant 9
+        cfg9 = Path(self.tmp.name) / "config9.json"
+        cfg9.write_text(json.dumps({
+            "base_url": "https://harpp.example.com", "bridge_key": "k9", "tenant_id": "9",
+        }))
+        os.environ["HARPP_CONFIG"] = str(cfg9)
+        calls = []
+        original = self._patch_api(calls)
+        try:
+            env = harpp_client.context_for_conversation(2)
+        finally:
+            harpp_client.api = original
+        self.assertEqual(len(calls), 1, calls)
+        self.assertEqual(env["conversation"]["id"], 2)
+
+    def test_invalidate_deletes_cache(self):
+        harpp_client.store_cached_context("7", 2, self._envelope())
+        self.assertTrue(harpp_client.invalidate_context_cache("7", 2))
+        self.assertFalse(harpp_client.invalidate_context_cache("7", 2))
+        self.assertFalse(harpp_client._context_cache_path("7", 2).exists())
+
+    def test_oversized_cache_refetches(self):
+        path = harpp_client._context_cache_path("7", 2)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        big = {"_meta": {"schema_version": harpp_client.CONTEXT_CACHE_SCHEMA_VERSION,
+                         "tenant_id": 7, "conversation_id": 2, "saved_at": 0},
+               "data": {"cache": {"version": 3}, "pad": "x" * (harpp_client.CONTEXT_CACHE_MAX_BYTES + 1)}}
+        path.write_text(json.dumps(big), encoding="utf-8")
+        calls = []
+        original = self._patch_api(calls)
+        try:
+            env = harpp_client.context_for_conversation(2)
+        finally:
+            harpp_client.api = original
+        self.assertEqual(len(calls), 1, calls)
+        self.assertEqual(env["conversation"]["id"], 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

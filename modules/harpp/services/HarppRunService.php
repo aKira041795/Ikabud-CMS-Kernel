@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Harpp\Services;
 
 use Ikabud\Kernel\Contracts\ModuleDB;
+use Closure;
 use PDO;
 use Throwable;
 
@@ -12,8 +13,13 @@ final class HarppRunService
 {
     private const STATES = ['QUEUED','WAITING_FOR_RUNNER','CLAIMED','RUNNING','STALLED','SUCCEEDED','FAILED','CANCELLED'];
     private const TERMINAL = ['SUCCEEDED','FAILED','CANCELLED'];
+    private const MAX_REPORT_DELIVERY_ATTEMPTS = 5;
+    private ?Closure $reportDispatcher;
 
-    public function __construct(private ModuleDB $db) {}
+    public function __construct(private ModuleDB $db, ?callable $reportDispatcher = null)
+    {
+        $this->reportDispatcher = $reportDispatcher === null ? null : Closure::fromCallable($reportDispatcher);
+    }
 
     public function ensureForMessage(array $actor, int $messageId, array $required = ['desktop']): HarppServiceResult
     {
@@ -109,8 +115,8 @@ final class HarppRunService
             $before = $this->load($runId);
             $result = isset($input['result']) && is_array($input['result']) ? $input['result'] : null;
             $status = trim((string)($input['status'] ?? $target));
-            $finished = in_array($target, self::TERMINAL, true) ? ',finished_at=NOW(6),report_state=\'PENDING\'' : '';
-            $started = $target === 'RUNNING' ? ',started_at=COALESCE(started_at,NOW(6))' : '';
+            $finished = in_array($target, self::TERMINAL, true) ? ',finished_at=NOW(6),report_state=\'PENDING\',delivery_attempts=0,last_delivery_error=NULL' : '';
+            $started = $target === 'RUNNING' ? ',started_at=COALESCE(started_at,NOW(6)),attempt_count=attempt_count+1' : '';
             $s = $this->db->prepare("UPDATE harpp_work_runs SET state=:state,last_status=:status,result_json=:result{$started}{$finished} WHERE id=:id AND claim_token=:token AND state IN ('CLAIMED','RUNNING','STALLED')");
             $s->execute([':state' => $target, ':status' => substr($status, 0, 2000), ':result' => $result === null ? null : $this->json($result), ':id' => $runId, ':token' => $token]);
             if ($s->rowCount() !== 1) {
@@ -161,7 +167,107 @@ final class HarppRunService
 
     private function recoverExpiredLeases(): void
     {
-        $this->db->prepare("UPDATE harpp_work_runs SET state='QUEUED',claim_token=NULL,runner_key=NULL,lease_expires_at=NULL,last_status='Lease expired; queued for retry.' WHERE state IN ('CLAIMED','RUNNING') AND lease_expires_at<NOW(6)")->execute();
+        // A claim that never started (CLAIMED) is safe to requeue, as is a RUNNING
+        // run that still has an explicit retry budget. Never silently drop work.
+        $this->db->prepare("UPDATE harpp_work_runs SET state='QUEUED',claim_token=NULL,runner_key=NULL,lease_expires_at=NULL,last_status='Lease expired; queued for retry.' WHERE state IN ('CLAIMED','RUNNING') AND lease_expires_at<NOW(6) AND (state='CLAIMED' OR attempt_count<max_attempts)")->execute();
+        // A RUNNING run whose lease expired with the retry budget exhausted means a
+        // child process stopped heartbeating without a terminal report. Reconcile it
+        // to STALLED so a dead process is never left represented as RUNNING.
+        $this->db->prepare("UPDATE harpp_work_runs SET state='STALLED',claim_token=NULL,runner_key=NULL,lease_expires_at=NULL,stalled_at=NOW(6),last_status='No healthy child-process heartbeat; run stalled.' WHERE state='RUNNING' AND lease_expires_at<NOW(6) AND attempt_count>=max_attempts")->execute();
+    }
+
+    /**
+     * Runner-side reconciliation: the supervising runner reports the set of run ids
+     * it is actively keeping alive. Any run claimed by this runner that is not in
+     * the healthy set is independently repaired to STALLED, proving a dead child
+     * (whose terminal report may never have been delivered) is never left RUNNING.
+     */
+    public function reconcileRuns(array $actor, array $input): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $runnerKey = trim((string)($input['runner_key'] ?? ''));
+        if ($runnerKey === '') return HarppServiceResult::failure('runner_key is required.', 422);
+        $healthy = [];
+        foreach ((array)($input['healthy'] ?? []) as $id) {
+            $id = (int)$id;
+            if ($id > 0) $healthy[$id] = true;
+        }
+        $s = $this->db->prepare("SELECT id FROM harpp_work_runs WHERE runner_key=:runner AND state IN ('CLAIMED','RUNNING')");
+        $s->execute([':runner' => $runnerKey]);
+        $stalled = 0;
+        foreach ($s->fetchAll(PDO::FETCH_COLUMN) as $runId) {
+            $runId = (int)$runId;
+            if (isset($healthy[$runId])) continue;
+            $u = $this->db->prepare("UPDATE harpp_work_runs SET state='STALLED',stalled_at=COALESCE(stalled_at,NOW(6)),claim_token=NULL,lease_expires_at=NULL,last_status='Runner reconciliation: child process no longer healthy.' WHERE id=:id AND state IN ('CLAIMED','RUNNING')");
+            $u->execute([':id' => $runId]);
+            if ($u->rowCount() === 1) $stalled++;
+        }
+        return HarppServiceResult::success(['stalled' => $stalled, 'runner_key' => $runnerKey]);
+    }
+
+    /** Report delivery: mark a terminal run's report DELIVERED (idempotent). */
+    public function reportDelivered(array $actor, int $runId, array $input): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $u = $this->db->prepare("UPDATE harpp_work_runs SET report_state='DELIVERED',delivery_attempts=delivery_attempts+1,last_delivery_error=NULL WHERE id=:id AND state IN ('SUCCEEDED','FAILED','CANCELLED')");
+        $u->execute([':id' => $runId]);
+        if ($u->rowCount() !== 1) return HarppServiceResult::failure('Run is not terminal or report already delivered.', 409, 'not_deliverable');
+        return HarppServiceResult::success(['run' => $this->publicRun($this->load($runId))]);
+    }
+
+    /** Report delivery: dead-letter a terminal run's report with an inspectable error. */
+    public function reportDeadLetter(array $actor, int $runId, array $input): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $error = substr(trim((string)($input['error'] ?? '')), 0, 2000);
+        $u = $this->db->prepare("UPDATE harpp_work_runs SET report_state='DEAD_LETTER',delivery_attempts=delivery_attempts+1,last_delivery_error=:error WHERE id=:id AND state IN ('SUCCEEDED','FAILED','CANCELLED')");
+        $u->execute([':id' => $runId, ':error' => $error !== '' ? $error : null]);
+        if ($u->rowCount() !== 1) return HarppServiceResult::failure('Run is not terminal.', 409, 'not_deliverable');
+        return HarppServiceResult::success(['run' => $this->publicRun($this->load($runId))]);
+    }
+
+    /**
+     * Drive report delivery for terminal runs whose reports are still PENDING.
+     * A configured dispatcher performs the actual delivery; on success the run is
+     * marked DELIVERED, on failure attempts increment and the report stays PENDING
+     * (retained + visible), and after the attempt ceiling it is dead-lettered.
+     * Without a dispatcher, PENDING reports remain visible with attempts tracked.
+     */
+    public function dispatchRunReports(?callable $dispatcher = null): HarppServiceResult
+    {
+        $dispatcher = $dispatcher ?? $this->reportDispatcher;
+        $rows = $this->db->query("SELECT id,conversation_id,state,delivery_attempts FROM harpp_work_runs WHERE state IN ('SUCCEEDED','FAILED','CANCELLED') AND report_state='PENDING' LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+        $delivered = 0;
+        $failed = 0;
+        $dead = 0;
+        foreach ($rows as $row) {
+            $runId = (int)$row['id'];
+            if ($dispatcher !== null) {
+                try {
+                    $ok = (bool)$dispatcher($runId, (int)$row['conversation_id'], (string)$row['state']);
+                } catch (Throwable $e) {
+                    $ok = false;
+                }
+                if ($ok) {
+                    $this->db->prepare("UPDATE harpp_work_runs SET report_state='DELIVERED',delivery_attempts=delivery_attempts+1,last_delivery_error=NULL WHERE id=:id AND report_state='PENDING'")->execute([':id' => $runId]);
+                    $delivered++;
+                    continue;
+                }
+                $attempt = (int)$row['delivery_attempts'] + 1;
+                if ($attempt >= self::MAX_REPORT_DELIVERY_ATTEMPTS) {
+                    $this->db->prepare("UPDATE harpp_work_runs SET report_state='DEAD_LETTER',delivery_attempts=:a,last_delivery_error='Report delivery attempts exhausted.' WHERE id=:id AND report_state='PENDING'")->execute([':a' => $attempt, ':id' => $runId]);
+                    $dead++;
+                } else {
+                    $this->db->prepare("UPDATE harpp_work_runs SET delivery_attempts=:a,last_delivery_error='Report delivery failed; scheduled for retry.' WHERE id=:id AND report_state='PENDING'")->execute([':a' => $attempt, ':id' => $runId]);
+                    $failed++;
+                }
+                continue;
+            }
+            // No dispatcher wired: keep the report retained and visible (PENDING)
+            // and record the attempted pass so diagnostics show it was inspected.
+            $this->db->prepare("UPDATE harpp_work_runs SET delivery_attempts=delivery_attempts+1 WHERE id=:id AND report_state='PENDING'")->execute([':id' => $runId]);
+        }
+        return HarppServiceResult::success(['delivered' => $delivered, 'failed' => $failed, 'dead' => $dead]);
     }
 
     private function hasOnlineRunner(array $required): bool

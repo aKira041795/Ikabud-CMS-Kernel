@@ -507,8 +507,167 @@ def fail_run(run_id, claim_token, config=None, status="Failed.", result=None):
     return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/fail", body, config=config)
 
 
+def stall_run(run_id, claim_token, config=None, status="Stalled."):
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/stall",
+               {"claim_token": claim_token, "status": status}, config=config)
+
+
+def reconcile_runs(healthy, runner_key, config=None):
+    """Report the set of run ids the runner is actively supervising."""
+    return api("POST", "/api/v1/harpp/bridge/runs/reconcile",
+               {"runner_key": runner_key, "healthy": [int(i) for i in healthy]}, config=config)
+
+
+def mark_run_report_delivered(run_id, config=None):
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/report/delivered", {}, config=config)
+
+
+def mark_run_report_dead_letter(run_id, error="", config=None):
+    return api("POST", f"/api/v1/harpp/bridge/runs/{int(run_id)}/report/dead-letter",
+               {"error": error}, config=config)
+
+
 def conversation_context(conversation_id, config=None, limit=20):
     return api("GET", f"/api/v1/harpp/bridge/conversations/{int(conversation_id)}/context" + _query({"limit": limit}), config=config)
+
+
+# ── Derived client context cache ────────────────────────────────────────────
+# A bounded, invalidatable local cache of the server-authoritative conversation
+# context envelope. Keyed by tenant + conversation, stored with mode 0600, a
+# schema version, a size cap, atomic writes, and version-based invalidation.
+# Missing / stale / corrupt / schema-incompatible / oversized entries are
+# refetched safely from the bridge. Bridge credentials and auth tokens never
+# enter the cache.
+
+CONTEXT_CACHE_SCHEMA_VERSION = 1
+CONTEXT_CACHE_MAX_BYTES = 256 * 1024  # 256 KiB per conversation envelope
+
+
+def context_cache_dir():
+    raw = os.environ.get("HARPP_CONTEXT_CACHE", "")
+    if raw:
+        return Path(raw).expanduser()
+    return config_path().parent / "context-cache"
+
+
+def _context_cache_path(tenant_id, conversation_id):
+    return context_cache_dir() / f"tenant-{int(tenant_id)}-conv-{int(conversation_id)}.json"
+
+
+def _redact_context(envelope):
+    """Defensively strip credential-shaped fields and message payload blobs."""
+    redacted = dict(envelope or {})
+    messages = redacted.get("messages")
+    if isinstance(messages, list):
+        clean = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                msg = {k: v for k, v in msg.items() if k != "payload"}
+            clean.append(msg)
+        redacted["messages"] = clean
+    for key in list(redacted.keys()):
+        low = str(key).lower()
+        if any(tok in low for tok in ("secret", "password", "token", "key", "credential", "bridge_key")):
+            redacted[key] = "[REDACTED]"
+    return redacted
+
+
+def _context_cache_valid(path, tenant_id, conversation_id, expected_version=None):
+    """Return (envelope, True) if the cache entry is usable, else (None, False)."""
+    try:
+        st = path.stat()
+        if st.st_mode & 0o077:  # not owner-only permissions -> unsafe, refetch
+            return None, False
+        if st.st_size > CONTEXT_CACHE_MAX_BYTES:
+            return None, False
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - corrupt/oversized/unreadable -> refetch
+        return None, False
+    if not isinstance(payload, dict):
+        return None, False
+    meta = payload.get("_meta")
+    if not isinstance(meta, dict):
+        return None, False
+    if int(meta.get("schema_version") or 0) != CONTEXT_CACHE_SCHEMA_VERSION:
+        return None, False
+    if int(meta.get("tenant_id") or 0) != int(tenant_id):
+        return None, False
+    if int(meta.get("conversation_id") or 0) != int(conversation_id):
+        return None, False
+    if expected_version is not None and int((payload.get("data") or {}).get("cache", {}).get("version") or 0) < int(expected_version):
+        return None, False
+    data = payload.get("data")
+    return (data, True) if isinstance(data, dict) else (None, False)
+
+
+def store_cached_context(tenant_id, conversation_id, envelope):
+    """Atomically write a context envelope with mode 0600. Never stores secrets."""
+    path = _context_cache_path(tenant_id, conversation_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "_meta": {
+            "schema_version": CONTEXT_CACHE_SCHEMA_VERSION,
+            "tenant_id": int(tenant_id),
+            "conversation_id": int(conversation_id),
+            "saved_at": int(time.time()),
+        },
+        "data": _redact_context(envelope),
+    }
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+def get_cached_context(tenant_id, conversation_id, expected_version=None):
+    """Return a validated cached context envelope, or None (invalidate + refetch)."""
+    path = _context_cache_path(tenant_id, conversation_id)
+    if not path.is_file():
+        return None
+    envelope, ok = _context_cache_valid(path, tenant_id, conversation_id, expected_version)
+    if not ok:
+        try:
+            path.unlink()
+        except OSError:  # noqa: BLE001
+            pass
+        return None
+    return envelope
+
+
+def invalidate_context_cache(tenant_id, conversation_id):
+    try:
+        _context_cache_path(tenant_id, conversation_id).unlink()
+        return True
+    except FileNotFoundError:
+        return False
+    except OSError:  # noqa: BLE001
+        return False
+
+
+def context_for_conversation(conversation_id, config=None, limit=20, expected_version=None, use_cache=True):
+    """Return a context envelope, using the bounded local cache when valid.
+
+    Missing / stale / corrupt / oversized / schema-incompatible / wrong-key
+    entries trigger a safe server refetch. Never returns bridge credentials,
+    passwords, or cross-tenant/conversation content.
+    """
+    config = config or load_config()
+    tenant_id = str(config["tenant_id"])
+    if use_cache:
+        cached = get_cached_context(tenant_id, conversation_id, expected_version)
+        if cached is not None:
+            return cached
+    response = conversation_context(conversation_id, config=config, limit=limit)
+    if not response.get("ok") or not isinstance(response.get("data"), dict):
+        raise HarppError(
+            "context refetch failed",
+            status=response.get("status") if isinstance(response, dict) else None,
+            payload=response if isinstance(response, dict) else None,
+        )
+    envelope = response["data"]
+    if use_cache:
+        store_cached_context(tenant_id, conversation_id, envelope)
+    return _redact_context(envelope)
 
 
 def post_status(config=None, **kw):

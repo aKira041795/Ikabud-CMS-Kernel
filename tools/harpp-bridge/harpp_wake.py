@@ -22,6 +22,7 @@ import re
 import shlex
 import shutil
 import signal
+import socket
 import subprocess
 import threading
 import time
@@ -1984,6 +1985,144 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
     log(f"workflow {wid} launched stage {index + 1} '{label}' as job {jid}")
 
 
+# ---------------------------------------------------------------------------
+# Versioned workflow manifest schema + deterministic preflight. Manifests are
+# validated before any workflow/run is persisted or any process is launched so
+# invalid, incomplete, incompatible, or unsafe manifests fail fast with the
+# exact field identified.
+# ---------------------------------------------------------------------------
+WORKFLOW_MANIFEST_SCHEMA_VERSION = 1
+WORKFLOW_MANIFEST_MAX_STAGES = 12
+
+
+def validate_workflow_manifest(manifest, name=None, workspace=None):
+    """Validate a workflow manifest. Returns a list of field-scoped error strings
+    (empty list == valid). Never launches anything."""
+    errors = []
+    if not isinstance(manifest, dict):
+        return ["manifest must be a JSON object"]
+    schema = manifest.get("schema_version")
+    if schema is not None and int(schema) != WORKFLOW_MANIFEST_SCHEMA_VERSION:
+        errors.append(f"schema_version: unsupported {schema!r} (expected {WORKFLOW_MANIFEST_SCHEMA_VERSION})")
+    stages = manifest.get("stages")
+    if not isinstance(stages, list) or not stages:
+        return ["stages: must be a non-empty array"]
+    if len(stages) > WORKFLOW_MANIFEST_MAX_STAGES:
+        errors.append(f"stages: exceeds maximum of {WORKFLOW_MANIFEST_MAX_STAGES}")
+    seen = {}
+    for i, stage in enumerate(stages):
+        if not isinstance(stage, dict):
+            errors.append(f"stages[{i}]: must be an object")
+            continue
+        sname = str(stage.get("name") or "").strip()
+        if not sname:
+            errors.append(f"stages[{i}].name: required")
+        else:
+            key = sname.lower()
+            if key in seen:
+                errors.append(f"stages[{i}].name: duplicate stage name {sname!r} (previously stage {seen[key]})")
+            else:
+                seen[key] = i
+        model = stage.get("model")
+        if not isinstance(model, str) or not model.strip():
+            errors.append(f"stages[{i}].model: required")
+        elif model not in MODEL_ALIASES and model not in MODEL_FALLBACK_ORDER:
+            errors.append(f"stages[{i}].model: unsupported model {model!r}")
+        prompt_file = stage.get("prompt_file")
+        if prompt_file:
+            p = Path(__file__).resolve().parent / "workflows" / str(prompt_file)
+            if not p.is_file():
+                errors.append(f"stages[{i}].prompt_file: not found {prompt_file!r}")
+        elif not stage.get("prompt"):
+            errors.append(f"stages[{i}].prompt/prompt_file: at least one is required")
+        for key in ("timeout", "max_repairs", "max_total_cycles", "max_browser_repairs",
+                    "max_tool_retries", "max_network_retries"):
+            val = stage.get(key)
+            if val is not None and (not isinstance(val, int) or isinstance(val, bool) or val < 0):
+                errors.append(f"stages[{i}].{key}: must be a non-negative integer")
+        authority = stage.get("required_authority")
+        if authority is not None and str(authority).strip().upper() not in AUTHORITY_ORDER:
+            errors.append(f"stages[{i}].required_authority: unsupported {authority!r}")
+        verify = stage.get("verify")
+        if verify is not None:
+            if isinstance(verify, str):
+                # Admin-authored verify may legitimately use shell substitution, but
+                # must never interpolate owner text or contain destructive commands.
+                if any(tok in verify for tok in ("{owner}", "{body}", "{message}", "{{", "}}")) or "rm -rf /" in verify:
+                    errors.append(f"stages[{i}].verify: must not interpolate owner text or be destructive")
+            elif not (isinstance(verify, list) and verify):
+                errors.append(f"stages[{i}].verify: must be a string or a non-empty list")
+    for key in ("max_repairs", "max_total_cycles", "max_browser_repairs",
+                "max_tool_retries", "max_network_retries"):
+        val = manifest.get(key)
+        if val is not None and (not isinstance(val, int) or isinstance(val, bool) or val < 0):
+            errors.append(f"{key}: must be a non-negative integer")
+    for label, raw in (("workspace", workspace), ("manifest.workspace", manifest.get("workspace"))):
+        if raw:
+            p = Path(str(raw)).expanduser()
+            if not p.is_dir():
+                errors.append(f"{label}: not an existing directory {raw!r}")
+    return errors
+
+
+def preflight_workflow_manifest(manifest, name=None, workspace=None):
+    """Deterministic preflight. Raises ValueError with the exact field on failure,
+    otherwise returns the validated manifest."""
+    errors = validate_workflow_manifest(manifest, name=name, workspace=workspace)
+    if errors:
+        raise ValueError("workflow manifest preflight failed: " + "; ".join(errors))
+    return manifest
+
+
+def _build_stage_result(workflow, stage, job, outcome):
+    """Build a structured, versioned stage result with stable identity references.
+
+    A passing marker alone is insufficient: the result carries the workflow/run/
+    stage identity and the evidence that was actually checked, so a marker from
+    another run cannot be mistaken for this stage's outcome.
+    """
+    job = job or {}
+    stage = stage or {}
+    evidence = []
+    if job.get("marker"):
+        evidence.append("marker:" + ("FOUND" if _marker_found(job) else "NOT_FOUND"))
+    if job.get("verify"):
+        evidence.append("verify:configured")
+    if not evidence:
+        evidence.append("no-marker-no-verify")
+    return {
+        "schema_version": WORKFLOW_MANIFEST_SCHEMA_VERSION,
+        "workflow_id": (workflow or {}).get("id"),
+        "run_id": (workflow or {}).get("run_id"),
+        "stage_name": stage.get("name"),
+        "job_id": job.get("id"),
+        "outcome": outcome,
+        "model": job.get("model"),
+        "marker_found": _marker_found(job) if job.get("marker") else None,
+        "evidence": evidence,
+        "finished_at": job.get("finished_at"),
+    }
+
+
+def _stage_result_matches(workflow, stage, result):
+    """True only if the structured result belongs to this workflow/stage with a
+    DONE outcome and non-empty verification evidence. Refuses a marker that
+    identifies a different run/workflow or that lacks required evidence."""
+    if not isinstance(result, dict):
+        return False
+    if int(result.get("schema_version") or 0) != WORKFLOW_MANIFEST_SCHEMA_VERSION:
+        return False
+    if result.get("workflow_id") != (workflow or {}).get("id"):
+        return False
+    if result.get("stage_name") != (stage or {}).get("name"):
+        return False
+    if result.get("outcome") != "DONE":
+        return False
+    if not (result.get("evidence") or []):
+        return False
+    return True
+
+
 def start_workflow(*, title: str, conversation_id: int, stages: list,
                   workspace: str | None = None, max_repairs: int = 3,
                   max_total_cycles: int | None = None,
@@ -2295,6 +2434,21 @@ def advance_workflows() -> int:
                 _escalate_workflow(wf, stage, escalation_reason)
                 advanced += 1
             elif outcome == "DONE":
+                stage_result = _build_stage_result(wf, stage, job, "DONE")
+                stage["stage_result"] = stage_result
+                if not _stage_result_matches(wf, stage, stage_result):
+                    # Structured result identity check: a marker that identifies a
+                    # different run/workflow, or a DONE outcome without its required
+                    # verification evidence, must not advance the workflow.
+                    log(f"workflow {wid} stage {stage.get('name')} result identity mismatch; refusing to advance")
+                    stage["status"] = "failed"
+                    _record_stage_attempt(stage, "failed", job_id=job.get("id"), run_id=job.get("run_id"))
+                    wf["status"] = "failed"
+                    _update_workflow_state(wf, stage_name=stage.get("name"))
+                    _notify_workflow(wf, "FAILED", stage, reason="stage result identity check failed")
+                    advanced += 1
+                    dirty = True
+                    continue
                 stage["status"] = "done"
                 _record_stage_attempt(stage, "done", job_id=job.get("id"), run_id=job.get("run_id"))
                 if idx >= len(stages) - 1:
@@ -2413,6 +2567,9 @@ def parse_workflow_command(body) -> tuple | None:
     low = " ".join(body.split()).lower().strip()
     if low.startswith("workflow list") or low.startswith("workflow status"):
         return ("list", {})
+    m = re.match(r"^workflow validate\s+([a-z0-9_\-\.]+)\s*$", low)
+    if m:
+        return ("validate", {"name": m.group(1)})
     m = re.match(r"^workflow show\s+([a-z0-9_\-]+)\s*$", low)
     if m:
         return ("show", {"id": m.group(1)})
@@ -2434,6 +2591,9 @@ def parse_workflow_command(body) -> tuple | None:
         mr = re.search(r"--max-repairs\s+(\d+)", rest)
         if mr:
             args["max_repairs"] = int(mr.group(1))
+        args["dry_run"] = "--dry-run" in rest or "--dry_run" in rest
+        rest = re.sub(r"--dry-run\s*", "", rest)
+        rest = re.sub(r"--dry_run\s*", "", rest)
         rest = re.sub(r"--workspace\s+\S+", "", rest)
         rest = re.sub(r"--title\s+(.+?)(?=\s+--(?:workspace|max-repairs|model)\b|$)", "", rest)
         rest = re.sub(r"--max-repairs\s+\d+", "", rest)
@@ -2453,6 +2613,17 @@ def parse_workflow_command(body) -> tuple | None:
 def _exec_workflow_command(cmd, conv: int) -> str:
     """Execute a parsed workflow command and return the owner-facing reply body."""
     kind = cmd[0]
+    if kind == "validate":
+        args = cmd[1]
+        mpath = _workflow_manifest_path(args["name"])
+        try:
+            manifest = json.loads(mpath.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"workflow manifest not found or invalid ({mpath}): {exc}") from exc
+        errors = validate_workflow_manifest(manifest, name=args["name"], workspace=args.get("workspace"))
+        if errors:
+            return (f"❌ Workflow manifest invalid: {mpath}\n" + "\n".join(f"- {e}" for e in errors))
+        return f"✅ Workflow manifest valid (schema v{WORKFLOW_MANIFEST_SCHEMA_VERSION}): {mpath}"
     if kind in ("list", "status"):
         wfs = list_workflows()
         if not wfs:
@@ -2492,6 +2663,9 @@ def _exec_workflow_command(cmd, conv: int) -> str:
         stages = manifest.get("stages") if isinstance(manifest, dict) else None
         if not isinstance(stages, list) or not stages:
             raise RuntimeError("workflow manifest has no stages")
+        # Deterministic preflight before any workflow/run is persisted or any
+        # process is launched. Invalid/unsafe manifests fail with the exact field.
+        preflight_workflow_manifest(manifest, name=name, workspace=args.get("workspace") or default_ws or default_workspace())
         stages = [dict(stage) for stage in stages]
         preferred_model = args.get("model")
         title = args.get("title") or (manifest.get("title") if isinstance(manifest, dict) else "") or name
@@ -2501,6 +2675,10 @@ def _exec_workflow_command(cmd, conv: int) -> str:
             max_repairs = manifest.get("max_repairs")
         if max_repairs is None:
             max_repairs = 2
+        if args.get("dry_run"):
+            return (f"🔁 Dry-run PASSED for workflow '{name}' ({mpath})\n"
+                    f"title: {title}\nstages ({len(stages)}): {', '.join(s.get('name', '?') for s in stages)}\n"
+                    f"auto-repair: {max_repairs} round(s) — no workflow or process was started.")
         wid = start_workflow(title=title, conversation_id=conv, stages=stages, workspace=ws,
                              max_repairs=int(max_repairs), preferred_model=preferred_model)
         names = ", ".join(s.get("name", "?") for s in stages)
@@ -3197,3 +3375,127 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
         return False
     finally:
         release_lock()
+
+
+# ---------------------------------------------------------------------------
+# Optional Wake adapters (P1-5). Wake-on-LAN is a narrow, optional wake-request
+# interface: strictly behind configuration, restricted to a single configured
+# MAC/broadcast target, rate limited, and audit-logged. It is NEVER the sole
+# delivery guarantee — a failed wake leaves the work item safely queued with a
+# truthful owner-visible status.
+# ---------------------------------------------------------------------------
+
+class WakeAdapter:
+    """Narrow wake-request interface. wake() must never throw; returns (ok, note)."""
+    name = "base"
+
+    def wake(self, runner_key, config=None):  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def describe(self):
+        return self.name
+
+
+class FakeWakeAdapter(WakeAdapter):
+    """Test double: records wake requests and returns a scripted outcome."""
+    name = "fake"
+
+    def __init__(self, ok=True, note="fake wake sent", calls=None):
+        self.ok = ok
+        self.note = note
+        self.calls = calls if calls is not None else []
+
+    def wake(self, runner_key, config=None):
+        self.calls.append({"runner_key": runner_key, "at": time.time()})
+        return self.ok, self.note
+
+
+def _magic_packet(mac):
+    """Build a Wake-on-LAN magic packet for a 12-hex (or colon-separated) MAC."""
+    cleaned = "".join(c for c in str(mac) if c in "0123456789abcdefABCDEF")
+    if len(cleaned) != 12:
+        raise ValueError("wake_on_lan.mac must be a 12-hex MAC address")
+    return b"\xff" * 6 + bytes.fromhex(cleaned) * 16
+
+
+class WakeOnLanAdapter(WakeAdapter):
+    """Wake-on-LAN adapter, strictly behind configuration.
+
+    Network restrictions: only the single configured MAC + broadcast target is
+    ever addressed; owner input can never select a target. Rate limit: at most
+    one packet per min_interval per adapter. Every attempt is audit-logged.
+    """
+    name = "wake-on-lan"
+
+    def __init__(self, cfg, config=None):
+        self.cfg = dict(cfg or {})
+        self.config = config or {}
+        self._last = 0.0
+
+    def _spec(self, runner_key):
+        runners = self.cfg.get("runners") or {}
+        spec = dict(runners.get(runner_key) or self.cfg.get("default") or {})
+        return spec
+
+    def wake(self, runner_key, config=None):
+        spec = self._spec(runner_key)
+        mac = spec.get("mac") or self.cfg.get("mac")
+        if not mac:
+            return False, f"wake-on-lan: no MAC configured for runner {runner_key}"
+        if not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", str(mac)):
+            return False, f"wake-on-lan: invalid MAC {mac!r} for runner {runner_key}"
+        broadcast = spec.get("broadcast") or self.cfg.get("broadcast") or "255.255.255.255"
+        port = int(spec.get("port") or self.cfg.get("port") or 9)
+        min_interval = float(spec.get("min_interval") or self.cfg.get("min_interval") or 30)
+        now = time.time()
+        if now - self._last < min_interval:
+            return False, f"wake-on-lan: rate limited (min {min_interval:.0f}s between packets)"
+        self._last = now
+        try:
+            packet = _magic_packet(mac)
+        except ValueError as exc:
+            return False, f"wake-on-lan: {exc}"
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.sendto(packet, (broadcast, port))
+            sock.close()
+        except OSError as exc:
+            _audit_wake(runner_key, str(mac), "failed")
+            return False, f"wake-on-lan: send failed: {exc}"
+        _audit_wake(runner_key, str(mac), "sent")
+        return True, f"wake-on-lan packet sent to {mac} via {broadcast}:{port}"
+
+
+def _audit_wake(runner_key, mac, result):
+    try:
+        log(f"wake-on-lan: {result} runner={runner_key} mac={mac}")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def get_wake_adapter(config=None):
+    """Factory: returns a configured WakeAdapter, or None (Wake-on-LAN is optional)."""
+    config = config or {}
+    cfg = config.get("wake_on_lan") or {}
+    if not cfg or not cfg.get("enabled", True):
+        return None
+    return WakeOnLanAdapter(cfg, config=config)
+
+
+def wake_runner(runner_key, config=None, adapter=None):
+    """Attempt to wake a runner via the optional configured adapter.
+
+    On success returns (True, note); on any failure returns (False, note) and the
+    work item remains safely queued with a truthful status. Wake-on-LAN is never
+    the sole delivery guarantee.
+    """
+    config = config or {}
+    if adapter is None:
+        adapter = get_wake_adapter(config)
+    if adapter is None:
+        return False, "no wake adapter configured; work stays queued"
+    try:
+        return adapter.wake(runner_key, config=config)
+    except Exception as exc:  # noqa: BLE001
+        return False, f"wake adapter failed: {exc}"

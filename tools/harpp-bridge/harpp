@@ -363,6 +363,12 @@ def cmd_workflow_start(args):
     stages = manifest.get("stages") if isinstance(manifest, dict) else None
     if not isinstance(stages, list) or not stages:
         sys.exit("harpp workflow start: manifest must contain a non-empty 'stages' array")
+    # Deterministic preflight before persisting/launching: invalid or unsafe
+    # manifests fail with the exact field identified.
+    try:
+        harpp_wake.preflight_workflow_manifest(manifest, workspace=args.workspace)
+    except ValueError as exc:
+        sys.exit(f"harpp workflow start: {exc}")
     title = args.title or (manifest.get("title") if isinstance(manifest, dict) else "") or "Governed HARPP workflow"
     defaults = dict(harpp_client.DEFAULT_WORKFLOW_BUDGETS)
     for key in defaults:
@@ -371,6 +377,10 @@ def cmd_workflow_start(args):
             defaults[key] = arg_value
         elif isinstance(manifest, dict) and manifest.get(key) is not None:
             defaults[key] = manifest.get(key)
+    if getattr(args, "dry_run", False):
+        print(json.dumps({"dry_run": True, "manifest": args.manifest, "stages": len(stages),
+                          "preflight": "PASS", **defaults}))
+        return
     try:
         preferred_model = harpp_wake.requested_model(getattr(args, "model", None))
         if getattr(args, "model", None) and not preferred_model:
@@ -388,6 +398,22 @@ def cmd_workflow_start(args):
     except ValueError as exc:
         sys.exit(f"harpp workflow start: {exc}")
     print(json.dumps({"workflow_id": wid, "status": "running", "stages": len(stages), **defaults}))
+
+
+def cmd_workflow_validate(args):
+    try:
+        manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        sys.exit(f"harpp workflow validate: cannot read manifest {args.manifest}: {exc}")
+    errors = harpp_wake.validate_workflow_manifest(manifest, name=Path(args.manifest).name,
+                                                   workspace=args.workspace)
+    if errors:
+        print(json.dumps({"manifest": args.manifest, "valid": False,
+                          "schema_version": harpp_wake.WORKFLOW_MANIFEST_SCHEMA_VERSION,
+                          "errors": errors}, indent=2))
+        raise SystemExit(1)
+    print(json.dumps({"manifest": args.manifest, "valid": True,
+                      "schema_version": harpp_wake.WORKFLOW_MANIFEST_SCHEMA_VERSION}, indent=2))
 
 
 def cmd_workflow_list(args):
@@ -567,7 +593,13 @@ def main():
     ws.add_argument("--contract-revision", type=int, default=0)
     ws.add_argument("--authority-level", default=None,
                     help="configured workflow authority (default from config harpp_authority, else L2)")
+    ws.add_argument("--dry-run", action="store_true",
+                    help="run schema + runtime preflight and report, without persisting/launching")
     ws.set_defaults(func=cmd_workflow_start)
+    wv = wsub.add_parser("validate", help="validate a workflow manifest against the versioned schema + preflight")
+    wv.add_argument("--manifest", required=True, help="JSON workflow manifest to validate")
+    wv.add_argument("--workspace", default=None, help="workspace to preflight against")
+    wv.set_defaults(func=cmd_workflow_validate)
     wl = wsub.add_parser("list", help="list workflows + status")
     wl.set_defaults(func=cmd_workflow_list)
     wh = wsub.add_parser("show", help="show a workflow's full state")

@@ -51,7 +51,8 @@
         "database/migrations/010_harpp_conversation_soft_delete.sql",
         "database/migrations/011_harpp_adr_origin.sql",
         "database/migrations/012_harpp_perf_read_model.sql",
-        "database/migrations/013_harpp_runner_work_queue.sql"
+        "database/migrations/013_harpp_runner_work_queue.sql",
+        "database/migrations/014_harpp_runner_reconcile.sql"
     ],
     "capabilities": {
         "exposes": [

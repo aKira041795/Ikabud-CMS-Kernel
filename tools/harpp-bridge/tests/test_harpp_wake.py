@@ -1597,5 +1597,175 @@ class HarppWakeTest(unittest.TestCase):
         self.assertIn("authority_level", wf)
 
 
+class WorkflowManifestValidationTest(unittest.TestCase):
+    """P1-3: versioned manifest schema/preflight and structured stage results."""
+
+    def _valid_manifest(self):
+        return {
+            "schema_version": harpp_wake.WORKFLOW_MANIFEST_SCHEMA_VERSION,
+            "title": "Loop",
+            "stages": [
+                {"name": "architect", "model": "openai-codex/gpt-5.6-sol",
+                 "prompt": "You are the architect.\n", "marker": "SOL_ARCH status=PASS",
+                 "verify": "test -f ARCHITECTURE.md", "timeout": 1800},
+                {"name": "implement", "model": "deepseek/deepseek-v4-pro",
+                 "prompt": "You are the implementer.\n", "marker": "SOL_IMPL status=PASS",
+                 "verify": "git diff --check", "timeout": 2400},
+            ],
+        }
+
+    def test_valid_manifest_passes(self):
+        self.assertEqual(harpp_wake.validate_workflow_manifest(self._valid_manifest()), [])
+
+    def test_missing_stages_rejected(self):
+        errors = harpp_wake.validate_workflow_manifest({"title": "x"})
+        self.assertTrue(any("stages" in e for e in errors), errors)
+
+    def test_unsupported_model_identifies_field(self):
+        m = self._valid_manifest()
+        m["stages"][0]["model"] = "nope/nope"
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("stages[0].model" in e for e in errors), errors)
+
+    def test_missing_prompt_identifies_field(self):
+        m = self._valid_manifest()
+        m["stages"][0].pop("prompt")
+        m["stages"][0].pop("prompt_file", None)
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("stages[0].prompt" in e for e in errors), errors)
+
+    def test_missing_prompt_file_rejected(self):
+        m = self._valid_manifest()
+        m["stages"][0]["prompt_file"] = "stages/does-not-exist.md"
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("stages[0].prompt_file" in e for e in errors), errors)
+
+    def test_invalid_budget_identifies_field(self):
+        m = self._valid_manifest()
+        m["max_repairs"] = -1
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("max_repairs" in e for e in errors), errors)
+
+    def test_unsafe_authority_rejected(self):
+        m = self._valid_manifest()
+        m["stages"][1]["required_authority"] = "L9"
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("required_authority" in e for e in errors), errors)
+
+    def test_duplicate_stage_name_rejected(self):
+        m = self._valid_manifest()
+        m["stages"][1]["name"] = "Architect"
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("duplicate stage name" in e for e in errors), errors)
+
+    def test_owner_text_interpolation_verify_rejected(self):
+        m = self._valid_manifest()
+        m["stages"][0]["verify"] = "echo {{body}} > out.txt"
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("verify" in e and "interpolate owner text" in e for e in errors), errors)
+
+    def test_destructive_verify_rejected(self):
+        m = self._valid_manifest()
+        m["stages"][0]["verify"] = "rm -rf /"
+        errors = harpp_wake.validate_workflow_manifest(m)
+        self.assertTrue(any("verify" in e and "destructive" in e for e in errors), errors)
+
+    def test_admin_shell_substitution_verify_is_allowed(self):
+        # Legitimate admin-authored `$(...)` in a manifest verify is not flagged.
+        m = self._valid_manifest()
+        m["stages"][0]["verify"] = 'test -s ARCHITECTURE.md && test "$(tail -n 1 ARCHITECTURE.md)" = "ok"'
+        self.assertEqual(harpp_wake.validate_workflow_manifest(m), [])
+
+    def test_preflight_raises_with_exact_field(self):
+        m = self._valid_manifest()
+        m["stages"][0]["model"] = "unknown/model"
+        with self.assertRaises(ValueError) as ctx:
+            harpp_wake.preflight_workflow_manifest(m)
+        self.assertIn("stages[0].model", str(ctx.exception))
+
+    def test_preflight_returns_manifest_when_valid(self):
+        m = self._valid_manifest()
+        self.assertIs(harpp_wake.preflight_workflow_manifest(m), m)
+
+    def test_structured_stage_result_identity(self):
+        wf = {"id": "wf1", "run_id": "run-1"}
+        stage = {"name": "architect"}
+        job = {"id": "job1", "marker": None, "verify": None, "model": "m"}
+        result = harpp_wake._build_stage_result(wf, stage, job, "DONE")
+        self.assertEqual(result["schema_version"], harpp_wake.WORKFLOW_MANIFEST_SCHEMA_VERSION)
+        self.assertEqual(result["workflow_id"], "wf1")
+        self.assertEqual(result["run_id"], "run-1")
+        self.assertEqual(result["stage_name"], "architect")
+        self.assertEqual(result["outcome"], "DONE")
+        self.assertTrue(harpp_wake._stage_result_matches(wf, stage, result))
+
+    def test_structured_result_identity_mismatch_rejected(self):
+        wf = {"id": "wf1", "run_id": "run-1"}
+        stage = {"name": "architect"}
+        result = {"schema_version": harpp_wake.WORKFLOW_MANIFEST_SCHEMA_VERSION,
+                  "workflow_id": "wf-OTHER", "run_id": "run-9", "stage_name": "architect",
+                  "outcome": "DONE", "evidence": ["marker:FOUND"]}
+        self.assertFalse(harpp_wake._stage_result_matches(wf, stage, result))
+        # wrong stage
+        wrong_stage = dict(result, workflow_id="wf1", run_id="run-1", stage_name="review")
+        self.assertFalse(harpp_wake._stage_result_matches(wf, stage, wrong_stage))
+        # non-DONE outcome
+        failed = dict(result, workflow_id="wf1", run_id="run-1", outcome="FAILED")
+        self.assertFalse(harpp_wake._stage_result_matches(wf, stage, failed))
+        # DONE without evidence (marker-only with no verification evidence) rejected
+        no_evidence = dict(result, workflow_id="wf1", run_id="run-1", evidence=[])
+        self.assertFalse(harpp_wake._stage_result_matches(wf, stage, no_evidence))
+
+
+class WakeAdapterTest(unittest.TestCase):
+    """P1-5: optional Wake-on-LAN adapter behind config + fake-adapter tests."""
+
+    def test_no_adapter_when_not_configured(self):
+        self.assertIsNone(harpp_wake.get_wake_adapter({}))
+        self.assertIsNone(harpp_wake.get_wake_adapter({"wake_on_lan": {"enabled": False}}))
+        ok, note = harpp_wake.wake_runner("desktop", {"wake_on_lan": {}})
+        self.assertFalse(ok)
+        self.assertIn("stays queued", note)
+
+    def test_fake_adapter_records_and_reports(self):
+        calls = []
+        fake = harpp_wake.FakeWakeAdapter(ok=True, calls=calls)
+        ok, note = harpp_wake.wake_runner("desktop", {"wake_on_lan": {"enabled": True}}, adapter=fake)
+        self.assertTrue(ok)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["runner_key"], "desktop")
+
+    def test_fake_adapter_failure_leaves_queued(self):
+        fake = harpp_wake.FakeWakeAdapter(ok=False, note="wake rejected by network")
+        ok, note = harpp_wake.wake_runner("desktop", {}, adapter=fake)
+        self.assertFalse(ok)
+        self.assertEqual(note, "wake rejected by network")
+
+    def test_wol_requires_configured_mac(self):
+        adapter = harpp_wake.WakeOnLanAdapter({"enabled": True})
+        ok, note = adapter.wake("desktop")
+        self.assertFalse(ok)
+        self.assertIn("no MAC configured", note)
+
+    def test_wol_rejects_invalid_mac_network_restriction(self):
+        adapter = harpp_wake.WakeOnLanAdapter({"enabled": True, "mac": "not-a-mac"})
+        ok, note = adapter.wake("desktop")
+        self.assertFalse(ok)
+        self.assertIn("invalid MAC", note)
+
+    def test_wol_is_rate_limited(self):
+        adapter = harpp_wake.WakeOnLanAdapter({"enabled": True, "mac": "00:11:22:33:44:55", "min_interval": 60})
+        adapter._last = time.time()  # pretend a packet was just sent
+        ok, note = adapter.wake("desktop")
+        self.assertFalse(ok)
+        self.assertIn("rate limited", note)
+
+    def test_magic_packet_shape(self):
+        packet = harpp_wake._magic_packet("00:11:22:33:44:55")
+        self.assertEqual(len(packet), 102)  # 6 ff + 16 * 6 bytes
+        self.assertEqual(packet[:6], b"\xff" * 6)
+        self.assertEqual(packet[6:12], bytes.fromhex("001122334455"))
+
+
 if __name__ == "__main__":
     unittest.main()
