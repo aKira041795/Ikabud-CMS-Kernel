@@ -126,6 +126,9 @@ final class HarppRunService
             $run = $this->load($runId);
             $this->effect($actor, 'harpp.work_run.'.strtolower($target), 'work_run.'.strtolower($target), $runId, $before, ['state' => $target]);
             $this->db->commit();
+            if ($target === 'SUCCEEDED') {
+                try { (new HarppArtifactService($this->db))->buildForRun($runId, $actor, null); } catch (\Throwable $e) {}
+            }
             return HarppServiceResult::success(['run' => $this->publicRun($run)]);
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();

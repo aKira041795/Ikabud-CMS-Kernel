@@ -152,6 +152,11 @@ final class HarppDecisionService
             $event=$this->recordDomainEffects('harpp.decision.transitioned','decision.transitioned',$actor,$decisionId,['state'=>$from,'workbench_state'=>$before['workbench_state']],$after,$rationale);
             $this->db()->commit();
             $this->supplementalAudit('decision.transitioned',$actor,['decision_id'=>$decisionId,'from'=>$from,'to'=>$toState]);
+            // Auto-derive a reviewable artifact bundle at approval time (best-effort).
+            if (in_array($toState, ['DECIDED','CLOSED'], true)) {
+                try { (new HarppArtifactService($this->db()))->buildForDecision($decisionId, $actor, $tenantId); }
+                catch (\Throwable $e) { $this->log('artifact bundle build failed for decision', $e); }
+            }
             return HarppServiceResult::success(['decision_id'=>$decisionId,'from_state'=>$from,'state'=>$toState,'workbench_state'=>$workbench,'adr_id'=>$adrId,'version'=>$expected+1], '', array_values(array_filter([$adrEvent, $event])), 'harpp_decision', $decisionId);
         }catch(Throwable $e){if($this->db()->inTransaction())$this->db()->rollBack();$this->log('decision transition failed',$e);if(str_contains($e->getMessage(),'Decision version conflict.'))return HarppServiceResult::failure('Decision version conflict.',409,'version_conflict');return HarppServiceResult::failure($e instanceof \InvalidArgumentException?$e->getMessage():'Unable to transition decision.',$e instanceof \InvalidArgumentException?404:500);}
     }

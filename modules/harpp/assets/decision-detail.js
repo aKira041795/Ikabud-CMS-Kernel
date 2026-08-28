@@ -147,5 +147,70 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // Reviewable artifacts: full approved-task detail + shareable/downloadable files.
+  const artifactOpen = document.getElementById('artifact-open');
+  const artifactPanel = document.getElementById('artifact-panel');
+  const artifactList = document.getElementById('artifact-list');
+  const artifactShare = document.getElementById('artifact-share');
+  const artifactShareLink = document.getElementById('artifact-share-link');
+  const artifactReviewer = artifactPanel && artifactPanel.querySelector('input[name="artifact_reviewer_id"]');
+  const artifactTtl = artifactPanel && artifactPanel.querySelector('input[name="artifact_ttl_hours"]');
+
+  async function loadArtifacts() {
+    if (!artifactOpen || !artifactPanel) return;
+    let bundleId = 0;
+    try {
+      const build = await Harpp.fetch(`/api/v1/harpp/artifacts/bundles/decision/${id}/build`, { method: 'POST' });
+      bundleId = Number((build && build.data && build.data.bundle_id) || 0);
+    } catch (error) {
+      artifactList.textContent = 'No artifact bundle available.';
+      return;
+    }
+    if (!bundleId) { artifactList.textContent = 'No artifact bundle available.'; return; }
+    const view = await Harpp.fetch(`/api/v1/harpp/artifacts/bundles/${bundleId}`);
+    artifactList.replaceChildren();
+    const artifacts = (view && view.data && view.data.artifacts) || [];
+    for (const art of artifacts) {
+      const p = document.createElement('p');
+      p.style.whiteSpace = 'pre-line';
+      if (art.artifact_type === 'file') {
+        const link = document.createElement('a');
+        link.href = `/api/v1/harpp/artifacts/${art.id}/download`;
+        link.textContent = `⬇ ${art.filename || ('artifact-' + art.id)}`;
+        link.setAttribute('download', art.filename || ('artifact-' + art.id));
+        p.append(link);
+      } else {
+        p.textContent = `[${art.artifact_type}] ${String(art.payload || '').slice(0, 500)}`;
+      }
+      artifactList.append(p);
+    }
+    if (artifactShare) {
+      artifactShare.onclick = async () => {
+        if (!artifactReviewer || !artifactReviewer.value) {
+          artifactShareLink.textContent = 'Enter a reviewer user id.';
+          return;
+        }
+        try {
+          const res = await Harpp.fetch(`/api/v1/harpp/artifacts/bundles/${bundleId}/shares`, {
+            method: 'POST',
+            body: { reviewer_user_id: Number(artifactReviewer.value), ttl_hours: Number(artifactTtl.value || 720) },
+          });
+          artifactShareLink.textContent = res && res.data && res.data.token
+            ? 'Share link token: ' + res.data.token + ' (for reviewer user id ' + res.data.reviewer_user_id + ')'
+            : 'Share not created.';
+        } catch (error) {
+          artifactShareLink.textContent = error.message;
+        }
+      };
+    }
+  }
+
+  if (artifactOpen) {
+    artifactOpen.onclick = async () => {
+      artifactPanel.hidden = false;
+      await loadArtifacts();
+    };
+  }
+
   load();
 });
