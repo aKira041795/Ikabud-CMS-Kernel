@@ -170,19 +170,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const view = await Harpp.fetch(`/api/v1/harpp/artifacts/bundles/${bundleId}`);
     artifactList.replaceChildren();
     const artifacts = (view && view.data && view.data.artifacts) || [];
-    for (const art of artifacts) {
+    if (!artifacts.length) {
       const p = document.createElement('p');
-      p.style.whiteSpace = 'pre-line';
-      if (art.artifact_type === 'file') {
-        const link = document.createElement('a');
-        link.href = `/api/v1/harpp/artifacts/${art.id}/download`;
-        link.textContent = `⬇ ${art.filename || ('artifact-' + art.id)}`;
-        link.setAttribute('download', art.filename || ('artifact-' + art.id));
-        p.append(link);
-      } else {
-        p.textContent = `[${art.artifact_type}] ${String(art.payload || '').slice(0, 500)}`;
-      }
+      p.textContent = 'No artifacts in this bundle yet.';
+      p.className = 'muted';
       artifactList.append(p);
+    }
+    for (const art of artifacts) {
+      const card = document.createElement('div');
+      card.className = 'panel';
+      card.style.padding = '8px 12px';
+      const head = document.createElement('div');
+      if (art.artifact_type === 'file') {
+        head.textContent = `📄 ${art.filename || ('artifact-' + art.id)}`;
+        const meta = document.createElement('div');
+        meta.className = 'muted';
+        meta.style.fontSize = '12px';
+        meta.textContent = `${art.mime || 'file'} · ${art.file_size || 0} bytes`;
+        const dl = document.createElement('a');
+        dl.className = 'button';
+        dl.href = `/api/v1/harpp/artifacts/${art.id}/download`;
+        dl.textContent = '⬇ Download file';
+        dl.setAttribute('download', art.filename || ('artifact-' + art.id));
+        card.append(head, meta, dl);
+      } else {
+        head.textContent = `[${art.artifact_type}]`;
+        const pre = document.createElement('pre');
+        pre.className = 'muted';
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.textContent = String(art.payload || '').slice(0, 800);
+        card.append(head, pre);
+      }
+      artifactList.append(card);
     }
     if (artifactShare) {
       artifactShare.onclick = async () => {
@@ -210,6 +229,38 @@ document.addEventListener('DOMContentLoaded', () => {
       artifactPanel.hidden = false;
       await loadArtifacts();
     };
+  }
+
+  // Attach a generated file from the UI (owner/admin), then re-render the list.
+  const addFileBtn = document.getElementById('artifact-add-file-btn');
+  const afPanel = document.getElementById('artifact-add-file');
+  if (addFileBtn && afPanel) {
+    addFileBtn.onclick = async () => {
+      const filename = afPanel.querySelector('input[name="af_filename"]').value.trim();
+      const mime = afPanel.querySelector('input[name="af_mime"]').value.trim() || 'text/plain';
+      const content = afPanel.querySelector('textarea[name="af_content"]').value;
+      if (!filename || !content) {
+        status.textContent = 'Filename and content are required to attach a file.';
+        return;
+      }
+      try {
+        const bundleId = await currentBundleId();
+        if (!bundleId) throw new Error('No bundle available.');
+        await Harpp.fetch(`/api/v1/harpp/artifacts/bundles/${bundleId}/file`, {
+          method: 'POST', body: { filename, mime, content },
+        });
+        afPanel.querySelector('textarea[name="af_content"]').value = '';
+        status.textContent = 'File attached.';
+        await loadArtifacts();
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    };
+  }
+
+  async function currentBundleId() {
+    const build = await Harpp.fetch(`/api/v1/harpp/artifacts/bundles/decision/${id}/build`, { method: 'POST' });
+    return Number((build && build.data && build.data.bundle_id) || 0);
   }
 
   load();

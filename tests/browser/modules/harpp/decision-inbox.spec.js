@@ -247,9 +247,11 @@ test.describe.serial('HARPP decision inbox isolated browser journey', () => {
             const response = await fetch('/api/v1/harpp/decisions', {
                 method: 'POST', credentials: 'same-origin',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-                body: JSON.stringify({ title: 'PENDING direct test', body: 'body', requested_decision: 'pick',
+                body: JSON.stringify({
+                    title: 'PENDING direct test', body: 'body', requested_decision: 'pick',
                     decision_key: 'PENDING-DIRECT-' + Date.now(), priority: 'normal', source: 'harness',
-                    workbench_state: 'ARCHITECTURE_DECISION_REQUIRED' }),
+                    workbench_state: 'ARCHITECTURE_DECISION_REQUIRED'
+                }),
             });
             const body = await response.json();
             return { status: response.status, body };
@@ -274,5 +276,57 @@ test.describe.serial('HARPP decision inbox isolated browser journey', () => {
         await page.click('#decision-action button[type="submit"]');
         await expect.poll(async () => (await getDecision(page, pendingId)).decision.lifecycle_state, { timeout: 10000 })
             .toBe('CLOSED');
+    });
+
+    test('review artifacts: attach + download a generated file from the UI', async ({ page }) => {
+        test.setTimeout(120000);
+        const appUrl = process.env.APP_URL || ('http://' + state.domain);
+        await login(page, appUrl, state.owner_email, OWNER_PASSWORD);
+        const token = await csrfToken(page);
+
+        // Create + close a decision (auto-builds the artifact bundle).
+        const created = await page.evaluate(async (csrf) => {
+            const response = await fetch('/api/v1/harpp/decisions', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify({ title: 'Artifact download test', body: 'body', requested_decision: 'pick',
+                    decision_key: 'ART-DL-' + Date.now(), priority: 'normal', source: 'harness',
+                    workbench_state: 'ARCHITECTURE_DECISION_REQUIRED' }),
+            });
+            const body = await response.json();
+            return { status: response.status, body };
+        }, token);
+        expect(created.status, 'create decision must succeed').toBe(200);
+        const decId = Number(created.body && created.body.data && created.body.data.decision_id);
+        const closed = await page.evaluate(async ({ id, csrf }) => {
+            const response = await fetch('/api/v1/harpp/decisions/' + id + '/transition', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify({ state: 'CLOSED', rationale: 'close for artifact test' }),
+            });
+            return { status: response.status, body: await response.json() };
+        }, { id: decId, csrf: token });
+        expect(closed.status, 'close decision must succeed').toBe(200);
+
+        await page.goto(appUrl + '/harpp/decisions/' + decId);
+        await page.waitForLoadState('networkidle');
+        // Open the review-artifacts panel.
+        await page.click('#artifact-open');
+        await page.waitForSelector('#artifact-add-file', { state: 'visible', timeout: 10000 });
+
+        // Attach a generated file through the UI.
+        await page.fill('#artifact-add-file input[name="af_filename"]', 'report.txt');
+        await page.fill('#artifact-add-file textarea[name="af_content"]', 'hello downloadable file');
+        await page.click('#artifact-add-file-btn');
+        await expect(page.locator('#artifact-list a.button', { hasText: 'Download file' }), 'a Download button must appear').toBeVisible({ timeout: 10000 });
+
+        // The download endpoint streams the file content for the owner.
+        const dl = await page.evaluate(async () => {
+            const link = document.querySelector('#artifact-list a.button[href*="/download"]');
+            const res = await fetch(link.getAttribute('href'), { credentials: 'same-origin' });
+            return { status: res.status, text: await res.text() };
+        });
+        expect(dl.status, 'download endpoint must return 200').toBe(200);
+        expect(dl.text, 'download must return the attached file content').toContain('hello downloadable file');
     });
 });
