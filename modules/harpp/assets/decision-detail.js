@@ -48,8 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (deleteForm) {
       deleteForm.hidden = !(isOwnerOrAdmin && terminal.includes(state));
     }
+    // Keep the status transition form open for any open (non-terminal) state so
+    // owners can move straight to a target state (e.g. Decide or Close) from
+    // PENDING without hunting through a collapsed section.
     if (advanced) {
-      advanced.open = !(isOwnerOrAdmin && !terminal.includes(state));
+      advanced.open = !terminal.includes(state);
     }
   }
 

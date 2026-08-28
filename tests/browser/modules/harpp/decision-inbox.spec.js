@@ -235,4 +235,44 @@ test.describe.serial('HARPP decision inbox isolated browser journey', () => {
         const afterRetry = await getDecision(page, decisionId);
         expect(afterRetry.audit_trail.length, 'idempotent retry must not add duplicate transitions').toBe(afterClose.audit_trail.length);
     });
+
+    test('PENDING decision exposes a prominent direct status control (Decide/Close)', async ({ page }) => {
+        test.setTimeout(120000);
+        const appUrl = process.env.APP_URL || ('http://' + state.domain);
+        await login(page, appUrl, state.owner_email, OWNER_PASSWORD);
+        const token = await csrfToken(page);
+
+        // Create a fresh PENDING decision via the API (owner-authenticated).
+        const created = await page.evaluate(async (csrf) => {
+            const response = await fetch('/api/v1/harpp/decisions', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify({ title: 'PENDING direct test', body: 'body', requested_decision: 'pick',
+                    decision_key: 'PENDING-DIRECT-' + Date.now(), priority: 'normal', source: 'harness',
+                    workbench_state: 'ARCHITECTURE_DECISION_REQUIRED' }),
+            });
+            const body = await response.json();
+            return { status: response.status, body };
+        }, token);
+        expect(created.status, 'create PENDING decision must succeed').toBe(200);
+        const pendingId = Number(created.body && created.body.data && created.body.data.decision_id);
+        expect(pendingId).toBeGreaterThan(0);
+
+        await page.goto(appUrl + '/harpp/decisions/' + pendingId);
+        await page.waitForLoadState('networkidle');
+        await page.waitForSelector('#decision-advanced', { state: 'attached', timeout: 10000 });
+        // The status control must be open (not collapsed) for a PENDING decision.
+        expect(await page.locator('#decision-advanced').getAttribute('open'), 'status control must be open for PENDING').not.toBeNull();
+        // DECIDED and CLOSED must be offered as direct targets for PENDING.
+        const stateOptions = await page.locator('#decision-action select[name="state"] option').evaluateAll(
+            (opts) => opts.filter((o) => !o.hidden).map((o) => o.value));
+        expect(stateOptions, 'PENDING must offer DECIDED and CLOSED as direct targets').toEqual(expect.arrayContaining(['DECIDED', 'CLOSED']));
+
+        // Move straight to CLOSED via the direct status control (no cycling).
+        await page.selectOption('#decision-action select[name="state"]', 'CLOSED');
+        await page.fill('#decision-action textarea[name="rationale"]', 'Direct close from PENDING in browser');
+        await page.click('#decision-action button[type="submit"]');
+        await expect.poll(async () => (await getDecision(page, pendingId)).decision.lifecycle_state, { timeout: 10000 })
+            .toBe('CLOSED');
+    });
 });
