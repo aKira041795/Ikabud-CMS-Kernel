@@ -34,6 +34,25 @@ $owner=$db->query("SELECT id,email,full_name,role FROM harpp_users WHERE role='o
 if(!is_array($owner))throw new RuntimeException('HARPP owner missing.');
 $owner['id']=(int)$owner['id'];$owner['source']='harpp';
 
+// Admin + a separate "private owner" user for the RAG visibility/authorization gap tests.
+// Reuse existing users when present (freshly inserted rows can be rolled back by the
+// decision service transactions in this CLI harness), tracking whether we created them
+// so cleanup only removes what we added.
+$adminRow=$db->query("SELECT id,email,full_name,role FROM harpp_users WHERE role='admin' AND is_active=1 ORDER BY id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+$adminId=0;$adminCreated=false;
+if(!is_array($adminRow)){
+    $db->prepare("INSERT INTO harpp_users (email,password_hash,full_name,role,is_active) VALUES (:e,:p,:n,'admin',1)")->execute([':e'=>'rag-admin-'.bin2hex(random_bytes(3)).'@test.local',':p'=>password_hash('x',PASSWORD_DEFAULT),':n'=>'RAG Admin']);
+    $adminId=(int)$db->lastInsertId();$adminCreated=true;
+}else{$adminId=(int)$adminRow['id'];}
+$admin=['id'=>$adminId,'source'=>'harpp','role'=>'admin','email'=>$adminRow['email']??'','full_name'=>$adminRow['full_name']??''];
+$otherRow=$db->query("SELECT id FROM harpp_users WHERE role='member' AND is_active=1 ORDER BY id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+$otherUserId=0;$otherCreated=false;
+if(!is_array($otherRow)){
+    $db->prepare("INSERT INTO harpp_users (email,password_hash,full_name,role,is_active) VALUES (:e,:p,:n,'member',1)")->execute([':e'=>'rag-other-'.bin2hex(random_bytes(3)).'@test.local',':p'=>password_hash('x',PASSWORD_DEFAULT),':n'=>'Private Owner']);
+    $otherUserId=(int)$db->lastInsertId();$otherCreated=true;
+}else{$otherUserId=(int)$otherRow['id'];}
+$member=['id'=>$otherUserId,'source'=>'harpp','role'=>'member'];
+
 $h = new TestHarness('harpp-memory-search');
 $assert = static function(string $name, bool $ok, string $detail = '') use ($h): void { $h->test($name, $ok, $detail); };
 $memory = new HarppMemoryService($db);
@@ -63,8 +82,8 @@ try {
     $cb=$messaging->createConversation($owner,['title'=>'Memory conversation B','harness_session_id'=>'mem-B'],$tenantId);
     $convB=(int)($cb['data']['conversation_id']??0);$cleanup[]=['decisionId'=>0,'conv'=>$convB];
     $ob=$decisionSvc->create($owner,['title'=>'Other '.$term.' decision','body'=>'another '.$term,'requested_decision'=>'pick','decision_key'=>'MEM-'.bin2hex(random_bytes(3)),'priority'=>'normal','source'=>'harness','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED','conversation_id'=>$convB],$tenantId);
-    $otherId=(int)($ob['data']['decision_id']??0);$cleanup[]=['decisionId'=>$otherId,'conv'=>$convB];
-    $decisionSvc->transition($owner,$otherId,'CLOSED','approve too',['decision'=>'Also approve '.$term],$tenantId);
+    $otherDecisionId=(int)($ob['data']['decision_id']??0);$cleanup[]=['decisionId'=>$otherDecisionId,'conv'=>$convB];
+    $decisionSvc->transition($owner,$otherDecisionId,'CLOSED','approve too',['decision'=>'Also approve '.$term],$tenantId);
 
     // search returns the approved decision's ADR/decision, excludes PENDING, carries approved id.
     $res=$memory->search($owner,['q'=>$term],$tenantId);
@@ -74,7 +93,7 @@ try {
     $assert('approved decision id present in results',in_array($approvedId,$ids,true),'ids='.implode(',',$ids));
     $assert('PENDING (unapproved) decision excluded from results',!in_array($pendingId,$ids,true),'ids='.implode(',',$ids));
     // Tenant-scoped: approved memory is reusable across conversations in the same tenant.
-    $assert('other-conversation approved decision is in tenant scope (reusable)',in_array($otherId,$ids,true),'ids='.implode(',',$ids));
+    $assert('other-conversation approved decision is in tenant scope (reusable)',in_array($otherDecisionId,$ids,true),'ids='.implode(',',$ids));
 
     // limit bounds results.
     $bounded=$memory->search($owner,['q'=>$term,'limit'=>1],$tenantId);
@@ -177,6 +196,38 @@ try {
     $assert('integrate emits approved decision item with authority/status',count($approvedMem)===1&&($approvedMem[0]['status']??'')==='current'&&($approvedMem[0]['authority']??'')==='adr_current'&&isset($approvedMem[0]['revision']),'mem2='.json_encode($mem2Arr));
     $mem2Ids=array_map('intval',array_column($mem2Arr,'decision_id'));
     $assert('integrate excludes superseded (historical) decision',!in_array($supersededId,$mem2Ids,true),'memIds='.implode(',',$mem2Ids));
+
+    // === RAG visibility/authorization gap tests ===
+
+    // Private decision created by another user (otherId), approved (CLOSED).
+    $cp=$messaging->createConversation($owner,['title'=>'Private memory conversation','harness_session_id'=>'mem-private'],$tenantId);
+    $privConv=(int)($cp['data']['conversation_id']??0);$cleanup[]=['decisionId'=>0,'conv'=>$privConv];
+    $privateTerm='zephyrprivate';
+    $pd=$decisionSvc->create($owner,['title'=>'Private '.$privateTerm.' decision','body'=>'private about '.$privateTerm,'requested_decision'=>'pick','decision_key'=>'MEM-'.bin2hex(random_bytes(3)),'priority'=>'normal','source'=>'harness','workbench_state'=>'ARCHITECTURE_DECISION_REQUIRED','conversation_id'=>$privConv],$tenantId);
+    $privateId=(int)($pd['data']['decision_id']??0);$cleanup[]=['decisionId'=>$privateId,'conv'=>$privConv];
+    $pdtr=$decisionSvc->transition($owner,$privateId,'CLOSED','approve private',['decision'=>'Private '.$privateTerm.' approach'],$tenantId);
+    $assert('private decision approved (CLOSED with ADR)',!empty($pdtr['ok'])&&(int)($pdtr['data']['adr_id']??0)>0,'pdtr='.json_encode($pdtr));
+    // Mark it private and owned by a different user (admin lacks a grant to it).
+    $db->prepare('UPDATE harpp_decisions SET visibility=:v, created_by=:c WHERE id=:id')->execute([':v'=>'private',':c'=>$otherUserId,':id'=>$privateId]);
+
+    // Admin CANNOT retrieve the private decision via search.
+    $privSearchAdmin=$memory->search($admin,['q'=>$privateTerm],$tenantId);
+    $privAdminIds=array_map('intval',array_column((array)($privSearchAdmin['data']['results']??[]),'decision_id'));
+    $assert('admin cannot retrieve private decision via search',!in_array($privateId,$privAdminIds,true),'ids='.implode(',',$privAdminIds).' ok='.($privSearchAdmin['ok']?'1':'0'));
+
+    // Admin CANNOT retrieve the private decision via integrate.
+    $privIntegrateAdmin=$memory->integrate($privConv,$admin);
+    $privIntegrateAdminIds=$privIntegrateAdmin===null?[]:array_map('intval',array_column($privIntegrateAdmin,'decision_id'));
+    $assert('admin cannot retrieve private decision via integrate',$privIntegrateAdmin===null||!in_array($privateId,$privIntegrateAdminIds,true),'mem='.json_encode($privIntegrateAdmin));
+
+    // Owner CAN retrieve the private decision (owner sees all).
+    $privSearchOwner=$memory->search($owner,['q'=>$privateTerm],$tenantId);
+    $privOwnerIds=array_map('intval',array_column((array)($privSearchOwner['data']['results']??[]),'decision_id'));
+    $assert('owner can retrieve private decision via search',in_array($privateId,$privOwnerIds,true),'ids='.implode(',',$privOwnerIds));
+
+    // Member is DENIED (403) by search (actorAllowed tightened).
+    $memberRes=$memory->search($member,['q'=>$privateTerm],$tenantId);
+    $assert('member is denied (403) by search',isset($memberRes['error'])&&(int)($memberRes['status']??0)===403,'memberRes='.json_encode($memberRes));
 } finally {
     foreach (array_reverse($cleanup) as $row) {
         $decisionId=(int)$row['decisionId'];$conv=(int)$row['conv'];
@@ -199,6 +250,8 @@ try {
     if($runBundleId>0){
         try { $db->prepare('DELETE FROM harpp_artifact_bundles WHERE id=:id')->execute([':id'=>$runBundleId]); } catch (\Throwable $e) { echo "\nCLEANUP ERR runBundle=$runBundleId: ".$e->getMessage()."\n"; }
     }
+    if($adminCreated) { try { $db->prepare('DELETE FROM harpp_users WHERE id=:id')->execute([':id'=>$adminId]); } catch (\Throwable $e) { echo "\nCLEANUP ERR admin=$adminId: ".$e->getMessage()."\n"; } }
+    if($otherCreated) { try { $db->prepare('DELETE FROM harpp_users WHERE id=:id')->execute([':id'=>$otherUserId]); } catch (\Throwable $e) { echo "\nCLEANUP ERR other=$otherUserId: ".$e->getMessage()."\n"; } }
 }
 
 $h->done();

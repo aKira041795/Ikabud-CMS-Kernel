@@ -90,6 +90,9 @@ final class HarppMemoryService
         $where = ["d.lifecycle_state IN ('DECIDED','ACKNOWLEDGED','APPLIED','CLOSED')",
                   '(a.title LIKE :kw1 OR a.decision LIKE :kw2 OR d.title LIKE :kw3 OR d.body LIKE :kw4 OR d.decision LIKE :kw5)'];
         if ($decisionId > 0) { $where[] = 'd.id=:decision'; $params[':decision'] = $decisionId; }
+        [$scopeSql, $scopeParams] = $this->decisionScopeWhere($actor, 'd');
+        if ($scopeSql !== '') { $where[] = substr($scopeSql, 4); } // strip leading 'AND ' for the $where list
+        foreach ($scopeParams as $k => $v) { $params[$k] = $v; }
         $sql = "SELECT a.id AS adr_id, d.id AS decision_id, a.title AS title, a.decision AS decision, "
              . 'a.rationale AS rationale, d.lifecycle_state AS lifecycle_state, d.version AS version, '
              . 'a.superseded_by AS adr_superseded_by, '
@@ -127,6 +130,9 @@ final class HarppMemoryService
                   . 'LEFT JOIN harpp_adrs a2 ON a2.decision_ref = d2.id '
                   . "WHERE a.payload LIKE :q AND (b.aggregate_type='decision' OR b.aggregate_type='run')";
             if ($artifactType !== '') { $aSql .= ' AND a.artifact_type=:atype'; $aParams[':atype'] = $artifactType; }
+            [$scopeSql2, $scopeParams2] = $this->decisionScopeWhere($actor, 'd2');
+            if ($scopeSql2 !== '') { $aSql .= ' ' . $scopeSql2; }
+            foreach ($scopeParams2 as $k => $v) { $aParams[$k] = $v; }
             $aSql .= ' ORDER BY a.id DESC LIMIT ' . $aLimit;
             $s = $this->db->prepare($aSql);
             $s->execute($aParams);
@@ -199,18 +205,29 @@ final class HarppMemoryService
      * Up to 5 short snippets (title + decision) for approved decisions linked to the
      * conversation, with ADR decision text preferred when present. Null when none.
      */
-    public function integrate(int $conversationId): ?array
+    public function integrate(int $conversationId, array $actor = []): ?array
     {
-        $states = implode(',', array_fill(0, count(self::APPROVED_STATES), '?'));
-        $s = $this->db->prepare(
-            "SELECT d.id AS decision_id, d.decision_key, d.title, d.decision, d.lifecycle_state, d.version, "
+        // Empty actor (legacy callers) -> owner semantics (unrestricted) to preserve behavior.
+        $scopeActor = $actor === [] ? ['role' => 'owner', 'id' => 0] : $actor;
+        [$scopeSql, $scopeParams] = $this->decisionScopeWhere($scopeActor, 'd');
+
+        $stateParams = [];
+        foreach (self::APPROVED_STATES as $i => $state) {
+            $stateParams[':st' . $i] = $state;
+        }
+        $stateList = implode(',', array_keys($stateParams));
+        $params = [':cid' => $conversationId] + $stateParams + $scopeParams;
+
+        $sql = "SELECT d.id AS decision_id, d.decision_key, d.title, d.decision, d.lifecycle_state, d.version, "
             . 'a.id AS adr_id, a.decision AS adr_decision, a.superseded_by AS adr_superseded_by, '
             . '(SELECT COUNT(*) FROM harpp_adrs x WHERE x.superseded_by = a.id) AS adr_superseded_count '
             . 'FROM harpp_decisions d LEFT JOIN harpp_adrs a ON a.decision_ref=d.id '
-            . 'WHERE d.conversation_id=? AND d.lifecycle_state IN (' . $states . ') '
-            . 'ORDER BY COALESCE(d.decided_at,d.applied_at,d.closed_at,d.created_at) DESC, d.id DESC LIMIT ' . self::INTEGRATE_LIMIT
-        );
-        $s->execute(array_merge([$conversationId], self::APPROVED_STATES));
+            . 'WHERE d.conversation_id=:cid AND d.lifecycle_state IN (' . $stateList . ')'
+            . ($scopeSql !== '' ? ' ' . $scopeSql : '')
+            . ' ORDER BY COALESCE(d.decided_at,d.applied_at,d.closed_at,d.created_at) DESC, d.id DESC LIMIT ' . self::INTEGRATE_LIMIT
+        ;
+        $s = $this->db->prepare($sql);
+        $s->execute($params);
         $out = [];
         foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $row) {
             // integrate() feeds the context summary: current + authoritative ONLY.
@@ -318,7 +335,36 @@ final class HarppMemoryService
     {
         $source = (string)($actor['source'] ?? '');
         if (!in_array($source, ['harpp', 'harpp_bridge'], true)) return false;
-        return in_array((string)($actor['role'] ?? ''), ['owner', 'admin', 'member'], true);
+        // RAG is the governance-memory surface for owner/admin/agent harnesses only.
+        // Members are denied (fail-closed) regardless of source.
+        return in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true);
+    }
+
+    /**
+     * Decision visibility scope for the RAG/memory surface, mirroring
+     * HarppDecisionService::appendDecisionScope for the owner/admin roles (the only
+     * roles actorAllowed() permits). Fail-closed: owner sees all; admin is restricted
+     * from `private` decisions they did not create and lack a `private_grant` for.
+     * Unconditionally enforced (not gated by foundation flags) so the RAG surface is
+     * scoped even while workspace/participant flags default to disabled.
+     *
+     * @param array $actor  ['id'=>int,'role'=>string, ...]
+     * @param string $alias table alias of harpp_decisions in the target query
+     * @return array{0:string,1:array<string,int>} [sqlSuffix, params]
+     */
+    private function decisionScopeWhere(array $actor, string $alias = 'd'): array
+    {
+        $role = (string)($actor['role'] ?? '');
+        if ($role === 'owner') {
+            return ['', []];
+        }
+        // admin (and any other non-owner that passed actorAllowed) -> private-gated.
+        $user = (int)($actor['id'] ?? 0);
+        $a = $alias;
+        $sql = "AND ({$a}.visibility <> 'private' OR {$a}.created_by = :admin_creator "
+             . "OR EXISTS(SELECT 1 FROM harpp_conversation_participants cp WHERE cp.conversation_id = {$a}.conversation_id "
+             . "AND cp.user_id = :admin_grant AND cp.grant_kind = 'private_grant' AND cp.revoked_at IS NULL))";
+        return [$sql, [':admin_creator' => $user, ':admin_grant' => $user]];
     }
 
     private static function truncate(string $value, int $max): string
