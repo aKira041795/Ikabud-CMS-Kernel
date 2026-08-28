@@ -79,6 +79,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const box = document.createElement('div');
         box.className = `message ${row.sender_type}`;
         box.textContent = row.body;
+        if (row.created_at) {
+          const time = document.createElement('time');
+          time.className = 'message-time';
+          time.dateTime = row.created_at;
+          time.textContent = row.created_at;
+          box.append(time);
+        }
         messages.append(box);
         last = Math.max(last, Number(row.id));
       }
