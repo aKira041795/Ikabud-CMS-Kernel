@@ -76,6 +76,11 @@ final class HarppRunService
     {
         if (!$this->ownerActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
         if (!preg_match('/^[A-Za-z0-9._:-]{2,191}$/', $runnerKey)) return HarppServiceResult::failure('Valid runner_key is required.', 422);
+        // Migration 019 must be applied to the tenant first; degrade with a clear
+        // code instead of a raw 500 when it is missing (consistent with the status page).
+        if (!$this->tableExists('harpp_runner_wake_requests')) {
+            return HarppServiceResult::failure('Wake requests are not migrated; run tenant:migrate for harpp.', 503, 'wake_unavailable');
+        }
         $s = $this->db->prepare('SELECT id FROM harpp_runners WHERE runner_key=:k');
         $s->execute([':k' => $runnerKey]);
         if (!$s->fetchColumn()) return HarppServiceResult::failure('Runner not found.', 404);
@@ -661,6 +666,15 @@ final class HarppRunService
         return (($actor['source'] ?? 'harpp') === 'harpp' && in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true))
             || (($actor['source'] ?? '') === 'harpp_bridge' && in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true))
             || (($actor['source'] ?? '') === 'kernel' && ($actor['role'] ?? '') === 'superadmin');
+    }
+
+    /** MySQL 5.7-safe existence check (used to degrade gracefully when migration 019
+     *  has not yet been applied to a tenant). */
+    private function tableExists(string $table): bool
+    {
+        $s = $this->db->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:t');
+        $s->execute([':t' => $table]);
+        return (int)$s->fetchColumn() > 0;
     }
 
     private function json(mixed $value): string
