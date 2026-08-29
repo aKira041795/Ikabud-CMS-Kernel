@@ -29,6 +29,7 @@ import os
 import socket
 import sys
 import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -564,6 +565,48 @@ def cmd_workflow_resume(args):
     print(json.dumps(w, indent=2))
 
 
+def cmd_wake_relay(args):
+    config = harpp_wake.harpp_client.load_config()
+    wol = config.get("wake_on_lan") or {}
+    runners = wol.get("runners") or {}
+
+    if args.check:
+        print(f"base_url={config.get('base_url', '')}")
+        print(f"tenant_id={config.get('tenant_id', '')}")
+        if not runners:
+            print("HARPP wake relay: no wake_on_lan.runners configured.")
+            print(f"Add to {harpp_client.config_path()}:")
+            print('  "wake_on_lan": { "runners": { "<desktop-runner-key>": { "mac": "AA:BB:CC:DD:EE:FF", "broadcast": "192.168.1.255", "port": 9 } } }')
+            print("Then: harpp wake-relay --check")
+            return
+        for runner_key, runner_spec in runners.items():
+            spec = runner_spec if isinstance(runner_spec, dict) else {}
+            mac = spec.get("mac") or wol.get("mac") or ""
+            broadcast = spec.get("broadcast") or wol.get("broadcast") or "255.255.255.255"
+            port = spec.get("port") or wol.get("port") or 9
+            print(f"runner {runner_key}: mac={mac} broadcast={broadcast} port={port}")
+        print("Note: WoL requires the target machine's NIC/BIOS to have Wake-on-LAN (Magic Packet) enabled.")
+        return
+
+    runner_keys = list(runners.keys())
+    print(f"HARPP wake relay: serving {len(runner_keys)} runner(s) ({', '.join(runner_keys)}). Ctrl-C to stop.", flush=True)
+    print("Each pass emits at most one magic packet per runner; raise --interval to throttle WoL further.", flush=True)
+    if args.once:
+        harpp_wake.wake_relay_pass(own_runner_key=None, config=config)
+        return
+    try:
+        while True:
+            try:
+                harpp_wake.wake_relay_pass(own_runner_key=None, config=config)
+            except Exception as exc:  # noqa: BLE001
+                print(f"HARPP wake relay: pass failed: {exc}", flush=True)
+            # Sleep outside the pass try so a failure can never skip the interval
+            # (avoids a hot-spin if wake_relay_pass ever raised).
+            time.sleep(max(1, args.interval))
+    except KeyboardInterrupt:
+        print("wake relay stopped", flush=True)
+
+
 def main():
     p = argparse.ArgumentParser(prog="harpp", description="HARPP harness bridge client")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -651,6 +694,11 @@ def main():
     wt.add_argument("--model", default=os.environ.get("HARPP_WAKE_MODEL", "deepseek/deepseek-v4-pro"))
     wt.add_argument("--no-terminal", action="store_true",
                     help="do not open a visible terminal for wake feedback (default: on)")
+
+    w = sub.add_parser("wake-relay", help="run as a LAN Wake-on-LAN relay: claim HARPP wake requests for configured runners and emit WoL magic packets")
+    w.add_argument("--interval", type=int, default=5, help="seconds between relay passes (default 5)")
+    w.add_argument("--once", action="store_true", help="run a single relay pass and exit (cron/testing)")
+    w.add_argument("--check", action="store_true", help="print relay configuration and exit")
 
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
     ib.add_argument("--clear", action="store_true")
@@ -808,6 +856,8 @@ def main():
                    max_per_hour=args.max_per_hour, timeout=args.timeout,
                    model=args.model or None, max_retries=args.max_retries,
                    open_terminal=not args.no_terminal and os.environ.get("HARPP_WAKE_TERMINAL", "1") != "0")
+    elif args.cmd == "wake-relay":
+        cmd_wake_relay(args)
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear, path=args.inbox)
     elif args.cmd == "idempotency":

@@ -5,6 +5,7 @@ Run:  python3 -m unittest tools.harpp-bridge.tests.test_harpp_wake
   or:  harpp self-test
 """
 import json
+import io
 import os
 import runpy
 import shutil
@@ -14,6 +15,7 @@ import tempfile
 import threading
 import time
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -28,8 +30,10 @@ class HarppDesktopRunnerTest(unittest.TestCase):
         self.wake = self.module["harpp_wake"]
         self.originals = {name: getattr(self.client, name) for name in (
             "register_runner", "reconcile_runs", "claim_run", "conversation_context",
-            "mark_run_running", "renew_run", "complete_run", "fail_run", "cancel_run")}
+            "mark_run_running", "renew_run", "complete_run", "fail_run", "cancel_run",
+            "load_config")}
         self.original_spawn = self.wake.spawn_agent
+        self.original_wake_relay_pass = self.wake.wake_relay_pass
         self.runner_globals = self.module["_run_desktop_pass"].__globals__
         self.original_interval = self.runner_globals["RUN_LEASE_RENEW_INTERVAL"]
 
@@ -37,7 +41,36 @@ class HarppDesktopRunnerTest(unittest.TestCase):
         for name, value in self.originals.items():
             setattr(self.client, name, value)
         self.wake.spawn_agent = self.original_spawn
+        self.wake.wake_relay_pass = self.original_wake_relay_pass
         self.runner_globals["RUN_LEASE_RENEW_INTERVAL"] = self.original_interval
+
+    def test_wake_relay_check_without_runners_prints_guidance(self):
+        self.client.load_config = lambda: {
+            "base_url": "https://harpp.example.com", "tenant_id": "tenant-test"}
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            self.module["cmd_wake_relay"](
+                self.module["argparse"].Namespace(check=True, once=False, interval=5))
+
+        text = output.getvalue()
+        self.assertIn("base_url=https://harpp.example.com", text)
+        self.assertIn("tenant_id=tenant-test", text)
+        self.assertIn("HARPP wake relay: no wake_on_lan.runners configured.", text)
+        self.assertIn("Then: harpp wake-relay --check", text)
+
+    def test_wake_relay_once_runs_single_pure_relay_pass(self):
+        config = {"base_url": "https://harpp.example.com", "tenant_id": "tenant-test",
+                  "wake_on_lan": {"runners": {"desktop-target": {}}}}
+        calls = []
+        self.client.load_config = lambda: config
+        self.wake.wake_relay_pass = lambda **kwargs: calls.append(kwargs)
+
+        with redirect_stdout(io.StringIO()):
+            self.module["cmd_wake_relay"](
+                self.module["argparse"].Namespace(check=False, once=True, interval=5))
+
+        self.assertEqual(calls, [{"own_runner_key": None, "config": config}])
 
     def _start(self):
         return self.module["_start_desktop_pass"](
@@ -2304,6 +2337,35 @@ class WakeAdapterTest(unittest.TestCase):
 
         self.assertEqual(wake_calls, ["other"])
         self.assertEqual(delivered, [(2, "tok")])
+
+    def test_wake_relay_pass_without_own_key_only_claims_configured_runner(self):
+        claims = []
+        delivered = []
+        wake_calls = []
+
+        def claim(runner_key, **kw):
+            claims.append(runner_key)
+            return {"data": {"request": {"id": 1}, "claim_token": "tok"}}
+
+        harpp_wake.harpp_client.claim_runner_wake = claim
+        harpp_wake.harpp_client.deliver_runner_wake = lambda rid, token, **kw: delivered.append((rid, token))
+        harpp_wake.wake_runner = lambda key, **kw: wake_calls.append(key) or (True, "sent")
+
+        harpp_wake.wake_relay_pass(own_runner_key=None, config={"wake_on_lan": {"runners": {
+            "desktop-target": {"mac": "AA:BB:CC:DD:EE:FF", "broadcast": "192.168.1.255"}}}})
+
+        self.assertEqual(claims, ["desktop-target"])
+        self.assertEqual(wake_calls, ["desktop-target"])
+        self.assertEqual(delivered, [(1, "tok")])
+
+    def test_wake_relay_pass_without_own_key_or_configured_runners_is_noop(self):
+        calls = []
+        harpp_wake.harpp_client.claim_runner_wake = lambda **kw: calls.append("claim")
+        harpp_wake.wake_runner = lambda *args, **kw: calls.append("wake") or (True, "sent")
+
+        harpp_wake.wake_relay_pass(own_runner_key=None, config={})
+
+        self.assertEqual(calls, [])
 
     def test_wake_relay_pass_fails_other(self):
         failed = []
