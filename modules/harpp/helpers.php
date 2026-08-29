@@ -26,6 +26,8 @@ require_once __DIR__ . '/services/HarppCollaborationPolicy.php';
 require_once __DIR__ . '/services/HarppCollaborationService.php';
 require_once __DIR__ . '/services/HarppRiskService.php';
 require_once __DIR__ . '/services/HarppRunService.php';
+require_once __DIR__ . '/services/HarppWorkspaceService.php';
+require_once __DIR__ . '/services/HarppProjectService.php';
 require_once __DIR__ . '/services/HarppContextSummaryService.php';
 require_once __DIR__ . '/services/HarppMemoryService.php';
 require_once __DIR__ . '/services/HarppArtifactService.php';
