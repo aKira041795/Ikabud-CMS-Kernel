@@ -3989,16 +3989,7 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
         if not items:
             return quick_done
     state = read_state()
-    # De-duplicate with the run-queue path: every owner message also gets a work
-    # run queued (autoprocess), which the desktop runner executes and reports.
-    # If the wake agent re-processes those messages it double-runs the same intent
-    # (wasted tokens) and posts duplicate chat reports. Skip items owned by an
-    # active/queued run; the desktop runner owns them. Simple Q&A still gets the
-    # cheap quick reply on its own tier (which cancels the redundant run).
-    run_owned_states = {"QUEUED", "CLAIMED", "RUNNING"}
-    work = [r for r in items if str(r.get("run_state") or "").upper() not in run_owned_states]
-    if not work:
-        return quick_done
+    work = items
 
     attempted = set(state.get("last_attempt_messages", []))
     has_new_item = bool(attempted) and any(int(r.get("id", 0)) not in attempted for r in work)
