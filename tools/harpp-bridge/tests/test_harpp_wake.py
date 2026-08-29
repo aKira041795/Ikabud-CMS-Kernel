@@ -2595,5 +2595,87 @@ class ContextBlockTest(unittest.TestCase):
         self.assertIn("state=SUCCEEDED", prompts[0])
 
 
+class HarppWorkspaceFolderTest(unittest.TestCase):
+    """Workspace -> local folder mapping (base/workspace_key) + creation checks."""
+
+    def setUp(self):
+        self.module = runpy.run_path(str(Path(__file__).resolve().parent.parent / "harpp"))
+        self.client = self.module["harpp_client"]
+        self.wake = self.module["harpp_wake"]
+        self.tmp = tempfile.mkdtemp(prefix="harpp-ws-")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_projects_base_explicit(self):
+        cfg = {"base_url": "https://h.example.com", "tenant_id": "1", "projects_base": "/var/www/html"}
+        self.assertEqual(self.client.projects_base(config=cfg), "/var/www/html")
+
+    def test_projects_base_defaults_to_workspace_parent(self):
+        cfg = {"base_url": "https://h.example.com", "tenant_id": "1", "workspace": "/var/www/html/applicationostest"}
+        self.assertEqual(self.client.projects_base(config=cfg), "/var/www/html")
+
+    def test_projects_base_none_without_config(self):
+        self.assertIsNone(self.client.projects_base(
+            config={"base_url": "https://h.example.com", "tenant_id": "1"}))
+
+    def test_workspace_dir_for_joins_base_and_key(self):
+        cfg = {"projects_base": self.tmp}
+        self.assertEqual(self.client.workspace_dir_for("newproject", config=cfg),
+                         str(Path(self.tmp) / "newproject"))
+
+    def test_workspace_dir_for_rejects_unsafe_keys(self):
+        cfg = {"projects_base": self.tmp}
+        for bad in ("../escape", "a/b", "..", "", "A", "a" * 70, "-x", "1x"):
+            self.assertIsNone(self.client.workspace_dir_for(bad, config=cfg), f"key {bad!r} must be rejected")
+
+    def test_ensure_workspace_dir_creates_missing(self):
+        target = str(Path(self.tmp) / "alpha")
+        self.assertEqual(self.wake.ensure_workspace_dir(target), target)
+        self.assertTrue(Path(target).is_dir())
+
+    def test_ensure_workspace_dir_reuses_existing_dir(self):
+        existing = Path(self.tmp) / "beta"
+        existing.mkdir()
+        marker = existing / "keep.txt"
+        marker.write_text("x", encoding="utf-8")
+        self.assertEqual(self.wake.ensure_workspace_dir(str(existing)), str(existing))
+        self.assertTrue(marker.is_file(), "existing folder content must never be overwritten")
+
+    def test_ensure_workspace_dir_never_clobbers_a_file(self):
+        target = Path(self.tmp) / "gamma"
+        target.write_text("important", encoding="utf-8")
+        self.assertIsNone(self.wake.ensure_workspace_dir(str(target)))
+        self.assertEqual(target.read_text(encoding="utf-8"), "important")
+
+    def test_ensure_workspace_dir_none_for_empty(self):
+        self.assertIsNone(self.wake.ensure_workspace_dir(None))
+
+    def test_conversation_workspace_dir_resolves_and_creates(self):
+        cfg = {"projects_base": self.tmp, "base_url": "https://h.example.com", "tenant_id": "1"}
+        original = self.client.context_for_conversation
+        self.client.context_for_conversation = lambda cid, **kw: {
+            "conversation": {"id": cid, "workspace_key": "newproject", "workspace_id": 7,
+                             "project_id": None, "visibility": "workspace"}}
+        try:
+            result = self.wake.conversation_workspace_dir(42, config=cfg)
+        finally:
+            self.client.context_for_conversation = original
+        self.assertEqual(result, str(Path(self.tmp) / "newproject"))
+        self.assertTrue((Path(self.tmp) / "newproject").is_dir())
+
+    def test_conversation_workspace_dir_falls_back_when_no_scope(self):
+        cfg = {"projects_base": self.tmp}
+        original = self.client.context_for_conversation
+        self.client.context_for_conversation = lambda cid, **kw: {"conversation": {"id": cid, "workspace_key": ""}}
+        try:
+            self.assertIsNone(self.wake.conversation_workspace_dir(42, config=cfg))
+        finally:
+            self.client.context_for_conversation = original
+
+    def test_conversation_workspace_dir_none_without_conv(self):
+        self.assertIsNone(self.wake.conversation_workspace_dir(None))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -138,6 +138,61 @@ def default_workspace() -> str | None:
         return None
 
 
+def ensure_workspace_dir(target: str | None) -> str | None:
+    """Create the HARPP workspace folder if missing; never overwrite existing content.
+
+    Returns the path, or None when the target is unusable. Raises only when the
+    target exists as a file (a real conflict — never clobber it). Idempotent: an
+    existing directory is reused as-is, matching the "check there's no existing
+    folder name before creating" requirement via the DB-level workspace_key
+    uniqueness plus this no-overwrite guarantee.
+    """
+    if not target:
+        return None
+    try:
+        p = Path(target)
+    except TypeError:  # noqa: BLE001
+        return None
+    if p.exists() and not p.is_dir():
+        log(f"workspace folder conflict: path exists as a file: {target}")
+        return None
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:  # noqa: BLE001 - fs errors must never break the wake loop
+        log(f"workspace folder create failed ({target}): {exc}")
+        return None
+    return str(p)
+
+
+def conversation_workspace_dir(conv: int | None, config=None) -> str | None:
+    """Resolve the local working folder for a conversation's HARPP workspace.
+
+    The folder is <projects_base>/<workspace_key> (from the conversation's scope,
+    exposed by the bridge conversation-context envelope). It is created when
+    missing. Falls back to None when there is no workspace scope or base so the
+    caller can keep the configured default_workspace(). Never raises.
+    """
+    if not conv or int(conv) < 1:
+        return None
+    try:
+        env = harpp_client.context_for_conversation(int(conv), config=config, use_cache=True)
+    except Exception:  # noqa: BLE001 - a context miss must not break the wake loop
+        return None
+    if not isinstance(env, dict):
+        return None
+    conversation = env.get("conversation")
+    if not isinstance(conversation, dict):
+        return None
+    key = str(conversation.get("workspace_key") or "").strip()
+    if not key:
+        return None
+    try:
+        target = harpp_client.workspace_dir_for(key, config=config)
+    except Exception:  # noqa: BLE001
+        return None
+    return ensure_workspace_dir(target)
+
+
 # Terminal emulators, in preference order, with the arg to run a command after.
 TERMINAL_EMULATORS = [
     ("gnome-terminal", ["--"]),
@@ -2808,7 +2863,7 @@ def _exec_workflow_command(cmd, conv: int) -> str:
         stages = [dict(stage) for stage in stages]
         preferred_model = args.get("model")
         title = args.get("title") or (manifest.get("title") if isinstance(manifest, dict) else "") or name
-        ws = args.get("workspace") or default_ws or default_workspace()
+        ws = args.get("workspace") or default_ws or conversation_workspace_dir(conv) or default_workspace()
         max_repairs = args.get("max_repairs")
         if max_repairs is None and isinstance(manifest, dict):
             max_repairs = manifest.get("max_repairs")
@@ -3223,7 +3278,7 @@ def _exec_plan_command(record: dict, conv: int, default_model: str) -> str:
     title = f"Owner plan execution ({', '.join(s['name'] for s in stages)})"
     wid = start_workflow(
         title=title, conversation_id=conv, stages=stages,
-        workspace=default_workspace(), max_repairs=2,
+        workspace=conversation_workspace_dir(conv) or default_workspace(), max_repairs=2,
         preferred_model=None,
     )
     names = ", ".join(s["name"] for s in stages)

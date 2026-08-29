@@ -62,6 +62,8 @@ try {
     $summary=(array)($data['summary']??[]);
     $summaryDecisions=(array)($summary['decisions']??[]);
     $assert('context includes durable bounded summary',!empty($ctx['ok'])&&($summary['title']??'')==='Memory conversation'&&(int)($summary['version']??0)>0&&count((array)($summary['recent']??[]))>=1,'ctx='.json_encode($ctx));
+    $conversation=(array)($data['conversation']??[]);
+    $assert('context exposes conversation workspace scope',(int)($conversation['workspace_id']??0)>0&&($conversation['workspace_key']??'')==='legacy'&&($conversation['workspace_name']??'')==='Legacy','conv='.json_encode($conversation));
     $assert('run-N+1 reuses an applicable durable decision',count($summaryDecisions)>=1&&in_array($dk,array_column($summaryDecisions,'decision_key'),true)&&($summaryDecisions[0]['decision']??'')==='Use option B','summary='.json_encode($summary));
     $assert('summary version drives cache invalidation',(int)($data['cache']['version']??0)=== (int)($summary['version']??0)&&(int)($data['cache']['version']??0)>0,'cache='.json_encode($data['cache']??[]));
     $assert('context still returns messages and runs',count((array)($data['messages']??[]))>=2&&count((array)($data['runs']??[]))>=1,'data='.json_encode(array_keys($data)));

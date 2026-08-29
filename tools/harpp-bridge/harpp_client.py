@@ -14,6 +14,7 @@ Set HARPP_INSECURE=1 only for local dev against self-signed HTTPS.
 """
 import json
 import os
+import re
 import ssl
 import time
 import urllib.error
@@ -199,6 +200,47 @@ def workspace_path(config=None):
         return None
     p = Path(raw).expanduser()
     return str(p) if p.is_absolute() else None
+
+
+# Safe HARPP workspace_key form (must mirror the PHP service validation so a key
+# can never be smuggled into a filesystem path). Lowercase start; [a-z0-9_-]{1,63}.
+_WORKSPACE_KEY_RE = re.compile(r"^[a-z][a-z0-9_-]{1,63}$")
+
+
+def projects_base(config=None):
+    """Absolute base directory where per-workspace folders are created.
+
+    Set with: harpp config set projects_base /path/to/base
+    Defaults to the parent of the configured `workspace` (e.g. /var/www/html when
+    workspace is /var/www/html/applicationostest). Returns None when unavailable.
+    """
+    try:
+        cfg = config or load_config()
+    except HarppError:
+        cfg = {}
+    raw = str((cfg or {}).get("projects_base", "") or "").strip()
+    if raw:
+        p = Path(raw).expanduser()
+        return str(p) if p.is_absolute() else None
+    ws = workspace_path(config=cfg)
+    if ws:
+        return str(Path(ws).parent)
+    return None
+
+
+def workspace_dir_for(workspace_key, config=None):
+    """Local folder path for a HARPP workspace: <projects_base>/<workspace_key>.
+
+    Returns None when the base or a valid key is unavailable. The folder is NOT
+    created here — the daemon's ensure_workspace_dir() does that (it needs the
+    existence check + fs access).
+    """
+    if not workspace_key or not _WORKSPACE_KEY_RE.match(str(workspace_key)):
+        return None
+    base = projects_base(config=config)
+    if not base:
+        return None
+    return str(Path(base) / str(workspace_key))
 
 
 def _query(params):

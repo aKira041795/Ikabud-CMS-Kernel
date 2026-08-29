@@ -452,7 +452,15 @@ final class HarppRunService
     {
         if (!$this->bridgeActor($actor) || $conversationId <= 0) return HarppServiceResult::failure('Forbidden.', 403);
         $limit = max(1, min(50, $limit));
-        $c = $this->db->prepare('SELECT id,title,harness_session_id,status,version,updated_at FROM harpp_conversations WHERE id=:id');
+        $c = $this->db->prepare(
+            'SELECT c.id,c.title,c.harness_session_id,c.status,c.version,c.updated_at,c.workspace_id,c.project_id,c.visibility,
+                    w.workspace_key,w.name AS workspace_name,
+                    p.project_key,p.name AS project_name
+             FROM harpp_conversations c
+             LEFT JOIN harpp_workspaces w ON w.id=c.workspace_id
+             LEFT JOIN harpp_projects p ON p.id=c.project_id
+             WHERE c.id=:id'
+        );
         $c->execute([':id' => $conversationId]);
         $conversation = $c->fetch(PDO::FETCH_ASSOC);
         if (!is_array($conversation)) return HarppServiceResult::failure('Conversation not found.', 404);
