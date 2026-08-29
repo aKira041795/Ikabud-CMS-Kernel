@@ -193,6 +193,46 @@ def conversation_workspace_dir(conv: int | None, config=None) -> str | None:
     return ensure_workspace_dir(target)
 
 
+# Throttle the workspace provisioning pass so the watch loop (every few seconds)
+# does not hammer the bridge. A workspace created in the UI gets its local folder
+# within one interval.
+_WS_PROVISION_LAST = 0.0
+_WS_PROVISION_INTERVAL = 30.0
+
+
+def provision_workspaces(config=None, force=False) -> int:
+    """Ensure a local folder exists for every active HARPP workspace.
+
+    Folder = <projects_base>/<workspace_key>, created by ensure_workspace_dir()
+    (never overwrites existing content). Called each watch-loop pass, throttled to
+    once per _WS_PROVISION_INTERVAL unless force=True. Returns folders ensured.
+    """
+    global _WS_PROVISION_LAST
+    if not force and time.time() - _WS_PROVISION_LAST < _WS_PROVISION_INTERVAL:
+        return 0
+    _WS_PROVISION_LAST = time.time()
+    try:
+        workspaces = harpp_client.list_workspaces(config=config)
+    except Exception:  # noqa: BLE001 - a bridge miss must not break the loop
+        return 0
+    ensured = 0
+    for workspace in workspaces or []:
+        if not isinstance(workspace, dict):
+            continue
+        if str(workspace.get("status") or "").strip() != "active":
+            continue
+        key = str(workspace.get("workspace_key") or "").strip()
+        if not key:
+            continue
+        try:
+            target = harpp_client.workspace_dir_for(key, config=config)
+        except Exception:  # noqa: BLE001
+            continue
+        if target and ensure_workspace_dir(target):
+            ensured += 1
+    return ensured
+
+
 # Terminal emulators, in preference order, with the arg to run a command after.
 TERMINAL_EMULATORS = [
     ("gnome-terminal", ["--"]),

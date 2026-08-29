@@ -165,6 +165,13 @@ try {
         && str_contains($js, 'HARPP_ACTIVE_WORKSPACE'));
     $messengerSource = (string)file_get_contents(dirname(__DIR__) . '/assets/messenger.js');
     $assert('messenger passes active workspace on conversation create', str_contains($messengerSource, 'HARPP_ACTIVE_WORKSPACE') && str_contains($messengerSource, 'workspace_id'));
+
+    // Workspace -> local-folder provisioning: the bridge must expose active
+    // workspaces so the local daemon can create a folder for each one.
+    $assert('bridge workspace-list route registered', str_contains($routesSource, "'/api/v1/harpp/bridge/workspaces' => 'harpp:harppBridgeWorkspaceList'"));
+    $assert('bridge workspace-list handler exists', str_contains($handlerSource, 'function harppBridgeWorkspaceList('));
+    $bridgeSource = (string)file_get_contents(dirname(__DIR__) . '/services/HarppBridgeService.php');
+    $assert('bridge workspace-list service returns active workspaces', str_contains($bridgeSource, 'function listWorkspaces(') && str_contains($bridgeSource, "FROM harpp_workspaces WHERE status='active'"));
 } finally {
     foreach (array_reverse($workspaceIds) as $workspaceId) {
         $db->prepare('DELETE FROM harpp_project_memberships WHERE project_id IN (SELECT id FROM harpp_projects WHERE workspace_id=:id)')->execute([':id' => $workspaceId]);

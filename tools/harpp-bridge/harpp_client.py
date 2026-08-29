@@ -243,6 +243,21 @@ def workspace_dir_for(workspace_key, config=None):
     return str(Path(base) / str(workspace_key))
 
 
+def list_workspaces(config=None):
+    """Return active HARPP workspaces as [{id, workspace_key, name, status}].
+
+    Fetched from the bridge so the local daemon can provision a folder for every
+    workspace the owner creates. Returns [] on any failure (never raises).
+    """
+    try:
+        response = api("GET", "/api/v1/harpp/bridge/workspaces", config=config)
+        data = response.get("data") if isinstance(response, dict) else None
+        workspaces = data.get("workspaces") if isinstance(data, dict) else None
+        return workspaces if isinstance(workspaces, list) else []
+    except Exception:  # noqa: BLE001 - provisioning must never break the wake loop
+        return []
+
+
 def _query(params):
     from urllib.parse import urlencode
     # `cursor`/`after` are kept even when 0 so the harness always gets an explicit

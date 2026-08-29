@@ -397,6 +397,12 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             harpp_wake.report_daemon_status(runner_key=_desktop_runner_key())
             # Claim + satisfy pending wake requests (Nudge) for runners we can serve.
             harpp_wake.wake_relay_pass(own_runner_key=_desktop_runner_key())
+            # Provision a local folder for every active HARPP workspace so a
+            # workspace created in the UI gets its project folder (base/key) here.
+            try:
+                harpp_wake.provision_workspaces()
+            except Exception as e:
+                print(f"harpp watch: workspace provisioning failed: {e}", flush=True)
         except Exception as e:
             print(f"harpp watch: job monitor failed: {e}", flush=True)
         if wake:

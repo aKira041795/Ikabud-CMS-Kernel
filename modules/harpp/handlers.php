@@ -494,6 +494,7 @@ function harppBridgeDecisionGet(array $params=[]):void { harppHandle(function()u
 function harppBridgeMemorySearch(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->memorySearch($a,harppRequestData(),harppCurrentTenantId()));}); }
 function harppBridgeArtifactBundleByDecision(array $params=[]):void { harppHandle(function()use($params):void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->artifactBundleForDecision($a,(int)($params['id']??0),harppCurrentTenantId()));}); }
 function harppBridgeConversationContext(array $params=[]):void { harppHandle(function()use($params):void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->conversationContext($a,(int)($params['id']??0),harppRequestData(),harppCurrentTenantId()));}); }
+function harppBridgeWorkspaceList(array $params=[]):void { harppHandle(function():void{$a=harppBridgeAuthenticated();if($a)harppJson((new HarppBridgeService(harppDb()))->listWorkspaces($a,harppCurrentTenantId()));}); }
 
 // Reviewable artifact bundles (approved-task detail + shareable/downloadable files).
 function harppArtifactBundleView(array $params=[]):void { harppHandle(function()use($params):void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new \Harpp\Services\HarppArtifactService(harppDb()))->view((int)($params['id']??0),$u,harppCurrentTenantId()));}); }

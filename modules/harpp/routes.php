@@ -57,6 +57,7 @@ return [
         '/api/v1/harpp/bridge/messages' => 'harpp:harppBridgeMessageList',
         '/api/v1/harpp/bridge/runs/{id}' => 'harpp:harppBridgeRunStatus',
         '/api/v1/harpp/bridge/conversations/{id}/context' => 'harpp:harppBridgeConversationContext',
+        '/api/v1/harpp/bridge/workspaces' => 'harpp:harppBridgeWorkspaceList',
         '/api/v1/harpp/bridge/conversations' => 'harpp:harppBridgeConversationList',
         '/api/v1/harpp/bridge/notifications' => 'harpp:harppBridgeNotificationList',
         '/api/v1/harpp/bridge/notifications/unread-count' => 'harpp:harppBridgeNotificationUnread',

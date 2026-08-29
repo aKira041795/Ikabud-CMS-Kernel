@@ -2676,6 +2676,40 @@ class HarppWorkspaceFolderTest(unittest.TestCase):
     def test_conversation_workspace_dir_none_without_conv(self):
         self.assertIsNone(self.wake.conversation_workspace_dir(None))
 
+    def test_provision_workspaces_creates_folder_per_active_workspace(self):
+        cfg = {"projects_base": self.tmp, "base_url": "https://h.example.com", "tenant_id": "1"}
+        original = self.client.list_workspaces
+        self.client.list_workspaces = lambda config=None: [
+            {"id": 1, "workspace_key": "newproject", "name": "New Project", "status": "active"},
+            {"id": 2, "workspace_key": "archivedone", "name": "Archived", "status": "archived"},
+            {"id": 3, "workspace_key": "", "name": "No key", "status": "active"},
+        ]
+        self.wake._WS_PROVISION_LAST = 0.0
+        try:
+            ensured = self.wake.provision_workspaces(config=cfg, force=True)
+        finally:
+            self.client.list_workspaces = original
+        self.assertGreaterEqual(ensured, 1)
+        self.assertTrue((Path(self.tmp) / "newproject").is_dir())
+        self.assertFalse((Path(self.tmp) / "archivedone").exists(),
+                         "archived workspaces must not get folders")
+
+    def test_provision_workspaces_throttled(self):
+        cfg = {"projects_base": self.tmp}
+        original = self.client.list_workspaces
+        self.client.list_workspaces = lambda config=None: [
+            {"id": 1, "workspace_key": "throttle", "name": "T", "status": "active"}]
+        self.wake._WS_PROVISION_LAST = 0.0
+        try:
+            first = self.wake.provision_workspaces(config=cfg)
+            second = self.wake.provision_workspaces(config=cfg)  # within interval -> throttled
+            forced = self.wake.provision_workspaces(config=cfg, force=True)
+        finally:
+            self.client.list_workspaces = original
+        self.assertGreaterEqual(first, 1)
+        self.assertEqual(second, 0)
+        self.assertGreaterEqual(forced, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

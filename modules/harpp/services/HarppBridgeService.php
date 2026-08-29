@@ -231,6 +231,12 @@ final class HarppBridgeService
         return (new HarppRunService($this->db))->context($actor, $conversationId, (int)($input['limit'] ?? 20));
     }
 
+    public function listWorkspaces(array $actor, int $tenantId)
+    {
+        $rows = $this->db->query("SELECT id,workspace_key,name,status FROM harpp_workspaces WHERE status='active' ORDER BY name,id")->fetchAll(\PDO::FETCH_ASSOC);
+        return HarppServiceResult::success(['workspaces' => $rows]);
+    }
+
     public function listConversations(array $actor, array $filters, int $tenantId)
     {
         return (new HarppMessagingService($this->db))->listConversations($actor, $filters, $tenantId);
