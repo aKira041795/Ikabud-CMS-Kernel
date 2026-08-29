@@ -35,6 +35,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     activeSelect.addEventListener('change', () => persistActive(activeSelect.value));
 
+    // ── Users (enrollment dropdown) ────────────────────────────────────
+    async function loadUsers() {
+        try { users = (await Harpp.fetch('/api/v1/harpp/users')).data.users || []; }
+        catch (e) { users = []; }
+    }
+
     // ── Members ────────────────────────────────────────────────────────
     async function enroll(workspaceId, userId, action, roles) {
         try {
@@ -69,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const u = users.find(x => Number(x.id) === Number(userSel.value));
             if (u) { rolesGrid.replaceChildren(); for (const node of buildRolesGrid(defaultRolesFor(u.role)).childNodes) rolesGrid.append(node); }
         });
-        const submit = button('Enroll / update', () => {}, ''); submit.type = 'submit'; submit.textContent = 'Enroll / update';
+        const submit = button('Enroll / update', () => { }, ''); submit.type = 'submit'; submit.textContent = 'Enroll / update';
         const row = document.createElement('div'); row.className = 'inline-form'; row.style.width = '100%';
         row.append(userSel, actionSel, submit);
         wrap.append(row, rolesGrid);
