@@ -329,6 +329,28 @@ class HarppWakeTest(unittest.TestCase):
         self.assertFalse(harpp_wake._is_simple_message("review my approach"))
         self.assertFalse(harpp_wake._is_simple_message(""))
 
+    def test_maybe_wake_skips_run_owned_message(self):
+        # A non-simple message with an active work run is owned by the desktop
+        # runner (which executes + reports it). The wake agent must NOT re-process
+        # it — otherwise the same intent is executed twice and duplicate chat
+        # reports are posted (wasted tokens + messy conversation).
+        self.inbox.write_text(json.dumps(
+            {"kind": "message", "id": 1, "conversation_id": 2, "body": "update the kernel",
+             "run_id": 240, "run_state": "RUNNING"}) + "\n", encoding="utf-8")
+        calls = []
+        original = harpp_wake.spawn_agent
+        harpp_wake.spawn_agent = lambda *a, **kw: calls.append(kw) or (True, None)
+        try:
+            ok = harpp_wake.maybe_wake(str(self.inbox), enabled=True, command=None,
+                                       verify_delivery_receipts=False, cooldown=0,
+                                       max_per_hour=0, timeout=30)
+        finally:
+            harpp_wake.spawn_agent = original
+        self.assertFalse(ok, "run-owned message must be skipped, not processed by the wake agent")
+        self.assertEqual(calls, [], "no wake agent may spawn for a run-owned message")
+        self.assertEqual(len(harpp_wake.unprocessed_items(str(self.inbox))), 1,
+                         "run-owned message stays staged for the desktop runner")
+
     def test_maybe_wake_quick_reply_path(self):
         # Real mode (command=None): a simple message is answered by the fast tier,
         # not the agent, and is marked processed.
