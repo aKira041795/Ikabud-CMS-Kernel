@@ -111,10 +111,13 @@ def _run_desktop_pass(*, workspace, wake_command, model, timeout, open_terminal)
 
         renewer = threading.Thread(target=renew_lease, daemon=True)
         renewer.start()
+        # Run inside the conversation's HARPP workspace folder (base/workspace_key)
+        # so the claimed task executes in the right project dir, not the global one.
+        run_workspace = harpp_wake.conversation_workspace_dir(conversation_id) or workspace
         try:
             ok, reason = harpp_wake.spawn_agent(
                 prompt, command=wake_command, model=model or harpp_wake.DEFAULT_MODEL,
-                timeout=timeout, cwd=workspace, verify_delivery_receipts=False,
+                timeout=timeout, cwd=run_workspace, verify_delivery_receipts=False,
                 open_terminal=open_terminal, return_reason=True)
         finally:
             stop_renewal.set()
