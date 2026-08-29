@@ -27,6 +27,27 @@ effects; domain commits never claim push or Kernel audit atomicity.
 | UI | Installable PWA messenger (DiSyL) + Web Push |
 | Harness bridge | REST API (`/api/v1/harpp/bridge/*`) consumed by the local client |
 
+### Workspaces → local project folders (zero-config)
+
+HARPP workspaces (and their projects/conversations) map to real folders on the
+**local daemon machine** so the agent works in the right project directory:
+
+- A workspace `key` resolves to `<projects_base>/<key>`, e.g. `ikabudsix` →
+  `/var/www/html/ikabudsix`.
+- `projects_base` defaults to the **parent of the configured `workspace`** — no
+  extra config is needed on a new desktop. Override only when desired:
+  `harpp config set projects_base /path/to/base`.
+- The daemon **creates the folder automatically** (`ensure_workspace_dir`, no-clobber:
+  creates if missing, reuses existing dirs, never overwrites) on first work in that
+  workspace, and a throttled `provision_workspaces()` pass ensures every active
+  workspace has its folder. Conversation-scoped agent runs execute **inside** the
+  workspace folder.
+- Setup on any new desktop is just the normal HARPP config
+  (`harpp config set base_url|bridge_key|tenant_id|workspace …`), then start the
+  daemon (`harpp watch --wake`). No manual folder/config/Python edits.
+
+### The HARPP loop
+
 ### The HARPP loop
 
 ```
