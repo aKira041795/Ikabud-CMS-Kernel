@@ -4008,7 +4008,13 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
         all_ok = True
         successful = 0
         for chosen, batch in _temporary_model_batches(work, model):
-            prompt = task_prompt(inbox, batch, workspace=workspace)
+            # When a batch is bound to a single conversation, run the agent inside
+            # that conversation's HARPP workspace folder (base/workspace_key) so the
+            # owner's intent executes in the right project dir, not the global one.
+            batch_convs = {int(item.get("conversation_id")) for item in batch if item.get("conversation_id")}
+            run_workspace = conversation_workspace_dir(next(iter(batch_convs))) if len(batch_convs) == 1 else None
+            run_workspace = run_workspace or workspace
+            prompt = task_prompt(inbox, batch, workspace=run_workspace)
             chain = []
             for candidate in (chosen, model, *MODEL_FALLBACK_ORDER):
                 if candidate and candidate not in chain:
@@ -4021,7 +4027,7 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                 log(f"spawning wake agent with model {attempt_model}")
                 attempt = spawn_agent(
                     prompt, command=command, model=attempt_model, timeout=timeout,
-                    expected_replies=len(batch), cwd=workspace,
+                    expected_replies=len(batch), cwd=run_workspace,
                     expected_source_ids=[int(item.get("id", 0)) for item in batch],
                     verify_delivery_receipts=verify_delivery_receipts,
                     open_terminal=open_terminal, return_reason=True)
