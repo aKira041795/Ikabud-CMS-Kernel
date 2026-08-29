@@ -118,15 +118,31 @@ def _run_desktop_pass(*, workspace, wake_command, model, timeout, open_terminal)
             ok, reason = harpp_wake.spawn_agent(
                 prompt, command=wake_command, model=model or harpp_wake.DEFAULT_MODEL,
                 timeout=timeout, cwd=run_workspace, verify_delivery_receipts=False,
-                open_terminal=open_terminal, return_reason=True)
+                open_terminal=open_terminal, return_reason=True, require_marker=False)
         finally:
             stop_renewal.set()
             renewer.join(timeout=1)
         result = {"runner_key": runner_key, "reason": reason or ("completed" if ok else "agent failed")}
-        if ok:
-            harpp_client.complete_run(run_id, claim_token, result=result)
-        else:
-            harpp_client.fail_run(run_id, claim_token, result=result)
+
+        def _transition(target: str, payload: dict) -> bool:
+            try:
+                call = harpp_client.complete_run if target == "SUCCEEDED" else harpp_client.fail_run
+                response = call(run_id, claim_token, result=payload)
+                return bool((response or {}).get("ok"))
+            except Exception as exc:  # noqa: BLE001
+                print(f"harpp watch: run {run_id} {target} transition error: {exc}", flush=True)
+                return False
+
+        # A failed terminal transition would leave the run RUNNING and silently
+        # reconciled to STALLED. Always land on a terminal state; retry FAILED once
+        # so a transient 409 can't strand the run.
+        if ok and _transition("SUCCEEDED", result):
+            pass
+        elif not _transition("FAILED", result):
+            retried = _transition("FAILED", {**result, "error": "first terminal transition failed"})
+            if not retried:
+                print(f"harpp watch: run {run_id} could not reach a terminal state (will be reconciled); "
+                      f"ok={ok} reason={reason}", flush=True)
     except Exception as exc:
         print(f"harpp watch: desktop runner pass failed: {exc}", flush=True)
         if run_id and claim_token:

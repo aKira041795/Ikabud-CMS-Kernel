@@ -3603,8 +3603,16 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 expected_source_ids: list[int] | None = None,
                 verify_delivery_receipts: bool = True,
                 open_terminal: bool = False,
-                return_reason: bool = False) -> bool | tuple[bool, str | None]:
-    """Run Pi once and optionally classify why it failed for safe model fallback."""
+                return_reason: bool = False,
+                require_marker: bool = True) -> bool | tuple[bool, str | None]:
+    """Run Pi once and optionally classify why it failed for safe model fallback.
+
+    require_marker=True (wake agent): success requires the HARPP_WAKE_RESULT marker
+    + verified deliveries. require_marker=False (desktop runner): the agent reports
+    through HARPP directly, so a clean exit (0) with non-empty output is success —
+    otherwise every desktop-runner run would be marked failed for lacking a marker
+    it was never told to emit.
+    """
     def finish(ok: bool, reason: str | None = None):
         return (ok, reason) if return_reason else ok
 
@@ -3646,6 +3654,10 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
     if proc.returncode == 0 and not out.strip():
         log("wake agent returned empty output; treating run as failed")
         return finish(False, "empty_output")
+    # Desktop-runner mode: the agent reports through HARPP directly and is never
+    # told to emit the wake marker, so a clean exit is success.
+    if not require_marker:
+        return finish(proc.returncode == 0, None)
     # Reassemble split text-delta events so a marker split across JSONL lines is
     # still detected; otherwise a delivered reply is treated as failed, the agent
     # is re-run, and the owner receives duplicate replies.

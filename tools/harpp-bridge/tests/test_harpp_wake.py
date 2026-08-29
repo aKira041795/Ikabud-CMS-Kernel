@@ -711,6 +711,25 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.open_agent_terminal = original
 
+    def test_spawn_agent_require_marker_false_accepts_clean_exit(self):
+        # Desktop-runner mode reports through HARPP directly and never emits the
+        # wake marker. A clean exit (0) with output must count as success even
+        # without the marker — otherwise every desktop-runner run is marked failed.
+        ok = harpp_wake.spawn_agent(
+            "prompt", command="echo 'clean result, no marker'",
+            model="deepseek/deepseek-v4-pro", timeout=30,
+            verify_delivery_receipts=False, require_marker=False)
+        self.assertTrue(ok, "clean exit without marker must succeed in desktop-runner mode")
+
+    def test_spawn_agent_require_marker_true_rejects_no_marker(self):
+        # Wake-agent mode keeps requiring the marker + verified delivery.
+        ok, reason = harpp_wake.spawn_agent(
+            "prompt", command="echo 'no marker here'",
+            model="deepseek/deepseek-v4-pro", timeout=30,
+            verify_delivery_receipts=False, return_reason=True)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "invalid_result")
+
     def test_open_capped_log_truncates_oversized_file(self):
         p = Path(harpp_wake.CONFIG_DIR) / "cap.log"
         p.write_text("x" * 1024, encoding="utf-8")
