@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             box.replaceWith(list);
             const form = document.createElement('form'); form.className = 'inline-form'; form.style.marginTop = '.75rem';
-            const key = document.createElement('input'); key.name = 'project_key'; key.placeholder = 'project key'; key.required = true; key.pattern = '[a-z][a-z0-9_-]{1,63}';
+            const key = document.createElement('input'); key.name = 'project_key'; key.placeholder = 'project key'; key.required = true; key.pattern = '[a-z][a-z0-9_\-]{1,63}';
             const name = document.createElement('input'); name.name = 'name'; name.placeholder = 'Project name'; name.required = true;
             const btn = document.createElement('button'); btn.type = 'submit'; btn.className = 'button'; btn.textContent = 'Create project';
             form.append(key, name, btn);

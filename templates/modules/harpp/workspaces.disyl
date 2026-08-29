@@ -8,7 +8,7 @@
 <section class="panel">
   <h2>Create workspace</h2>
   <form id="workspace-create" class="inline-form">
-    <label>Key (a-z, 0-9, _ -)<input name="workspace_key" required pattern="[a-z][a-z0-9_-]{1,63}" autocomplete="off"></label>
+    <label>Key (a-z, 0-9, _ -)<input name="workspace_key" required pattern="[a-z][a-z0-9_\-]{1,63}" autocomplete="off"></label>
     <label>Name<input name="name" required autocomplete="off"></label>
     <button type="submit" class="button">Create workspace</button>
   </form>

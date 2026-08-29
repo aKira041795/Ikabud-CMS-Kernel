@@ -274,12 +274,22 @@ def api(method, path, body=None, config=None, timeout=30, dry_run=None):
         raise HarppError(
             "HARPP base_url must use https://; refusing to transmit the bridge key over an insecure transport."
         )
+    # Bust host-level proxy/edge caches on every GET. Shared hosts (e.g.
+    # Bluehost LiteSpeed/nginx proxy) serve stale cached bodies for identical
+    # URLs — a fixed-URL bridge GET can silently keep returning an old page
+    # and hide new messages/workspaces/runs from the daemon. A unique query
+    # param is the only signal those caches reliably honor; no-store headers
+    # below are defense-in-depth for cooperative caches.
+    if method == "GET":
+        url += ("&" if "?" in url else "?") + f"_hb={int(time.time() * 1000)}"
     data = json.dumps(body).encode("utf-8") if body is not None else None
     headers = {
         "X-HARPP-BRIDGE-KEY": config["bridge_key"],
         "X-HARPP-TENANT-ID": config["tenant_id"],
         "Accept": "application/json",
         "User-Agent": "harpp-bridge-client/1.0",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
     }
     if data is not None:
         headers["Content-Type"] = "application/json"
