@@ -425,7 +425,7 @@ function harppNotificationUnread(array $params=[]):void { harppHandle(function()
 
 function harppPushSubscribe(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppPushService())->subscribe($u,harppInput(),harppCurrentTenantId()));}); }
 function harppPushUnsubscribe(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.read@1');if($u){$i=harppInput();harppJson((new HarppPushService())->unsubscribe($u,(string)($i['endpoint']??''),harppCurrentTenantId()));}}); }
-function harppPushPublicKey(array $params=[]):void { harppHandle(function():void{if(harppAuthenticated('harpp.read@1'))harppJson((new HarppPushService())->publicKey(harppCurrentTenantId()));}); }
+function harppPushPublicKey(array $params=[]):void { harppHandle(function():void{harppJson((new HarppPushService())->publicKey(harppCurrentTenantId()));}); }
 
 function harppAdrRecord(array $params=[]):void { harppHandle(function():void{harppRequireCsrf();$u=harppAuthenticated('harpp.manage@1');if($u)harppJson((new HarppAdrService())->record($u,harppInput(),harppCurrentTenantId()));}); }
 function harppAdrList(array $params=[]):void { harppHandle(function():void{$u=harppAuthenticated('harpp.read@1');if($u)harppJson((new HarppAdrService())->list($u,harppRequestData(),harppCurrentTenantId()));}); }

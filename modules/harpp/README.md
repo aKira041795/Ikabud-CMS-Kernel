@@ -154,7 +154,9 @@ Capability handlers live in `modules/harpp/helpers.php` (`harpp_capability_handl
 /api/v1/harpp/decisions            list/get + {id}/transition + {id}/apply-and-close (owner/admin)
 /api/v1/harpp/conversations        list/create + {id}/messages + {id}/read
 /api/v1/harpp/notifications        list + /unread-count
-/api/v1/harpp/push/vapid-public-key
+/api/v1/harpp/push/vapid-public-key   PUBLIC — returns the tenant VAPID public key
+                                      (non-sensitive; needed by the PWA before any
+                                      user session exists, so it is not auth-gated)
 /api/v1/harpp/adrs
 /api/v1/harpp/settings
 ```
