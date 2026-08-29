@@ -14,7 +14,6 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__, 3);
 require_once $root . '/bootstrap.php';
-require_once $root . '/tests/harness/TestHarness.php';
 
 $tenantId = (int)($_SERVER['argv'][1] ?? 0);
 if ($tenantId <= 0) {
