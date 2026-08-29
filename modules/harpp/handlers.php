@@ -165,6 +165,23 @@ function harppPageUsers(array $params = []): void
 }
 function harppPageNotifications(array $params = []): void { harppRenderShell('notifications', 'notifications'); }
 function harppPageDeploy(array $params = []): void { harppRenderShell('deploy', 'deploy'); }
+function harppPageWorkspaces(array $params = []): void
+{
+    $user = harppPageUser();
+    if ($user === null) return;
+    $access = harppAuthorize('harpp.manage@1', $user);
+    if (empty($access['ok'])) {
+        http_response_code(403);
+        echo 'Owner or admin access is required.';
+        return;
+    }
+    echo app()->render('modules/harpp/workspaces', [
+        'page_title' => 'HARPP Workspaces',
+        'current_page' => 'workspaces',
+        'user' => $user,
+        'csrf_token' => app()->csrfToken(),
+    ]);
+}
 
 function harppServiceWorker(array $params = []): void { harppPwaAsset(['name' => 'sw.js']); }
 function harppManifest(array $params = []): void { harppPwaAsset(['name' => 'manifest.webmanifest']); }

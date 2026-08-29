@@ -17,6 +17,7 @@ return [
         '/harpp/users' => 'harpp:harppPageUsers',
         '/harpp/notifications' => 'harpp:harppPageNotifications',
         '/harpp/deploy' => 'harpp:harppPageDeploy',
+        '/harpp/workspaces' => 'harpp:harppPageWorkspaces',
         '/harpp/sw.js' => 'harpp:harppServiceWorker',
         '/harpp/manifest.webmanifest' => 'harpp:harppManifest',
         '/harpp/icon.svg' => 'harpp:harppIcon',

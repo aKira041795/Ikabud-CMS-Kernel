@@ -1,0 +1,22 @@
+{extends "modules/harpp/layout.disyl"}
+{block head}<style>.workspaces-page{display:grid;gap:1rem}.workspaces-page .panel{min-width:0}.ws-toolbar{display:flex;flex-wrap:wrap;gap:1rem;align-items:end}.ws-toolbar label{flex:1;min-width:220px}.ws-list{display:grid;gap:.65rem}.ws-card{display:grid;gap:.75rem;padding:1rem;border:1px solid var(--line);border-radius:.9rem;background:#0b1220dd}.ws-card .head{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}.ws-card .actions{display:flex;gap:.5rem;flex-wrap:wrap}.pill{display:inline-block;border-radius:2rem;background:#1e3a8a;padding:.2rem .55rem;font-size:.75rem}.pill.archived{background:#3b0764;color:#e9d5ff}.pill.active{background:#064e3b;color:#a7f3d0}.role-pill{display:inline-block;border-radius:2rem;background:#172554;color:#bfdbfe;padding:.15rem .5rem;font-size:.72rem}.muted{color:#94a3b8}.empty-state{color:#94a3b8;text-align:center;padding:2rem 1rem}.grid.roles{grid-template-columns:repeat(auto-fit,minmax(9rem,1fr))}.roles label{display:flex;flex-direction:row;align-items:center;gap:.5rem;color:#cbd5e1}.roles input{width:auto}.member-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;padding:.5rem 0;border-top:1px solid var(--line)}.member-row:first-of-type{border-top:0}.member-row .chips{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}.project-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;padding:.5rem 0;border-top:1px solid var(--line)}.project-row:first-of-type{border-top:0}.inline-form{display:flex;flex-wrap:wrap;gap:.5rem;align-items:end}.inline-form label{flex:1;min-width:140px}.inline-form label.select{flex:0 0 auto;min-width:120px}.hidden{display:none!important}.error{color:#fca5a5}.ok{color:#86efac}@media(min-width:700px){.ws-list{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>{/block}
+{block content}<div class="workspaces-page">
+<section class="panel ws-toolbar">
+  <div style="flex:1"><h1>Workspaces</h1><p class="muted">Segregate HARPP work into workspaces and projects. The <strong>active workspace</strong> is applied to new conversations (falls back to <code>legacy</code>).</p></div>
+  <label>Active workspace<select id="active-workspace" aria-label="Active workspace"><option value="0">legacy (default)</option></select></label>
+</section>
+<section class="panel">
+  <h2>Create workspace</h2>
+  <form id="workspace-create" class="inline-form">
+    <label>Key (a-z, 0-9, _ -)<input name="workspace_key" required pattern="[a-z][a-z0-9_-]{1,63}" autocomplete="off"></label>
+    <label>Name<input name="name" required autocomplete="off"></label>
+    <button type="submit" class="button">Create workspace</button>
+  </form>
+  <p id="ws-status" class="status" role="status"></p>
+</section>
+<section class="panel">
+  <h2>Workspaces</h2>
+  <div id="workspace-list" class="empty-state">Loading…</div>
+</section>
+</div>{/block}
+{block scripts}<script src="/assets/modules/harpp/workspaces.js" defer></script>{/block}

@@ -163,7 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const session = prompt('Harness session ID', `operator-${Date.now()}`);
     if (!session) return;
     try {
-      active = Number((await Harpp.fetch('/api/v1/harpp/conversations', { method: 'POST', body: { title: conversationTitle, harness_session_id: session } })).data.conversation_id);
+      const activeWorkspace = Number(window.localStorage.getItem('HARPP_ACTIVE_WORKSPACE') || 0);
+      const scope = activeWorkspace > 0 ? { workspace_id: activeWorkspace } : {};
+      active = Number((await Harpp.fetch('/api/v1/harpp/conversations', { method: 'POST', body: { title: conversationTitle, harness_session_id: session, ...scope } })).data.conversation_id);
       last = 0;
       history.replaceState(null, '', `/harpp?conversation=${active}`);
       await conversations();

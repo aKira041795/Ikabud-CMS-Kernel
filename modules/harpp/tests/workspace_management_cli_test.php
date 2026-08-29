@@ -142,6 +142,29 @@ try {
             $assert("{$handler} mutation gate source found", false);
         }
     }
+
+    // Phase 6 UI wiring (task 10): the owner/admin workspaces page must exist
+    // end-to-end — page handler + route + nav link + template + JS endpoints +
+    // the active-workspace binding in the messenger conversation create path.
+    $routesSource = (string)file_get_contents(dirname(__DIR__) . '/routes.php');
+    $assert('workspaces page route registered', str_contains($routesSource, "'/harpp/workspaces' => 'harpp:harppPageWorkspaces'"));
+    $assert('workspaces page handler exists', str_contains($handlerSource, "function harppPageWorkspaces("));
+    $assert('workspaces page gated to owner/admin', str_contains($handlerSource, "harppAuthorize('harpp.manage@1', \$user)") && str_contains($handlerSource, "harppPageWorkspaces"));
+    $layoutSource = (string)file_get_contents($root . '/templates/modules/harpp/layout.disyl');
+    $assert('workspaces nav link present for owner/admin', str_contains($layoutSource, 'href="/harpp/workspaces"') && str_contains($layoutSource, "current_page == 'workspaces'") && str_contains($layoutSource, "user.role == 'owner' || user.role == 'admin'"));
+    $templateExists = is_file($root . '/templates/modules/harpp/workspaces.disyl');
+    $assert('workspaces template exists', $templateExists);
+    $jsExists = is_file(dirname(__DIR__) . '/assets/workspaces.js');
+    $js = $jsExists ? (string)file_get_contents(dirname(__DIR__) . '/assets/workspaces.js') : '';
+    $assert('workspaces JS targets the API surface', $jsExists
+        && str_contains($js, '/api/v1/harpp/workspaces')
+        && str_contains($js, '/api/v1/harpp/workspaces/')
+        && str_contains($js, '/members')
+        && str_contains($js, '/projects')
+        && str_contains($js, '/archive')
+        && str_contains($js, 'HARPP_ACTIVE_WORKSPACE'));
+    $messengerSource = (string)file_get_contents(dirname(__DIR__) . '/assets/messenger.js');
+    $assert('messenger passes active workspace on conversation create', str_contains($messengerSource, 'HARPP_ACTIVE_WORKSPACE') && str_contains($messengerSource, 'workspace_id'));
 } finally {
     foreach (array_reverse($workspaceIds) as $workspaceId) {
         $db->prepare('DELETE FROM harpp_project_memberships WHERE project_id IN (SELECT id FROM harpp_projects WHERE workspace_id=:id)')->execute([':id' => $workspaceId]);
