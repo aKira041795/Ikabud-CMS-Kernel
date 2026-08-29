@@ -1146,6 +1146,15 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(harpp_wake.parse_debate_command("start debate: logging failures")["intent"],
                          "logging failures")
 
+    def test_parse_debate_command_singular_max_round(self):
+        # "max round 5" (singular) must be honored AND stripped from the intent
+        # (previously only "max rounds"/"rounds"/"depth" matched, so singular fell
+        # back to the 3-round default and leaked into the intent).
+        cmd = harpp_wake.parse_debate_command(
+            "Start a debate, max round 5. Resolve: Must HARPP adopt Workspaces like VSCode?")
+        self.assertEqual(cmd["rounds"], 5)
+        self.assertEqual(cmd["intent"], "Resolve: Must HARPP adopt Workspaces like VSCode?")
+
     def test_debate_job_uses_verdict_presence_and_value_verification(self):
         captured = []
         original_launch = harpp_wake.launch_job
@@ -2388,6 +2397,30 @@ class ContextBlockTest(unittest.TestCase):
         self.assertIn("ADR-CURRENT-1: Current architecture — Use the approved event boundary", block)
         self.assertNotIn("DEC-HISTORICAL-1", block)
         self.assertNotIn("retired direct path", block)
+
+    def test_context_block_includes_recent_debate_verdict(self):
+        import tempfile
+        original_jobs = harpp_wake.JOBS_FILE
+        original_client = harpp_wake.harpp_client.context_for_conversation
+        block = ""
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "debate-job.log"
+            log.write_text("...\nverdict: APPROVED after 2 round(s)\n", encoding="utf-8")
+            jobs = Path(td) / "jobs.json"
+            jobs.write_text(json.dumps({"jobs": [{
+                "id": "deb-1", "status": "finished", "conversation_id": 2,
+                "model": "arch-debate", "task": "Architecture debate: workspaces",
+                "log_path": str(log), "finished_at": "2026-08-29 09:15:04",
+            }]}), encoding="utf-8")
+            harpp_wake.JOBS_FILE = jobs
+            harpp_wake.harpp_client.context_for_conversation = lambda *a, **k: self._envelope()
+            try:
+                block = harpp_wake.conversation_context_block(2)
+            finally:
+                harpp_wake.JOBS_FILE = original_jobs
+                harpp_wake.harpp_client.context_for_conversation = original_client
+        self.assertIn("Recent debate activity:", block)
+        self.assertIn("deb-1: finished — verdict: APPROVED after 2 round(s)", block)
 
     def test_context_block_graceful_on_miss(self):
         original = harpp_wake.harpp_client.context_for_conversation

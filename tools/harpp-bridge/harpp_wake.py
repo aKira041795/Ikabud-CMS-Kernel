@@ -2907,14 +2907,16 @@ def parse_debate_command(body) -> dict | None:
         if m:
             intent = m.group(1).strip()
     intent = re.sub(r"^[,:;.\s]+", "", intent)
-    intent = re.sub(r"\b(?:max\s*depth|max\s*rounds|rounds|depth)\s*[:=]?\s*\d+\b", "",
+    intent = re.sub(r"\b(?:max\s*rounds?|rounds?|depth)\s*[:=]?\s*\d+\b", "",
                     intent, flags=re.IGNORECASE)
+    # Removing the round clause ("max round 5.") can leave leading punctuation; strip again.
+    intent = re.sub(r"^[,:;.\s]+", "", intent)
     intent = " ".join(intent.split())
     if not intent:
         return None
 
     rounds = None
-    m = re.search(r"\b(?:max\s*depth|max\s*rounds|rounds|depth)\s*[:=]?\s*(\d+)", low)
+    m = re.search(r"\b(?:max\s*rounds?|rounds?|depth)\s*[:=]?\s*(\d+)", low)
     if m:
         rounds = max(1, min(int(m.group(1)), 10))
 
@@ -3228,6 +3230,40 @@ def route_plan_commands(records, default_model: str = DEFAULT_MODEL) -> int:
     return handled
 
 
+def _recent_debate_verdict(conversation_id: int) -> str | None:
+    """Authoritative summary of the most recent arch-debate job for a conversation,
+    so worker answers about a debate verdict are grounded in the real outcome
+    (never a hallucinated "failed"). Never raises."""
+    try:
+        state = _load_json(JOBS_FILE, {})
+        jobs = state.get("jobs", state) if isinstance(state, dict) else state
+        items = jobs if isinstance(jobs, list) else list(jobs.values())
+        debates = [
+            j for j in items
+            if isinstance(j, dict)
+            and int(j.get("conversation_id") or 0) == int(conversation_id)
+            and (j.get("model") == "arch-debate" or "debate" in str(j.get("task") or "").lower())
+        ]
+        if not debates:
+            return None
+        ordered = sorted(debates, key=lambda j: str(j.get("finished_at") or ""), reverse=True)
+        latest = ordered[0]
+        jid = str(latest.get("id") or "?")
+        status = str(latest.get("status") or "unknown")
+        verdict = ""
+        log_path = latest.get("log_path")
+        if isinstance(log_path, str) and log_path and Path(log_path).exists():
+            text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+            m = re.search(r"verdict:\s*([A-Z]+)([^\n]*)", text)
+            if m:
+                verdict = f"verdict: {m.group(1)}{m.group(2)}".strip()
+        if verdict:
+            return f"{jid}: {status} — {verdict}"
+        return f"{jid}: {status} — no verdict recorded"
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def conversation_context_block(conversation_id, config=None, max_chars=4000):
     """Return a bounded, redacted conversation-context block for a worker prompt.
 
@@ -3282,6 +3318,12 @@ def conversation_context_block(conversation_id, config=None, max_chars=4000):
         for item in current_memory:
             snippet = " ".join(str(item.get("decision") or item.get("title") or "").split())[:140]
             lines.append(f"- {item.get('decision_key')}: {item.get('title')} — {snippet}")
+    # Ground debate-verdict questions in the authoritative job outcome so the
+    # worker never reports a finished debate as "failed before reaching a verdict".
+    debate = _recent_debate_verdict(int(conversation_id))
+    if debate:
+        lines.append("Recent debate activity:")
+        lines.append(f"- {debate}")
     block = "\n".join(lines)
     if len(block) > max_chars:
         block = block[:max_chars] + "…"
