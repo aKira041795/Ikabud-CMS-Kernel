@@ -1561,6 +1561,10 @@ def _humanize_job_failure(raw_detail: str, marker: str | None, log_path: str | N
                           raw_detail, flags=re.IGNORECASE)
     marker_match = re.search(r'marker NOT FOUND:\s*["\']([^"\']+)["\']', raw_detail,
                              flags=re.IGNORECASE)
+    marker_missing = bool(marker_match) or bool(re.search(
+        r"did not finish with its required success marker", raw_detail, flags=re.IGNORECASE))
+    verification_failed = bool(re.search(
+        r"verification command\b.*?\bfailed\b", raw_detail, flags=re.IGNORECASE))
     if missing_executable:
         executable = missing_executable.group(1) or missing_executable.group(2)
         lead = (f"The job's command could not start (missing executable {executable!r}); "
@@ -1568,10 +1572,13 @@ def _humanize_job_failure(raw_detail: str, marker: str | None, log_path: str | N
     elif exit_code:
         lead = (f"The job exited with code {exit_code.group(1)}; "
                 f"remedy: inspect {log_path or 'the job log'}")
-    elif marker_match or marker:
+    elif marker_missing:
         required_marker = marker_match.group(1) if marker_match else str(marker)
         lead = (f"The agent finished but did not include its required completion marker "
                 f"{required_marker!r}; remedy: re-run and have the agent end with exactly that line")
+    elif verification_failed:
+        lead = (f"The job's verification step failed; "
+                f"remedy: fix the issue the verification reported and re-run the task")
     else:
         lead = f"The job failed validation; remedy: inspect {log_path or 'the job log'}"
     return f"{lead}\nDetails: {raw_detail or 'No additional detail was recorded.'}"
@@ -3992,3 +3999,45 @@ def wake_runner(runner_key, config=None, adapter=None):
         return adapter.wake(runner_key, config=config)
     except Exception as exc:  # noqa: BLE001
         return False, f"wake adapter failed: {exc}"
+
+
+def wake_relay_pass(own_runner_key: str | None = None, config=None) -> None:
+    """Claim + satisfy pending wake requests for runners we can serve. Never raises."""
+    try:
+        if config is None:
+            config = harpp_client.load_config()
+        own = str(own_runner_key or "").strip()
+        wol = config.get("wake_on_lan") or {}
+        others = list((wol.get("runners") or {}).keys())
+        keys = list(dict.fromkeys(k for k in ([own] + others) if k))
+        for key in keys:
+            try:
+                claimed = harpp_client.claim_runner_wake(runner_key=key, config=config)
+            except Exception as exc:  # noqa: BLE001
+                log(f"wake claim failed for {key}: {exc}")
+                continue
+            data = (claimed.get("data") or {}) if isinstance(claimed, dict) else {}
+            request = data.get("request")
+            if not isinstance(request, dict) or not request.get("id"):
+                continue
+            request_id = int(request["id"])
+            claim_token = str(data.get("claim_token") or "")
+            if not claim_token:
+                continue
+            try:
+                if key == own:
+                    harpp_client.deliver_runner_wake(request_id, claim_token, config=config)
+                    log(f"wake self-ack delivered for {key} (request {request_id})")
+                    continue
+                ok, note = wake_runner(key, config=config)
+                if ok:
+                    harpp_client.deliver_runner_wake(request_id, claim_token, config=config)
+                    log(f"wake delivered for {key} (request {request_id})")
+                else:
+                    harpp_client.fail_runner_wake(
+                        request_id, claim_token, error=note or "wake failed", config=config)
+                    log(f"wake failed for {key} (request {request_id}): {note}")
+            except Exception as exc:  # noqa: BLE001
+                log(f"wake ack failed for request {request_id}: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        log(f"wake relay pass failed: {exc}")

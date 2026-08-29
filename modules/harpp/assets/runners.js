@@ -3,6 +3,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = document.getElementById('runner-status');
     if (!root) return;
 
+    async function wakeLine(key) {
+        try {
+            const requests = (await Harpp.fetch('/api/v1/harpp/runners/' + encodeURIComponent(key) + '/wake-requests')).data.requests || [];
+            if (!requests.length) return null;
+            const line = document.createElement('p');
+            line.className = 'runner-meta';
+            line.textContent = 'Last wake: ' + requests[0].status + ' @ ' + (requests[0].delivered_at || requests[0].requested_at);
+            return line;
+        } catch (error) {
+            return null;
+        }
+    }
+
     async function load() {
         status.textContent = '';
         try {
@@ -50,6 +63,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 meta.textContent = `Last heartbeat: ${runner.last_heartbeat_at || 'never'} · Created: ${runner.created_at || '—'}`;
 
                 card.append(nameRow, key, caps, meta);
+                const wake = await wakeLine(runner.runner_key);
+                if (wake) card.append(wake);
+                const actions = document.createElement('div');
+                actions.className = 'runner-actions';
+                actions.style.cssText = 'display:flex;gap:.5rem;margin-top:.5rem';
+                const nudge = document.createElement('button');
+                nudge.className = 'button';
+                nudge.type = 'button';
+                nudge.textContent = 'Nudge';
+                nudge.disabled = runner.status === 'online';
+                nudge.addEventListener('click', async () => {
+                    nudge.disabled = true;
+                    try {
+                        await Harpp.fetch('/api/v1/harpp/runners/' + encodeURIComponent(runner.runner_key) + '/nudge', {method: 'POST', body: {}});
+                        status.textContent = 'Wake requested.';
+                        await load();
+                    } catch (error) {
+                        status.textContent = error.message;
+                        nudge.disabled = false;
+                    }
+                });
+                actions.append(nudge);
+                card.append(actions);
                 root.append(card);
             }
         } catch (error) {

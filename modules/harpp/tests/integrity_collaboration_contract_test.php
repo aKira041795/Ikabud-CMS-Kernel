@@ -50,7 +50,7 @@ $inboxJs=(string)file_get_contents(__DIR__.'/../assets/decisions.js');
 $detailTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/decision-detail.disyl');
 $inboxTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/decisions.disyl');
 
-$assert($manifest['version']==='2.4.0','manifest semver');
+$assert($manifest['version']==='2.5.0','manifest semver');
 // Owned-table inventory is contract-validated against the actual migration files so the
 // count cannot silently drift (was previously a hard-coded magic number).
 $migrationGlob=(array)glob(__DIR__.'/../database/migrations/*.sql');

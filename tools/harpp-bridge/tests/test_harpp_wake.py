@@ -454,12 +454,18 @@ class HarppWakeTest(unittest.TestCase):
         missing = harpp_wake._humanize_job_failure(
             "[Errno 2] No such file or directory: 'pi'", "SOL_TASK status=PASS", "/tmp/job.log")
         exited = harpp_wake._humanize_job_failure("process exited with code 7", None, "/tmp/job.log")
+        verification = harpp_wake._humanize_job_failure(
+            "success marker 'verdict:' confirmed in the agent's output; "
+            "verification command 'python3 -c ...' failed (verdict: REVISIONS)",
+            "verdict:", "/tmp/job.log")
 
         self.assertIn("required completion marker 'verdict: APPROVED'", marker)
         self.assertIn("missing executable 'pi'", missing)
         self.assertIn("ensure the tool is installed/on PATH", missing)
         self.assertIn("exited with code 7; remedy: inspect /tmp/job.log", exited)
-        for message in [marker, missing, exited]:
+        self.assertIn("verification step failed", verification)
+        self.assertNotIn("did not include its required completion marker", verification)
+        for message in [marker, missing, exited, verification]:
             self.assertIn("Details:", message)
 
     def test_monitor_skips_alive_pid(self):
@@ -2196,6 +2202,91 @@ class WorkflowManifestValidationTest(unittest.TestCase):
 
 class WakeAdapterTest(unittest.TestCase):
     """P1-5: optional Wake-on-LAN adapter behind config + fake-adapter tests."""
+
+    def setUp(self):
+        self.original_claim = harpp_wake.harpp_client.claim_runner_wake
+        self.original_deliver = harpp_wake.harpp_client.deliver_runner_wake
+        self.original_fail = harpp_wake.harpp_client.fail_runner_wake
+        self.original_wake_runner = harpp_wake.wake_runner
+
+    def tearDown(self):
+        harpp_wake.harpp_client.claim_runner_wake = self.original_claim
+        harpp_wake.harpp_client.deliver_runner_wake = self.original_deliver
+        harpp_wake.harpp_client.fail_runner_wake = self.original_fail
+        harpp_wake.wake_runner = self.original_wake_runner
+
+    def test_wake_relay_pass_self_ack(self):
+        delivered = []
+        wake_calls = []
+        harpp_wake.harpp_client.claim_runner_wake = lambda **kw: {
+            "data": {"request": {"id": 1}, "claim_token": "tok"}}
+        harpp_wake.harpp_client.deliver_runner_wake = lambda rid, token, **kw: delivered.append((rid, token))
+        harpp_wake.wake_runner = lambda *args, **kw: wake_calls.append(args) or (True, "sent")
+
+        harpp_wake.wake_relay_pass(own_runner_key="desktop-test", config={})
+
+        self.assertEqual(delivered, [(1, "tok")])
+        self.assertEqual(wake_calls, [])
+
+    def test_wake_relay_pass_wakes_other(self):
+        delivered = []
+        wake_calls = []
+        harpp_wake.harpp_client.claim_runner_wake = lambda runner_key, **kw: (
+            {"data": {"request": {"id": 2}, "claim_token": "tok"}}
+            if runner_key == "other" else {"data": {"request": None}})
+        harpp_wake.harpp_client.deliver_runner_wake = lambda rid, token, **kw: delivered.append((rid, token))
+        harpp_wake.wake_runner = lambda key, **kw: wake_calls.append(key) or (True, "sent")
+
+        harpp_wake.wake_relay_pass(
+            own_runner_key="desktop-test", config={"wake_on_lan": {"runners": {"other": {}}}})
+
+        self.assertEqual(wake_calls, ["other"])
+        self.assertEqual(delivered, [(2, "tok")])
+
+    def test_wake_relay_pass_fails_other(self):
+        failed = []
+        harpp_wake.harpp_client.claim_runner_wake = lambda runner_key, **kw: (
+            {"data": {"request": {"id": 3}, "claim_token": "tok"}}
+            if runner_key == "other" else {"data": {"request": None}})
+        harpp_wake.harpp_client.fail_runner_wake = lambda rid, token, error="", **kw: failed.append(
+            (rid, token, error))
+        harpp_wake.wake_runner = lambda *args, **kw: (False, "no mac")
+
+        harpp_wake.wake_relay_pass(
+            own_runner_key="desktop-test", config={"wake_on_lan": {"runners": {"other": {}}}})
+
+        self.assertEqual(failed, [(3, "tok", "no mac")])
+
+    def test_wake_relay_pass_tolerates_client_error(self):
+        claims = []
+        delivered = []
+
+        def claim(runner_key, **kw):
+            claims.append(runner_key)
+            if runner_key == "desktop-test":
+                raise RuntimeError("offline")
+            return {"data": {"request": {"id": 4}, "claim_token": "tok"}}
+
+        harpp_wake.harpp_client.claim_runner_wake = claim
+        harpp_wake.harpp_client.deliver_runner_wake = lambda rid, token, **kw: delivered.append((rid, token))
+        harpp_wake.wake_runner = lambda *args, **kw: (True, "sent")
+
+        harpp_wake.wake_relay_pass(
+            own_runner_key="desktop-test", config={"wake_on_lan": {"runners": {"other": {}}}})
+
+        self.assertEqual(claims, ["desktop-test", "other"])
+        self.assertEqual(delivered, [(4, "tok")])
+
+    def test_wake_relay_pass_no_request(self):
+        calls = []
+        harpp_wake.harpp_client.claim_runner_wake = lambda **kw: {"data": {"request": None}}
+        harpp_wake.harpp_client.deliver_runner_wake = lambda *args, **kw: calls.append("deliver")
+        harpp_wake.harpp_client.fail_runner_wake = lambda *args, **kw: calls.append("fail")
+        harpp_wake.wake_runner = lambda *args, **kw: calls.append("wake") or (True, "sent")
+
+        harpp_wake.wake_relay_pass(own_runner_key="desktop-test", config={})
+
+        self.assertEqual(calls, [])
 
     def test_no_adapter_when_not_configured(self):
         self.assertIsNone(harpp_wake.get_wake_adapter({}))

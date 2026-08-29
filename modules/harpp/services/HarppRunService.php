@@ -72,6 +72,116 @@ final class HarppRunService
         return HarppServiceResult::success(['runner_key' => $key, 'status' => 'online', 'capabilities' => $capabilities]);
     }
 
+    public function requestWake(array $actor, string $runnerKey, array $input): HarppServiceResult
+    {
+        if (!$this->ownerActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        if (!preg_match('/^[A-Za-z0-9._:-]{2,191}$/', $runnerKey)) return HarppServiceResult::failure('Valid runner_key is required.', 422);
+        $s = $this->db->prepare('SELECT id FROM harpp_runners WHERE runner_key=:k');
+        $s->execute([':k' => $runnerKey]);
+        if (!$s->fetchColumn()) return HarppServiceResult::failure('Runner not found.', 404);
+        $idempotencyKey = substr(trim((string)($input['idempotency_key'] ?? '')), 0, 191);
+        if ($idempotencyKey === '') $idempotencyKey = $this->uuid();
+        // Serialize per-runner with an advisory lock so two concurrent nudges (e.g. a
+        // double-click) cannot both pass the coalesce and insert duplicate pending rows.
+        $lockName = 'harpp_wake:' . $runnerKey;
+        $this->db->prepare('SELECT GET_LOCK(:lk, 3)')->execute([':lk' => $lockName]);
+        try {
+            $s = $this->db->prepare("SELECT id FROM harpp_runner_wake_requests WHERE runner_key=:k AND status IN ('pending','claimed') AND requested_at > DATE_SUB(NOW(6), INTERVAL 5 MINUTE) ORDER BY id DESC LIMIT 1");
+            $s->execute([':k' => $runnerKey]);
+            $existingId = (int)$s->fetchColumn();
+            if ($existingId > 0) {
+                $existing = $this->wakeRequestPublic($this->loadWakeRequest($existingId));
+                $existing['duplicate'] = true;
+                return HarppServiceResult::success(['request' => $existing, 'note' => 'Wake requested. If the machine stays offline, wake it manually.']);
+            }
+            $this->db->beginTransaction();
+            try {
+                $s = $this->db->prepare("INSERT INTO harpp_runner_wake_requests (runner_key,status,requested_by,idempotency_key) VALUES (:k,'pending',:requested_by,:idempotency_key)");
+                $s->execute([':k' => $runnerKey, ':requested_by' => isset($actor['id']) ? (int)$actor['id'] : null, ':idempotency_key' => $idempotencyKey]);
+                $request = $this->loadWakeRequest((int)$this->db->lastInsertId());
+                (new \Harpp\Services\HarppFoundationService($this->db))->recordEffect('harpp.runner_wake_requested', 'runner_wake_requested', $actor, 'harpp_runner_wake_request', (int)$request['id'], null, ['runner_key' => $runnerKey, 'status' => 'pending']);
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                if ($this->db->inTransaction()) $this->db->rollBack();
+                throw $e;
+            }
+        } finally {
+            $this->db->prepare('SELECT RELEASE_LOCK(:lk)')->execute([':lk' => $lockName]);
+        }
+        try {
+            $owner = $this->ownerId();
+            if ($owner > 0) (new HarppNotificationService($this->db))->create($owner, 'system', ['event' => 'runner.wake_requested', 'runner_key' => $runnerKey, 'request_id' => (int)$request['id']], null, null, null, false);
+        } catch (\Throwable) {
+        }
+        return HarppServiceResult::success(['request' => $this->wakeRequestPublic($request), 'note' => 'Wake requested. If the machine stays offline, wake it manually.']);
+    }
+
+    public function claimWake(array $actor, array $input): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $runnerKey = trim((string)($input['runner_key'] ?? ''));
+        if (!preg_match('/^[A-Za-z0-9._:-]{2,191}$/', $runnerKey)) return HarppServiceResult::failure('Valid runner_key is required.', 422);
+        // Reap wake claims that were never acknowledged (relay/daemon died mid-claim)
+        // so they surface in wake history and cannot accumulate as stuck 'claimed' rows.
+        $this->db->prepare("UPDATE harpp_runner_wake_requests SET status='failed',last_error='Wake claim expired without acknowledgement.',claim_token=NULL WHERE status='claimed' AND claimed_at < DATE_SUB(NOW(6), INTERVAL 10 MINUTE)")->execute();
+        $this->db->beginTransaction();
+        try {
+            $s = $this->db->prepare("SELECT * FROM harpp_runner_wake_requests WHERE status='pending' AND runner_key=:k ORDER BY id ASC LIMIT 1 FOR UPDATE");
+            $s->execute([':k' => $runnerKey]);
+            $request = $s->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($request)) {
+                $this->db->commit();
+                return HarppServiceResult::success(['request' => null]);
+            }
+            $token = $this->uuid();
+            $s = $this->db->prepare("UPDATE harpp_runner_wake_requests SET status='claimed',claim_token=:t,claimed_at=NOW(6),attempts=attempts+1 WHERE id=:id AND status='pending'");
+            $s->execute([':t' => $token, ':id' => (int)$request['id']]);
+            if ($s->rowCount() !== 1) {
+                $this->db->rollBack();
+                return HarppServiceResult::failure('Wake request conflict.', 409);
+            }
+            $this->db->commit();
+            return HarppServiceResult::success(['request' => $this->wakeRequestPublic($this->loadWakeRequest((int)$request['id'])), 'claim_token' => $token]);
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function deliverWake(array $actor, int $id, array $input): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $token = trim((string)($input['claim_token'] ?? ''));
+        if ($token === '') return HarppServiceResult::failure('claim_token is required.', 422);
+        $s = $this->db->prepare("UPDATE harpp_runner_wake_requests SET status='delivered',delivered_at=NOW(6),claim_token=NULL WHERE id=:id AND claim_token=:t AND status='claimed'");
+        $s->execute([':id' => $id, ':t' => $token]);
+        if ($s->rowCount() !== 1) return HarppServiceResult::failure('claim_invalid', 409, 'claim_invalid');
+        return HarppServiceResult::success(['request' => $this->wakeRequestPublic($this->loadWakeRequest($id))]);
+    }
+
+    public function failWake(array $actor, int $id, array $input): HarppServiceResult
+    {
+        if (!$this->bridgeActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $token = trim((string)($input['claim_token'] ?? ''));
+        if ($token === '') return HarppServiceResult::failure('claim_token is required.', 422);
+        $error = substr(trim((string)($input['error'] ?? '')), 0, 2000);
+        $s = $this->db->prepare("UPDATE harpp_runner_wake_requests SET status='failed',last_error=:e,claim_token=NULL WHERE id=:id AND claim_token=:t AND status='claimed'");
+        $s->execute([':e' => $error, ':id' => $id, ':t' => $token]);
+        if ($s->rowCount() !== 1) return HarppServiceResult::failure('claim_invalid', 409, 'claim_invalid');
+        return HarppServiceResult::success(['request' => $this->wakeRequestPublic($this->loadWakeRequest($id))]);
+    }
+
+    public function listWakeRequests(array $actor, string $runnerKey, int $limit = 10): HarppServiceResult
+    {
+        if (!$this->ownerActor($actor)) return HarppServiceResult::failure('Forbidden.', 403);
+        $limit = max(1, min(50, $limit));
+        $s = $this->db->prepare('SELECT * FROM harpp_runner_wake_requests WHERE runner_key=:k ORDER BY id DESC LIMIT :l');
+        $s->bindValue(':k', $runnerKey);
+        $s->bindValue(':l', $limit, PDO::PARAM_INT);
+        $s->execute();
+        return HarppServiceResult::success(['requests' => array_map(fn(array $row): array => $this->wakeRequestPublic($row), $s->fetchAll(PDO::FETCH_ASSOC))]);
+    }
+
     /**
      * S4: owner-visible runner-fleet status. Returns every registered runner with
      * live/stale health (a stale heartbeat is marked offline), decoded
@@ -515,6 +625,24 @@ final class HarppRunService
         if ($run === null) return null;
         unset($run['claim_token']);
         return $run;
+    }
+
+    private function loadWakeRequest(int $id): array
+    {
+        $s = $this->db->prepare('SELECT * FROM harpp_runner_wake_requests WHERE id=:id');
+        $s->execute([':id' => $id]);
+        return (array)$s->fetch(PDO::FETCH_ASSOC);
+    }
+
+    private function wakeRequestPublic(array $row): array
+    {
+        unset($row['claim_token']);
+        return $row;
+    }
+
+    private function ownerId(): int
+    {
+        return (int)$this->db->query("SELECT id FROM harpp_users WHERE is_active=1 AND role IN ('owner','admin') ORDER BY FIELD(role,'owner','admin'),id LIMIT 1")->fetchColumn();
     }
 
     private function effect(array $actor, string $event, string $action, int $runId, ?array $before, array $after): void

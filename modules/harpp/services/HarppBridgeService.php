@@ -92,6 +92,21 @@ final class HarppBridgeService
         return (new HarppRunService($this->db))->registerRunner($actor, $input);
     }
 
+    public function claimWake(array $actor, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->claimWake($actor, $input);
+    }
+
+    public function deliverWake(array $actor, int $id, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->deliverWake($actor, $id, $input);
+    }
+
+    public function failWake(array $actor, int $id, array $input, int $tenantId)
+    {
+        return (new HarppRunService($this->db))->failWake($actor, $id, $input);
+    }
+
     public function claimRun(array $actor, array $input, int $tenantId)
     {
         return (new HarppRunService($this->db))->claim($actor, $input);

@@ -211,6 +211,24 @@ class HarppClientTest(unittest.TestCase):
         self.assertEqual(req["body"]["priority"], "high")
         self.assertEqual(req["body"]["workbench_state"], "ARCHITECTURE_DECISION_REQUIRED")
 
+    def test_claim_runner_wake_dry_run(self):
+        req = harpp_client.claim_runner_wake("desktop-test")
+        self.assertEqual(req["method"], "POST")
+        self.assertTrue(req["url"].endswith("/api/v1/harpp/bridge/runner-wakes/claim"))
+        self.assertEqual(req["body"], {"runner_key": "desktop-test"})
+
+    def test_deliver_runner_wake_dry_run(self):
+        req = harpp_client.deliver_runner_wake(17, "claim-token")
+        self.assertEqual(req["method"], "POST")
+        self.assertTrue(req["url"].endswith("/api/v1/harpp/bridge/runner-wakes/17/delivered"))
+        self.assertEqual(req["body"], {"claim_token": "claim-token"})
+
+    def test_fail_runner_wake_dry_run(self):
+        req = harpp_client.fail_runner_wake(18, "claim-token", "no mac")
+        self.assertEqual(req["method"], "POST")
+        self.assertTrue(req["url"].endswith("/api/v1/harpp/bridge/runner-wakes/18/failed"))
+        self.assertEqual(req["body"], {"claim_token": "claim-token", "error": "no mac"})
+
     def test_rejects_http_base_url(self):
         with self.assertRaises(harpp_client.HarppError):
             harpp_client.api("GET", "/api/v1/harpp/bridge/decisions", config={"base_url": "http://x", "bridge_key": "k", "tenant_id": "1"})

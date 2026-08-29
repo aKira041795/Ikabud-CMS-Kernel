@@ -472,6 +472,25 @@ def register_runner(config=None, **kw):
     }, config=config)
 
 
+def claim_runner_wake(runner_key, config=None):
+    """Claim the oldest pending wake request for a runner (relay/daemon side)."""
+    return api("POST", "/api/v1/harpp/bridge/runner-wakes/claim",
+               {"runner_key": str(runner_key or "")}, config=config)
+
+
+def deliver_runner_wake(request_id, claim_token, config=None):
+    """Acknowledge a claimed wake request as delivered (machine came online / WoL sent)."""
+    return api("POST", f"/api/v1/harpp/bridge/runner-wakes/{int(request_id)}/delivered",
+               {"claim_token": str(claim_token or "")}, config=config)
+
+
+def fail_runner_wake(request_id, claim_token, error="", config=None):
+    """Acknowledge a claimed wake request as failed with an inspectable error."""
+    return api("POST", f"/api/v1/harpp/bridge/runner-wakes/{int(request_id)}/failed",
+               {"claim_token": str(claim_token or ""), "error": str(error or "")[:2000]},
+               config=config)
+
+
 def report_daemon_status(runner_key, daemon_version="", workflow_counts=None, recent_workflows=None, config=None):
     """Report daemon liveness + workflow summary to the server (status page).
     Best-effort call site; the daemon treats any failure as non-fatal."""

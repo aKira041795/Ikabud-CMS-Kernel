@@ -394,6 +394,8 @@ def watch_loop(once, interval, inbox=None, autoprocess=True, log=None,
             harpp_wake.sync_deploys()
             # Daemon liveness + workflow summary for the /harpp/status page.
             harpp_wake.report_daemon_status(runner_key=_desktop_runner_key())
+            # Claim + satisfy pending wake requests (Nudge) for runners we can serve.
+            harpp_wake.wake_relay_pass(own_runner_key=_desktop_runner_key())
         except Exception as e:
             print(f"harpp watch: job monitor failed: {e}", flush=True)
         if wake:
