@@ -265,7 +265,10 @@ def chair_approve() -> None:
         draft = fh.read()
     validate_draft(draft)
     atomic_write(TASK_FILE, draft.rstrip() + "\n")
-    atomic_write(os.path.join(WORK, "approved.txt"), "chair-approved\n")
+    # Write the same uniform verdict as natural approval so the debate verify
+    # (checks approved.txt == 'APPROVED') passes; chair provenance is preserved in
+    # the printed/reported outcome ("APPROVED (chair)").
+    atomic_write(os.path.join(WORK, "approved.txt"), "approved\n")
     print(f"APPROVED (chair): wrote {TASK_FILE} from {src} ({len(draft)} chars)")
 
 

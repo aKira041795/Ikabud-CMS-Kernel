@@ -1155,6 +1155,59 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(cmd["rounds"], 5)
         self.assertEqual(cmd["intent"], "Resolve: Must HARPP adopt Workspaces like VSCode?")
 
+    def test_parse_debate_approve_command(self):
+        self.assertIsNotNone(harpp_wake.parse_debate_approve_command("Approve debate"))
+        self.assertIsNotNone(harpp_wake.parse_debate_approve_command("chair approve the debate"))
+        self.assertIsNotNone(harpp_wake.parse_debate_approve_command("accept the debate verdict"))
+        self.assertIsNone(harpp_wake.parse_debate_approve_command("Start a debate"))
+        self.assertIsNone(harpp_wake.parse_debate_approve_command("Restart debate"))
+        self.assertIsNone(harpp_wake.parse_debate_approve_command("workflow list"))
+
+    def test_exec_debate_approve_runs_and_reports(self):
+        import types
+        original_run = harpp_wake.subprocess.run
+        original_workspace = harpp_wake.default_workspace
+        harpp_wake.default_workspace = lambda: self.tmp.name
+        decision_dir = Path(self.tmp.name) / ".ai"
+        decision_dir.mkdir(parents=True, exist_ok=True)
+        (decision_dir / "current-task.md").write_text(
+            "task: Accept the workspace decision\nstatus: RESOLVED\n", encoding="utf-8")
+        calls = []
+
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            return types.SimpleNamespace(returncode=0,
+                                         stdout="APPROVED (chair): wrote .ai/current-task.md",
+                                         stderr="")
+        harpp_wake.subprocess.run = fake_run
+        try:
+            out = harpp_wake._exec_debate_approve(9)
+        finally:
+            harpp_wake.subprocess.run = original_run
+            harpp_wake.default_workspace = original_workspace
+        self.assertIn("APPROVED", out)
+        self.assertIn("Accept the workspace decision", out)
+        self.assertIn("--approve", " ".join(calls[0]))
+
+    def test_route_debate_approve_command(self):
+        approved = []
+        notified = []
+        original_approve = harpp_wake._exec_debate_approve
+        original_notify = harpp_wake.harpp_client.harpp_notify
+        harpp_wake._exec_debate_approve = lambda conv: approved.append(conv) or "✅ Debate chair-approved (APPROVED)."
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: notified.append(kw) or {"ok": True}
+        try:
+            n = harpp_wake.route_debate_commands([
+                {"kind": "message", "id": 955, "conversation_id": 8, "sender_type": "user",
+                 "body": "Approve debate"}])
+            self.assertEqual(n, 1)
+            self.assertEqual(approved, [8])
+            self.assertEqual(len(notified), 1)
+            self.assertIn("APPROVED", notified[0]["body"])
+        finally:
+            harpp_wake._exec_debate_approve = original_approve
+            harpp_wake.harpp_client.harpp_notify = original_notify
+
     def test_debate_job_uses_verdict_presence_and_value_verification(self):
         captured = []
         original_launch = harpp_wake.launch_job

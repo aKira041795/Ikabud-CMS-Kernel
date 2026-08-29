@@ -2930,6 +2930,26 @@ def parse_debate_command(body) -> dict | None:
     return {"intent": intent, "rounds": rounds, "first": first}
 
 
+def parse_debate_approve_command(body) -> dict | None:
+    """Parse an owner message into a debate chair-approval request, or None.
+
+    Recognizes "Approve debate", "chair approve the debate", or "accept the
+    debate verdict/draft" so the owner can finalize a REVISIONS debate from the
+    messenger (the deterministic dispatcher runs pi-arch-debate --approve)."""
+    if not body or not isinstance(body, str):
+        return None
+    low = " ".join(body.split()).lower().strip()
+    if not re.search(r"(?<![\w-])debate(?![\w-])", low):
+        return None
+    if re.search(r"\b(start|run|begin|launch|kick\s*off)\b", low):
+        return None  # a start request, not an approval
+    if re.search(r"\b(approve|chair)\b", low):
+        return {"approve": True}
+    if re.search(r"\baccept\b.*\b(verdict|decision|draft|outcome)\b", low):
+        return {"approve": True}
+    return None
+
+
 def _exec_debate_command(cmd: dict, conv: int) -> str:
     """Launch an architecture debate as a tracked background job and return the reply."""
     intent = str(cmd.get("intent") or "").strip()
@@ -2954,7 +2974,8 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
         "print('verdict: '+v); "
         "print(('The debate reached approval.' if v == 'APPROVED' else "
         "'The debate did not reach approval within the configured round(s); the critic requested revisions. "
-        "Remedy: re-run with more rounds (e.g. DEBATE_MAX_ROUNDS=5) or sharpen the intent.')); "
+        "Remedy: reply \"Approve debate\" to accept the last draft as chair, re-run with more rounds "
+        "(e.g. DEBATE_MAX_ROUNDS=5), or sharpen the intent.')); "
         "sys.exit(0 if v == 'APPROVED' else 2)"
     )
     jid, _proc = launch_job(
@@ -2968,12 +2989,49 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
         cwd=workspace,
         open_terminal=False,
     )
+    return _debate_started_reply(jid, intent, rounds, first)
+
+
+def _debate_started_reply(jid, intent, rounds, first) -> str:
     return (f"🧠 Architecture debate started (job {jid}).\n"
             f"intent: {intent}\n"
             f"rounds: {rounds or 'default (3)'}\n"
             f"opener: {first}\n"
             "It runs as a tracked job; I'll auto-report the verdict when it finishes.\n"
+            "If it ends in REVISIONS, finalize the last draft as chair by replying \"Approve debate\".\n"
             f"To inspect: run \"harpp workflow show {jid}\" or open .ai/debate/debate-job-*.log.")
+
+
+def _exec_debate_approve(conv: int) -> str:
+    """Chair-approve the last saved debate draft and report the decision.
+    Runs tools/pi-arch-debate.py --approve (fast, local); never raises."""
+    workspace = default_workspace()
+    try:
+        proc = subprocess.run(
+            ["python3", "tools/pi-arch-debate.py", "--approve", "--quiet"],
+            capture_output=True, text=True, cwd=workspace, timeout=120,
+        )
+        out = (proc.stdout or "").strip()
+        err = (proc.stderr or "").strip()
+    except Exception as exc:  # noqa: BLE001
+        return f"⚠️ Debate approval could not be run: {exc}"
+    if proc.returncode != 0:
+        return (f"⚠️ Debate approval failed (exit {proc.returncode}).\n"
+                f"{(out or err or 'no output')}")
+    decision = ""
+    try:
+        p = Path(workspace) / ".ai" / "current-task.md"
+        if p.exists():
+            decision = " ".join(p.read_text(encoding="utf-8", errors="replace").split())[:400]
+    except Exception:  # noqa: BLE001
+        decision = ""
+    lines = ["✅ Debate chair-approved (APPROVED)."]
+    if out:
+        lines.append(out)
+    if decision:
+        lines.append(f"Approved decision: {decision}…")
+    lines.append("This decision is now APPROVED and usable (see .ai/current-task.md).")
+    return "\n".join(lines)
 
 
 def route_debate_commands(records) -> int:
@@ -2989,8 +3047,9 @@ def route_debate_commands(records) -> int:
             continue
         if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
             continue
+        approve = parse_debate_approve_command(r.get("body"))
         cmd = parse_debate_command(r.get("body"))
-        if not cmd:
+        if not cmd and not approve:
             continue
         # One exclusive deterministic dispatcher owns a source id. Workflow
         # syntax wins if a message happens to satisfy both parsers.
@@ -3001,7 +3060,10 @@ def route_debate_commands(records) -> int:
         if action == "skip":
             continue
         try:
-            body = saved_body if action == "deliver" else _exec_debate_command(cmd, conv)
+            if approve:
+                body = saved_body if action == "deliver" else _exec_debate_approve(conv)
+            else:
+                body = saved_body if action == "deliver" else _exec_debate_command(cmd, conv)
             if action == "execute":
                 store_routing_result(r, "debate", body)
             if conv:
