@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 nudge.addEventListener('click', async () => {
                     nudge.disabled = true;
                     try {
-                        await Harpp.fetch('/api/v1/harpp/runners/' + encodeURIComponent(runner.runner_key) + '/nudge', {method: 'POST', body: {}});
+                        await Harpp.fetch('/api/v1/harpp/runners/' + encodeURIComponent(runner.runner_key) + '/nudge', { method: 'POST', body: {} });
                         status.textContent = 'Wake requested.';
                         await load();
                     } catch (error) {
