@@ -118,15 +118,55 @@ function cmsListServiceTokens(array $actor): array
 }
 
 /**
+ * Read the raw Authorization header robustly across shared-hosting setups.
+ * Apache/LiteSpeed populate $_SERVER variants, but some PHP-FPM/LiteSpeed
+ * builds only expose it via getallheaders()/apache_request_headers().
+ */
+function cmsBearerHeader(): string
+{
+    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    if (!is_string($header)) {
+        $header = '';
+    }
+    if ($header === '' && function_exists('getallheaders')) {
+        $all = @getallheaders();
+        if (is_array($all)) {
+            foreach ($all as $k => $v) {
+                if (strcasecmp((string)$k, 'Authorization') === 0) {
+                    $header = (string)$v;
+                    break;
+                }
+            }
+        }
+    }
+    if ($header === '' && function_exists('apache_request_headers')) {
+        $all = @apache_request_headers();
+        if (is_array($all)) {
+            foreach ($all as $k => $v) {
+                if (strcasecmp((string)$k, 'Authorization') === 0) {
+                    $header = (string)$v;
+                    break;
+                }
+            }
+        }
+    }
+    return $header;
+}
+
+/**
  * Resolve an Authorization: Bearer token to a virtual CMS service user, or null.
  * Only runs when a Bearer header is present; the raw token is never logged.
  */
 function cmsServiceUserFromBearer(): ?array
 {
-    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-    if (!is_string($header) || stripos($header, 'Bearer ') !== 0) {
+    $header = cmsBearerHeader();
+    if (stripos($header, 'Bearer ') !== 0) {
         return null;
     }
+    // A Bearer header reached PHP. Log presence (never the token) so a live 401
+    // is diagnosable: no such line => header stripped upstream (shared host);
+    // "lookup miss/error" => token not in the DB this request queries.
+    write_log('cms.service_token: bearer present; resolving', 'info');
     $raw = trim(substr($header, 7));
     if ($raw === '' || strlen($raw) > 512) {
         return null;
@@ -141,9 +181,11 @@ function cmsServiceUserFromBearer(): ?array
         $stmt->execute([':hash' => $hash]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
+        write_log('cms.service_token: lookup error (' . get_class($e) . ')', 'error');
         return null;
     }
     if (!is_array($row) || (int)($row['is_active'] ?? 0) !== 1) {
+        write_log('cms.service_token: lookup miss (no active row)', 'info');
         $cache = null;
         return null;
     }
