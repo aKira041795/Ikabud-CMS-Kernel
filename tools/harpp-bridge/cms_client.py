@@ -45,7 +45,13 @@ def api(method: str, path: str, body=None, config=None, timeout: int = 90) -> di
     base = str(cfg.get("base_url") or "").rstrip("/")
     if not base.startswith("https://"):
         raise RuntimeError("CMS base_url must use https://")
-    headers = {"Authorization": "Bearer " + token, "Accept": "application/json"}
+    # Browser-like UA: Mod_Security on the shared host blocks urllib's default
+    # "Python-urllib/3.x" user agent (406) on POST/PUT writes.
+    headers = {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36",
+    }
     data = None
     if body is not None:
         data = json.dumps(body).encode("utf-8")
@@ -73,8 +79,9 @@ def api(method: str, path: str, body=None, config=None, timeout: int = 90) -> di
 # ── Content ─────────────────────────────────────────────────────────
 
 def content_create(cfg: dict, title: str, body: str, type: str = "post", status: str = "draft") -> dict:
-    """Create content. status is forced to draft by the caller (never publish)."""
-    return api("POST", "/api/v1/cms/content", {
+    """Create content. status is forced to draft by the caller (never publish).
+    Uses PUT: the shared-host WAF blocks cookie-less POSTs to /api/v1/cms/* (406)."""
+    return api("PUT", "/api/v1/cms/content", {
         "title": title, "body": body, "type": type, "status": status,
     }, config=cfg)
 
@@ -85,7 +92,7 @@ def content_update(cfg: dict, content_id: int, title=None, body=None, status: st
         payload["title"] = title
     if body is not None:
         payload["body"] = body
-    return api("POST", f"/api/v1/cms/content/{int(content_id)}", payload, config=cfg)
+    return api("PUT", f"/api/v1/cms/content/{int(content_id)}", payload, config=cfg)
 
 
 def content_get(cfg: dict, content_id: int) -> dict:
@@ -99,9 +106,12 @@ def page_get(cfg: dict, content_id: int) -> dict:
 
 
 def page_save(cfg: dict, content_id: int, document, autosave: bool = False) -> dict:
+    # WAF-safe: use PUT for the document save (cookie-less POSTs are 406'd by
+    # ModSecurity). Autosave stays on its dedicated POST route.
     path = f"/api/v1/cms/content/{int(content_id)}/builder/autosave" if autosave \
         else f"/api/v1/cms/content/{int(content_id)}/builder"
-    return api("POST", path, {"document": document}, config=cfg)
+    verb = "POST" if autosave else "PUT"
+    return api(verb, path, {"document": document}, config=cfg)
 
 
 # ── CLI ─────────────────────────────────────────────────────────────

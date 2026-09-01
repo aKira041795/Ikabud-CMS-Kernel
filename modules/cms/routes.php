@@ -244,4 +244,17 @@ return [
         '/api/v1/cms/modules/{module_id}/uninstall'     => 'cms:cmsApiModuleUninstall',
         '/api/v1/cms/suites'                            => 'cms:cmsApiProductSuites',
     ],
+
+    // ── WAF-safe verb aliases (PUT) ─────────────────────────────────
+    // The shared-host ModSecurity WAF blocks cookie-less POSTs to
+    // /api/v1/cms/* (406) but lets PUT/PATCH through. These aliases expose
+    // the same write handlers under PUT so the Bearer-authenticated CMS
+    // Assistant can create/update content and save builder documents.
+    // App-level auth is unchanged (Bearer → service token → capability
+    // check, fail-closed); API routes stay CSRF-exempt as before.
+    'PUT' => [
+        '/api/v1/cms/content'                 => 'cms:cmsApiContentCreate',
+        '/api/v1/cms/content/{id}'            => 'cms:cmsApiContentUpdate',
+        '/api/v1/cms/content/{id}/builder'    => 'cms:cmsApiBuilderDocumentSave',
+    ],
 ];
