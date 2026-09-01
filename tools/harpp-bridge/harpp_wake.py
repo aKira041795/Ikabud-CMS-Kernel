@@ -88,6 +88,12 @@ MODEL_FALLBACK_ORDER = [
     "deepseek/deepseek-v4-pro",
     "deepseek/deepseek-v4-flash",
 ]
+# ChatGPT Advisor (ideation) lane defaults. Ideation is a separate, read-only mode
+# that runs ONLY on a dedicated ideation provider (never openai-codex/*, so it can
+# never consume Codex usage limits reserved for coding/review).
+ADVISOR_DEFAULT_MODEL = "openai-ideation/gpt-5.4"
+ADVISOR_CONVERSATION_TITLE = "ChatGPT Advisor"
+ADVISOR_TEMPLATE = Path(__file__).resolve().parent / "wake" / "task-contract-advisor.md"
 AUTHORITY_ORDER = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 ESCALATION_FLAGS = {
     "architecture_change": "change architecture/contract",
@@ -341,6 +347,7 @@ def _normalized_state() -> dict:
     state.setdefault("abandoned", [])
     state.setdefault("model_routes", [])
     state.setdefault("plans", {})
+    state.setdefault("ideation_usage", {})
     return state
 
 
@@ -3890,6 +3897,173 @@ def _cancel_answered_runs(items) -> None:
             log(f"run {run_id} cancel after wake reply failed: {exc}")
 
 
+# ---------------------------------------------------------------------------
+# ChatGPT Advisor (ideation) lane — a separate, READ-ONLY second-opinion mode.
+# Fully isolated from dev work: its own conversation channel, task contract,
+# model, and quota ledger. Ideation NEVER routes to openai-codex/* (Codex quota
+# is reserved for coding/review); it uses a dedicated ideation provider only and
+# degrades to stage+notify on failure — nothing is dropped, nothing re-routes to
+# the dev pool. See docs/architecture/chatgpt-advisor-mode-contract.md.
+# ---------------------------------------------------------------------------
+
+
+def advisor_config(config=None) -> dict:
+    """Resolve the ChatGPT Advisor (ideation) settings with durable defaults."""
+    adv = dict((config or {}).get("advisor") or {})
+    for key, default in (
+        ("enabled", True),
+        ("conversation_title", ADVISOR_CONVERSATION_TITLE),
+        ("model", ADVISOR_DEFAULT_MODEL),
+        ("timeout", DEFAULT_TIMEOUT),
+        ("cooldown", DEFAULT_COOLDOWN),
+        ("max_per_hour", DEFAULT_MAX_PER_HOUR),
+    ):
+        adv.setdefault(key, default)
+    return adv
+
+
+def is_advisor_item(item, config=None) -> bool:
+    """True when an inbox message belongs to the dedicated ChatGPT Advisor channel."""
+    adv = advisor_config(config)
+    wanted = str(adv.get("conversation_title") or "").strip().lower()
+    title = str(item.get("conversation_title") or "").strip().lower()
+    return bool(wanted) and title == wanted
+
+
+def _normalized_ideation_usage(state: dict) -> dict:
+    usage = state.get("ideation_usage")
+    if not isinstance(usage, dict):
+        usage = {}
+    usage.setdefault("count", 0)
+    usage.setdefault("last", 0)
+    usage.setdefault("hour", [])
+    usage.setdefault("messages", [])
+    usage.setdefault("models", {})
+    return usage
+
+
+def _advisor_budget_ok(adv: dict, state: dict) -> tuple[bool, str]:
+    """Separate cooldown + max-per-hour budget for the ideation lane."""
+    usage = _normalized_ideation_usage(state)
+    cooldown = int(adv.get("cooldown") or 0)
+    if cooldown > 0 and _now() - int(usage.get("last", 0)) < cooldown:
+        return False, f"ideation cooldown ({cooldown}s)"
+    max_per_hour = int(adv.get("max_per_hour") or 0)
+    if max_per_hour > 0:
+        hour_ago = _now() - 3600
+        recent = [t for t in usage.get("hour", []) if t > hour_ago]
+        if len(recent) >= max_per_hour:
+            return False, f"ideation max-per-hour ({max_per_hour})"
+    return True, ""
+
+
+def _record_ideation_usage(records: list, model: str) -> None:
+    """Persist ideation usage in a ledger separate from dev model_routes/wake_hour."""
+    with _processed_state_lock():
+        state = _normalized_state()
+        usage = _normalized_ideation_usage(state)
+        now = _now()
+        usage["count"] = int(usage.get("count", 0)) + 1
+        usage["last"] = now
+        usage["hour"] = [t for t in usage.get("hour", []) if t > now - 3600]
+        usage["hour"].append(now)
+        usage["models"][str(model or "")] = int(usage["models"].get(str(model or ""), 0)) + 1
+        for record in records or []:
+            rid = int(record.get("id", 0))
+            if rid not in usage["messages"]:
+                usage["messages"].append(rid)
+        state["ideation_usage"] = usage
+        _save_json(PROCESSED_FILE, state)
+
+
+def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None, *,
+                       command: str | None = None, workspace: str | None = None,
+                       open_terminal: bool = False,
+                       verify_delivery_receipts: bool = True) -> bool:
+    """One guarded ideation pass for ChatGPT Advisor items.
+
+    Returns True only when every advisor item was processed; otherwise False and the
+    failing items stay staged (bounded retry; stage+notify is handled by the caller).
+    The ideation chain is the configured advisor model ONLY. `openai-codex/*` and
+    deepseek are never candidates regardless of any model alias in the owner body,
+    so ideation can never consume Codex quota. Failures keep items staged — never
+    re-routed to the dev pool.
+    """
+    adv = advisor_config({"advisor": adv or {}})
+    model = str(adv.get("model") or "").strip()
+    if not model:
+        log("advisor: no ideation model configured; items remain staged")
+        return False
+    if "openai-codex/" in model.lower():
+        log(f"advisor: refusing to route ideation through Codex quota ({model}); items remain staged")
+        return False
+    already = [r for r in advisor_items if _wake_receipt_exists(int(r.get("id", 0)))]
+    if already:
+        mark_processed(already)
+        log(f"advisor: marked {len(already)} already-delivered ideation message(s) processed")
+        advisor_items = [r for r in advisor_items if r not in already]
+        if not advisor_items:
+            return False
+    state = read_state()
+    ok, why = _advisor_budget_ok(adv, state)
+    if not ok:
+        log(f"advisor: {why}; {len(advisor_items)} ideation item(s) remain staged")
+        return False
+    if not acquire_lock(timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT)):
+        log(f"advisor: single-flight lock held; {len(advisor_items)} ideation item(s) remain staged")
+        return False
+    try:
+        # The read-only advisor contract is the ONLY contract for ideation. If it
+        # cannot be read, fail closed and keep items staged — never fall back to the
+        # dev task contract, which would permit code edits and break the isolation.
+        try:
+            advisor_text = ADVISOR_TEMPLATE.read_text(encoding="utf-8")
+        except Exception as e:  # noqa: BLE001
+            log(f"advisor: cannot read advisor contract {ADVISOR_TEMPLATE}: {e}; items remain staged")
+            record_failure(advisor_items)
+            return False
+        # Batch by conversation only; the model is ALWAYS the fixed ideation model,
+        # so an owner "use gpt sol" alias in the body can never redirect to Codex.
+        batches: dict[int, list] = {}
+        for item in advisor_items or []:
+            batches.setdefault(int(item.get("conversation_id") or 0), []).append(item)
+        all_ok = True
+        successful = 0
+        for _, batch in batches.items():
+            run_workspace = workspace
+            convs = {int(i.get("conversation_id")) for i in batch if i.get("conversation_id")}
+            if len(convs) == 1:
+                run_workspace = conversation_workspace_dir(next(iter(convs))) or run_workspace
+            prompt = task_prompt(inbox, batch, template=advisor_text, workspace=run_workspace)
+            _record_ideation_usage(batch, model)
+            log(f"advisor: spawning ideation agent with {model} ({len(batch)} request(s)); chain=[{model}] only")
+            attempt = spawn_agent(
+                prompt, command=command, model=model,
+                timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT),
+                expected_replies=len(batch), cwd=run_workspace,
+                expected_source_ids=[int(i.get("id", 0)) for i in batch],
+                verify_delivery_receipts=verify_delivery_receipts,
+                open_terminal=open_terminal, return_reason=True)
+            attempt_ok, failure_kind = attempt if isinstance(attempt, tuple) else (bool(attempt), None)
+            if attempt_ok:
+                mark_processed(batch)
+                successful += len(batch)
+                log(f"advisor: ideation complete with {model}; processed {len(batch)} item(s)")
+                _cancel_answered_runs(batch)
+            else:
+                all_ok = False
+                record_failure(batch)
+                log(f"advisor: ideation agent failed ({failure_kind or 'unclassified'}); "
+                    f"items remain staged for bounded retry (never routed to Codex)")
+        return all_ok and successful == len(advisor_items)
+    except Exception as e:  # noqa: BLE001
+        record_failure(advisor_items)
+        log(f"advisor: ideation pass failed gracefully: {e}; items remain staged")
+        return False
+    finally:
+        release_lock()
+
+
 def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                model: str = DEFAULT_MODEL, cooldown: int = DEFAULT_COOLDOWN,
                max_per_hour: int = DEFAULT_MAX_PER_HOUR, timeout: int = DEFAULT_TIMEOUT,
@@ -3902,6 +4076,25 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
     items = unprocessed_items(inbox)
     if not items:
         return False
+    # --- ChatGPT Advisor (ideation) lane: separate, read-only, never Codex ---
+    # Partition Advisor-channel items first and run them on the ideation provider
+    # only. They never enter the dev quick/agent tiers, so ideation stays fully
+    # isolated from HARPP dev work and can never consume Codex quota.
+    advisor_done = False
+    try:
+        _advisor_cfg = advisor_config(harpp_client.load_config())
+    except Exception:  # noqa: BLE001 - unconfigured harness => advisor disabled
+        _advisor_cfg = advisor_config({})
+    if _advisor_cfg.get("enabled"):
+        advisor_items = [r for r in items if is_advisor_item(r, _advisor_cfg)]
+        if advisor_items:
+            advisor_done = maybe_wake_advisor(
+                inbox, advisor_items, _advisor_cfg, command=command,
+                workspace=workspace, open_terminal=open_terminal,
+                verify_delivery_receipts=verify_delivery_receipts)
+            items = [r for r in items if r not in advisor_items]
+            if not items:
+                return advisor_done
     # A message whose wake-message-<id> reply is already delivered was answered. It
     # cannot be retried with a new body (idempotency 409 Conflict) and must never be
     # escalated to the terminal FAILED reply. Mark it processed up front so it is not

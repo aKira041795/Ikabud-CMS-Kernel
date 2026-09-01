@@ -632,6 +632,75 @@ def cmd_wake_relay(args):
         print("wake relay stopped", flush=True)
 
 
+def cmd_advisor(args):
+    """Manage the ChatGPT Advisor (ideation) lane (separate, read-only, never Codex)."""
+    if args.acmd == "set":
+        if not args.key or not args.value:
+            sys.exit("harpp advisor set requires KEY and VALUE")
+        if args.key not in ("enabled", "conversation_title", "model", "timeout", "cooldown", "max_per_hour"):
+            sys.exit(f"unknown advisor key: {args.key}")
+        cfg = harpp_client.load_config()
+        adv = dict(cfg.get("advisor") or {})
+        value = args.value
+        if args.key in ("timeout", "cooldown", "max_per_hour"):
+            try:
+                value = int(value)
+            except ValueError:
+                sys.exit(f"{args.key} must be an integer")
+        elif args.key == "enabled":
+            value = str(value).lower() in ("1", "true", "yes", "on")
+        adv[args.key] = value
+        harpp_client.save_config({"advisor": adv})
+        print(f"advisor {args.key} -> {value}")
+        return
+    if args.acmd == "enable":
+        cfg = harpp_client.load_config()
+        adv = dict(cfg.get("advisor") or {})
+        adv["enabled"] = True
+        harpp_client.save_config({"advisor": adv})
+        print("ChatGPT Advisor lane enabled")
+        return
+    if args.acmd == "disable":
+        cfg = harpp_client.load_config()
+        adv = dict(cfg.get("advisor") or {})
+        adv["enabled"] = False
+        harpp_client.save_config({"advisor": adv})
+        print("ChatGPT Advisor lane disabled")
+        return
+    if args.acmd == "status":
+        cfg = harpp_client.load_config()
+        adv = harpp_wake.advisor_config(cfg)
+        usage = harpp_wake._normalized_ideation_usage(harpp_wake.read_state())
+        print(json.dumps({
+            "enabled": adv.get("enabled"),
+            "conversation_title": adv.get("conversation_title"),
+            "model": adv.get("model"),
+            "timeout": adv.get("timeout"),
+            "cooldown": adv.get("cooldown"),
+            "max_per_hour": adv.get("max_per_hour"),
+            "ideation_usage": {
+                "count": usage.get("count"),
+                "last": usage.get("last"),
+                "models": usage.get("models"),
+                "messages": usage.get("messages"),
+            },
+        }, indent=2))
+        return
+    if args.acmd == "setup":
+        print("ChatGPT Advisor (ideation) — setup")
+        print("1. Create a conversation titled '" + str(harpp_wake.ADVISOR_CONVERSATION_TITLE) + "' in the HARPP messenger.")
+        print("2. Add a dedicated OpenAI API key for ideation to the Pi harness (own billing, NEVER the Codex token):")
+        print("   - provider 'openai-ideation' in ~/.pi/agent/models.json")
+        print("   - an auth entry 'openai-ideation' in ~/.pi/agent/auth.json")
+        print("3. Configure the lane:")
+        print("   harpp advisor set conversation_title 'ChatGPT Advisor'")
+        print("   harpp advisor set model openai-ideation/gpt-5.4")
+        print("   harpp advisor enable")
+        print("4. Verify:")
+        print("   harpp advisor status")
+        return
+
+
 def main():
     p = argparse.ArgumentParser(prog="harpp", description="HARPP harness bridge client")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -724,6 +793,16 @@ def main():
     w.add_argument("--interval", type=int, default=5, help="seconds between relay passes (default 5)")
     w.add_argument("--once", action="store_true", help="run a single relay pass and exit (cron/testing)")
     w.add_argument("--check", action="store_true", help="print relay configuration and exit")
+
+    ad = sub.add_parser("advisor", help="manage the ChatGPT Advisor (ideation) lane")
+    adsub = ad.add_subparsers(dest="acmd", required=True)
+    ads = adsub.add_parser("set")
+    ads.add_argument("key")
+    ads.add_argument("value")
+    adsub.add_parser("enable")
+    adsub.add_parser("disable")
+    adsub.add_parser("status")
+    adsub.add_parser("setup")
 
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
     ib.add_argument("--clear", action="store_true")
@@ -883,6 +962,8 @@ def main():
                    open_terminal=not args.no_terminal and os.environ.get("HARPP_WAKE_TERMINAL", "1") != "0")
     elif args.cmd == "wake-relay":
         cmd_wake_relay(args)
+    elif args.cmd == "advisor":
+        cmd_advisor(args)
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear, path=args.inbox)
     elif args.cmd == "idempotency":

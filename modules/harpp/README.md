@@ -321,6 +321,14 @@ HARPP_WAKE_ENABLED=1 harpp watch --interval 45          # full autonomous wake
 harpp watch --once --wake --wake-command 'echo dry'     # dry-run of the spawn decision
 ```
 
+**ChatGPT Advisor mode (ideation):** a separate, read-only lane for getting a second opinion on
+a plan before `/architect`. It uses a dedicated conversation (`ChatGPT Advisor`), a read-only
+task contract, a dedicated `openai-ideation/*` provider, and a separate quota ledger — it
+**never** touches Codex usage limits. Setup + usage: `docs/ai/chatgpt-advisor-mode.md`;
+architecture: `docs/architecture/chatgpt-advisor-mode-contract.md`; CLI: `harpp advisor`. The
+wake engine routes Advisor-channel messages to the ideation provider only, keeping them fully
+isolated from dev work.
+
 **MCP (VS Code Copilot Chat):** add to `.vscode/mcp.json` (or user MCP config):
 
 ```json
