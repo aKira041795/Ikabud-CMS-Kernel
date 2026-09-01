@@ -49,10 +49,12 @@ interactive TUI. Configure providers/credentials with `pi auth` and `pi config`.
 - Outputs: `<outdir>/arch-dspro.txt` and `<outdir>/arch-codexsol.txt`
   (plus raw `.jsonl` traces). Merge both reviews into the task contract
   before handing off to `/implement`.
-- **Debate mode** (`python3 tools/pi-arch-debate.py "<intent>"`): DeepSeek Pro
-  drafts the architecture from your intent, Codex Sol critiques it, and the
-  loop converges on **APPROVED**, then writes the agreed contract to
-  `.ai/current-task.md`. Cap rounds with `DEBATE_MAX_ROUNDS` (default 3);
+- **Debate mode** (`python3 tools/pi-arch-debate.py "<intent>"`): the debate is ALWAYS
+  argued by **two different LLM models** — one per side (Side A drafts/revises, Side B
+  critiques; override with `DEBATE_MODEL_A` / `DEBATE_MODEL_B`, legacy aliases
+  `DEBATE_CODEX_MODEL` / `DEBATE_DEEPSEEK_MODEL`). The runner fails closed if both sides
+  resolve to the same model. The loop converges on **APPROVED**, then writes the agreed
+  contract to `.ai/current-task.md`. Cap rounds with `DEBATE_MAX_ROUNDS` (default 3);
   artifacts land in `.ai/debate/`. This is the two-model "discuss -> agree ->
   create current-task" workflow.
   - `--preflight "<short intent>"` — firm up a fuzzy/short intent first via a

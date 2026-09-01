@@ -3115,6 +3115,7 @@ def _debate_started_reply(jid, intent, rounds, first) -> str:
             f"intent: {intent}\n"
             f"rounds: {rounds or 'default (3)'}\n"
             f"opener: {first}\n"
+            "The debate is argued by TWO DIFFERENT LLM models — one per side (never the same model twice).\n"
             "It runs as a tracked job; I'll auto-report the verdict when it finishes.\n"
             "If it ends in REVISIONS, finalize the last draft as chair by replying \"Approve debate\".\n"
             f"To inspect: run \"harpp workflow show {jid}\" or open .ai/debate/debate-job-*.log.")

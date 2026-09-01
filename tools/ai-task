@@ -28,7 +28,7 @@ echo
 echo "Next commands:"
 echo "  Codex:    /architect $TASK"
 echo "  Harness:  bash tools/pi-arch-review.sh                       # DS Pro + Codex Sol independent review"
-echo "  Harness:  python3 tools/pi-arch-debate.py \"$TASK\"          # DS Pro drafts + Codex Sol critiques -> current-task.md"
+echo "  Harness:  python3 tools/pi-arch-debate.py \"$TASK\"          # two DIFFERENT LLM models debate -> current-task.md"
 echo "  DeepSeek: /implement"
 echo "  DeepSeek: /review"
 echo "  Codex:    /release-gate"

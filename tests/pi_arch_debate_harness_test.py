@@ -30,7 +30,7 @@ if mode == "failure":
 if mode == "empty":
     raise SystemExit(0)
 
-if "senior architect and peer reviewer" in prompt:
+if "REVIEWER side of a debate" in prompt:
     verdict = "REVISIONS" if mode == "revisions" else "APPROVED"
     text = f"VERDICT: {verdict}\nThe contract is deterministic, bounded, and safe for this isolated harness test."
 else:
@@ -125,6 +125,19 @@ class DebateHarnessTest(unittest.TestCase):
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
         self.assertIn("must be provider-qualified", result.stderr)
         self.assert_preserved()
+
+    def test_same_model_for_both_sides_is_rejected(self) -> None:
+        # A debate must ALWAYS be argued by TWO DIFFERENT LLM models. If both
+        # sides resolve to the same model, the harness fails closed BEFORE any
+        # provider call and must not touch the task file.
+        result = self.run_harness("approved", env_overrides={
+            "DEBATE_MODEL_A": "deepseek/deepseek-v4-pro",
+            "DEBATE_MODEL_B": "deepseek/deepseek-v4-pro",
+        })
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("TWO DIFFERENT LLM models", result.stderr)
+        self.assert_preserved()
+        self.assertEqual("failed\n", (self.work_dir / "approved.txt").read_text())
 
     def test_revisions_verdict_preserves_task_and_saves_draft(self) -> None:
         result = self.run_harness("revisions")

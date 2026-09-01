@@ -1,34 +1,38 @@
 #!/usr/bin/env python3
 """pi-arch-debate.py — Architecture debate via the Pi execution harness.
 
-DeepSeek Pro drafts/revises the architecture from your intent; Codex Sol
-(ChatGPT Pro) critiques it. Loop converges on APPROVED, then writes the agreed
-architecture to .ai/current-task.md.
+A debate is ALWAYS run by TWO DIFFERENT LLM models — one per side. Side A
+(DEFAULT drafter) and Side B (DEFAULT critic) must be distinct models; the
+runner fails closed if they resolve to the same model, so a one-sided debate
+can never happen. Override the pair with DEBATE_MODEL_A / DEBATE_MODEL_B
+(legacy aliases: DEBATE_CODEX_MODEL / DEBATE_DEEPSEEK_MODEL).
 
 Each model's output is STREAMED LIVE to the terminal as a visible chat:
-  🧠 DeepSeek Pro — Round N draft/revise
-  🔍 Codex Sol — Round N critique
+  Side A — Round N draft/revise
+  Side B — Round N critique
 Tool activity shows as compact [⌛ tool: …] markers.
 
 Usage:
   python3 tools/pi-arch-debate.py "<intent description>"
-  python3 tools/pi-arch-debate.py --first codex|deepseek "<intent>"   # chair picks the drafter
-  python3 tools/pi-arch-debate.py --preflight "<short intent>"        # firm intent first (DeepSeek Flash)
-  python3 tools/pi-arch-debate.py --fast "<intent>"                   # single-round triage
-  python3 tools/pi-arch-debate.py --approve                            # chair-approve last saved draft (no API)
-  python3 tools/pi-arch-debate.py --quiet "<intent>"                  # no live print
+  python3 tools/pi-arch-debate.py --first A|B "<intent>"   # chair picks the drafter side
+  python3 tools/pi-arch-debate.py --preflight "<short intent>"  # firm intent first (flash)
+  python3 tools/pi-arch-debate.py --fast "<intent>"        # single-round triage
+  python3 tools/pi-arch-debate.py --approve                  # chair-approve last saved draft (no API)
+  python3 tools/pi-arch-debate.py --quiet "<intent>"        # no live print
 
 Default opener is AUTO (intent-based chair decision):
-  - Codex Sol opens when intent signals precision/security/correctness/gap-hunting.
-  - DeepSeek Pro opens when intent signals broad building/exploration.
+  - Side A opens when intent signals precision/security/correctness/gap-hunting.
+  - Side B opens when intent signals broad building/exploration.
   The decision + reason is printed; override with --first.
 
 Env:
   DEBATE_MAX_ROUNDS     max draft/critique cycles (default 3)
   PI_MODEL_TIMEOUT      per-model timeout in seconds (default 600)
   DEBATE_AUTO_APPROVE=1 auto-approve the last draft (scripted use)
-  DEBATE_CODEX_MODEL    provider-qualified Codex model
-  DEBATE_DEEPSEEK_MODEL provider-qualified DeepSeek model
+  DEBATE_MODEL_A        provider-qualified model for Side A
+  DEBATE_MODEL_B        provider-qualified model for Side B (must differ from A; enforced)
+  DEBATE_CODEX_MODEL    legacy alias for DEBATE_MODEL_A
+  DEBATE_DEEPSEEK_MODEL legacy alias for DEBATE_MODEL_B
   DEBATE_FLASH_MODEL    provider-qualified preflight model
   DEBATE_WORK_DIR       artifact directory override (tests/isolated runs)
   DEBATE_TASK_FILE      approved task destination override
@@ -62,9 +66,13 @@ TASK_FILE = rooted_path(os.environ.get("DEBATE_TASK_FILE", ".ai/current-task.md"
 os.makedirs(WORK, exist_ok=True)
 MAX_ROUNDS = int(os.environ.get("DEBATE_MAX_ROUNDS", "3"))
 
-DS_PRO = os.environ.get("DEBATE_DEEPSEEK_MODEL", "deepseek/deepseek-v4-pro")
 DS_FLASH = os.environ.get("DEBATE_FLASH_MODEL", "deepseek/deepseek-v4-flash")
-CODEX = os.environ.get("DEBATE_CODEX_MODEL", "openai-codex/gpt-5.6-sol")
+# Two INDEPENDENT, DISTINCT LLM models — one per debate side. The runner fails
+# closed if they resolve to the same model, so both sides can never be played by
+# the same LLM. Override with DEBATE_MODEL_A/B (legacy per-provider vars still
+# work as aliases).
+MODEL_A = os.environ.get("DEBATE_MODEL_A") or os.environ.get("DEBATE_CODEX_MODEL") or "openai-codex/gpt-5.6-sol"
+MODEL_B = os.environ.get("DEBATE_MODEL_B") or os.environ.get("DEBATE_DEEPSEEK_MODEL") or "deepseek/deepseek-v4-pro"
 
 
 class DebateError(RuntimeError):
@@ -333,8 +341,14 @@ def main() -> None:
         print(__doc__)
         sys.exit(1)
 
-    validate_model_name(CODEX, "DEBATE_CODEX_MODEL")
-    validate_model_name(DS_PRO, "DEBATE_DEEPSEEK_MODEL")
+    validate_model_name(MODEL_A, "DEBATE_MODEL_A")
+    validate_model_name(MODEL_B, "DEBATE_MODEL_B")
+    # Fail-closed: a debate must always be argued by TWO DIFFERENT LLM models.
+    if MODEL_A.strip().lower() == MODEL_B.strip().lower():
+        raise DebateError(
+            f"debate requires TWO DIFFERENT LLM models; both sides resolved to {MODEL_A!r}. "
+            "Set DEBATE_MODEL_A and DEBATE_MODEL_B to distinct provider-qualified models."
+        )
     if PREFLIGHT or len(intent) < 120:
         validate_model_name(DS_FLASH, "DEBATE_FLASH_MODEL")
 
@@ -358,11 +372,11 @@ def main() -> None:
     else:
         print(f"→ Chair: explicit opener = {first.upper()}")
     if first not in ("codex", "deepseek"):
-        print("    (unknown --first value; defaulting to deepseek)")
+        print("    (unknown --first value; defaulting to side B)")
         first = "deepseek"
-    DRAFTER, CRITIC = (CODEX, DS_PRO) if first == "codex" else (DS_PRO, CODEX)
-    draft_label = f"{'🔍' if first == 'codex' else '🧠'} {'Codex Sol' if first == 'codex' else 'DeepSeek Pro'}"
-    critic_label = f"{'🧠' if first == 'codex' else '🔍'} {'DeepSeek Pro' if first == 'codex' else 'Codex Sol'}"
+    DRAFTER, CRITIC = (MODEL_A, MODEL_B) if first == "codex" else (MODEL_B, MODEL_A)
+    draft_label = f"{'🔍' if first == 'codex' else '🧠'} {MODEL_A if first == 'codex' else MODEL_B}"
+    critic_label = f"{'🧠' if first == 'codex' else '🔍'} {MODEL_B if first == 'codex' else MODEL_A}"
 
     draft = ""
     prev_draft = ""
