@@ -680,8 +680,10 @@ def cmd_advisor(args):
         usage = harpp_wake._normalized_ideation_usage(harpp_wake.read_state())
         print(json.dumps({
             "enabled": adv.get("enabled"),
+            "backend": adv.get("backend"),
             "conversation_title": adv.get("conversation_title"),
             "model": adv.get("model"),
+            "profile": str(adv.get("profile") or ""),
             "timeout": adv.get("timeout"),
             "cooldown": adv.get("cooldown"),
             "max_per_hour": adv.get("max_per_hour"),
