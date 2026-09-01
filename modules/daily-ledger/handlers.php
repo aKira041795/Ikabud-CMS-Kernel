@@ -3359,15 +3359,12 @@ function handleCashierLedger(array $params = []): void
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
-    // All accessible branches for dispatch dropdown (branch-scoped)
-    $allBranches = [];
-    $accessible = $authResult['accessible'];
-    if (count($accessible) > 0) {
-        $placeholders = implode(',', array_fill(0, count($accessible), '?'));
-        $stmtAll = $ctx->db()->prepare("SELECT id, code, name, is_commissary FROM dl_branches WHERE id IN ({$placeholders}) AND is_active = 1 ORDER BY name");
-        $stmtAll->execute($accessible);
-        $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+    // All active branches for the dispatch/receive destination-origin dropdowns.
+    // Branch-to-branch transfers are fleet-wide by design (the server accepts any
+    // active branch as destination/origin), so these pickers must NOT be scoped
+    // to the actor's accessible set — a cashier is locked to a single branch and
+    // would otherwise see an empty destination list and be unable to send stock.
+    $allBranches = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) ?: [];
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
     $incomingCount = 0;
@@ -4073,6 +4070,13 @@ function apiCreateCashierDispatch(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'A destination is required.'], 422);
         return;
     }
+    $destBranchStmt = $ctx->db()->prepare('SELECT id, is_active FROM dl_branches WHERE id = :id LIMIT 1');
+    $destBranchStmt->execute([':id' => $destId]);
+    $destBranch = $destBranchStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$destBranch || (int)($destBranch['is_active'] ?? 0) !== 1) {
+        $ctx->json(['ok' => false, 'error' => 'Destination branch no longer exists or is inactive. Refresh the page and choose a current branch.'], 422);
+        return;
+    }
     if ($destType === 'branch' && $destId === $originBranchId) {
         $ctx->json(['ok' => false, 'error' => 'A different destination branch is required.'], 422);
         return;
@@ -4472,7 +4476,8 @@ function apiReceivePaperDelivery(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Invalid origin type.'], 422);
         return;
     }
-    if ($originType === 'branch' && (($originId ?? 0) <= 0 || $originId === $destinationBranchId)) {
+    if (($originType === 'branch' && (($originId ?? 0) <= 0 || $originId === $destinationBranchId))
+        || ($originType === 'commissary' && (($originId ?? 0) > 0 && $originId === $destinationBranchId))) {
         $ctx->json(['ok' => false, 'error' => 'A different source branch is required.'], 422);
         return;
     }

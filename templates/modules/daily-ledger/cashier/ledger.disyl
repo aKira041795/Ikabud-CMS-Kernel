@@ -261,6 +261,7 @@
     var COMMISSARY_BRANCH_ID = '{commissary_branch_id}';
     var COMMISSARY_BRANCH_NAME = '{commissary_branch_name}';
     var LIABLE_PERSONS = {if liable_persons_json}{liable_persons_json|raw}{else}[]{/if};
+    var IS_CASHIER = {if is_cashier}true{else}false{/if};
     window.BASE = BASE;
     window.BRANCH_ID = BRANCH_ID;
     window.LEDGER_DATE = LEDGER_DATE;
@@ -269,6 +270,7 @@
     window.FORMAL_DELIVERY_ENABLED = FORMAL_DELIVERY_ENABLED;
     window.COMMISSARY_BRANCH_ID = COMMISSARY_BRANCH_ID;
     window.COMMISSARY_BRANCH_NAME = COMMISSARY_BRANCH_NAME;
+    window.IS_CASHIER = IS_CASHIER;
 
     // Modal openers — defined here so they always work even if included templates fail
     window.openReceiveModal = function() {
@@ -434,19 +436,12 @@
         return keys;
     }
     function shouldQueueServerFailure(res) {
-        var error = String((res && res.error) || '');
-        if (error === '') return true;
-        return [
-            'Branch not authorized',
-            'Reference only',
-            'Invalid input',
-            'Value out of bounds',
-            'Day is closed',
-            'cannot override',
-            'Auth required'
-        ].every(function(fragment) {
-            return error.indexOf(fragment) === -1;
-        });
+        // Unify with the replay/retry classifier so deterministic rejections
+        // (already received, missing, required, A different, etc.) surface as
+        // errors instead of being falsely queued as transient and quarantined
+        // later. function declarations hoist, so the later definition of
+        // shouldQueueOperationFailure is available here.
+        return shouldQueueOperationFailure(res);
     }
     function syncPendingStorage() {
         var keys = listPendingKeys();

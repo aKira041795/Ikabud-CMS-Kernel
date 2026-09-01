@@ -151,12 +151,19 @@ function dispatchModal() {
                     this.products.push({ id: pid, name: nm.trim() });
                 }
             }.bind(this));
+            if (rows.length === 0 && typeof window.dlReadProductReference === 'function') {
+                window.dlReadProductReference().then(function(products) { this.products = products; }.bind(this));
+            }
         },
 
         validate() {
             this.errorMsg = '';
             if (!this.form.delivery_date) {
                 this.errorMsg = 'Date sent is required.';
+                return false;
+            }
+            if (window.IS_CASHIER && this.form.delivery_date !== window.LEDGER_DATE) {
+                this.errorMsg = 'Cashiers can only send on the current business date (' + window.LEDGER_DATE + ').';
                 return false;
             }
             if (!this.form.dr_number || String(this.form.dr_number).trim() === '') {
