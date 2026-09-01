@@ -2929,6 +2929,18 @@ class HarppCmsAssistantTest(unittest.TestCase):
         self.assertTrue(harpp_wake.is_cms_item(self._cms_item(1), cms))
         self.assertFalse(harpp_wake.is_cms_item(self._cms_item(2, title="Dev thread"), cms))
 
+    def test_is_cms_item_honors_configured_title(self):
+        # A configured non-default title must match (regression: double-wrapping
+        # the config reset it to the default and silently misrouted messages).
+        cms = harpp_wake.cms_config({"cms": {"conversation_title": "CMS Draft"}})
+        self.assertTrue(harpp_wake.is_cms_item(self._cms_item(3, title="CMS Draft"), cms))
+        self.assertFalse(harpp_wake.is_cms_item(self._cms_item(4, title="CMS Assistant"), cms))
+        # Full-config shape (with "cms" key) also works.
+        self.assertTrue(harpp_wake.is_cms_item(
+            self._cms_item(5, title="CMS Draft"), {"cms": {"conversation_title": "CMS Draft"}}))
+        self.assertFalse(harpp_wake.is_cms_item(
+            self._cms_item(6, title="Dev thread"), {"cms": {"conversation_title": "CMS Draft"}}))
+
     def test_cms_model_allowlist_deepseek_or_groq_only(self):
         self.assertTrue(harpp_wake._cms_model_ok("deepseek/deepseek-v4-pro"))
         self.assertTrue(harpp_wake._cms_model_ok("groq/llama-3.3-70b-versatile"))

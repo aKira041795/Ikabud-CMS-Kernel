@@ -78,12 +78,22 @@ def api(method: str, path: str, body=None, config=None, timeout: int = 90) -> di
 
 # ── Content ─────────────────────────────────────────────────────────
 
+def _normalize_created(r: dict) -> dict:
+    """Create/update responses carry the id at the top level
+    ({"ok":true,"id":N,...}); expose it under data.id too so callers and the
+    agent can rely on data["id"]."""
+    if r.get("ok") and isinstance(r.get("id"), int) and not isinstance(r.get("data"), dict):
+        r = dict(r)
+        r["data"] = {"id": r["id"]}
+    return r
+
+
 def content_create(cfg: dict, title: str, body: str, type: str = "post", status: str = "draft") -> dict:
     """Create content. status is forced to draft by the caller (never publish).
     Uses PUT: the shared-host WAF blocks cookie-less POSTs to /api/v1/cms/* (406)."""
-    return api("PUT", "/api/v1/cms/content", {
+    return _normalize_created(api("PUT", "/api/v1/cms/content", {
         "title": title, "body": body, "type": type, "status": status,
-    }, config=cfg)
+    }, config=cfg))
 
 
 def content_update(cfg: dict, content_id: int, title=None, body=None, status: str = "draft") -> dict:
@@ -92,7 +102,7 @@ def content_update(cfg: dict, content_id: int, title=None, body=None, status: st
         payload["title"] = title
     if body is not None:
         payload["body"] = body
-    return api("PUT", f"/api/v1/cms/content/{int(content_id)}", payload, config=cfg)
+    return _normalize_created(api("PUT", f"/api/v1/cms/content/{int(content_id)}", payload, config=cfg))
 
 
 def content_get(cfg: dict, content_id: int) -> dict:

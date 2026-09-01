@@ -4118,7 +4118,14 @@ def cms_config(config=None) -> dict:
 
 
 def is_cms_item(item, config=None) -> bool:
-    cfg = cms_config(config)
+    # Accept either the full config (with a "cms" section) or an already
+    # normalized cms dict — double-wrapping through cms_config() reset a
+    # configured title back to the default and silently misrouted messages.
+    cfg = config
+    if isinstance(cfg, dict) and "cms" in cfg:
+        cfg = cms_config(cfg)
+    elif not isinstance(cfg, dict):
+        cfg = cms_config({})
     wanted = str(cfg.get("conversation_title") or "").strip().lower()
     title = str(item.get("conversation_title") or "").strip().lower()
     return bool(wanted) and title == wanted
