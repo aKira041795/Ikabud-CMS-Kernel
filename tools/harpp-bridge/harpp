@@ -632,6 +632,90 @@ def cmd_wake_relay(args):
         print("wake relay stopped", flush=True)
 
 
+def cmd_cms(args):
+    """Manage the HARPP CMS Assistant (draft-only content editing, deepseek/groq)."""
+    if args.cmd2 == "set":
+        if not args.key or not args.value:
+            sys.exit("harpp cms set requires KEY and VALUE")
+        if args.key not in ("enabled", "conversation_title", "model", "base_url", "token", "timeout", "cooldown", "max_per_hour"):
+            sys.exit(f"unknown cms key: {args.key}")
+        if args.key == "model" and not (str(args.value).startswith("deepseek/") or str(args.value).startswith("groq/")):
+            sys.exit("cms model must be deepseek/* or groq/* (never Codex)")
+        cfg = harpp_client.load_config()
+        cms = dict(cfg.get("cms") or {})
+        value = args.value
+        if args.key in ("timeout", "cooldown", "max_per_hour"):
+            try:
+                value = int(value)
+            except ValueError:
+                sys.exit(f"{args.key} must be an integer")
+        elif args.key == "enabled":
+            value = str(value).lower() in ("1", "true", "yes", "on")
+        cms[args.key] = value
+        harpp_client.save_config({"cms": cms})
+        print(f"cms {args.key} -> {'<redacted>' if args.key == 'token' else value}")
+        return
+    if args.cmd2 == "enable":
+        cfg = harpp_client.load_config()
+        cms = dict(cfg.get("cms") or {})
+        cms["enabled"] = True
+        harpp_client.save_config({"cms": cms})
+        print("CMS Assistant lane enabled")
+        return
+    if args.cmd2 == "disable":
+        cfg = harpp_client.load_config()
+        cms = dict(cfg.get("cms") or {})
+        cms["enabled"] = False
+        harpp_client.save_config({"cms": cms})
+        print("CMS Assistant lane disabled")
+        return
+    if args.cmd2 == "status":
+        cfg = harpp_client.load_config()
+        cms = harpp_wake.cms_config(cfg)
+        usage = harpp_wake._normalized_cms_usage(harpp_wake.read_state())
+        print(json.dumps({
+            "enabled": cms.get("enabled"),
+            "conversation_title": cms.get("conversation_title"),
+            "model": cms.get("model"),
+            "base_url": cms.get("base_url"),
+            "token_configured": bool(str(cms.get("token") or "").strip()),
+            "timeout": cms.get("timeout"),
+            "cooldown": cms.get("cooldown"),
+            "max_per_hour": cms.get("max_per_hour"),
+            "cms_usage": {"count": usage.get("count"), "last": usage.get("last"),
+                            "models": usage.get("models"), "messages": usage.get("messages")},
+        }, indent=2))
+        return
+    if args.cmd2 == "setup":
+        print("CMS Assistant — setup")
+        print("1. Mint a service token (on the app server, per tenant):")
+        print("   php ikabud cms:service-token create <tenant_id|domain> 'CMS Assistant'")
+        print("2. Configure the lane on this desktop:")
+        print("   harpp cms set base_url https://harpp.ikabudkernel.com")
+        print("   harpp cms set token <raw-token>")
+        print("   harpp cms set model deepseek/deepseek-v4-pro")
+        print("   harpp cms enable")
+        print("3. Create a conversation titled 'CMS Assistant' in the messenger.")
+        print("4. Verify:")
+        print("   harpp cms status")
+        return
+    # Content/page operations (used by the CMS Assistant agent): proxy to cms_client.
+    import cms_client
+    if args.cmd2 == "content-create":
+        argv = ["content-create", "--title", args.title, "--body", args.body] + (["--type", args.type] if args.type else [])
+    elif args.cmd2 == "content-update":
+        argv = ["content-update", str(args.id)] + (["--title", args.title] if args.title else []) + (["--body", args.body] if args.body else [])
+    elif args.cmd2 == "content-get":
+        argv = ["content-get", str(args.id)]
+    elif args.cmd2 == "page-get":
+        argv = ["page-get", str(args.id)]
+    elif args.cmd2 == "page-save":
+        argv = ["page-save", str(args.id), "--document-file", args.document_file]
+    else:
+        sys.exit(f"unknown cms command: {args.cmd2}")
+    sys.exit(cms_client._main(argv))
+
+
 def cmd_advisor(args):
     """Manage the ChatGPT Advisor (ideation) lane (separate, read-only, never Codex)."""
     if args.acmd == "set":
@@ -817,6 +901,31 @@ def main():
     adsub.add_parser("status")
     adsub.add_parser("setup")
 
+    cm = sub.add_parser("cms", help="manage the CMS Assistant (draft-only content editing)")
+    cmsub = cm.add_subparsers(dest="cmd2", required=True)
+    cms_set = cmsub.add_parser("set")
+    cms_set.add_argument("key")
+    cms_set.add_argument("value")
+    cmsub.add_parser("enable")
+    cmsub.add_parser("disable")
+    cmsub.add_parser("status")
+    cmsub.add_parser("setup")
+    cms_cc = cmsub.add_parser("content-create")
+    cms_cc.add_argument("--title", required=True)
+    cms_cc.add_argument("--body", required=True)
+    cms_cc.add_argument("--type", default="post")
+    cms_cu = cmsub.add_parser("content-update")
+    cms_cu.add_argument("id", type=int)
+    cms_cu.add_argument("--title", default=None)
+    cms_cu.add_argument("--body", default=None)
+    cms_cg = cmsub.add_parser("content-get")
+    cms_cg.add_argument("id", type=int)
+    cms_pg = cmsub.add_parser("page-get")
+    cms_pg.add_argument("id", type=int)
+    cms_ps = cmsub.add_parser("page-save")
+    cms_ps.add_argument("id", type=int)
+    cms_ps.add_argument("--document-file", required=True)
+
     ib = sub.add_parser("inbox", help="read (or clear) the accumulated harness inbox")
     ib.add_argument("--clear", action="store_true")
     ib.add_argument("--inbox", default=None, help="override the inbox path (default machine-global)")
@@ -977,6 +1086,8 @@ def main():
         cmd_wake_relay(args)
     elif args.cmd == "advisor":
         cmd_advisor(args)
+    elif args.cmd == "cms":
+        cmd_cms(args)
     elif args.cmd == "inbox":
         inbox_cmd(clear=args.clear, path=args.inbox)
     elif args.cmd == "idempotency":

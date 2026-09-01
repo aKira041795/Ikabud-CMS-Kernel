@@ -363,6 +363,7 @@ def _normalized_state() -> dict:
     state.setdefault("model_routes", [])
     state.setdefault("plans", {})
     state.setdefault("ideation_usage", {})
+    state.setdefault("cms_usage", {})
     return state
 
 
@@ -4089,6 +4090,160 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
         release_lock()
 
 
+# ---------------------------------------------------------------------------
+# CMS Assistant lane — separate content-editing lane (DRAFT-ONLY). Owner messages
+# in the `CMS Assistant` channel are answered by a headless agent that calls the
+# CMS content/builder APIs with a scoped Bearer service token. Model allowlist:
+# deepseek/* or groq/* (never Codex). All writes land as drafts; publishing stays
+# human. Separate ledger; fail-safe staging on any failure.
+# ---------------------------------------------------------------------------
+
+CMS_CONVERSATION_TITLE = "CMS Assistant"
+CMS_DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
+CMS_TEMPLATE = Path(__file__).resolve().parent / "wake" / "task-contract-cms.md"
+
+
+def cms_config(config=None) -> dict:
+    cms = dict((config or {}).get("cms") or {})
+    for key, default in (
+        ("enabled", True),
+        ("conversation_title", CMS_CONVERSATION_TITLE),
+        ("model", CMS_DEFAULT_MODEL),
+        ("timeout", DEFAULT_TIMEOUT),
+        ("cooldown", DEFAULT_COOLDOWN),
+        ("max_per_hour", DEFAULT_MAX_PER_HOUR),
+    ):
+        cms.setdefault(key, default)
+    return cms
+
+
+def is_cms_item(item, config=None) -> bool:
+    cfg = cms_config(config)
+    wanted = str(cfg.get("conversation_title") or "").strip().lower()
+    title = str(item.get("conversation_title") or "").strip().lower()
+    return bool(wanted) and title == wanted
+
+
+def _cms_model_ok(model: str) -> bool:
+    return model.startswith("deepseek/") or model.startswith("groq/")
+
+
+def _normalized_cms_usage(state: dict) -> dict:
+    usage = state.get("cms_usage")
+    if not isinstance(usage, dict):
+        usage = {}
+    usage.setdefault("count", 0)
+    usage.setdefault("last", 0)
+    usage.setdefault("hour", [])
+    usage.setdefault("messages", [])
+    usage.setdefault("models", {})
+    return usage
+
+
+def _cms_budget_ok(cfg: dict, state: dict) -> tuple[bool, str]:
+    usage = _normalized_cms_usage(state)
+    cooldown = int(cfg.get("cooldown") or 0)
+    if cooldown > 0 and _now() - int(usage.get("last", 0)) < cooldown:
+        return False, f"cms-assistant cooldown ({cooldown}s)"
+    max_per_hour = int(cfg.get("max_per_hour") or 0)
+    if max_per_hour > 0:
+        hour_ago = _now() - 3600
+        recent = [t for t in usage.get("hour", []) if t > hour_ago]
+        if len(recent) >= max_per_hour:
+            return False, f"cms-assistant max-per-hour ({max_per_hour})"
+    return True, ""
+
+
+def _record_cms_usage(records: list, model: str) -> None:
+    """Persist CMS-assistant usage in a ledger separate from dev and ideation."""
+    with _processed_state_lock():
+        state = _normalized_state()
+        usage = _normalized_cms_usage(state)
+        now = _now()
+        usage["count"] = int(usage.get("count", 0)) + 1
+        usage["last"] = now
+        usage["hour"] = [t for t in usage.get("hour", []) if t > now - 3600]
+        usage["hour"].append(now)
+        usage["models"][str(model or "")] = int(usage["models"].get(str(model or ""), 0)) + 1
+        for record in records or []:
+            rid = int(record.get("id", 0))
+            if rid not in usage["messages"]:
+                usage["messages"].append(rid)
+        state["cms_usage"] = usage
+        _save_json(PROCESSED_FILE, state)
+
+
+def maybe_wake_cms(inbox: str, cms_items: list, cfg: dict | None = None, *,
+                   command: str | None = None, workspace: str | None = None,
+                   open_terminal: bool = False,
+                   verify_delivery_receipts: bool = True) -> bool:
+    """One guarded CMS-assistant pass. Draft-only; never Codex; fail-safe staging."""
+    cfg = cms_config({"cms": cfg or {}})
+    model = str(cfg.get("model") or "").strip()
+    if not model or not _cms_model_ok(model):
+        log(f"cms-assistant: refusing model {model or '(unset)'}; must be deepseek/* or groq/*")
+        return False
+    already = [r for r in cms_items if _wake_receipt_exists(int(r.get("id", 0)))]
+    if already:
+        mark_processed(already)
+        log(f"cms-assistant: marked {len(already)} already-delivered message(s) processed")
+        cms_items = [r for r in cms_items if r not in already]
+        if not cms_items:
+            return False
+    state = read_state()
+    ok, why = _cms_budget_ok(cfg, state)
+    if not ok:
+        log(f"cms-assistant: {why}; {len(cms_items)} item(s) remain staged")
+        return False
+    if not acquire_lock(timeout=int(cfg.get("timeout") or DEFAULT_TIMEOUT)):
+        log(f"cms-assistant: single-flight lock held; {len(cms_items)} item(s) remain staged")
+        return False
+    try:
+        try:
+            cms_text = CMS_TEMPLATE.read_text(encoding="utf-8")
+        except Exception as e:  # noqa: BLE001
+            log(f"cms-assistant: cannot read contract {CMS_TEMPLATE}: {e}; items remain staged")
+            record_failure(cms_items)
+            return False
+        batches: dict[int, list] = {}
+        for item in cms_items or []:
+            batches.setdefault(int(item.get("conversation_id") or 0), []).append(item)
+        all_ok = True
+        successful = 0
+        for _, batch in batches.items():
+            run_workspace = workspace
+            convs = {int(i.get("conversation_id")) for i in batch if i.get("conversation_id")}
+            if len(convs) == 1:
+                run_workspace = conversation_workspace_dir(next(iter(convs))) or run_workspace
+            prompt = task_prompt(inbox, batch, template=cms_text, workspace=run_workspace)
+            log(f"cms-assistant: spawning agent with {model} ({len(batch)} request(s)); chain=[{model}] only")
+            attempt = spawn_agent(
+                prompt, command=command, model=model,
+                timeout=int(cfg.get("timeout") or DEFAULT_TIMEOUT),
+                expected_replies=len(batch), cwd=run_workspace,
+                expected_source_ids=[int(i.get("id", 0)) for i in batch],
+                verify_delivery_receipts=verify_delivery_receipts,
+                open_terminal=open_terminal, return_reason=True)
+            attempt_ok, failure_kind = attempt if isinstance(attempt, tuple) else (bool(attempt), None)
+            if attempt_ok:
+                mark_processed(batch)
+                _record_cms_usage(batch, model)
+                successful += len(batch)
+                log(f"cms-assistant: complete with {model}; processed {len(batch)} item(s)")
+                _cancel_answered_runs(batch)
+            else:
+                all_ok = False
+                record_failure(batch)
+                log(f"cms-assistant: agent failed ({failure_kind or 'unclassified'}); items remain staged")
+        return all_ok and successful == len(cms_items)
+    except Exception as e:  # noqa: BLE001
+        record_failure(cms_items)
+        log(f"cms-assistant: pass failed gracefully: {e}; items remain staged")
+        return False
+    finally:
+        release_lock()
+
+
 def _record_ideation_usage(records: list, model: str) -> None:
     """Persist ideation usage in a ledger separate from dev model_routes/wake_hour."""
     with _processed_state_lock():
@@ -4234,6 +4389,22 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
             items = [r for r in items if r not in advisor_items]
             if not items:
                 return advisor_done
+    # --- CMS Assistant lane: draft-only content editing, deepseek/groq, never Codex ---
+    cms_done = False
+    try:
+        _cms_cfg = cms_config(harpp_client.load_config())
+    except Exception:  # noqa: BLE001 - unconfigured harness => lane disabled
+        _cms_cfg = cms_config({})
+    if _cms_cfg.get("enabled"):
+        cms_items = [r for r in items if is_cms_item(r, _cms_cfg)]
+        if cms_items:
+            cms_done = maybe_wake_cms(
+                inbox, cms_items, _cms_cfg, command=command,
+                workspace=workspace, open_terminal=open_terminal,
+                verify_delivery_receipts=verify_delivery_receipts)
+            items = [r for r in items if r not in cms_items]
+            if not items:
+                return cms_done
     # A message whose wake-message-<id> reply is already delivered was answered. It
     # cannot be retried with a new body (idempotency 409 Conflict) and must never be
     # escalated to the terminal FAILED reply. Mark it processed up front so it is not

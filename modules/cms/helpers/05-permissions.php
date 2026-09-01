@@ -281,6 +281,11 @@ function cmsUserCan(array $user, string $cap): bool
     $source = (string)($user['source'] ?? '');
     $role   = (string)($user['role'] ?? '');
 
+    // Service tokens (CMS Assistant): the stored capability allowlist is authoritative.
+    if (($user['is_service'] ?? false) === true) {
+        return in_array($cap, (array)($user['service_caps'] ?? []), true);
+    }
+
     // Kernel admin = superadmin-equivalent, can do everything
     if ($source === 'kernel' && $role === 'admin') {
         return true;

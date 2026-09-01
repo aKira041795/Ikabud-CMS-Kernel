@@ -101,7 +101,8 @@
         "database/migrations/023_rename_capability_ids.sql",
         "database/migrations/024_cms_auth_verifications.sql",
         "database/migrations/025_cms_user_services.sql",
-        "database/migrations/027_cms_theme_registry.sql"
+        "database/migrations/027_cms_theme_registry.sql",
+    "database/migrations/028_cms_service_tokens.sql"
     ],
     "seeds": [
         "database/seeds/001_cms_baseline_content_types.sql"

@@ -2875,6 +2875,157 @@ class HarppAdvisorTest(unittest.TestCase):
         self.assertIn(21, usage["messages"])
 
 
+class HarppCmsAssistantTest(unittest.TestCase):
+    """CMS Assistant lane — draft-only content editing, deepseek/groq only, separate ledger."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        harpp_wake.CONFIG_DIR = base
+        harpp_wake.LOCK_FILE = base / "wake.lock"
+        harpp_wake.QUICK_LOCK_FILE = base / "wake-quick.lock"
+        harpp_wake.PROCESSED_FILE = base / "wake-processed.json"
+        harpp_wake.WAKE_LOG = base / "wake.log"
+        harpp_wake.JOBS_FILE = base / "jobs.json"
+        harpp_wake.WORKFLOWS_FILE = base / "workflows.json"
+        harpp_wake.DECISIONS_FILE = base / "decisions.json"
+        harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
+        self.inbox = base / "inbox.jsonl"
+        self.spawns = []
+        self.cancels = []
+        self._orig_spawn = harpp_wake.spawn_agent
+        self._orig_cancel = harpp_wake.harpp_client.cancel_run
+        self._orig_ws_dir = harpp_wake.conversation_workspace_dir
+        self._orig_load_config = harpp_wake.harpp_client.load_config
+        harpp_wake.spawn_agent = self._fake_spawn
+        harpp_wake.conversation_workspace_dir = lambda *a, **kw: None
+        harpp_wake.harpp_client.cancel_run = lambda **kw: self.cancels.append(kw) or {"ok": True}
+
+    def tearDown(self):
+        harpp_wake.spawn_agent = self._orig_spawn
+        harpp_wake.harpp_client.cancel_run = self._orig_cancel
+        harpp_wake.conversation_workspace_dir = self._orig_ws_dir
+        harpp_wake.harpp_client.load_config = self._orig_load_config
+        harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
+        self.tmp.cleanup()
+
+    def _fake_spawn(self, prompt, *, command=None, model, timeout, expected_replies=None,
+                    cwd=None, expected_source_ids=None, verify_delivery_receipts=True,
+                    open_terminal=False, return_reason=False, require_marker=True):
+        self.spawns.append({"model": model, "prompt": prompt, "expected": expected_source_ids})
+        return (True, None)
+
+    def _cms_item(self, mid, title="CMS Assistant", body="Create a draft post about X"):
+        return {"kind": "message", "id": mid, "conversation_id": 800 + mid,
+                "conversation_title": title, "body": body}
+
+    def _write_inbox(self, records):
+        with self.inbox.open("w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r) + "\n")
+
+    def test_is_cms_item_detects_channel(self):
+        cms = harpp_wake.cms_config({"cms": {"conversation_title": "CMS Assistant"}})
+        self.assertTrue(harpp_wake.is_cms_item(self._cms_item(1), cms))
+        self.assertFalse(harpp_wake.is_cms_item(self._cms_item(2, title="Dev thread"), cms))
+
+    def test_cms_model_allowlist_deepseek_or_groq_only(self):
+        self.assertTrue(harpp_wake._cms_model_ok("deepseek/deepseek-v4-pro"))
+        self.assertTrue(harpp_wake._cms_model_ok("groq/llama-3.3-70b-versatile"))
+        self.assertFalse(harpp_wake._cms_model_ok("openai-codex/gpt-5.4"))
+        self.assertFalse(harpp_wake._cms_model_ok("openai-ideation/gpt-5.4"))
+
+    def test_cms_routes_only_deepseek_or_groq_never_codex(self):
+        self._write_inbox([self._cms_item(11, body="Create a draft post about launch")])
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        cms = harpp_wake.cms_config(
+            {"cms": {"model": "deepseek/deepseek-v4-pro", "cooldown": 0, "max_per_hour": 0}})
+        self.assertTrue(harpp_wake.maybe_wake_cms(str(self.inbox), items, cms))
+        self.assertEqual(len(self.spawns), 1)
+        # Fixed deepseek model only; the "use gpt sol" alias must NOT redirect to Codex.
+        self.assertEqual(self.spawns[0]["model"], "deepseek/deepseek-v4-pro")
+        self.assertNotIn("openai-codex", self.spawns[0]["model"])
+        # The draft-only CMS contract is used.
+        self.assertIn("DRAFT-ONLY", self.spawns[0]["prompt"])
+        self.assertIn("never publish", self.spawns[0]["prompt"].lower())
+        # Message marked processed.
+        self.assertIn(11, harpp_wake.read_state()["messages"])
+
+    def test_cms_refuses_codex_model_config(self):
+        self._write_inbox([self._cms_item(12)])
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        cms = harpp_wake.cms_config({"cms": {"model": "openai-codex/gpt-5.4"}})
+        self.assertFalse(harpp_wake.maybe_wake_cms(str(self.inbox), items, cms))
+        self.assertEqual(self.spawns, [])
+        # Item stays staged (never processed, never routed to Codex).
+        self.assertNotIn(12, harpp_wake.read_state()["messages"])
+
+    def test_cms_refuses_ideation_model(self):
+        # A ChatGPT-advisor model must also be refused (allowlist is deepseek/* or groq/* only).
+        self._write_inbox([self._cms_item(15, body="Create a draft page")])
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        cms = harpp_wake.cms_config({"cms": {"model": "openai-ideation/gpt-5.4"}})
+        self.assertFalse(harpp_wake.maybe_wake_cms(str(self.inbox), items, cms))
+        self.assertEqual(self.spawns, [])
+        self.assertNotIn(15, harpp_wake.read_state()["messages"])
+
+    def test_cms_failure_keeps_staged(self):
+        def fail_spawn(prompt, *, command=None, model, timeout, expected_replies=None,
+                       cwd=None, expected_source_ids=None, verify_delivery_receipts=True,
+                       open_terminal=False, return_reason=False, require_marker=True):
+            self.spawns.append({"model": model})
+            return (False, "usage_exhausted")
+        harpp_wake.spawn_agent = fail_spawn
+        self._write_inbox([self._cms_item(13)])
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        cms = harpp_wake.cms_config(
+            {"cms": {"model": "deepseek/deepseek-v4-pro", "cooldown": 0, "max_per_hour": 0}})
+        # Failed pass reports False (work remains staged).
+        self.assertFalse(harpp_wake.maybe_wake_cms(str(self.inbox), items, cms))
+        self.assertEqual(self.spawns[0]["model"], "deepseek/deepseek-v4-pro")
+        # Not processed -> staged for bounded retry; failure recorded once.
+        self.assertNotIn(13, harpp_wake.read_state()["messages"])
+        self.assertEqual(harpp_wake.read_state()["failures"].get("13"), 1)
+
+    def test_cms_ledger_separate_from_dev_and_ideation(self):
+        self._write_inbox([self._cms_item(14)])
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        cms = harpp_wake.cms_config(
+            {"cms": {"model": "groq/llama-3.3-70b-versatile", "cooldown": 0, "max_per_hour": 0}})
+        harpp_wake.maybe_wake_cms(str(self.inbox), items, cms)
+        state = harpp_wake.read_state()
+        usage = harpp_wake._normalized_cms_usage(state)
+        self.assertEqual(usage["count"], 1)
+        self.assertEqual(usage["models"], {"groq/llama-3.3-70b-versatile": 1})
+        self.assertIn(14, usage["messages"])
+        # Dev ledger untouched: no dev wake timestamps, no model routes recorded.
+        self.assertEqual(state.get("wake_hour", []), [])
+        self.assertEqual(state.get("model_routes", []), [])
+        # Ideation ledger untouched.
+        self.assertEqual(harpp_wake._normalized_ideation_usage(state).get("count"), 0)
+
+    def test_maybe_wake_partitions_cms_from_dev(self):
+        self._write_inbox([
+            self._cms_item(21, body="Create a draft post about the rollout"),
+            {"kind": "message", "id": 22, "conversation_id": 5,
+             "conversation_title": "Dev thread", "body": "fix the login page"},
+        ])
+        harpp_wake.harpp_client.load_config = lambda: {
+            "advisor": {"enabled": False},
+            "cms": {"enabled": True, "conversation_title": "CMS Assistant",
+                    "model": "deepseek/deepseek-v4-pro", "cooldown": 0, "max_per_hour": 0}}
+        harpp_wake.maybe_wake(str(self.inbox), enabled=True, command=None,
+                              cooldown=0, max_per_hour=0, timeout=30)
+        models = [s["model"] for s in self.spawns]
+        self.assertIn("deepseek/deepseek-v4-pro", models)
+        self.assertNotIn("openai-codex", models)
+        state = harpp_wake.read_state()
+        self.assertIn(21, state["messages"])
+        self.assertIn(22, state["messages"])
+        usage = harpp_wake._normalized_cms_usage(state)
+        self.assertIn(21, usage["messages"])
+
+
 class HarppAdvisorPageTest(unittest.TestCase):
     """ChatGPT-page (backend=page) advisor lane — Playwright adapter, fail-safe, ledger."""
 

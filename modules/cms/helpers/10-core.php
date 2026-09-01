@@ -241,6 +241,11 @@ function cmsCanPublish(array $user): bool
     $role   = (string)($user['role'] ?? '');
     $source = (string)($user['source'] ?? '');
 
+    // Service tokens (CMS Assistant) can never publish.
+    if (($user['is_service'] ?? false) === true) {
+        return false;
+    }
+
     if ($source === 'kernel' && $role === 'admin') {
         return true;
     }

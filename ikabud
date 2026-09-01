@@ -1287,6 +1287,91 @@ switch ($command) {
         out('');
         break;
 
+    // ── cms:service-token ─────────────────────────────────────────
+    // Scoped Bearer tokens for the HARPP CMS Assistant (create/list/revoke).
+    case 'cms:service-token':
+        banner();
+        $cmsPos = paramsWithoutFlags($params);
+        $cmsAction = trim((string)($cmsPos[0] ?? ''));
+        $cmsTenantSelector = trim((string)($cmsPos[1] ?? ''));
+        $cmsArg = trim((string)($cmsPos[2] ?? ''));
+        if (!in_array($cmsAction, ['create', 'list', 'revoke'], true) || $cmsTenantSelector === '') {
+            out('  Usage: php ikabud cms:service-token <create|list|revoke> <tenant_id|tenant_key|domain> [name|id]');
+            out('');
+            break;
+        }
+        $cmsTenantId = cliResolveTenantId($cmsTenantSelector);
+        if ($cmsTenantId === null || $cmsTenantId <= 0) {
+            out('  ' . red('✗ Unknown tenant: ') . $cmsTenantSelector);
+            out('');
+            break;
+        }
+        try {
+            $cmsPdo = app()->dbForTenant($cmsTenantId);
+            // Ensure the table exists (idempotent) so a token can be minted pre-migration.
+            $cmsPdo->exec((string)file_get_contents(__DIR__ . '/modules/cms/database/migrations/028_cms_service_tokens.sql'));
+
+            if ($cmsAction === 'list') {
+                $cmsRows = $cmsPdo->query('SELECT id, name, role, is_active, capabilities, last_used_at, created_at FROM cms_service_tokens ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                if (!$cmsRows) {
+                    out('  ' . dim('No service tokens for tenant #' . $cmsTenantId . '.'));
+                    out('');
+                    break;
+                }
+                foreach ($cmsRows as $cmsR) {
+                    $cmsCaps = json_decode((string)($cmsR['capabilities'] ?? '[]'), true) ?: [];
+                    out('  #' . (int)$cmsR['id'] . '  ' . bold((string)$cmsR['name']) . '  ' . ((int)$cmsR['is_active'] === 1 ? green('active') : red('revoked')) . '  ' . dim('caps=' . count($cmsCaps)));
+                }
+                out('');
+                break;
+            }
+
+            if ($cmsAction === 'revoke') {
+                $cmsId = (int)$cmsArg;
+                if ($cmsId <= 0) {
+                    out('  ' . red('✗ A token id is required to revoke.'));
+                    out('');
+                    break;
+                }
+                $cmsPdo->prepare('UPDATE cms_service_tokens SET is_active = 0, updated_at = NOW() WHERE id = :id')->execute([':id' => $cmsId]);
+                out('  ' . green('✓') . ' Token #' . $cmsId . ' revoked for tenant #' . $cmsTenantId . '.');
+                out('');
+                break;
+            }
+
+            // create
+            if ($cmsArg === '') {
+                out('  ' . red('✗ A token name is required.'));
+                out('');
+                break;
+            }
+            $cmsDefaultCaps = [
+                'dashboard.view',
+                'content.list', 'content.read', 'content.create', 'content.edit_any', 'content.autosave',
+                'builder.access', 'builder.save', 'builder.preview', 'builder.revisions', 'builder.revision_restore',
+                'media.list', 'media.upload', 'media.edit',
+                'workflow.view', 'workflow.transition',
+                'ai.summary', 'ai.seo', 'ai.refine',
+                'categories.list', 'tags.list', 'revisions.list', 'revisions.view',
+            ];
+            $cmsRaw = 'cms_' . bin2hex(random_bytes(24));
+            $cmsHash = hash('sha256', $cmsRaw);
+            $cmsPdo->prepare('INSERT INTO cms_service_tokens (name, token_hash, capabilities, role, is_active, created_at, updated_at) VALUES (:name, :hash, :caps, :role, 1, NOW(), NOW())')
+                ->execute([':name' => $cmsArg, ':hash' => $cmsHash, ':caps' => json_encode($cmsDefaultCaps, JSON_THROW_ON_ERROR), ':role' => 'editor']);
+            $cmsTokenId = (int)$cmsPdo->lastInsertId();
+            out('  ' . green('✓') . ' CMS service token created for tenant #' . $cmsTenantId . ':');
+            out('');
+            out('    ' . bold('Token: ') . cyan($cmsRaw));
+            out('    ' . dim('(shown once — store it securely; send as the Authorization Bearer header)'));
+            out('    ' . dim('To revoke: php ikabud cms:service-token revoke ' . $cmsTenantSelector . ' ' . $cmsTokenId));
+            out('');
+        } catch (Throwable $e) {
+            out('  ' . red('✗ cms:service-token failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
     // ── tenant:list ───────────────────────────────────────────────
     case 'tenant:list':
         banner();

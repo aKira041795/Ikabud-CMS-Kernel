@@ -63,6 +63,12 @@ final class Cms
      */
     public static function ctxUser(): ?array
     {
+        // HARPP CMS Assistant: `Authorization: Bearer <service token>` maps to a virtual
+        // capability-scoped editor. Contained to the CMS module; does not affect kernel auth.
+        $service = cmsServiceUserFromBearer();
+        if ($service !== null) {
+            return $service;
+        }
         return self::normalizeUser(self::ctx()->user());
     }
 
