@@ -1347,10 +1347,10 @@ switch ($command) {
             }
             $cmsDefaultCaps = [
                 'dashboard.view',
-                'content.list', 'content.read', 'content.create', 'content.edit_any', 'content.autosave',
+                'content.list', 'content.read', 'content.create', 'content.edit_any', 'content.edit_own', 'content.autosave',
                 'builder.access', 'builder.save', 'builder.preview', 'builder.revisions', 'builder.revision_restore',
                 'media.list', 'media.upload', 'media.edit',
-                'workflow.view', 'workflow.transition',
+                'workflow.view',
                 'ai.summary', 'ai.seo', 'ai.refine',
                 'categories.list', 'tags.list', 'revisions.list', 'revisions.view',
             ];

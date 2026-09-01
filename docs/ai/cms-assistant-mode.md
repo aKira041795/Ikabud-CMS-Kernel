@@ -82,6 +82,8 @@ harpp cms set <key> <value>         # enabled|conversation_title|model|base_url|
 harpp cms content-create --title X --body Y [--type post]
 harpp cms content-update <id> [--title X] [--body Y]
 harpp cms content-get <id>
+harpp cms content-list [--q TERM] [--type post] [--status draft] [--limit N]
+harpp cms drafts                    # list assistant drafts awaiting human review
 harpp cms page-get <id>
 harpp cms page-save <id> --document-file <file>
 ```
@@ -97,10 +99,46 @@ The `content-*`/`page-*` operations are what the assistant agent uses; the CLI j
 - Publishing, scheduling, trashing, deleting, settings, users, menus, redirects, import/export,
   and theme customizer are out of scope.
 
+## Finding content (list/search)
+
+`content-list` searches the CMS API by term, type, status, and author:
+
+```
+harpp cms content-list --q "launch" --type post --status draft --limit 10
+harpp cms content-list --type page --status draft --limit 25
+```
+
+The agent uses this to resolve owner references without an id (e.g. "update the post about
+the launch").
+
+## Review loop
+
+After each run the assistant replies with the draft id + status and a `Next step:` line.
+To list everything awaiting your review:
+
+```
+harpp cms drafts
+```
+
+This shows drafts authored by the service user with the CMS admin link to review/publish.
+
 ## Ledger
 
 `harpp cms status` shows `cms_usage` (`count`, `last`, `models`, `messages`). This is a separate
 ledger from dev and ideation, so CMS-assistant activity never pollutes the dev quota history.
+
+## Known gaps (tracked)
+
+- **Media upload** (`media.upload` is granted to the token, but no client op yet): the upload
+  endpoint is POST + multipart (`$_FILES`), which the shared-host ModSecurity blocks and PHP
+  doesn't populate for PUT. Closing it needs a JSON/PUT upload route or session-based upload —
+  tracked as a low-priority follow-up. Content without a featured image is still creatable.
+- **Service token storage**: the raw token sits in `~/.config/harpp/config.json` (mode 0600,
+  owner-only). Acceptable for a single-user desktop; if you prefer, set `CMS_TOKEN`/`CMS_BASE_URL`
+  env vars instead (`cms_client.py` reads `["cms"].token`/`["cms"].base_url`; env support is a
+  small follow-up).
+- **ModSecurity**: see `docs/architecture/harpp-cms-modsecurity-allowlist.md` — the PUT aliases
+  unblock the assistant; a cPanel/hosting allowlist makes native POST work too.
 
 ## Restarting the daemon
 

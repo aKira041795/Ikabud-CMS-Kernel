@@ -22,10 +22,10 @@ function cmsServiceTokenDefaultCaps(): array
 {
     return [
         'dashboard.view',
-        'content.list', 'content.read', 'content.create', 'content.edit_any', 'content.autosave',
+        'content.list', 'content.read', 'content.create', 'content.edit_any', 'content.edit_own', 'content.autosave',
         'builder.access', 'builder.save', 'builder.preview', 'builder.revisions', 'builder.revision_restore',
         'media.list', 'media.upload', 'media.edit',
-        'workflow.view', 'workflow.transition',
+        'workflow.view',
         'ai.summary', 'ai.seo', 'ai.refine',
         'categories.list', 'tags.list', 'revisions.list', 'revisions.view',
     ];
@@ -151,6 +151,18 @@ function cmsBearerHeader(): string
         }
     }
     return $header;
+}
+
+/**
+ * True when the current request carries an Authorization: Bearer header
+ * (a service-token request). Used to skip CSRF for non-ambient Bearer writes:
+ * CSRF protects cookie/session-authenticated browser requests; a Bearer token
+ * is explicit and cannot be attached cross-origin. Auth/capabilities are still
+ * enforced per-route via cmsRequireCap()/cmsRequireRole().
+ */
+function cmsIsServiceTokenRequest(): bool
+{
+    return cmsServiceUserFromBearer() !== null;
 }
 
 /**

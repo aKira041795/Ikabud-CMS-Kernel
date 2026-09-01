@@ -9,6 +9,7 @@ Usage (also exposed as `harpp cms ...`):
   python3 cms_client.py content-create --title "X" --body "..." [--type post]
   python3 cms_client.py content-update <id> [--title X] [--body ...]
   python3 cms_client.py content-get <id>
+  python3 cms_client.py content-list [--q TERM] [--type post] [--status draft] [--limit N]
   python3 cms_client.py page-get <id>
   python3 cms_client.py page-save <id> --document-file FILE
 """
@@ -19,6 +20,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -96,17 +98,42 @@ def content_create(cfg: dict, title: str, body: str, type: str = "post", status:
     }, config=cfg))
 
 
-def content_update(cfg: dict, content_id: int, title=None, body=None, status: str = "draft") -> dict:
-    payload = {"status": status}
+def content_update(cfg: dict, content_id: int, title=None, body=None, status: str | None = None) -> dict:
+    payload = {}
     if title is not None:
         payload["title"] = title
     if body is not None:
         payload["body"] = body
-    return _normalize_created(api("PUT", f"/api/v1/cms/content/{int(content_id)}", payload, config=cfg))
+    if status is not None:
+        payload["status"] = status
+    response = _normalize_created(api("PUT", f"/api/v1/cms/content/{int(content_id)}", payload, config=cfg))
+    if response.get("ok") and not isinstance(response.get("data"), dict):
+        response = dict(response)
+        response["data"] = {"id": int(content_id)}
+    elif response.get("ok") and isinstance(response.get("data"), dict) and "id" not in response["data"]:
+        response = dict(response)
+        response["data"] = dict(response["data"])
+        response["data"]["id"] = int(content_id)
+    return response
 
 
 def content_get(cfg: dict, content_id: int) -> dict:
     return api("GET", f"/api/v1/cms/content/{int(content_id)}", config=cfg)
+
+
+def content_list(cfg: dict, q=None, type: str = "post", status=None, limit: int = 20,
+                 offset: int = 0, author_id=None) -> dict:
+    """List/search content. GET only (WAF-safe); maps to the CMS list API which
+    supports q (title/body search), type, status, author_id, limit, offset."""
+    params = {"type": type, "limit": max(1, min(100, int(limit))), "offset": max(0, int(offset))}
+    if q:
+        params["q"] = str(q)
+    if status:
+        params["status"] = str(status)
+    if author_id:
+        params["author_id"] = int(author_id)
+    query = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
+    return api("GET", f"/api/v1/cms/content?{query}", config=cfg)
 
 
 # ── Builder (pages) ─────────────────────────────────────────────────
@@ -143,6 +170,14 @@ def _main(argv=None) -> int:
     cg = sub.add_parser("content-get")
     cg.add_argument("id", type=int)
 
+    cl = sub.add_parser("content-list")
+    cl.add_argument("--q", default=None, help="search term (title/body)")
+    cl.add_argument("--type", default="post")
+    cl.add_argument("--status", default=None, help="draft | published | ...")
+    cl.add_argument("--limit", type=int, default=20)
+    cl.add_argument("--offset", type=int, default=0)
+    cl.add_argument("--author-id", type=int, default=None)
+
     pg = sub.add_parser("page-get")
     pg.add_argument("id", type=int)
 
@@ -160,6 +195,9 @@ def _main(argv=None) -> int:
             result = content_update(cfg, args.id, title=args.title, body=args.body)
         elif args.cmd == "content-get":
             result = content_get(cfg, args.id)
+        elif args.cmd == "content-list":
+            result = content_list(cfg, q=args.q, type=args.type, status=args.status,
+                                  limit=args.limit, offset=args.offset, author_id=args.author_id)
         elif args.cmd == "page-get":
             result = page_get(cfg, args.id)
         elif args.cmd == "page-save":

@@ -707,6 +707,32 @@ def cmd_cms(args):
         argv = ["content-update", str(args.id)] + (["--title", args.title] if args.title else []) + (["--body", args.body] if args.body else [])
     elif args.cmd2 == "content-get":
         argv = ["content-get", str(args.id)]
+    elif args.cmd2 == "content-list":
+        argv = ["content-list"]
+        if getattr(args, "q", None):
+            argv += ["--q", args.q]
+        argv += ["--type", args.type]
+        if getattr(args, "status", None):
+            argv += ["--status", args.status]
+        argv += ["--limit", str(getattr(args, "limit", 20)), "--offset", str(getattr(args, "offset", 0))]
+        if getattr(args, "author_id", None):
+            argv += ["--author-id", str(args.author_id)]
+    elif args.cmd2 == "drafts":
+        # Review loop: list drafts authored by the service user (id 0).
+        cfg = cms_client.load_cms_config()
+        rows = []
+        for ctype in ("post", "page"):
+            r = cms_client.content_list(cfg, type=ctype, status="draft", author_id=0, limit=25)
+            for it in (r.get("data") or []):
+                rows.append((it.get("id"), ctype, it.get("status"), it.get("title")))
+        if not rows:
+            print("No assistant drafts awaiting review.")
+        else:
+            print(f"{len(rows)} assistant draft(s) awaiting review (status=draft):")
+            for rid, ctype, rstatus, rtitle in rows:
+                print(f"  #{rid} [{ctype}/{rstatus}] {rtitle}")
+        print(f"Review + publish in the CMS admin: {cfg.get('base_url', '')}/cms/admin")
+        return
     elif args.cmd2 == "page-get":
         argv = ["page-get", str(args.id)]
     elif args.cmd2 == "page-save":
@@ -920,6 +946,14 @@ def main():
     cms_cu.add_argument("--body", default=None)
     cms_cg = cmsub.add_parser("content-get")
     cms_cg.add_argument("id", type=int)
+    cms_cl = cmsub.add_parser("content-list")
+    cms_cl.add_argument("--q", default=None)
+    cms_cl.add_argument("--type", default="post")
+    cms_cl.add_argument("--status", default=None)
+    cms_cl.add_argument("--limit", type=int, default=20)
+    cms_cl.add_argument("--offset", type=int, default=0)
+    cms_cl.add_argument("--author-id", type=int, default=None)
+    cmsub.add_parser("drafts", help="list assistant drafts awaiting human review")
     cms_pg = cmsub.add_parser("page-get")
     cms_pg.add_argument("id", type=int)
     cms_ps = cmsub.add_parser("page-save")

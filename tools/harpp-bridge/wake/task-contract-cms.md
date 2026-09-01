@@ -28,10 +28,20 @@ python3 tools/harpp-bridge/cms_client.py <op> ...
 - `content-create --title "X" --body "..." [--type post]` — create a DRAFT post/page.
 - `content-update <id> [--title X] [--body ...]` — update a DRAFT (edits existing content as draft).
 - `content-get <id>` — read existing content.
+- `content-list [--q TERM] [--type post] [--status draft] [--limit N]` — **search/list content**
+  by title/body term. Use this FIRST when the owner references content without an id
+  (e.g. "update the post about the launch") to find the matching id.
 - `page-get <id>` — read a page's builder document (for redesign).
 - `page-save <id> --document-file FILE` — save an updated builder document as a DRAFT.
 
-The client forces `status=draft`. It CANNOT publish: publishing is a human step in the CMS admin.
+Writes use PUT (the shared-host WAF blocks cookie-less POSTs). The client forces
+`status=draft`. It CANNOT publish: publishing is a human step in the CMS admin.
+
+Builder redesign rule: after editing the document JSON, validate it is well-formed
+(`json.loads` must succeed, root must keep `document.children`, and every node keeps
+its `id` and a valid `type`) BEFORE `page-save`. If `page-save` returns
+`validation_failed` with issues, fix them and retry once; never save a broken/empty
+JSON document.
 
 ## Required actions
 
@@ -61,6 +71,10 @@ The reply must include: what you did (content id + status `draft`), any verifica
 
 - **Draft-only.** Never publish, schedule, trash, delete, or move content. Never touch settings,
   users, menus, redirects, import/export, or theme customizer.
+- **Operate on drafts only.** Only create content as a draft, and only edit/redesign content that
+  is ALREADY a draft. If the owner asks you to change a PUBLISHED post/page, do NOT modify it —
+  reply asking them to duplicate it to a draft (or provide a draft id) first, so live content is
+  never silently changed or unpublished.
 - **Scoped.** Only touch content the owner explicitly asked about. Do not batch-edit unrelated
   content.
 - **Single pass.** Do not loop, re-read the inbox, spawn sub-agents, or self-wake.

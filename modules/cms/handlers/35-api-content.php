@@ -294,7 +294,7 @@ function cmsApiContentWorkflowTransition(array $params = []): void
             $meta = cmsLoadContentMeta($db, $id);
             $desiredPublishAt = trim((string)($meta['_ai_desired_publish_at'] ?? ''));
             $normalizedDesiredPublishAt = cmsNormalizePublishAt($desiredPublishAt);
-            if ($normalizedDesiredPublishAt !== null && strtotime($normalizedDesiredPublishAt) > time()) {
+            if (cmsCanPublish($user) && $normalizedDesiredPublishAt !== null && strtotime($normalizedDesiredPublishAt) > time()) {
                 $db->prepare(
                     "UPDATE cms_content SET status = 'scheduled', published_at = :pub, updated_at = NOW() WHERE id = :id LIMIT 1"
                 )->execute([':pub' => $normalizedDesiredPublishAt, ':id' => $id]);

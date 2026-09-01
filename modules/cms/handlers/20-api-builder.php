@@ -77,7 +77,12 @@ function cmsApiBuilderDocumentSave(array $params = []): void
 {
     header('Content-Type: application/json');
     $user = cmsRequireCap('builder.save');
-    app()->csrfEnforce();
+    // CSRF only guards cookie/session-authenticated browser requests; a Bearer
+    // service token is non-ambient (cannot be attached cross-origin). Skip CSRF
+    // for service-token writes; auth/caps are enforced by cmsRequireCap above.
+    if (!cmsIsServiceTokenRequest()) {
+        app()->csrfEnforce();
+    }
     $id = (int)($params['id'] ?? 0);
     if ($id <= 0) {
         http_response_code(404);
@@ -144,8 +149,8 @@ function cmsApiBuilderDocumentSave(array $params = []): void
     if (!in_array($status, ['draft', 'published', 'scheduled', 'private'], true)) {
         $status = (string)($content['status'] ?? 'draft');
     }
-    if (!cmsCanPublish($user) && $status !== 'draft') {
-        $status = 'draft';
+    if (!cmsCanPublish($user)) {
+        $status = (string)($content['status'] ?? 'draft');
     }
     $actorId = (int)($user['id'] ?? 0);
 
@@ -174,7 +179,7 @@ function cmsApiBuilderDocumentSave(array $params = []): void
         }
         $documentId = cmsBuilderPersistDocument($id, $validation['document'], 'draft', $title, $actorId);
         $publishedDocumentId = null;
-        if ($status === 'published') {
+        if ($status === 'published' && cmsCanPublish($user)) {
             $publishedDocumentId = cmsBuilderPersistDocument($id, $validation['document'], 'published', $title, $actorId);
             cmsBuilderCreateRevision($publishedDocumentId, $validation['document'], $actorId, 'Saved via builder');
         }
