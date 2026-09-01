@@ -1,0 +1,18 @@
+{extends "modules/harpp/layout.disyl"}
+{block head}<style>.overview-page{display:grid;gap:1rem}.overview-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem}.overview-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1rem}.metric{font-size:2rem;font-weight:800;color:#f8fafc}.metric-label{color:var(--muted);font-size:.85rem}.overview-detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.overview-detail .status-row span:first-child{overflow-wrap:anywhere}@media(max-width:900px){.overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.overview-heading{align-items:flex-start;flex-direction:column}.overview-grid,.overview-detail{grid-template-columns:1fr}}</style>{/block}
+{block content}<div class="overview-page">
+<section class="overview-heading"><div><h1>Today</h1><p class="muted">The decisions and operations that need attention now.</p></div><a class="btn" href="/harpp/status">Full status</a></section>
+<section class="overview-grid" aria-label="Operational summary">
+  <article class="card"><span class="metric-label">Pending decisions</span><strong id="overview-decisions" class="metric">--</strong><a href="/harpp/decisions">Review decisions</a></article>
+  <article class="card"><span class="metric-label">Active runs</span><strong id="overview-active-runs" class="metric">--</strong><a href="/harpp/status">View run queue</a></article>
+  <article class="card"><span class="metric-label">Queued runs</span><strong id="overview-queued-runs" class="metric">--</strong><a href="/harpp/runners">Manage runners</a></article>
+  <article class="card"><span class="metric-label">Unread notifications</span><strong id="overview-unread" class="metric">--</strong><a href="/harpp/notifications">Open notifications</a></article>
+  <article class="card"><span class="metric-label">Daemon health</span><strong id="overview-daemon" class="pill">Loading</strong><span id="overview-daemon-age" class="muted">Checking latest report...</span></article>
+</section>
+<section class="overview-detail">
+  <article class="card"><h2>Run queue</h2><div id="overview-run-states" class="empty-state">Loading...</div></article>
+  <article class="card"><h2>Deploy status</h2><div id="overview-deploy" class="empty-state">Loading...</div><a class="btn" href="/harpp/deploy">Open deploy</a></article>
+</section>
+<p id="overview-status" class="status" role="status"></p>
+</div>{/block}
+{block scripts}<script src="/assets/modules/harpp/overview.js" defer></script>{/block}

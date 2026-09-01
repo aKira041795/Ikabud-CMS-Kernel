@@ -142,6 +142,7 @@ function harppRenderShell(string $template, string $page, array $context = []): 
 }
 
 function harppPageMessenger(array $params = []): void { harppRenderShell('messenger', 'messenger'); }
+function harppPageOverview(array $params = []): void { harppRenderShell('overview', 'overview'); }
 function harppPageDecisions(array $params = []): void { harppRenderShell('decisions', 'decisions'); }
 function harppRunnersPage(array $params = []): void { harppRenderShell('runners', 'runners'); }
 function harppPageStatus(array $params = []): void { harppRenderShell('status', 'status'); }
