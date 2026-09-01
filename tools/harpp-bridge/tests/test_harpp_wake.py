@@ -2809,6 +2809,15 @@ class HarppAdvisorTest(unittest.TestCase):
         # Item stays staged (never processed, never routed to Codex).
         self.assertNotIn(12, harpp_wake.read_state()["messages"])
 
+    def test_advisor_refuses_dev_pool_model(self):
+        # A deepseek/dev-pool model must also be refused (allowlist is openai-ideation/*).
+        self._write_inbox([self._advisor_item(15, body="Plan: X")])
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        adv = harpp_wake.advisor_config({"advisor": {"model": "deepseek/deepseek-v4-pro"}})
+        self.assertFalse(harpp_wake.maybe_wake_advisor(str(self.inbox), items, adv))
+        self.assertEqual(self.spawns, [])
+        self.assertNotIn(15, harpp_wake.read_state()["messages"])
+
     def test_advisor_failure_keeps_staged_and_never_codex(self):
         def fail_spawn(prompt, *, command=None, model, timeout, expected_replies=None,
                        cwd=None, expected_source_ids=None, verify_delivery_receipts=True,
@@ -2885,6 +2894,7 @@ class HarppAdvisorPageTest(unittest.TestCase):
         self.runs = []
         self.sent = []
         self._orig_run = harpp_wake.subprocess.run
+        self._orig_popen = harpp_wake.subprocess.Popen
         self._orig_send = harpp_wake.harpp_client.send_message
         self._orig_cancel = harpp_wake.harpp_client.cancel_run
         self._orig_ws_dir = harpp_wake.conversation_workspace_dir
@@ -2893,6 +2903,7 @@ class HarppAdvisorPageTest(unittest.TestCase):
 
     def tearDown(self):
         harpp_wake.subprocess.run = self._orig_run
+        harpp_wake.subprocess.Popen = self._orig_popen
         harpp_wake.harpp_client.send_message = self._orig_send
         harpp_wake.harpp_client.cancel_run = self._orig_cancel
         harpp_wake.conversation_workspace_dir = self._orig_ws_dir
@@ -2901,13 +2912,15 @@ class HarppAdvisorPageTest(unittest.TestCase):
 
     def _stub_page(self, out, rc=0):
         class _Proc:
-            stdout = out
             returncode = rc
+            pid = 424242
+            def communicate(self, timeout=None):
+                return (out, "")
         proc = _Proc()
-        def fake_run(*args, **kwargs):
+        def fake_popen(*args, **kwargs):
             self.runs.append((args, kwargs))
             return proc
-        harpp_wake.subprocess.run = fake_run
+        harpp_wake.subprocess.Popen = fake_popen
         return proc
 
     def _stub_send(self, ok=True):

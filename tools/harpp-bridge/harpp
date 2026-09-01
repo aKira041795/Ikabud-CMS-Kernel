@@ -641,6 +641,8 @@ def cmd_advisor(args):
             sys.exit(f"unknown advisor key: {args.key}")
         if args.key == "backend" and str(args.value).lower() not in ("api", "page"):
             sys.exit("advisor backend must be 'api' (OpenAI API key) or 'page' (ChatGPT web / Pro+Plus)")
+        if args.key == "model" and not str(args.value).startswith("openai-ideation/"):
+            sys.exit("advisor model must start with 'openai-ideation/' (ideation provider only; never Codex/dev)")
         cfg = harpp_client.load_config()
         adv = dict(cfg.get("advisor") or {})
         value = args.value

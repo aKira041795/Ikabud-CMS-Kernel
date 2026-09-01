@@ -13,6 +13,7 @@ return [
         '/harpp/decisions/{id}' => 'harpp:harppPageDecisionDetail',
         '/harpp/runners' => 'harpp:harppRunnersPage',
         '/harpp/status' => 'harpp:harppPageStatus',
+        '/harpp/advisor' => 'harpp:harppPageAdvisor',
         '/harpp/settings' => 'harpp:harppPageSettings',
         '/harpp/users' => 'harpp:harppPageUsers',
         '/harpp/notifications' => 'harpp:harppPageNotifications',

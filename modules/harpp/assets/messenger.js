@@ -15,7 +15,19 @@ document.addEventListener('DOMContentLoaded', () => {
   async function conversations() {
     try {
       const q = showArchived ? '?archived=1' : '';
-      const rows = (await Harpp.fetch('/api/v1/harpp/conversations' + q)).data.conversations || [];
+      // Bounded retry: a transient first-request failure (cold FPM / shared-hosting
+      // latency / aborted request) must not leave the sidebar blank until a manual
+      // refresh. The 30s interval and manual Refresh still act as a backstop.
+      let rows = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          rows = (await Harpp.fetch('/api/v1/harpp/conversations' + q)).data.conversations || [];
+          break;
+        } catch (err) {
+          if (attempt === 2) throw err;
+          await new Promise((res) => setTimeout(res, 600 * (attempt + 1)));
+        }
+      }
       list.replaceChildren();
       rows.forEach(row => {
         const rowBox = document.createElement('div');

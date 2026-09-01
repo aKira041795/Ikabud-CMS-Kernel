@@ -1,0 +1,20 @@
+{extends "modules/harpp/layout.disyl"}
+{block head}<style>.status-page{display:grid;gap:1rem}.status-page .panel{min-width:0}.status-page ul{margin:0;padding-left:1.25rem;display:grid;gap:.45rem;color:#cbd5e1}.status-page code{color:#bfdbfe}.muted{color:#94a3b8}.empty-state{color:#94a3b8;text-align:center;padding:2rem 1rem}.status-list{display:grid;gap:.65rem}.status-row{display:flex;justify-content:space-between;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--line)}.status-row:last-child{border-bottom:0}.pill{display:inline-block;border-radius:2rem;background:#1e3a8a;color:#bfdbfe;padding:.15rem .5rem;font-size:.75rem}</style>{/block}
+{block content}<div class="status-page">
+<section class="panel"><h1>ChatGPT Advisor</h1><p class="muted">Get a structured second opinion on a plan before <code>/architect</code>. Read-only, fully separate from Codex and from dev work.</p></section>
+<section class="panel"><h2>How it works</h2><ul>
+<li>Drop a plan into the <b>ChatGPT Advisor</b> conversation (or use the composer below).</li>
+<li>The local harness daemon on your desktop answers via your <b>ChatGPT account</b> — never Codex, never dev quota.</li>
+<li>You reconcile the opinion with <code>/architect</code> and continue the pipeline.</li>
+</ul><p class="muted">Backend config + the one-time login live on the desktop: <code>harpp advisor status</code> / <code>harpp advisor login</code>.</p></section>
+<section class="panel"><h2>Ask the Advisor</h2>
+<p id="advisor-conv-status" class="status">Checking conversation…</p>
+<form id="advisor-ask" class="grid">
+<textarea id="advisor-plan" placeholder="Paste your plan or proposal here…" required></textarea>
+<button class="button" type="submit" id="advisor-send">Get a second opinion</button>
+</form>
+<p id="advisor-result" class="status"></p>
+</section>
+<section class="panel"><h2>Conversations</h2><div id="advisor-conversations" class="empty-state">Loading…</div></section>
+</div>{/block}
+{block scripts}<script src="/assets/modules/harpp/advisor.js" defer></script>{/block}

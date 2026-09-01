@@ -145,6 +145,7 @@ function harppPageMessenger(array $params = []): void { harppRenderShell('messen
 function harppPageDecisions(array $params = []): void { harppRenderShell('decisions', 'decisions'); }
 function harppRunnersPage(array $params = []): void { harppRenderShell('runners', 'runners'); }
 function harppPageStatus(array $params = []): void { harppRenderShell('status', 'status'); }
+function harppPageAdvisor(array $params = []): void { harppRenderShell('advisor', 'advisor'); }
 function harppPageDecisionDetail(array $params = []): void { harppRenderShell('decision-detail', 'decisions', ['decision_id' => max(0, (int)($params['id'] ?? 0))]); }
 function harppPageSettings(array $params = []): void { harppRenderShell('settings', 'settings'); }
 function harppPageUsers(array $params = []): void

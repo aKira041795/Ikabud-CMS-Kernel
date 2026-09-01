@@ -4006,18 +4006,29 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
             plan = "\n\n---\n\n".join(str(i.get("body") or "") for i in batch)
             prompt = ADVISOR_PAGE_PROMPT + plan
             fd, tmp = tempfile.mkstemp(prefix="harpp-advisor-", suffix=".txt")
+            page_timeout = int(adv.get("timeout") or DEFAULT_TIMEOUT)
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(prompt)
-                proc = subprocess.run(
-                    [node, str(script), "run", "--prompt", tmp, "--profile", profile],
-                    capture_output=True, text=True,
-                    timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT))
-            except subprocess.TimeoutExpired:
-                log(f"advisor(page): ChatGPT page run timed out; {len(batch)} item(s) remain staged")
-                record_failure(batch)
-                all_ok = False
-                continue
+                proc = subprocess.Popen(
+                    [node, str(script), "run", "--prompt", tmp, "--profile", profile,
+                     "--timeout", str(max(1, page_timeout))],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    start_new_session=True)
+                try:
+                    out, _ = proc.communicate(timeout=page_timeout + 20)
+                except subprocess.TimeoutExpired:
+                    # Kill the whole process group (node + Playwright Chrome children)
+                    # so a timed-out page run never orphans a browser.
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                    except Exception:  # noqa: BLE001
+                        proc.kill()
+                    proc.communicate()
+                    log(f"advisor(page): ChatGPT page run timed out; {len(batch)} item(s) remain staged")
+                    record_failure(batch)
+                    all_ok = False
+                    continue
             except Exception as e:  # noqa: BLE001
                 log(f"advisor(page): could not start page run: {e}")
                 record_failure(batch)
@@ -4030,7 +4041,7 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
                     pass
             text = None
             page_error = ""
-            for line in (proc.stdout or "").splitlines():
+            for line in (out or "").splitlines():
                 line = line.strip()
                 if line.startswith("{"):
                     try:
@@ -4047,7 +4058,6 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
                 record_failure(batch)
                 all_ok = False
                 continue
-            _record_ideation_usage(batch, "chatgpt-page")
             delivered = True
             for item in batch:
                 try:
@@ -4063,6 +4073,7 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
                     log(f"advisor(page): reply for message {item.get('id')} failed: {e}")
             if delivered:
                 mark_processed(batch)
+                _record_ideation_usage(batch, "chatgpt-page")
                 successful += len(batch)
                 log(f"advisor(page): ChatGPT opinion delivered for {len(batch)} item(s)")
                 _cancel_answered_runs(batch)
@@ -4115,8 +4126,11 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
     if not model:
         log("advisor: no ideation model configured; items remain staged")
         return False
-    if "openai-codex/" in model.lower():
-        log(f"advisor: refusing to route ideation through Codex quota ({model}); items remain staged")
+    # Allowlist: ideation runs ONLY on an openai-ideation/* provider. Anything else
+    # (Codex OR dev-pool models such as deepseek/*) is refused, so ideation can never
+    # consume Codex quota or dev usage, regardless of config or body aliases.
+    if not model.startswith("openai-ideation/"):
+        log(f"advisor: refusing non-ideation provider ({model}); items remain staged")
         return False
     already = [r for r in advisor_items if _wake_receipt_exists(int(r.get("id", 0)))]
     if already:
@@ -4160,7 +4174,6 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
             if len(convs) == 1:
                 run_workspace = conversation_workspace_dir(next(iter(convs))) or run_workspace
             prompt = task_prompt(inbox, batch, template=advisor_text, workspace=run_workspace)
-            _record_ideation_usage(batch, model)
             log(f"advisor: spawning ideation agent with {model} ({len(batch)} request(s)); chain=[{model}] only")
             attempt = spawn_agent(
                 prompt, command=command, model=model,
@@ -4172,6 +4185,7 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
             attempt_ok, failure_kind = attempt if isinstance(attempt, tuple) else (bool(attempt), None)
             if attempt_ok:
                 mark_processed(batch)
+                _record_ideation_usage(batch, model)
                 successful += len(batch)
                 log(f"advisor: ideation complete with {model}; processed {len(batch)} item(s)")
                 _cancel_answered_runs(batch)
