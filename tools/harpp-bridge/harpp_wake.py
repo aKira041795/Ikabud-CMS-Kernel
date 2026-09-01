@@ -24,6 +24,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.request
@@ -94,6 +95,20 @@ MODEL_FALLBACK_ORDER = [
 ADVISOR_DEFAULT_MODEL = "openai-ideation/gpt-5.4"
 ADVISOR_CONVERSATION_TITLE = "ChatGPT Advisor"
 ADVISOR_TEMPLATE = Path(__file__).resolve().parent / "wake" / "task-contract-advisor.md"
+ADVISOR_DEFAULT_PROFILE = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "harpp" / "chatgpt-profile"
+# Backend `page` persona: the ChatGPT web is driven with this prompt (the plan is appended).
+ADVISOR_PAGE_PROMPT = (
+    "You are acting as a structured second-opinion advisor. The owner is preparing a plan "
+    "for a governed /architect -> /implement -> /review -> /release-gate pipeline and wants an "
+    "independent opinion to properly structure the plan BEFORE committing. Reply with a "
+    "structured second opinion with EXACTLY these sections:\n"
+    "1) What is strong\n"
+    "2) Gaps and risks\n"
+    "3) Restructuring suggestion\n"
+    "4) Recommendation: go / go-with-changes / rethink, plus the single most important next action.\n"
+    "Be concrete and concise. You are read-only: recommend, never execute.\n\n"
+    "PLAN:\n"
+)
 AUTHORITY_ORDER = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 ESCALATION_FLAGS = {
     "architecture_change": "change architecture/contract",
@@ -3914,6 +3929,8 @@ def advisor_config(config=None) -> dict:
         ("enabled", True),
         ("conversation_title", ADVISOR_CONVERSATION_TITLE),
         ("model", ADVISOR_DEFAULT_MODEL),
+        ("backend", "api"),  # 'api' = OpenAI API key lane; 'page' = ChatGPT web (Pro/Plus)
+        ("profile", ADVISOR_DEFAULT_PROFILE),
         ("timeout", DEFAULT_TIMEOUT),
         ("cooldown", DEFAULT_COOLDOWN),
         ("max_per_hour", DEFAULT_MAX_PER_HOUR),
@@ -3955,6 +3972,110 @@ def _advisor_budget_ok(adv: dict, state: dict) -> tuple[bool, str]:
         if len(recent) >= max_per_hour:
             return False, f"ideation max-per-hour ({max_per_hour})"
     return True, ""
+
+
+def chatgpt_page_login(profile=None) -> int:
+    """Open a HEADED ChatGPT login browser with the persistent profile (one time)."""
+    script = Path(__file__).resolve().parent / "chatgpt_page.js"
+    node = shutil.which("node") or str(Path.home() / ".local" / "node-v22.23.2-linux-x64" / "bin" / "node")
+    profile = str(profile or ADVISOR_DEFAULT_PROFILE)
+    return subprocess.run([node, str(script), "login", "--profile", profile], text=True).returncode
+
+
+def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=None) -> bool:
+    """ChatGPT-page backend: drive the owner's logged-in ChatGPT (Pro/Plus) via Playwright.
+
+    Uses the subscription's ChatGPT chat quota (separate from Codex and API billing).
+    Read-only: paste the plan, post back the structured opinion over the bridge. On any
+    failure the items stay staged (bounded retry; stage + notify by the caller) — never
+    Codex, never dropped.
+    """
+    if not acquire_lock(timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT)):
+        log(f"advisor(page): single-flight lock held; {len(advisor_items)} ideation item(s) remain staged")
+        return False
+    try:
+        script = Path(__file__).resolve().parent / "chatgpt_page.js"
+        node = shutil.which("node") or str(Path.home() / ".local" / "node-v22.23.2-linux-x64" / "bin" / "node")
+        profile = str(adv.get("profile") or ADVISOR_DEFAULT_PROFILE)
+        batches: dict[int, list] = {}
+        for item in advisor_items or []:
+            batches.setdefault(int(item.get("conversation_id") or 0), []).append(item)
+        all_ok = True
+        successful = 0
+        for _, batch in batches.items():
+            plan = "\n\n---\n\n".join(str(i.get("body") or "") for i in batch)
+            prompt = ADVISOR_PAGE_PROMPT + plan
+            fd, tmp = tempfile.mkstemp(prefix="harpp-advisor-", suffix=".txt")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(prompt)
+                proc = subprocess.run(
+                    [node, str(script), "run", "--prompt", tmp, "--profile", profile],
+                    capture_output=True, text=True,
+                    timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT))
+            except subprocess.TimeoutExpired:
+                log(f"advisor(page): ChatGPT page run timed out; {len(batch)} item(s) remain staged")
+                record_failure(batch)
+                all_ok = False
+                continue
+            except Exception as e:  # noqa: BLE001
+                log(f"advisor(page): could not start page run: {e}")
+                record_failure(batch)
+                all_ok = False
+                continue
+            finally:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+            text = None
+            page_error = ""
+            for line in (proc.stdout or "").splitlines():
+                line = line.strip()
+                if line.startswith("{"):
+                    try:
+                        parsed = json.loads(line)
+                        if isinstance(parsed, dict):
+                            text = parsed.get("text") if parsed.get("ok") else None
+                            page_error = str(parsed.get("error") or "")
+                            break
+                    except Exception:  # noqa: BLE001
+                        continue
+            if text is None:
+                log(f"advisor(page): ChatGPT page failed: {page_error or 'no JSON result'} "
+                    f"(rc={proc.returncode}); items remain staged")
+                record_failure(batch)
+                all_ok = False
+                continue
+            _record_ideation_usage(batch, "chatgpt-page")
+            delivered = True
+            for item in batch:
+                try:
+                    resp = harpp_client.send_message(
+                        conversation_id=int(item.get("conversation_id") or 0),
+                        body=text,
+                        idempotency_key=f"wake-message-{int(item.get('id', 0))}")
+                    if not (isinstance(resp, dict) and resp.get("ok")):
+                        delivered = False
+                        log(f"advisor(page): reply for message {item.get('id')} not accepted")
+                except Exception as e:  # noqa: BLE001
+                    delivered = False
+                    log(f"advisor(page): reply for message {item.get('id')} failed: {e}")
+            if delivered:
+                mark_processed(batch)
+                successful += len(batch)
+                log(f"advisor(page): ChatGPT opinion delivered for {len(batch)} item(s)")
+                _cancel_answered_runs(batch)
+            else:
+                record_failure(batch)
+                all_ok = False
+        return all_ok and successful == len(advisor_items)
+    except Exception as e:  # noqa: BLE001
+        record_failure(advisor_items)
+        log(f"advisor(page): pass failed gracefully: {e}; items remain staged")
+        return False
+    finally:
+        release_lock()
 
 
 def _record_ideation_usage(records: list, model: str) -> None:
@@ -4009,6 +4130,10 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
     if not ok:
         log(f"advisor: {why}; {len(advisor_items)} ideation item(s) remain staged")
         return False
+    # Backend `page`: drive the owner's ChatGPT web (Pro/Plus subscription quota) instead
+    # of an API model. Same read-only contract, same separate ledger, same fail-safe.
+    if str(adv.get("backend") or "api").lower() == "page":
+        return _advisor_page_pass(inbox, advisor_items, adv, workspace=workspace)
     if not acquire_lock(timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT)):
         log(f"advisor: single-flight lock held; {len(advisor_items)} ideation item(s) remain staged")
         return False

@@ -102,16 +102,22 @@ touching HARPP dev state.
 - Log checks: `storage/logs/app.log`, `storage/logs/error.log`, `.ai/harpp-wake.log`, ideation
   ledger. `php -l` / `node --check` on touched files.
 
-## backend decision (LOCKED — Option B)
+## backend decision (UPDATED 2026-09-01 — Option A selected)
 
-Verified 2026-09-01: the Pi harness authenticates all `openai-codex/*` models through
-`~/.pi/agent/auth.json` → the **Codex quota path**. Any ideation routed through `openai-codex`
-would consume Codex limits. The ideation lane therefore gets its **own provider/auth entry**:
+The owner has a **ChatGPT Pro/Plus subscription** and chose to use its included ChatGPT quota
+for ideation (no extra API spend). The primary backend is therefore:
 
-- **Provider:** `openai-ideation` (dedicated OpenAI API key, separate auth entry + billing).
-- **Never** routed to `openai-codex/*`.
-- **Interface:** the ideation chat lives in the HARPP messenger (durable, autonomous, no manual
-  copy/paste). Playwright + ChatGPT-page "mirror" is a deferred optional add-on.
+- **Backend `page` (Option A):** a Playwright adapter driving the real **ChatGPT web** in a
+  persistent logged-in profile. Uses the subscription's **ChatGPT chat quota** (separate from
+  Codex, separate from API billing). Built at `tools/harpp-bridge/chatgpt_page.js`.
+- **Backend `api` (Option B, retained as fallback):** `openai-ideation` dedicated OpenAI API key
+  (still wired in `~/.pi/agent`). Selectable via `harpp advisor set backend api|page`.
+- **Never** routed to `openai-codex/*` under either backend.
+- **Interface:** ideation lives in the HARPP messenger (durable, autonomous, no manual
+  copy/paste). Read-only advisor contract + separate ideation ledger apply to both backends.
+- **Page-backend caveats (accepted):** ChatGPT web UI is not a stable API surface — selectors can
+  break on product changes; a one-time interactive login is required (`harpp advisor login`);
+  runs fail closed to stage + notify (never dropped, never Codex).
 
 ## risk
 

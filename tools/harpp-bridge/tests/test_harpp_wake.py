@@ -2866,5 +2866,120 @@ class HarppAdvisorTest(unittest.TestCase):
         self.assertIn(21, usage["messages"])
 
 
+class HarppAdvisorPageTest(unittest.TestCase):
+    """ChatGPT-page (backend=page) advisor lane — Playwright adapter, fail-safe, ledger."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        harpp_wake.CONFIG_DIR = base
+        harpp_wake.LOCK_FILE = base / "wake.lock"
+        harpp_wake.QUICK_LOCK_FILE = base / "wake-quick.lock"
+        harpp_wake.PROCESSED_FILE = base / "wake-processed.json"
+        harpp_wake.WAKE_LOG = base / "wake.log"
+        harpp_wake.JOBS_FILE = base / "jobs.json"
+        harpp_wake.WORKFLOWS_FILE = base / "workflows.json"
+        harpp_wake.DECISIONS_FILE = base / "decisions.json"
+        harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
+        self.inbox = base / "inbox.jsonl"
+        self.runs = []
+        self.sent = []
+        self._orig_run = harpp_wake.subprocess.run
+        self._orig_send = harpp_wake.harpp_client.send_message
+        self._orig_cancel = harpp_wake.harpp_client.cancel_run
+        self._orig_ws_dir = harpp_wake.conversation_workspace_dir
+        harpp_wake.conversation_workspace_dir = lambda *a, **kw: None
+        harpp_wake.harpp_client.cancel_run = lambda **kw: {"ok": True}
+
+    def tearDown(self):
+        harpp_wake.subprocess.run = self._orig_run
+        harpp_wake.harpp_client.send_message = self._orig_send
+        harpp_wake.harpp_client.cancel_run = self._orig_cancel
+        harpp_wake.conversation_workspace_dir = self._orig_ws_dir
+        harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
+        self.tmp.cleanup()
+
+    def _stub_page(self, out, rc=0):
+        class _Proc:
+            stdout = out
+            returncode = rc
+        proc = _Proc()
+        def fake_run(*args, **kwargs):
+            self.runs.append((args, kwargs))
+            return proc
+        harpp_wake.subprocess.run = fake_run
+        return proc
+
+    def _stub_send(self, ok=True):
+        def fake_send(**kw):
+            self.sent.append(kw)
+            return {"ok": ok}
+        harpp_wake.harpp_client.send_message = fake_send
+
+    def _advisor_item(self, mid, title="ChatGPT Advisor", body="Plan: build X"):
+        return {"kind": "message", "id": mid, "conversation_id": 900 + mid,
+                "conversation_title": title, "body": body}
+
+    def _write_inbox(self, records):
+        with self.inbox.open("w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r) + "\n")
+
+    def test_page_backend_delivers_opinion(self):
+        self._write_inbox([self._advisor_item(31, body="Plan: restructure the rollout")])
+        self._stub_page('{"ok": true, "text": "1) Strong... 4) go-with-changes"}\n')
+        self._stub_send()
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        adv = harpp_wake.advisor_config({"advisor": {"backend": "page", "cooldown": 0, "max_per_hour": 0}})
+        self.assertTrue(harpp_wake.maybe_wake_advisor(str(self.inbox), items, adv))
+        # Page run invoked with the chatgpt_page.js script.
+        self.assertEqual(len(self.runs), 1)
+        node_args, kwargs = self.runs[0]
+        self.assertIn("chatgpt_page.js", " ".join(str(a) for a in node_args))
+        # Opinion delivered over the bridge with the stable idempotency key.
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.sent[0]["conversation_id"], 931)
+        self.assertEqual(self.sent[0]["idempotency_key"], "wake-message-31")
+        self.assertIn("go-with-changes", self.sent[0]["body"])
+        # Processed + ledger under the page lane (never Codex).
+        state = harpp_wake.read_state()
+        self.assertIn(31, state["messages"])
+        usage = harpp_wake._normalized_ideation_usage(state)
+        self.assertEqual(usage["models"].get("chatgpt-page"), 1)
+
+    def test_page_backend_failure_keeps_staged(self):
+        self._write_inbox([self._advisor_item(32)])
+        self._stub_page('{"ok": false, "error": "not logged in to ChatGPT"}\n', rc=1)
+        self._stub_send()
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        adv = harpp_wake.advisor_config({"advisor": {"backend": "page", "cooldown": 0, "max_per_hour": 0}})
+        self.assertFalse(harpp_wake.maybe_wake_advisor(str(self.inbox), items, adv))
+        # No reply sent, item stays staged, failure recorded once.
+        self.assertEqual(self.sent, [])
+        self.assertNotIn(32, harpp_wake.read_state()["messages"])
+        self.assertEqual(harpp_wake.read_state()["failures"].get("32"), 1)
+
+    def test_page_backend_reply_rejected_keeps_staged(self):
+        self._write_inbox([self._advisor_item(33)])
+        self._stub_page('{"ok": true, "text": "opinion"}\n')
+        self._stub_send(ok=False)
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        adv = harpp_wake.advisor_config({"advisor": {"backend": "page", "cooldown": 0, "max_per_hour": 0}})
+        self.assertFalse(harpp_wake.maybe_wake_advisor(str(self.inbox), items, adv))
+        self.assertEqual(len(self.sent), 1)
+        self.assertNotIn(33, harpp_wake.read_state()["messages"])
+        self.assertEqual(harpp_wake.read_state()["failures"].get("33"), 1)
+
+    def test_page_backend_never_uses_codex(self):
+        # Even with a codex alias in the body, the page backend never touches Codex.
+        self._write_inbox([self._advisor_item(34, body="Plan: X. use gpt sol")])
+        self._stub_page('{"ok": true, "text": "opinion"}\n')
+        self._stub_send()
+        items = harpp_wake.unprocessed_items(str(self.inbox))
+        adv = harpp_wake.advisor_config({"advisor": {"backend": "page", "cooldown": 0, "max_per_hour": 0}})
+        self.assertTrue(harpp_wake.maybe_wake_advisor(str(self.inbox), items, adv))
+        self.assertIn(34, harpp_wake.read_state()["messages"])
+
+
 if __name__ == "__main__":
     unittest.main()

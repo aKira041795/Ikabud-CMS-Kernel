@@ -637,8 +637,10 @@ def cmd_advisor(args):
     if args.acmd == "set":
         if not args.key or not args.value:
             sys.exit("harpp advisor set requires KEY and VALUE")
-        if args.key not in ("enabled", "conversation_title", "model", "timeout", "cooldown", "max_per_hour"):
+        if args.key not in ("enabled", "conversation_title", "model", "backend", "profile", "timeout", "cooldown", "max_per_hour"):
             sys.exit(f"unknown advisor key: {args.key}")
+        if args.key == "backend" and str(args.value).lower() not in ("api", "page"):
+            sys.exit("advisor backend must be 'api' (OpenAI API key) or 'page' (ChatGPT web / Pro+Plus)")
         cfg = harpp_client.load_config()
         adv = dict(cfg.get("advisor") or {})
         value = args.value
@@ -649,10 +651,15 @@ def cmd_advisor(args):
                 sys.exit(f"{args.key} must be an integer")
         elif args.key == "enabled":
             value = str(value).lower() in ("1", "true", "yes", "on")
+        elif args.key == "backend":
+            value = str(value).lower()
         adv[args.key] = value
         harpp_client.save_config({"advisor": adv})
         print(f"advisor {args.key} -> {value}")
         return
+    if args.acmd == "login":
+        # One-time interactive ChatGPT login into the persistent advisor profile.
+        sys.exit(harpp_wake.chatgpt_page_login(profile=args.profile))
     if args.acmd == "enable":
         cfg = harpp_client.load_config()
         adv = dict(cfg.get("advisor") or {})
@@ -799,6 +806,8 @@ def main():
     ads = adsub.add_parser("set")
     ads.add_argument("key")
     ads.add_argument("value")
+    adlogin = adsub.add_parser("login", help="one-time interactive ChatGPT login into the persistent advisor profile")
+    adlogin.add_argument("--profile", default=None)
     adsub.add_parser("enable")
     adsub.add_parser("disable")
     adsub.add_parser("status")
