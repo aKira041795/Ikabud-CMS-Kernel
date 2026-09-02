@@ -8,8 +8,8 @@
                 class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">+ Add Ingredient</button>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <table class="w-full text-sm">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+        <table class="w-full text-sm min-w-[760px]">
             <thead><tr class="bg-gray-50 text-gray-600"><th class="text-left px-4 py-3">Name</th><th class="text-left px-4 py-3">Unit</th><th class="text-right px-4 py-3">Cost/Unit</th><th class="text-right px-4 py-3">Stock</th><th class="text-right px-4 py-3">Reorder</th><th class="text-left px-4 py-3">Supplier</th><th class="text-right px-4 py-3">Actions</th></tr></thead>
             <tbody>
                 <template x-for="i in ingredients" :key="i.ingredient_id">
@@ -83,7 +83,7 @@ function ingredientManager() {
         edit(i) { this.editing = i; this.formData = {name:i.name, unit:i.unit, cost_per_unit:i.cost_per_unit, reorder_level:i.reorder_level, supplier_id:i.supplier_id || ''}; this.showForm = true; },
         save() {
             const method = this.editing ? 'PUT' : 'POST';
-            const url = this.editing ? '/dc-cafe/api/v1/ingredients/' + this.editing.id : '/dc-cafe/api/v1/ingredients';
+            const url = this.editing ? '/dc-cafe/api/v1/ingredients/' + this.editing.ingredient_id : '/dc-cafe/api/v1/ingredients';
             fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.formData) })
             .then(r => r.json()).then(d => {
                 if (d.ok) { this.showForm = false; this.load(); this.message = ''; }

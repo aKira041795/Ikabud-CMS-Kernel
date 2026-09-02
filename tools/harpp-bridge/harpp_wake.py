@@ -59,11 +59,17 @@ JOB_VERIFY_TIMEOUT = 600
 JOB_REPORT_STALE_AFTER = JOB_VERIFY_TIMEOUT + 300
 WORKFLOW_REMEDIATION_MAX_CHARS = 12000
 
-# Flash by default: simple Q&A replies should be fast (deepseek-v4-pro routinely
-# took 9-15 min per wake run, hitting the 900s timeout for ordinary questions).
-# Explicit per-message preferences ("use deepseek pro" / "use gpt sol") and the
-# governed-loop stage models still override this for heavier coding/review work.
-DEFAULT_MODEL = "deepseek/deepseek-v4-flash"
+# Execution/worker model: DeepSeek v4 Flash first (fast, cheap, low latency),
+# then Qwen3.8 27B on Groq as the secondary worker (fast ~450 tok/s, strong at
+# coding/agentic work, good instruction following). Architecture/review stays on
+# the stronger reasoning models (deepseek pro / codex sol, see governed-loop
+# stages); the fallback chain escalates.
+EXECUTION_MODEL = "deepseek/deepseek-v4-flash"
+EXECUTION_FALLBACK_MODEL = "groq/qwen/qwen3.8-27b"
+# Default wake model = the execution worker (flash first). Explicit per-message
+# preferences ("use deepseek pro" / "use gpt sol") and the governed-loop stage
+# models still override this for heavier coding/review work.
+DEFAULT_MODEL = EXECUTION_MODEL
 # Production-grade wake limits: max ~1 run/3min (20/hr) keeps replies responsive while
 # bounded; cooldown 60s is the min gap between runs (new-message bypass covers bursts).
 DEFAULT_COOLDOWN = 60
@@ -79,15 +85,18 @@ MODEL_ALIASES = {
     "openai-codex/gpt-5.4": ["gpt 5.4", "gpt-5.4", "5.4"],
     "deepseek/deepseek-v4-pro": ["deepseek/deepseek-v4-pro", "deepseek pro", "v4 pro"],
     "deepseek/deepseek-v4-flash": ["deepseek/deepseek-v4-flash", "deepseek flash", "v4 flash", "flash"],
+    "groq/qwen/qwen3.8-27b": ["groq/qwen/qwen3.8-27b", "groq qwen", "use groq", "qwen3.8", "qwen3.8-27b"],
 }
 # Ordered delegation chain when a model's token/usage/quota/balance is exhausted: the
 # engine retries with the next model in this list instead of burning bounded auto-repair
 # rounds on a model that cannot run. The stage's own model is always tried first.
+# Worker-first: flash -> qwen -> deepseek pro -> Codex (strongest reasoning).
 MODEL_FALLBACK_ORDER = [
+    "deepseek/deepseek-v4-flash",
+    "groq/qwen/qwen3.8-27b",
+    "deepseek/deepseek-v4-pro",
     "openai-codex/gpt-5.6-sol",
     "openai-codex/gpt-5.4",
-    "deepseek/deepseek-v4-pro",
-    "deepseek/deepseek-v4-flash",
 ]
 # ChatGPT Advisor (ideation) lane defaults. Ideation is a separate, read-only mode
 # that runs ONLY on a dedicated ideation provider (never openai-codex/*, so it can
@@ -2220,7 +2229,14 @@ def _launch_stage(wid: str, stage: dict, index: int, workflow: dict,
     elif repair_round:
         label = f"{label} (REPAIR {repair_round}/{max_repairs})"
     task = f"workflow {wid} stage {index + 1}/{len(workflow.get('stages', []))}: {label}"
-    cmd = ["pi", "--model", str(stage.get("model")), "--mode", "json", "--print", prompt]
+    stage_model = str(stage.get("model") or "")
+    thinking = str(stage.get("reasoning_effort") or "").strip().lower()
+    if thinking not in REASONING_EFFORT_ALLOWED:
+        thinking = _reasoning_effort(stage_model, stage=stage.get("name"), repair_round=repair_round)
+    cmd = ["pi", "--model", stage_model, "--mode", "json"]
+    if thinking:
+        cmd += ["--thinking", thinking]
+    cmd += ["--print", prompt]
     log_path = str(CONFIG_DIR / f"wf-{wid}-s{index}.log")
     jid, _proc = launch_job(
         model=str(stage.get("model")), task=task, conversation_id=int(workflow["conversation_id"]),
@@ -3235,7 +3251,7 @@ def _parse_plan_tasks(plan_body: str) -> list:
     tasks = []
     text = plan_body or ""
     item_pattern = re.compile(
-        r"(?im)(?:^|\n|(?<=\s))(?:(?:T\s*([0-9]+)\s*[-–—:.])|(?:\(([0-9]+)\)|([0-9]+)[.)]))\s*")
+        r"(?im)(?:^|\n|(?<=\s))(?:(?:T\s*([0-9]+)\s*[-–—:.])|(?:\(([0-9]+)\)|([0-9]+)[.)](?!\d)))\s*")
     matches = list(item_pattern.finditer(text))
     for index, match in enumerate(matches):
         desc_end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
@@ -3359,10 +3375,24 @@ def route_plan_commands(records, default_model: str = DEFAULT_MODEL) -> int:
     workflow (resolving interrupted requests). Returns the number of messages handled.
     """
     handled = 0
+    # CMS/Advisor lanes own their channels: never claim their messages as plans.
+    cms_cfg = advisor_cfg = None
+    try:
+        _cfg = harpp_client.load_config()
+        cms_cfg = cms_config(_cfg)
+        advisor_cfg = advisor_config(_cfg)
+    except Exception:  # noqa: BLE001 - unconfigured harness => no lane partition
+        pass
     for r in records or []:
         if r.get("kind") != "message":
             continue
         if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        # CMS Assistant / ChatGPT Advisor channels belong to their dedicated lanes
+        # (draft-only / read-only). The plan router must never pre-empt them.
+        if cms_cfg is not None and cms_cfg.get("enabled") and is_cms_item(r, cms_cfg):
+            continue
+        if advisor_cfg is not None and advisor_cfg.get("enabled") and is_advisor_item(r, advisor_cfg):
             continue
         body = r.get("body") or ""
         conv = int(r.get("conversation_id") or 0)
@@ -3622,11 +3652,101 @@ def _delivery_keys_since(offset: int) -> set[str]:
         return set()
 
 
+# Provider API keys loaded from the durable HARPP config and injected into the
+# environment of spawned agents so `pi` can authenticate (e.g. Groq). Never logged.
+_PROVIDER_ENV_MAP = {"groq_api_key": "GROQ_API_KEY"}
+_PROVIDER_ENV_LOADED = False
+
+# Explicit reasoning_effort tiers. We do NOT rely on the provider default: the
+# value is always set. low = routine implementation, medium = architecture/review,
+# high = escalation only when needed (e.g. repeated repair rounds). Config override:
+# `harpp config set reasoning_effort none|default|low|medium|high`.
+REASONING_EFFORT_DEFAULT = "low"
+REASONING_EFFORT_TIERS = {
+    "wake": "low",          # routine wake work
+    "cms": "low",           # draft content editing
+    "implement": "low",     # routine implementation
+    "repair": "low",        # bounded auto-repair (escalates on repeated rounds)
+    "advisor": "medium",    # ideation / second opinion
+    "architect": "medium",  # architecture
+    "review": "medium",     # review
+    "release-gate": "medium",  # release gate
+}
+REASONING_EFFORT_ALLOWED = ("none", "default", "low", "medium", "high")
+
+
+def _load_raw_config(config: dict | None = None) -> dict:
+    try:
+        cfg = dict(config or {})
+        if not cfg:
+            p = harpp_client.config_path()
+            if p.is_file():
+                cfg = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - config is best-effort here
+        cfg = {}
+    return cfg
+
+
+def _ensure_provider_env(config: dict | None = None) -> None:
+    """Export provider API keys from durable HARPP config into os.environ once.
+
+    An explicitly-set environment variable always wins (daemon/systemd env is
+    authoritative); otherwise the key stored via `harpp config set groq_api_key
+    <key>` (0600) is made available to spawned `pi --model groq/...` agents.
+    """
+    global _PROVIDER_ENV_LOADED
+    if _PROVIDER_ENV_LOADED:
+        return
+    _PROVIDER_ENV_LOADED = True
+    cfg = _load_raw_config(config)
+    for cfg_key, env_key in _PROVIDER_ENV_MAP.items():
+        if os.environ.get(env_key):
+            continue
+        val = str(cfg.get(cfg_key, "")).strip()
+        if val:
+            os.environ[env_key] = val
+
+
+def _reasoning_effort(model: str, *, lane: str = "wake", stage: str | None = None,
+                      repair_round: int = 0, config: dict | None = None) -> str | None:
+    """Resolve an explicit reasoning_effort tier for any reasoning-capable model.
+
+    We do NOT rely on the provider default: the tier is always set (low = routine
+    implementation, medium = architecture/review, high = escalation only when
+    needed, e.g. repeated repair rounds). A config `reasoning_effort` override wins;
+    otherwise the lane/stage tier applies. Returns an explicit value for every model
+    (pi maps it per-provider via its own thinkingLevelMap; providers that do not
+    support reasoning ignore it).
+    """
+    cfg = _load_raw_config(config)
+    override = str(cfg.get("reasoning_effort") or "").strip().lower()
+    if override in REASONING_EFFORT_ALLOWED:
+        return override
+    key = str(stage or lane).lower()
+    tier = REASONING_EFFORT_TIERS.get(key, REASONING_EFFORT_DEFAULT)
+    # Qwen3.8 27B on Groq has a hard 16K max_completion_tokens cap; its reasoning
+    # consumes that budget and truncates agentic edits (stopReason=length), so it
+    # can never finalize edits with reasoning on. Lane-aware (owner directive,
+    # 2026-09-02): execution lanes run reasoning OFF so the full budget goes to
+    # edits (verified); review/analysis lanes use LOW (single-shot, small output —
+    # keeps the analysis capability without risking the cap); architecture is not
+    # routed to Qwen by default.
+    if str(model or "").startswith("groq/qwen"):
+        if tier == "low":
+            tier = "none"
+        elif tier == "medium" and key in ("review", "advisor", "architect", "release-gate"):
+            tier = "low"
+    if int(repair_round or 0) >= 2:
+        return "high"
+    return tier
+
+
 def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 expected_replies: int | None = None, cwd: str | None = None,
                 expected_source_ids: list[int] | None = None,
                 verify_delivery_receipts: bool = True,
                 open_terminal: bool = False,
+                thinking: str | None = None,
                 return_reason: bool = False,
                 require_marker: bool = True) -> bool | tuple[bool, str | None]:
     """Run Pi once and optionally classify why it failed for safe model fallback.
@@ -3637,6 +3757,8 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
     otherwise every desktop-runner run would be marked failed for lacking a marker
     it was never told to emit.
     """
+    _ensure_provider_env()
+
     def finish(ok: bool, reason: str | None = None):
         return (ok, reason) if return_reason else ok
 
@@ -3647,8 +3769,12 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
             proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                     text=True, start_new_session=True, cwd=cwd)
         else:
+            pi_cmd = ["pi", "--model", model, "--mode", "json"]
+            if thinking:
+                pi_cmd += ["--thinking", thinking]
+            pi_cmd += ["--print", prompt]
             proc = subprocess.Popen(
-                ["pi", "--model", model, "--mode", "json", "--print", prompt],
+                pi_cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
                 cwd=cwd,
             )
@@ -3891,11 +4017,41 @@ def _release_quick_lock() -> None:
         _QUICK_LOCK_FD = None
 
 
+def _classify_task(text: str, default: str = EXECUTION_MODEL) -> str:
+    """Choose the best starting worker for a task.
+
+    Qwen (Groq) has a known execution envelope: large input -> small precise
+    output within its 16K completion cap. It is cheap/fast, so analysis, review,
+    findings, classification, summarization, and small surgical work route to it.
+    Broad implementation stays on the default executioner (Flash). Deterministic
+    signal routing (no extra model call); the wake fallback chain still escalates
+    to Flash/Pro/Codex if the classified worker fails or the task proves complex.
+    """
+    t = " ".join(str(text or "").split()).lower()
+    # Small / analysis / review signals -> Qwen (cheap, fast, small precise output).
+    # Full words use \b...\b; verb stems (summar*/classif*/analy*) match as
+    # word-initial prefixes so "summarize" / "classification" / "analyze" hit.
+    if re.search(
+        r"\b(explain|inspect|compare|describe|review|diff|suggest|recommend|draft|"
+        r"brief|short|quick|list|note|findings?)\b|"
+        r"\b(summar|classif|analy)|"
+        r"(what is|what are|what's|how does|how do|how to|why (does|is|did)|is this|is that)",
+        t,
+    ):
+        return EXECUTION_FALLBACK_MODEL  # groq/qwen/qwen3.8-27b
+    return default
+
+
 def _temporary_model_batches(items: list, default_model: str) -> list[tuple[str, list]]:
-    """Group requests by conversation, workspace hint, and one-run model."""
+    """Group requests by conversation, workspace hint, and one-run model.
+
+    The one-run model is the owner's explicit preference when present, otherwise
+    the task classifier's starting worker (Qwen for analysis/small jobs, the
+    default executioner otherwise). The fallback chain still escalates on failure.
+    """
     batches: dict[tuple[int, str, str], list] = {}
     for item in items or []:
-        selected = requested_model(item.get("body")) or default_model
+        selected = requested_model(item.get("body")) or _classify_task(item.get("body"), default_model)
         key = (int(item.get("conversation_id") or 0), str(item.get("workspace") or ""), selected)
         batches.setdefault(key, []).append(item)
     return [(key[2], batch) for key, batch in batches.items()]
@@ -4100,7 +4256,10 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
 # ---------------------------------------------------------------------------
 
 CMS_CONVERSATION_TITLE = "CMS Assistant"
-CMS_DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
+CMS_DEFAULT_MODEL = EXECUTION_MODEL  # flash worker first; qwen falls back
+# Suitable delegation chain for routine CMS drafting (low token cost): qwen worker
+# first as the fallback, then flash (flash is already primary, so it is deduped).
+CMS_FALLBACK_MODELS = [EXECUTION_FALLBACK_MODEL, EXECUTION_MODEL]
 CMS_TEMPLATE = Path(__file__).resolve().parent / "wake" / "task-contract-cms.md"
 
 
@@ -4224,25 +4383,35 @@ def maybe_wake_cms(inbox: str, cms_items: list, cfg: dict | None = None, *,
             if len(convs) == 1:
                 run_workspace = conversation_workspace_dir(next(iter(convs))) or run_workspace
             prompt = task_prompt(inbox, batch, template=cms_text, workspace=run_workspace)
-            log(f"cms-assistant: spawning agent with {model} ({len(batch)} request(s)); chain=[{model}] only")
-            attempt = spawn_agent(
-                prompt, command=command, model=model,
-                timeout=int(cfg.get("timeout") or DEFAULT_TIMEOUT),
-                expected_replies=len(batch), cwd=run_workspace,
-                expected_source_ids=[int(i.get("id", 0)) for i in batch],
-                verify_delivery_receipts=verify_delivery_receipts,
-                open_terminal=open_terminal, return_reason=True)
-            attempt_ok, failure_kind = attempt if isinstance(attempt, tuple) else (bool(attempt), None)
-            if attempt_ok:
-                mark_processed(batch)
-                _record_cms_usage(batch, model)
-                successful += len(batch)
-                log(f"cms-assistant: complete with {model}; processed {len(batch)} item(s)")
-                _cancel_answered_runs(batch)
-            else:
+            chain = [model]
+            for fb in CMS_FALLBACK_MODELS:
+                if _cms_model_ok(fb) and fb not in chain:
+                    chain.append(fb)
+            batch_ok = False
+            for attempt_model in chain:
+                log(f"cms-assistant: spawning agent with {attempt_model} ({len(batch)} request(s)); chain={chain}")
+                attempt = spawn_agent(
+                    prompt, command=command, model=attempt_model,
+                    timeout=int(cfg.get("timeout") or DEFAULT_TIMEOUT),
+                    expected_replies=len(batch), cwd=run_workspace,
+                    expected_source_ids=[int(i.get("id", 0)) for i in batch],
+                    verify_delivery_receipts=verify_delivery_receipts,
+                    open_terminal=open_terminal, return_reason=True,
+                    thinking=_reasoning_effort(attempt_model, lane="cms"))
+                attempt_ok, failure_kind = attempt if isinstance(attempt, tuple) else (bool(attempt), None)
+                if attempt_ok:
+                    batch_ok = True
+                    mark_processed(batch)
+                    _record_cms_usage(batch, attempt_model)
+                    successful += len(batch)
+                    log(f"cms-assistant: complete with {attempt_model}; processed {len(batch)} item(s)")
+                    _cancel_answered_runs(batch)
+                    break
+                log(f"cms-assistant: {attempt_model} failed ({failure_kind or 'unclassified'}); "
+                    f"{'delegating to next suitable model' if attempt_model != chain[-1] else 'no fallback remains; items remain staged'}")
+            if not batch_ok:
                 all_ok = False
                 record_failure(batch)
-                log(f"cms-assistant: agent failed ({failure_kind or 'unclassified'}); items remain staged")
         return all_ok and successful == len(cms_items)
     except Exception as e:  # noqa: BLE001
         record_failure(cms_items)
@@ -4344,7 +4513,8 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
                 expected_replies=len(batch), cwd=run_workspace,
                 expected_source_ids=[int(i.get("id", 0)) for i in batch],
                 verify_delivery_receipts=verify_delivery_receipts,
-                open_terminal=open_terminal, return_reason=True)
+                open_terminal=open_terminal, return_reason=True,
+                thinking=_reasoning_effort(model, lane="advisor"))
             attempt_ok, failure_kind = attempt if isinstance(attempt, tuple) else (bool(attempt), None)
             if attempt_ok:
                 mark_processed(batch)
@@ -4543,9 +4713,12 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                 if candidate and candidate not in chain:
                     chain.append(candidate)
             batch_ok = False
+            settled_model: str | None = None
             explicitly_selected = any(requested_model(item.get("body")) for item in batch)
             if explicitly_selected:
                 log(f"temporary conversation model preference: {chosen} ({len(batch)} request(s))")
+            else:
+                log(f"task routing: classified={chain[0]} for {len(batch)} request(s)")
             for model_index, attempt_model in enumerate(chain):
                 log(f"spawning wake agent with model {attempt_model}")
                 attempt = spawn_agent(
@@ -4553,13 +4726,15 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                     expected_replies=len(batch), cwd=run_workspace,
                     expected_source_ids=[int(item.get("id", 0)) for item in batch],
                     verify_delivery_receipts=verify_delivery_receipts,
-                    open_terminal=open_terminal, return_reason=True)
+                    open_terminal=open_terminal, return_reason=True,
+                    thinking=_reasoning_effort(attempt_model, lane="wake"))
                 if isinstance(attempt, tuple):
                     attempt_ok, failure_kind = attempt
                 else:  # compatibility for injected/custom runners returning a boolean
                     attempt_ok, failure_kind = bool(attempt), None
                 if attempt_ok:
                     batch_ok = True
+                    settled_model = attempt_model
                     log(f"wake complete with {attempt_model}; processed {len(batch)} item(s)")
                     _cancel_answered_runs(batch)
                     break
@@ -4596,6 +4771,12 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
                 record_failure(batch)
                 all_ok = False
                 log(f"wake agent failed for {len(batch)} request(s); items remain staged for bounded retry")
+            # Routing metric for the evaluation period: classified worker -> what
+            # actually settled, and whether escalation was needed.
+            if not explicitly_selected:
+                log(f"routing metric: classified={chain[0]} settled={settled_model or '(failed)'} "
+                    f"escalated={bool(settled_model and settled_model != chain[0])} "
+                    f"({len(batch)} request(s))")
         return all_ok and successful == len(work)
     except Exception as e:  # noqa: BLE001
         record_failure(work)

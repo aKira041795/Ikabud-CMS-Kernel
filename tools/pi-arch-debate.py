@@ -257,11 +257,14 @@ def verdict_of(critique: str) -> str:
 
 
 def latest_draft_path() -> str:
+    # Most recent draft by mtime, not highest round number: drafts from older
+    # debates (higher round files) must not shadow a newer lower-round draft.
     drafts = sorted(
         (f for f in os.listdir(WORK) if re.fullmatch(r"round-\d+-draft\.txt", f)),
-        key=lambda f: int(re.match(r"round-(\d+)-draft\.txt", f).group(1)),
+        key=lambda f: os.path.getmtime(os.path.join(WORK, f)),
+        reverse=True,
     )
-    return os.path.join(WORK, drafts[-1]) if drafts else ""
+    return os.path.join(WORK, drafts[0]) if drafts else ""
 
 
 def chair_approve() -> None:

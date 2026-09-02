@@ -6,7 +6,7 @@
         <h1 class="text-2xl font-bold text-amber-800 mb-6">End Shift</h1>
 
         {* Summary *}
-        <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div class="bg-blue-50 p-4 rounded-xl text-center">
                 <div class="text-2xl font-bold text-blue-700" x-text="salesCount"></div>
                 <div class="text-xs text-blue-600 mt-1">Transactions</div>

@@ -12,8 +12,8 @@
 <body class="bg-gray-50">
     <nav class="bg-amber-700 text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4">
-            <div class="flex items-center justify-between h-14">
-                <div class="flex items-center space-x-6">
+            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-14 py-2">
+                <div class="flex flex-wrap items-center gap-x-3 sm:gap-x-6">
                     <a href="/dc-cafe/pos" class="font-bold text-lg">DC Cafe</a>
                     {* Role: all except auditor *}
                     {if user.role != 'auditor'}
@@ -38,7 +38,7 @@
                     <a href="/dc-cafe/settings" class="text-amber-200 hover:text-white text-sm">Settings</a>
                     {/if}
                 </div>
-                <div class="flex items-center space-x-4">
+                <div class="flex flex-wrap items-center gap-x-3 sm:gap-x-4">
                     <span class="text-amber-200 text-sm">{user.full_name ?? ''}</span>
                     <a href="/dc-cafe/logout" class="text-amber-200 hover:text-white text-sm">Logout</a>
                 </div>

@@ -3,7 +3,7 @@
 {block "content"}
 {* NOTE: no x-init here — posApp() returns an object with an init() method,
      which Alpine auto-calls. x-init="init()" would run init twice (dup fetches). *}
-<div x-data="posApp()" class="flex flex-col h-[calc(100vh-3.5rem)]">
+<div x-data="posApp()" class="flex flex-col min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)]">
     {* Top: Session Bar + Config Load Status *}
     <div class="bg-amber-100 px-4 py-2 rounded-lg mb-4 flex items-center justify-between text-sm">
         <div class="flex items-center space-x-4">
@@ -33,9 +33,9 @@
     </div>
 
     {* Main: Products Left | Cart Right *}
-    <div class="flex flex-1 gap-4 overflow-hidden">
+    <div class="flex flex-col lg:flex-row flex-1 gap-4 overflow-visible lg:overflow-hidden">
         {* Product Grid *}
-        <div class="w-3/5 overflow-y-auto pr-2">
+        <div class="w-full lg:w-3/5 overflow-y-auto pr-0 lg:pr-2">
             {* Category Filter *}
             <div class="flex gap-2 mb-3 flex-wrap">
                 <button @click="categoryFilter = ''"
@@ -56,7 +56,7 @@
                    class="w-full px-3 py-2 border rounded-lg mb-3 text-sm">
 
             {* Product Cards *}
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <template x-for="p in filteredProducts" :key="p.id">
                     <div @click="addToCart(p)"
                          class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-amber-300 transition text-center relative">
@@ -73,7 +73,7 @@
         </div>
 
         {* Cart *}
-        <div class="w-2/5 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+        <div class="w-full lg:w-2/5 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
             <div class="p-4 border-b border-gray-100">
                 <h2 class="font-bold text-lg">Current Order</h2>
             </div>

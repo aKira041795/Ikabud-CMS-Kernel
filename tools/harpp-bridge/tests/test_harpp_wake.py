@@ -1037,8 +1037,8 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["model_fallbacks"], 1)
             self.assertEqual(wf["repair_count"], 0)  # delegation does not burn a repair round
             stage0 = wf["stages"][0]
-            self.assertEqual(stage0["model"], "openai-codex/gpt-5.6-sol")
-            self.assertIn("openai-codex/gpt-5.6-sol", stage0["tried_models"])
+            self.assertEqual(stage0["model"], "deepseek/deepseek-v4-flash")
+            self.assertIn("deepseek/deepseek-v4-flash", stage0["tried_models"])
             self.assertEqual(len(launched), 1)
             self.assertIn("DELEGATED", launched[-1])
             self.assertTrue(any("MODEL DELEGATION" in s["body"] for s in sent))
@@ -1327,6 +1327,29 @@ class HarppWakeTest(unittest.TestCase):
             self.assertIn("T1 - Fix doc drift", harpp_wake._plan_storage().get("7"))
         finally:
             harpp_wake.harpp_client.harpp_notify = original_notify
+
+    def test_route_plan_commands_skips_cms_channel_messages(self):
+        # A CMS Assistant-channel message must never be claimed as a plan, even if
+        # its body looks plan-like; it belongs to the CMS draft lane.
+        sent = []
+        original_notify = harpp_wake.harpp_client.harpp_notify
+        original_load = harpp_wake.harpp_client.load_config
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: sent.append(kw) or {"ok": True}
+        harpp_wake.harpp_client.load_config = lambda: {
+            "cms": {"enabled": True, "conversation_title": "CMS Draft"},
+            "advisor": {"enabled": False},
+        }
+        try:
+            record = {"kind": "message", "id": 920, "conversation_id": 77,
+                      "conversation_title": "CMS Draft", "sender_type": "user",
+                      "body": "T1 - Draft Ikabud Kernel 6.0 post"}
+            n = harpp_wake.route_plan_commands([record])
+            self.assertEqual(n, 0)
+            self.assertEqual(sent, [])
+            self.assertNotIn(920, harpp_wake.read_state()["messages"])
+        finally:
+            harpp_wake.harpp_client.harpp_notify = original_notify
+            harpp_wake.harpp_client.load_config = original_load
 
     def test_route_plan_commands_execution_starts_workflow(self):
         started = []
@@ -1719,8 +1742,6 @@ class HarppWakeTest(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(calls, [
                 "deepseek/deepseek-v4-pro",
-                "openai-codex/gpt-5.6-sol",
-                "openai-codex/gpt-5.4",
                 "deepseek/deepseek-v4-flash",
             ])
         finally:
@@ -1781,6 +1802,37 @@ class HarppWakeTest(unittest.TestCase):
         finally:
             harpp_wake.spawn_agent = original
 
+    def test_classify_task_routes_analysis_to_qwen_and_broad_to_flash(self):
+        self.assertEqual(
+            harpp_wake._classify_task("explain how the POS applies discounts", "deepseek/deepseek-v4-flash"),
+            "groq/qwen/qwen3.8-27b")
+        self.assertEqual(
+            harpp_wake._classify_task("summarize the recent orders", "deepseek/deepseek-v4-flash"),
+            "groq/qwen/qwen3.8-27b")
+        self.assertEqual(
+            harpp_wake._classify_task("review this diff and list findings", "deepseek/deepseek-v4-flash"),
+            "groq/qwen/qwen3.8-27b")
+        # Broad implementation / no analysis signal -> default executioner (flash).
+        self.assertEqual(
+            harpp_wake._classify_task("implement a new reports module", "deepseek/deepseek-v4-flash"),
+            "deepseek/deepseek-v4-flash")
+        self.assertEqual(
+            harpp_wake._classify_task("refactor the pos and fix all bugs", "deepseek/deepseek-v4-flash"),
+            "deepseek/deepseek-v4-flash")
+        self.assertEqual(
+            harpp_wake._classify_task("status update please", "deepseek/deepseek-v4-flash"),
+            "deepseek/deepseek-v4-flash")
+
+    def test_temporary_model_batches_classifies_without_explicit_preference(self):
+        records = [
+            {"kind": "message", "id": 1, "conversation_id": 2, "body": "explain how login works"},
+            {"kind": "message", "id": 2, "conversation_id": 3, "body": "build the new dashboard"},
+        ]
+        batches = harpp_wake._temporary_model_batches(records, "deepseek/deepseek-v4-flash")
+        by_model = {model: sorted(r["id"] for r in batch) for model, batch in batches}
+        self.assertEqual(by_model.get("groq/qwen/qwen3.8-27b"), [1])       # analysis -> qwen
+        self.assertEqual(by_model.get("deepseek/deepseek-v4-flash"), [2])   # broad -> flash
+
     def test_spawn_agent_classifies_usage_exhaustion_for_fallback(self):
         ok, reason = harpp_wake.spawn_agent(
             "prompt", command="echo 'token usage limit exceeded'; exit 1",
@@ -1797,10 +1849,11 @@ class HarppWakeTest(unittest.TestCase):
 
     def test_delegate_stage_model_walks_fallback_order(self):
         stage = {"name": "implement", "model": "deepseek/deepseek-v4-pro"}
-        self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.6-sol")
-        self.assertEqual(stage["model"], "openai-codex/gpt-5.6-sol")
-        self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.4")
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "deepseek/deepseek-v4-flash")
+        self.assertEqual(stage["model"], "deepseek/deepseek-v4-flash")
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "groq/qwen/qwen3.8-27b")
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.6-sol")
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.4")
         self.assertIsNone(harpp_wake._delegate_stage_model(stage))
 
     def test_delegate_stage_model_tries_manifest_model_after_temporary_preference(self):
@@ -1809,6 +1862,41 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "deepseek/deepseek-v4-pro")
         self.assertEqual(stage["tried_models"], [
             "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro"])
+
+    def test_reasoning_effort_is_explicit_and_tiered_for_all_models(self):
+        # Every model gets an explicit reasoning_effort tier (never omitted).
+        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-pro", lane="wake"), "low")
+        self.assertEqual(harpp_wake._reasoning_effort("openai-codex/gpt-5.6-sol", lane="wake"), "low")
+        # Qwen (Groq) execution lanes run reasoning OFF (16K output cap); review/
+        # analysis lanes use low reasoning (single-shot, small output).
+        self.assertEqual(harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", lane="wake"), "none")
+        self.assertEqual(harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", lane="cms"), "none")
+        self.assertEqual(harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", lane="advisor"), "low")
+        self.assertEqual(harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", stage="review"), "low")
+        self.assertEqual(harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", stage="release-gate"), "low")
+        # Non-Qwen models keep the standard tiering.
+        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-pro", stage="implement"), "low")
+        self.assertEqual(harpp_wake._reasoning_effort("openai-codex/gpt-5.6-sol", stage="review"), "medium")
+        # Escalation to high only on repeated repair rounds.
+        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-pro", stage="implement", repair_round=2), "high")
+        # Config override wins.
+        self.assertEqual(
+            harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", lane="wake", config={"reasoning_effort": "high"}), "high")
+
+    def test_plan_parser_ignores_version_decimals(self):
+        # Version numbers like 6.0 / 4.8 must NOT be parsed as numbered plan tasks,
+        # otherwise CMS draft requests mentioning a version get claimed as plans.
+        for msg in [
+            "Do another draft: Ikabud Kernel 6.0, a new horizon",
+            "Create a draft Ikabud kernel 6.0 is here",
+            "Upgrade to 4.8 and 6.0 together",
+        ]:
+            self.assertEqual(harpp_wake._parse_plan_tasks(msg), [])
+        # Legitimate plan markers still parse.
+        self.assertEqual(
+            [t["num"] for t in harpp_wake._parse_plan_tasks("T1 - build login\nT2 - tests")], [1, 2])
+        self.assertEqual(
+            [t["num"] for t in harpp_wake._parse_plan_tasks("1. first\n2. second")], [1, 2])
 
     def test_task_prompt_contains_items(self):
         harpp_wake.record_local_decision(task="conversation:2", decision="Keep scope narrow",
@@ -2766,7 +2854,7 @@ class HarppAdvisorTest(unittest.TestCase):
 
     def _fake_spawn(self, prompt, *, command=None, model, timeout, expected_replies=None,
                     cwd=None, expected_source_ids=None, verify_delivery_receipts=True,
-                    open_terminal=False, return_reason=False, require_marker=True):
+                    open_terminal=False, thinking=None, return_reason=False, require_marker=True):
         self.spawns.append({"model": model, "prompt": prompt, "expected": expected_source_ids})
         return (True, None)
 
@@ -2821,7 +2909,7 @@ class HarppAdvisorTest(unittest.TestCase):
     def test_advisor_failure_keeps_staged_and_never_codex(self):
         def fail_spawn(prompt, *, command=None, model, timeout, expected_replies=None,
                        cwd=None, expected_source_ids=None, verify_delivery_receipts=True,
-                       open_terminal=False, return_reason=False, require_marker=True):
+                       open_terminal=False, thinking=None, return_reason=False, require_marker=True):
             self.spawns.append({"model": model})
             return (False, "usage_exhausted")
         harpp_wake.spawn_agent = fail_spawn
@@ -2911,7 +2999,7 @@ class HarppCmsAssistantTest(unittest.TestCase):
 
     def _fake_spawn(self, prompt, *, command=None, model, timeout, expected_replies=None,
                     cwd=None, expected_source_ids=None, verify_delivery_receipts=True,
-                    open_terminal=False, return_reason=False, require_marker=True):
+                    open_terminal=False, thinking=None, return_reason=False, require_marker=True):
         self.spawns.append({"model": model, "prompt": prompt, "expected": expected_source_ids})
         return (True, None)
 
@@ -2984,7 +3072,7 @@ class HarppCmsAssistantTest(unittest.TestCase):
     def test_cms_failure_keeps_staged(self):
         def fail_spawn(prompt, *, command=None, model, timeout, expected_replies=None,
                        cwd=None, expected_source_ids=None, verify_delivery_receipts=True,
-                       open_terminal=False, return_reason=False, require_marker=True):
+                       open_terminal=False, thinking=None, return_reason=False, require_marker=True):
             self.spawns.append({"model": model})
             return (False, "usage_exhausted")
         harpp_wake.spawn_agent = fail_spawn

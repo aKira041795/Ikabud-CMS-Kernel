@@ -906,7 +906,7 @@ def main():
     wt.add_argument("--max-per-hour", dest="max_per_hour", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_PER_HOUR", "20")))
     wt.add_argument("--timeout", type=int, default=int(os.environ.get("HARPP_WAKE_TIMEOUT", "900")))
     wt.add_argument("--max-retries", type=int, default=int(os.environ.get("HARPP_WAKE_MAX_RETRIES", "3")))
-    wt.add_argument("--model", default=os.environ.get("HARPP_WAKE_MODEL", "deepseek/deepseek-v4-pro"))
+    wt.add_argument("--model", default=os.environ.get("HARPP_WAKE_MODEL", harpp_wake.EXECUTION_MODEL))
     wt.add_argument("--no-terminal", action="store_true",
                     help="do not open a visible terminal for wake feedback (default: on)")
 
@@ -1051,9 +1051,12 @@ def main():
         else:
             cfg = harpp_client.load_config()
             if args.key:
-                print(cfg.get(args.key, ""))
+                val = cfg.get(args.key, "")
+                print("<redacted>" if args.key == "bridge_key" or args.key.endswith("_api_key") else val)
             else:
-                print(json.dumps({k: ("<redacted>" if k == "bridge_key" else v) for k, v in cfg.items()}, indent=2))
+                print(json.dumps(
+                    {k: ("<redacted>" if k == "bridge_key" or k.endswith("_api_key") else v)
+                     for k, v in cfg.items()}, indent=2))
     elif args.cmd == "check":
         cfg = harpp_client.load_config()
         print(f"base_url={cfg['base_url']} tenant_id={cfg['tenant_id']} bridge_key=<redacted> OK")
