@@ -2965,6 +2965,32 @@ def _exec_workflow_command(cmd, conv: int) -> str:
     return "❓ Unrecognized workflow command."
 
 
+def _is_cms_or_advisor_message(r) -> bool:
+    """True when a record belongs to the CMS Assistant or ChatGPT Advisor channel.
+
+    Those lanes own their channels; the dev command routers (workflow/debate/plan)
+    must never claim their messages — otherwise a CMS draft request could
+    spuriously trigger a dev workflow or debate in the CMS conversation.
+    """
+    try:
+        cfg = harpp_client.load_config()
+    except Exception:  # noqa: BLE001 - unconfigured harness => no lane partition
+        return False
+    try:
+        cms_cfg = cms_config(cfg)
+        if cms_cfg.get("enabled") and is_cms_item(r, cms_cfg):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        advisor_cfg = advisor_config(cfg)
+        if advisor_cfg.get("enabled") and is_advisor_item(r, advisor_cfg):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    return False
+
+
 def route_workflow_commands(records) -> int:
     """Deterministically handle owner workflow commands in staged messages.
 
@@ -2977,6 +3003,10 @@ def route_workflow_commands(records) -> int:
         if r.get("kind") != "message":
             continue
         if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        # CMS/Advisor channels own their conversations; never claim them as
+        # dev workflow commands (a CMS draft request must not start a loop).
+        if _is_cms_or_advisor_message(r):
             continue
         cmd = parse_workflow_command(r.get("body"))
         if not cmd:
@@ -3181,6 +3211,10 @@ def route_debate_commands(records) -> int:
         if r.get("kind") != "message":
             continue
         if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        # CMS/Advisor channels own their conversations; never claim them as
+        # dev debate commands.
+        if _is_cms_or_advisor_message(r):
             continue
         approve = parse_debate_approve_command(r.get("body"))
         cmd = parse_debate_command(r.get("body"))

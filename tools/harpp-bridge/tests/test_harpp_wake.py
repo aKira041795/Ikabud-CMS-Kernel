@@ -1155,6 +1155,27 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake.start_workflow = original_start
             harpp_wake.harpp_client.send_message = original_send
 
+    def test_route_workflow_commands_skips_cms_channel_messages(self):
+        # A CMS Assistant-channel message must never be claimed as a workflow
+        # command, even if its body looks like one; it belongs to the CMS lane.
+        sent, original_send = self._patch_send()
+        original_load = harpp_wake.harpp_client.load_config
+        harpp_wake.harpp_client.load_config = lambda: {
+            "cms": {"enabled": True, "conversation_title": "CMS Draft"},
+            "advisor": {"enabled": False},
+        }
+        try:
+            n = harpp_wake.route_workflow_commands([
+                {"kind": "message", "id": 902, "conversation_id": 9,
+                 "conversation_title": "CMS Draft", "sender_type": "user",
+                 "body": "workflow start governed loop to enrich draft 47"}])
+            self.assertEqual(n, 0)
+            self.assertEqual(sent, [])
+            self.assertNotIn(902, harpp_wake.read_state()["messages"])
+        finally:
+            harpp_wake.harpp_client.send_message = original_send
+            harpp_wake.harpp_client.load_config = original_load
+
     def test_route_workflow_retries_delivery_without_reexecuting(self):
         calls = []
         original_exec = harpp_wake._exec_workflow_command
