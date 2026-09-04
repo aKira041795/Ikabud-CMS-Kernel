@@ -670,8 +670,42 @@ class MigrationRunner
             if ($statement === '') {
                 continue;
             }
+
+            // Never PDO::exec() a statement that returns a result set. On
+            // mysqlnd (including this PHP 8.5 build) exec("SELECT …") leaves an
+            // unconsumed result even when buffered-query attributes are set, and
+            // the very next statement on the connection fails with "2014 Cannot
+            // execute queries while other unbuffered queries are active". The
+            // runner's advisory RELEASE_LOCK query() in migrate() (finally block)
+            // is what surfaces it. Route SELECT/SHOW/DESCRIBE/EXPLAIN/WITH through
+            // query() and fully drain the result set so no cursor is left behind.
+            if ($this->statementProducesRows($statement)) {
+                $result = $this->pdo->query($statement);
+                if ($result !== false) {
+                    $result->fetchAll();
+                    $result->closeCursor();
+                }
+                continue;
+            }
+
             $this->pdo->exec($statement);
         }
+    }
+
+    /**
+     * Whether a SQL statement produces a client result set that must be drained.
+     *
+     * Only statements whose first keyword can return rows (SELECT/SHOW/
+     * DESCRIBE/DESC/EXPLAIN/WITH) need the query()+drain path. DDL/DML
+     * (ALTER/CREATE/INSERT/UPDATE/DELETE/SET/DO/…) never return a result set
+     * and are safe with exec().
+     */
+    private function statementProducesRows(string $statement): bool
+    {
+        return (bool) preg_match(
+            '/^\s*(?:SELECT\b|SHOW\b|DESCRIBE\b|DESC\b|EXPLAIN\b|WITH\b)/i',
+            $statement
+        );
     }
 
     /**
