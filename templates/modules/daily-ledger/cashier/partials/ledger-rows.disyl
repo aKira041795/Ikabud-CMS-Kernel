@@ -1,5 +1,5 @@
 {foreach rows as row}
-<tr data-product-id="{row.product_id}">
+<tr data-product-id="{row.product_id}" data-pack="{if row.pcs_per_pack}{row.pcs_per_pack}{else}0{/if}">
     <td class="row-num w-14 whitespace-nowrap text-center align-middle text-sm text-gray-500">{loop.index1}</td>
     <td class="product-name whitespace-nowrap align-middle font-medium text-gray-900">{row.name}</td>
     <td class="align-middle text-right">

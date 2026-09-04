@@ -47,6 +47,7 @@ return [
         '/daily-ledger/api/v1/cashier/ledger/rows' => 'daily-ledger:apiGetLedgerRows',
         '/daily-ledger/api/v1/cashier/ledger/day-status' => 'daily-ledger:apiGetLedgerDayStatus',
         '/daily-ledger/api/v1/cashier/ledger/withdrawals' => 'daily-ledger:apiGetCashierWithdrawals',
+        '/daily-ledger/api/v1/cashier/ledger/withdrawals/today' => 'daily-ledger:apiTodayCashierWithdrawals',
         '/daily-ledger/api/v1/cashier/ledger/incoming-deliveries' => 'daily-ledger:apiGetIncomingDeliveries',
 
         // API: get current user and branches (Android sync)
@@ -113,6 +114,8 @@ return [
 
         // Cashier: detailed withdrawals
         '/daily-ledger/api/v1/cashier/ledger/withdrawals' => 'daily-ledger:apiSaveCashierWithdrawals',
+        // Cashier: edit own withdrawal (audited, retry corrections)
+        '/daily-ledger/api/v1/cashier/ledger/withdrawals/edit' => 'daily-ledger:apiUpdateCashierWithdrawal',
         // Cashier: create posted branch dispatch from paper DR
         '/daily-ledger/api/v1/cashier/ledger/dispatch' => 'daily-ledger:apiCreateCashierDispatch',
         // Cashier: receive incoming delivery

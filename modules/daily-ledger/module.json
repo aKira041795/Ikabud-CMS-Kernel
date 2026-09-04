@@ -127,7 +127,10 @@
     "database/migrations/050_normalize_dl_daily_ledger_collation.sql",
     "database/migrations/051_variance_shift_inputs.sql",
     "database/migrations/052_cashier_withdrawals_dedup_hash.sql",
-    "database/migrations/053_offline_pending_marker.sql"
+    "database/migrations/053_offline_pending_marker.sql",
+    "database/migrations/054_box_unit_withdrawals.sql",
+    "database/migrations/055_cashier_withdrawal_shift.sql",
+    "database/migrations/056_cashier_withdrawal_quantity_signed.sql"
   ],
   "capabilities": {
     "exposes": [

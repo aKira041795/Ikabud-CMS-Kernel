@@ -1191,31 +1191,33 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
         }
 
         // POS/fallback days close under their own receipt/checkpoint rules.
-        // Fully manual days require the PM shift finalized before the cutoff
-        // may lock them; otherwise the day stays open and pending is surfaced.
+        // Owner rule (2026-09-04): AM and PM shifts close when the day is over —
+        // at the business-day cutoff (midnight) the previous date closes for
+        // both shifts regardless of whether the PM ending was finalized. This
+        // stops an unfinalized PM shift from keeping the day open and leaking
+        // entries into the next business date. A manual day whose PM was not
+        // finalized still closes, but is flagged so the owner can reopen and
+        // backfill the PM ending counts if needed.
         if (dl_isFullyManualDay($ctx->db(), $branchId, $closeDate)) {
             $pmRow = dl_lockShiftStatusRow($ctx->db(), $branchId, $closeDate, 'PM');
-            if ((string)$pmRow['status'] !== 'finalized') {
+            if ((string)($pmRow['status'] ?? 'open') === 'finalized') {
+                // Finalized manual day: full variance sweep + freeze before closing.
+                dl_recomputeVariancesForDay($branchId, $closeDate, false);
+                dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
+            } else {
+                // PM not finalized — close at the cutoff anyway and surface the
+                // gap so it is never silently lost.
                 $notify = $ctx->db()->prepare(
                     'UPDATE dl_ledger_shift_status SET pending_notified_at = CURRENT_TIMESTAMP
                       WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\' AND pending_notified_at IS NULL'
                 );
                 $notify->execute([':bid' => $branchId, ':d' => $closeDate]);
-                if ($notify->rowCount() > 0) {
-                    dl_auditLog('pm_ending_pending', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$closeDate}-PM", null, [
-                        'status' => 'open',
-                        'source' => 'auto_close_cutoff',
-                        'close_of_day_time' => $settings['close_of_day_time'],
-                    ]);
-                }
-                if ($ownsTxn) {
-                    $ctx->db()->commit();
-                }
-                return false;
+                dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$closeDate}-PM", null, [
+                    'status' => 'closed_without_pm_finalize',
+                    'source' => 'auto_close_cutoff',
+                    'close_of_day_time' => $settings['close_of_day_time'],
+                ]);
             }
-            // Finalized manual day: full variance sweep + freeze before closing.
-            dl_recomputeVariancesForDay($branchId, $closeDate, false);
-            dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
         }
 
         $stmt = $ctx->db()->prepare(
@@ -3276,7 +3278,7 @@ function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $b
 {
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $stmt = $db->prepare(
-        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
+        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order, p.pcs_per_pack,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
                 ' . $salesExpr . ' AS sales, dl.price_snapshot,
@@ -3637,11 +3639,86 @@ function apiGetCashierWithdrawals(array $params = []): void
         return;
     }
     
-    $stmt = $ctx->db()->prepare('SELECT id, withdrawal_type, dr_number, target_branch_id, quantity FROM dl_cashier_withdrawals WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d');
+    $stmt = $ctx->db()->prepare('SELECT id, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, liable_user_id, encoded_by, created_at FROM dl_cashier_withdrawals WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d');
     $stmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     $ctx->json(['ok' => true, 'withdrawals' => $rows]);
+}
+
+/**
+ * GET /daily-ledger/api/v1/cashier/ledger/withdrawals/today
+ *
+ * Lists the current business date's cashier adjustments for the branch so a
+ * cashier can correct their own entries (Issue: slow-internet retry
+ * corrections). Cashiers see only rows they encoded; supervisors/admins see
+ * all rows in the branch (branch access is enforced by dl_authorizeBranch).
+ */
+function apiTodayCashierWithdrawals(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    $role = (string)($user['role'] ?? '');
+    $authResult = dl_authorizeBranch($user, $_GET);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)$authResult['branch_id'];
+    $date = isset($_GET['date']) ? (string)$_GET['date'] : dl_businessDate();
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid date.'], 422);
+        return;
+    }
+    $shift = isset($_GET['shift']) ? strtoupper(trim((string)$_GET['shift'])) : '';
+    if ($shift !== '' && !in_array($shift, ['AM', 'PM'], true)) {
+        $shift = '';
+    }
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => true, 'withdrawals' => []]);
+        return;
+    }
+
+    $actorId = dl_getActorUserId($user);
+    $sql = 'SELECT cw.id, cw.product_id, p.name AS product_name, cw.withdrawal_type, cw.reason_code,
+                   cw.custom_reason, cw.dr_number, cw.target_branch_id, cw.quantity, cw.unit, cw.pack_qty,
+                   cw.liable_user_id, cw.encoded_by, cw.shift, cw.created_at
+              FROM dl_cashier_withdrawals cw
+              INNER JOIN dl_products p ON p.id = cw.product_id
+             WHERE cw.branch_id = :bid AND cw.ledger_date = :d';
+    $bind = [':bid' => $branchId, ':d' => $date];
+    if ($role === 'cashier') {
+        $sql .= ' AND cw.encoded_by = :uid';
+        $bind[':uid'] = $actorId;
+    }
+    if ($shift !== '') {
+        // Legacy rows (shift NULL) are shown in either shift (best-effort).
+        $sql .= ' AND (cw.shift = :shift OR cw.shift IS NULL)';
+        $bind[':shift'] = $shift;
+    }
+    $sql .= ' ORDER BY cw.created_at DESC, cw.id DESC LIMIT 200';
+    $stmt = $ctx->db()->prepare($sql);
+    $stmt->execute($bind);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rows as &$r) {
+        $r['id'] = (int)$r['id'];
+        $r['product_id'] = (int)$r['product_id'];
+        $r['quantity'] = (int)$r['quantity'];
+        $r['pack_qty'] = $r['pack_qty'] !== null ? (int)$r['pack_qty'] : null;
+        $r['target_branch_id'] = $r['target_branch_id'] !== null ? (int)$r['target_branch_id'] : null;
+        $r['liable_user_id'] = $r['liable_user_id'] !== null ? (int)$r['liable_user_id'] : null;
+        $r['encoded_by'] = $r['encoded_by'] !== null ? (int)$r['encoded_by'] : null;
+        $r['shift'] = $r['shift'] !== null ? (string)$r['shift'] : null;
+        $r['editable'] = !in_array((string)$r['withdrawal_type'], ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)
+            ? false
+            : (($r['target_branch_id'] ?? null) === null);
+    }
+    unset($r);
+    $ctx->json(['ok' => true, 'date' => $date, 'withdrawals' => $rows]);
 }
 
 function apiSaveCashierWithdrawals(array $params = []): void
@@ -3683,7 +3760,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add'], true)) {
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type']);
         return;
     }
@@ -3697,7 +3774,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
         return;
     }
-    if (in_array($type, ['charge','pullout','adjustment_add'], true) && $reasonCode === null) {
+    if (in_array($type, ['charge','pullout','adjustment_add','used','correction'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
     }
     if ($reasonCode === 'other' && $customReason === '') {
@@ -3717,14 +3794,35 @@ function apiSaveCashierWithdrawals(array $params = []): void
         return;
     }
 
-    // Filter to valid product+qty pairs
+    // Filter to valid product+qty pairs, resolving pcs|box units to the
+    // piece-equivalent the ledger counts (quantity stays pieces). Correction
+    // entries may use a minus prefix (negative qty) to REDUCE an over-recorded
+    // amount; negatives are piece-based reductions and never box units.
     $validLines = [];
     foreach ($lines as $l) {
         $pid = isset($l['product_id']) ? (int)$l['product_id'] : 0;
-        $qty = isset($l['quantity']) ? max(0, (int)$l['quantity']) : 0;
-        if ($pid > 0 && $qty > 0) {
-            $validLines[] = ['product_id' => $pid, 'quantity' => $qty];
+        $qty = isset($l['quantity']) ? (int)$l['quantity'] : 0;
+        if ($pid <= 0 || $qty === 0) {
+            continue;
         }
+        try {
+            $resolved = dl_resolveWithdrawalLineForType($ctx->db(), $pid, $qty, $l['unit'] ?? 'pcs', $type);
+        } catch (\RuntimeException $e) {
+            if ($e->getCode() === 422) {
+                $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+                return;
+            }
+            throw $e;
+        }
+        if ($resolved['quantity'] === 0) {
+            continue;
+        }
+        $validLines[] = [
+            'product_id' => $pid,
+            'quantity' => $resolved['quantity'],
+            'unit' => $resolved['unit'],
+            'pack_qty' => $resolved['pack_qty'],
+        ];
     }
     if (count($validLines) === 0) {
         $ctx->json(['ok' => false, 'error' => 'Add at least one product with a quantity greater than 0.']);
@@ -3749,12 +3847,13 @@ function apiSaveCashierWithdrawals(array $params = []): void
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
-             VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :dedup)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND withdrawal_type <> :excludeType'
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
+               AND shift = :shift AND withdrawal_type <> :excludeType'
         );
         $stmtCheck = $ctx->db()->prepare(
             'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
@@ -3785,6 +3884,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
         foreach ($validLines as $line) {
             $pid = $line['product_id'];
             $qty = $line['quantity'];
+            $unit = $line['unit'];
+            $packQty = $line['pack_qty'];
 
             $dedupHash = dl_withdrawalDedupHash(
                 $branchId, $pid, $date, $type,
@@ -3793,7 +3894,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 $drNumber,
                 $targetBranchId,
                 $qty,
-                $liableUserId
+                $liableUserId,
+                $unit
             );
 
             try {
@@ -3801,12 +3903,15 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     ':bid' => $branchId,
                     ':pid' => $pid,
                     ':d' => $date,
+                    ':shift' => $shift,
                     ':typ' => $type,
                     ':rc' => $reasonCode,
                     ':crc' => $customReason !== '' ? $customReason : null,
                     ':dr' => $drNumber,
                     ':tbid' => $targetBranchId,
                     ':qty' => $qty,
+                    ':unit' => $unit,
+                    ':pack_qty' => $packQty,
                     ':uid' => $userId,
                     ':luid' => $liableUserId,
                     ':dedup' => $dedupHash,
@@ -3848,8 +3953,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 $totals[] = ['product_id' => $pid, 'addtl' => $qty];
             } else {
                 // charge/pullout: recalc withdraw from sum of all withdrawals
-                $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':excludeType' => 'adjustment_add']);
-                $newTotal = (int)$stmtSum->fetchColumn();
+                $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':excludeType' => 'adjustment_add']);
+                $newTotal = max(0, (int)$stmtSum->fetchColumn());
 
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
                 if ($stmtCheck->fetch()) {
@@ -4016,6 +4121,311 @@ function apiSaveCashierWithdrawals(array $params = []): void
             return;
         }
         $ctx->json(['ok' => false, 'error' => 'Database error']);
+    }
+}
+
+/**
+ * POST /daily-ledger/api/v1/cashier/ledger/withdrawals/edit
+ *
+ * Lets a cashier correct a withdrawal they encoded — or a supervisor/admin
+ * correct any withdrawal in an accessible branch — when a slow connection made
+ * a retry leave a wrong quantity/type/reason. Every change is audit-logged
+ * ('withdrawal_updated', old -> new).
+ *
+ * Window: ledger_date == current business date, day open, shift mutable.
+ * Blocked: rows already received (received_at), legacy 'delivery' rows, and
+ * pullout rows that returned goods to a commissary (target_branch_id) — those
+ * chain to a posted return delivery/receiving and are corrected by an admin.
+ */
+function apiUpdateCashierWithdrawal(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    $role = (string)($user['role'] ?? '');
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)$authResult['branch_id'];
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Unable to resolve branch. Verify your branch assignment.'], 422);
+        return;
+    }
+
+    $withdrawalId = (int)($input['withdrawal_id'] ?? 0);
+    if ($withdrawalId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'withdrawal_id is required.'], 422);
+        return;
+    }
+
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
+    $date = (string)($input['date'] ?? dl_businessDate());
+    $header = (array)($input['header'] ?? []);
+    $lines = (array)($input['lines'] ?? []);
+
+    $type = (string)($header['withdrawal_type'] ?? '');
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type'], 422);
+        return;
+    }
+    $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
+    $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
+    $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
+    $customReason = isset($header['custom_reason']) ? trim((string)$header['custom_reason']) : '';
+    $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
+    $allowedReasons = ['spoilage','staff_meal','sampling','testing','promo','donation','damage','manual_adjustment','other'];
+    if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
+        return;
+    }
+    if ($type === 'adjustment_add' && $liableUserId === null) {
+        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person).'], 422);
+        return;
+    }
+    if ($reasonCode === 'other' && $customReason === '') {
+        $ctx->json(['ok' => false, 'error' => 'A custom reason is required when reason is Other.'], 422);
+        return;
+    }
+    if ($reasonCode !== 'other') {
+        $customReason = '';
+    }
+    if ($type === 'pullout' && $targetBranchId !== null && $targetBranchId > 0) {
+        $ctx->json(['ok' => false, 'error' => 'Pullouts that return goods to a commissary cannot be edited here. Ask a supervisor/admin to correct them.'], 422);
+        return;
+    }
+
+    // A withdrawal row represents one product; editing accepts one product line.
+    // Correction rows may carry a negative qty (minus prefix = reduce).
+    $line = null;
+    foreach ($lines as $l) {
+        $pid = isset($l['product_id']) ? (int)$l['product_id'] : 0;
+        $qty = isset($l['quantity']) ? (int)$l['quantity'] : 0;
+        if ($pid <= 0 || $qty === 0) {
+            continue;
+        }
+        if ($line !== null) {
+            $ctx->json(['ok' => false, 'error' => 'Editing supports exactly one product line per withdrawal row.'], 422);
+            return;
+        }
+        try {
+            $resolved = dl_resolveWithdrawalLineForType($ctx->db(), $pid, $qty, $l['unit'] ?? 'pcs', $type);
+        } catch (\RuntimeException $e) {
+            if ($e->getCode() === 422) {
+                $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+                return;
+            }
+            throw $e;
+        }
+        if ($resolved['quantity'] !== 0) {
+            $line = [
+                'product_id' => $pid,
+                'quantity' => $resolved['quantity'],
+                'unit' => $resolved['unit'],
+                'pack_qty' => $resolved['pack_qty'],
+            ];
+        }
+    }
+    if ($line === null) {
+        $ctx->json(['ok' => false, 'error' => 'A product with a quantity greater than 0 is required.'], 422);
+        return;
+    }
+
+    $businessDate = dl_businessDate();
+    $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
+    if ($date !== $businessDate && !$isAdminUser) {
+        $ctx->json(['ok' => false, 'error' => 'Only the current business date can be edited by this role.'], 403);
+        return;
+    }
+
+    $db = $ctx->db();
+    $actorId = dl_getActorUserId($user);
+
+    $db->beginTransaction();
+    try {
+        // Load + lock the target row.
+        $load = $db->prepare('SELECT * FROM dl_cashier_withdrawals WHERE id = :id FOR UPDATE');
+        $load->execute([':id' => $withdrawalId]);
+        $row = $load->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            throw new RuntimeException('Withdrawal not found', 404);
+        }
+        if ((int)$row['branch_id'] !== $branchId) {
+            throw new RuntimeException('Withdrawal does not belong to this branch.', 403);
+        }
+        $rowActor = (int)($row['encoded_by'] ?? 0);
+        if ($role === 'cashier' && ($rowActor <= 0 || $rowActor !== $actorId)) {
+            throw new RuntimeException('You can only edit withdrawals you encoded.', 403);
+        }
+        if ((string)$row['ledger_date'] !== $date) {
+            throw new RuntimeException('Withdrawal ledger date does not match the selected date.', 422);
+        }
+        $rowType = (string)($row['withdrawal_type'] ?? '');
+        if (!in_array($rowType, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
+            throw new RuntimeException('This withdrawal type cannot be edited.', 422);
+        }
+        if ($row['received_at'] !== null && $row['received_at'] !== '') {
+            throw new RuntimeException('Received delivery rows cannot be edited.', 422);
+        }
+        $rowTarget = (int)($row['target_branch_id'] ?? 0);
+        if ($rowType === 'pullout' && $rowTarget > 0) {
+            throw new RuntimeException('Pullouts that already returned goods to a commissary cannot be edited here. Ask a supervisor/admin to correct them.', 422);
+        }
+        $pid = (int)$row['product_id'];
+        if ($line['product_id'] !== $pid) {
+            throw new RuntimeException('Changing the product of an existing withdrawal is not supported. Void the row and re-enter.', 422);
+        }
+        $oldQty = (int)$row['quantity'];
+        $newQty = $line['quantity'];
+        $newUnit = $line['unit'];
+        $newPackQty = $line['pack_qty'];
+        // The ledger row a withdrawal fed is shift-scoped. Prefer the shift the
+        // row was encoded under; legacy rows (shift NULL) fall back to the
+        // actor's currently resolved shift (best-effort).
+        $rowShift = ($row['shift'] !== null && $row['shift'] !== '') ? (string)$row['shift'] : $shift;
+
+        // Authoritative day-open + shift-mutable re-check under lock.
+        $lockStatus = dl_lockDayStatusRow($db, $branchId, $date);
+        if ($lockStatus === 'closed' && !$isAdminUser && !dl_roleHasPermission($role, 'ledger.override')) {
+            throw new RuntimeException('Day is closed', 403);
+        }
+        dl_assertShiftMutable($db, $branchId, $date, $rowShift);
+
+        $newDedup = dl_withdrawalDedupHash(
+            $branchId, $pid, $date, $type,
+            $reasonCode,
+            $customReason !== '' ? $customReason : null,
+            $drNumber,
+            $targetBranchId,
+            $newQty,
+            $liableUserId,
+            $newUnit
+        );
+        // If the recomputed fingerprint matches a DIFFERENT existing row the
+        // table-unique dedup index would reject the UPDATE — surface it as a
+        // clear 409 instead of a bare DB error.
+        $dup = $db->prepare('SELECT id FROM dl_cashier_withdrawals WHERE dedup_hash = :h AND id <> :id LIMIT 1');
+        $dup->execute([':h' => $newDedup, ':id' => $withdrawalId]);
+        if ($dup->fetchColumn()) {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Another identical adjustment already exists for this product, date and quantity. Remove it instead of duplicating.'], 409);
+            return;
+        }
+
+        $oldRowForAudit = $row;
+
+        $db->prepare(
+            'UPDATE dl_cashier_withdrawals
+                SET withdrawal_type = :typ, reason_code = :rc, custom_reason = :crc,
+                    dr_number = :dr, target_branch_id = :tbid, quantity = :qty,
+                    unit = :unit, pack_qty = :pack_qty, liable_user_id = :luid,
+                    shift = :shift, dedup_hash = :dedup, updated_at = NOW()
+              WHERE id = :id'
+        )->execute([
+            ':typ' => $type,
+            ':rc' => $reasonCode,
+            ':crc' => $customReason !== '' ? $customReason : null,
+            ':dr' => $drNumber,
+            ':tbid' => $targetBranchId !== null && $targetBranchId > 0 ? $targetBranchId : null,
+            ':qty' => $newQty,
+            ':unit' => $newUnit,
+            ':pack_qty' => $newPackQty,
+            ':luid' => $liableUserId,
+            ':shift' => $rowShift,
+            ':dedup' => $newDedup,
+            ':id' => $withdrawalId,
+        ]);
+
+        // ── Recompute the shift-scoped daily-ledger row ─────────────
+        // addtl accumulates from many sources (formal receive, informal receive,
+        // adjustment_add) so an adjustment_add edit applies a DELTA, never a SUM.
+        // withdraw = SUM of non-adjustment_add rows (mirrors the insert path).
+        $oldIsAddtl = ($rowType === 'adjustment_add');
+        $newIsAddtl = ($type === 'adjustment_add');
+
+        $ledgerCheck = $db->prepare(
+            'SELECT id, addtl, withdraw FROM dl_daily_ledger
+              WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift
+              FOR UPDATE'
+        );
+        $ledgerCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift]);
+        $ledgerRow = $ledgerCheck->fetch(PDO::FETCH_ASSOC);
+
+        $hasLedgerRow = is_array($ledgerRow);
+        $curAddtl = $hasLedgerRow ? (int)$ledgerRow['addtl'] : 0;
+
+        if ($oldIsAddtl || $newIsAddtl) {
+            $nextAddtl = $curAddtl - ($oldIsAddtl ? $oldQty : 0) + ($newIsAddtl ? $newQty : 0);
+            $nextAddtl = max(0, $nextAddtl);
+            if ($hasLedgerRow) {
+                $db->prepare('UPDATE dl_daily_ledger SET addtl = :a, updated_by = :u WHERE id = :id')
+                    ->execute([':a' => $nextAddtl, ':u' => $actorId, ':id' => (int)$ledgerRow['id']]);
+            } elseif ($nextAddtl > 0) {
+                $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
+                $db->prepare(
+                    'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, addtl, encoded_by, updated_by)
+                     VALUES (:bid, :pid, :d, :shift, :prc, :addtl, :u_enc, :u_upd)'
+                )->execute([
+                    ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift,
+                    ':prc' => $price, ':addtl' => $nextAddtl, ':u_enc' => $actorId, ':u_upd' => $actorId,
+                ]);
+            }
+        }
+
+        if (!$newIsAddtl) {
+            $sum = $db->prepare(
+                'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
+                  WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
+                    AND shift = :shift AND withdrawal_type <> "adjustment_add"'
+            );
+            $sum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift]);
+            $nextWithdraw = max(0, (int)$sum->fetchColumn());
+            if ($hasLedgerRow) {
+                $db->prepare('UPDATE dl_daily_ledger SET withdraw = :w, updated_by = :u WHERE id = :id')
+                    ->execute([':w' => $nextWithdraw, ':u' => $actorId, ':id' => (int)$ledgerRow['id']]);
+            } elseif ($nextWithdraw > 0) {
+                $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
+                $db->prepare(
+                    'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, withdraw, encoded_by, updated_by)
+                     VALUES (:bid, :pid, :d, :shift, :prc, :w, :u_enc, :u_upd)'
+                )->execute([
+                    ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift,
+                    ':prc' => $price, ':w' => $nextWithdraw, ':u_enc' => $actorId, ':u_upd' => $actorId,
+                ]);
+            }
+        }
+
+        dl_auditLog('withdrawal_updated', $branchId, 'dl_cashier_withdrawals', (string)$withdrawalId, $oldRowForAudit, [
+            'withdrawal_type' => $type,
+            'reason_code' => $reasonCode,
+            'custom_reason' => $customReason !== '' ? $customReason : null,
+            'dr_number' => $drNumber,
+            'target_branch_id' => $targetBranchId,
+            'quantity' => $newQty,
+            'unit' => $newUnit,
+            'pack_qty' => $newPackQty,
+            'liable_user_id' => $liableUserId,
+            'shift' => $rowShift,
+            'context' => 'cashier_retry_correction',
+        ]);
+
+        dl_recomputeVariancesForDay($branchId, $date);
+
+        $db->commit();
+        $ctx->json(['ok' => true, 'withdrawal_id' => $withdrawalId, 'quantity' => $newQty, 'unit' => $newUnit]);
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        $code = $e instanceof RuntimeException ? $e->getCode() : 0;
+        $status = in_array($code, [403, 404, 409, 422], true) ? $code : 400;
+        $ctx->log('apiUpdateCashierWithdrawal error: ' . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], $status);
     }
 }
 
@@ -4461,6 +4871,11 @@ function apiReceivePaperDelivery(array $params = []): void
     $originType = (string)($input['origin_type'] ?? 'commissary');
     $originId = isset($input['origin_id']) && $input['origin_id'] !== '' ? (int)$input['origin_id'] : null;
     $drNumber = trim((string)($input['dr_number'] ?? ''));
+    $autoDr = (int)(bool)($input['auto_dr'] ?? false);
+    if ($autoDr) {
+        // Server-authoritative: an auto-DR receive never reuses a typed paper DR.
+        $drNumber = '';
+    }
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $receiveDate = (string)($input['receive_date'] ?? dl_businessDate());
     $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
@@ -4482,8 +4897,30 @@ function apiReceivePaperDelivery(array $params = []): void
         return;
     }
     if ($drNumber === '') {
-        $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
-        return;
+        if ($autoDr) {
+            // Production receive with no paper DR: the server mints the auto DR
+            // below. Most tenants receive produced goods from a generic external
+            // commissary (origin_id null) that is not modelled as a branch. When a
+            // specific commissary branch IS selected, it must be an active
+            // production site.
+            if ($originType !== 'commissary') {
+                $ctx->json(['ok' => false, 'error' => 'Auto DR is only available when receiving from a production (commissary) branch.'], 422);
+                return;
+            }
+            if (($originId ?? 0) > 0) {
+                if ($originId === $destinationBranchId) {
+                    $ctx->json(['ok' => false, 'error' => 'A different production (commissary) source branch is required.'], 422);
+                    return;
+                }
+                if (!dl_branchIsProductionSite($ctx->db(), (int)$originId)) {
+                    $ctx->json(['ok' => false, 'error' => 'The selected source branch is not an active production (commissary) site.'], 422);
+                    return;
+                }
+            }
+        } else {
+            $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
+            return;
+        }
     }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $receiveDate)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid date.'], 422);
@@ -4503,6 +4940,10 @@ function apiReceivePaperDelivery(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Admin required for late branch paper DR capture'], 403);
         return;
     }
+    if ($autoDr && $role === 'cashier' && ($deliveryDate !== $businessDate || $receiveDate !== $businessDate)) {
+        $ctx->json(['ok' => false, 'error' => 'Cashiers can only auto-DR receive production stock on the current business date.'], 403);
+        return;
+    }
 
     $receiveDayStatus = dl_getDayStatus($destinationBranchId, $receiveDate);
     if ($receiveDayStatus === 'closed' && !dl_roleHasPermission($role, 'ledger.override')) {
@@ -4517,25 +4958,39 @@ function apiReceivePaperDelivery(array $params = []): void
         }
     }
 
-    $findStmt = $ctx->db()->prepare(
-        'SELECT id, status
-           FROM dl_deliveries
-          WHERE destination_type = :destination_type
-            AND destination_id = :destination_id
-            AND dr_number = :dr_number
-            AND status <> "voided"
-          ORDER BY id DESC
-          LIMIT 1'
-    );
-    $findStmt->execute([
-        ':destination_type' => 'branch',
-        ':destination_id' => $destinationBranchId,
-        ':dr_number' => $drNumber,
-    ]);
-    $existing = $findStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $existing = null;
+    if (!$autoDr) {
+        $findStmt = $ctx->db()->prepare(
+            'SELECT id, status
+               FROM dl_deliveries
+              WHERE destination_type = :destination_type
+                AND destination_id = :destination_id
+                AND dr_number = :dr_number
+                AND status <> "voided"
+              ORDER BY id DESC
+              LIMIT 1'
+        );
+        $findStmt->execute([
+            ':destination_type' => 'branch',
+            ':destination_id' => $destinationBranchId,
+            ':dr_number' => $drNumber,
+        ]);
+        $existing = $findStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
 
     $ctx->db()->beginTransaction();
     try {
+        // Auto-DR production receive: mint the label while holding the
+        // destination day-status lock so per-branch/date sequence numbers
+        // cannot collide under concurrency.
+        if ($autoDr) {
+            $lockStatus = dl_lockDayStatusRow($ctx->db(), $destinationBranchId, $receiveDate);
+            if ($lockStatus === 'closed' && !$isAdminUser && !dl_roleHasPermission($role, 'ledger.override')) {
+                throw new \RuntimeException('Day is closed');
+            }
+            $drNumber = dl_mintAutoDrNumber($ctx->db(), $destinationBranchId, $deliveryDate);
+        }
+
         if ($existing && dl_deliveryHasActiveReceivings($ctx->db(), (int)$existing['id'])) {
             throw new \RuntimeException('This paper DR was already received.');
         }
@@ -4558,8 +5013,8 @@ function apiReceivePaperDelivery(array $params = []): void
                 ':dd' => $deliveryDate,
                 ':created_by' => $actorId ?: null,
                 ':posted_by' => $actorId ?: null,
-                ':remarks' => dl_paperDrCaptureRemark(),
-                ':provenance_status' => 'paper_dr_pending',
+                ':remarks' => $autoDr ? '[auto-dr-production]' : dl_paperDrCaptureRemark(),
+                ':provenance_status' => $autoDr ? 'none' : 'paper_dr_pending',
             ]);
             $deliveryId = (int)$ctx->db()->lastInsertId();
 
@@ -4590,7 +5045,8 @@ function apiReceivePaperDelivery(array $params = []): void
                 'items' => count($items),
                 'dr_number' => $drNumber,
                 'status' => 'posted',
-                'source' => 'captured_from_paper_dr',
+                'source' => $autoDr ? 'auto_dr_production' : 'captured_from_paper_dr',
+                'auto_dr' => $autoDr ? 1 : 0,
             ]);
         } elseif ((string)$existing['status'] === 'draft') {
             $ctx->db()->prepare(
@@ -8447,6 +8903,9 @@ function apiCreateProduct(array $params = []): void
     $batchEggQty = isset($input['batch_egg_qty']) && $input['batch_egg_qty'] !== '' && $input['batch_egg_qty'] !== null
         ? round((float)$input['batch_egg_qty'], 3) : null;
     if ($batchEggQty !== null && $batchEggQty <= 0) $batchEggQty = null;
+    $pcsPerPack = isset($input['pcs_per_pack']) && $input['pcs_per_pack'] !== '' && $input['pcs_per_pack'] !== null
+        ? (int)$input['pcs_per_pack'] : null;
+    if ($pcsPerPack !== null && $pcsPerPack <= 0) $pcsPerPack = null;
 
     if ($name === '' || $price <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Name and price are required', 'type' => 'error']]));
@@ -8466,8 +8925,8 @@ function apiCreateProduct(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit)'
-        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel]);
+            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit, :ppp)'
+        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack]);
 
         $productId = (int)$ctx->db()->lastInsertId();
 
@@ -8499,6 +8958,7 @@ function apiCreateProduct(array $params = []): void
             'price' => $price,
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
+            'pcs_per_pack' => $pcsPerPack,
         ]);
 
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);
@@ -8510,6 +8970,7 @@ function apiCreateProduct(array $params = []): void
             'sku' => $sku,
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
+            'pcs_per_pack' => $pcsPerPack,
         ]);
     } catch (\Throwable $e) {
         write_log('apiCreateProduct error: ' . $e->getMessage(), 'error', ['trace' => substr((string)$e->getTraceAsString(), 0, 800)]);
@@ -8545,6 +9006,9 @@ function apiUpdateProduct(array $params = []): void
     $batchEggQty = isset($input['batch_egg_qty']) && $input['batch_egg_qty'] !== '' && $input['batch_egg_qty'] !== null
         ? round((float)$input['batch_egg_qty'], 3) : null;
     if ($batchEggQty !== null && $batchEggQty <= 0) $batchEggQty = null;
+    $pcsPerPack = isset($input['pcs_per_pack']) && $input['pcs_per_pack'] !== '' && $input['pcs_per_pack'] !== null
+        ? (int)$input['pcs_per_pack'] : null;
+    if ($pcsPerPack !== null && $pcsPerPack <= 0) $pcsPerPack = null;
     $userId = 0;
     if (isset($user['id']) && is_numeric($user['id'])) {
         $userId = (int)$user['id'];
@@ -8576,7 +9040,7 @@ function apiUpdateProduct(array $params = []): void
 
     try {
         // Get old data
-        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label FROM dl_products WHERE id = :id');
+        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id');
         $oldStmt->execute([':id' => $productId]);
         $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -8594,8 +9058,8 @@ function apiUpdateProduct(array $params = []): void
         }
 
         $ctx->db()->prepare(
-            'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, batch_input_qty = :biq, batch_egg_qty = :beq, output_unit_label = :unit WHERE id = :id'
-        )->execute([':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':id' => $productId]);
+            'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, batch_input_qty = :biq, batch_egg_qty = :beq, output_unit_label = :unit, pcs_per_pack = :ppp WHERE id = :id'
+        )->execute([':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':id' => $productId]);
 
         dl_auditLog('update_product', null, 'product', (string)$productId, $old, [
             'name' => $name,
@@ -8604,6 +9068,7 @@ function apiUpdateProduct(array $params = []): void
             'is_active' => $isActive,
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
+            'pcs_per_pack' => $pcsPerPack,
         ]);
 
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);

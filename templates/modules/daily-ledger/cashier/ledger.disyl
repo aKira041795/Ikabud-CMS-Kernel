@@ -227,6 +227,21 @@
 </div>
 
 {if day_status == 'open' && !reference_only}
+<div class="mt-6">
+    <div class="flex items-center justify-between gap-3 mb-2">
+        <div>
+            <div class="text-sm font-semibold text-gray-900">Today's Adjustments</div>
+            <p class="text-xs text-gray-500">Correct your own entries after a slow-connection retry. Every change is audit-logged.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.dlRefreshTodayAdjustments()">Refresh</button>
+    </div>
+    <div id="today-adjustments" class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="px-4 py-6 text-center text-sm text-gray-400">Loading…</div>
+    </div>
+</div>
+{/if}
+
+{if day_status == 'open' && !reference_only}
 <div class="mt-6 flex justify-end gap-3">
     <button class="btn btn-primary" id="close-day-btn" onclick="closeDay()" data-online-action="Day close">Close Day</button>
 </div>
@@ -279,8 +294,8 @@
     window.openDispatchModal = function() {
         window.dispatchEvent(new CustomEvent('open-dispatch-modal', { detail: {} }));
     };
-    window.openWithdrawalModal = function() {
-        window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
+    window.openWithdrawalModal = function(entry) {
+        window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: entry || {} }));
     };
     window.openEditDeliveryModal = function() {
         window.dispatchEvent(new CustomEvent('open-edit-delivery-modal', { detail: {} }));
@@ -295,6 +310,70 @@
         var url = BASE + '/ledger?date=' + encodeURIComponent(date) + '&branch_id=' + encodeURIComponent(branch) + '&shift=' + encodeURIComponent(SHIFT || 'AM');
         window.dlLoadUrl(url, false);
     };
+
+    // ── Today's Adjustments (cashier edit-own withdrawal) ───────────────
+    var __dlTodayAdjCache = [];
+    function dlAdjTypeLabel(t) {
+        return ({ charge: 'Charge', pullout: 'Pullout', used: 'Used', correction: 'Correction', adjustment_add: 'Add Stock' }[t] || t);
+    }
+    function dlEscHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    window.dlRefreshTodayAdjustments = function() {
+        var wrap = document.getElementById('today-adjustments');
+        if (!wrap) return;
+        var bid = window.BRANCH_ID || '';
+        var url = BASE + '/api/v1/cashier/ledger/withdrawals/today?branch_id=' + encodeURIComponent(bid) + '&date=' + encodeURIComponent(window.LEDGER_DATE || '') + '&shift=' + encodeURIComponent(window.SHIFT || '');
+        fetch(url, {
+            headers: { 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var rows = (data && data.ok) ? (data.withdrawals || []) : [];
+            __dlTodayAdjCache = rows;
+            if (!rows.length) {
+                wrap.innerHTML = '<div class="px-4 py-6 text-center text-sm text-gray-400">No adjustments recorded for today.</div>';
+                return;
+            }
+            var html = '<table class="w-full text-sm"><thead><tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">' +
+                '<th class="px-4 py-2">Product</th><th class="px-4 py-2">Type</th><th class="px-4 py-2 text-right">Qty</th>' +
+                '<th class="px-4 py-2">Reason</th><th class="px-4 py-2">Time</th><th class="px-4 py-2 text-right">Action</th></tr></thead><tbody>';
+            rows.forEach(function(r) {
+                var typeL = dlAdjTypeLabel(r.withdrawal_type);
+                var qty = String(r.quantity || 0) + (r.unit === 'box' ? ' box (' + (r.quantity || 0) + ' pcs)' : ' pcs');
+                var reason = r.reason_code || '';
+                if (r.custom_reason) reason += ' — ' + r.custom_reason;
+                var time = String(r.created_at || '').slice(11, 16);
+                var btn = (r.editable && window.DAY_STATUS === 'open')
+                    ? '<button type="button" class="btn btn-outline btn-xs" data-adj-edit="' + r.id + '">Edit</button>'
+                    : '';
+                html += '<tr class="border-b border-gray-100">' +
+                    '<td class="px-4 py-2 font-medium text-gray-900">' + dlEscHtml(r.product_name) + '</td>' +
+                    '<td class="px-4 py-2 text-gray-600">' + dlEscHtml(typeL) + '</td>' +
+                    '<td class="px-4 py-2 text-right font-mono">' + dlEscHtml(qty) + '</td>' +
+                    '<td class="px-4 py-2 text-gray-600">' + dlEscHtml(reason) + '</td>' +
+                    '<td class="px-4 py-2 text-gray-500">' + dlEscHtml(time) + '</td>' +
+                    '<td class="px-4 py-2 text-right">' + btn + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            wrap.innerHTML = html;
+            Array.prototype.forEach.call(wrap.querySelectorAll('[data-adj-edit]'), function(b) {
+                b.addEventListener('click', function() {
+                    var id = parseInt(b.getAttribute('data-adj-edit'), 10);
+                    var entry = null;
+                    __dlTodayAdjCache.forEach(function(x) { if (x.id === id) entry = x; });
+                    if (entry) window.openWithdrawalModal(entry);
+                });
+            });
+        })
+        .catch(function() {
+            var w = document.getElementById('today-adjustments');
+            if (w) w.innerHTML = '<div class="px-4 py-6 text-center text-sm text-rose-500">Could not load today’s adjustments.</div>';
+        });
+    };
+    if (window.DAY_STATUS === 'open') { window.dlRefreshTodayAdjustments(); }
 
     // Offline buffer: localStorage write-ahead log scoped to the active actor, tenant, branch, and business date.
     var PENDING_STORAGE_PREFIX = 'daily-ledger:pending-saves';

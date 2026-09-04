@@ -137,7 +137,7 @@
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                                 <div>
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Where stock came from</label>
-                                    <select x-model="paperForm.origin_type" class="form-input mt-0 w-full">
+                                    <select x-model="paperForm.origin_type" @change="paperForm.auto_dr = false; paperForm.origin_id = ''" class="form-input mt-0 w-full">
                                         <option value="commissary">Commissary</option>
                                         <option value="branch">Branch</option>
                                     </select>
@@ -172,9 +172,16 @@
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Date received</label>
                                     <input type="date" x-model="paperForm.receive_date" class="form-input mt-0 w-full">
                                 </div>
-                                <div>
+                                <div x-show="!paperForm.auto_dr">
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Paper DR Number</label>
                                     <input type="text" x-model="paperForm.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-indigo-300 bg-white font-mono text-base font-semibold uppercase tracking-[0.18em]">
+                                </div>
+                                <div class="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2" x-show="paperForm.origin_type === 'commissary'">
+                                    <input type="checkbox" x-model="paperForm.auto_dr" id="auto-dr-toggle" class="mt-0.5 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500">
+                                    <label for="auto-dr-toggle" class="text-xs leading-5 text-emerald-900">
+                                        <span class="font-semibold">No paper DR — auto-generate</span>
+                                        <span class="block text-[11px] text-emerald-700">Goods from the commissary (production) arrived without a DR. The system creates one (dd/mm/yyyy-n) and logs it.</span>
+                                    </label>
                                 </div>
                             </div>
 
@@ -248,6 +255,7 @@ function receiveModal() {
             delivery_date: '',
             receive_date: '',
             dr_number: '',
+            auto_dr: false,
             items: [{ product_id: '', quantity: '' }]
         },
         // partialQtys: { group_key: { product_id: qty } }
@@ -282,8 +290,17 @@ function receiveModal() {
                 delivery_date: LEDGER_DATE,
                 receive_date: LEDGER_DATE,
                 dr_number: '',
+                auto_dr: false,
                 items: [{ product_id: '', quantity: '' }]
             };
+        },
+
+        // Auto-DR production receive mints the DR server-side, so it cannot be
+        // queued offline (the offline replay requires an explicit paper DR).
+        autoDrBlockedOffline() {
+            if (!this.paperForm.auto_dr) return false;
+            this.errorMsg = 'Auto-DR production receive requires connectivity. Reconnect and retry, or enter the paper DR number.';
+            return true;
         },
 
         currentBranchId() {
@@ -315,7 +332,12 @@ function receiveModal() {
 
         validatePaperDelivery() {
             this.errorMsg = '';
-            if (!this.paperForm.dr_number || !String(this.paperForm.dr_number).trim()) {
+            if (this.paperForm.auto_dr) {
+                if (this.paperForm.origin_type !== 'commissary') {
+                    this.errorMsg = 'Auto DR is only available when receiving from the commissary (production).';
+                    return false;
+                }
+            } else if (!this.paperForm.dr_number || !String(this.paperForm.dr_number).trim()) {
                 this.errorMsg = 'Paper DR number is required.';
                 return false;
             }
@@ -347,7 +369,8 @@ function receiveModal() {
                 origin_id: this.paperForm.origin_id || null,
                 delivery_date: this.paperForm.delivery_date,
                 receive_date: this.paperForm.receive_date,
-                dr_number: this.paperForm.dr_number,
+                dr_number: this.paperForm.auto_dr ? '' : this.paperForm.dr_number,
+                auto_dr: this.paperForm.auto_dr ? 1 : 0,
                 items: this.paperForm.items.filter(function(item) {
                     return item.product_id && parseInt(item.quantity, 10) > 0;
                 }).map(function(item) {
@@ -361,7 +384,12 @@ function receiveModal() {
             payload.idempotency_key = window.generateOperationId ? window.generateOperationId() : String(Date.now());
 
             // Offline: queue the paper-DR receive on this device and sync later.
+            // Auto-DR production receive is online-only (server mints the DR).
             if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
+                if (this.autoDrBlockedOffline()) {
+                    this.paperSaving = false;
+                    return;
+                }
                 window.enqueueOperation('receive_paper_dr', payload);
                 this.paperSaving = false;
                 showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
@@ -386,6 +414,10 @@ function receiveModal() {
                     this.closeModal();
                     window.refreshMainContent();
                 } else if (window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
+                    if (this.autoDrBlockedOffline()) {
+                        this.paperSaving = false;
+                        return;
+                    }
                     window.enqueueOperation('receive_paper_dr', payload);
                     showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
                     this.closeModal();
@@ -395,6 +427,9 @@ function receiveModal() {
             }.bind(this))
             .catch(function() {
                 this.paperSaving = false;
+                if (this.autoDrBlockedOffline()) {
+                    return;
+                }
                 window.enqueueOperation('receive_paper_dr', payload);
                 showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
                 this.closeModal();

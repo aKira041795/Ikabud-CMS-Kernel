@@ -108,6 +108,9 @@
                         {if (p.batch_egg_qty | default:0) > 0}
                         <span class="text-gray-400 text-xs"> ({p.batch_egg_qty} eggs/batch)</span>
                         {/if}
+                        {if (p.pcs_per_pack | default:0) > 0}
+                        <span class="text-emerald-600 text-xs font-medium"> (box of {p.pcs_per_pack} pcs)</span>
+                        {/if}
                         {/if}
                         {if (p.output_pieces_per_batch | default:0) <= 0}
                         <span class="text-gray-400">Not set</span>
@@ -120,7 +123,7 @@
                         {if p.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0})">Edit</button>
+                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0})">Edit</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -161,6 +164,11 @@
         <div class="form-group">
             <label class="form-label">Output Unit Label</label>
             <input class="form-input" type="text" id="add-output-unit" value="pcs" maxlength="20" placeholder="pcs">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Box size (pcs per box)</label>
+            <input class="form-input" type="number" id="add-pcs-per-pack" value="" min="0" step="1" placeholder="Blank = not sold by box">
+            <p class="text-xs text-gray-400 mt-1">Leave blank unless this item is also sold by whole box (e.g. crinkles 24/box). Cashiers can then withdraw in boxes.</p>
         </div>
         <div class="form-group">
             <label class="form-label">Kilo per Batch</label>
@@ -236,6 +244,11 @@
                         </div>
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Box size (pcs per box)</label>
+                        <input class="form-input" type="number" id="edit-pcs-per-pack" min="0" step="1" placeholder="Blank = not sold by box">
+                        <p class="text-xs text-gray-400 mt-1">Leave blank unless this item is also sold by whole box (e.g. crinkles 24/box). Cashiers can then withdraw in boxes.</p>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Kilo per Batch</label>
                         <input class="form-input" type="number" id="edit-batch-kilo-qty" min="0" step="0.001" placeholder="e.g. 5 = 5 kg per batch">
                         <p class="text-xs text-gray-400 mt-1">Kilograms of dough or flour that make up one batch. Leave blank if not applicable.</p>
@@ -282,7 +295,7 @@
     function openImportProduct() { document.getElementById('import-modal').classList.add('show'); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty) {
+    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name;
         document.getElementById('edit-category').value = category || 'bread';
@@ -293,6 +306,7 @@
         document.getElementById('edit-output-unit').value = outputUnit || 'pcs';
         document.getElementById('edit-batch-kilo-qty').value = (batchKiloQty && batchKiloQty > 0) ? batchKiloQty : '';
         document.getElementById('edit-batch-egg-qty').value = (batchEggQty && batchEggQty > 0) ? batchEggQty : '';
+        document.getElementById('edit-pcs-per-pack').value = (pcsPerPack && pcsPerPack > 0) ? pcsPerPack : '';
         document.getElementById('edit-modal').classList.add('show');
         document.getElementById('edit-name').focus();
     }
@@ -311,7 +325,8 @@
                 output_pieces_per_batch: parseInt(document.getElementById('add-output-pieces').value, 10) || 0,
                 output_unit_label: document.getElementById('add-output-unit').value || 'pcs',
                 batch_input_qty: parseFloat(document.getElementById('add-batch-kilo-qty').value) || null,
-                batch_egg_qty: parseFloat(document.getElementById('add-batch-egg-qty').value) || null
+                batch_egg_qty: parseFloat(document.getElementById('add-batch-egg-qty').value) || null,
+                pcs_per_pack: parseInt(document.getElementById('add-pcs-per-pack').value, 10) || null
             })
         })
         .then(function(r) { return r.json(); })
@@ -344,7 +359,8 @@
                 output_pieces_per_batch: parseInt(document.getElementById('edit-output-pieces').value, 10) || 0,
                 output_unit_label: document.getElementById('edit-output-unit').value || 'pcs',
                 batch_input_qty: parseFloat(document.getElementById('edit-batch-kilo-qty').value) || null,
-                batch_egg_qty: parseFloat(document.getElementById('edit-batch-egg-qty').value) || null
+                batch_egg_qty: parseFloat(document.getElementById('edit-batch-egg-qty').value) || null,
+                pcs_per_pack: parseInt(document.getElementById('edit-pcs-per-pack').value, 10) || null
             })
         })
         .then(function(r) { return r.json(); })

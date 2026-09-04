@@ -18,7 +18,7 @@
 
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">Stock Adjustment</h3>
-                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections such as charge (cashier accountability) or pullout (unsold goods returning to commissary). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
+                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections: <span class="font-semibold">charge</span> (cashier accountability), <span class="font-semibold">pullout</span> (unsold goods returning to commissary), <span class="font-semibold">used</span> (packaging/items consumed to make or fill a product), or <span class="font-semibold">correction</span> (fixing a wrongly-recorded entry). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
                     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
                         Quick rule: if another branch is involved, stop and use <span class="font-semibold">Send to Branch</span> or <span class="font-semibold">Receive Stock</span>. This modal is only for branch-side stock corrections. <span class="font-semibold">Pullout</span> returns goods to your assigned commissary automatically.
                     </div>
@@ -29,6 +29,8 @@
                             <select x-model="header.withdrawal_type" class="form-input mt-0 w-full">
                                 <option value="charge">Charge (cashier)</option>
                                 <option value="pullout">Pullout (past saleable)</option>
+                                <option value="used">Used (for a product/order)</option>
+                                <option value="correction">Correction (wrong entry)</option>
                                 <option value="adjustment_add">Add Stock (variance resolution)</option>
                             </select>
                         </div>
@@ -46,6 +48,12 @@
                             <option value="other">Other</option>
                         </select>
                         <p class="mt-1 text-xs text-gray-500">Required for branch-side adjustments. Branch-to-branch transfers now go through Send to Branch.</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-4" x-show="header.withdrawal_type === 'correction'">
+                        <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">
+                            <span class="font-semibold">Correction</span> adds to today's total by default. To <span class="font-semibold">reduce</span> an amount that was recorded too high, put a minus sign first (e.g. <span class="font-mono font-semibold">-3</span>). Every correction is logged, so the trail reads: original entry → error correction.
                         </div>
                     </div>
 
@@ -71,7 +79,8 @@
                             <thead>
                                 <tr class="border-b border-gray-200">
                                     <th class="py-2 text-left font-medium text-gray-700">Product</th>
-                                    <th class="py-2 text-right font-medium text-gray-700 w-24">Pcs</th>
+                                    <th class="py-2 text-left font-medium text-gray-700 w-24">Unit</th>
+                                    <th class="py-2 text-right font-medium text-gray-700 w-24">Qty</th>
                                     <th class="py-2 w-10"></th>
                                 </tr>
                             </thead>
@@ -79,15 +88,30 @@
                                 <template x-for="(line, idx) in lines" :key="idx">
                                     <tr class="border-b border-gray-100">
                                         <td class="py-2 pr-2">
-                                            <select x-model="line.product_id" class="form-input mt-0 py-1 px-2 w-full">
+                                            <select x-model="line.product_id" @change="onProductChange(idx)" class="form-input mt-0 py-1 px-2 w-full">
                                                 <option value="">-- Select Product --</option>
                                                 <template x-for="p in products" :key="p.id">
                                                     <option :value="p.id" x-text="p.name"></option>
                                                 </template>
                                             </select>
                                         </td>
+                                        <td class="py-2 pr-2 align-middle">
+                                            <template x-if="packFor(line.product_id)">
+                                                <select x-model="line.unit" class="form-input mt-0 py-1 px-1 w-full text-xs" title="Sold by box? Enter Qty as the number of boxes — the system converts to pieces.">
+                                                    <option value="pcs">Pcs</option>
+                                                    <option value="box">Box</option>
+                                                </select>
+                                            </template>
+                                            <template x-if="!packFor(line.product_id)">
+                                                <span class="inline-block w-full text-center text-xs font-medium text-gray-400">pcs</span>
+                                            </template>
+                                        </td>
                                         <td class="py-2 pr-2">
-                                            <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                            <input type="number" x-model="line.quantity" :min="header.withdrawal_type === 'correction' ? -999999 : 0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                            <div x-show="header.withdrawal_type === 'correction' && line.quantity < 0" class="mt-0.5 text-right text-[10px] font-semibold leading-tight text-orange-600">reduces today's total</div>
+                                            <div x-show="line.unit === 'box' && packFor(line.product_id)" class="mt-0.5 text-right text-[10px] leading-tight text-gray-400">
+                                                1 box = <span x-text="packFor(line.product_id)"></span> pcs
+                                            </div>
                                         </td>
                                         <td class="py-2 text-right">
                                             <button type="button" @click="lines.splice(idx, 1)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" x-show="lines.length > 1">
@@ -101,8 +125,9 @@
                             </tbody>
                             <tfoot class="bg-gray-100 border-t border-gray-200">
                                 <tr>
-                                    <th class="py-2 px-3 text-right font-medium text-gray-900">Total Pcs:</th>
-                                    <th class="py-2 text-right pr-2 font-bold text-gray-900" x-text="totalQty()"></th>
+                                    <th class="py-2 px-3 text-right font-medium text-gray-900">Total:</th>
+                                    <th></th>
+                                    <th class="py-2 text-right pr-2 font-bold text-gray-900" x-text="totalPieces() + ' pcs'"></th>
                                     <th></th>
                                 </tr>
                             </tfoot>
@@ -126,8 +151,8 @@
 </div>
 
 <script>
-window.openWithdrawalModal = function() {
-    window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
+window.openWithdrawalModal = function(entry) {
+    window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: entry || {} }));
 };
 
 function withdrawalModal() {
@@ -135,28 +160,76 @@ function withdrawalModal() {
         isOpen: false,
         saving: false,
         errorMsg: '',
+        editId: null,
         header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' },
         lines: [],
         products: [],
 
-        openModal() {
+        openModal(detail) {
+            detail = detail || {};
             this.errorMsg = '';
-            this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' };
-            this.lines = [{ product_id: '', quantity: '' }];
+            this.editId = detail.id ? parseInt(detail.id, 10) : null;
+            this.loadProducts();
+            if (this.editId) {
+                var e = detail;
+                var unit = e.unit === 'box' ? 'box' : 'pcs';
+                var pieces = parseInt(e.quantity, 10) || 0;
+                var displayQty = unit === 'box'
+                    ? (parseInt(e.pack_qty, 10) || Math.ceil(pieces / (this.packFor(e.product_id) || 1)))
+                    : pieces;
+                this.header = {
+                    withdrawal_type: e.withdrawal_type || 'charge',
+                    reason_code: e.reason_code || 'manual_adjustment',
+                    liable_user_id: e.liable_user_id ? String(e.liable_user_id) : '',
+                    custom_reason: e.custom_reason || ''
+                };
+                this.lines = [{ product_id: String(e.product_id), quantity: displayQty, unit: unit }];
+            } else {
+                this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' };
+                this.lines = [{ product_id: '', quantity: '', unit: 'pcs' }];
+            }
             // One idempotency key per modal session: a retry after a lost response
             // reuses it, so the server replays the original result instead of
             // creating a duplicate withdrawal.
             this.idempotencyKey = window.generateOperationId ? window.generateOperationId() : String(Date.now());
-            this.loadProducts();
             this.isOpen = true;
         },
 
         closeModal() { this.isOpen = false; },
 
-        addEmptyLine() { this.lines.push({ product_id: '', quantity: '' }); },
+        addEmptyLine() { this.lines.push({ product_id: '', quantity: '', unit: 'pcs' }); },
+
+        // pcs_per_pack for a product (0 = not sold by box)
+        packFor(pid) {
+            if (!pid) return 0;
+            var found = this.products.find(function(p) { return String(p.id) === String(pid); });
+            var pack = found ? (parseInt(found.pack, 10) || 0) : 0;
+            return pack > 0 ? pack : 0;
+        },
+
+        onProductChange(idx) {
+            // Products without a configured box size are pcs-only.
+            var line = this.lines[idx];
+            if (line && !this.packFor(line.product_id)) {
+                line.unit = 'pcs';
+            }
+        },
 
         totalQty() {
             return this.lines.reduce(function(sum, l) { return sum + (parseInt(l.quantity) || 0); }, 0);
+        },
+
+        // Total expressed in pieces (box qty x pcs_per_pack when unit=box).
+        totalPieces() {
+            var self = this;
+            return this.lines.reduce(function(sum, l) {
+                var q = parseInt(l.quantity) || 0;
+                if (l.unit === 'box') {
+                    var pack = self.packFor(l.product_id);
+                    return sum + (pack > 0 ? q * pack : q);
+                }
+                return sum + q;
+            }, 0);
         },
 
         loadProducts() {
@@ -166,13 +239,18 @@ function withdrawalModal() {
             rows.forEach(function(r) {
                 var pid = r.getAttribute('data-product-id');
                 var nm = (r.querySelector('.product-name') || {}).textContent || '';
+                var pack = parseInt(r.getAttribute('data-pack'), 10) || 0;
                 if (pid && !seen[pid]) {
                     seen[pid] = true;
-                    this.products.push({ id: pid, name: nm.trim() });
+                    this.products.push({ id: pid, name: nm.trim(), pack: pack });
                 }
             }.bind(this));
             if (rows.length === 0 && typeof window.dlReadProductReference === 'function') {
-                window.dlReadProductReference().then(function(products) { this.products = products; }.bind(this));
+                window.dlReadProductReference().then(function(products) {
+                    this.products = (products || []).map(function(p) {
+                        return { id: p.id, name: p.name, pack: parseInt(p.pcs_per_pack, 10) || 0 };
+                    });
+                }.bind(this));
             }
         },
 
@@ -190,7 +268,20 @@ function withdrawalModal() {
                 this.errorMsg = 'Charge to (liable person) is required for Add Stock adjustments.';
                 return false;
             }
-            var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
+            var isCorrection = this.header.withdrawal_type === 'correction';
+            var hasInvalidNegative = false;
+            this.lines.forEach(function(l) {
+                var q = parseInt(l.quantity, 10);
+                if (!isNaN(q) && q < 0 && !isCorrection) hasInvalidNegative = true;
+            });
+            if (hasInvalidNegative) {
+                this.errorMsg = 'Negative quantities are only allowed on a Correction entry (use -3 to reduce).';
+                return false;
+            }
+            var validLines = this.lines.filter(function(l) {
+                var q = parseInt(l.quantity, 10);
+                return l.product_id && !isNaN(q) && q !== 0;
+            });
             if (validLines.length === 0) {
                 this.errorMsg = 'Add at least one product with a quantity greater than 0.';
                 return false;
@@ -201,8 +292,15 @@ function withdrawalModal() {
         saveChanges() {
             if (!this.validate()) return;
             this.saving = true;
+            var isEdit = !!this.editId;
 
-            var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
+            var isCorrection = this.header.withdrawal_type === 'correction';
+            var validLines = this.lines.filter(function(l) {
+                var q = parseInt(l.quantity, 10);
+                if (!l.product_id || isNaN(q) || q === 0) return false;
+                if (q < 0 && !isCorrection) return false;
+                return true;
+            });
             var payload = {
                 date: LEDGER_DATE,
                 header: {
@@ -212,18 +310,29 @@ function withdrawalModal() {
                     liable_user_id: this.header.withdrawal_type === 'adjustment_add' ? parseInt(this.header.liable_user_id) || null : null
                 },
                 lines: validLines.map(function(l) {
-                    return { product_id: parseInt(l.product_id), quantity: parseInt(l.quantity) };
+                    var q = parseInt(l.quantity, 10);
+                    return {
+                        product_id: parseInt(l.product_id),
+                        quantity: q,
+                        unit: (l.unit === 'box' && q >= 0) ? 'box' : 'pcs'
+                    };
                 })
             };
             if (window.BRANCH_ID) payload.branch_id = window.BRANCH_ID;
-            // Pullout: send goods back to assigned commissary
-            if (this.header.withdrawal_type === 'pullout' && window.COMMISSARY_BRANCH_ID && window.COMMISSARY_BRANCH_ID !== '') {
+            if (isEdit) payload.withdrawal_id = this.editId;
+            else if (this.header.withdrawal_type === 'pullout' && window.COMMISSARY_BRANCH_ID && window.COMMISSARY_BRANCH_ID !== '') {
                 payload.header.target_branch_id = parseInt(window.COMMISSARY_BRANCH_ID, 10);
             }
             payload.idempotency_key = this.idempotencyKey || (window.generateOperationId ? window.generateOperationId() : String(Date.now()));
 
-            // Offline: queue the adjustment on this device and sync later.
+            // Offline: queue a NEW adjustment on this device and sync later.
+            // Edits are online-only (audited retry corrections).
             if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
+                if (isEdit) {
+                    this.saving = false;
+                    this.errorMsg = 'Editing an adjustment requires connectivity. Reconnect and retry.';
+                    return;
+                }
                 window.enqueueOperation('withdrawal', payload);
                 this.saving = false;
                 showToast('Saved on this device — will sync when connectivity returns', 'success');
@@ -231,7 +340,8 @@ function withdrawalModal() {
                 return;
             }
 
-            fetch(BASE + '/api/v1/cashier/ledger/withdrawals', {
+            var url = BASE + (isEdit ? '/api/v1/cashier/ledger/withdrawals/edit' : '/api/v1/cashier/ledger/withdrawals');
+            fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -244,25 +354,20 @@ function withdrawalModal() {
             .then(function(data) {
                 this.saving = false;
                 if (data.ok) {
-                    var msg = 'Adjustment saved';
-                    if (data.duplicate) {
+                    var msg = isEdit ? 'Adjustment updated' : 'Adjustment saved';
+                    if (!isEdit && data.duplicate) {
                         // DB-level dedup guard replay: identical line(s) already recorded.
                         msg = 'Duplicate ignored — identical adjustment already recorded';
-                    } else if (this.header.withdrawal_type === 'adjustment_add') {
+                    } else if (!isEdit && this.header.withdrawal_type === 'adjustment_add') {
                         msg = 'Stock added — charged to liable person';
-                    } else if (data.delivery_id && data.receiving_id) {
+                    } else if (!isEdit && data.delivery_id && data.receiving_id) {
                         msg = 'Pullout recorded and returned to commissary';
                     }
                     showToast(msg, 'success');
-                     this.closeModal();
-                     // Refresh the ledger table via HTMX (same pattern as receive modal)
-                     var body = document.getElementById('ledger-body');
-                     if (body) {
-                         if (typeof htmx !== 'undefined') {
-                             window.refreshMainContent();
-                         }
-                     }
-                } else if (window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
+                    this.closeModal();
+                    if (typeof window.dlRefreshTodayAdjustments === 'function') window.dlRefreshTodayAdjustments();
+                    if (typeof window.refreshMainContent === 'function') window.refreshMainContent();
+                } else if (!isEdit && window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
                     window.enqueueOperation('withdrawal', payload);
                     showToast('Saved on this device — will sync when connectivity returns', 'success');
                     this.closeModal();
@@ -272,6 +377,10 @@ function withdrawalModal() {
             }.bind(this))
             .catch(function() {
                 this.saving = false;
+                if (isEdit) {
+                    this.errorMsg = 'Network error while saving the edit. Retry.';
+                    return;
+                }
                 window.enqueueOperation('withdrawal', payload);
                 showToast('Saved on this device — will sync when connectivity returns', 'success');
                 this.closeModal();

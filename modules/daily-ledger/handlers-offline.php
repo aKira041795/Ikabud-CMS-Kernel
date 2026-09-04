@@ -574,7 +574,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $lines = is_array($input['lines'] ?? null) ? $input['lines'] : [];
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add'], true)) {
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
         throw new RuntimeException('Invalid withdrawal type', 422);
     }
     $drNumber = !empty($header['dr_number']) ? (string)$header['dr_number'] : null;
@@ -586,7 +586,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
         throw new RuntimeException('Invalid reason_code', 422);
     }
-    if (in_array($type, ['charge', 'pullout', 'adjustment_add'], true) && $reasonCode === null) {
+    if (in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
     }
     if ($reasonCode === 'other' && $customReason === '') {
@@ -605,10 +605,27 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $validLines = [];
     foreach ($lines as $l) {
         $pid = isset($l['product_id']) ? (int)$l['product_id'] : 0;
-        $qty = isset($l['quantity']) ? max(0, (int)$l['quantity']) : 0;
-        if ($pid > 0 && $qty > 0) {
-            $validLines[] = ['product_id' => $pid, 'quantity' => $qty];
+        $qty = isset($l['quantity']) ? (int)$l['quantity'] : 0;
+        if ($pid <= 0 || $qty === 0) {
+            continue;
         }
+        try {
+            $resolved = dl_resolveWithdrawalLineForType($ctx->db(), $pid, $qty, $l['unit'] ?? 'pcs', $type);
+        } catch (\RuntimeException $e) {
+            if ($e->getCode() === 422) {
+                throw new RuntimeException($e->getMessage(), 422);
+            }
+            throw $e;
+        }
+        if ($resolved['quantity'] === 0) {
+            continue;
+        }
+        $validLines[] = [
+            'product_id' => $pid,
+            'quantity' => $resolved['quantity'],
+            'unit' => $resolved['unit'],
+            'pack_qty' => $resolved['pack_qty'],
+        ];
     }
     if (count($validLines) === 0) {
         throw new RuntimeException('Add at least one product with a quantity greater than 0.', 422);
@@ -635,12 +652,13 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
-             VALUES (:bid, :pid, :d, :typ, :rc, :crc, :dr, :tbid, :qty, :uid, :luid, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :dedup)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND withdrawal_type <> :excludeType'
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
+               AND shift = :shift AND withdrawal_type <> :excludeType'
         );
         $stmtCheck = $ctx->db()->prepare(
             'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
@@ -669,6 +687,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         foreach ($validLines as $line) {
             $pid = $line['product_id'];
             $qty = $line['quantity'];
+            $unit = $line['unit'];
+            $packQty = $line['pack_qty'];
 
             $dedupHash = dl_withdrawalDedupHash(
                 $branchId, $pid, $date, $type,
@@ -677,7 +697,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                 $drNumber,
                 $targetBranchId,
                 $qty,
-                $liableUserId
+                $liableUserId,
+                $unit
             );
 
             try {
@@ -685,12 +706,15 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                     ':bid' => $branchId,
                     ':pid' => $pid,
                     ':d' => $date,
+                    ':shift' => $shift,
                     ':typ' => $type,
                     ':rc' => $reasonCode,
                     ':crc' => $customReason !== '' ? $customReason : null,
                     ':dr' => $drNumber,
                     ':tbid' => $targetBranchId,
                     ':qty' => $qty,
+                    ':unit' => $unit,
+                    ':pack_qty' => $packQty,
                     ':uid' => $userId,
                     ':luid' => $liableUserId,
                     ':dedup' => $dedupHash,
@@ -715,8 +739,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                 }
                 $totals[] = ['product_id' => $pid, 'addtl' => $qty];
             } else {
-                $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':excludeType' => 'adjustment_add']);
-                $newTotal = (int)$stmtSum->fetchColumn();
+                $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':excludeType' => 'adjustment_add']);
+                $newTotal = max(0, (int)$stmtSum->fetchColumn());
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
                 if ($stmtCheck->fetch()) {
                     $stmtUpd->execute([':wdr' => $newTotal, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);

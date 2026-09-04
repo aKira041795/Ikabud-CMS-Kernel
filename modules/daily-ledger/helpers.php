@@ -40,8 +40,12 @@ function dl_isDuplicateKeyError(\PDOException $e): bool
  * (NULLs normalised to null — not '' — for custom_reason/dr_number/
  * target_branch_id/liable_user_id, and reason_code already defaulted to
  * 'manual_adjustment'). `?? ''` in the implode mirrors SQL COALESCE.
+ *
+ * `unit` ('pcs'|'box') is part of the fingerprint so that withdrawing a
+ * whole box and withdrawing the same number of loose pieces are distinct
+ * rows even though `quantity` stores the piece-equivalent for both.
  */
-function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDate, string $type, ?string $reasonCode, ?string $customReason, ?string $drNumber, ?int $targetBranchId, int $qty, ?int $liableUserId): string
+function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDate, string $type, ?string $reasonCode, ?string $customReason, ?string $drNumber, ?int $targetBranchId, int $qty, ?int $liableUserId, string $unit = 'pcs'): string
 {
     return sha1(implode('|', [
         (string)$branchId,
@@ -54,7 +58,117 @@ function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDat
         (string)($targetBranchId ?? ''),
         (string)$qty,
         (string)($liableUserId ?? ''),
+        (string)($unit === '' ? 'pcs' : $unit),
     ]));
+}
+
+/**
+ * Resolve a withdrawal line's unit into the ledger's piece-equivalent.
+ *
+ * Ledger/variance math always counts PIECES (dl_cashier_withdrawals.quantity,
+ * dl_daily_ledger.withdraw/addtl). A box line is converted here:
+ *
+ *   unit='pcs' -> quantity stays as entered, pack_qty = null
+ *   unit='box' -> requires dl_products.pcs_per_pack > 0 for that product;
+ *                 quantity = boxes * pcs_per_pack, pack_qty = boxes
+ *
+ * Returns ['quantity' => int pieces, 'unit' => string, 'pack_qty' => ?int].
+ * Throws RuntimeException(code 422) on invalid unit or a box without a
+ * configured pcs_per_pack.
+ */
+function dl_resolveWithdrawalLineUnit(\Ikabud\Kernel\Contracts\ModuleDB $db, int $productId, int $quantity, $unit): array
+{
+    $unit = strtolower(trim((string)($unit ?? 'pcs')));
+    $unit = in_array($unit, ['pcs', 'box'], true) ? $unit : 'pcs';
+
+    if ($unit === 'pcs') {
+        return ['quantity' => max(0, $quantity), 'unit' => 'pcs', 'pack_qty' => null];
+    }
+
+    $stmt = $db->prepare('SELECT pcs_per_pack FROM dl_products WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $productId]);
+    $pcsPerPack = (int)$stmt->fetchColumn();
+
+    if ($pcsPerPack <= 0) {
+        throw new \RuntimeException('This product is not configured for box withdrawals. Ask an admin to set its pieces-per-box (pcs_per_pack).', 422);
+    }
+
+    $boxes = max(0, $quantity);
+    return ['quantity' => $boxes * $pcsPerPack, 'unit' => 'box', 'pack_qty' => $boxes];
+}
+
+/**
+ * Resolve a withdrawal line for a given withdrawal type, allowing negative
+ * quantities ONLY on `correction` entries (the cashier prefixes the amount
+ * with a minus, e.g. -3, to REDUCE an over-recorded amount). A negative
+ * correction is always piece-based (unit pcs, no pack conversion). Positive
+ * quantities resolve normally (pcs or box) via dl_resolveWithdrawalLineUnit.
+ *
+ * @return array{quantity:int, unit:string, pack_qty:?int}
+ * @throws \RuntimeException code 422 when a negative qty is used on a
+ *         non-correction type.
+ */
+function dl_resolveWithdrawalLineForType(\Ikabud\Kernel\Contracts\ModuleDB $db, int $productId, int $quantity, $unit, string $type): array
+{
+    if ($quantity < 0) {
+        if ($type !== 'correction') {
+            throw new \RuntimeException('Negative quantities are only allowed on Correction entries (use a minus sign, e.g. -3, to reduce an over-recorded amount).', 422);
+        }
+        return ['quantity' => $quantity, 'unit' => 'pcs', 'pack_qty' => null];
+    }
+    return dl_resolveWithdrawalLineUnit($db, $productId, $quantity, $unit);
+}
+
+/**
+ * Returns a product's optional box size (pcs_per_pack) or null.
+ */
+function dl_productPcsPerPack(\Ikabud\Kernel\Contracts\ModuleDB $db, int $productId): ?int
+{
+    $stmt = $db->prepare('SELECT pcs_per_pack FROM dl_products WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $productId]);
+    $val = $stmt->fetchColumn();
+    $val = $val !== null && $val !== false ? (int)$val : 0;
+    return $val > 0 ? $val : null;
+}
+
+/**
+ * Mint the next auto-DR label for a production-branch receive.
+ *
+ * Format: AUTO-<dd/mm/yyyy>-<n> where n is the next sequence number for the
+ * destination branch + delivery date. The leading `AUTO-` namespace keeps the
+ * label from colliding with a cashier-typed paper DR during the exact-match
+ * lookup in apiReceivePaperDelivery (handlers.php) — the lookup matches on
+ * destination_id + dr_number, and real paper DRs never start with AUTO-.
+ *
+ * Caller must hold the destination day-status row lock (dl_lockDayStatusRow)
+ * inside the open transaction so two concurrent receives on the same
+ * branch/date cannot mint the same sequence number.
+ */
+function dl_mintAutoDrNumber(\Ikabud\Kernel\Contracts\ModuleDB $db, int $destinationBranchId, string $deliveryDate): string
+{
+    $stmt = $db->prepare(
+        'SELECT COUNT(*)
+           FROM dl_deliveries
+          WHERE destination_type = "branch"
+            AND destination_id = :bid
+            AND delivery_date = :d
+            AND dr_number LIKE "AUTO-%"'
+    );
+    $stmt->execute([':bid' => $destinationBranchId, ':d' => $deliveryDate]);
+    $n = ((int)$stmt->fetchColumn()) + 1;
+
+    return 'AUTO-' . date('d/m/Y', strtotime($deliveryDate)) . '-' . $n;
+}
+
+/**
+ * True when the branch is an active production (commissary) site.
+ */
+function dl_branchIsProductionSite(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId): bool
+{
+    $stmt = $db->prepare('SELECT is_commissary, is_active FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $branchId]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    return is_array($row) && (int)($row['is_commissary'] ?? 0) === 1 && (int)($row['is_active'] ?? 0) === 1;
 }
 
 /**
@@ -181,6 +295,8 @@ function dlWithdrawalTypeMeta(string $type): array
     return match ($type) {
         'charge' => ['label' => 'Charge', 'badge_classes' => 'bg-amber-50 text-amber-700 ring-amber-200'],
         'pullout' => ['label' => 'Pullout', 'badge_classes' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+        'used' => ['label' => 'Used', 'badge_classes' => 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
+        'correction' => ['label' => 'Correction', 'badge_classes' => 'bg-orange-50 text-orange-700 ring-orange-200'],
         'adjustment_add' => ['label' => 'Add Stock', 'badge_classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
         default => ['label' => dlHumanizeToken($type), 'badge_classes' => 'bg-slate-50 text-slate-700 ring-slate-200'],
     };
