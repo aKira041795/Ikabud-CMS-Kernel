@@ -79,10 +79,13 @@ A fully manual day cannot be closed until its PM shift is **finalized** via the 
 - Finalized PM data is immutable to cashier field/batch saves and every domain mutation
   (`dl_applyLedgerDelta`, withdrawals, deliveries, production). Admin/supervisor correction requires
   reopening the day (which deliberately reopens both shifts) under `ledger.override` with audit.
-- Manual day close (manual button or the 22:00 auto-close cutoff) requires PM `finalized`. If PM is
-  still pending at the cutoff, the day stays **open** and is surfaced as **"PM ending pending"** with a
-  single deduplicated audit event; the next morning the cashier may open only the immediately previous
-  PM ledger, enter the late counts, finalize PM, and then close.
+- Manual day close (manual button or the automatic close-of-day cutoff): per the 2026-09-04 owner
+  rule the business day closes at the cutoff (00:00 / midnight) for **both** shifts even if the PM
+  ending was never finalized (audit `auto_close_day`, status `closed_without_pm_finalize`). An
+  admin/supervisor can reopen the day under `ledger.override` to backfill the PM ending; a
+  deliberately reopened day (one with `reopened_at` set) is **exempt** from re-auto-close until it
+  is closed manually, so the reopen sticks for both AM and PM. (The legacy "PM ending pending → day
+  stays open" behavior applied only while PM was unfinalized under an earlier evening cutoff.)
 - POS/fallback days are exempt from the manual PM gate and keep their existing receipt/checkpoint rules.
 
 ## Recovery from a failed checkout

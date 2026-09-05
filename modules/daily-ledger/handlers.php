@@ -1190,6 +1190,27 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
             return false;
         }
 
+        // A day that an admin/supervisor deliberately reopened (apiReopenDay
+        // sets reopened_by/reopened_at) must STAY open until it is closed
+        // manually. Without this exemption the next auto-close pass re-closes
+        // the just-reopened day on the very next request, so admin reopen of a
+        // previous day appears to fail for both AM and PM. Keying on
+        // reopened_at preserves the offline late-ending bridge
+        // (dl_reopenDayForLateEnding) which reopens WITHOUT setting reopened_at
+        // and relies on the next auto-close pass to re-close.
+        $reopenStmt = $ctx->db()->prepare(
+            'SELECT reopened_at FROM dl_ledger_day_status
+              WHERE branch_id = :bid AND ledger_date = :d LIMIT 1'
+        );
+        $reopenStmt->execute([':bid' => $branchId, ':d' => $closeDate]);
+        $reopenedAt = $reopenStmt->fetchColumn();
+        if ($reopenedAt !== false && $reopenedAt !== null && (string)$reopenedAt !== '') {
+            if ($ownsTxn) {
+                $ctx->db()->commit();
+            }
+            return false;
+        }
+
         // POS/fallback days close under their own receipt/checkpoint rules.
         // Owner rule (2026-09-04): AM and PM shifts close when the day is over —
         // at the business-day cutoff (midnight) the previous date closes for

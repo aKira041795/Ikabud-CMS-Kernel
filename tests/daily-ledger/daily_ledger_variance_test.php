@@ -13,9 +13,11 @@ declare(strict_types=1);
  *      propagation, unreviewed-delete vs reviewed-zero-retention, close freeze.
  *   C. PM finalization domain: missing endings, inactive ignored, atomic
  *      lock+recompute, idempotent repeat, immutability guard, closed-day gate.
- *   D. Close gate + late-count authorization: pending PM stays open with a
- *      deduplicated audit, finalized manual PM closes, POS days exempt,
- *      prior pending PM editable by cashier, older/AM/finalized blocked.
+ *   D. Close gate + late-count authorization: unfinalized manual day closes at
+ *      the cutoff with a surfaced gap audit (owner rule), finalized manual PM
+ *      closes + freezes, deliberately reopened days exempt from re-auto-close,
+ *      POS days exempt, prior pending PM editable by cashier, older/AM/finalized
+ *      blocked.
  *   E. Reporting: provisional vs official rows/totals and NULL round-trip.
  */
 
@@ -542,24 +544,28 @@ dl_t_ledger($db, $branchId, $pB, $testDate, 'PM', 20, 0, 0, 20);
 
 // Boundary: now = 00:05 on the next day (past 22:00 rollover) → closeDate = $testDate.
 $afterCutoff = new \DateTimeImmutable($nextDate . ' 00:05:00', new \DateTimeZone('UTC'));
-// Deduplicated pending audit: multiple auto-close passes emit exactly one event.
-$auditCount = static function () use ($db, $branchId): int {
-    $st = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'pm_ending_pending' AND branch_id = :b");
+// Owner rule (2026-09-04): an unfinalized manual day CLOSES at the cutoff too
+// (both shifts), surfacing the missing PM ending in the audit instead of
+// leaving the day open to leak entries into the next business date.
+$closedPending = dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
+$h->test('auto-close closes an unfinalized manual day at the cutoff', $closedPending === true && dl_getDayStatus($branchId, $testDate) === 'closed');
+$gapAudit = static function () use ($db, $branchId): int {
+    $st = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'auto_close_day' AND branch_id = :b");
     $st->execute([':b' => $branchId]);
     return (int)$st->fetchColumn();
 };
-$before = $auditCount();
-$closedByAuto = dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
-$h->test('auto-close leaves pending-manual day open (returns false)', $closedByAuto === false);
-$h->test('auto-close does not lock an unfinalized manual day', dl_getDayStatus($branchId, $testDate) !== 'closed');
+$h->test('auto-close surfaces the missing PM ending in the audit', $gapAudit() >= 1);
+// Repeated passes are no-ops once the day is closed (single close).
+$h->test('auto-close repeated pass is a no-op after closing', dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff) === false);
 
-dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
-dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
-dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
-$h->test('pending condition emits exactly one deduplicated audit event', $auditCount() === $before + 1);
-
-// Finalized manual PM closes at the boundary.
-$db->execute('UPDATE dl_ledger_shift_status SET status = \'finalized\', finalized_by = 1, finalized_at = CURRENT_TIMESTAMP WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);
+// A finalized manual PM closes at the boundary and freezes its snapshot.
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);
+$db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);
+$db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);
+dl_t_ledger($db, $branchId, $pA, $testDate, 'PM', 5, 0, 0, 9);
+dl_t_ledger($db, $branchId, $pB, $testDate, 'PM', 20, 0, 0, 20);
+$db->execute('INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status, finalized_by, finalized_at) VALUES (:b, :d, \'PM\', \'finalized\', 1, CURRENT_TIMESTAMP)', [':b' => $branchId, ':d' => $testDate]);
 $closedOk = dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
 $h->test('auto-close closes a finalized manual day', $closedOk === true && dl_getDayStatus($branchId, $testDate) === 'closed');
 $frozenAfterClose = $db->prepare('SELECT COUNT(*) FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d AND frozen_at IS NOT NULL');
@@ -567,6 +573,26 @@ $frozenAfterClose->execute([':b' => $branchId, ':d' => $testDate]);
 $h->test('auto-close freezes the variance snapshot for a finalized day', (int)$frozenAfterClose->fetchColumn() > 0);
 // Already closed → no-op.
 $h->test('auto-close is a no-op for an already-closed day', dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff) === false);
+
+// Deliberately reopened day (admin apiReopenDay sets reopened_by/reopened_at)
+// must STAY open — the next auto-close pass must not instantly re-close it.
+$db->execute(
+    'UPDATE dl_ledger_day_status SET status = \'open\', closed_by = NULL, closed_at = NULL,
+       reopened_by = 7, reopened_at = CURRENT_TIMESTAMP
+      WHERE branch_id = :b AND ledger_date = :d',
+    [':b' => $branchId, ':d' => $testDate]
+);
+$reopenExempt = dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
+$h->test('reopened day is exempt from re-auto-close', $reopenExempt === false && dl_getDayStatus($branchId, $testDate) === 'open');
+// The offline late-ending bridge reopens WITHOUT reopened_at and must still
+// auto-close so a stale open day never leaks into the next business date.
+$db->execute(
+    'UPDATE dl_ledger_day_status SET reopened_by = NULL, reopened_at = NULL
+      WHERE branch_id = :b AND ledger_date = :d',
+    [':b' => $branchId, ':d' => $testDate]
+);
+$closeAgain = dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
+$h->test('non-deliberate reopen (late-ending) still auto-closes', $closeAgain === true && dl_getDayStatus($branchId, $testDate) === 'closed');
 
 // Manual-day gate flag (POS disabled → manual).
 $h->test('fully-manual day detected when POS disabled', dl_isFullyManualDay($db, $branchId, $testDate) === true);
@@ -670,8 +696,10 @@ $db->execute(
     [':b' => $branchId, ':p' => $pidHash, ':d' => $dedupDate, ':t' => 'pullout', ':rc' => 'spoilage',
      ':cr' => null, ':dr' => null, ':tb' => null, ':q' => 3, ':e' => 1, ':l' => 2, ':dh' => $phpHash]
 );
+// The SQL backfill expression (migration 057) includes the normalized unit
+// component to match the unit-aware PHP helper byte-for-byte.
 $sqlHash = (string)$db->query(
-    "SELECT SHA1(CONCAT_WS('|', branch_id, product_id, ledger_date, withdrawal_type, COALESCE(reason_code,''), COALESCE(custom_reason,''), COALESCE(dr_number,''), COALESCE(target_branch_id,''), quantity, COALESCE(liable_user_id,'')))
+    "SELECT SHA1(CONCAT_WS('|', branch_id, product_id, ledger_date, withdrawal_type, COALESCE(reason_code,''), COALESCE(custom_reason,''), COALESCE(dr_number,''), COALESCE(target_branch_id,''), quantity, COALESCE(liable_user_id,''), COALESCE(NULLIF(unit,''),'pcs')))
        FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId . " AND product_id = " . (int)$pidHash . " AND ledger_date = '$dedupDate' LIMIT 1"
 )->fetchColumn();
 $h->test('PHP dedup hash matches SQL backfill expression', $phpHash === $sqlHash);

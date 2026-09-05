@@ -130,7 +130,8 @@
     "database/migrations/053_offline_pending_marker.sql",
     "database/migrations/054_box_unit_withdrawals.sql",
     "database/migrations/055_cashier_withdrawal_shift.sql",
-    "database/migrations/056_cashier_withdrawal_quantity_signed.sql"
+    "database/migrations/056_cashier_withdrawal_quantity_signed.sql",
+    "database/migrations/057_refresh_dedup_hash_with_unit.sql"
   ],
   "capabilities": {
     "exposes": [
