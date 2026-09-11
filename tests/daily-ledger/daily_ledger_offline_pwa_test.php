@@ -401,11 +401,20 @@ if (is_array($insertedRow)) {
     if (is_array($boot)) {
         $h->test('bootstrap branch is the enrolled branch', (int)($boot['branch']['id'] ?? 0) === $branchId);
         $h->test('bootstrap carries business date + clock', !empty($boot['business_date']) && !empty($boot['operating_timezone']) && !empty($boot['close_of_day_time']));
-        $h->test('bootstrap products are bounded to the branch', is_array($boot['products'] ?? null));
+        $h->test('bootstrap products are bounded to the branch', is_array($boot['products'] ?? null) && $boot['products'] !== []);
         $h->test('bootstrap carries the seeded product', (function () use ($boot, $productId) {
             foreach ($boot['products'] ?? [] as $p) {
                 if ((int)($p['id'] ?? 0) === $productId) {
                     return true;
+                }
+            }
+            return false;
+        })());
+        $h->test('bootstrap seeded product carries the business-date base price', (function () use ($boot, $productId) {
+            $expectedPrice = dl_resolveBaseProductPrice($productId, (string)$boot['business_date']);
+            foreach ($boot['products'] ?? [] as $p) {
+                if ((int)($p['id'] ?? 0) === $productId) {
+                    return (float)($p['current_price'] ?? 0) === $expectedPrice;
                 }
             }
             return false;

@@ -218,12 +218,24 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
             $stmt->execute([':bid' => $branchId, ':offline_price_at' => $today]);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {
+            write_log('daily-ledger offline bootstrap products failed', 'error', [
+                'branch_id' => $branchId,
+                'shift' => $shift,
+                'tenant_scope' => $tenantScope,
+                'error' => $e->getMessage(),
+            ]);
             $products = [];
         }
 
         try {
             $ledgerRows = dl_fetchCashierLedgerRows($db, $branchId, $today, $shift);
         } catch (Throwable $e) {
+            write_log('daily-ledger offline bootstrap ledger rows failed', 'error', [
+                'branch_id' => $branchId,
+                'shift' => $shift,
+                'tenant_scope' => $tenantScope,
+                'error' => $e->getMessage(),
+            ]);
             $ledgerRows = [];
         }
     }
@@ -239,6 +251,12 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
                   ORDER BY role = 'production_in_charge' DESC, name ASC"
             )->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {
+            write_log('daily-ledger offline bootstrap liable persons failed', 'error', [
+                'branch_id' => $branchId,
+                'shift' => $shift,
+                'tenant_scope' => $tenantScope,
+                'error' => $e->getMessage(),
+            ]);
             $liablePersons = [];
         }
     }
