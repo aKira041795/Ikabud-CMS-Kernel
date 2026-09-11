@@ -5,14 +5,19 @@
     <td class="align-middle text-right">
         <input type="number" class="ledger-input mt-0 ml-auto block min-h-11 w-20 rounded-lg border border-gray-300 bg-white px-2 py-2 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" inputmode="numeric" enterkeyhint="next" min="0"
                data-product="{row.product_id}" data-field="beg_bal"
-               value="{if shift == 'PM' && row.beg_bal == 0 && row.am_bal_end > 0}{row.am_bal_end}{else}{row.beg_bal}{/if}"
+               value="{if shift == 'PM' && row.beg_bal == 0 && row.am_bal_end > 0}{row.am_bal_end}{elseif shift == 'AM' && row.beg_bal == 0 && row.prev_bal_end !== null && row.prev_bal_end !== ''}{row.prev_bal_end}{else}{row.beg_bal}{/if}"
                data-am-end="{if shift == 'PM'}{row.am_bal_end}{else}0{/if}"
+               data-prev-end="{row.prev_bal_end}"
                data-orig-beg="{row.beg_bal}"
                onfocus="this.select()"
                onchange="saveField(this)"
                {if day_status == 'closed' || reference_only}disabled{/if}>
         {if shift == 'PM'}
-        <div class="mt-0.5 text-[10px] leading-tight text-indigo-600">AM end: {row.am_bal_end}</div>
+        <div class="mt-0.5 text-xs leading-tight text-indigo-600">AM end: {row.am_bal_end}</div>
+        {elseif row.prev_bal_end !== null && row.prev_bal_end !== ''}
+        <div class="mt-0.5 text-xs leading-tight text-indigo-600">Prev end: {row.prev_bal_end}</div>
+        {elseif row.prev_pm_pending}
+        <div class="mt-0.5 text-xs leading-tight text-indigo-600">PM ending pending</div>
         {/if}
     </td>
     <td class="align-middle text-right">

@@ -3417,15 +3417,29 @@ function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $b
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
                 ' . $salesExpr . ' AS sales, dl.price_snapshot,
-                COALESCE(am.bal_end, 0) AS am_bal_end
+                COALESCE(am.bal_end, 0) AS am_bal_end,
+                CASE
+                    WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
+                    WHEN prev_am.bal_end IS NOT NULL THEN prev_am.bal_end
+                    ELSE NULL
+                END AS prev_bal_end,
+                CASE WHEN prev_pm.id IS NOT NULL AND prev_pm.bal_end IS NULL THEN 1 ELSE 0 END AS prev_pm_pending
            FROM dl_products p
            INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
            LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
            LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
+           LEFT JOIN dl_daily_ledger prev_pm ON prev_pm.product_id = p.id AND prev_pm.branch_id = :bidprevpm AND prev_pm.ledger_date = :dprevpm AND prev_pm.shift = \'PM\'
+           LEFT JOIN dl_daily_ledger prev_am ON prev_am.product_id = p.id AND prev_am.branch_id = :bidprevam AND prev_am.ledger_date = :dprevam AND prev_am.shift = \'AM\'
           WHERE p.is_active = 1
           ORDER BY p.sort_order, p.name'
     );
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
+    $prevDate = (new \DateTimeImmutable($ledgerDate))->modify('-1 day')->format('Y-m-d');
+    $stmt->execute([
+        ':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift,
+        ':bidam' => $branchId, ':dam' => $ledgerDate,
+        ':bidprevpm' => $branchId, ':dprevpm' => $prevDate,
+        ':bidprevam' => $branchId, ':dprevam' => $prevDate,
+    ]);
     return dl_applyLedgerDisplayPrices($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], $branchId, $ledgerDate);
 }
 
@@ -3703,15 +3717,29 @@ function apiGetLedgerRows(array $params = []): void
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
                 ' . $salesExpr . ' AS sales, dl.price_snapshot,
-                COALESCE(am.bal_end, 0) AS am_bal_end
+                COALESCE(am.bal_end, 0) AS am_bal_end,
+                CASE
+                    WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
+                    WHEN prev_am.bal_end IS NOT NULL THEN prev_am.bal_end
+                    ELSE NULL
+                END AS prev_bal_end,
+                CASE WHEN prev_pm.id IS NOT NULL AND prev_pm.bal_end IS NULL THEN 1 ELSE 0 END AS prev_pm_pending
          FROM dl_products p
          INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
          LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
          LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
+         LEFT JOIN dl_daily_ledger prev_pm ON prev_pm.product_id = p.id AND prev_pm.branch_id = :bidprevpm AND prev_pm.ledger_date = :dprevpm AND prev_pm.shift = \'PM\'
+         LEFT JOIN dl_daily_ledger prev_am ON prev_am.product_id = p.id AND prev_am.branch_id = :bidprevam AND prev_am.ledger_date = :dprevam AND prev_am.shift = \'AM\'
          WHERE p.is_active = 1
          ORDER BY p.sort_order, p.name'
     );
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
+    $prevDate = (new \DateTimeImmutable($ledgerDate))->modify('-1 day')->format('Y-m-d');
+    $stmt->execute([
+        ':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift,
+        ':bidam' => $branchId, ':dam' => $ledgerDate,
+        ':bidprevpm' => $branchId, ':dprevpm' => $prevDate,
+        ':bidprevam' => $branchId, ':dprevam' => $prevDate,
+    ]);
     $ctx->json([
         'ok' => true,
         'rows' => dl_applyLedgerDisplayPrices($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], $branchId, $ledgerDate),
@@ -5670,15 +5698,29 @@ function apiSaveLedgerBatch(array $params = []): void
                     COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                     COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
                     ' . $salesExpr . ' AS sales, dl.price_snapshot,
-                    COALESCE(am.bal_end, 0) AS am_bal_end
+                    COALESCE(am.bal_end, 0) AS am_bal_end,
+                    CASE
+                        WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
+                        WHEN prev_am.bal_end IS NOT NULL THEN prev_am.bal_end
+                        ELSE NULL
+                    END AS prev_bal_end,
+                    CASE WHEN prev_pm.id IS NOT NULL AND prev_pm.bal_end IS NULL THEN 1 ELSE 0 END AS prev_pm_pending
              FROM dl_products p
              INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
              LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
              LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :bidam AND am.ledger_date = :dam AND am.shift = \'AM\'
+             LEFT JOIN dl_daily_ledger prev_pm ON prev_pm.product_id = p.id AND prev_pm.branch_id = :bidprevpm AND prev_pm.ledger_date = :dprevpm AND prev_pm.shift = \'PM\'
+             LEFT JOIN dl_daily_ledger prev_am ON prev_am.product_id = p.id AND prev_am.branch_id = :bidprevam AND prev_am.ledger_date = :dprevam AND prev_am.shift = \'AM\'
              WHERE p.is_active = 1
              ORDER BY p.sort_order, p.name'
         );
-        $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $date]);
+        $prevDate = (new \DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
+        $stmt->execute([
+            ':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift,
+            ':bidam' => $branchId, ':dam' => $date,
+            ':bidprevpm' => $branchId, ':dprevpm' => $prevDate,
+            ':bidprevam' => $branchId, ':dprevam' => $prevDate,
+        ]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
         $response = [

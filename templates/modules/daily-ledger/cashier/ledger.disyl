@@ -1546,6 +1546,51 @@
         });
     };
 
+    // Overnight handoff: auto-adopt the previous day's recorded ending as the
+    // AM beginning. Disabled inputs cover closed/reference-only days, and the
+    // stored original beginning guard ensures cashier-entered values win.
+    window.adoptAmBegBal = function() {
+        if (SHIFT !== 'AM') return;
+        var rows = [];
+        var inputs = document.querySelectorAll('#ledger-body input[data-field="beg_bal"][data-prev-end]');
+        inputs.forEach(function(input) {
+            if (input.disabled) return;
+            var orig = parseInt(input.getAttribute('data-orig-beg') || '0', 10);
+            var prevEnd = parseInt(input.getAttribute('data-prev-end') || '0', 10);
+            if (orig !== 0 || prevEnd <= 0) return;
+            rows.push({ product_id: parseInt(input.getAttribute('data-product'), 10) || 0, beg_bal: prevEnd });
+        });
+        if (rows.length === 0) return;
+
+        fetch(BASE + '/api/v1/cashier/ledger/save-batch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                date: LEDGER_DATE,
+                branch_id: BRANCH_ID,
+                shift: 'AM',
+                idempotency_key: 'am-handoff-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + Date.now(),
+                rows: rows
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok && rows.length > 0 && window.showToast) {
+                showToast('Carried forward the previous ending as AM beginning for ' + rows.length + ' product(s). Verify counts and adjust if needed.', 'success');
+            }
+            // Reload rows so the adopted beg_bal values are persisted/visible.
+            if (window.htmx && document.getElementById('ledger-body')) {
+                htmx.trigger(document.getElementById('ledger-body'), 'load');
+            }
+        })
+        .catch(function() {});
+    };
+
     // PM shift handoff: auto-adopt the AM shift's ending count as the PM
     // beginning (one batch save), so the PM cashier validates instead of
     // re-typing every product. Only runs for new PM rows (stored beg_bal = 0)
@@ -1594,6 +1639,7 @@
 
     document.addEventListener('htmx:afterSwap', function(e) {
         if (e.target && e.target.id === 'ledger-body') {
+            window.adoptAmBegBal();
             window.adoptPmBegBal();
         }
     });

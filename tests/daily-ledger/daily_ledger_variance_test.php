@@ -301,9 +301,33 @@ dl_t_ledger($db, $branchId, $pA, $testDate, 'PM', 6, 0, 0, 7);
 // Product B: PM ending missing (null) → pending, no numeric variance. Prior day
 // has a recorded AM ending (no PM) → overnight must fall back to it.
 dl_t_ledger($db, $branchId, $pB, '2030-02-09', 'AM', 5, 0, 0, 5);
+dl_t_ledger($db, $branchId, $pB, '2030-02-09', 'PM', 0, 0, 0, null);
 dl_t_ledger($db, $branchId, $pB, $testDate, 'AM', 20, 0, 0, 20);
 dl_t_ledger($db, $branchId, $pB, $testDate, 'PM', 20, 0, 0, null);
 // Product D (active) has no rows — no flags.
+
+// Cashier row handoff payload: prior PM wins, an unrecorded PM falls back to
+// prior AM, and no prior ending stays NULL. Temporarily expose inactive C only
+// for this focused read, then restore it before finalization assertions.
+$db->execute('UPDATE dl_branch_products SET is_active = 1 WHERE branch_id = :b AND product_id = :p', [':b' => $branchId, ':p' => $pC]);
+$cashierRows = dl_fetchCashierLedgerRows($db, $branchId, $testDate, 'AM');
+$cashierByProduct = [];
+foreach ($cashierRows as $cashierRow) {
+    $cashierByProduct[(int)$cashierRow['product_id']] = $cashierRow;
+}
+$h->test('cashier rows keep one row per active product', count($cashierRows) === 3);
+$h->test('cashier prev_bal_end prefers previous PM ending', (int)($cashierByProduct[$pA]['prev_bal_end'] ?? -1) === 8 && (int)($cashierByProduct[$pA]['prev_pm_pending'] ?? 1) === 0);
+$h->test('cashier prev_bal_end falls back to previous AM when PM is unrecorded', (int)($cashierByProduct[$pB]['prev_bal_end'] ?? -1) === 5 && (int)($cashierByProduct[$pB]['prev_pm_pending'] ?? 0) === 1);
+$h->test('cashier prev_bal_end remains NULL when neither ending is recorded', array_key_exists('prev_bal_end', $cashierByProduct[$pC]) && $cashierByProduct[$pC]['prev_bal_end'] === null);
+
+// A recorded zero PM ending is real and must win over a non-zero AM fallback.
+dl_t_ledger($db, $branchId, $pA, '2030-02-09', 'AM', 4, 0, 0, 4);
+dl_t_ledger($db, $branchId, $pA, '2030-02-09', 'PM', 8, 0, 0, 0);
+$zeroEndingRows = dl_fetchCashierLedgerRows($db, $branchId, $testDate, 'AM');
+$zeroEndingA = array_values(array_filter($zeroEndingRows, static fn(array $row): bool => (int)$row['product_id'] === $pA))[0] ?? [];
+$h->test('cashier prev_bal_end preserves a recorded zero PM ending', array_key_exists('prev_bal_end', $zeroEndingA) && (string)$zeroEndingA['prev_bal_end'] === '0');
+dl_t_ledger($db, $branchId, $pA, '2030-02-09', 'PM', 8, 0, 0, 8);
+$db->execute('UPDATE dl_branch_products SET is_active = 0 WHERE branch_id = :b AND product_id = :p', [':b' => $branchId, ':p' => $pC]);
 
 dl_recomputeVariancesForDay($branchId, $testDate, false);
 

@@ -15,6 +15,7 @@ As a Cashier, your main focus is on recording the daily operations of your speci
 * **Adjustments only:** **New Adjustment** is for charge and pullout corrections only. It is no longer the place to encode deliveries.
 * **Variances:** If there is a difference between your expected sales (based on inventory) and actual cash/remittances, the system logs this as an Over or Short (variance).
 * **Automatic Saving:** As you type numbers into the ledger forms, they save automatically. You do not need to click a "Submit" button for every row!
+* **Beginning-balance handoffs:** On an open ledger, the previous business day's recorded ending is carried into the new AM beginning balance (PM ending preferred, with the recorded AM ending as fallback). Within the same day, the AM ending is carried into the PM beginning. Existing cashier-entered beginning balances are never replaced; verify the blue source hint and adjust the count if needed.
 * **Offline Work:** If the internet or server is unavailable, the Android app can continue working with locally cached data after you unlock it using your offline PIN.
 * **Reconnect Behavior:** Offline entries are queued and synced automatically when the connection comes back. If the day cannot be closed because the app is offline, reconnect first and try again.
 
