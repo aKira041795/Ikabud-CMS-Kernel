@@ -130,6 +130,116 @@ function dl_allowedColumn(string $field, array $map): ?string
     return is_string($column) && $column !== '' ? $column : null;
 }
 
+function dl_normalizeEffectiveFrom($value, string $defaultDate): ?string
+{
+    if ($value === null) {
+        return $defaultDate;
+    }
+    if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return null;
+    }
+
+    $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+    $errors = \DateTimeImmutable::getLastErrors();
+    if (!$date || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+        return null;
+    }
+    return $date->format('Y-m-d') === $value ? $value : null;
+}
+
+/**
+ * Replace mutable ledger price snapshots with the branch/date-resolved price.
+ * Closed days and frozen variance snapshots remain financially immutable.
+ *
+ * @return array{updated_rows:int,unchanged_rows:int,skipped_rows:int,skipped_days:array<int,array<string,mixed>>}
+ */
+function dl_repriceProductLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $productId, string $effectiveFrom): array
+{
+    $stmt = $db->prepare(
+        'SELECT dl.id, dl.branch_id, dl.ledger_date, dl.price_snapshot
+           FROM dl_daily_ledger dl
+          WHERE dl.product_id = :pid AND dl.ledger_date >= :effective_from
+          ORDER BY dl.ledger_date, dl.branch_id, dl.id'
+    );
+    $stmt->execute([':pid' => $productId, ':effective_from' => $effectiveFrom]);
+
+    $update = $db->prepare(
+        'UPDATE dl_daily_ledger
+            SET price_snapshot = :price, updated_at = CURRENT_TIMESTAMP
+          WHERE id = :id'
+    );
+    $dayStatusStmt = $db->prepare(
+        'SELECT status FROM dl_ledger_day_status
+          WHERE branch_id = :bid AND ledger_date = :d
+          LIMIT 1 FOR UPDATE'
+    );
+    $frozenStmt = $db->prepare(
+        'SELECT EXISTS (
+             SELECT 1 FROM dl_variance_flags
+              WHERE branch_id = :bid AND ledger_date = :d AND frozen_at IS NOT NULL
+         )'
+    );
+    $summary = ['updated_rows' => 0, 'unchanged_rows' => 0, 'skipped_rows' => 0, 'skipped_days' => []];
+    $skippedDays = [];
+    $dayStates = [];
+
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $key = (int)$row['branch_id'] . ':' . (string)$row['ledger_date'];
+        if (!isset($dayStates[$key])) {
+            // Serialize against close-day so a row cannot become immutable while
+            // its price is being changed. An absent status row means open.
+            $dayParams = [':bid' => (int)$row['branch_id'], ':d' => (string)$row['ledger_date']];
+            $dayStatusStmt->execute($dayParams);
+            $status = (string)($dayStatusStmt->fetchColumn() ?: 'open');
+            $frozenStmt->execute($dayParams);
+            $dayStates[$key] = ['status' => $status, 'frozen' => (bool)$frozenStmt->fetchColumn()];
+        }
+
+        $reason = null;
+        if ($dayStates[$key]['status'] === 'closed') {
+            $reason = 'closed';
+        } elseif ($dayStates[$key]['frozen']) {
+            $reason = 'variance_frozen';
+        }
+        if ($reason !== null) {
+            $summary['skipped_rows']++;
+            if (!isset($skippedDays[$key])) {
+                $skippedDays[$key] = [
+                    'branch_id' => (int)$row['branch_id'],
+                    'ledger_date' => (string)$row['ledger_date'],
+                    'reason' => $reason,
+                    'rows' => 0,
+                ];
+            }
+            $skippedDays[$key]['rows']++;
+            continue;
+        }
+
+        $resolved = dl_resolveBranchProductPrice((int)$row['branch_id'], $productId, (string)$row['ledger_date']);
+        if (abs((float)$row['price_snapshot'] - $resolved) < 0.00001) {
+            $summary['unchanged_rows']++;
+            continue;
+        }
+        $update->execute([':price' => $resolved, ':id' => (int)$row['id']]);
+        $summary['updated_rows']++;
+    }
+
+    $summary['skipped_days'] = array_values($skippedDays);
+    return $summary;
+}
+
+/** @param array<int,array<string,mixed>> $rows */
+function dl_applyLedgerDisplayPrices(array $rows, int $branchId, string $ledgerDate): array
+{
+    foreach ($rows as &$row) {
+        $row['current_price'] = isset($row['price_snapshot']) && $row['price_snapshot'] !== null
+            ? (float)$row['price_snapshot']
+            : dl_resolveBranchProductPrice($branchId, (int)$row['product_id'], $ledgerDate);
+    }
+    unset($row);
+    return $rows;
+}
+
 function dl_generateAuthTokens(array $payload): array
 {
     $accessPayload = $payload;
@@ -480,17 +590,21 @@ function dl_normalizePiecesPerBatch($value): ?int
 
 function dl_fetchActiveProductsForProduction($db): array
 {
-    $cacheKey = 'active_products_for_production';
+    $priceDate = dl_businessDate();
+    $cacheKey = 'active_products_for_production_' . $priceDate;
     $cached = app()->cache()->get('daily-ledger', $cacheKey);
     if (is_array($cached) && isset($cached['rows'])) {
         return $cached['rows'];
     }
 
+    $effectivePrice = dl_effectivePriceSql('p', ':catalog_price_at');
     try {
-        $stmt = $db->query('SELECT id, name, sku, current_price, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, product_category FROM dl_products WHERE is_active = 1 ORDER BY product_category, name');
+        $stmt = $db->prepare('SELECT p.id, p.name, p.sku, ' . $effectivePrice . ' AS current_price, p.output_pieces_per_batch, p.batch_input_qty, p.batch_egg_qty, p.output_unit_label, p.product_category FROM dl_products p WHERE p.is_active = 1 ORDER BY p.product_category, p.name');
+        $stmt->execute([':catalog_price_at' => $priceDate]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
-        $stmt = $db->query('SELECT id, name, sku, current_price FROM dl_products WHERE is_active = 1 ORDER BY name');
+        $stmt = $db->prepare('SELECT p.id, p.name, p.sku, ' . $effectivePrice . ' AS current_price FROM dl_products p WHERE p.is_active = 1 ORDER BY p.name');
+        $stmt->execute([':catalog_price_at' => $priceDate]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -3312,7 +3426,7 @@ function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $b
           ORDER BY p.sort_order, p.name'
     );
     $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return dl_applyLedgerDisplayPrices($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], $branchId, $ledgerDate);
 }
 
 function handleCashierLedger(array $params = []): void
@@ -3588,7 +3702,7 @@ function apiGetLedgerRows(array $params = []): void
         'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
-                ' . $salesExpr . ' AS sales,
+                ' . $salesExpr . ' AS sales, dl.price_snapshot,
                 COALESCE(am.bal_end, 0) AS am_bal_end
          FROM dl_products p
          INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
@@ -3600,7 +3714,7 @@ function apiGetLedgerRows(array $params = []): void
     $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate, ':shift' => $shift, ':bidam' => $branchId, ':dam' => $ledgerDate]);
     $ctx->json([
         'ok' => true,
-        'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+        'rows' => dl_applyLedgerDisplayPrices($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], $branchId, $ledgerDate),
         'day_status' => $dayStatus,
         'shift' => $shift,
         'shift_locked' => $shiftResolved['bound'],
@@ -5555,7 +5669,7 @@ function apiSaveLedgerBatch(array $params = []): void
             'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                     COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                     COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
-                    ' . $salesExpr . ' AS sales,
+                    ' . $salesExpr . ' AS sales, dl.price_snapshot,
                     COALESCE(am.bal_end, 0) AS am_bal_end
              FROM dl_products p
              INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
@@ -5571,7 +5685,7 @@ function apiSaveLedgerBatch(array $params = []): void
             'ok' => true,
             'branch_id' => $branchId,
             'date' => $date,
-            'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'rows' => dl_applyLedgerDisplayPrices($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], $branchId, $date),
             'day_status' => $dayStatus,
         ];
         dl_storeIdempotentResponse('ledger_batch', $idempotencyKey, $response);
@@ -6172,6 +6286,13 @@ function apiReopenDay(array $params = []): void
         if ($shiftStmt->rowCount() > 0) {
             dl_auditLog('reopen_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}", ['status' => 'finalized'], ['status' => 'open']);
         }
+
+        // An audited reopen returns the day's derived variance snapshot to a
+        // mutable state; otherwise a reported frozen-day reprice could never be rerun.
+        $ctx->db()->prepare(
+            'UPDATE dl_variance_flags SET frozen_at = NULL
+              WHERE branch_id = :bid AND ledger_date = :d'
+        )->execute([':bid' => $branchId, ':d' => $date]);
 
         dl_recomputeVariancesForDay($branchId, $date);
 
@@ -8776,12 +8897,19 @@ function handleAdminProducts(array $params = []): void
     }
 
     $user = dlCurrentUser(['admin']);
+    dl_promoteCurrentPrices();
     $input = $ctx->input();
     $search = trim((string)($input['q'] ?? ''));
+    $today = dl_businessDate();
+    $effectivePrice = dl_effectivePriceSql('p', ':product_price_at');
 
-    $sql = 'SELECT p.*, (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS branch_count
+    $sql = 'SELECT p.*, ' . $effectivePrice . ' AS current_price,
+                   (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS branch_count,
+                   (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
+                     WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
+                     ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
             FROM dl_products p WHERE 1=1';
-    $bind = [];
+    $bind = [':product_price_at' => $today, ':product_label_at' => $today];
     if ($search !== '') {
         $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2)';
         $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
@@ -8805,6 +8933,7 @@ function handleAdminProducts(array $params = []): void
         'products' => $products,
         'branches' => $branches,
         'search' => $search,
+        'today' => $today,
     ]);
 }
 
@@ -9017,6 +9146,10 @@ function apiUpdateProduct(array $params = []): void
     $category  = strtolower(trim((string)($input['product_category'] ?? 'bread')));
     if (!in_array($category, ['bread', 'cake', 'other'])) $category = 'bread';
     $price     = (float)($input['price'] ?? 0);
+    $effectiveFrom = dl_normalizeEffectiveFrom(
+        array_key_exists('effective_from', $input) ? $input['effective_from'] : null,
+        dl_businessDate()
+    );
     $sort      = (int)($input['sort_order'] ?? 0);
     $isActive  = (int)($input['is_active'] ?? 1);
     $outputPiecesPerBatch = dl_normalizePiecesPerBatch($input['output_pieces_per_batch'] ?? null);
@@ -9046,9 +9179,10 @@ function apiUpdateProduct(array $params = []): void
         }
     }
 
-    if (!$productId || $name === '') {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
+    if (!$productId || $name === '' || $effectiveFrom === null) {
+        $error = $effectiveFrom === null ? 'effective_from must be a valid YYYY-MM-DD date' : 'Invalid input';
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $error, 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => $error], 422);
         return;
     }
 
@@ -9060,31 +9194,47 @@ function apiUpdateProduct(array $params = []): void
     }
 
     try {
-        // Get old data
-        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id');
+        $ctx->db()->beginTransaction();
+
+        // Lock the product so history insertion, current-price sync and repricing are atomic.
+        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id FOR UPDATE');
         $oldStmt->execute([':id' => $productId]);
         $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$old) {
+            $ctx->db()->rollBack();
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Product not found', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'Product not found'], 404);
             return;
         }
 
-        // If price changed, record in price history (immutable snapshot)
-        if ((float)$old['current_price'] !== $price) {
+        $reprice = ['updated_rows' => 0, 'unchanged_rows' => 0, 'skipped_rows' => 0, 'skipped_days' => []];
+        $priceChanged = abs(dl_resolveBaseProductPrice($productId, $effectiveFrom) - $price) >= 0.00001;
+        if ($priceChanged) {
             $ctx->db()->prepare(
-                'INSERT INTO dl_product_price_history (product_id, price, changed_by) VALUES (:pid, :price, :uid)'
-            )->execute([':pid' => $productId, ':price' => $price, ':uid' => $kernelActorUserId]);
+                'INSERT INTO dl_product_price_history (product_id, price, changed_by, effective_at)
+                 VALUES (:pid, :price, :uid, :effective_at)'
+            )->execute([
+                ':pid' => $productId,
+                ':price' => $price,
+                ':uid' => $kernelActorUserId,
+                ':effective_at' => $effectiveFrom . ' 00:00:00',
+            ]);
+            $reprice = dl_repriceProductLedgerRows($ctx->db(), $productId, $effectiveFrom);
         }
 
+        // Future-dated changes must not leak into undated consumers before their start date.
+        $currentPrice = dl_resolveBaseProductPrice($productId, dl_businessDate());
         $ctx->db()->prepare(
             'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, batch_input_qty = :biq, batch_egg_qty = :beq, output_unit_label = :unit, pcs_per_pack = :ppp WHERE id = :id'
-        )->execute([':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':id' => $productId]);
+        )->execute([':name' => $name, ':cat' => $category, ':price' => $currentPrice, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':id' => $productId]);
 
         dl_auditLog('update_product', null, 'product', (string)$productId, $old, [
             'name' => $name,
             'price' => $price,
+            'current_price' => $currentPrice,
+            'effective_from' => $effectiveFrom,
+            'reprice' => $reprice,
             'sort_order' => $sort,
             'is_active' => $isActive,
             'output_pieces_per_batch' => $outputPiecesPerBatch,
@@ -9092,11 +9242,18 @@ function apiUpdateProduct(array $params = []): void
             'pcs_per_pack' => $pcsPerPack,
         ]);
 
+        $ctx->db()->commit();
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Product updated', 'type' => 'success']]));
-        $ctx->json(['ok' => true]);
+        $ctx->json(['ok' => true, 'effective_from' => $effectiveFrom, 'current_price' => $currentPrice, 'reprice' => $reprice]);
     } catch (\Throwable $e) {
+        try {
+            if ($ctx->db()->inTransaction()) {
+                $ctx->db()->rollBack();
+            }
+        } catch (\Throwable $ignored) {
+        }
         write_log('daily-ledger apiUpdateProduct failed', 'error', [
             'message' => $e->getMessage(),
             'product_id' => $productId,
@@ -9110,6 +9267,57 @@ function apiUpdateProduct(array $params = []): void
         ]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to update product', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Failed to update product'], 500);
+    }
+}
+
+function apiRepriceProduct(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $productId = (int)($input['product_id'] ?? 0);
+    $effectiveFrom = dl_normalizeEffectiveFrom($input['effective_from'] ?? null, dl_businessDate());
+    if ($productId <= 0 || $effectiveFrom === null) {
+        $ctx->json(['ok' => false, 'error' => 'product_id and a valid YYYY-MM-DD effective_from are required'], 422);
+        return;
+    }
+
+    try {
+        $ctx->db()->beginTransaction();
+        $productStmt = $ctx->db()->prepare('SELECT id FROM dl_products WHERE id = :id FOR UPDATE');
+        $productStmt->execute([':id' => $productId]);
+        if (!$productStmt->fetchColumn()) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Product not found'], 404);
+            return;
+        }
+
+        $reprice = dl_repriceProductLedgerRows($ctx->db(), $productId, $effectiveFrom);
+        dl_auditLog('reprice_product', null, 'product', (string)$productId, null, [
+            'effective_from' => $effectiveFrom,
+            'reprice' => $reprice,
+        ]);
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'product_id' => $productId, 'effective_from' => $effectiveFrom, 'reprice' => $reprice]);
+    } catch (\Throwable $e) {
+        try {
+            if ($ctx->db()->inTransaction()) {
+                $ctx->db()->rollBack();
+            }
+        } catch (\Throwable $ignored) {
+        }
+        write_log('daily-ledger apiRepriceProduct failed', 'error', [
+            'message' => $e->getMessage(),
+            'product_id' => $productId,
+            'effective_from' => $effectiveFrom,
+        ]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to reprice product ledger rows'], 500);
     }
 }
 
@@ -10047,6 +10255,7 @@ function apiProductsImportCsv(): void
     if (($user['source'] ?? '') === 'kernel' && isset($user['id']) && is_numeric($user['id']) && (int)$user['id'] > 0) {
         $kernelActorUserId = (int)$user['id'];
     }
+    $importEffectiveAt = dl_businessDate() . ' 00:00:00';
 
     $upload = dlImportReadUploadedCsv('csv_file');
     if (empty($upload['ok'])) {
@@ -10133,8 +10342,8 @@ function apiProductsImportCsv(): void
                     
                     if (abs($oldPrice - $price) > 0.001) {
                         $ctx->db()->prepare(
-                            'INSERT INTO dl_product_price_history (product_id, price, changed_by) VALUES (:pid, :price, :uid)'
-                        )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId]);
+                            'INSERT INTO dl_product_price_history (product_id, price, changed_by, effective_at) VALUES (:pid, :price, :uid, :effective_at)'
+                        )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId, ':effective_at' => $importEffectiveAt]);
                     }
                     
                     // Assign active branches if not present
@@ -10185,8 +10394,8 @@ function apiProductsImportCsv(): void
             $pid = (int)$ctx->db()->lastInsertId();
             
             $ctx->db()->prepare(
-                'INSERT INTO dl_product_price_history (product_id, price, changed_by) VALUES (:pid, :price, :uid)'
-            )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId]);
+                'INSERT INTO dl_product_price_history (product_id, price, changed_by, effective_at) VALUES (:pid, :price, :uid, :effective_at)'
+            )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId, ':effective_at' => $importEffectiveAt]);
             
             $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
             foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {

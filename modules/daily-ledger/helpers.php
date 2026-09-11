@@ -633,6 +633,86 @@ function dl_resolveBranchProductPrice(int $branchId, int $productId, ?string $at
     return dl_resolveProductPrice($productId, dl_branchPriceGroupId($branchId), $atDate);
 }
 
+/**
+ * Return the date-bounded base-price expression for a trusted product alias.
+ */
+function dl_effectivePriceSql(string $productAlias = 'p', string $atParam = ':dl_eff_at'): string
+{
+    $allowedAliases = ['p'];
+    if (!in_array($productAlias, $allowedAliases, true)) {
+        throw new \InvalidArgumentException('Unsupported product SQL alias');
+    }
+    if (!preg_match('/^:[A-Za-z_][A-Za-z0-9_]*$/', $atParam)) {
+        throw new \InvalidArgumentException('Invalid effective-price date parameter');
+    }
+
+    return 'COALESCE((SELECT ph.price FROM dl_product_price_history ph'
+        . ' WHERE ph.product_id = ' . $productAlias . '.id'
+        . ' AND ph.effective_at < DATE_ADD(' . $atParam . ', INTERVAL 1 DAY)'
+        . ' ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1), '
+        . $productAlias . '.current_price)';
+}
+
+/**
+ * Lazily synchronize the denormalized current price with the price effective on a date.
+ */
+function dl_promoteCurrentPrices(?string $atDate = null): int
+{
+    $ctx = module();
+    if (!$ctx) {
+        return 0;
+    }
+
+    $atDate = $atDate ?: (function_exists('dl_businessDate') ? dl_businessDate() : date('Y-m-d'));
+    $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $atDate);
+    $errors = \DateTimeImmutable::getLastErrors();
+    if (!$date || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+        || $date->format('Y-m-d') !== $atDate) {
+        throw new \InvalidArgumentException('Promotion date must use YYYY-MM-DD format');
+    }
+
+    $setPrice = dl_effectivePriceSql('p', ':dl_promote_set_at');
+    $wherePrice = dl_effectivePriceSql('p', ':dl_promote_where_at');
+    $stmt = $ctx->db()->prepare(
+        'UPDATE dl_products p SET current_price = ' . $setPrice
+        . ' WHERE NOT (p.current_price <=> ' . $wherePrice . ')'
+    );
+    $stmt->execute([
+        ':dl_promote_set_at' => $atDate,
+        ':dl_promote_where_at' => $atDate,
+    ]);
+    $changed = (int)$stmt->rowCount();
+    if ($changed > 0) {
+        app()->cache()->clearByTags('daily-ledger', ['dl_products']);
+    }
+    return $changed;
+}
+
+function dl_resolveBaseProductPrice(int $productId, ?string $atDate = null): float
+{
+    $ctx = module();
+    if (!$ctx) {
+        return 0.0;
+    }
+
+    $atDate = $atDate ?: date('Y-m-d');
+    $stmt = $ctx->db()->prepare(
+        'SELECT price FROM dl_product_price_history
+          WHERE product_id = :p AND effective_at < DATE_ADD(:d, INTERVAL 1 DAY)
+          ORDER BY effective_at DESC, id DESC
+          LIMIT 1'
+    );
+    $stmt->execute([':p' => $productId, ':d' => $atDate]);
+    $price = $stmt->fetchColumn();
+    if ($price !== false && $price !== null) {
+        return (float)$price;
+    }
+
+    $stmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :p');
+    $stmt->execute([':p' => $productId]);
+    return (float)($stmt->fetchColumn() ?: 0.0);
+}
+
 function dl_resolveProductPrice(int $productId, ?int $priceGroupId = null, ?string $atDate = null): float
 {
     $ctx = module();
@@ -659,9 +739,7 @@ function dl_resolveProductPrice(int $productId, ?int $priceGroupId = null, ?stri
         }
     }
 
-    $stmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :p');
-    $stmt->execute([':p' => $productId]);
-    return (float)($stmt->fetchColumn() ?: 0.0);
+    return dl_resolveBaseProductPrice($productId, $atDate);
 }
 
 function dlRender(string $template, array $context = []): string

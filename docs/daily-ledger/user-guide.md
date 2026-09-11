@@ -56,7 +56,7 @@ As a Supervisor, your job is to oversee multiple branches and review their perfo
 The Administrator completely configures the system constraints, products, and personnel.
 
 **What you will see and do:**
-* **Product Catalog:** Manage all items sold. You explicitly categorize them into **Bread**, **Cake**, or **Other**. You can also assign their prices, sort order, and expected output parameters (e.g. how many pieces per batch). You can also bulk import/export these using CSV files!
+* **Product Catalog:** Manage all items sold. You explicitly categorize them into **Bread**, **Cake**, or **Other**. You can also assign their prices, sort order, and expected output parameters (e.g. how many pieces per batch). Price changes accept an **Effective from** date; see the dated-price rules below. You can also bulk import/export these using CSV files!
 * **Branch Management:** Add new stores, deactivate old ones, assign cashiers/supervisors to specific locations, mark a branch as a commissary, and assign that commissary to the branches it supplies.
 * **User Management:** Create employee accounts and assign their exact role (Admin, Supervisor, Cashier, or Commissary). 
 * **System Settings:** Configure global requirements like what time the daily ledger strictly cuts off.
@@ -95,6 +95,20 @@ The **Price Groups** page lets admins define independent price tiers (e.g., "Def
 * If a branch (or selling account) is mapped to a price group via `dl_branch_price_groups`, the system uses that tier's price.
 * If no group is mapped, the resolver falls back to the product's `current_price`.
 Resolution is handled by `dl_resolveProductPrice()` and is applied on every delivery posting and ledger snapshot.
+
+### Dated base-price changes and ledger repricing
+On **Products → Edit**, an admin can choose an **Effective from** date for a base-price change. The base-price history applies the new price to dated operations on and after that date; earlier dates retain the latest earlier history price. If no date is supplied through the API, the business date is used, preserving the previous same-day behavior. A matching active price-group window still takes precedence over base-price history.
+
+An **antedated** (today or earlier) change takes effect immediately and reprices eligible existing `dl_daily_ledger.price_snapshot` rows on and after the effective date using each row's branch price group. A **postdated** change leaves today's stored and displayed price, existing ledger snapshots, and earlier dated operations unchanged. New entries begin using the new price when its effective date arrives. Opening the admin Products page on or after that date performs one idempotent self-heal of the stored `current_price`; date-aware catalogs also resolve the effective price directly, so a product re-save or price scheduler is not required.
+
+An antedated reprice can be rerun with `POST /daily-ledger/api/v1/admin/products/reprice` after reopening a skipped day. The response and audit record report updated, unchanged, and skipped rows plus skipped branch dates.
+
+Financial immutability rules:
+* Closed days and days with a frozen variance snapshot are skipped and listed in the response. An authorized admin/supervisor must use the audited reopen workflow before repricing them.
+* Report amounts update automatically because they are derived as quantity × `price_snapshot`; quantity-only variance flags do not require amount recomputation.
+* Completed POS sales are never repriced.
+* Delivery-item and selling-account snapshots are not repriced in this version.
+* CSV-imported price history starts at midnight on the import business date.
 
 ## 8. Selling Accounts (Phase D, feature-flagged)
 When **Selling Accounts** is enabled (default OFF), a branch can host multiple consignment-style ledgers — for example a **Bread Cart** parked at a mall, or a **Reseller** sub-account. Each selling account:

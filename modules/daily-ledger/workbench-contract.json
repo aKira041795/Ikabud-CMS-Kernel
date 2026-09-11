@@ -88,6 +88,7 @@
                 "/daily-ledger/api/v1/admin/products",
                 "/daily-ledger/api/v1/admin/products/import-csv",
                 "/daily-ledger/api/v1/admin/products/update",
+                "/daily-ledger/api/v1/admin/products/reprice",
                 "/daily-ledger/api/v1/admin/reopen-day",
                 "/daily-ledger/api/v1/admin/settings/branding-asset",
                 "/daily-ledger/api/v1/admin/settings/permissions",
@@ -882,6 +883,33 @@
         {
             "id": "action-daily-ledger-api-v1-admin-products-update",
             "route": "/daily-ledger/api/v1/admin/products/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-products-reprice",
+            "route": "/daily-ledger/api/v1/admin/products/reprice",
             "method": "POST",
             "requires": {
                 "authenticated": true,

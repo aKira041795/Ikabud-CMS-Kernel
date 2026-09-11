@@ -98,7 +98,10 @@
                     <td class="font-mono text-xs text-gray-500">{p.sku}</td>
                     <td class="font-medium text-gray-900">{p.name}</td>
                     <td class="text-xs text-gray-600 uppercase tracking-wider">{p.product_category}</td>
-                    <td class="text-right font-semibold text-gray-900">PHP {p.current_price}</td>
+                    <td class="text-right font-semibold text-gray-900">
+                        PHP {p.current_price}
+                        <span class="block text-xs font-normal text-gray-400">Effective {p.current_price_effective_from | default:'date not recorded'}</span>
+                    </td>
                     <td class="text-sm text-gray-600">
                         {if (p.output_pieces_per_batch | default:0) > 0}
                         {p.output_pieces_per_batch} {p.output_unit_label} / batch
@@ -123,7 +126,7 @@
                         {if p.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0})">Edit</button>
+                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}')">Edit</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -223,6 +226,12 @@
                         </div>
                     </div>
                     <div class="form-group">
+                        <label class="form-label" for="edit-effective-from">Effective from</label>
+                        <input class="form-input" type="date" id="edit-effective-from" value="{today}" onchange="updateEffectiveFromWarning()">
+                        <p class="text-xs text-gray-400 mt-1">Current price effective date: <span id="edit-current-price-effective">Not recorded</span></p>
+                        <p class="hidden text-xs text-amber-700 mt-2" id="edit-effective-warning">A past effective date will reprice open ledger entries from that date onward. Closed or frozen days are skipped; reopen them and run the price update again.</p>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Status</label>
                         <select class="form-input" id="edit-active">
                             <option value="1">Active</option>
@@ -260,7 +269,7 @@
                     </div>
                 </div>
             </div>
-            <p class="text-sm text-muted mt-4">Price changes do not alter past sales data because historical rows use stored price snapshots.</p>
+            <p class="text-sm text-muted mt-4">Dated price changes update mutable daily-ledger snapshots only. Completed POS sales, deliveries, and selling-account snapshots are not repriced.</p>
         </div>
         <div class="modal-actions product-modal__actions">
             <button class="btn btn-outline" onclick="closeModal('edit-modal')">Cancel</button>
@@ -290,12 +299,13 @@
 {block scripts}
 <script>
     var BASE = '{base_url}';
+    var TODAY = '{today}';
 
     function openAddProduct() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-name').focus(); }
     function openImportProduct() { document.getElementById('import-modal').classList.add('show'); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack) {
+    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack, currentPriceEffectiveFrom) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name;
         document.getElementById('edit-category').value = category || 'bread';
@@ -307,8 +317,16 @@
         document.getElementById('edit-batch-kilo-qty').value = (batchKiloQty && batchKiloQty > 0) ? batchKiloQty : '';
         document.getElementById('edit-batch-egg-qty').value = (batchEggQty && batchEggQty > 0) ? batchEggQty : '';
         document.getElementById('edit-pcs-per-pack').value = (pcsPerPack && pcsPerPack > 0) ? pcsPerPack : '';
+        document.getElementById('edit-effective-from').value = TODAY;
+        document.getElementById('edit-current-price-effective').textContent = currentPriceEffectiveFrom || 'Not recorded';
+        updateEffectiveFromWarning();
         document.getElementById('edit-modal').classList.add('show');
         document.getElementById('edit-name').focus();
+    }
+
+    function updateEffectiveFromWarning() {
+        var selected = document.getElementById('edit-effective-from').value;
+        document.getElementById('edit-effective-warning').classList.toggle('hidden', !selected || selected >= TODAY);
     }
 
     function submitAddProduct() {
@@ -354,6 +372,7 @@
                 name: document.getElementById('edit-name').value,
                 product_category: document.getElementById('edit-category').value,
                 price: parseFloat(document.getElementById('edit-price').value) || 0,
+                effective_from: document.getElementById('edit-effective-from').value,
                 sort_order: parseInt(document.getElementById('edit-sort').value) || 0,
                 is_active: parseInt(document.getElementById('edit-active').value),
                 output_pieces_per_batch: parseInt(document.getElementById('edit-output-pieces').value, 10) || 0,
@@ -367,7 +386,10 @@
         .then(function(res) {
             if (res.ok) {
                 closeModal('edit-modal');
-                showToast('Product updated');
+                var reprice = res.reprice || {};
+                var message = 'Product updated; ' + (reprice.updated_rows || 0) + ' ledger row(s) repriced';
+                if ((reprice.skipped_rows || 0) > 0) message += ', ' + reprice.skipped_rows + ' closed/frozen row(s) skipped';
+                showToast(message);
                 setTimeout(function() { window.refreshMainContent(); }, 600);
             } else {
                 showToast(res.error || 'Failed');

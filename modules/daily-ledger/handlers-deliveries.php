@@ -778,7 +778,7 @@ function dl_postDeliveryToSellingAccount(int $deliveryId): array
 
         $price = (float)($item['price_snapshot'] ?? 0.0);
         if ($price <= 0) {
-            $price = (float)($db->query('SELECT current_price FROM dl_products WHERE id = :id LIMIT 1', [':id' => $productId])->fetchColumn() ?: 0.0);
+            $price = dl_resolveBaseProductPrice($productId, $deliveryDate);
         }
 
         $existing = $db->query(

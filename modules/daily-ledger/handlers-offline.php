@@ -207,14 +207,15 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
     $ledgerRows = [];
     if ($branchId > 0 && $db) {
         try {
+            $effectivePrice = dl_effectivePriceSql('p', ':offline_price_at');
             $stmt = $db->prepare(
-                'SELECT p.id, p.name, p.sku, p.current_price, p.product_category, p.output_unit_label
+                'SELECT p.id, p.name, p.sku, ' . $effectivePrice . ' AS current_price, p.product_category, p.output_unit_label
                    FROM dl_products p
                    INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
                   WHERE p.is_active = 1
                   ORDER BY p.sort_order, p.name'
             );
-            $stmt->execute([':bid' => $branchId]);
+            $stmt->execute([':bid' => $branchId, ':offline_price_at' => $today]);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {
             $products = [];

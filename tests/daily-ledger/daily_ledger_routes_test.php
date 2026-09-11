@@ -106,6 +106,7 @@ $h->test('POS API POST', $hasPosApiPost);
 $h->test('Delivery-edit POST route present', isset($postRoutes['/daily-ledger/api/v1/cashier/ledger/delivery-edit']));
 $h->test('Delivery-detail GET route present', isset($getRoutes['/daily-ledger/api/v1/cashier/ledger/delivery-detail']));
 $h->test('Change-destination POST route present', isset($postRoutes['/daily-ledger/api/v1/admin/deliveries/change-destination']));
+$h->test('Dated product reprice POST route present', ($postRoutes['/daily-ledger/api/v1/admin/products/reprice'] ?? null) === 'daily-ledger:apiRepriceProduct');
 
 // ─── Handler Function Mapping ───────────────────────────────────
 $h->section('Handler Function Mapping');
@@ -152,6 +153,7 @@ $requiredHandlers = [
     'apiSaveLedgerBatch',
     'apiCloseDay',
     'apiReopenDay',
+    'apiRepriceProduct',
     'apiProductionOutput',
     'apiProductionWithdrawal',
     'apiProductionReverse',
