@@ -27,6 +27,8 @@ $deliveries = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-l
 $sellingAccountsPath = __DIR__ . '/../templates/modules/daily-ledger/admin/selling-accounts.disyl';
 $sellingAccounts = is_file($sellingAccountsPath) ? (string)file_get_contents($sellingAccountsPath) : '';
 $priceGroups = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/admin/price-groups.disyl');
+$ledger = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/cashier/ledger.disyl');
+$handlers = (string)file_get_contents(__DIR__ . '/../modules/daily-ledger/handlers.php');
 
 dlFeedbackTest(
     'deliveries button actions avoid alert dialogs',
@@ -74,6 +76,38 @@ dlFeedbackTest(
 dlFeedbackTest(
     'price groups update action shows failure toast',
     str_contains($priceGroups, "showToast(err.message || 'Failed to update price group', 'error');")
+);
+
+$requireAuthStart = strpos($handlers, 'function dlRequireAuth(');
+$requireAuthEnd = strpos($handlers, 'function dlAuthenticatedHomeRedirect(', $requireAuthStart ?: 0);
+$requireAuthSource = ($requireAuthStart !== false && $requireAuthEnd !== false)
+    ? substr($handlers, $requireAuthStart, $requireAuthEnd - $requireAuthStart)
+    : '';
+dlFeedbackTest(
+    'dlRequireAuth API 401 payloads identify an expired session',
+    substr_count($requireAuthSource, "'error' => 'Auth required', 'code' => 'session_expired'") === 2
+);
+dlFeedbackTest(
+    'ledger defines one session-expiry handler that redirects to login',
+    substr_count($ledger, 'window.dlSessionExpired = function(meta)') === 1
+        && str_contains($ledger, "window.location.assign('/daily-ledger/login')")
+        && str_contains($ledger, 'clearInterval(cloudProbeInterval)')
+);
+$classifierStart = strpos($ledger, 'function shouldQueueOperationFailure(');
+$classifierEnd = strpos($ledger, 'function replayPendingOperations(', $classifierStart ?: 0);
+$classifierSource = ($classifierStart !== false && $classifierEnd !== false)
+    ? substr($ledger, $classifierStart, $classifierEnd - $classifierStart)
+    : '';
+dlFeedbackTest(
+    'Auth required is retryable rather than a deterministic rejection',
+    str_contains($classifierSource, 'isSessionExpiredResponse(res)')
+        && !str_contains($classifierSource, "'Auth required'")
+);
+dlFeedbackTest(
+    'ledger API JSON responses retain their HTTP status',
+    str_contains($ledger, 'body.__status = response.status')
+        && substr_count($ledger, '.then(dlResponseJson)') >= 10
+        && str_contains($ledger, 'return dlResponseJson(response).then(function(result)')
 );
 
 echo "\n" . str_repeat('-', 50) . "\n";

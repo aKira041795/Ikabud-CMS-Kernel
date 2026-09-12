@@ -329,8 +329,12 @@
         fetch(url, {
             headers: { 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '') }
         })
-        .then(function(r) { return r.json(); })
+        .then(dlResponseJson)
         .then(function(data) {
+            if (isSessionExpiredResponse(data)) {
+                window.dlSessionExpired(data);
+                return;
+            }
             var rows = (data && data.ok) ? (data.withdrawals || []) : [];
             __dlTodayAdjCache = rows;
             if (!rows.length) {
@@ -397,6 +401,43 @@
     var storageAvailable = true;
     var lastCloudSync = null;
     var saveFieldVersions = {};
+    var sessionExpired = false;
+    var cloudProbeInterval = null;
+    var sessionRedirectTimer = null;
+
+    function dlResponseJson(response) {
+        return response.json().then(function(body) {
+            if (body && typeof body === 'object') body.__status = response.status;
+            return body;
+        });
+    }
+
+    function isSessionExpiredResponse(res) {
+        return !!res && (res.__status === 401 || res.code === 'session_expired' || res.error === 'Auth required');
+    }
+
+    window.dlSessionExpired = function(meta) {
+        if (sessionExpired) return;
+        sessionExpired = true;
+        cloudOnline = false;
+        if (cloudProbeInterval !== null) {
+            clearInterval(cloudProbeInterval);
+            cloudProbeInterval = null;
+        }
+        window.removeEventListener('online', probeCloud);
+        var box = document.getElementById('connectivity-banner');
+        var text = document.getElementById('connectivity-banner-text');
+        if (box) {
+            box.className = 'mb-4 rounded-lg border border-red-400 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900';
+            box.setAttribute('role', 'alert');
+            box.classList.remove('hidden');
+        }
+        if (text) text.textContent = 'Your session has expired. Please sign in again - your unsaved entries are kept and will be retried.';
+        if (window.showToast) window.showToast('Your session has expired. Please sign in again.', 'error');
+        sessionRedirectTimer = setTimeout(function() {
+            window.location.assign('/daily-ledger/login');
+        }, 1200);
+    };
 
     function markStorageUnavailable() {
         storageAvailable = false;
@@ -520,6 +561,7 @@
         // errors instead of being falsely queued as transient and quarantined
         // later. function declarations hoist, so the later definition of
         // shouldQueueOperationFailure is available here.
+        if (isSessionExpiredResponse(res)) window.dlSessionExpired(res);
         return shouldQueueOperationFailure(res);
     }
     function syncPendingStorage() {
@@ -698,7 +740,8 @@
                     },
                     body: JSON.stringify({ enrollment_id: ctx.enId, device_id: ctx.deviceId, operations: payload,
                         pending_count: pendingReport.pending_count, pending_since: pendingReport.pending_since, pending_fields: pendingReport.pending_fields })
-                }).then(function(r) { return r.json(); }).then(function(res) {
+                }).then(dlResponseJson).then(function(res) {
+                    if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
                     if (!res.ok) { cloudOnline = false; return; }
                     var remove = [];
                     (res.results || []).forEach(function(r) {
@@ -782,11 +825,12 @@
     // review instead of retrying forever.
     function shouldQueueOperationFailure(res) {
         var error = String((res && res.error) || '');
+        if (isSessionExpiredResponse(res)) return true;
         if (error === '') return true;
         return [
             'already received', 'already', 'required', 'Invalid', 'invalid',
             'A different', 'Reference only', 'Day is closed', 'Branch not authorized',
-            'cannot override', 'Auth required', 'Add at least one', 'must be 255',
+            'cannot override', 'Add at least one', 'must be 255',
             'Unable to resolve', 'Missing', 'requires'
         ].every(function(fragment) { return error.indexOf(fragment) === -1; });
     }
@@ -820,10 +864,12 @@
                 },
                 body: JSON.stringify(payload)
             })
-            .then(function(r) { return r.json(); })
+            .then(dlResponseJson)
             .then(function(res) {
                 if (res.ok) {
                     removePendingOperation(entry.idempotency_key);
+                } else if (isSessionExpiredResponse(res)) {
+                    window.dlSessionExpired(res);
                 } else if (!shouldQueueOperationFailure(res)) {
                     quarantinePendingOperation(entry, 'server-rejected');
                     removePendingOperation(entry.idempotency_key);
@@ -891,7 +937,7 @@
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
             body: JSON.stringify(payload)
-        }).then(function(r) { return r.json(); });
+        }).then(dlResponseJson);
     }
 
     function saveField(input) {
@@ -921,7 +967,10 @@
                 removePending(productId, field);
             } else {
                 input.classList.add('error');
-                if (shouldQueueServerFailure(res)) {
+                if (isSessionExpiredResponse(res)) {
+                    vaultOrLegacyAddPending(pendingPayload);
+                    window.dlSessionExpired(res);
+                } else if (shouldQueueServerFailure(res)) {
                     vaultOrLegacyAddPending(pendingPayload);
                 } else {
                     quarantinePendingEntries([buildPendingPayload(productId, field, value)], 'server-rejected', PENDING_KEY);
@@ -1020,11 +1069,13 @@
                 },
                 body: JSON.stringify(payload)
             })
-            .then(function(r) { return r.json(); })
+            .then(dlResponseJson)
             .then(function(res) {
                 if (res.ok) {
                     removePendingIfUnchanged(payload);
                     if (getPending().length === 0) updateGlobalStatus('saved');
+                } else if (isSessionExpiredResponse(res)) {
+                    window.dlSessionExpired(res);
                 } else if (!shouldQueueServerFailure(res)) {
                     quarantinePendingEntries([payload], 'server-rejected', PENDING_KEY);
                     removePending(payload.product_id, payload.field);
@@ -1046,6 +1097,7 @@
         var box = document.getElementById('connectivity-banner');
         var text = document.getElementById('connectivity-banner-text');
         if (!box || !text) return;
+        if (sessionExpired) return;
         box.className = 'mb-4 rounded-lg border px-4 py-3 text-sm font-semibold';
         if (forcedState === 'storage' || !storageAvailable) {
             box.className += ' border-red-300 bg-red-50 text-red-800';
@@ -1066,6 +1118,7 @@
     }
 
     function probeCloud() {
+        if (sessionExpired) return Promise.resolve(false);
         if (!navigator.onLine) {
             cloudOnline = false;
             renderConnectivityBanner();
@@ -1081,12 +1134,16 @@
             signal: controller ? controller.signal : undefined
         }).then(function(response) {
             var contentType = response.headers.get('Content-Type') || '';
-            if (!response.ok || response.redirected || contentType.indexOf('application/json') === -1) {
+            if (response.redirected || contentType.indexOf('application/json') === -1) {
                 cloudOnline = false;
                 return false;
             }
-            return response.json().then(function(result) {
-                cloudOnline = result && result.ok === true;
+            return dlResponseJson(response).then(function(result) {
+                if (isSessionExpiredResponse(result)) {
+                    window.dlSessionExpired(result);
+                    return false;
+                }
+                cloudOnline = response.ok && result && result.ok === true;
                 if (!cloudOnline) return false;
                 if (window.DL_OFFLINE_SHELL) {
                     window.location.reload();
@@ -1123,7 +1180,7 @@
 
     window.addEventListener('online', probeCloud);
     window.addEventListener('offline', function() { cloudOnline = false; renderConnectivityBanner(); });
-    setInterval(function() { if (navigator.onLine) probeCloud(); }, 30000);
+    cloudProbeInterval = setInterval(function() { if (navigator.onLine) probeCloud(); }, 30000);
 
     // Tab/Enter navigation between inputs
     document.addEventListener('keydown', function(e) {
@@ -1183,8 +1240,9 @@
             },
             body: JSON.stringify(payload)
         })
-        .then(function(r) { return r.json(); })
+        .then(dlResponseJson)
         .then(function(res) {
+            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
             if (res.ok) {
                 showToast('Day closed successfully');
                 setTimeout(function() { window.refreshMainContent(); }, 800);
@@ -1224,8 +1282,9 @@
             },
             body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
         })
-        .then(function(r) { return r.json(); })
+        .then(dlResponseJson)
         .then(function(res) {
+            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
             if (res.ok) {
                 showToast('Day reopened');
                 setTimeout(function() { window.refreshMainContent(); }, 800);
@@ -1300,7 +1359,7 @@
                         'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
                     },
                     body: JSON.stringify({ device_id: deviceId })
-                }).then(function(r) { return r.json(); });
+                }).then(dlResponseJson);
             }).then(function(res) {
                 if (!res.ok || !res.enrollment || !res.bootstrap) {
                     throw new Error((res && res.error) || 'Enrollment failed');
@@ -1515,8 +1574,9 @@
             },
             body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
         })
-        .then(function(r) { return r.json(); })
+        .then(dlResponseJson)
         .then(function(res) {
+            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
             if (res.ok) {
                 showToast('PM shift finalized.', 'success');
                 location.reload();
@@ -1578,8 +1638,9 @@
                 rows: rows
             })
         })
-        .then(function(r) { return r.json(); })
+        .then(dlResponseJson)
         .then(function(res) {
+            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
             if (res.ok && rows.length > 0 && window.showToast) {
                 showToast('Carried forward the previous ending as AM beginning for ' + rows.length + ' product(s). Verify counts and adjust if needed.', 'success');
             }
@@ -1624,8 +1685,9 @@
                 rows: rows
             })
         })
-        .then(function(r) { return r.json(); })
+        .then(dlResponseJson)
         .then(function(res) {
+            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
             if (res.ok && rows.length > 0 && window.showToast) {
                 showToast('Adopted AM ending as PM beginning for ' + rows.length + ' product(s). Verify counts and adjust if needed.', 'success');
             }

@@ -2908,7 +2908,7 @@ function dlRequireAuth(array $roles = ['cashier', 'supervisor', 'admin']): array
     if (!$u) {
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
         if (str_starts_with($path, '/daily-ledger/api/')) {
-            dlJson(['ok' => false, 'error' => 'Auth required'], 401);
+            dlJson(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
             exit;
         }
         dlRedirect('/daily-ledger/login');
@@ -2917,7 +2917,7 @@ function dlRequireAuth(array $roles = ['cashier', 'supervisor', 'admin']): array
     if (!in_array($role, $roles, true)) {
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
         if (str_starts_with($path, '/daily-ledger/api/')) {
-            dlJson(['ok' => false, 'error' => 'Auth required'], 401);
+            dlJson(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
             exit;
         }
         dlRedirect('/daily-ledger/login');
@@ -5271,7 +5271,7 @@ function apiSaveLedgerField(array $params = []): void
             'cookie_present' => (is_string(kernelCookie(dlCookieName())) && kernelCookie(dlCookieName()) !== ''),
         ]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
+        $ctx->json(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
         return;
     }
 
@@ -5465,7 +5465,7 @@ function apiSaveLedgerBatch(array $params = []): void
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
+        $ctx->json(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
         return;
     }
 
@@ -6062,7 +6062,7 @@ function apiFinalizePmShift(array $params = []): void
     $date = (string)($input['date'] ?? dl_businessDate());
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
-        $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
+        $ctx->json(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
         return;
     }
     if (!$branchId || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
@@ -6185,7 +6185,7 @@ function apiCloseDay(array $params = []): void
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
+        $ctx->json(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
         return;
     }
 
@@ -6300,7 +6300,7 @@ function apiReopenDay(array $params = []): void
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
+        $ctx->json(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
         return;
     }
 
