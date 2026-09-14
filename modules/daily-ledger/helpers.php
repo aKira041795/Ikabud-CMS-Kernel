@@ -120,6 +120,28 @@ function dl_resolveWithdrawalLineForType(\Ikabud\Kernel\Contracts\ModuleDB $db, 
 }
 
 /**
+ * Reason codes accepted for a withdrawal / stock-adjustment line.
+ * Kept in one place so the create, edit and offline-replay paths agree.
+ */
+function dl_allowedWithdrawalReasons(): array
+{
+    return ['spoilage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation', 'damage', 'manual_adjustment', 'encoder_omission', 'other'];
+}
+
+/**
+ * Whether an Add Stock (adjustment_add) entry has to name a liable person.
+ *
+ * Add Stock normally resolves a shortage, so the stock has to be charged to
+ * somebody. `encoder_omission` is different: the stock was never lost, the
+ * entry was simply not recorded, so there is nothing to charge and no liable
+ * person is recorded (the flow stores liable_user_id = NULL).
+ */
+function dl_adjustmentAddNeedsLiable(?string $reasonCode): bool
+{
+    return $reasonCode !== 'encoder_omission';
+}
+
+/**
  * Returns a product's optional box size (pcs_per_pack) or null.
  */
 function dl_productPcsPerPack(\Ikabud\Kernel\Contracts\ModuleDB $db, int $productId): ?int

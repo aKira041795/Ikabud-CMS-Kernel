@@ -298,11 +298,18 @@
         window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: entry || {} }));
     };
     // Add stock WITHOUT a paper DR: the row-level "+" opens the Stock Adjustment
-    // (Add Stock) flow, which credits the Addt'l column and is charged to a liable
-    // person. The DR-tracked Receive Stock flow stays available from the action card
+    // (Add Stock) flow, which credits the Addt'l column. It defaults to the
+    // "Encoder omission" reason because the common case is a missed entry —
+    // nothing was lost, so no liable person is charged. Switching the reason to
+    // a variance one makes the charge-to field required again.
+    // The DR-tracked Receive Stock flow stays available from the action card
     // above for real incoming transfers.
     window.dlAddStockDirect = function(productId) {
-        window.openWithdrawalModal({ withdrawal_type: 'adjustment_add', product_id: productId });
+        window.openWithdrawalModal({
+            withdrawal_type: 'adjustment_add',
+            reason_code: 'encoder_omission',
+            product_id: productId
+        });
     };
     window.openEditDeliveryModal = function() {
         window.dispatchEvent(new CustomEvent('open-edit-delivery-modal', { detail: {} }));

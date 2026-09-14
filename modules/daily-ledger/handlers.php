@@ -3932,7 +3932,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
     $customReason = isset($header['custom_reason']) ? trim((string)$header['custom_reason']) : '';
     $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
-    $allowedReasons = ['spoilage','staff_meal','sampling','testing','promo','donation','damage','manual_adjustment','other'];
+    $allowedReasons = dl_allowedWithdrawalReasons();
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
         return;
@@ -3951,9 +3951,11 @@ function apiSaveCashierWithdrawals(array $params = []): void
     if ($reasonCode !== 'other') {
         $customReason = '';
     }
-    // adjustment_add requires a liable user
-    if ($type === 'adjustment_add' && $liableUserId === null) {
-        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person).'], 422);
+    // Add Stock resolves a shortage, so it has to name who is charged. An encoder
+    // omission is not a shortage — the entry was simply missed — so no one is
+    // charged and liable_user_id stays NULL.
+    if ($type === 'adjustment_add' && $liableUserId === null && dl_adjustmentAddNeedsLiable($reasonCode)) {
+        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person). Choose the Encoder omission reason if nothing was lost.'], 422);
         return;
     }
 
@@ -4344,13 +4346,13 @@ function apiUpdateCashierWithdrawal(array $params = []): void
     $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
     $customReason = isset($header['custom_reason']) ? trim((string)$header['custom_reason']) : '';
     $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
-    $allowedReasons = ['spoilage','staff_meal','sampling','testing','promo','donation','damage','manual_adjustment','other'];
+    $allowedReasons = dl_allowedWithdrawalReasons();
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
         return;
     }
-    if ($type === 'adjustment_add' && $liableUserId === null) {
-        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person).'], 422);
+    if ($type === 'adjustment_add' && $liableUserId === null && dl_adjustmentAddNeedsLiable($reasonCode)) {
+        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person). Choose the Encoder omission reason if nothing was lost.'], 422);
         return;
     }
     if ($reasonCode === 'other' && $customReason === '') {

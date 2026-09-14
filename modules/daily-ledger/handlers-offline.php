@@ -601,7 +601,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $reasonCode = !empty($header['reason_code']) ? (string)$header['reason_code'] : null;
     $customReason = trim((string)($header['custom_reason'] ?? ''));
     $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
-    $allowedReasons = ['spoilage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation', 'damage', 'manual_adjustment', 'other'];
+    $allowedReasons = dl_allowedWithdrawalReasons();
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
         throw new RuntimeException('Invalid reason_code', 422);
     }
@@ -617,8 +617,10 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     if ($reasonCode !== 'other') {
         $customReason = '';
     }
-    if ($type === 'adjustment_add' && $liableUserId === null) {
-        throw new RuntimeException('adjustment_add requires a liable_user_id (charge to person).', 422);
+    // Mirrors apiSaveCashierWithdrawals: an encoder omission is not a shortage,
+    // so no liable person is recorded.
+    if ($type === 'adjustment_add' && $liableUserId === null && dl_adjustmentAddNeedsLiable($reasonCode)) {
+        throw new RuntimeException('adjustment_add requires a liable_user_id (charge to person). Choose the Encoder omission reason if nothing was lost.', 422);
     }
 
     $validLines = [];
