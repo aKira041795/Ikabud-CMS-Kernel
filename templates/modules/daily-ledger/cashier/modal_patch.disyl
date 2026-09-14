@@ -214,11 +214,14 @@ function withdrawalModal() {
 
         closeModal() { this.isOpen = false; },
 
-        // An Add Stock entry needs a liable person because it resolves a shortage.
-        // "Encoder omission" means nothing was lost — the entry was simply missed —
-        // so no one is charged and no liable person is recorded.
+        // Only Add Stock asks for a liable person: it resolves a shortage, so the
+        // stock has to be charged to somebody. Every other type (charge, pullout,
+        // used, correction) records what it records and charges nobody, and their
+        // Charge-to field stays hidden. "Encoder omission" is Add Stock WITHOUT a
+        // charge, for stock that was never lost. Must mirror the server rule in
+        // apiSaveCashierWithdrawals / handlers-offline.
         needsLiable() {
-            return !(this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code === 'encoder_omission');
+            return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';
         },
 
         addEmptyLine() { this.lines.push({ product_id: '', quantity: '', unit: 'pcs' }); },
@@ -289,7 +292,7 @@ function withdrawalModal() {
                 return false;
             }
             if (this.needsLiable() && (!this.header.liable_user_id || String(this.header.liable_user_id).trim() === '')) {
-                this.errorMsg = 'Charge to (liable person) is required for Add Stock adjustments.';
+                this.errorMsg = 'Charge to (liable person) is required for Add Stock that resolves a shortage. Use the Encoder omission reason if nothing was lost.';
                 return false;
             }
             var isCorrection = this.header.withdrawal_type === 'correction';

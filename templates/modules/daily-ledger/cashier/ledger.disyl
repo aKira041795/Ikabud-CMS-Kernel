@@ -312,6 +312,11 @@
             product_id: productId
         });
     };
+    // Row-level W/Draw: same convenience as "+" — open on the row the operator
+    // clicked instead of making them scroll the product list to find it.
+    window.dlAdjustRowDirect = function(productId) {
+        window.openWithdrawalModal({ product_id: productId });
+    };
     window.openEditDeliveryModal = function() {
         window.dispatchEvent(new CustomEvent('open-edit-delivery-modal', { detail: {} }));
     };

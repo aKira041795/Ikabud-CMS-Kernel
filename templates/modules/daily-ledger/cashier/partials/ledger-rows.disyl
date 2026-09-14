@@ -40,8 +40,8 @@
         <button type="button"
                 class="withdraw-trigger ml-auto inline-flex w-20 items-center justify-end gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-sm font-semibold text-amber-800 shadow-sm ring-1 ring-inset ring-amber-200 hover:bg-amber-100"
                 data-product="{row.product_id}"
-                onclick="openWithdrawalModal()"
-                title="Record adjustment — opens Stock Adjustment">
+                onclick="dlAdjustRowDirect({row.product_id})"
+                title="Record an adjustment for {row.name} — charge, pullout, used or correction. Opens Stock Adjustment on this product.">
             <span class="withdraw-total" data-field="withdraw" data-product="{row.product_id}">{row.withdraw}</span>
             <i class="fas fa-minus text-[10px]" aria-hidden="true"></i>
         </button>
