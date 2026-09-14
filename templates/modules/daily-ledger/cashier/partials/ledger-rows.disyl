@@ -25,8 +25,8 @@
         <button type="button"
                 class="addtl-trigger ml-auto inline-flex w-20 items-center justify-end gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-sm font-semibold text-emerald-800 shadow-sm ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
                 data-product="{row.product_id}"
-                onclick="openReceiveModal()"
-                title="Add stock — opens Receive Stock so the DR is recorded">
+                onclick="dlAddStockDirect({row.product_id})"
+                title="Add stock — no paper DR needed. Records an Add Stock adjustment charged to a liable person; use Receive Stock for a DR-tracked delivery.">
             <span class="addtl-value" data-field="addtl" data-product="{row.product_id}">{row.addtl}</span>
             <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
         </button>

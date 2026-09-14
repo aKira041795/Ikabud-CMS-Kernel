@@ -185,8 +185,15 @@ function withdrawalModal() {
                 };
                 this.lines = [{ product_id: String(e.product_id), quantity: displayQty, unit: unit }];
             } else {
-                this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' };
-                this.lines = [{ product_id: '', quantity: '', unit: 'pcs' }];
+                // Honor a preset type/product so a caller can open the modal directly on
+                // "Add Stock" (adjustment_add) for a specific row, without a paper DR.
+                this.header = {
+                    withdrawal_type: detail.withdrawal_type || 'charge',
+                    reason_code: 'manual_adjustment',
+                    liable_user_id: '',
+                    custom_reason: ''
+                };
+                this.lines = [{ product_id: detail.product_id ? String(detail.product_id) : '', quantity: '', unit: 'pcs' }];
             }
             // One idempotency key per modal session: a retry after a lost response
             // reuses it, so the server replays the original result instead of

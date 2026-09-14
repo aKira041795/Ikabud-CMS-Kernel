@@ -297,6 +297,13 @@
     window.openWithdrawalModal = function(entry) {
         window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: entry || {} }));
     };
+    // Add stock WITHOUT a paper DR: the row-level "+" opens the Stock Adjustment
+    // (Add Stock) flow, which credits the Addt'l column and is charged to a liable
+    // person. The DR-tracked Receive Stock flow stays available from the action card
+    // above for real incoming transfers.
+    window.dlAddStockDirect = function(productId) {
+        window.openWithdrawalModal({ withdrawal_type: 'adjustment_add', product_id: productId });
+    };
     window.openEditDeliveryModal = function() {
         window.dispatchEvent(new CustomEvent('open-edit-delivery-modal', { detail: {} }));
     };
