@@ -1,0 +1,56 @@
+{* Server clock for the top bar.
+
+   Shows the server's current time rendered in the BUSINESS timezone, so anyone
+   can confirm at a glance that the clock driving shift and day boundaries is
+   correct. A host left on UTC reads "AM" through the local afternoon, which sent
+   adjustments to the wrong shift row; the timezone and offset are printed next to
+   the time so that mismatch is obvious instead of invisible.
+
+   Ticking is anchored to the server epoch supplied by dl_operatingClockLabel()
+   and formatted in the business timezone, so the display never silently switches
+   to the viewer's own timezone. *}
+{if server_now_label}
+<div class="hidden md:flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-1.5 ring-1 ring-inset ring-gray-200"
+     title="Current time on the server, shown in the business timezone. Shift and day boundaries follow this clock.">
+    <i class="fas fa-clock text-gray-400 text-xs" aria-hidden="true"></i>
+    <div class="leading-tight">
+        <div class="text-xs font-semibold text-gray-800 whitespace-nowrap"
+             id="dl-server-clock"
+             data-server-epoch-ms="{server_epoch_ms}"
+             data-server-timezone="{operating_timezone}">{server_now_label}</div>
+        <div class="text-[10px] text-gray-500 whitespace-nowrap">
+            server time · {operating_timezone} <span class="font-mono">{server_now_offset}</span>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var el = document.getElementById('dl-server-clock');
+    if (!el || el.dataset.dlClockBound === '1') return;
+    var zone = el.getAttribute('data-server-timezone') || '';
+    var serverEpoch = parseInt(el.getAttribute('data-server-epoch-ms'), 10);
+    if (!zone || !serverEpoch) return; // keep the server-rendered string
+    el.dataset.dlClockBound = '1';
+
+    var skew = Date.now() - serverEpoch;
+    var formatter = null;
+    try {
+        // Must mirror server_now_label's PHP format ('D, M j, Y, h:i:s A') so the
+        // first tick does not change the rendering.
+        formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: zone, weekday: 'short', day: '2-digit', month: 'short',
+            year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+        });
+    } catch (e) {
+        formatter = null; // unknown timezone: fall back to the epoch's UTC text
+    }
+
+    function tick() {
+        var now = new Date(Date.now() - skew);
+        el.textContent = formatter ? formatter.format(now) : now.toUTCString();
+    }
+    tick();
+    setInterval(tick, 1000);
+})();
+</script>
+{/if}

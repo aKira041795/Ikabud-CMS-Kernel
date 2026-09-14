@@ -147,8 +147,33 @@ $h->test('dispatch modal sends the viewed shift', str_contains($read($dir . 'dis
 $h->test('delivery-correction modal sends the viewed shift', str_contains($read($dir . 'edit_delivery_modal.disyl'), "shift: (window.SHIFT || '')"));
 $h->test('ledger cell save sends the viewed shift (pre-existing convention)', str_contains($read($dir . 'ledger.disyl'), 'shift: SHIFT'));
 
-// ─── The duplicate guard must be shift-aware ───────────────────────────
-$h->section('Duplicate guard is shift-aware');
+// ─── The top bar must show the clock the shifts follow ─────────────────
+$h->section('Top-bar server clock');
+
+$clock = dl_operatingClockLabel();
+$h->test('clock label helper exposes the server time', isset($clock['server_now_label'], $clock['server_now_offset'], $clock['server_epoch_ms']));
+
+$parsed = \DateTimeImmutable::createFromFormat(
+    'D, M j, Y, h:i:s A',
+    (string)($clock['server_now_label'] ?? ''),
+    new \DateTimeZone((string)($clock['operating_timezone'] ?? 'UTC'))
+);
+$h->test(
+    'the clock reads the current time in the business timezone',
+    $parsed instanceof \DateTimeImmutable && abs($parsed->getTimestamp() - time()) <= 5,
+    (string)($clock['server_now_label'] ?? '')
+);
+$h->test('the clock is anchored to the server clock, not the browser', abs(((int)($clock['server_epoch_ms'] ?? 0) / 1000) - microtime(true)) < 5);
+$h->test('the offset is rendered next to the timezone', (bool)preg_match('/^[+-]\d{2}:\d{2}$/', (string)($clock['server_now_offset'] ?? '')));
+
+$clockPartial = $read('templates/modules/daily-ledger/cashier/partials/server-clock.disyl');
+$h->test('the clock partial targets the business timezone', str_contains($clockPartial, 'data-server-timezone="{operating_timezone}"'));
+$h->test('the clock partial formats in an explicit timezone (never the viewer default)', str_contains($clockPartial, 'timeZone: zone'));
+$h->test('the clock partial keeps the server-rendered text when JS cannot format', str_contains($clockPartial, 'keep the server-rendered string'));
+$h->test('the ledger top bar includes the clock', str_contains($read('templates/modules/daily-ledger/cashier/ledger.disyl'), 'partials/server-clock.disyl'));
+$h->test('the ledger handler passes the clock values', str_contains((string)file_get_contents($base . '/modules/daily-ledger/handlers.php'), "'server_epoch_ms' => \$clockLabel['server_epoch_ms']"));
+
+
 
 $hashFor = static function (string $shift) {
     return dl_withdrawalDedupHash(8, 35, '2026-09-03', 'adjustment_add', 'encoder_omission', null, null, null, 1, null, 'pcs', $shift);

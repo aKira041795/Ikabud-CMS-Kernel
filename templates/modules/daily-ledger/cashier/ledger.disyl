@@ -4,6 +4,7 @@
 {/block}
 
 {block header_shift}
+{include "modules/daily-ledger/cashier/partials/server-clock.disyl"}
 {include "modules/daily-ledger/cashier/partials/shift-badge.disyl"}
 {/block}
 

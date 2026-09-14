@@ -1406,6 +1406,8 @@ function dl_maybeAutoCloseBranches(array $branchIds, ?int $actorId = null, ?\Dat
 function dl_operatingClockLabel(): array
 {
     $settings = dl_closeOfDaySettings();
+    $timezone = new \DateTimeZone($settings['operating_timezone']);
+    $now = new \DateTimeImmutable('now', $timezone);
 
     return [
         'business_date' => dl_businessDate(),
@@ -1413,6 +1415,16 @@ function dl_operatingClockLabel(): array
         'auto_close_enabled' => $settings['auto_close_enabled'],
         'operating_timezone' => $settings['operating_timezone'],
         'operating_region' => $settings['operating_region'],
+        // Server clock, rendered in the operating timezone so an operator can see
+        // at a glance whether the clock driving shift/day boundaries is correct
+        // (a server on UTC reads AM through the local afternoon). The epoch is
+        // timezone-free, so the top-bar clock can keep ticking client-side without
+        // ever falling back to the viewer's own timezone. The label format matches
+        // the client formatter exactly, so taking over for the tick does not
+        // visibly change the rendering.
+        'server_now_label' => $now->format('D, M j, Y, h:i:s A'),
+        'server_now_offset' => $now->format('P'),
+        'server_epoch_ms' => (int) round(microtime(true) * 1000),
     ];
 }
 
@@ -3625,6 +3637,11 @@ function handleCashierLedger(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        // Top-bar server clock (rendered by partials/server-clock.disyl) so the
+        // operator can confirm the business timezone the shifts follow.
+        'server_now_label' => $clockLabel['server_now_label'],
+        'server_now_offset' => $clockLabel['server_now_offset'],
+        'server_epoch_ms' => $clockLabel['server_epoch_ms'],
         'all_branches' => $allBranches,
         'incoming_count' => $incomingCount,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
