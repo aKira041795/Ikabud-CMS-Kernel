@@ -307,6 +307,47 @@ $h->test('the label carries the role and shift', str_contains((string)($liableBy
 $h->test('a role without a shift has no shift in the label', !str_contains((string)($liableById[$globalSupervisor]['label'] ?? ''), '·'), (string)($liableById[$globalSupervisor]['label'] ?? ''));
 $h->test('the shift is exposed as a field', ($liableById[$pmCashier]['shift'] ?? null) === 'PM');
 
+// ─── Shift rotation must not rewrite history ──────────────────────────
+// When the AM/PM cashiers revolve, the picker follows the CURRENT users, but a
+// past charge has to keep pointing at the cashier who was actually charged.
+// The attribution is stored as dl_cashier_withdrawals.liable_user_id and the
+// name is resolved from dl_users (soft delete keeps the row), so deactivating
+// the outgoing cashier must not blank their name on old adjustments.
+$h->section('Shift rotation keeps past attribution');
+
+$retiringCashier = 999985;
+$db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $retiringCashier]);
+$db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $retiringCashier]);
+dl_mx_seedUser($db, $retiringCashier, 'retiring-cashier', 'cashier', 'AM', 1, false, [$branchId]);
+
+$rotated = $apply(['withdrawal_type' => 'charge', 'reason_code' => 'damage', 'liable_user_id' => $retiringCashier], 4);
+$h->test('a charge is recorded against the cashier on duty', $rotated['ok'], $rotated['error']);
+
+$h->test('the outgoing cashier is offered while still active', in_array($retiringCashier, array_map(static fn (array $p) => $p['id'], dl_liablePersonsForBranch($db, $branchId)), true));
+
+// Rotation: the outgoing cashier is retired the way the UI retires users.
+$db->execute('UPDATE dl_users SET deleted_at = NOW(), is_active = 0 WHERE id = :id', [':id' => $retiringCashier]);
+$db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $retiringCashier]);
+
+$h->test('a retired cashier is no longer offered', !in_array($retiringCashier, array_map(static fn (array $p) => $p['id'], dl_liablePersonsForBranch($db, $branchId)), true));
+
+$keptStmt = $db->prepare("SELECT cw.liable_user_id, COALESCE(NULLIF(lu.full_name, ''), lu.username, '') AS liable_user_name
+                            FROM dl_cashier_withdrawals cw
+                            LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
+                           WHERE cw.branch_id = :b AND cw.withdrawal_type = 'charge' AND cw.liable_user_id = :u
+                           ORDER BY cw.id DESC LIMIT 1");
+$keptStmt->execute([':b' => $branchId, ':u' => $retiringCashier]);
+$kept = $keptStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+$h->test('the past charge still points at that cashier id', (int)($kept['liable_user_id'] ?? 0) === $retiringCashier);
+$h->test(
+    'the retired cashier\'s name still resolves on the past charge',
+    ($kept['liable_user_name'] ?? '') === 'retiring-cashier',
+    (string)($kept['liable_user_name'] ?? '')
+);
+
+$db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $retiringCashier]);
+$db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $retiringCashier]);
+
 $modalForList = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
 $h->test('the dropdown renders the label', str_contains($modalForList, "lp.label || (lp.name + ' (' + lp.role + ')')"));
 $h->test('both liable-person call sites use the shared helper', substr_count((string)file_get_contents($base . '/modules/daily-ledger/handlers.php'), 'dl_liablePersonsForBranch(') === 1 && substr_count((string)file_get_contents($base . '/modules/daily-ledger/handlers-offline.php'), 'dl_liablePersonsForBranch(') === 1);
