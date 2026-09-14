@@ -222,6 +222,9 @@ function editDeliveryModal() {
 
             var payload = {
                 branch_id: window.BRANCH_ID || null,
+                // Shift being viewed — keeps the correction on the ledger row the
+                // operator is actually looking at.
+                shift: (window.SHIFT || ''),
                 dr_number: (this.drNumber || '').trim(),
                 reason: (this.reason || '').trim(),
                 items: this.lines.filter(function(l) {

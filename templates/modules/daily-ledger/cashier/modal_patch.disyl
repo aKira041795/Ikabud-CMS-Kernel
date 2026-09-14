@@ -327,6 +327,11 @@ function withdrawalModal() {
             });
             var payload = {
                 date: LEDGER_DATE,
+                // The shift being viewed. Without this the server guesses from the
+                // request clock (or the user's assigned shift), so an adjustment made
+                // while looking at another shift/date lands on the wrong ledger row
+                // and the Addt'l cell the operator is fixing stays at zero.
+                shift: (window.SHIFT || ''),
                 header: {
                     withdrawal_type: this.header.withdrawal_type,
                     reason_code: this.header.reason_code || 'manual_adjustment',

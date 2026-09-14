@@ -1548,11 +1548,24 @@ function dl_userShiftBound(array $user): bool
  */
 function dl_resolveLedgerShift(array $user, array $input): array
 {
+    $explicit = $input['shift'] ?? null;
+    $explicit = in_array($explicit, ['AM', 'PM'], true) ? (string)$explicit : null;
+
+    // An explicit shift from the caller means the operator is looking at that
+    // shift (the ledger drives this from the AM/PM tab + date it is showing),
+    // so honour it instead of guessing from the request clock. Limited to the
+    // roles that correct a ledger across shifts: an assigned CASHIER stays
+    // locked to their own shift, which is the accountability control.
+    $role = (string)($user['role'] ?? '');
+    if ($explicit !== null && in_array($role, ['admin', 'supervisor'], true)) {
+        return ['shift' => $explicit, 'bound' => false];
+    }
+
     $boundShift = dl_userAssignedShift($user);
     if ($boundShift !== null) {
         return ['shift' => $boundShift, 'bound' => true];
     }
-    $shift = (($input['shift'] ?? dl_currentShift()) === 'PM') ? 'PM' : 'AM';
+    $shift = (($explicit ?? dl_currentShift()) === 'PM') ? 'PM' : 'AM';
     return ['shift' => $shift, 'bound' => false];
 }
 

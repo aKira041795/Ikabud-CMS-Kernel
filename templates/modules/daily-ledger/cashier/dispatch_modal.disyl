@@ -197,6 +197,9 @@ function dispatchModal() {
             var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
             var payload = {
                 branch_id: BRANCH_ID,
+                // Shift being viewed — the server must debit this ledger row, not
+                // whichever shift its request clock happens to resolve.
+                shift: (window.SHIFT || ''),
                 delivery_date: this.form.delivery_date,
                 dr_number: this.form.dr_number,
                 destination_type: this.form.destination_type || 'branch',

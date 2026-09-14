@@ -365,6 +365,9 @@ function receiveModal() {
 
             var payload = {
                 branch_id: this.currentBranchId(),
+                // Shift being viewed — the server must credit this ledger row, not
+                // whichever shift its request clock happens to resolve.
+                shift: (window.SHIFT || ''),
                 origin_type: this.paperForm.origin_type,
                 origin_id: this.paperForm.origin_id || null,
                 delivery_date: this.paperForm.delivery_date,
