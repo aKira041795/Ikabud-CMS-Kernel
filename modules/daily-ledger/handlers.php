@@ -4073,7 +4073,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 $targetBranchId,
                 $qty,
                 $liableUserId,
-                $unit
+                $unit,
+                $shift
             );
 
             try {
@@ -4484,7 +4485,8 @@ function apiUpdateCashierWithdrawal(array $params = []): void
             $targetBranchId,
             $newQty,
             $liableUserId,
-            $newUnit
+            $newUnit,
+            $rowShift
         );
         // If the recomputed fingerprint matches a DIFFERENT existing row the
         // table-unique dedup index would reject the UPDATE — surface it as a

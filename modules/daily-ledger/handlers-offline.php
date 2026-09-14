@@ -719,7 +719,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                 $targetBranchId,
                 $qty,
                 $liableUserId,
-                $unit
+                $unit,
+                $shift
             );
 
             try {

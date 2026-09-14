@@ -35,6 +35,7 @@ $h->fingerprint('modules/daily-ledger/handlers-deliveries.php');
 $h->fingerprint('modules/daily-ledger/database/migrations/049_nullable_endings_and_shift_status.sql');
 $h->fingerprint('modules/daily-ledger/database/migrations/051_variance_shift_inputs.sql');
 $h->fingerprint('modules/daily-ledger/database/migrations/052_cashier_withdrawals_dedup_hash.sql');
+$h->fingerprint('modules/daily-ledger/database/migrations/059_refresh_dedup_hash_with_shift.sql');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
@@ -713,17 +714,18 @@ $db->execute('INSERT INTO dl_products (id, sku, name, current_price, sort_order,
 ]);
 $db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)', [':b' => $branchId, ':p' => $pidHash]);
 
-$phpHash = dl_withdrawalDedupHash($branchId, $pidHash, $dedupDate, 'pullout', 'spoilage', null, null, null, 3, 2);
+$phpHash = dl_withdrawalDedupHash($branchId, $pidHash, $dedupDate, 'pullout', 'spoilage', null, null, null, 3, 2, 'pcs', 'AM');
 $db->execute(
-    'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
-     VALUES (:b, :p, :d, :t, :rc, :cr, :dr, :tb, :q, :e, :l, :dh)',
-    [':b' => $branchId, ':p' => $pidHash, ':d' => $dedupDate, ':t' => 'pullout', ':rc' => 'spoilage',
+    'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, encoded_by, liable_user_id, dedup_hash)
+     VALUES (:b, :p, :d, :shift, :t, :rc, :cr, :dr, :tb, :q, :e, :l, :dh)',
+    [':b' => $branchId, ':p' => $pidHash, ':d' => $dedupDate, ':shift' => 'AM', ':t' => 'pullout', ':rc' => 'spoilage',
      ':cr' => null, ':dr' => null, ':tb' => null, ':q' => 3, ':e' => 1, ':l' => 2, ':dh' => $phpHash]
 );
-// The SQL backfill expression (migration 057) includes the normalized unit
-// component to match the unit-aware PHP helper byte-for-byte.
+// The SQL backfill expression (migration 059, which supersedes 052/057) carries
+// the normalized unit component and the ledger shift, so it must match the
+// shift-aware PHP helper byte-for-byte.
 $sqlHash = (string)$db->query(
-    "SELECT SHA1(CONCAT_WS('|', branch_id, product_id, ledger_date, withdrawal_type, COALESCE(reason_code,''), COALESCE(custom_reason,''), COALESCE(dr_number,''), COALESCE(target_branch_id,''), quantity, COALESCE(liable_user_id,''), COALESCE(NULLIF(unit,''),'pcs')))
+    "SELECT SHA1(CONCAT_WS('|', branch_id, product_id, ledger_date, withdrawal_type, COALESCE(reason_code,''), COALESCE(custom_reason,''), COALESCE(dr_number,''), COALESCE(target_branch_id,''), quantity, COALESCE(liable_user_id,''), COALESCE(NULLIF(unit,''),'pcs'), COALESCE(shift,'')))
        FROM dl_cashier_withdrawals WHERE branch_id = " . (int)$branchId . " AND product_id = " . (int)$pidHash . " AND ledger_date = '$dedupDate' LIMIT 1"
 )->fetchColumn();
 $h->test('PHP dedup hash matches SQL backfill expression', $phpHash === $sqlHash);

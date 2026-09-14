@@ -132,7 +132,8 @@
     "database/migrations/055_cashier_withdrawal_shift.sql",
     "database/migrations/056_cashier_withdrawal_quantity_signed.sql",
     "database/migrations/057_refresh_dedup_hash_with_unit.sql",
-    "database/migrations/058_encoder_omission_reason.sql"
+    "database/migrations/058_encoder_omission_reason.sql",
+    "database/migrations/059_refresh_dedup_hash_with_shift.sql"
   ],
   "capabilities": {
     "exposes": [

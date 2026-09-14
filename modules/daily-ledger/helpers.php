@@ -44,8 +44,14 @@ function dl_isDuplicateKeyError(\PDOException $e): bool
  * `unit` ('pcs'|'box') is part of the fingerprint so that withdrawing a
  * whole box and withdrawing the same number of loose pieces are distinct
  * rows even though `quantity` stores the piece-equivalent for both.
+ *
+ * `shift` ('AM'|'PM') is part of the fingerprint for the same reason: the
+ * ledger is shift-scoped, so the same adjustment legitimately exists on both
+ * shifts of one date. Without it, recording 1 pc on PM after 1 pc was already
+ * recorded on AM was rejected as a duplicate (the guard matches on content,
+ * and the shift was not part of the content).
  */
-function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDate, string $type, ?string $reasonCode, ?string $customReason, ?string $drNumber, ?int $targetBranchId, int $qty, ?int $liableUserId, string $unit = 'pcs'): string
+function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDate, string $type, ?string $reasonCode, ?string $customReason, ?string $drNumber, ?int $targetBranchId, int $qty, ?int $liableUserId, string $unit = 'pcs', ?string $shift = null): string
 {
     return sha1(implode('|', [
         (string)$branchId,
@@ -59,6 +65,7 @@ function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDat
         (string)$qty,
         (string)($liableUserId ?? ''),
         (string)($unit === '' ? 'pcs' : $unit),
+        (string)($shift ?? ''),
     ]));
 }
 

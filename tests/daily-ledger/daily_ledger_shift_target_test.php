@@ -35,6 +35,7 @@ $h->fingerprint('templates/modules/daily-ledger/cashier/ledger.disyl');
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
 require_once $base . '/modules/daily-ledger/helpers.php';
+require_once $base . '/modules/daily-ledger/handlers-offline.php';
 require_once $base . '/modules/daily-ledger/handlers.php';
 
 app()->tenant()->setTenantId(207);
@@ -145,6 +146,102 @@ $h->test('receive modal sends the viewed shift', str_contains($read($dir . 'rece
 $h->test('dispatch modal sends the viewed shift', str_contains($read($dir . 'dispatch_modal.disyl'), "shift: (window.SHIFT || '')"));
 $h->test('delivery-correction modal sends the viewed shift', str_contains($read($dir . 'edit_delivery_modal.disyl'), "shift: (window.SHIFT || '')"));
 $h->test('ledger cell save sends the viewed shift (pre-existing convention)', str_contains($read($dir . 'ledger.disyl'), 'shift: SHIFT'));
+
+// ─── The duplicate guard must be shift-aware ───────────────────────────
+$h->section('Duplicate guard is shift-aware');
+
+$hashFor = static function (string $shift) {
+    return dl_withdrawalDedupHash(8, 35, '2026-09-03', 'adjustment_add', 'encoder_omission', null, null, null, 1, null, 'pcs', $shift);
+};
+$h->test('the same line on AM and PM fingerprints differently', $hashFor('AM') !== $hashFor('PM'));
+$h->test('the same line on the same shift fingerprints identically', $hashFor('PM') === $hashFor('PM'));
+$h->test('a legacy NULL shift stays distinct from AM/PM', $hashFor('PM') !== dl_withdrawalDedupHash(8, 35, '2026-09-03', 'adjustment_add', 'encoder_omission', null, null, null, 1, null, 'pcs', null));
+
+$dedupBranchId = 99057;
+$dedupProductId = 99057;
+$dedupDate = '2030-02-16';
+
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_cashier_withdrawals WHERE branch_id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $dedupProductId]);
+$db->execute(
+    'INSERT INTO dl_branches (id, code, name, address, default_supply_mode, is_commissary, is_active)
+     VALUES (:id, :code, :name, :addr, :mode, 0, 1)',
+    [':id' => $dedupBranchId, ':code' => 'T-DEDUP', ':name' => 'Dedup Test Branch', ':addr' => 'Test', ':mode' => 'self_managed']
+);
+$db->execute(
+    'INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active)
+     VALUES (:id, :sku, :name, 25.0, 0, 1)',
+    [':id' => $dedupProductId, ':sku' => 'DEDUP-TEST', ':name' => 'Dedup Test Product']
+);
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)', [':b' => $dedupBranchId, ':p' => $dedupProductId]);
+
+/** Apply the identical Add Stock line on a given shift through the real worker. */
+$applyAdd = static function (string $shift) use ($admin, $dedupBranchId, $dedupDate, $dedupProductId) {
+    return dl_offlineApplyWithdrawal($admin, [
+        'type' => 'withdrawal',
+        'payload' => [
+            'branch_id' => $dedupBranchId,
+            'date' => $dedupDate,
+            'shift' => $shift,
+            'header' => ['withdrawal_type' => 'adjustment_add', 'reason_code' => 'encoder_omission'],
+            'lines' => [['product_id' => $dedupProductId, 'quantity' => 1, 'unit' => 'pcs']],
+        ],
+    ]);
+};
+
+$amApplied = null;
+$amError = '';
+try {
+    $amApplied = $applyAdd('AM');
+} catch (Throwable $e) {
+    $amError = $e->getMessage();
+}
+$h->test('the first (AM) line is recorded', is_array($amApplied) && !empty($amApplied['ok']), $amError);
+
+$pmApplied = null;
+$pmError = '';
+try {
+    $pmApplied = $applyAdd('PM');
+} catch (Throwable $e) {
+    $pmError = $e->getMessage();
+}
+$h->test(
+    'the identical line on PM is NOT treated as a duplicate',
+    is_array($pmApplied) && !empty($pmApplied['ok']) && empty($pmApplied['duplicate']),
+    $pmError !== '' ? $pmError : json_encode($pmApplied)
+);
+
+$pmRepeatRejected = false;
+try {
+    $applyAdd('PM');
+} catch (Throwable $e) {
+    $pmRepeatRejected = true;
+}
+$h->test('replaying the identical PM line is still rejected', $pmRepeatRejected);
+
+$rows = [];
+foreach ($db->query("SELECT shift, addtl FROM dl_daily_ledger WHERE branch_id = {$dedupBranchId} AND product_id = {$dedupProductId} ORDER BY shift") as $r) {
+    $rows[$r['shift']] = (int)$r['addtl'];
+}
+$h->test('both shifts carry the adjustment', ($rows['AM'] ?? 0) === 1 && ($rows['PM'] ?? 0) === 1, json_encode($rows));
+
+$countStmt = $db->prepare('SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = :b AND product_id = :p');
+$countStmt->execute([':b' => $dedupBranchId, ':p' => $dedupProductId]);
+$h->test('exactly two withdrawal rows exist (AM + PM)', (int)$countStmt->fetchColumn() === 2);
+
+$h->test(
+    'migration 059 is registered in module.json',
+    in_array('database/migrations/059_refresh_dedup_hash_with_shift.sql', json_decode((string)file_get_contents($base . '/modules/daily-ledger/module.json'), true)['migrations'] ?? [], true)
+);
+
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_cashier_withdrawals WHERE branch_id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $dedupBranchId]);
+$db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $dedupProductId]);
 
 // ─── Cleanup ───────────────────────────────────────────────────────────
 $db->execute('DELETE FROM dl_users WHERE id IN (:a, :b)', [':a' => $boundCashierId, ':b' => $freeCashierId]);
