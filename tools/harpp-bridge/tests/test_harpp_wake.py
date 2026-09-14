@@ -446,7 +446,7 @@ class HarppWakeTest(unittest.TestCase):
     def test_monitor_reports_success_and_is_idempotent(self):
         logp = str(Path(self.tmp.name) / "job.log")
         Path(logp).write_text("work in progress\n", encoding="utf-8")
-        jid = harpp_wake.track_job(pid=self._dead_pid(), model="deepseek/deepseek-v4-pro",
+        jid = harpp_wake.track_job(pid=self._dead_pid(), model="deepseek/deepseek-v4-flash",
                                    task="run the suite", conversation_id=9, log_path=logp,
                                    marker="ALL HARPP CHECKS PASS")
         with Path(logp).open("a", encoding="utf-8") as stream:
@@ -502,7 +502,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertIn("Details:", message)
 
     def test_monitor_skips_alive_pid(self):
-        harpp_wake.track_job(pid=os.getpid(), model="deepseek/deepseek-v4-pro",
+        harpp_wake.track_job(pid=os.getpid(), model="deepseek/deepseek-v4-flash",
                              task="still working", conversation_id=1)
         self.assertEqual(harpp_wake.monitor_jobs(), 0)
         self.assertEqual(harpp_wake.list_jobs()[0]["status"], "running")
@@ -521,7 +521,7 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake.harpp_client.send_message = original
 
     def test_monitor_retries_when_delivery_fails(self):
-        harpp_wake.track_job(pid=self._dead_pid(), model="deepseek/deepseek-v4-pro",
+        harpp_wake.track_job(pid=self._dead_pid(), model="deepseek/deepseek-v4-flash",
                              task="flaky network", conversation_id=5, marker="ok")
         original = harpp_wake.harpp_client.send_message
         harpp_wake.harpp_client.send_message = lambda **kw: (_ for _ in ()).throw(RuntimeError("net down"))
@@ -557,7 +557,7 @@ class HarppWakeTest(unittest.TestCase):
         sent, original = self._patch_send()
         try:
             jid, proc = harpp_wake.launch_job(
-                model="deepseek/deepseek-v4-pro", task="quick test", conversation_id=7,
+                model="deepseek/deepseek-v4-flash", task="quick test", conversation_id=7,
                 command=["echo", "hello"])
             proc.wait(timeout=10)
             job = next(j for j in harpp_wake.list_jobs() if j["id"] == jid)
@@ -574,7 +574,7 @@ class HarppWakeTest(unittest.TestCase):
 
     def test_launch_job_captures_pid_identity(self):
         _, proc = harpp_wake.launch_job(
-            model="deepseek/deepseek-v4-pro", task="identity test", conversation_id=7,
+            model="deepseek/deepseek-v4-flash", task="identity test", conversation_id=7,
             command=["true"], quiet=True)
         try:
             job = harpp_wake.list_jobs()[-1]
@@ -591,7 +591,7 @@ class HarppWakeTest(unittest.TestCase):
         proc = None
         try:
             jid, proc = harpp_wake.launch_job(
-                model="deepseek/deepseek-v4-pro", task="timeout test", conversation_id=7,
+                model="deepseek/deepseek-v4-flash", task="timeout test", conversation_id=7,
                 command=["sleep", "60"], quiet=True, timeout=1)
             time.sleep(1.3)
             for _ in range(6):
@@ -702,7 +702,7 @@ class HarppWakeTest(unittest.TestCase):
         try:
             ok = harpp_wake.spawn_agent(
             "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1 delivered_ids=1'",
-                model="deepseek/deepseek-v4-pro", timeout=30, expected_replies=1,
+                model="deepseek/deepseek-v4-flash", timeout=30, expected_replies=1,
                 open_terminal=True)
             self.assertTrue(ok)
             self.assertEqual(len(calls), 1)
@@ -717,7 +717,7 @@ class HarppWakeTest(unittest.TestCase):
         # without the marker — otherwise every desktop-runner run is marked failed.
         ok = harpp_wake.spawn_agent(
             "prompt", command="echo 'clean result, no marker'",
-            model="deepseek/deepseek-v4-pro", timeout=30,
+            model="deepseek/deepseek-v4-flash", timeout=30,
             verify_delivery_receipts=False, require_marker=False)
         self.assertTrue(ok, "clean exit without marker must succeed in desktop-runner mode")
 
@@ -725,7 +725,7 @@ class HarppWakeTest(unittest.TestCase):
         # Wake-agent mode keeps requiring the marker + verified delivery.
         ok, reason = harpp_wake.spawn_agent(
             "prompt", command="echo 'no marker here'",
-            model="deepseek/deepseek-v4-pro", timeout=30,
+            model="deepseek/deepseek-v4-flash", timeout=30,
             verify_delivery_receipts=False, return_reason=True)
         self.assertFalse(ok)
         self.assertEqual(reason, "invalid_result")
@@ -755,7 +755,7 @@ class HarppWakeTest(unittest.TestCase):
         try:
             ok = harpp_wake.spawn_agent(
             "prompt", command="echo 'HARPP_WAKE_RESULT replies_sent=1 items_processed=1 delivered_ids=1'",
-                model="deepseek/deepseek-v4-pro", timeout=30, expected_replies=1,
+                model="deepseek/deepseek-v4-flash", timeout=30, expected_replies=1,
                 open_terminal=True)
             self.assertTrue(ok)
             self.assertLess(tee_log.stat().st_size, 4096)
@@ -811,7 +811,7 @@ class HarppWakeTest(unittest.TestCase):
         manifest = json.loads(path.read_text(encoding="utf-8"))
         stages = {stage["name"]: stage for stage in manifest["stages"]}
         self.assertEqual(stages["architect"]["model"], "openai-codex/gpt-5.6-sol")
-        self.assertEqual(stages["implement"]["model"], "deepseek/deepseek-v4-pro")
+        self.assertEqual(stages["implement"]["model"], "deepseek/deepseek-v4-flash")
         self.assertEqual(stages["review"]["model"], "openai-codex/gpt-5.6-sol")
         self.assertEqual(stages["release-gate"]["model"], "openai-codex/gpt-5.6-sol")
         self.assertTrue(all(stage.get("verify") not in (None, "", "true", ":")
@@ -867,7 +867,7 @@ class HarppWakeTest(unittest.TestCase):
         launched = []
         original_launch = harpp_wake.launch_job
         stages = [self._stage("implement"), self._stage("review")]
-        stages[0]["model"] = "deepseek/deepseek-v4-pro"
+        stages[0]["model"] = "deepseek/deepseek-v4-flash"
         stages[1]["model"] = "openai-codex/gpt-5.6-sol"
         original_models = [stage["model"] for stage in stages]
         harpp_wake.launch_job = lambda **kw: (launched.append(kw) or ("job-pref", None))
@@ -881,7 +881,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["model_selection"], "conversation_once")
             self.assertTrue(all(stage["model"] == "deepseek/deepseek-v4-flash"
                                 for stage in wf["stages"]))
-            self.assertEqual(wf["stages"][0]["configured_model"], "deepseek/deepseek-v4-pro")
+            self.assertEqual(wf["stages"][0]["configured_model"], "deepseek/deepseek-v4-flash")
             self.assertEqual(wf["stages"][1]["configured_model"], "openai-codex/gpt-5.6-sol")
             self.assertEqual(launched[0]["model"], "deepseek/deepseek-v4-flash")
         finally:
@@ -1409,7 +1409,7 @@ class HarppWakeTest(unittest.TestCase):
         try:
             harpp_wake._store_plan(12, "T1 - One\nT2 - Two\nT3 - Three\nT4 - Four")
             result = harpp_wake._exec_plan_command(
-                {"body": "Start T4"}, 12, "deepseek/deepseek-v4-pro")
+                {"body": "Start T4"}, 12, "deepseek/deepseek-v4-flash")
             self.assertEqual([stage["name"] for stage in started[0]["stages"]], ["T4"])
             self.assertIn("stages (1): T4", result)
         finally:
@@ -1421,7 +1421,7 @@ class HarppWakeTest(unittest.TestCase):
         # usage_exhausted even if its partial output mentions rate-limit words.
         ok, reason = harpp_wake.spawn_agent(
             "prompt", command="echo 'rate limit 429'; kill -TERM $$",
-            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+            model="deepseek/deepseek-v4-flash", timeout=30, return_reason=True)
         self.assertFalse(ok)
         self.assertNotEqual(reason, "usage_exhausted")
         self.assertEqual(reason, "exit_error")
@@ -1430,7 +1430,7 @@ class HarppWakeTest(unittest.TestCase):
         # A shell-reported signal exit (128+signal) is also not exhaustion.
         ok, reason = harpp_wake.spawn_agent(
             "prompt", command="sh -c 'echo rate limit 429; kill -TERM $$'",
-            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+            model="deepseek/deepseek-v4-flash", timeout=30, return_reason=True)
         self.assertFalse(ok)
         self.assertNotEqual(reason, "usage_exhausted")
 
@@ -1438,7 +1438,7 @@ class HarppWakeTest(unittest.TestCase):
         # A genuine normal non-zero exit with exhaustion text IS usage_exhausted.
         ok, reason = harpp_wake.spawn_agent(
             "prompt", command="echo 'rate limit 429'; exit 1",
-            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+            model="deepseek/deepseek-v4-flash", timeout=30, return_reason=True)
         self.assertFalse(ok)
         self.assertEqual(reason, "usage_exhausted")
 
@@ -1686,20 +1686,20 @@ class HarppWakeTest(unittest.TestCase):
 
     def test_pick_model_routing(self):
         items = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "use gpt sol to fix the login"}]
-        self.assertEqual(harpp_wake.pick_model(items, "deepseek/deepseek-v4-pro"), "openai-codex/gpt-5.6-sol")
+        self.assertEqual(harpp_wake.pick_model(items, "deepseek/deepseek-v4-flash"), "openai-codex/gpt-5.6-sol")
         items2 = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "check this quickly"}]
-        self.assertEqual(harpp_wake.pick_model(items2, "deepseek/deepseek-v4-pro"), "deepseek/deepseek-v4-pro")
+        self.assertEqual(harpp_wake.pick_model(items2, "deepseek/deepseek-v4-flash"), "deepseek/deepseek-v4-flash")
         items3 = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "use got sol and update"}]
-        self.assertEqual(harpp_wake.pick_model(items3, "deepseek/deepseek-v4-pro"), "openai-codex/gpt-5.6-sol")
+        self.assertEqual(harpp_wake.pick_model(items3, "deepseek/deepseek-v4-flash"), "openai-codex/gpt-5.6-sol")
         items4 = [{"kind": "message", "id": 1, "conversation_id": 2, "body": "run with flash"}]
-        self.assertEqual(harpp_wake.pick_model(items4, "deepseek/deepseek-v4-pro"), "deepseek/deepseek-v4-flash")
+        self.assertEqual(harpp_wake.pick_model(items4, "deepseek/deepseek-v4-flash"), "deepseek/deepseek-v4-flash")
 
     def test_model_batches_never_mix_conversations(self):
         items = [
             {"id": 1, "conversation_id": 10, "body": "use gpt sol"},
             {"id": 2, "conversation_id": 11, "body": "use gpt sol"},
         ]
-        batches = harpp_wake._temporary_model_batches(items, "deepseek/deepseek-v4-pro")
+        batches = harpp_wake._temporary_model_batches(items, "deepseek/deepseek-v4-flash")
         self.assertEqual(len(batches), 2)
         self.assertEqual([{row["conversation_id"] for row in batch} for _, batch in batches], [{10}, {11}])
 
@@ -1721,7 +1721,7 @@ class HarppWakeTest(unittest.TestCase):
         def fake_spawn(prompt, **kw):
             calls.append(kw.get("model"))
             # Requested model (gpt sol) fails; the configured default (deepseek pro) succeeds.
-            if kw.get("model") == "deepseek/deepseek-v4-pro":
+            if kw.get("model") == "deepseek/deepseek-v4-flash":
                 return (True, None)
             return (False, "usage_exhausted")
 
@@ -1733,9 +1733,9 @@ class HarppWakeTest(unittest.TestCase):
                 encoding="utf-8")
             ok = harpp_wake.maybe_wake(str(self.inbox), enabled=True, command="echo dry",
                                        cooldown=0, max_per_hour=0, timeout=30,
-                                       model="deepseek/deepseek-v4-pro")
+                                       model="deepseek/deepseek-v4-flash")
             self.assertTrue(ok)
-            self.assertEqual(calls, ["openai-codex/gpt-5.6-sol", "deepseek/deepseek-v4-pro"])
+            self.assertEqual(calls, ["openai-codex/gpt-5.6-sol", "deepseek/deepseek-v4-flash"])
         finally:
             harpp_wake.spawn_agent = original
             harpp_wake.harpp_client.harpp_notify = original_notify
@@ -1747,7 +1747,7 @@ class HarppWakeTest(unittest.TestCase):
 
         def fake_spawn(prompt, **kw):
             calls.append(kw.get("model"))
-            if kw.get("model") == "deepseek/deepseek-v4-flash":
+            if kw.get("model") == "groq/qwen/qwen3.8-27b":
                 return (True, None)
             return (False, "usage_exhausted")
 
@@ -1759,11 +1759,11 @@ class HarppWakeTest(unittest.TestCase):
                 encoding="utf-8")
             ok = harpp_wake.maybe_wake(str(self.inbox), enabled=True, command="echo dry",
                                        cooldown=0, max_per_hour=0, timeout=30,
-                                       model="deepseek/deepseek-v4-pro")
+                                       model="deepseek/deepseek-v4-flash")
             self.assertTrue(ok)
             self.assertEqual(calls, [
-                "deepseek/deepseek-v4-pro",
                 "deepseek/deepseek-v4-flash",
+                "groq/qwen/qwen3.8-27b",
             ])
         finally:
             harpp_wake.spawn_agent = original
@@ -1776,7 +1776,7 @@ class HarppWakeTest(unittest.TestCase):
 
         def fake_spawn(prompt, **kw):
             calls.append(kw.get("model"))
-            if kw.get("model") == "deepseek/deepseek-v4-pro":
+            if kw.get("model") == "deepseek/deepseek-v4-flash":
                 return (True, None)
             return (False, "invalid_result")
 
@@ -1788,9 +1788,9 @@ class HarppWakeTest(unittest.TestCase):
                             "body": "use gpt sol"}) + "\n", encoding="utf-8")
             self.assertTrue(harpp_wake.maybe_wake(
                 str(self.inbox), enabled=True, command="echo dry", cooldown=0,
-                max_per_hour=0, timeout=30, model="deepseek/deepseek-v4-pro"))
+                max_per_hour=0, timeout=30, model="deepseek/deepseek-v4-flash"))
             self.assertEqual(calls, [
-                "openai-codex/gpt-5.6-sol", "deepseek/deepseek-v4-pro"])
+                "openai-codex/gpt-5.6-sol", "deepseek/deepseek-v4-flash"])
         finally:
             harpp_wake.spawn_agent = original
             harpp_wake.harpp_client.harpp_notify = original_notify
@@ -1813,11 +1813,11 @@ class HarppWakeTest(unittest.TestCase):
             self.inbox.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
             self.assertTrue(harpp_wake.maybe_wake(
                 str(self.inbox), enabled=True, command="echo dry", cooldown=0,
-                max_per_hour=0, timeout=30, model="deepseek/deepseek-v4-pro"))
+                max_per_hour=0, timeout=30, model="deepseek/deepseek-v4-flash"))
             self.assertEqual(calls, [
                 ("openai-codex/gpt-5.6-sol", 1),
                 ("deepseek/deepseek-v4-flash", 1),
-                ("deepseek/deepseek-v4-pro", 1),
+                ("deepseek/deepseek-v4-flash", 1),
             ])
             self.assertEqual(harpp_wake.read_state()["messages"], [1, 2, 3])
         finally:
@@ -1857,7 +1857,7 @@ class HarppWakeTest(unittest.TestCase):
     def test_spawn_agent_classifies_usage_exhaustion_for_fallback(self):
         ok, reason = harpp_wake.spawn_agent(
             "prompt", command="echo 'token usage limit exceeded'; exit 1",
-            model="deepseek/deepseek-v4-pro", timeout=30, return_reason=True)
+            model="deepseek/deepseek-v4-flash", timeout=30, return_reason=True)
         self.assertFalse(ok)
         self.assertEqual(reason, "usage_exhausted")
 
@@ -1869,24 +1869,23 @@ class HarppWakeTest(unittest.TestCase):
         self.assertFalse(harpp_wake._model_exhausted({"log_path": str(logp)}))
 
     def test_delegate_stage_model_walks_fallback_order(self):
-        stage = {"name": "implement", "model": "deepseek/deepseek-v4-pro"}
-        self.assertEqual(harpp_wake._delegate_stage_model(stage), "deepseek/deepseek-v4-flash")
-        self.assertEqual(stage["model"], "deepseek/deepseek-v4-flash")
+        stage = {"name": "implement", "model": "deepseek/deepseek-v4-flash"}
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "groq/qwen/qwen3.8-27b")
+        self.assertEqual(stage["model"], "groq/qwen/qwen3.8-27b")
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.6-sol")
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.4")
         self.assertIsNone(harpp_wake._delegate_stage_model(stage))
 
     def test_delegate_stage_model_tries_manifest_model_after_temporary_preference(self):
         stage = {"name": "implement", "model": "deepseek/deepseek-v4-flash",
-                 "configured_model": "deepseek/deepseek-v4-pro"}
-        self.assertEqual(harpp_wake._delegate_stage_model(stage), "deepseek/deepseek-v4-pro")
+                 "configured_model": "openai-codex/gpt-5.6-sol"}
+        self.assertEqual(harpp_wake._delegate_stage_model(stage), "openai-codex/gpt-5.6-sol")
         self.assertEqual(stage["tried_models"], [
-            "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro"])
+            "deepseek/deepseek-v4-flash", "openai-codex/gpt-5.6-sol"])
 
     def test_reasoning_effort_is_explicit_and_tiered_for_all_models(self):
         # Every model gets an explicit reasoning_effort tier (never omitted).
-        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-pro", lane="wake"), "low")
+        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-flash", lane="wake"), "low")
         self.assertEqual(harpp_wake._reasoning_effort("openai-codex/gpt-5.6-sol", lane="wake"), "low")
         # Qwen (Groq) execution lanes run reasoning OFF (16K output cap); review/
         # analysis lanes use low reasoning (single-shot, small output).
@@ -1896,10 +1895,10 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual(harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", stage="review"), "low")
         self.assertEqual(harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", stage="release-gate"), "low")
         # Non-Qwen models keep the standard tiering.
-        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-pro", stage="implement"), "low")
+        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-flash", stage="implement"), "low")
         self.assertEqual(harpp_wake._reasoning_effort("openai-codex/gpt-5.6-sol", stage="review"), "medium")
         # Escalation to high only on repeated repair rounds.
-        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-pro", stage="implement", repair_round=2), "high")
+        self.assertEqual(harpp_wake._reasoning_effort("deepseek/deepseek-v4-flash", stage="implement", repair_round=2), "high")
         # Config override wins.
         self.assertEqual(
             harpp_wake._reasoning_effort("groq/qwen/qwen3.8-27b", lane="wake", config={"reasoning_effort": "high"}), "high")
@@ -2314,7 +2313,7 @@ class WorkflowManifestValidationTest(unittest.TestCase):
                 {"name": "architect", "model": "openai-codex/gpt-5.6-sol",
                  "prompt": "You are the architect.\n", "marker": "SOL_ARCH status=PASS",
                  "verify": "test -f ARCHITECTURE.md", "timeout": 1800},
-                {"name": "implement", "model": "deepseek/deepseek-v4-pro",
+                {"name": "implement", "model": "deepseek/deepseek-v4-flash",
                  "prompt": "You are the implementer.\n", "marker": "SOL_IMPL status=PASS",
                  "verify": "git diff --check", "timeout": 2400},
             ],
@@ -2922,7 +2921,7 @@ class HarppAdvisorTest(unittest.TestCase):
         # A deepseek/dev-pool model must also be refused (allowlist is openai-ideation/*).
         self._write_inbox([self._advisor_item(15, body="Plan: X")])
         items = harpp_wake.unprocessed_items(str(self.inbox))
-        adv = harpp_wake.advisor_config({"advisor": {"model": "deepseek/deepseek-v4-pro"}})
+        adv = harpp_wake.advisor_config({"advisor": {"model": "deepseek/deepseek-v4-flash"}})
         self.assertFalse(harpp_wake.maybe_wake_advisor(str(self.inbox), items, adv))
         self.assertEqual(self.spawns, [])
         self.assertNotIn(15, harpp_wake.read_state()["messages"])
@@ -3051,7 +3050,7 @@ class HarppCmsAssistantTest(unittest.TestCase):
             self._cms_item(6, title="Dev thread"), {"cms": {"conversation_title": "CMS Draft"}}))
 
     def test_cms_model_allowlist_deepseek_or_groq_only(self):
-        self.assertTrue(harpp_wake._cms_model_ok("deepseek/deepseek-v4-pro"))
+        self.assertTrue(harpp_wake._cms_model_ok("deepseek/deepseek-v4-flash"))
         self.assertTrue(harpp_wake._cms_model_ok("groq/llama-3.3-70b-versatile"))
         self.assertFalse(harpp_wake._cms_model_ok("openai-codex/gpt-5.4"))
         self.assertFalse(harpp_wake._cms_model_ok("openai-ideation/gpt-5.4"))
@@ -3060,11 +3059,11 @@ class HarppCmsAssistantTest(unittest.TestCase):
         self._write_inbox([self._cms_item(11, body="Create a draft post about launch")])
         items = harpp_wake.unprocessed_items(str(self.inbox))
         cms = harpp_wake.cms_config(
-            {"cms": {"model": "deepseek/deepseek-v4-pro", "cooldown": 0, "max_per_hour": 0}})
+            {"cms": {"model": "deepseek/deepseek-v4-flash", "cooldown": 0, "max_per_hour": 0}})
         self.assertTrue(harpp_wake.maybe_wake_cms(str(self.inbox), items, cms))
         self.assertEqual(len(self.spawns), 1)
         # Fixed deepseek model only; the "use gpt sol" alias must NOT redirect to Codex.
-        self.assertEqual(self.spawns[0]["model"], "deepseek/deepseek-v4-pro")
+        self.assertEqual(self.spawns[0]["model"], "deepseek/deepseek-v4-flash")
         self.assertNotIn("openai-codex", self.spawns[0]["model"])
         # The draft-only CMS contract is used.
         self.assertIn("DRAFT-ONLY", self.spawns[0]["prompt"])
@@ -3100,10 +3099,10 @@ class HarppCmsAssistantTest(unittest.TestCase):
         self._write_inbox([self._cms_item(13)])
         items = harpp_wake.unprocessed_items(str(self.inbox))
         cms = harpp_wake.cms_config(
-            {"cms": {"model": "deepseek/deepseek-v4-pro", "cooldown": 0, "max_per_hour": 0}})
+            {"cms": {"model": "deepseek/deepseek-v4-flash", "cooldown": 0, "max_per_hour": 0}})
         # Failed pass reports False (work remains staged).
         self.assertFalse(harpp_wake.maybe_wake_cms(str(self.inbox), items, cms))
-        self.assertEqual(self.spawns[0]["model"], "deepseek/deepseek-v4-pro")
+        self.assertEqual(self.spawns[0]["model"], "deepseek/deepseek-v4-flash")
         # Not processed -> staged for bounded retry; failure recorded once.
         self.assertNotIn(13, harpp_wake.read_state()["messages"])
         self.assertEqual(harpp_wake.read_state()["failures"].get("13"), 1)
@@ -3134,11 +3133,11 @@ class HarppCmsAssistantTest(unittest.TestCase):
         harpp_wake.harpp_client.load_config = lambda: {
             "advisor": {"enabled": False},
             "cms": {"enabled": True, "conversation_title": "CMS Assistant",
-                    "model": "deepseek/deepseek-v4-pro", "cooldown": 0, "max_per_hour": 0}}
+                    "model": "deepseek/deepseek-v4-flash", "cooldown": 0, "max_per_hour": 0}}
         harpp_wake.maybe_wake(str(self.inbox), enabled=True, command=None,
                               cooldown=0, max_per_hour=0, timeout=30)
         models = [s["model"] for s in self.spawns]
-        self.assertIn("deepseek/deepseek-v4-pro", models)
+        self.assertIn("deepseek/deepseek-v4-flash", models)
         self.assertNotIn("openai-codex", models)
         state = harpp_wake.read_state()
         self.assertIn(21, state["messages"])

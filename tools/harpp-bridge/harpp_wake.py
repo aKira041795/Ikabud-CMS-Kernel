@@ -62,7 +62,7 @@ WORKFLOW_REMEDIATION_MAX_CHARS = 12000
 # Execution/worker model: DeepSeek v4 Flash first (fast, cheap, low latency),
 # then Qwen3.8 27B on Groq as the secondary worker (fast ~450 tok/s, strong at
 # coding/agentic work, good instruction following). Architecture/review stays on
-# the stronger reasoning models (deepseek pro / codex sol, see governed-loop
+# the stronger reasoning models (deepseek flash / codex sol, see governed-loop
 # stages); the fallback chain escalates.
 EXECUTION_MODEL = "deepseek/deepseek-v4-flash"
 EXECUTION_FALLBACK_MODEL = "groq/qwen/qwen3.8-27b"
@@ -83,18 +83,19 @@ OUTPUT_DRAIN_TIMEOUT = 10
 MODEL_ALIASES = {
     "openai-codex/gpt-5.6-sol": ["openai-codex/gpt-5.6-sol", "gpt 5.6 sol", "gpt-5.6-sol", "gpt-sol", "gpt sol", "got sol", "codex sol", "openai codex", "codex", "sol", "gpt-5.6"],
     "openai-codex/gpt-5.4": ["gpt 5.4", "gpt-5.4", "5.4"],
-    "deepseek/deepseek-v4-pro": ["deepseek/deepseek-v4-pro", "deepseek pro", "v4 pro"],
-    "deepseek/deepseek-v4-flash": ["deepseek/deepseek-v4-flash", "deepseek flash", "v4 flash", "flash"],
+    # DeepSeek v4 Pro discontinued 2026-09-14 — Flash is the DeepSeek main model.
+    # Legacy phrases ("deepseek pro" / "v4 pro") resolve to Flash so operator habits still work.
+    "deepseek/deepseek-v4-flash": ["deepseek/deepseek-v4-flash", "deepseek flash", "v4 flash", "flash", "deepseek pro", "v4 pro"],
     "groq/qwen/qwen3.8-27b": ["groq/qwen/qwen3.8-27b", "groq qwen", "use groq", "qwen3.8", "qwen3.8-27b"],
 }
 # Ordered delegation chain when a model's token/usage/quota/balance is exhausted: the
 # engine retries with the next model in this list instead of burning bounded auto-repair
 # rounds on a model that cannot run. The stage's own model is always tried first.
-# Worker-first: flash -> qwen -> deepseek pro -> Codex (strongest reasoning).
+# Worker-first: flash -> qwen -> Codex (strongest reasoning).
+# (DeepSeek v4 Pro removed 2026-09-14 — discontinued; Flash is the DeepSeek main model.)
 MODEL_FALLBACK_ORDER = [
     "deepseek/deepseek-v4-flash",
     "groq/qwen/qwen3.8-27b",
-    "deepseek/deepseek-v4-pro",
     "openai-codex/gpt-5.6-sol",
     "openai-codex/gpt-5.4",
 ]
@@ -1223,7 +1224,7 @@ def _normalize_stage(stage: dict, index: int) -> dict:
     rec.setdefault("commit", False)
     rec.setdefault("prompt_file", None)
     rec.setdefault("prompt", None)
-    rec.setdefault("model", "deepseek/deepseek-v4-pro")
+    rec.setdefault("model", "deepseek/deepseek-v4-flash")
     rec.setdefault("configured_model", rec.get("model"))
     rec.setdefault("required_authority", _stage_required_authority(rec))
     rec.setdefault("attempt_count", 0)

@@ -693,7 +693,7 @@ def cmd_cms(args):
         print("2. Configure the lane on this desktop:")
         print("   harpp cms set base_url https://harpp.ikabudkernel.com")
         print("   harpp cms set token <raw-token>")
-        print("   harpp cms set model deepseek/deepseek-v4-pro")
+        print("   harpp cms set model deepseek/deepseek-v4-flash")
         print("   harpp cms enable")
         print("3. Create a conversation titled 'CMS Assistant' in the messenger.")
         print("4. Verify:")

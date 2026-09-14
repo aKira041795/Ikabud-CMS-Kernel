@@ -11,7 +11,7 @@
         },
         {
             "name": "implement",
-            "model": "deepseek/deepseek-v4-pro",
+            "model": "deepseek/deepseek-v4-flash",
             "prompt_file": "stages/implement.md",
             "marker": "SOL_IMPL status=PASS",
             "verify": "git diff --check",
