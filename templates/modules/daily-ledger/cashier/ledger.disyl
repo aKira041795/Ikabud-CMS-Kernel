@@ -363,7 +363,7 @@
             }
             var html = '<table class="w-full text-sm"><thead><tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">' +
                 '<th class="px-4 py-2">Product</th><th class="px-4 py-2">Type</th><th class="px-4 py-2 text-right">Qty</th>' +
-                '<th class="px-4 py-2">Reason</th><th class="px-4 py-2">Time</th><th class="px-4 py-2 text-right">Action</th></tr></thead><tbody>';
+                '<th class="px-4 py-2">Reason</th><th class="px-4 py-2">Charged to</th><th class="px-4 py-2">Time</th><th class="px-4 py-2 text-right">Action</th></tr></thead><tbody>';
             rows.forEach(function(r) {
                 var typeL = dlAdjTypeLabel(r.withdrawal_type);
                 var qty = String(r.quantity || 0) + (r.unit === 'box' ? ' box (' + (r.quantity || 0) + ' pcs)' : ' pcs');
@@ -378,6 +378,7 @@
                     '<td class="px-4 py-2 text-gray-600">' + dlEscHtml(typeL) + '</td>' +
                     '<td class="px-4 py-2 text-right font-mono">' + dlEscHtml(qty) + '</td>' +
                     '<td class="px-4 py-2 text-gray-600">' + dlEscHtml(reason) + '</td>' +
+                    '<td class="px-4 py-2 text-gray-600">' + (r.liable_user_name ? dlEscHtml(r.liable_user_name) : '<span class="text-gray-400">—</span>') + '</td>' +
                     '<td class="px-4 py-2 text-gray-500">' + dlEscHtml(time) + '</td>' +
                     '<td class="px-4 py-2 text-right">' + btn + '</td></tr>';
             });

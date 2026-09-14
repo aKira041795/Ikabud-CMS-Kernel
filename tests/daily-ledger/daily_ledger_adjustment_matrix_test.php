@@ -192,6 +192,31 @@ $chargeStmt = $db->prepare("SELECT liable_user_id FROM dl_cashier_withdrawals WH
 $chargeStmt->execute([':b' => $branchId]);
 $h->test('the charged person is stored on a charge', (int)$chargeStmt->fetchColumn() === $liableId);
 
+// The activity feed carries the person, and both operator surfaces show them.
+$auditStmt = $db->prepare("SELECT new_data FROM audit_logs WHERE action = 'withdrawal' AND branch_id = :b ORDER BY id DESC LIMIT 6");
+$auditStmt->execute([':b' => $branchId]);
+$auditHasLiable = false;
+foreach ($auditStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $auditRow) {
+    $payload = json_decode((string)$auditRow['new_data'], true);
+    if (is_array($payload) && (int)($payload['liable_user_id'] ?? 0) === $liableId) {
+        $auditHasLiable = true;
+        break;
+    }
+}
+$h->test('the audit entry records who was charged', $auditHasLiable);
+
+$handlersForLists = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$h->test(
+    "Today's Adjustments resolves the charged person's name",
+    str_contains($handlersForLists, 'AS liable_user_name') && str_contains($handlersForLists, 'LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id')
+);
+$h->test(
+    'the activity view resolves the charged id to a name',
+    str_contains($handlersForLists, "\$detailSource['liable_user_id'] = \$liableName")
+);
+$ledgerForLists = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/ledger.disyl');
+$h->test("Today's Adjustments renders a Charged to column", str_contains($ledgerForLists, '>Charged to</th>') && str_contains($ledgerForLists, 'r.liable_user_name'));
+
 $rowStmt = $db->prepare('SELECT reason_code, liable_user_id FROM dl_cashier_withdrawals WHERE branch_id = :b ORDER BY id DESC LIMIT 1');
 $rowStmt->execute([':b' => $branchId]);
 $lastRow = $rowStmt->fetch(PDO::FETCH_ASSOC) ?: [];

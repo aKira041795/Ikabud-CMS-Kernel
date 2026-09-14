@@ -3873,9 +3873,11 @@ function apiTodayCashierWithdrawals(array $params = []): void
     $actorId = dl_getActorUserId($user);
     $sql = 'SELECT cw.id, cw.product_id, p.name AS product_name, cw.withdrawal_type, cw.reason_code,
                    cw.custom_reason, cw.dr_number, cw.target_branch_id, cw.quantity, cw.unit, cw.pack_qty,
-                   cw.liable_user_id, cw.encoded_by, cw.shift, cw.created_at
+                   cw.liable_user_id, cw.encoded_by, cw.shift, cw.created_at,
+                   COALESCE(NULLIF(lu.full_name, \'\'), lu.username, \'\') AS liable_user_name
               FROM dl_cashier_withdrawals cw
               INNER JOIN dl_products p ON p.id = cw.product_id
+              LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
              WHERE cw.branch_id = :bid AND cw.ledger_date = :d';
     $bind = [':bid' => $branchId, ':d' => $date];
     if ($role === 'cashier') {
@@ -8264,6 +8266,9 @@ function handleAdminActivity(array $params = []): void
         'output_unit_label' => 'Output Unit',
         'batch_input_qty' => 'Batch Kilo Qty',
         'batch_egg_qty' => 'Batch Egg Qty',
+        // Withdrawals resolve this id to the person's name, so label it the way
+        // the Stock Adjustment form asks for it.
+        'liable_user_id' => 'Charged To',
     ];
     $skipKeys = ['movement_uuid', 'reference_movement_id', 'client_op_id', 'source_payload', 'role_permissions'];
     $priorityKeys = ['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id', 'dr_number', 'ledger_date', 'quantity', 'yield_qty', 'kilo_qty', 'egg_qty', 'flow_mode', 'status', 'role', 'reason', 'resulting_addtl'];
@@ -8736,6 +8741,15 @@ function handleAdminActivity(array $params = []): void
         }
 
         $detailSource = $newPayload !== [] ? $newPayload : $oldPayload;
+        // A withdrawal records the person the stock is charged to. Show their name
+        // in the Details column rather than the bare id, so the log answers "who
+        // was charged?" without cross-referencing the user list.
+        if (isset($detailSource['liable_user_id']) && (int)$detailSource['liable_user_id'] > 0) {
+            $liableName = $resolveUserById((int)$detailSource['liable_user_id'], 'daily-ledger');
+            if ($liableName !== '') {
+                $detailSource['liable_user_id'] = $liableName;
+            }
+        }
         $entry = [
             'action' => (string)$row['action'],
             'actor_name' => $actorName,
