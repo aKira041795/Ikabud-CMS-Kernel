@@ -307,7 +307,9 @@ $rowsSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/ca
 $h->test('the reason dropdown offers encoder_omission', str_contains($modalSrc, '<option value="encoder_omission">'));
 $h->test('the modal defines needsLiable()', str_contains($modalSrc, 'needsLiable() {'));
 $h->test('validation uses needsLiable()', str_contains($modalSrc, 'if (this.needsLiable() &&'));
-$h->test('the charge-to field is hidden when nobody is liable', str_contains($modalSrc, '<template x-if="!needsLiable()">'));
+// An encoder omission hides the picker entirely and states that nothing was lost.
+// (Charge also offers the picker now, so the gate is isOmission(), not the type.)
+$h->test('the picker is replaced by the nothing-lost note for an omission', str_contains($modalSrc, '<template x-if="isOmission()">') && str_contains($modalSrc, '<template x-if="!isOmission()">'));
 $h->test('the modal honours a preset reason', str_contains($modalSrc, "reason_code: detail.reason_code || 'manual_adjustment'"));
 $h->test('the row "+" presets the encoder-omission reason', str_contains($ledgerSrc, "reason_code: 'encoder_omission'"));
 $h->test('the row "+" still routes to the DR-free Add Stock flow', str_contains($rowsSrc, 'onclick="dlAddStockDirect({row.product_id})"'));

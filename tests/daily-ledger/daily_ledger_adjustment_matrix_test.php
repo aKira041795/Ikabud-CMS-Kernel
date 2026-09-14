@@ -185,6 +185,13 @@ $h->test('Add Stock + encoder omission is accepted without a charge', $omission[
 $charged = $apply(['withdrawal_type' => 'adjustment_add', 'reason_code' => 'manual_adjustment', 'liable_user_id' => $liableId], 1);
 $h->test('Add Stock + a charge is accepted', $charged['ok'], $charged['error']);
 
+// A charge can be billed to the person responsible (optional, but recorded).
+$chargeWithPerson = $apply(['withdrawal_type' => 'charge', 'reason_code' => 'staff_meal', 'liable_user_id' => $liableId], 9);
+$h->test('charge + a person is accepted', $chargeWithPerson['ok'], $chargeWithPerson['error']);
+$chargeStmt = $db->prepare("SELECT liable_user_id FROM dl_cashier_withdrawals WHERE branch_id = :b AND withdrawal_type = 'charge' ORDER BY id DESC LIMIT 1");
+$chargeStmt->execute([':b' => $branchId]);
+$h->test('the charged person is stored on a charge', (int)$chargeStmt->fetchColumn() === $liableId);
+
 $rowStmt = $db->prepare('SELECT reason_code, liable_user_id FROM dl_cashier_withdrawals WHERE branch_id = :b ORDER BY id DESC LIMIT 1');
 $rowStmt->execute([':b' => $branchId]);
 $lastRow = $rowStmt->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -203,8 +210,12 @@ $h->test(
     str_contains($modalSrc, "return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';")
 );
 $h->test('validate() uses needsLiable()', str_contains($modalSrc, 'if (this.needsLiable() &&'));
-$h->test('the Charge-to field only renders for Add Stock', str_contains($modalSrc, "x-show=\"header.withdrawal_type === 'adjustment_add'\""));
-$h->test('the charge-to field is hidden for an omission', str_contains($modalSrc, '<template x-if="!needsLiable()">'));
+$h->test('the Charge-to field is offered for Add Stock and for Charge', str_contains($modalSrc, 'x-show="showsLiable()"') && str_contains($modalSrc, "=== 'adjustment_add' || this.header.withdrawal_type === 'charge'"));
+$h->test('an encoder omission shows the nothing-lost note instead of the picker', str_contains($modalSrc, 'isOmission()') && str_contains($modalSrc, 'Nothing was lost'));
+$h->test('the field is optional for a charge and required for Add Stock', str_contains($modalSrc, '<span x-show="!needsLiable()" class="text-gray-400 font-normal">(optional)</span>'));
+$h->test('the payload sends the person whenever the field is offered', str_contains($modalSrc, 'liable_user_id: this.showsLiable() ?'));
+$h->test('the Charge type dropped its cashier qualifier', str_contains($modalSrc, '<option value="charge">Charge</option>'));
+$h->test('the Pullout type dropped its past-saleable qualifier', str_contains($modalSrc, '<option value="pullout">Pullout</option>'));
 
 // ─── Row shortcuts preset the product ──────────────────────────────────
 $h->section('Row shortcuts preset the product');

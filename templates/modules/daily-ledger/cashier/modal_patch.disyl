@@ -27,8 +27,8 @@
                         <div>
                             <label class="block text-xs font-medium text-gray-700 mb-1">Type *</label>
                             <select x-model="header.withdrawal_type" class="form-input mt-0 w-full">
-                                <option value="charge">Charge (cashier)</option>
-                                <option value="pullout">Pullout (past saleable)</option>
+                                <option value="charge">Charge</option>
+                                <option value="pullout">Pullout</option>
                                 <option value="used">Used (for a product/order)</option>
                                 <option value="correction">Correction (wrong entry)</option>
                                 <option value="adjustment_add">Add Stock (missed entry / variance)</option>
@@ -64,22 +64,26 @@
                         <p class="mt-1 text-xs text-gray-500">Required when Reason Code is "Other". Shown in the Adjustment Log.</p>
                     </div>
 
-                    <div class="mb-4" x-show="header.withdrawal_type === 'adjustment_add'">
-                        <template x-if="needsLiable()">
+                    <div class="mb-4" x-show="showsLiable()">
+                        <template x-if="isOmission()">
+                            <div class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
+                                <span class="font-semibold">Nothing was lost</span> — this records stock that was simply not entered, so no one is charged and no liable person is recorded.
+                            </div>
+                        </template>
+                        <template x-if="!isOmission()">
                             <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">Charge to <span class="text-rose-500">*</span></label>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Charge to
+                                    <span x-show="needsLiable()" class="text-rose-500">*</span>
+                                    <span x-show="!needsLiable()" class="text-gray-400 font-normal">(optional)</span>
+                                </label>
                                 <select x-model="header.liable_user_id" class="form-input mt-0 w-full">
                                     <option value="">-- Select liable person --</option>
                                     <template x-for="lp in (window.LIABLE_PERSONS || [])" :key="lp.id">
                                         <option :value="lp.id" x-text="lp.label || (lp.name + ' (' + lp.role + ')')"></option>
                                     </template>
                                 </select>
-                                <p class="mt-1 text-xs text-gray-500">Person financially liable for the missing items. Items are added back to branch sales; payment is charged to this person. This branch's cashiers are listed first. If nothing was lost and the entry was simply missed, choose the <span class="font-semibold">Encoder omission</span> reason instead — no one is charged.</p>
-                            </div>
-                        </template>
-                        <template x-if="!needsLiable()">
-                            <div class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
-                                <span class="font-semibold">Nothing was lost</span> — this records stock that was simply not entered, so no one is charged and no liable person is recorded.
+                                <p x-show="needsLiable()" class="mt-1 text-xs text-gray-500">Person financially liable for the missing items. Items are added back to branch sales; payment is charged to this person. This branch's cashiers are listed first. If nothing was lost and the entry was simply missed, choose the <span class="font-semibold">Encoder omission</span> reason instead — no one is charged.</p>
+                                <p x-show="!needsLiable()" class="mt-1 text-xs text-gray-500">Person this removed stock is charged to. Payment is collected from them; leave it blank to keep the amount on the branch. This branch's cashiers are listed first.</p>
                             </div>
                         </template>
                     </div>
@@ -214,12 +218,23 @@ function withdrawalModal() {
 
         closeModal() { this.isOpen = false; },
 
-        // Only Add Stock asks for a liable person: it resolves a shortage, so the
-        // stock has to be charged to somebody. Every other type (charge, pullout,
-        // used, correction) records what it records and charges nobody, and their
-        // Charge-to field stays hidden. "Encoder omission" is Add Stock WITHOUT a
-        // charge, for stock that was never lost. Must mirror the server rule in
-        // apiSaveCashierWithdrawals / handlers-offline.
+        // A charge removes stock and can be billed to the person responsible, so
+        // it offers the same list as Add Stock — optional there, because the
+        // amount may simply stay on the branch.
+        showsLiable() {
+            return this.header.withdrawal_type === 'adjustment_add' || this.header.withdrawal_type === 'charge';
+        },
+
+        // Stock that was never lost: Add Stock recorded because the entry was
+        // simply missed. No charge, no liable person.
+        isOmission() {
+            return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code === 'encoder_omission';
+        },
+
+        // Only Add Stock that resolves a shortage MUST name who is charged: the
+        // stock is added back to sales and somebody has to answer for it. Every
+        // other type records what it records and charges nobody by default. Must
+        // mirror the server rule in apiSaveCashierWithdrawals / handlers-offline.
         needsLiable() {
             return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';
         },
@@ -339,7 +354,9 @@ function withdrawalModal() {
                     withdrawal_type: this.header.withdrawal_type,
                     reason_code: this.header.reason_code || 'manual_adjustment',
                     custom_reason: this.header.reason_code === 'other' ? (this.header.custom_reason || '').trim() : '',
-                    liable_user_id: this.header.withdrawal_type === 'adjustment_add' ? parseInt(this.header.liable_user_id) || null : null
+                    // Sent whenever the field is offered (Add Stock and Charge), so a
+                    // charge actually records who it is billed to.
+                    liable_user_id: this.showsLiable() ? (parseInt(this.header.liable_user_id) || null) : null
                 },
                 lines: validLines.map(function(l) {
                     var q = parseInt(l.quantity, 10);
