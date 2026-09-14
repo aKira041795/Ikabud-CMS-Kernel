@@ -243,13 +243,9 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
     $liablePersons = [];
     if ($db) {
         try {
-            $liablePersons = $db->query(
-                "SELECT id, COALESCE(NULLIF(full_name, ''), username, CONCAT('User #', id)) AS name, role
-                   FROM dl_users
-                  WHERE is_active = 1 AND deleted_at IS NULL
-                    AND role IN ('production_in_charge', 'supervisor', 'admin')
-                  ORDER BY role = 'production_in_charge' DESC, name ASC"
-            )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            // Same list as the online ledger, so an offline device offers the
+            // branch's cashiers too.
+            $liablePersons = dl_liablePersonsForBranch($db, $branchId);
         } catch (Throwable $e) {
             write_log('daily-ledger offline bootstrap liable persons failed', 'error', [
                 'branch_id' => $branchId,

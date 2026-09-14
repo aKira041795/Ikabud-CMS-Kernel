@@ -71,10 +71,10 @@
                                 <select x-model="header.liable_user_id" class="form-input mt-0 w-full">
                                     <option value="">-- Select liable person --</option>
                                     <template x-for="lp in (window.LIABLE_PERSONS || [])" :key="lp.id">
-                                        <option :value="lp.id" x-text="lp.name + ' (' + lp.role + ')'"></option>
+                                        <option :value="lp.id" x-text="lp.label || (lp.name + ' (' + lp.role + ')')"></option>
                                     </template>
                                 </select>
-                                <p class="mt-1 text-xs text-gray-500">Person financially liable for the missing items. Items are added back to branch sales; payment is charged to this person. If nothing was lost and the entry was simply missed, choose the <span class="font-semibold">Encoder omission</span> reason instead — no one is charged.</p>
+                                <p class="mt-1 text-xs text-gray-500">Person financially liable for the missing items. Items are added back to branch sales; payment is charged to this person. This branch's cashiers are listed first. If nothing was lost and the entry was simply missed, choose the <span class="font-semibold">Encoder omission</span> reason instead — no one is charged.</p>
                             </div>
                         </template>
                         <template x-if="!needsLiable()">

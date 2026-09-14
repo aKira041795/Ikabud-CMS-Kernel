@@ -149,6 +149,61 @@ function dl_adjustmentAddNeedsLiable(?string $reasonCode): bool
 }
 
 /**
+ * People who can be charged for missing stock — the "Charge to" list in Stock
+ * Adjustment.
+ *
+ * Cashiers come first because the person being charged for a shift is normally
+ * the cashier who worked it, and they are the ones an operator looks for. They
+ * are scoped through dl_user_branches so a branch never offers another branch's
+ * cashier. The branch-independent roles (production in charge, supervisor,
+ * admin) follow, and can be charged from any branch.
+ *
+ * @return array<int, array{id:int, name:string, role:string, shift:?string, label:string}>
+ */
+function dl_liablePersonsForBranch($db, int $branchId): array
+{
+    $stmt = $db->prepare(
+        "SELECT u.id,
+                COALESCE(NULLIF(u.full_name, ''), u.username, CONCAT('User #', u.id)) AS name,
+                u.role,
+                u.shift
+           FROM dl_users u
+          WHERE u.is_active = 1
+            AND u.deleted_at IS NULL
+            AND (
+                 u.role IN ('production_in_charge', 'supervisor', 'admin')
+                 OR (u.role = 'cashier' AND EXISTS (
+                        SELECT 1 FROM dl_user_branches ub
+                         WHERE ub.user_id = u.id AND ub.branch_id = :bid
+                    ))
+            )
+          ORDER BY (u.role = 'cashier') DESC,
+                   (u.role = 'production_in_charge') DESC,
+                   name ASC"
+    );
+    $stmt->execute([':bid' => $branchId]);
+
+    $persons = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $id = (int)$row['id'];
+        $name = (string)$row['name'];
+        $role = (string)$row['role'];
+        $shiftRaw = (string)($row['shift'] ?? '');
+        $shift = in_array($shiftRaw, ['AM', 'PM'], true) ? $shiftRaw : null;
+        // Keep name/role for existing consumers; label is what the dropdown shows.
+        $persons[] = [
+            'id' => $id,
+            'name' => $name,
+            'role' => $role,
+            'shift' => $shift,
+            'label' => $name . ' (' . $role . ($shift !== null ? ' · ' . $shift : '') . ')',
+        ];
+    }
+
+    return $persons;
+}
+
+/**
  * Returns a product's optional box size (pcs_per_pack) or null.
  */
 function dl_productPcsPerPack(\Ikabud\Kernel\Contracts\ModuleDB $db, int $productId): ?int

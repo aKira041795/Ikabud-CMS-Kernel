@@ -71,25 +71,50 @@ $db->execute(
 );
 $db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)', [':b' => $branchId, ':p' => $productId]);
 
-/** Seed a minimal liable person (NOT NULL columns without defaults get ''). */
-$cols = [];
-foreach ($db->query('SHOW COLUMNS FROM dl_users') as $c) {
-    $cols[(string)$c['Field']] = $c;
-}
-$insertCols = ['id', 'username', 'password_hash', 'full_name', 'role', 'is_active'];
-$bind = [':id' => $liableId, ':username' => 'matrix-liable', ':password_hash' => 'unused', ':full_name' => 'Matrix Liable', ':role' => 'cashier', ':is_active' => 1];
-foreach ($cols as $field => $meta) {
-    if (in_array($field, $insertCols, true) || in_array($field, ['deleted_at', 'created_at', 'updated_at'], true)) {
-        continue;
+/**
+ * Seed a minimal dl_users row (NOT NULL columns without defaults get '').
+ * $branchIds links the user to branches through dl_user_branches.
+ */
+function dl_mx_seedUser($db, int $id, string $username, string $role, ?string $shift = null, int $active = 1, bool $deleted = false, array $branchIds = []): void
+{
+    $cols = [];
+    foreach ($db->query('SHOW COLUMNS FROM dl_users') as $c) {
+        $cols[(string)$c['Field']] = $c;
     }
-    if ((string)$meta['Null'] === 'NO' && ($meta['Default'] === null || $meta['Default'] === '')) {
-        $insertCols[] = $field;
-        $bind[':' . $field] = '';
+    $insertCols = ['id', 'username', 'password_hash', 'full_name', 'role', 'is_active'];
+    $bind = [
+        ':id' => $id,
+        ':username' => $username,
+        ':password_hash' => 'unused',
+        ':full_name' => $username,
+        ':role' => $role,
+        ':is_active' => $active,
+    ];
+    foreach ($cols as $field => $meta) {
+        if (in_array($field, $insertCols, true) || in_array($field, ['deleted_at', 'created_at', 'updated_at', 'shift'], true)) {
+            continue;
+        }
+        if ((string)$meta['Null'] === 'NO' && ($meta['Default'] === null || $meta['Default'] === '')) {
+            $insertCols[] = $field;
+            $bind[':' . $field] = '';
+        }
+    }
+    $colSql = implode(', ', array_map(static fn (string $f) => '`' . $f . '`', $insertCols));
+    $valSql = implode(', ', array_map(static fn (string $f) => ':' . $f, $insertCols));
+    $db->execute("INSERT INTO dl_users ({$colSql}) VALUES ({$valSql})", $bind);
+    if ($shift !== null) {
+        $db->execute('UPDATE dl_users SET shift = :s WHERE id = :id', [':s' => $shift, ':id' => $id]);
+    }
+    if ($deleted) {
+        $db->execute('UPDATE dl_users SET deleted_at = NOW() WHERE id = :id', [':id' => $id]);
+    }
+    foreach ($branchIds as $bid) {
+        $db->execute('INSERT INTO dl_user_branches (user_id, branch_id) VALUES (:u, :b)', [':u' => $id, ':b' => (int)$bid]);
     }
 }
-$colSql = implode(', ', array_map(static fn (string $f) => '`' . $f . '`', $insertCols));
-$valSql = implode(', ', array_map(static fn (string $f) => ':' . $f, $insertCols));
-$db->execute("INSERT INTO dl_users ({$colSql}) VALUES ({$valSql})", $bind);
+
+$liableId = 999994;
+dl_mx_seedUser($db, $liableId, 'matrix-liable', 'cashier', 'AM', 1, false, [$branchId]);
 
 $admin = ['id' => 999999, 'role' => 'admin', 'source' => 'daily-ledger'];
 
@@ -192,12 +217,75 @@ $h->test('the W/Draw shortcut no longer opens a blank modal', !str_contains($row
 $h->test('the Addt\'l cell still presets its product and reason', str_contains($rowsSrc, 'onclick="dlAddStockDirect({row.product_id})"') && str_contains($ledgerSrc, "reason_code: 'encoder_omission'"));
 $h->test('the W/Draw shortcut names the row product in its tooltip', str_contains($rowsSrc, 'title="Record an adjustment for {row.name}'));
 
+// ─── Who can be charged: this branch's cashiers come first ─────────────
+$h->section('Charge-to list is branch-scoped');
+
+$amCashier = 999991;
+$pmCashier = 999990;
+$otherBranchCashier = 999989;
+$globalSupervisor = 999988;
+$inactiveCashier = 999987;
+$deletedCashier = 999986;
+$chargeUsers = [$amCashier, $pmCashier, $otherBranchCashier, $globalSupervisor, $inactiveCashier, $deletedCashier];
+
+foreach ($chargeUsers as $uid) {
+    $db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $uid]);
+    $db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $uid]);
+}
+dl_mx_seedUser($db, $amCashier, 'aaa-am-cashier', 'cashier', 'AM', 1, false, [$branchId]);
+dl_mx_seedUser($db, $pmCashier, 'zzz-pm-cashier', 'cashier', 'PM', 1, false, [$branchId]);
+dl_mx_seedUser($db, $otherBranchCashier, 'other-branch-cashier', 'cashier', 'PM', 1, false, [8]);
+dl_mx_seedUser($db, $globalSupervisor, 'global-supervisor', 'supervisor', null, 1, false, []);
+dl_mx_seedUser($db, $inactiveCashier, 'inactive-cashier', 'cashier', 'AM', 0, false, [$branchId]);
+dl_mx_seedUser($db, $deletedCashier, 'deleted-cashier', 'cashier', 'AM', 1, true, [$branchId]);
+
+$liableList = dl_liablePersonsForBranch($db, $branchId);
+$liableIds = array_map(static fn (array $p) => $p['id'], $liableList);
+$liableById = [];
+foreach ($liableList as $p) {
+    $liableById[$p['id']] = $p;
+}
+
+$h->test('the branch cashiers are listed', in_array($amCashier, $liableIds, true) && in_array($pmCashier, $liableIds, true), json_encode($liableIds));
+$h->test('another branch\'s cashier is not listed', !in_array($otherBranchCashier, $liableIds, true));
+$h->test('an inactive cashier is not listed', !in_array($inactiveCashier, $liableIds, true));
+$h->test('a soft-deleted cashier is not listed', !in_array($deletedCashier, $liableIds, true));
+$h->test('branch-independent roles are still listed', in_array($globalSupervisor, $liableIds, true));
+
+$roles = array_map(static fn (array $p) => $p['role'], $liableList);
+$cashierCount = count(array_filter($roles, static fn (string $r) => $r === 'cashier'));
+$firstNonCashier = null;
+foreach ($roles as $i => $role) {
+    if ($role !== 'cashier') {
+        $firstNonCashier = $i;
+        break;
+    }
+}
+$h->test(
+    'every cashier is offered before the other roles',
+    $firstNonCashier !== null ? $firstNonCashier === $cashierCount : $cashierCount === count($roles),
+    'cashiers=' . $cashierCount . ' order=' . json_encode($roles)
+);
+$h->test('cashiers are ordered by name', ($liableById[$amCashier]['name'] ?? '') === 'aaa-am-cashier');
+$h->test('the label carries the role and shift', str_contains((string)($liableById[$amCashier]['label'] ?? ''), '(cashier · AM)'), (string)($liableById[$amCashier]['label'] ?? ''));
+$h->test('a role without a shift has no shift in the label', !str_contains((string)($liableById[$globalSupervisor]['label'] ?? ''), '·'), (string)($liableById[$globalSupervisor]['label'] ?? ''));
+$h->test('the shift is exposed as a field', ($liableById[$pmCashier]['shift'] ?? null) === 'PM');
+
+$modalForList = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
+$h->test('the dropdown renders the label', str_contains($modalForList, "lp.label || (lp.name + ' (' + lp.role + ')')"));
+$h->test('both liable-person call sites use the shared helper', substr_count((string)file_get_contents($base . '/modules/daily-ledger/handlers.php'), 'dl_liablePersonsForBranch(') === 1 && substr_count((string)file_get_contents($base . '/modules/daily-ledger/handlers-offline.php'), 'dl_liablePersonsForBranch(') === 1);
+
 // ─── Cleanup ───────────────────────────────────────────────────────────
+foreach ($chargeUsers as $uid) {
+    $db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $uid]);
+    $db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $uid]);
+}
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_cashier_withdrawals WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $productId]);
+$db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $liableId]);
 $db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $liableId]);
 
 $left = (int)$db->query("SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = {$branchId}")->fetchColumn();

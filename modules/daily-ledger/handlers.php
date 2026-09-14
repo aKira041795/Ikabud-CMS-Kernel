@@ -3589,15 +3589,9 @@ function handleCashierLedger(array $params = []): void
         }
     }
 
-    // Liable persons: production incharge + supervisors for charge-to dropdown
-    $liablePersons = $ctx->db()->query(
-        "SELECT id, COALESCE(NULLIF(full_name, ''), username, CONCAT('User #', id)) AS name, role
-           FROM dl_users
-          WHERE is_active = 1
-            AND deleted_at IS NULL
-            AND role IN ('production_in_charge', 'supervisor', 'admin')
-          ORDER BY role = 'production_in_charge' DESC, name ASC"
-    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // Liable persons for the charge-to dropdown: this branch's cashiers first,
+    // then the branch-independent roles.
+    $liablePersons = dl_liablePersonsForBranch($ctx->db(), $branchId);
 
     // POS context: feature flag, cashier sell access, and the branch-day sales mode.
     $posEnabled = dl_isPosEnabled();
