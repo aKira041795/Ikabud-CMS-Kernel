@@ -170,6 +170,9 @@ $clockPartial = $read('templates/modules/daily-ledger/cashier/partials/server-cl
 $h->test('the clock partial targets the business timezone', str_contains($clockPartial, 'data-server-timezone="{operating_timezone}"'));
 $h->test('the clock partial formats in an explicit timezone (never the viewer default)', str_contains($clockPartial, 'timeZone: zone'));
 $h->test('the clock partial keeps the server-rendered text when JS cannot format', str_contains($clockPartial, 'keep the server-rendered string'));
+$h->test('the clock compares the viewer zone with the business zone', str_contains($clockPartial, 'resolvedOptions().timeZone'));
+$h->test('a viewer/business zone mismatch is warned about, not silently adopted', str_contains($clockPartial, 'deviceZone === zone') && str_contains($clockPartial, 'shifts and dates follow'));
+$h->test('the note is announced to assistive tech', str_contains($clockPartial, 'aria-live="polite"'));
 $h->test('the ledger top bar includes the clock', str_contains($read('templates/modules/daily-ledger/cashier/ledger.disyl'), 'partials/server-clock.disyl'));
 $h->test('the ledger handler passes the clock values', str_contains((string)file_get_contents($base . '/modules/daily-ledger/handlers.php'), "'server_epoch_ms' => \$clockLabel['server_epoch_ms']"));
 

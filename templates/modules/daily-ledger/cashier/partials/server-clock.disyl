@@ -8,20 +8,36 @@
 
    Ticking is anchored to the server epoch supplied by dl_operatingClockLabel()
    and formatted in the business timezone, so the display never silently switches
-   to the viewer's own timezone. *}
+   to the viewer's own timezone.
+
+   The business timezone stays authoritative (it is what the ledger, shifts and
+   business date follow), so the VIEWER's zone is compared against it rather than
+   adopted: when the two differ the note turns into an explicit warning naming
+   both zones. Silently following a device clock would let one misconfigured phone
+   move the accounting day. *}
 {if server_now_label}
-<div class="hidden md:flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-1.5 ring-1 ring-inset ring-gray-200"
-     title="Current time on the server, shown in the business timezone. Shift and day boundaries follow this clock.">
-    <i class="fas fa-clock text-gray-400 text-xs" aria-hidden="true"></i>
-    <div class="leading-tight">
-        <div class="text-xs font-semibold text-gray-800 whitespace-nowrap"
-             id="dl-server-clock"
-             data-server-epoch-ms="{server_epoch_ms}"
-             data-server-timezone="{operating_timezone}">{server_now_label}</div>
-        <div class="text-[10px] text-gray-500 whitespace-nowrap">
-            server time · {operating_timezone} <span class="font-mono">{server_now_offset}</span>
+<div class="hidden md:flex flex-col items-end gap-0.5"
+     data-server-clock-root
+     data-operating-timezone="{operating_timezone}">
+    <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-1.5 ring-1 ring-inset ring-gray-200"
+         title="Current time on the server, shown in the business timezone. Shift and day boundaries follow this clock.">
+        <i class="fas fa-clock text-gray-400 text-xs" aria-hidden="true"></i>
+        <div class="leading-tight">
+            <div class="text-xs font-semibold text-gray-800 whitespace-nowrap"
+                 id="dl-server-clock"
+                 data-server-epoch-ms="{server_epoch_ms}"
+                 data-server-timezone="{operating_timezone}">{server_now_label}</div>
+            <div class="text-[10px] text-gray-500 whitespace-nowrap">
+                server time · {operating_timezone} <span class="font-mono">{server_now_offset}</span>
+            </div>
         </div>
     </div>
+{* Filled in client-side only: hidden until the viewer's zone is known, then
+   swapped to the amber warning style when it differs from the business zone. *}
+<div id="dl-device-timezone-note"
+     class="hidden rounded px-2 py-0.5 text-[10px] font-semibold leading-tight text-right"
+     role="status"
+     aria-live="polite"></div>
 </div>
 <script>
 (function () {
@@ -51,6 +67,43 @@
     }
     tick();
     setInterval(tick, 1000);
+
+    // Compare the viewer's own zone with the business zone. The business zone wins
+    // (it drives shifts and the business date); this only makes a difference
+    // impossible to miss for the operator sitting in front of the screen.
+    var deviceZone = '';
+    try {
+        deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch (e) {
+        deviceZone = '';
+    }
+    var note = document.getElementById('dl-device-timezone-note');
+    if (!deviceZone || !note) return;
+
+    var MATCH_CLASS = 'hidden rounded px-2 py-0.5 text-[10px] font-semibold leading-tight text-right text-emerald-700';
+    var MISMATCH_CLASS = 'rounded px-2 py-0.5 text-[10px] font-semibold leading-tight text-right text-amber-800 bg-amber-100 ring-1 ring-inset ring-amber-300';
+
+    function paintNote() {
+        if (deviceZone === zone) {
+            note.className = MATCH_CLASS;
+            note.classList.remove('hidden');
+            note.textContent = 'matches this device';
+            return;
+        }
+        var local = '';
+        try {
+            local = new Intl.DateTimeFormat('en-US', {
+                timeZone: deviceZone, hour: '2-digit', minute: '2-digit', hour12: true
+            }).format(new Date(Date.now() - skew));
+        } catch (e) {
+            local = '';
+        }
+        note.className = MISMATCH_CLASS;
+        note.textContent = '\u26a0 this device is on ' + deviceZone + (local ? ' (' + local + ')' : '') +
+            ' \u2014 shifts and dates follow ' + zone + '. Check the Settings timezone.';
+    }
+    paintNote();
+    setInterval(paintNote, 30000);
 })();
 </script>
 {/if}
