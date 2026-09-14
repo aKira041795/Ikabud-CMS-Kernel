@@ -149,6 +149,33 @@ function dl_adjustmentAddNeedsLiable(?string $reasonCode): bool
 }
 
 /**
+ * Display name for a module user id, or null when the id is unknown/absent.
+ *
+ * A charge records who it is billed to by id, so the name is looked up here both
+ * when the charge is written (to snapshot it, migration 060) and when an older
+ * row that has no snapshot is rendered.
+ */
+function dl_userDisplayNameById($db, ?int $userId): ?string
+{
+    $userId = (int)($userId ?? 0);
+    if ($userId <= 0) {
+        return null;
+    }
+
+    try {
+        $stmt = $db->prepare(
+            "SELECT COALESCE(NULLIF(full_name, ''), username, CONCAT('User #', id)) AS name
+               FROM dl_users WHERE id = :id LIMIT 1"
+        );
+        $stmt->execute([':id' => $userId]);
+        $name = $stmt->fetchColumn();
+        return $name !== false && $name !== null && $name !== '' ? (string)$name : null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+/**
  * People who can be charged for missing stock — the "Charge to" list in Stock
  * Adjustment.
  *

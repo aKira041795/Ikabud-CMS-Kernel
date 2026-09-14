@@ -345,6 +345,69 @@ $h->test(
     (string)($kept['liable_user_name'] ?? '')
 );
 
+// ─── The name is snapshotted, so a rename cannot rewrite history ───────
+// Their process is B (a user per person), but a reused/renamed account used to
+// re-label every past charge. The name is now stored when the charge is written.
+$h->section('Rename does not rewrite a charge');
+
+$renameCashier = 999984;
+$db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $renameCashier]);
+$db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $renameCashier]);
+dl_mx_seedUser($db, $renameCashier, 'shift-account', 'cashier', 'AM', 1, false, [$branchId]);
+$db->execute("UPDATE dl_users SET full_name = 'Maria Santos' WHERE id = :u", [':u' => $renameCashier]);
+
+$snapApplied = $apply(['withdrawal_type' => 'charge', 'reason_code' => 'promo', 'liable_user_id' => $renameCashier], 5);
+$h->test('a charge storing a charged person is accepted', $snapApplied['ok'], $snapApplied['error']);
+
+$snapStmt = $db->prepare('SELECT liable_user_id, liable_user_name FROM dl_cashier_withdrawals WHERE branch_id = :b AND liable_user_id = :u ORDER BY id DESC LIMIT 1');
+$snapStmt->execute([':b' => $branchId, ':u' => $renameCashier]);
+$snapshot = $snapStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+$h->test('the charged name is snapshotted on the row', ($snapshot['liable_user_name'] ?? '') === 'Maria Santos', (string)($snapshot['liable_user_name'] ?? 'null'));
+
+// The shift account is reused for the next person: the same id, a new name.
+$db->execute("UPDATE dl_users SET full_name = 'Jose Rivera' WHERE id = :u", [':u' => $renameCashier]);
+
+$surfaceStmt = $db->prepare("SELECT COALESCE(NULLIF(cw.liable_user_name, ''), NULLIF(lu.full_name, ''), lu.username, '') AS liable_user_name
+                               FROM dl_cashier_withdrawals cw
+                               LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
+                              WHERE cw.branch_id = :b AND cw.liable_user_id = :u ORDER BY cw.id DESC LIMIT 1");
+$surfaceStmt->execute([':b' => $branchId, ':u' => $renameCashier]);
+$h->test(
+    'a past charge keeps the name recorded at the time',
+    $surfaceStmt->fetchColumn() === 'Maria Santos'
+);
+$h->test('the live user row did change (proving the guard is doing work)', dl_userDisplayNameById($db, $renameCashier) === 'Jose Rivera');
+$h->test('the picker still offers the current name', (function () use ($db, $branchId, $renameCashier) {
+    foreach (dl_liablePersonsForBranch($db, $branchId) as $p) {
+        if ($p['id'] === $renameCashier) {
+            return str_starts_with($p['label'], 'Jose Rivera');
+        }
+    }
+    return false;
+})());
+
+// Rows written before the snapshot keep resolving live (no blank history).
+$db->execute('UPDATE dl_cashier_withdrawals SET liable_user_name = NULL WHERE branch_id = :b AND liable_user_id = :u', [':b' => $branchId, ':u' => $renameCashier]);
+$surfaceStmt->execute([':b' => $branchId, ':u' => $renameCashier]);
+$h->test('a row without a snapshot falls back to the current name', $surfaceStmt->fetchColumn() === 'Jose Rivera');
+
+$h->test(
+    'migration 060 is registered in module.json',
+    in_array('database/migrations/060_snapshot_liable_user_name.sql', json_decode((string)file_get_contents($base . '/modules/daily-ledger/module.json'), true)['migrations'] ?? [], true)
+);
+$handlersSnapshotSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$offlineSnapshotSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers-offline.php');
+$h->test(
+    'every write path snapshots the name',
+    // online create INSERT + online edit UPDATE + offline replay INSERT
+    substr_count($handlersSnapshotSrc, 'liable_user_id, liable_user_name, dedup_hash') === 1
+        && substr_count($handlersSnapshotSrc, 'liable_user_name = :luid_name') === 1
+        && substr_count($offlineSnapshotSrc, 'liable_user_id, liable_user_name, dedup_hash') === 1
+);
+
+$db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $renameCashier]);
+$db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $renameCashier]);
+
 $db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $retiringCashier]);
 $db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $retiringCashier]);
 

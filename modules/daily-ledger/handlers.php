@@ -3874,7 +3874,7 @@ function apiTodayCashierWithdrawals(array $params = []): void
     $sql = 'SELECT cw.id, cw.product_id, p.name AS product_name, cw.withdrawal_type, cw.reason_code,
                    cw.custom_reason, cw.dr_number, cw.target_branch_id, cw.quantity, cw.unit, cw.pack_qty,
                    cw.liable_user_id, cw.encoded_by, cw.shift, cw.created_at,
-                   COALESCE(NULLIF(lu.full_name, \'\'), lu.username, \'\') AS liable_user_name
+                   COALESCE(NULLIF(cw.liable_user_name, \'\'), NULLIF(lu.full_name, \'\'), lu.username, \'\') AS liable_user_name
               FROM dl_cashier_withdrawals cw
               INNER JOIN dl_products p ON p.id = cw.product_id
               LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
@@ -4037,9 +4037,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $ctx->db()->beginTransaction();
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
+        // Snapshot the charged person's name as it reads now (migration 060), so a
+        // later rename of that account cannot rewrite who this charge was for.
+        $liableUserName = dl_userDisplayNameById($ctx->db(), $liableUserId);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, dedup_hash)
-             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, liable_user_name, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :luid_name, :dedup)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
@@ -4106,6 +4109,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     ':pack_qty' => $packQty,
                     ':uid' => $userId,
                     ':luid' => $liableUserId,
+                    ':luid_name' => $liableUserName,
                     ':dedup' => $dedupHash,
                 ]);
             } catch (\PDOException $e) {
@@ -4284,6 +4288,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
             'custom_reason' => $customReason !== '' ? $customReason : null,
             'dr_number' => $drNumber,
             'liable_user_id' => $liableUserId,
+            'liable_user_name' => $liableUserName,
             'lines' => $totals,
         ]);
 
@@ -4519,6 +4524,7 @@ function apiUpdateCashierWithdrawal(array $params = []): void
                 SET withdrawal_type = :typ, reason_code = :rc, custom_reason = :crc,
                     dr_number = :dr, target_branch_id = :tbid, quantity = :qty,
                     unit = :unit, pack_qty = :pack_qty, liable_user_id = :luid,
+                    liable_user_name = :luid_name,
                     shift = :shift, dedup_hash = :dedup, updated_at = NOW()
               WHERE id = :id'
         )->execute([
@@ -4531,6 +4537,8 @@ function apiUpdateCashierWithdrawal(array $params = []): void
             ':unit' => $newUnit,
             ':pack_qty' => $newPackQty,
             ':luid' => $liableUserId,
+            // Re-snapshot on edit: the operator is naming the person right now.
+            ':luid_name' => dl_userDisplayNameById($db, $liableUserId),
             ':shift' => $rowShift,
             ':dedup' => $newDedup,
             ':id' => $withdrawalId,
@@ -4605,6 +4613,7 @@ function apiUpdateCashierWithdrawal(array $params = []): void
             'unit' => $newUnit,
             'pack_qty' => $newPackQty,
             'liable_user_id' => $liableUserId,
+            'liable_user_name' => dl_userDisplayNameById($db, $liableUserId),
             'shift' => $rowShift,
             'context' => 'cashier_retry_correction',
         ]);
@@ -8741,10 +8750,14 @@ function handleAdminActivity(array $params = []): void
         }
 
         $detailSource = $newPayload !== [] ? $newPayload : $oldPayload;
-        // A withdrawal records the person the stock is charged to. Show their name
-        // in the Details column rather than the bare id, so the log answers "who
-        // was charged?" without cross-referencing the user list.
-        if (isset($detailSource['liable_user_id']) && (int)$detailSource['liable_user_id'] > 0) {
+        // A withdrawal records the person the stock is charged to. Prefer the name
+        // captured when the charge was written (migration 060) so a later rename of
+        // that account cannot re-label history; fall back to the live user row for
+        // entries recorded before the snapshot existed.
+        $liableSnapshot = trim((string)($detailSource['liable_user_name'] ?? ''));
+        if ($liableSnapshot !== '') {
+            $detailSource['liable_user_id'] = $liableSnapshot;
+        } elseif (isset($detailSource['liable_user_id']) && (int)$detailSource['liable_user_id'] > 0) {
             $liableName = $resolveUserById((int)$detailSource['liable_user_id'], 'daily-ledger');
             if ($liableName !== '') {
                 $detailSource['liable_user_id'] = $liableName;
@@ -11989,7 +12002,7 @@ function handleAdminWithdrawals(): void
                        NULLIF(u.username, ""),
                        "Unknown"
                    ) AS cashier_name,
-                   NULLIF(lu.full_name, lu.username) AS liable_user_name
+                   COALESCE(NULLIF(cw.liable_user_name, ""), NULLIF(lu.full_name, lu.username), lu.username) AS liable_user_name
               FROM dl_cashier_withdrawals cw
               JOIN dl_products p ON p.id = cw.product_id
               JOIN dl_branches b ON b.id = cw.branch_id

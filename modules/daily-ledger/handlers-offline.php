@@ -668,9 +668,12 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     }
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
+        // Snapshot the charged person's name (migration 060) so later renames do
+        // not rewrite who the offline-recorded charge was for.
+        $liableUserName = dl_userDisplayNameById($ctx->db(), $liableUserId);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, dedup_hash)
-             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, liable_user_name, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :luid_name, :dedup)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
@@ -735,6 +738,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                     ':pack_qty' => $packQty,
                     ':uid' => $userId,
                     ':luid' => $liableUserId,
+                    ':luid_name' => $liableUserName,
                     ':dedup' => $dedupHash,
                 ]);
             } catch (\PDOException $e) {
