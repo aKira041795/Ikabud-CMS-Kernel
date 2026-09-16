@@ -9,9 +9,9 @@
                data-am-end="{if shift == 'PM'}{row.am_bal_end}{else}0{/if}"
                data-prev-end="{row.prev_bal_end}"
                data-orig-beg="{row.beg_bal}"
-               onfocus="this.select()"
+               onfocus="dlSnapshotCell(this); this.select()"
                onchange="saveField(this)"
-               {if day_status == 'closed' || reference_only}disabled{/if}>
+               {if day_status == 'closed' || reference_only || shift_status == 'finalized'}disabled{/if}>
         {if shift == 'PM'}
         <div class="mt-0.5 text-xs leading-tight text-indigo-600">AM end: {row.am_bal_end}</div>
         {elseif row.prev_bal_end !== null && row.prev_bal_end !== ''}
@@ -21,7 +21,7 @@
         {/if}
     </td>
     <td class="align-middle text-right">
-        {if day_status == 'open' && !reference_only}
+        {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
         <button type="button"
                 class="addtl-trigger ml-auto inline-flex w-20 items-center justify-end gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-sm font-semibold text-emerald-800 shadow-sm ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
                 data-product="{row.product_id}"
@@ -36,7 +36,7 @@
         {/if}
     </td>
     <td class="align-middle text-right">
-        {if day_status == 'open' && !reference_only}
+        {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
         <button type="button"
                 class="withdraw-trigger ml-auto inline-flex w-20 items-center justify-end gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-sm font-semibold text-amber-800 shadow-sm ring-1 ring-inset ring-amber-200 hover:bg-amber-100"
                 data-product="{row.product_id}"
@@ -54,9 +54,9 @@
         <input type="number" class="ledger-input mt-0 ml-auto block min-h-11 w-20 rounded-lg border border-gray-300 bg-white px-2 py-2 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" inputmode="numeric" enterkeyhint="next" min="0"
                data-product="{row.product_id}" data-field="bal_end"
                value="{if row.bal_end !== null && row.bal_end !== ''}{row.bal_end}{/if}"
-               onfocus="this.select()"
+               onfocus="dlSnapshotCell(this); this.select()"
                onchange="saveField(this)"
-               {if day_status == 'closed' || reference_only}disabled{/if}>
+               {if day_status == 'closed' || reference_only || shift_status == 'finalized'}disabled{/if}>
     </td>
     <td class="align-middle text-right">
         {if row.bal_end !== null && row.bal_end !== ''}

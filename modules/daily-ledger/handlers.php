@@ -3686,12 +3686,19 @@ function handleCashierRows(array $params = []): void
 
     $rows = dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift);
 
+    // The rows partial locks its cells off the viewed shift's own lifecycle, so the
+    // HTMX swap must receive the same shift_status the full page rendered with.
+    // Without this the tbody swap silently re-enabled cells the page had locked.
+    $shiftRow = dl_getShiftStatus($ctx->db(), (int)$branchId, $ledgerDate, $shift);
+    $shiftStatus = $shiftRow ? (string)$shiftRow['status'] : 'open';
+
     echo dlRender('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
         'rows'        => $rows,
         'branch_id'   => $branchId,
         'ledger_date' => $ledgerDate,
         'shift'       => $shift,
         'day_status'  => $dayStatus,
+        'shift_status' => $shiftStatus,
         'reference_only' => $referenceOnly,
     ]);
 }

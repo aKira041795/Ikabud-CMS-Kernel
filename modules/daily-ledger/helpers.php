@@ -969,6 +969,10 @@ function dlNormalizeCashierRowsRenderContext(array $context, string $template, a
         'branch_id' => 0,
         'ledger_date' => '',
         'day_status' => '',
+        // Optional: the viewed shift's lifecycle. Defaults to editable because the
+        // API guard (dl_assertShiftMutable) is the real enforcement; this only keeps
+        // the cell honest, so an absent value must not lock a shift with no reason.
+        'shift_status' => 'open',
         'reference_only' => false,
     ], ['rows', 'branch_id', 'ledger_date', 'day_status'], $missingKeys, $typeMismatches);
 }

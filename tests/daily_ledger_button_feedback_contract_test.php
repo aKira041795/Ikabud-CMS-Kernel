@@ -110,6 +110,78 @@ dlFeedbackTest(
         && str_contains($ledger, 'return dlResponseJson(response).then(function(result)')
 );
 
+// ── Finalized-shift editability contract ───────────────────────────────────
+// A finalized shift refuses writes (dl_assertShiftMutable) while its day may still
+// read as open. The ledger must therefore lock those cells up front and offer the
+// audited reopen, instead of letting the edit fail into a red flash after the fact
+// and queueing a permanent 403 for infinite 30s retries.
+$rowsPartial = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/cashier/partials/ledger-rows.disyl');
+$helpers = (string)file_get_contents(__DIR__ . '/../modules/daily-ledger/helpers.php');
+
+dlFeedbackTest(
+    'finalized shift is a deterministic rejection rather than a retry',
+    str_contains($classifierSource, "'finalized'") && str_contains($classifierSource, "'locked'")
+);
+dlFeedbackTest(
+    'beginning and ending cells lock when the viewed shift is finalized',
+    substr_count($rowsPartial, "|| shift_status == 'finalized'}disabled") === 2
+);
+dlFeedbackTest(
+    'add-stock and withdraw triggers lock when the viewed shift is finalized',
+    substr_count($rowsPartial, "&& shift_status != 'finalized'") === 2
+);
+dlFeedbackTest(
+    'ledger cells snapshot the rendered server value on focus',
+    substr_count($rowsPartial, 'onfocus="dlSnapshotCell(this); this.select()"') === 2
+        && str_contains($ledger, 'function dlSnapshotCell(input)')
+        && str_contains($ledger, 'function revertCellToServerValue(input)')
+);
+dlFeedbackTest(
+    'a rejected field save rolls the cell back to the server value',
+    str_contains($ledger, 'revertCellToServerValue(input)')
+        && str_contains($ledger, 'input.dataset.serverValue = input.value;')
+        && str_contains($ledger, 'computeSales(productId);')
+);
+dlFeedbackTest(
+    'a rejected field save surfaces the server reason',
+    str_contains($ledger, "window.showToast(res.error || 'Change rejected', 'error')")
+);
+dlFeedbackTest(
+    'quarantine is reserved for rejections the cell could not roll back',
+    str_contains($ledger, 'if (!restored) {')
+        && str_contains($ledger, "quarantinePendingEntries([buildPendingPayload(productId, field, value)], 'server-rejected', PENDING_KEY);")
+);
+dlFeedbackTest(
+    'rows partial receives the viewed shift lifecycle so the HTMX swap cannot re-enable locked cells',
+    substr_count($handlers, "'shift_status' => \$shiftStatus,") >= 2
+        && str_contains($handlers, 'dl_getShiftStatus($ctx->db(), (int)$branchId, $ledgerDate, $shift)')
+);
+dlFeedbackTest(
+    'rows render contract carries an editable-by-default shift_status',
+    str_contains($helpers, "'shift_status' => 'open',")
+);
+dlFeedbackTest(
+    'ledger explains a finalized shift while the day is still open',
+    str_contains($ledger, "{if shift_status == 'finalized' && day_status != 'closed'}")
+        && str_contains($ledger, 'is finalized.')
+);
+dlFeedbackTest(
+    'finalized shift offers the audited reopen only to override roles',
+    preg_match("/\{if shift_status == 'finalized' && day_status != 'closed'\}(.*?)\{\/if\}/s", $ledger, $banner) === 1
+        && str_contains($banner[1], '{if can_ledger_override}')
+        && str_contains($banner[1], 'onclick="reopenDay()"')
+);
+dlFeedbackTest(
+    'ledger exposes the shift lifecycle to client-side gating',
+    str_contains($ledger, "var SHIFT_STATUS = '{shift_status}';")
+        && str_contains($ledger, 'window.SHIFT_STATUS = SHIFT_STATUS;')
+);
+dlFeedbackTest(
+    'reopen prompt distinguishes a shift reopen from a day reopen',
+    str_contains($ledger, "String(window.SHIFT_STATUS || '') === 'finalized'")
+        && str_contains($ledger, "showToast(isShiftReopen ? (SHIFT + ' shift reopened') : 'Day reopened');")
+);
+
 echo "\n" . str_repeat('-', 50) . "\n";
 echo "  Result: {$pass} passed, {$fail} failed\n";
 if ($errors !== []) {

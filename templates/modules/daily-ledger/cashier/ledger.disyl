@@ -103,6 +103,20 @@
 
 <div id="finalize-pm-result" class="hidden mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div>
 
+{* A finalized shift refuses API writes (dl_assertShiftMutable) even while the day stays open.
+   Say so here and expose the audited reopen, so the block is never discovered by a silent 403. *}
+{if shift_status == 'finalized' && day_status != 'closed'}
+<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+    <span class="font-semibold">The {shift} shift for {ledger_date} is finalized.</span>
+    <span class="ml-1">Beginning balance, ending count and stock adjustments are locked so the signed-off shift cannot change without a trace.</span>
+    {if can_ledger_override}
+    <button type="button" class="btn btn-outline btn-sm ml-2" onclick="reopenDay()" data-online-action="Shift reopen">Reopen {shift} shift to correct</button>
+    {else}
+    <span class="ml-1">Ask an admin or supervisor to reopen the shift if it needs correcting.</span>
+    {/if}
+</div>
+{/if}
+
 <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
     <div>
         <div class="text-sm font-semibold text-gray-900">Choose what you need to do</div>
@@ -160,11 +174,11 @@
         <p class="mt-1 text-xs leading-5 text-emerald-800">Use this only when this branch is sending stock to another branch. Enter the paper DR, choose the receiving branch, and list only the items that actually left this branch.</p>
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-emerald-900 ring-1 ring-inset ring-emerald-200">Best for: normal branch-to-branch stock transfer out.</div>
         <div class="mt-4">
-            {if day_status == 'open' && !reference_only}
+            {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
             <button type="button" class="btn btn-primary w-full justify-center" onclick="openDispatchModal()">Open Send to Branch</button>
             {/if}
-            {if day_status != 'open' || reference_only}
-            <div class="rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-xs text-emerald-900">Unavailable while this day is closed or in reference-only mode.</div>
+            {if day_status != 'open' || reference_only || shift_status == 'finalized'}
+            <div class="rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-xs text-emerald-900">Unavailable while this day is closed, this shift is finalized, or in reference-only mode.</div>
             {/if}
         </div>
     </div>
@@ -174,11 +188,11 @@
         <p class="mt-1 text-xs leading-5 text-amber-800">Use this for charge, pullout, spoilage, staff use, and other branch-side corrections. Do not use it for stock moving between branches.</p>
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-amber-900 ring-1 ring-inset ring-amber-200">Best for: non-transfer corrections inside this branch only.</div>
         <div class="mt-4">
-            {if day_status == 'open' && !reference_only}
+            {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
             <button type="button" class="btn btn-outline w-full justify-center" onclick="openWithdrawalModal()">Open Stock Adjustment</button>
             {/if}
-            {if day_status != 'open' || reference_only}
-            <div class="rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-xs text-amber-900">Unavailable while this day is closed or in reference-only mode.</div>
+            {if day_status != 'open' || reference_only || shift_status == 'finalized'}
+            <div class="rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-xs text-amber-900">Unavailable while this day is closed, this shift is finalized, or in reference-only mode.</div>
             {/if}
         </div>
     </div>
@@ -188,11 +202,11 @@
         <p class="mt-1 text-xs leading-5 text-sky-800">Fix a paper-DR stock delivery — add missed items or correct quantities. Requires the edit-by-DR permission.</p>
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-sky-900 ring-1 ring-inset ring-sky-200">Best for: correcting a delivery captured from a paper DR.</div>
         <div class="mt-4">
-            {if day_status == 'open' && !reference_only}
+            {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
             <button type="button" class="btn btn-outline w-full justify-center" onclick="openEditDeliveryModal()">Open Correct Delivery by DR</button>
             {/if}
-            {if day_status != 'open' || reference_only}
-            <div class="rounded-lg border border-sky-200 bg-white/70 px-3 py-2 text-xs text-sky-900">Unavailable while this day is closed or in reference-only mode.</div>
+            {if day_status != 'open' || reference_only || shift_status == 'finalized'}
+            <div class="rounded-lg border border-sky-200 bg-white/70 px-3 py-2 text-xs text-sky-900">Unavailable while this day is closed, this shift is finalized, or in reference-only mode.</div>
             {/if}
         </div>
     </div>
@@ -273,6 +287,7 @@
     var SHIFT = '{shift}';
     var SHIFT_LOCKED = {if shift_locked}true{else}false{/if};
     var DAY_STATUS = '{day_status}';
+    var SHIFT_STATUS = '{shift_status}';
     var FORMAL_DELIVERY_ENABLED = {if formal_delivery_enabled}true{else}false{/if};
     var COMMISSARY_BRANCH_ID = '{commissary_branch_id}';
     var COMMISSARY_BRANCH_NAME = '{commissary_branch_name}';
@@ -283,6 +298,7 @@
     window.LEDGER_DATE = LEDGER_DATE;
     window.SHIFT = SHIFT;
     window.SHIFT_LOCKED = SHIFT_LOCKED;
+    window.SHIFT_STATUS = SHIFT_STATUS;
     window.FORMAL_DELIVERY_ENABLED = FORMAL_DELIVERY_ENABLED;
     window.COMMISSARY_BRANCH_ID = COMMISSARY_BRANCH_ID;
     window.COMMISSARY_BRANCH_NAME = COMMISSARY_BRANCH_NAME;
@@ -852,7 +868,11 @@
             'already received', 'already', 'required', 'Invalid', 'invalid',
             'A different', 'Reference only', 'Day is closed', 'Branch not authorized',
             'cannot override', 'Add at least one', 'must be 255',
-            'Unable to resolve', 'Missing', 'requires'
+            'Unable to resolve', 'Missing', 'requires',
+            // A finalized shift is a permanent rejection until someone reopens it.
+            // Queueing it retried the same 403 every 30s forever and pinned the
+            // status bar at "pending", which read as the cloud being slow.
+            'finalized', 'locked'
         ].every(function(fragment) { return error.indexOf(fragment) === -1; });
     }
     function replayPendingOperations() {
@@ -961,6 +981,21 @@
         }).then(dlResponseJson);
     }
 
+    // The rendered cell value is the server's last word for that cell. Snapshot it
+    // on focus so a rejected save can be rolled back to a value the ledger will
+    // actually read after reload, instead of leaving the rejected number on screen
+    // (which read as "it saved, then changed itself back later").
+    function dlSnapshotCell(input) {
+        if (input && input.dataset) input.dataset.serverValue = input.value;
+    }
+
+    function revertCellToServerValue(input) {
+        var snapshot = input.dataset ? input.dataset.serverValue : undefined;
+        if (snapshot === undefined || snapshot === null) return false;
+        input.value = snapshot;
+        return true;
+    }
+
     function saveField(input) {
         var productId = input.dataset.product;
         var field = input.dataset.field;
@@ -986,6 +1021,7 @@
                 input.classList.add('saved');
                 setTimeout(function() { input.classList.remove('saved'); }, 1500);
                 removePending(productId, field);
+                input.dataset.serverValue = input.value;
             } else {
                 input.classList.add('error');
                 if (isSessionExpiredResponse(res)) {
@@ -994,8 +1030,21 @@
                 } else if (shouldQueueServerFailure(res)) {
                     vaultOrLegacyAddPending(pendingPayload);
                 } else {
-                    quarantinePendingEntries([buildPendingPayload(productId, field, value)], 'server-rejected', PENDING_KEY);
-                    renderPendingWarning();
+                    // Deterministic rejection (locked shift, closed day, reference
+                    // only): the ledger will still read the old value after reload,
+                    // so put the cell back and say why instead of flashing red and
+                    // leaving an unreplayable entry behind.
+                    var restored = revertCellToServerValue(input);
+                    if (!restored) {
+                        // No snapshot to roll back to, so the authoritative value is
+                        // unknown. Keep the refused entry for review rather than
+                        // discarding the only record of what was attempted.
+                        input.value = (value === null) ? '' : value;
+                        quarantinePendingEntries([buildPendingPayload(productId, field, value)], 'server-rejected', PENDING_KEY);
+                        renderPendingWarning();
+                    }
+                    computeSales(productId);
+                    if (window.showToast) window.showToast(res.error || 'Change rejected', 'error');
                 }
             }
             updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
@@ -1291,7 +1340,14 @@
     }
 
     function reopenDay() {
-        if (!confirm('Reopen this day for editing?')) return;
+        // Reopening the day also resets both shift lifecycles (apiReopenDay), which is
+        // the sanctioned way past a finalized shift. Word the prompt for whichever
+        // reason the operator actually hit.
+        var isShiftReopen = (String(window.SHIFT_STATUS || '') === 'finalized') && (String(window.DAY_STATUS || '') !== 'closed');
+        var promptText = isShiftReopen
+            ? 'Reopen the ' + SHIFT + ' shift for correction?\n\nThis also reopens the day and unfreezes that day\'s variance snapshot. The change is audit-logged.'
+            : 'Reopen this day for editing?\n\nThis also reopens both shift lifecycles and unfreezes that day\'s variance snapshot. The change is audit-logged.';
+        if (!confirm(promptText)) return;
 
         fetch(BASE + '/api/v1/admin/reopen-day', {
             method: 'POST',
@@ -1307,7 +1363,7 @@
         .then(function(res) {
             if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
             if (res.ok) {
-                showToast('Day reopened');
+                showToast(isShiftReopen ? (SHIFT + ' shift reopened') : 'Day reopened');
                 setTimeout(function() { window.refreshMainContent(); }, 800);
             } else {
                 showToast(res.error || 'Failed to reopen');
