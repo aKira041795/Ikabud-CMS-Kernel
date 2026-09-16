@@ -434,6 +434,15 @@
     var QUARANTINE_KEY = [PENDING_STORAGE_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
     var cloudOnline = false;
     var cloudProbeDone = false;
+    // Shared hosting cold renders routinely exceed a few seconds - a local ledger
+    // GET already measured >1s - so a 4s probe timeout declared a healthy cloud
+    // "offline". That is not cosmetic: a false offline stops drainPendingWork() and
+    // disables day-close/POS, which is exactly what made syncing look stalled.
+    // Be generous with the timeout and require the failure to repeat.
+    var CLOUD_PROBE_TIMEOUT_MS = 10000;
+    var CLOUD_PROBE_FAILURE_LIMIT = 2;
+    var cloudProbeFailures = 0;
+    var cloudProbeAnswered = false;
     var syncingPending = false;
     var storageAvailable = true;
     var lastCloudSync = null;
@@ -1187,6 +1196,23 @@
         if (pending > 0) updateGlobalStatus('pending');
     }
 
+    // Connectivity hysteresis: the first probe answer is decisive because we have no
+    // prior evidence of connectivity, but after that a single slow or dropped probe
+    // keeps the last known state rather than flapping the banner and halting the
+    // pending drain.
+    function markCloudProbeFailure() {
+        cloudProbeFailures++;
+        if (!cloudProbeAnswered || cloudProbeFailures >= CLOUD_PROBE_FAILURE_LIMIT) {
+            cloudOnline = false;
+        }
+        return false;
+    }
+
+    function markCloudProbeSuccess() {
+        cloudProbeFailures = 0;
+        cloudOnline = true;
+    }
+
     function probeCloud() {
         if (sessionExpired) return Promise.resolve(false);
         if (!navigator.onLine) {
@@ -1195,7 +1221,7 @@
             return Promise.resolve(false);
         }
         var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = controller ? setTimeout(function() { controller.abort(); }, 4000) : null;
+        var timer = controller ? setTimeout(function() { controller.abort(); }, CLOUD_PROBE_TIMEOUT_MS) : null;
         return fetch(BASE + '/api/v1/cashier/ledger/day-status', {
             method: 'GET',
             credentials: 'same-origin',
@@ -1205,16 +1231,17 @@
         }).then(function(response) {
             var contentType = response.headers.get('Content-Type') || '';
             if (response.redirected || contentType.indexOf('application/json') === -1) {
-                cloudOnline = false;
-                return false;
+                return markCloudProbeFailure();
             }
             return dlResponseJson(response).then(function(result) {
                 if (isSessionExpiredResponse(result)) {
                     window.dlSessionExpired(result);
                     return false;
                 }
-                cloudOnline = response.ok && result && result.ok === true;
-                if (!cloudOnline) return false;
+                if (!(response.ok && result && result.ok === true)) {
+                    return markCloudProbeFailure();
+                }
+                markCloudProbeSuccess();
                 if (window.DL_OFFLINE_SHELL) {
                     window.location.reload();
                     return true;
@@ -1222,11 +1249,11 @@
                 return drainPendingWork().then(function() { return true; });
             });
         }).catch(function() {
-            cloudOnline = false;
-            return false;
+            return markCloudProbeFailure();
         }).finally(function() {
             if (timer) clearTimeout(timer);
             cloudProbeDone = true;
+            cloudProbeAnswered = true;
             renderConnectivityBanner();
         });
     }

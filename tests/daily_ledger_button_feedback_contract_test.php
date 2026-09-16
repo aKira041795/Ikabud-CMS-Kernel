@@ -182,6 +182,47 @@ dlFeedbackTest(
         && str_contains($ledger, "showToast(isShiftReopen ? (SHIFT + ' shift reopened') : 'Day reopened');")
 );
 
+// ── Cloud connectivity contract ────────────────────────────────────────────
+// A slow-but-healthy shared-host response used to be reported as "Offline", which
+// stops drainPendingWork() and disables day-close/POS, so a false negative looked
+// exactly like "the cloud keeps dropping and takes ages to sync again".
+$probeStart = strpos($ledger, 'function probeCloud()');
+$probeEnd = strpos($ledger, 'cloudProbeInterval = setInterval', $probeStart ?: 0);
+$probeSource = ($probeStart !== false && $probeEnd !== false)
+    ? substr($ledger, $probeStart, $probeEnd - $probeStart)
+    : '';
+
+dlFeedbackTest(
+    'cloud probe timeout accommodates shared-hosting render times',
+    str_contains($ledger, 'var CLOUD_PROBE_TIMEOUT_MS = 10000;')
+        && str_contains($probeSource, '}, CLOUD_PROBE_TIMEOUT_MS)')
+        && !str_contains($probeSource, '}, 4000)')
+);
+dlFeedbackTest(
+    'one slow probe cannot declare the cloud offline',
+    str_contains($ledger, 'function markCloudProbeFailure()')
+        && str_contains($ledger, 'var CLOUD_PROBE_FAILURE_LIMIT = 2;')
+        && str_contains($ledger, 'if (!cloudProbeAnswered || cloudProbeFailures >= CLOUD_PROBE_FAILURE_LIMIT) {')
+);
+dlFeedbackTest(
+    'every inconclusive probe failure routes through the hysteresis helper',
+    substr_count($probeSource, 'return markCloudProbeFailure();') === 3
+        // The two remaining direct assignments are the decisive browser signals:
+        // navigator.onLine and the window 'offline' event.
+        && substr_count($probeSource, 'cloudOnline = false;') === 2
+);
+dlFeedbackTest(
+    'the browser offline signal stays decisive',
+    str_contains($probeSource, 'if (!navigator.onLine) {')
+        && str_contains($probeSource, 'cloudProbeAnswered = true;')
+);
+dlFeedbackTest(
+    'a successful probe clears the failure counter and restores online',
+    str_contains($ledger, 'function markCloudProbeSuccess()')
+        && str_contains($ledger, "cloudProbeFailures = 0;\n        cloudOnline = true;")
+        && str_contains($probeSource, 'markCloudProbeSuccess();')
+);
+
 echo "\n" . str_repeat('-', 50) . "\n";
 echo "  Result: {$pass} passed, {$fail} failed\n";
 if ($errors !== []) {
