@@ -5408,8 +5408,16 @@ function apiSaveLedgerField(array $params = []): void
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
         $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
+        // Deliberately NOT "FOR UPDATE". This read only captures the audit "before"
+        // value; the INSERT ... ON DUPLICATE KEY UPDATE below already takes the row
+        // lock it needs. Under REPEATABLE READ a locking read of a row that does not
+        // exist yet takes a next-key lock on the gap it would occupy. At the start of
+        // a business day every row is missing and the new date is the newest in the
+        // table, so concurrent saves across branches all gap-lock the same index
+        // supremum and then each request an insert-intention lock inside it - which
+        // deadlocks (InnoDB 1213, reproduced at 10 concurrent saves over 10 branches).
         $oldStmt = $ctx->db()->prepare(
-            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1 FOR UPDATE"
+            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1"
         );
         $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
         $oldVal = $oldStmt->fetchColumn();

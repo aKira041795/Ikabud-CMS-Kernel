@@ -496,8 +496,13 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
         $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
+        // Deliberately NOT "FOR UPDATE" - same reasoning as apiSaveLedgerField. This
+        // read only captures the audit "before" value, and a locking read of a
+        // not-yet-existing row gap-locks the index supremum, which deadlocks when a
+        // day's first rows are inserted concurrently (e.g. a queue of offline saves
+        // replaying to several branches at the start of a business day).
         $oldStmt = $ctx->db()->prepare(
-            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1 FOR UPDATE"
+            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1"
         );
         $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
         $oldVal = $oldStmt->fetchColumn();
