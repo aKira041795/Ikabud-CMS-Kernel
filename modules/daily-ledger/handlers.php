@@ -3213,6 +3213,15 @@ function dailyLedgerAuthLogin(): void
     $tokens = dl_generateAuthTokens($payload);
     dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
 
+    // Credentials are verified, so refund the login budget this request spent.
+    // The limiter counts every attempt including successful ones, and a branch
+    // signs in several cashiers from one egress IP, so without this a shift change
+    // could only ever admit AUTH_LOGIN_RATE_LIMIT_MAX people per window. Failed
+    // attempts still accumulate, so the brute-force bound is unchanged.
+    if (function_exists('kernelResetLoginRateLimit')) {
+        kernelResetLoginRateLimit('daily-ledger');
+    }
+
     if ($role === 'cashier') {
         $redirect = '/daily-ledger/ledger';
     } elseif ($role === 'production_in_charge') {

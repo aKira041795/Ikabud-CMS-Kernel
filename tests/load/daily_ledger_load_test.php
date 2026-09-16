@@ -650,14 +650,15 @@ if (in_array($opts['phase'], ['all', 'contention'], true)) {
 if (in_array($opts['phase'], ['all', 'mixed'], true)) {
     echo "── PHASE 4: mixed steady-state profile ──────────────────────────────\n\n";
 
-    // Model one shift-minute across the client's rollout: every cashier's tab
-    // probes the day status every 30s (the dominant, continuous load), edits are
-    // bursty, and page loads are rare.
+    // Model one shift-minute across the client's rollout. The probe is now the
+    // 120s heartbeat (it was 30s, which made it 59% of all fleet demand), hidden
+    // tabs do not probe at all, and the rows partial is no longer auto-fetched on
+    // page load. Edits stay bursty and page loads stay rare.
     $mix = [
-        'probe' => 62,        // ~2/min per open tab
+        'probe' => 16,        // 46 tabs / 120s, minus tabs that are backgrounded
         'save' => 20,
         'adjustments' => 4,
-        'rows' => 6,
+        'rows' => 1,          // explicit refresh only
         'page' => 2,
     ];
     $jobs = [];
@@ -705,7 +706,7 @@ if (in_array($opts['phase'], ['all', 'mixed'], true)) {
 // ── Demand model vs. measured capacity ────────────────────────────────────────
 $peakBranches = (int)$opts['peak-branches'];
 $cashiersPerBranch = 2;               // AM + PM
-$probeEverySeconds = 30;
+$probeEverySeconds = 120;              // 46 tabs poll once every 2 min (CLOUD_PROBE_MS)
 $savesPerCashierPerShift = 40;
 $peakWindowMinutes = 30;              // closing burst
 
@@ -722,7 +723,7 @@ $workerSeconds = ($probeRps * $probeCost) + ($saveRps * $saveCost) + ($pageRps *
 
 echo "── CAPACITY MODEL: {$peakBranches} branches ─────────────────────────────────\n\n";
 printf("  %-40s %s\n", 'cashiers (AM+PM)', $cashierCount);
-printf("  %-40s %s req/s\n", 'day-status probes (every 30s, all tabs)', round($probeRps, 2));
+printf("  %-40s %s req/s\n", 'day-status probes (every ' . (string)$probeEverySeconds . 's; hidden tabs idle)', round($probeRps, 2));
 printf("  %-40s %s req/s\n", 'field saves (closing burst)', round($saveRps, 2));
 printf("  %-40s %s req/s\n", 'ledger page loads', round($pageRps, 2));
 printf("  %-40s %s req/s\n", 'TOTAL peak demand', round($probeRps + $saveRps + $pageRps, 2));

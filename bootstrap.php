@@ -1163,6 +1163,42 @@ function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts
     ];
 }
 
+/**
+ * Clears the login attempt counter for the current request's identifier.
+ *
+ * The counter is consumed before credentials are verified, so a successful sign-in
+ * still spends the caller's budget. On a shared egress IP - several branches behind
+ * one public address - that turns an ordinary shift-start into a lockout: only
+ * AUTH_LOGIN_RATE_LIMIT_MAX cashiers can sign in per window no matter how correct
+ * their passwords are.
+ *
+ * Clearing only on a VERIFIED success keeps the brute-force bound intact: the
+ * counter cannot be cleared without already holding valid credentials, and every
+ * failed attempt still accumulates towards the limit.
+ */
+function kernelResetLoginRateLimit(?string $moduleId = null): void
+{
+    try {
+        $identifier = kernelLoginRateLimitIdentifier($moduleId);
+    } catch (Throwable $ignored) {
+        return;
+    }
+
+    try {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            app()->db()
+                ->prepare('DELETE FROM rate_limits WHERE identifier = :id AND action = :action')
+                ->execute([':id' => $identifier, ':action' => 'login']);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
+    } catch (Throwable $ignored) {
+        // Failing to clear only leaves the caller with their spent budget. Never
+        // break a successful sign-in over limiter bookkeeping.
+    }
+}
+
 function kernelActiveProductIntegrationMode(bool $refresh = false): string
 {
     if (!$refresh) {

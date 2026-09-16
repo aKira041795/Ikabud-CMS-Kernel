@@ -14,16 +14,30 @@ authenticated, per-user, write-heavy, and never page-cached.
 | # | Finding | Severity | Status |
 |---|---|---|---|
 | 1 | Concurrent ledger saves **deadlock** (`SQLSTATE 40001`, InnoDB 1213) when a day's rows do not exist yet | **High** | **Fixed & verified** |
-| 2 | The `day-status` probe is **59% of all fleet demand** and returns 31 bytes for ~360 ms | **High** | Recommendation |
-| 3 | Each ledger view issues a **fully redundant 588 KB row fetch** | Medium | Recommendation |
-| 4 | `beg_bal`/`bal_end` cells carry ~3.4 KB of inline markup **per row** (793 KB page) | Medium | Recommendation |
-| 5 | Login is capped at **5 per IP per 5 min, counting successful logins** | Medium | Verify before rollout |
+| 2 | The `day-status` probe was **59% of all fleet demand**, returning 31 bytes for ~360 ms | **High** | **Fixed & verified** |
+| 3 | Each ledger view issued a **fully redundant 588 KB row fetch** | Medium | **Fixed & verified** |
+| 4 | `beg_bal`/`bal_end` cells carried ~3.4 KB of inline markup **per row** (793 KB page) | Medium | **Fixed & verified** |
+| 5 | Login capped at **5 per IP per 5 min, counting successful logins** | Medium | **Fixed & verified** |
 
-**Verdict:** the 23-branch peak demand (~2.6 req/s) sits at roughly **half** of this
-2-core dev box's measured ceiling (~5.2 req/s of the same mix) but at or above the
-**projected Bluehost shared-hosting capacity** (~1.5–3 req/s from the April study).
-Rolling out to 23 branches without first cutting per-branch background load
-(finding 2) leaves no headroom.
+**Verdict after the fixes:** peak fleet demand falls from **2.58 → 1.43 req/s**, and
+the per-view payload from **793 KB → 631 KB**. Against the April study's projected
+Bluehost shared-hosting capacity (1.5–3 req/s), the 23-branch fleet now sits at
+**roughly half** of the conservative projection instead of at or above it. The
+remaining headroom is still thin enough that the production host must be re-measured
+with the same harness before all 23 branches are enabled.
+
+### Changes implemented the same day
+
+| Change | Measured effect | Proof |
+|---|---|---|
+| Dropped `FOR UPDATE` from the audit pre-read (online + offline) | 0 deadlocks in 13 consecutive fresh-day runs (was 2 of 6 runs) | InnoDB report + isolation matrix |
+| Probe 30 s → 120 s, skip hidden tabs, probe on tab return, 15 s drain tick | fleet probes **1.53 → 0.38 req/s**; total demand **−45%** | demand model, live behaviour check |
+| Removed the automatic HTMX row re-fetch | **−1 request and −588 KB per ledger view** | 0 row fetches on load; manual refresh still fires |
+| Collapsed repeated utility strings into CSS classes | rows **588 → 422 KB (−28%)**, page **793 → 631 KB (−21%)** | 0 mismatched computed styles; 0 differing pixels outside the live clocks |
+| Reset the login counter on a **verified** success | 30/30 correct logins succeed (was 5); brute force still throttles at attempt 6 | live login probe |
+
+All verified on the dev tenant (207) with 1305/0 across the 15 daily-ledger suites.
+
 
 ---
 
@@ -173,7 +187,13 @@ Consider a bounded retry-on-1213 wrapper as defence in depth.
 
 ---
 
-## 6. Finding 2 — The 30 s probe is the scale limiter
+## 6. Finding 2 — The 30 s probe was the scale limiter (now 120 s)
+
+**Implemented.** `CLOUD_PROBE_MS = 120000`, hidden tabs skip the probe entirely,
+returning to the tab probes immediately, and a 15 s tick drains queued work early
+(issuing no request at all when nothing is pending). The probe was confirmed to be a
+pure connectivity/sync heartbeat — it never repaints `day_status` into the UI — so
+slowing it down cannot make the cashier's view stale.
 
 Every open ledger tab polls `day-status` **every 30 seconds**, for the whole shift,
 regardless of whether anything changed.
@@ -192,16 +212,21 @@ study projected Bluehost shared hosting at only **1.5–3 req/s** — so the fle
 **86–172% of projected capacity**. A single endpoint returning 31 bytes is consuming
 the majority of that budget.
 
-### Recommendations (any one roughly halves the peak)
-- Raise the interval from 30 s to 120 s (peak → ~1.4 req/s total).
-- Make it adaptive: poll only when there is pending work to drain, or back off after
-  each successful probe, or pause while the tab is hidden (`document.hidden`).
-- Cheapest structural win: return the day status **with** the rows/adjustments
-  responses and drop the standalone poll entirely.
+### Options considered
+
+- ✅ Raise the interval from 30 s to 120 s (peak → ~1.4 req/s total).
+- ✅ Pause while the tab is hidden (`document.hidden`), probe on return to the tab, and
+  drain queued work on a faster tick when something is actually pending.
+- Still available if more headroom is ever needed: return the day status **with** the
+  rows/adjustments responses and drop the standalone poll entirely.
 
 ---
 
-## 7. Finding 3 — Every ledger view makes a redundant 588 KB fetch
+## 7. Finding 3 — Every ledger view made a redundant 588 KB fetch (removed)
+
+**Implemented.** The trigger is now the explicit `dl:rows-refresh` event, so the
+server-rendered rows are used as-is. Verified: 0 row fetches on load, and the two
+callers that need a refresh (AM carry-forward, PM hand-off) still fire it.
 
 The tbody both server-renders the rows and immediately re-fetches them:
 
@@ -222,7 +247,20 @@ the rows) or dropping the initial `{include}` recovers it.
 
 ---
 
-## 8. Finding 4 — Row markup is heavy
+## 8. Finding 4 — Row markup was heavy (collapsed)
+
+**Implemented.** The repeated utility strings became `.ledger-cell`, `.ledger-chip`,
+`.ledger-chip-pending`, `.ledger-trigger-add`, `.ledger-trigger-out`, `.ledger-num`
+and `.ledger-name` in the daily-ledger layout, following the pattern the layout
+already used for `.btn`/`.form-input`. The two JS `span.className` rewrites in
+`computeSales()` were updated too, or the long strings would have returned on the
+first recompute.
+
+Verified by comparing computed styles before/after: **0 mismatches** across display,
+size, padding, margins, borders, radius, font, colours, gap and alignment. Pixel diff:
+**0 differing pixels** in the header area and **0** in everything below the banner
+(the entire ledger grid) — the only differences anywhere are the two live clock
+strings. Payload: rows 588,120 → 422,434 B (−28.2%), page 793,647 → 631,340 B (−20.5%).
 
 793 KB page / 588 KB rows for 174 products = **~3.4 KB per table row**. Each cell
 repeats a ~200-character Tailwind class string. At 46 cashiers this is a real
@@ -231,7 +269,18 @@ Moving the repeated classes into a stylesheet is the obvious lever.
 
 ---
 
-## 9. Finding 5 — Login rate limit counts successful logins
+## 9. Finding 5 — Login rate limit counted successful logins (fixed)
+
+**Implemented** via `kernelResetLoginRateLimit()`, called from the daily-ledger login
+handler only after credentials verify. Verified live: **30/30 consecutive correct
+logins succeed** (previously the 6th was refused) and the counter is left clean; six
+wrong passwords still throttle at attempt 6, so the brute-force bound is unchanged.
+
+What still needs confirming is the **branch IP topology**. If all 23 branches really
+do share one public address, then five mistyped passwords anywhere in the company
+within five minutes locks out every branch for five minutes. In that case raise
+`AUTH_LOGIN_RATE_LIMIT_MAX`; both it and `AUTH_LOGIN_RATE_LIMIT_WINDOW` are read from
+the environment (`kernelLoginRateLimitMaxAttempts()` / `kernelLoginRateLimitWindowSeconds()`).
 
 `AUTH_LOGIN_RATE_LIMIT_MAX` (default **5**) per `AUTH_LOGIN_RATE_LIMIT_WINDOW`
 (default **300 s**), keyed on `$_SERVER['REMOTE_ADDR']`. The counter increments on
@@ -279,13 +328,16 @@ Raw results: `test_results/daily-ledger-load.json`.
 
 ---
 
-## 11. Recommended order before go-live
+## 11. Status and remaining work
 
-1. **Deploy the deadlock fix.** Verified; affects every branch at the start of every
-   business day.
-2. **Cut probe frequency** (30 s → 120 s or adaptive). Removes ~59% of fleet demand.
-3. **Remove the redundant row fetch** (`hx-trigger="load"`). One less request and 588 KB
-   per ledger view.
-4. **Verify the login rate limit** against the real branch IP topology.
-5. **Re-measure on the production host** with the same harness before enabling the full
-   23 branches; if capacity is still tight, ramp branches in waves rather than all at once.
+Findings 1–5 are fixed and verified on the dev tenant (see the table in §1). Remaining:
+
+1. **Deploy to live** — tenant 203, plus `php ikabud tenant:migrate 203 daily-ledger`
+   for migrations 055–060. Live is still on build `f4dadcb8`.
+2. **Confirm the branch IP topology** and, if the branches share one egress address,
+   raise `AUTH_LOGIN_RATE_LIMIT_MAX` accordingly (see §9).
+3. **Re-measure on the production host** with the same harness before enabling all 23
+   branches. If the margin is thin, ramp branches in waves rather than all at once.
+4. **Optional:** a bounded retry on InnoDB 1213 as defence in depth for the remaining
+   shared lock points (`dl_lockDayStatusRow`, `dl_recomputeVariancesForDay`). Not
+   currently required — the reproduced deadlock is gone.

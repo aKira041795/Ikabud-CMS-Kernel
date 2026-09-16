@@ -229,7 +229,11 @@
             </thead>
             <tbody id="ledger-body"
                    hx-get="{base_url}/ledger/rows?date={ledger_date}&branch_id={branch_id}&shift={shift}"
-                   hx-trigger="load"
+                   {* Explicit refresh event, not "load": the rows are already rendered
+                      by the include below, so firing on load re-fetched 588KB of identical
+                      markup on every ledger view. Callers that need a refresh dispatch
+                      the dl:rows-refresh event. *}
+                   hx-trigger="dl:rows-refresh"
                    hx-swap="innerHTML">
                 {if branch_id}
                 {include "modules/daily-ledger/cashier/partials/ledger-rows.disyl"}
@@ -449,7 +453,17 @@
     var saveFieldVersions = {};
     var sessionExpired = false;
     var cloudProbeInterval = null;
+    var pendingDrainInterval = null;
     var sessionRedirectTimer = null;
+
+    // Probe cadence. The probe is a connectivity/sync heartbeat only - it never
+    // repaints ledger data - so a slower steady interval costs the cashier nothing
+    // and removes the fleet's single largest source of load: with 23 branches every
+    // open tab polling every 30s was ~59% of all request volume. Responsiveness is
+    // preserved where it actually matters (see the listeners at the bottom of this
+    // block): immediate check on reconnect, on returning to the tab, and while
+    // queued work is waiting to drain.
+    var CLOUD_PROBE_MS = 120000;
 
     function dlResponseJson(response) {
         return response.json().then(function(body) {
@@ -469,6 +483,10 @@
         if (cloudProbeInterval !== null) {
             clearInterval(cloudProbeInterval);
             cloudProbeInterval = null;
+        }
+        if (pendingDrainInterval !== null) {
+            clearInterval(pendingDrainInterval);
+            pendingDrainInterval = null;
         }
         window.removeEventListener('online', probeCloud);
         var box = document.getElementById('connectivity-banner');
@@ -955,7 +973,7 @@
             if (span) {
                 span.textContent = 'Pending';
                 span.dataset.pending = '1';
-                span.className = 'sales-computed ml-auto inline-flex w-20 justify-end rounded-lg bg-amber-50 px-2 py-1.5 text-sm font-semibold text-amber-700 ring-1 ring-inset ring-amber-200';
+                span.className = 'ledger-chip ledger-chip-pending sales-computed';
             }
             return null;
         }
@@ -964,7 +982,7 @@
         if (span) {
             span.textContent = sales;
             delete span.dataset.pending;
-            span.className = 'sales-computed ml-auto inline-flex w-20 justify-end rounded-lg bg-gray-50 px-2 py-1.5 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-200';
+            span.className = 'ledger-chip sales-computed';
         }
         return sales;
     }
@@ -1277,7 +1295,23 @@
 
     window.addEventListener('online', probeCloud);
     window.addEventListener('offline', function() { cloudOnline = false; renderConnectivityBanner(); });
-    cloudProbeInterval = setInterval(function() { if (navigator.onLine) probeCloud(); }, 30000);
+    cloudProbeInterval = setInterval(function() {
+        // A background tab costs a whole PHP worker per probe and nobody is looking
+        // at it, so skip entirely; visibilitychange probes as soon as it returns.
+        if (!navigator.onLine || document.hidden) return;
+        probeCloud();
+    }, CLOUD_PROBE_MS);
+
+    // Queued entries must not wait out the full interval to reach the cloud. This
+    // tick is free when there is nothing pending - it issues no request at all.
+    pendingDrainInterval = setInterval(function() {
+        if (!navigator.onLine || document.hidden) return;
+        if (pendingTotal() > 0) probeCloud();
+    }, 15000);
+
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && navigator.onLine) probeCloud();
+    });
 
     // Tab/Enter navigation between inputs
     document.addEventListener('keydown', function(e) {
@@ -1750,7 +1784,7 @@
             }
             // Reload rows so the adopted beg_bal values are persisted/visible.
             if (window.htmx && document.getElementById('ledger-body')) {
-                htmx.trigger(document.getElementById('ledger-body'), 'load');
+                htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
             }
         })
         .catch(function() {});
@@ -1797,7 +1831,7 @@
             }
             // Reload rows so the adopted beg_bal values are persisted/visible.
             if (window.htmx && document.getElementById('ledger-body')) {
-                htmx.trigger(document.getElementById('ledger-body'), 'load');
+                htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
             }
         })
         .catch(function() {});

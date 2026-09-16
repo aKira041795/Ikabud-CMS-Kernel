@@ -84,6 +84,22 @@
         .bg-white .text-gray-900 {
             color: rgb(15 23 42);
         }
+
+        /* Daily Ledger ledger-row cells. These mirror the Tailwind utilities they
+           replace so the grid renders identically, while removing ~1.1KB of repeated
+           class text from each of 174 rows (class attributes were 41% of the rows
+           payload, which is re-sent on every ledger view). */
+        .ledger-cell { display: block; margin: 0 0 0 auto; min-height: 2.75rem; width: 5rem; border: 1px solid rgb(209 213 219); background: #fff; padding: .5rem; text-align: right; font-size: .875rem; line-height: 1.25rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+        .ledger-cell:focus { outline: none; border-color: rgb(99 102 241); box-shadow: inset 0 0 0 3px rgba(99,102,241,.22); }
+        .ledger-chip { margin-left: auto; display: inline-flex; width: 5rem; justify-content: flex-end; border-radius: .5rem; padding: .375rem .5rem; font-size: .875rem; line-height: 1.25rem; font-weight: 600; color: rgb(15 23 42); background: rgb(249 250 251); box-shadow: inset 0 0 0 1px rgb(229 231 235); }
+        .ledger-chip-pending { color: rgb(180 83 9); background: rgb(255 251 235); box-shadow: inset 0 0 0 1px rgb(253 230 138); }
+        .ledger-trigger { margin-left: auto; display: inline-flex; width: 5rem; align-items: center; justify-content: flex-end; gap: .25rem; border-style: solid; border-width: 1px; border-radius: 3px; padding: .375rem .5rem; font-size: .875rem; line-height: 1.25rem; font-weight: 600; }
+        .ledger-trigger-add { border-color: rgb(110 231 183); background: rgb(236 253 245); color: rgb(6 95 70); box-shadow: inset 0 0 0 1px rgb(167 243 208), 0 1px 2px rgba(0,0,0,.05); }
+        .ledger-trigger-add:hover { background: rgb(209 250 229); }
+        .ledger-trigger-out { border-color: rgb(252 211 77); background: rgb(255 251 235); color: rgb(146 64 14); box-shadow: inset 0 0 0 1px rgb(253 230 138), 0 1px 2px rgba(0,0,0,.05); }
+        .ledger-trigger-out:hover { background: rgb(254 243 199); }
+        .ledger-num { width: 3.5rem; white-space: nowrap; text-align: center; vertical-align: middle; font-size: .875rem; color: rgb(71 85 105); }
+        .ledger-name { white-space: nowrap; vertical-align: middle; font-weight: 500; font-size: .875rem; color: rgb(15 23 42); }
     </style>
 
     <script>
