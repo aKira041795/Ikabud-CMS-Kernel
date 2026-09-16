@@ -6,7 +6,7 @@
             "model": "deepseek/deepseek-v4-flash",
             "prompt_file": "stages/architect.md",
             "marker": "SOL_ARCH status=PASS",
-            "verify": "test -s ARCHITECTURE.md && test \"$(tail -n 1 ARCHITECTURE.md)\" = \"status: READY_FOR_IMPLEMENTATION\"",
+            "verify": "c=$(ls -t .ai/harpp-workflows/*/ARCHITECTURE.md 2>/dev/null | head -1); test -n \"$c\" && test \"$(tail -n 1 \"$c\")\" = \"status: READY_FOR_IMPLEMENTATION\"",
             "timeout": 1800
         },
         {
