@@ -154,14 +154,22 @@
                 if (!cont) return;
 
                 var el = document.createElement('div');
-                var cls = (type === 'error') ? 'bg-red-600 text-white' : 'bg-slate-900 text-white';
+                // Colour carries the outcome, so a cashier can read the result at a
+                // glance without waiting for the (slow) view refresh: green = the
+                // server accepted it, red = it failed, slate = informational
+                // (queued/pending). Previously every non-error toast was slate, so
+                // success and "queued" were visually identical.
+                var cls = (type === 'error')
+                    ? 'bg-red-600 text-white'
+                    : (type === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white');
                 el.className = 'mb-2 px-4 py-3 rounded-xl shadow text-sm ' + cls;
+                el.setAttribute('role', type === 'error' ? 'alert' : 'status');
                 el.textContent = String(message || 'OK');
                 cont.appendChild(el);
 
                 setTimeout(function() {
                     if (el && el.parentNode) el.parentNode.removeChild(el);
-                }, 2800);
+                }, (type === 'error') ? 6000 : 2800);
             } catch (e) {
             }
         };
@@ -170,6 +178,54 @@
             if (!d) return;
             window.showToast(d.message || 'OK', d.type || 'success');
         });
+
+        // ── Submit feedback ────────────────────────────────────────────────
+        // A slow link makes the view refresh lag far behind the request, so the
+        // operator cannot tell a saved edit from a failed or merely queued one.
+        // These helpers report the outcome as soon as the server answers, which
+        // is independent of how long the re-render takes.
+        window.dlBusyDepth = 0;
+        window.dlBusyWatchdog = null;
+        window.dlSetBusy = function(show, label) {
+            var box = document.getElementById('dl-busy');
+            if (!box) return;
+            var text = document.getElementById('dl-busy-label');
+            if (show) {
+                // Depth counter: rapid, overlapping cell edits keep the indicator
+                // visible until the LAST one settles instead of the first
+                // completion hiding it while earlier requests are still open.
+                window.dlBusyDepth = (window.dlBusyDepth || 0) + 1;
+                if (text && label) text.textContent = label;
+                box.classList.remove('hidden');
+                // Safety net: a permanently stuck indicator would be worse than no
+                // indicator at all, so it can never outlive a request that failed
+                // to settle. 60s sits just above the server's 50s lock-wait so a
+                // legitimately slow save is not cleared early.
+                if (window.dlBusyWatchdog !== null) clearTimeout(window.dlBusyWatchdog);
+                window.dlBusyWatchdog = setTimeout(function() {
+                    window.dlBusyDepth = 0;
+                    window.dlBusyWatchdog = null;
+                    box.classList.add('hidden');
+                }, 60000);
+            } else {
+                window.dlBusyDepth = Math.max(0, (window.dlBusyDepth || 0) - 1);
+                if (window.dlBusyDepth === 0) {
+                    box.classList.add('hidden');
+                    if (window.dlBusyWatchdog !== null) {
+                        clearTimeout(window.dlBusyWatchdog);
+                        window.dlBusyWatchdog = null;
+                    }
+                }
+            }
+        };
+        // Coalesced success notice: tabbing across many cells would otherwise
+        // stack one toast per field and bury the screen.
+        window.dlToastSaved = function(message) {
+            var now = Date.now();
+            if (window.dlLastSavedToast && (now - window.dlLastSavedToast) < 1500) return;
+            window.dlLastSavedToast = now;
+            window.showToast(message || 'Saved', 'success');
+        };
         document.addEventListener('htmx:afterSettle', function(evt) {
             var scripts = evt.detail.elt.querySelectorAll('script:not([src])');
             scripts.forEach(function(s) {
@@ -300,6 +356,21 @@
 <body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }" data-wb-component="app-shell">
 
     <div id="toast-container" class="fixed top-4 right-4 z-50" role="status" aria-live="polite"></div>
+
+    <!-- In-flight indicator. Deliberately non-blocking (pointer-events-none): on a
+         slow link a modal overlay would freeze the cashier for the whole request,
+         which is worse than the ambiguity it removes. It is visually
+         unmistakable, so a send is never silent. -->
+    <div id="dl-busy" class="hidden fixed inset-0 z-40 flex items-center justify-center pointer-events-none" aria-hidden="true">
+        <div class="absolute inset-0 bg-slate-900/30"></div>
+        <div class="relative flex items-center gap-3 rounded-xl bg-slate-900/95 px-5 py-4 text-sm font-semibold text-white shadow-2xl">
+            <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <span id="dl-busy-label">Saving…</span>
+        </div>
+    </div>
 
     <div class="flex h-screen overflow-hidden">
         <aside id="wb-sidebar" class="relative flex flex-col bg-gradient-to-b from-indigo-700 to-indigo-900 text-white transition-all duration-300" :class="sidebarOpen ? 'w-64' : 'w-20'" role="navigation" aria-label="Sidebar navigation">

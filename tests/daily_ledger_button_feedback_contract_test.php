@@ -223,6 +223,87 @@ dlFeedbackTest(
         && str_contains($probeSource, 'markCloudProbeSuccess();')
 );
 
+// --- Queue-vs-error classification (structural, not message-text matching) ----
+// The handlers already set proper statuses: 4xx means this exact request will be
+// refused again (403 reference-only/finalized/cannot-override, 422 validation),
+// while 5xx/408/429 are worth retrying. The status must be consulted BEFORE the
+// legacy message-fragment list, otherwise an unlisted message (e.g. the 422s
+// 'Value must be a number' and 'Value out of bounds') is queued and retried
+// forever while the cashier is told the edit will sync.
+$classifier = '';
+if (preg_match('/function shouldQueueOperationFailure\(res\)\s*\{(.*?)\n    \}/s', $ledger, $classifierMatch)) {
+    $classifier = (string)$classifierMatch[1];
+}
+$statusIdx = strpos($classifier, '__status');
+$fragmentListIdx = strpos($classifier, "'already received'");
+dlFeedbackTest(
+    'queue classifier reads the HTTP status',
+    $classifier !== '' && $statusIdx !== false,
+    'shouldQueueOperationFailure must consult res.__status'
+);
+dlFeedbackTest(
+    'status is consulted before the message fragment list',
+    $statusIdx !== false && $fragmentListIdx !== false && $statusIdx < $fragmentListIdx,
+    'the structural decision must precede text matching'
+);
+dlFeedbackTest(
+    'timeout and rate-limit statuses stay retryable',
+    str_contains($classifier, 'status === 408') && str_contains($classifier, 'status === 429'),
+    '408/429 are transient and must still be queued'
+);
+dlFeedbackTest(
+    'server faults stay retryable',
+    str_contains($classifier, 'status >= 500'),
+    '5xx must still be queued for retry'
+);
+dlFeedbackTest(
+    'other client errors are refusals, not retries',
+    str_contains($classifier, 'status >= 400'),
+    'remaining 4xx must surface as errors instead of queueing'
+);
+dlFeedbackTest(
+    'legacy fragment list retained as a fallback',
+    str_contains($classifier, "'Reference only'") && str_contains($classifier, "'finalized'"),
+    'responses without a usable status still need the fallback'
+);
+$modalPatch = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/cashier/modal_patch.disyl');
+dlFeedbackTest(
+    'withdrawal modal forwards the status to the classifier',
+    str_contains($modalPatch, 'body.__status = r.status'),
+    'the add/pullout submit must classify structurally too'
+);
+
+// The add/pullout refusals must carry explicit statuses, because the client
+// decides queue-vs-error structurally. A statusless refusal falls back to
+// matching the message text, which is how the 422s 'Value must be a number' and
+// 'Value out of bounds' came to be queued and retried indefinitely.
+$withdrawalStart = strpos($handlers, 'function apiSaveCashierWithdrawals');
+$withdrawalBody = '';
+if ($withdrawalStart !== false) {
+    $withdrawalNext = strpos($handlers, "\nfunction ", $withdrawalStart + 1);
+    $withdrawalBody = substr(
+        $handlers,
+        $withdrawalStart,
+        ($withdrawalNext !== false ? $withdrawalNext : strlen($handlers)) - $withdrawalStart
+    );
+}
+dlFeedbackTest(
+    'withdrawal save handler located',
+    $withdrawalBody !== '',
+    'could not locate apiSaveCashierWithdrawals in handlers.php'
+);
+$statuslessRefusals = [];
+foreach (explode("\n", $withdrawalBody) as $handlerLine) {
+    if (str_contains($handlerLine, "json(['ok' => false") && !preg_match('/,\s*[1-5][0-9]{2}\)/', $handlerLine)) {
+        $statuslessRefusals[] = trim($handlerLine);
+    }
+}
+dlFeedbackTest(
+    'every withdrawal refusal carries an HTTP status',
+    $statuslessRefusals === [],
+    'statusless refusals: ' . implode(' | ', $statuslessRefusals)
+);
+
 echo "\n" . str_repeat('-', 50) . "\n";
 echo "  Result: {$pass} passed, {$fail} failed\n";
 if ($errors !== []) {

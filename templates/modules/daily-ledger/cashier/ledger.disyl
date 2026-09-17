@@ -884,12 +884,32 @@
         stale.push({ reason: reason, quarantined_at: new Date().toISOString(), payload: entry });
         try { localStorage.setItem(OPS_QUARANTINE_KEY, JSON.stringify(stale.slice(-200))); } catch (e) { markStorageUnavailable(); }
     }
-    // Server errors on a queued operation are mostly deterministic; only
-    // transient failures should retry. Everything else is quarantined for
-    // review instead of retrying forever.
+    // Decide whether a failed save should be queued for retry or surfaced to the
+    // operator as a refusal. The status code decides; message text is only a
+    // fallback for responses that carry no status.
     function shouldQueueOperationFailure(res) {
         var error = String((res && res.error) || '');
         if (isSessionExpiredResponse(res)) return true;
+
+        // Classify STRUCTURALLY first. The handlers already distinguish the two
+        // cases by status: 4xx means this exact request will be refused again
+        // (403 reference-only / finalized / cannot-override, 422 validation),
+        // while 5xx (and 408/429) are worth retrying. Deciding on the status
+        // means a reworded or newly added message can no longer silently start
+        // queueing a permanent refusal forever. That is not hypothetical: the
+        // 422s 'Value must be a number' and 'Value out of bounds' match no
+        // fragment in the list below, so they were queued and retried
+        // indefinitely while the cashier was told the edit would sync.
+        var status = (res && typeof res.__status === 'number') ? res.__status : 0;
+        if (status > 0) {
+            if (status === 408 || status === 429) return true;
+            if (status >= 500) return true;
+            if (status >= 400) return false;
+        }
+
+        // No usable status (e.g. a 200 body carrying ok:false): fall back to the
+        // legacy fragment allowlist. FALLBACK ONLY - do not add new wording
+        // here; have the endpoint return a proper HTTP status instead.
         if (error === '') return true;
         return [
             'already received', 'already', 'required', 'Invalid', 'invalid',
@@ -1039,9 +1059,13 @@
         // Recompute sales display immediately
         computeSales(productId);
 
-        // Save the changed field
+        // Save the changed field. The in-flight indicator and the outcome notice
+        // make every send visible on its own, so a saved, queued, or refused edit
+        // is never mistaken for another while the view is still refreshing.
+        if (window.dlSetBusy) window.dlSetBusy(true, 'Saving…');
         doSave(productId, field, value)
         .then(function(res) {
+            if (window.dlSetBusy) window.dlSetBusy(false);
             if (saveFieldVersions[saveKey] !== saveVersion) return;
             input.classList.remove('saving');
             if (res.ok) {
@@ -1049,13 +1073,18 @@
                 setTimeout(function() { input.classList.remove('saved'); }, 1500);
                 removePending(productId, field);
                 input.dataset.serverValue = input.value;
+                if (window.dlToastSaved) { window.dlToastSaved('Saved'); }
+                else if (window.showToast) { window.showToast('Saved', 'success'); }
             } else {
                 input.classList.add('error');
                 if (isSessionExpiredResponse(res)) {
                     vaultOrLegacyAddPending(pendingPayload);
                     window.dlSessionExpired(res);
                 } else if (shouldQueueServerFailure(res)) {
+                    // Queued, NOT committed. Say so explicitly: previously this was
+                    // silent, so a deferred edit looked identical to a saved one.
                     vaultOrLegacyAddPending(pendingPayload);
+                    if (window.showToast) window.showToast('Saved on this device — will sync when connectivity returns', 'info');
                 } else {
                     // Deterministic rejection (locked shift, closed day, reference
                     // only): the ledger will still read the old value after reload,
@@ -1077,11 +1106,13 @@
             updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
         })
         .catch(function() {
+            if (window.dlSetBusy) window.dlSetBusy(false);
             if (saveFieldVersions[saveKey] !== saveVersion) return;
             input.classList.remove('saving');
             input.classList.add('error');
             vaultOrLegacyAddPending(pendingPayload);
             updateGlobalStatus('pending');
+            if (window.showToast) window.showToast('Network error — edit kept on this device and will sync', 'info');
         });
     }
 

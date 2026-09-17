@@ -3960,13 +3960,13 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $lines = (array)($input['lines'] ?? []);
 
     if (!$branchId) {
-        $ctx->json(['ok' => false, 'error' => 'Missing branch']);
+        $ctx->json(['ok' => false, 'error' => 'Missing branch'], 422);
         return;
     }
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
     if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
-        $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type']);
+        $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type'], 422);
         return;
     }
     $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
@@ -4032,7 +4032,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
         ];
     }
     if (count($validLines) === 0) {
-        $ctx->json(['ok' => false, 'error' => 'Add at least one product with a quantity greater than 0.']);
+        $ctx->json(['ok' => false, 'error' => 'Add at least one product with a quantity greater than 0.'], 422);
         return;
     }
 
@@ -4333,7 +4333,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
             $ctx->json(['ok' => false, 'error' => $e->getMessage()], 403);
             return;
         }
-        $ctx->json(['ok' => false, 'error' => 'Database error']);
+        $ctx->json(['ok' => false, 'error' => 'Database error'], 500);
     }
 }
 

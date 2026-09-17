@@ -216,7 +216,10 @@ function withdrawalModal() {
             this.isOpen = true;
         },
 
-        closeModal() { this.isOpen = false; },
+        closeModal() {
+            if (window.dlSetBusy) window.dlSetBusy(false);
+            this.isOpen = false;
+        },
 
         // A charge removes stock and can be billed to the person responsible, so
         // it offers the same list as Add Stock — optional there, because the
@@ -334,6 +337,7 @@ function withdrawalModal() {
         saveChanges() {
             if (!this.validate()) return;
             this.saving = true;
+            if (window.dlSetBusy) window.dlSetBusy(true, 'Saving adjustment…');
             var isEdit = !!this.editId;
 
             var isCorrection = this.header.withdrawal_type === 'correction';
@@ -379,6 +383,7 @@ function withdrawalModal() {
             if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
                 if (isEdit) {
                     this.saving = false;
+                    if (window.dlSetBusy) window.dlSetBusy(false);
                     this.errorMsg = 'Editing an adjustment requires connectivity. Reconnect and retry.';
                     return;
                 }
@@ -399,7 +404,14 @@ function withdrawalModal() {
                 },
                 body: JSON.stringify(payload)
             })
-            .then(function(r) { return r.json(); })
+            .then(function(r) {
+                // Carry the HTTP status so the shared queue-vs-error classifier can
+                // decide structurally instead of by matching the message text.
+                return r.json().then(function(body) {
+                    if (body && typeof body === 'object') body.__status = r.status;
+                    return body;
+                });
+            })
             .then(function(data) {
                 this.saving = false;
                 if (data.ok) {
@@ -423,11 +435,13 @@ function withdrawalModal() {
                     showToast('Saved on this device — will sync when connectivity returns', 'success');
                     this.closeModal();
                 } else {
+                    if (window.dlSetBusy) window.dlSetBusy(false);
                     this.errorMsg = data.error || 'Failed to save adjustment.';
                 }
             }.bind(this))
             .catch(function() {
                 this.saving = false;
+                if (window.dlSetBusy) window.dlSetBusy(false);
                 if (isEdit) {
                     this.errorMsg = 'Network error while saving the edit. Retry.';
                     return;
