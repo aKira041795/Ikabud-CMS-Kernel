@@ -40,7 +40,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 12;
+    public const COMPILER_VERSION = 14;
 
     /**
      * Maximum iterations for unbounded loops ({while} and C-style {for}).

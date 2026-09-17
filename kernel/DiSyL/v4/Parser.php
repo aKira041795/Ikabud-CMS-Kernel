@@ -52,6 +52,23 @@ final class Parser
     /** Current recursion depth (block + expression nesting combined). */
     private int $depth = 0;
 
+    /**
+     * Byte ranges of `<script>`/`<style>` body text, computed once per parse.
+     * Expressions whose `{` starts inside one of these ranges are marked as
+     * non-escaping so the compiled pipeline matches the interpreted engine's
+     * raw script/style output semantics.
+     *
+     * @var array<int, array{0:int, 1:int}>  [bodyStart, bodyEnd) offsets
+     */
+    private array $rawContextRanges = [];
+
+    /**
+     * Whether the DiSyL tag currently being parsed starts inside a
+     * `<script>`/`<style>` body. Set by parseDisylTag(), consumed by
+     * buildExpressionNode()/buildTernary().
+     */
+    private bool $inRawOutputContext = false;
+
     /** Filters that suppress auto-escaping */
     private const ESCAPE_FILTERS = [
         'raw', 'esc_html', 'esc_attr', 'esc_url', 'esc_js',
@@ -78,9 +95,186 @@ final class Parser
         $this->pos = 0;
         $this->len = strlen($source);
         $this->depth = 0;
+        $this->rawContextRanges = $this->findRawContextRanges($source);
+        $this->inRawOutputContext = false;
 
         $children = $this->parseChildren([]);
         return new DocumentNode([], $children);
+    }
+
+    /**
+     * Pre-compute the byte ranges of `<script>`/`<style>` body text so the
+     * compiled pipeline can classify the same regions as raw output that the
+     * interpreted engine's steps 4b/4c treat as script/style bodies.
+     *
+     * Tag and body boundaries mirror the interpreted extraction, except the
+     * opening tag is scanned quote-aware: `>` inside a quoted attribute value
+     * does not end the tag. The opening tag (including its attributes) is
+     * outside every range, so attribute expressions keep normal escaping.
+     *
+     * @return array<int, array{0:int, 1:int}>  [bodyStart, bodyEnd) offsets
+     */
+    private function findRawContextRanges(string $source): array
+    {
+        // Comments and {verbatim} blocks are inert: the interpreted engine
+        // removes/stubs them before extracting script/style bodies, so DiSyL
+        // markup or fake <script>/<style> boundaries inside them must not
+        // affect raw-context classification. Mask those regions byte-for-byte
+        // (equal-length whitespace) so all source offsets stay valid.
+        $scannable = $this->maskInertRegions($source);
+
+        $ranges = [];
+        $len = strlen($scannable);
+        $offset = 0;
+
+        while ($offset < $len) {
+            $lt = strpos($scannable, '<', $offset);
+            if ($lt === false) {
+                break;
+            }
+
+            $tag = $this->matchRawTagOpen($scannable, $lt);
+            if ($tag === null) {
+                $offset = $lt + 1;
+                continue;
+            }
+
+            // The body begins after the first `>` that is NOT inside a quoted
+            // attribute value. Scanning quote-aware here (unlike the older
+            // `[^>]*` regex) keeps expressions that live in opening-tag
+            // attributes — including attributes whose value contains `>` — on
+            // the escaped side of the boundary.
+            $bodyStart = $this->findOpeningTagEnd($scannable, $lt + 1 + strlen($tag));
+            if ($bodyStart === null) {
+                // Unterminated opening tag: skip this `<` and keep scanning so a
+                // later well-formed pair is still classified.
+                $offset = $lt + 1;
+                continue;
+            }
+
+            // The interpreted engine's extraction regexes are non-greedy, so
+            // the first `</tag>` closes the body.
+            $closeTag = '</' . $tag . '>';
+            $close = stripos($scannable, $closeTag, $bodyStart);
+            if ($close === false) {
+                // Without a matching close tag this opening tag forms no body,
+                // but a later valid pair still can.
+                $offset = $bodyStart;
+                continue;
+            }
+
+            if ($close > $bodyStart) {
+                $ranges[] = [$bodyStart, $close];
+            }
+            $offset = $close + strlen($closeTag);
+        }
+
+        usort($ranges, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
+
+        return $ranges;
+    }
+
+    /**
+     * If $lt points at a `<script`/`<style` opening tag, return the lowercase
+     * tag name; otherwise null. The trailing check mirrors the `\b` in the
+     * interpreted engine's extraction regexes (`/<script\b/`, `/<style\b/`).
+     */
+    private function matchRawTagOpen(string $source, int $lt): ?string
+    {
+        foreach (['script', 'style'] as $tag) {
+            $nameLen = strlen($tag);
+            if (strncasecmp(substr($source, $lt + 1, $nameLen), $tag, $nameLen) !== 0) {
+                continue;
+            }
+            $after = $lt + 1 + $nameLen;
+            $len = strlen($source);
+            if ($after >= $len) {
+                return $tag;
+            }
+            $boundary = $source[$after];
+            if (!(ctype_alnum($boundary) || $boundary === '_')) {
+                return $tag;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Return the offset just past the first `>` that is not inside a single- or
+     * double-quoted attribute value, or null when the opening tag never closes.
+     */
+    private function findOpeningTagEnd(string $source, int $from): ?int
+    {
+        $len = strlen($source);
+        $quote = null;
+        for ($i = $from; $i < $len; $i++) {
+            $c = $source[$i];
+            if ($quote !== null) {
+                if ($c === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($c === '"' || $c === "'") {
+                $quote = $c;
+                continue;
+            }
+            if ($c === '>') {
+                return $i + 1;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Replace inert regions (comments and {verbatim} bodies) with an
+     * equal-length run of spaces so script/style boundaries inside them are
+     * invisible to raw-context detection without shifting any byte offset.
+     *
+     * Verbatim is masked first to mirror TemplateEngine::compile() step 0,
+     * which extracts {verbatim} before removing comments; a comment that
+     * contains an unmatched {verbatim} therefore cannot hide the comment
+     * terminator from the interpreted pipeline either.
+     */
+    private function maskInertRegions(string $source): string
+    {
+        $patterns = [
+            '/\{verbatim\}.*?\{\/verbatim\}/s',
+            '/\{!--.*?--\}/s',
+            '/\{\*.*?\*\}/s',
+            '/\{#.*?#\}/s',
+        ];
+
+        foreach ($patterns as $pattern) {
+            $masked = preg_replace_callback(
+                $pattern,
+                static fn(array $m): string => str_repeat(' ', strlen($m[0])),
+                $source
+            );
+            if ($masked !== null) {
+                $source = $masked;
+            }
+        }
+
+        return $source;
+    }
+
+    /**
+     * Whether a byte offset falls inside a `<script>`/`<style>` body.
+     * Ranges are sorted ascending and non-overlapping in start order, so the
+     * scan can stop as soon as it passes the candidate offset.
+     */
+    private function isInRawOutputContext(int $pos): bool
+    {
+        foreach ($this->rawContextRanges as [$start, $end]) {
+            if ($pos < $start) {
+                return false;
+            }
+            if ($pos < $end) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ── Block-level parsing ─────────────────────────────────────
@@ -215,6 +409,7 @@ final class Parser
     private function parseDisylTag(): ?AbstractNode
     {
         $savedPos = $this->pos;
+        $this->inRawOutputContext = $this->isInRawOutputContext($savedPos);
         $peek = substr($this->source, $this->pos + 1, 20);
 
         // Comments
@@ -1253,7 +1448,9 @@ final class Parser
         $baseExpr = trim($parts[0]);
 
         $filterChain = null;
-        $autoEscape = true;
+        // Implicit escaping is suppressed for expressions in <script>/<style>
+        // bodies, matching the interpreted engine's raw script/style output.
+        $autoEscape = !$this->inRawOutputContext;
 
         if (count($parts) > 1) {
             $filters = [];
@@ -1289,8 +1486,9 @@ final class Parser
             $trueExpr = $cond;
         }
 
-        $trueNode = new ExpressionNode([], $this->parseExprValue($trueExpr), null, true);
-        $falseNode = new ExpressionNode([], $this->parseExprValue($falseExpr), null, true);
+        $rawOutput = !$this->inRawOutputContext;
+        $trueNode = new ExpressionNode([], $this->parseExprValue($trueExpr), null, $rawOutput);
+        $falseNode = new ExpressionNode([], $this->parseExprValue($falseExpr), null, $rawOutput);
 
         return new ControlNode(
             [],

@@ -163,7 +163,17 @@ class TemplateCache
      */
     public function compileSource(string $source, string $name = 'Anonymous'): CompiledTemplate
     {
-        $className = 'Template_' . md5($source);
+        // Include the compiler version in the class name so a stale class/file
+        // generated under older escaping semantics is never reused. The
+        // `_v<version>_` segment follows TemplateCache::getClassName()'s naming
+        // convention and matches the current-version tag retained by
+        // TemplateCache::cleanup(), so a freshly generated source cache is not
+        // swept as stale.
+        $safeName = preg_replace('/[^A-Za-z0-9_]/', '_', $name);
+        if ($safeName === null || $safeName === '') {
+            $safeName = 'source';
+        }
+        $className = 'Template_' . $safeName . '_v' . TemplateCompiler::COMPILER_VERSION . '_' . md5($source);
         $cachePath = $this->getCachePath($className);
         
         if (isset($this->loaded[$className])) {
