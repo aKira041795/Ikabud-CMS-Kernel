@@ -240,39 +240,41 @@
                 <input type="hidden" name="view" :value="view">
                 <input type="hidden" name="status" value="{status_filter}">
                 {if branch_id}<input type="hidden" name="branch_id" value="{branch_id}">{/if}
+                {if date_from}<input type="hidden" name="date_from" value="{date_from}">{/if}
+                {if date_to}<input type="hidden" name="date_to" value="{date_to}">{/if}
                 <input type="text" class="form-input w-48" name="q" value="{search}" placeholder="Product or branch...">
                 <button type="submit" class="btn btn-outline btn-sm">Search</button>
             </form>
         </div>
     </div>
     <div class="flex items-center gap-2 mb-4">
-        <a class="btn btn-outline" href="{base_url}/admin/sales?date_from={date}&date_to={date}">Sales Summary</a>
+        <a class="btn btn-outline" href="{base_url}/admin/sales?date_from={sales_link_from}&date_to={sales_link_to}">Sales Summary</a>
     </div>
 
     <!-- Stat cards -->
     <div class="variance-stat-grid">
-        <a href="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}&status=unreviewed{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--unreviewed {if status_filter == 'unreviewed'}variance-stat--active{/if}">
             <div class="variance-stat-label">Unreviewed</div>
             <div class="variance-stat-value">{stats_unreviewed}</div>
             <div class="variance-stat-sub">{if stats_unreviewed > 0}Needs attention{/if}{if stats_unreviewed == 0}All clear{/if}</div>
         </a>
-        <a href="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}&status=investigated{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--investigated {if status_filter == 'investigated'}variance-stat--active{/if}">
             <div class="variance-stat-label">Investigated</div>
             <div class="variance-stat-value">{stats_investigated}</div>
             <div class="variance-stat-sub">Under review</div>
         </a>
-        <a href="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}&status=corrected{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--corrected {if status_filter == 'corrected'}variance-stat--active{/if}">
             <div class="variance-stat-label">Corrected</div>
             <div class="variance-stat-value">{stats_corrected}</div>
             <div class="variance-stat-sub">Resolved</div>
         </a>
-        <a href="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--total {if status_filter == '' || status_filter == null}variance-stat--active{/if}">
             <div class="variance-stat-label">Total Flags</div>
@@ -284,22 +286,22 @@
     <!-- Filter bar -->
     <div class="variance-filter-bar">
         <span class="text-xs font-semibold text-gray-500 mr-1">Quick filter:</span>
-        <a href="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == '' || status_filter == null}variance-filter-pill--active{/if}">
             All <span class="variance-filter-pill-count">{stats_total}</span>
         </a>
-        <a href="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}&status=unreviewed{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == 'unreviewed'}variance-filter-pill--active{/if}">
             Unreviewed <span class="variance-filter-pill-count">{stats_unreviewed}</span>
         </a>
-        <a href="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}&status=investigated{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == 'investigated'}variance-filter-pill--active{/if}">
             Investigated <span class="variance-filter-pill-count">{stats_investigated}</span>
         </a>
-        <a href="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+        <a href="?view={view_mode}&status=corrected{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-filter-pill {if status_filter == 'corrected'}variance-filter-pill--active{/if}">
             Corrected <span class="variance-filter-pill-count">{stats_corrected}</span>
@@ -331,7 +333,14 @@
             {/foreach}
         </select>
 
-        {if branch_id || status_filter || search != ''}
+        <label class="text-xs text-gray-500 ml-1" for="vf-date-from">From</label>
+        <input id="vf-date-from" type="date" class="form-input w-auto mt-0 text-xs py-1 px-2"
+               value="{date_from}" onchange="window.dlLoadDateRange()">
+        <label class="text-xs text-gray-500" for="vf-date-to">To</label>
+        <input id="vf-date-to" type="date" class="form-input w-auto mt-0 text-xs py-1 px-2"
+               value="{date_to}" onchange="window.dlLoadDateRange()">
+
+        {if branch_id || status_filter || search != '' || date_from != '' || date_to != ''}
         <a href="?view={view_mode}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="text-xs text-indigo-600 hover:underline ml-1">Clear all</a>
@@ -356,7 +365,7 @@
     <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <span class="font-semibold">Showing the newest {variances_shown} of {variances_total_matching} matching flags.</span>
         <span class="text-amber-800">The totals and per-branch counts above cover all of them.</span>
-        <span class="text-amber-800">Add ?date=YYYY-MM-DD to this page to see a single day in full, or</span>
+        <span class="text-amber-800">Set a From/To range in the filters above to narrow this list, or</span>
         <a class="underline font-medium" href="{base_url}/admin/reports/variances">open the Variance Report</a>
         <span class="text-amber-800">to filter by date range and export everything to CSV or PDF.</span>
     </div>
@@ -617,6 +626,18 @@
         } else {
             params.delete('shift');
         }
+        window.dlLoadUrl(window.location.pathname + '?' + params.toString(), true);
+    };
+
+    // Reload with the chosen date range, keeping every other filter.
+    window.dlLoadDateRange = function() {
+        var params = new URLSearchParams(window.location.search);
+        var from = document.getElementById('vf-date-from').value;
+        var to = document.getElementById('vf-date-to').value;
+        if (from) { params.set('date_from', from); } else { params.delete('date_from'); }
+        if (to) { params.set('date_to', to); } else { params.delete('date_to'); }
+        // The single-day parameter is superseded by the range controls.
+        params.delete('date');
         window.dlLoadUrl(window.location.pathname + '?' + params.toString(), true);
     };
 

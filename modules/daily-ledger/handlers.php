@@ -7961,6 +7961,31 @@ function apiSaveRolePermissions(array $params = []): void
     ]);
 }
 
+/**
+ * Resolve the variance dashboard's date range from request input.
+ *
+ * Accepts date_from/date_to; falls back to the legacy single-day `date` (which
+ * scopes both bounds so older links keep working); swaps reversed bounds and
+ * ignores malformed dates. Empty strings mean "no bound".
+ *
+ * @return array{0:string,1:string} [from, to]
+ */
+function dl_varianceDateRange(array $input): array
+{
+    $from = (string)(dl_reportValidDate(trim((string)($input['date_from'] ?? ''))) ?? '');
+    $to = (string)(dl_reportValidDate(trim((string)($input['date_to'] ?? ''))) ?? '');
+    if ($from === '' && $to === '') {
+        $legacy = (string)(dl_reportValidDate(trim((string)($input['date'] ?? ''))) ?? '');
+        $from = $legacy;
+        $to = $legacy;
+    }
+    if ($from !== '' && $to !== '' && $from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+
+    return [$from, $to];
+}
+
 function handleAdminVariances(array $params = []): void
 {
     $ctx = module();
@@ -7981,7 +8006,9 @@ function handleAdminVariances(array $params = []): void
     $shiftFilter = strtoupper(trim((string)($input['shift'] ?? '')));
     if (!in_array($kindFilter, ['overnight', 'handoff', 'ending', 'sales'], true)) { $kindFilter = ''; }
     if (!in_array($shiftFilter, ['AM', 'PM'], true)) { $shiftFilter = ''; }
-    $dateFilter = (string)($input['date'] ?? dl_businessDate());
+    // Date range (From/To). A legacy single-day ?date= still works and scopes
+    // both bounds, so bookmarks and the report deep-links keep behaving.
+    [$dateFrom, $dateTo] = dl_varianceDateRange($input);
     $search   = trim((string)($input['q'] ?? ''));
     $viewMode = $input['view'] ?? ($isSupervisor ? 'grouped' : 'list');
 
@@ -8006,19 +8033,34 @@ function handleAdminVariances(array $params = []): void
     // Self-healing: refresh variances for the viewed date on open days so the
     // page surfaces anomalies even when rows entered before the variance
     // enhancement (imports, pre-deployment data) never triggered recompute.
-    dl_refreshVariancesForDateView($dateFilter, $accessibleBranchIds);
+    // Self-healing: refresh variances for the viewed day on open days so the
+    // page surfaces anomalies even when rows entered before the variance
+    // enhancement (imports, pre-deployment data) never triggered recompute.
+    // Only a single-day view is cheap enough to heal; a wider range is a review
+    // view, so opening a month must not trigger a month of recomputes. With no
+    // date filter at all the previous behaviour is kept and today is healed.
+    $refreshDate = ($dateFrom !== '' || $dateTo !== '')
+        ? (($dateFrom !== '' && $dateFrom === $dateTo) ? $dateFrom : '')
+        : dl_businessDate();
+    dl_refreshVariancesForDateView($refreshDate, $accessibleBranchIds);
 
     // Build the variance filter. The predicates are shared by the aggregate
     // queries and the capped list query so they can never disagree.
     $where = '1=1';
     $bind = [];
 
-    // An explicit ?date= scopes the list to that day. The default view stays the
-    // newest flags across all dates; the date is always used for self-healing.
-    $explicitDate = trim((string)($input['date'] ?? ''));
-    if ($explicitDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $explicitDate) === 1) {
-        $where .= ' AND vf.ledger_date = :vdate';
-        $bind[':vdate'] = $explicitDate;
+    // An explicit date range scopes the list and every figure above it. The
+    // default view stays the newest flags across all dates.
+    if ($dateFrom !== '' && $dateTo !== '') {
+        $where .= ' AND vf.ledger_date BETWEEN :dfrom AND :dto';
+        $bind[':dfrom'] = $dateFrom;
+        $bind[':dto'] = $dateTo;
+    } elseif ($dateFrom !== '') {
+        $where .= ' AND vf.ledger_date >= :dfrom';
+        $bind[':dfrom'] = $dateFrom;
+    } elseif ($dateTo !== '') {
+        $where .= ' AND vf.ledger_date <= :dto';
+        $bind[':dto'] = $dateTo;
     }
 
     if ($branchId) {
@@ -8171,6 +8213,17 @@ function handleAdminVariances(array $params = []): void
     $branchSummary = array_values($branchSummary);
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    // Every filter that changes the result set, so the status pills, the stat
+    // cards and the search form keep the date range and branch instead of
+    // silently dropping them.
+    $filterParams = [];
+    if ($branchId) { $filterParams['branch_id'] = (string)$branchId; }
+    if ($search !== '') { $filterParams['q'] = $search; }
+    if ($kindFilter !== '') { $filterParams['kind'] = $kindFilter; }
+    if ($shiftFilter !== '') { $filterParams['shift'] = $shiftFilter; }
+    if ($dateFrom !== '') { $filterParams['date_from'] = $dateFrom; }
+    if ($dateTo !== '') { $filterParams['date_to'] = $dateTo; }
+    $filterQuery = $filterParams === [] ? '' : '&' . http_build_query($filterParams);
     echo dlRender('modules/daily-ledger/admin/variances.disyl', [
         'page_title'    => 'Variance Dashboard',
         'user_name'     => $userName,
@@ -8178,7 +8231,13 @@ function handleAdminVariances(array $params = []): void
         'current_page'  => 'variances',
         'base_url'      => dlGetBaseUrl(),
         'dl_token'      => (string)kernelCookie(dlCookieName(), ''),
-        'date'          => $dateFilter,
+        'date'          => $dateTo !== '' ? $dateTo : ($dateFrom !== '' ? $dateFrom : dl_businessDate()),
+        'date_from'     => $dateFrom,
+        'date_to'       => $dateTo,
+        // The Sales Summary hand-off carries the range the operator is looking at.
+        'sales_link_from' => $dateFrom !== '' ? $dateFrom : dl_businessDate(),
+        'sales_link_to'   => $dateTo !== '' ? $dateTo : dl_businessDate(),
+        'filter_query'  => $filterQuery,
         'branch_id'     => $branchId,
         'status_filter' => $statusFilter,
         'kind_filter' => $kindFilter,

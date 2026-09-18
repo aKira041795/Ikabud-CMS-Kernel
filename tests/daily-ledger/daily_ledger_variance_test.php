@@ -830,4 +830,59 @@ $h->test(
         && str_contains($salesTpl, 'Showing the newest {sales_shown} of {sales_total_matching}')
 );
 
+$h->section('Date Range and Branch Filters');
+$h->test(
+    'a single legacy date still scopes both bounds',
+    dl_varianceDateRange(['date' => '2026-08-15']) === ['2026-08-15', '2026-08-15']
+);
+$h->test(
+    'an explicit range is used as given',
+    dl_varianceDateRange(['date_from' => '2026-08-01', 'date_to' => '2026-08-31']) === ['2026-08-01', '2026-08-31']
+);
+$h->test(
+    'reversed bounds are swapped rather than returning nothing',
+    dl_varianceDateRange(['date_from' => '2026-09-01', 'date_to' => '2026-08-01']) === ['2026-08-01', '2026-09-01']
+);
+$h->test(
+    'malformed dates are ignored instead of filtering everything out',
+    dl_varianceDateRange(['date_from' => 'notadate', 'date_to' => '2026-13-45']) === ['', '']
+        && dl_varianceDateRange(['date' => '15/08/2026']) === ['', '']
+);
+$h->test(
+    'one-sided ranges stay open-ended',
+    dl_varianceDateRange(['date_from' => '2026-08-01']) === ['2026-08-01', '']
+        && dl_varianceDateRange(['date_to' => '2026-08-31']) === ['', '2026-08-31']
+        && dl_varianceDateRange([]) === ['', '']
+);
+$h->test(
+    'an explicit range wins over the legacy single date',
+    dl_varianceDateRange(['date' => '2026-01-01', 'date_from' => '2026-08-01']) === ['2026-08-01', '']
+);
+$h->test(
+    'the range is applied to the shared filter that drives the list and the figures alike',
+    str_contains($handlersSrc, 'AND vf.ledger_date BETWEEN :dfrom AND :dto')
+        && str_contains($handlersSrc, 'AND vf.ledger_date >= :dfrom')
+        && str_contains($handlersSrc, 'AND vf.ledger_date <= :dto')
+);
+$h->test(
+    'opening a multi-day range does not trigger a per-day variance recompute',
+    str_contains($handlersSrc, "? ((\$dateFrom !== '' && \$dateFrom === \$dateTo) ? \$dateFrom : '')")
+        && str_contains($handlersSrc, 'dl_refreshVariancesForDateView($refreshDate')
+);
+$h->test(
+    'every active filter travels with status links and the search form',
+    str_contains($handlersSrc, "\$filterQuery = \$filterParams === [] ? '' : '&' . http_build_query(\$filterParams);")
+        && str_contains($handlersSrc, "if (\$dateFrom !== '') { \$filterParams['date_from'] = \$dateFrom; }")
+        && substr_count($variancesTpl, '{filter_query}') === 8
+        && str_contains($variancesTpl, 'name="date_from" value="{date_from}"')
+);
+$h->test(
+    'the From/To controls reload in place and show the active range',
+    str_contains($variancesTpl, 'id="vf-date-from"')
+        && str_contains($variancesTpl, 'id="vf-date-to"')
+        && str_contains($variancesTpl, 'value="{date_from}"')
+        && str_contains($variancesTpl, 'value="{date_to}"')
+        && str_contains($variancesTpl, 'window.dlLoadDateRange = function()')
+);
+
 $h->done();
