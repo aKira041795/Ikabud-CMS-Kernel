@@ -885,4 +885,30 @@ $h->test(
         && str_contains($variancesTpl, 'window.dlLoadDateRange = function()')
 );
 
+$h->section('Status Filters Are Facets');
+// Clicking Unreviewed used to recount every other button through the status
+// filter, so Investigated/Corrected collapsed to 0 and the totals moved.
+$h->test(
+    'the status filter reaches the list but not the figures behind the buttons',
+    str_contains($handlersSrc, '$whereFiltered = $whereScope;')
+        && str_contains($handlersSrc, '$bindFiltered = $bind;')
+        && str_contains($handlersSrc, "\$whereFiltered .= ' AND vf.resolution_status = :st';")
+        && !str_contains($handlersSrc, "\$whereScope .= ' AND vf.resolution_status")
+        && str_contains($handlersSrc, '$scopeFromSql = $varianceFromSql . $whereScope;')
+        && str_contains($handlersSrc, '$filteredFromSql = $varianceFromSql . $whereFiltered;')
+        && str_contains($handlersSrc, '$listStmt->execute($bindFiltered);')
+);
+$h->test(
+    'the dashboard and per-branch breakdowns aggregate over the unfiltered scope',
+    str_contains($handlersSrc, ". \$scopeFromSql . ' GROUP BY vf.resolution_status, vf.kind'")
+        && str_contains($handlersSrc, ". \$scopeFromSql . ' GROUP BY vf.branch_id, b.name, b.code, vf.resolution_status'")
+        && !str_contains($handlersSrc, "\$filteredFromSql . ' GROUP BY")
+);
+$h->test(
+    'the truncation notice still counts the rows the list really matches',
+    str_contains($handlersSrc, '$filteredTotal = match ($statusFilter) {')
+        && str_contains($handlersSrc, "'variances_total_matching' => \$filteredTotal,")
+        && str_contains($handlersSrc, "'variances_scope_total'    => \$statsTotal,")
+);
+
 $h->done();

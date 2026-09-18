@@ -8030,9 +8030,6 @@ function handleAdminVariances(array $params = []): void
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // Self-healing: refresh variances for the viewed date on open days so the
-    // page surfaces anomalies even when rows entered before the variance
-    // enhancement (imports, pre-deployment data) never triggered recompute.
     // Self-healing: refresh variances for the viewed day on open days so the
     // page surfaces anomalies even when rows entered before the variance
     // enhancement (imports, pre-deployment data) never triggered recompute.
@@ -8044,27 +8041,34 @@ function handleAdminVariances(array $params = []): void
         : dl_businessDate();
     dl_refreshVariancesForDateView($refreshDate, $accessibleBranchIds);
 
-    // Build the variance filter. The predicates are shared by the aggregate
-    // queries and the capped list query so they can never disagree.
-    $where = '1=1';
+    // Build the variance filter in two layers.
+    //
+    // $whereScope carries every filter except status. It drives the dashboard
+    // figures, because status is a *facet*: the Unreviewed/Investigated/Corrected
+    // buttons must keep showing each other's real totals. Counting them through
+    // the active status filter made the inactive buttons collapse to zero.
+    //
+    // $whereFiltered adds the status filter on top and drives the rendered list,
+    // so the active button's own count still equals the rows it lists.
+    $whereScope = '1=1';
     $bind = [];
 
     // An explicit date range scopes the list and every figure above it. The
     // default view stays the newest flags across all dates.
     if ($dateFrom !== '' && $dateTo !== '') {
-        $where .= ' AND vf.ledger_date BETWEEN :dfrom AND :dto';
+        $whereScope .= ' AND vf.ledger_date BETWEEN :dfrom AND :dto';
         $bind[':dfrom'] = $dateFrom;
         $bind[':dto'] = $dateTo;
     } elseif ($dateFrom !== '') {
-        $where .= ' AND vf.ledger_date >= :dfrom';
+        $whereScope .= ' AND vf.ledger_date >= :dfrom';
         $bind[':dfrom'] = $dateFrom;
     } elseif ($dateTo !== '') {
-        $where .= ' AND vf.ledger_date <= :dto';
+        $whereScope .= ' AND vf.ledger_date <= :dto';
         $bind[':dto'] = $dateTo;
     }
 
     if ($branchId) {
-        $where .= ' AND vf.branch_id = :bid';
+        $whereScope .= ' AND vf.branch_id = :bid';
         $bind[':bid'] = $branchId;
     } elseif ($isSupervisor && !empty($supervisorBranchIds)) {
         // Auto-scope to supervisor branches when no explicit filter
@@ -8074,39 +8078,46 @@ function handleAdminVariances(array $params = []): void
             $placeholders[] = $key;
             $bind[$key] = $sbId;
         }
-        $where .= ' AND vf.branch_id IN (' . implode(',', $placeholders) . ')';
+        $whereScope .= ' AND vf.branch_id IN (' . implode(',', $placeholders) . ')';
     }
 
-    if ($statusFilter !== '' && in_array($statusFilter, ['unreviewed', 'investigated', 'corrected'], true)) {
-        $where .= ' AND vf.resolution_status = :st';
-        $bind[':st'] = $statusFilter;
-    }
     if ($kindFilter !== '') {
-        $where .= ' AND vf.kind = :kind';
+        $whereScope .= ' AND vf.kind = :kind';
         $bind[':kind'] = $kindFilter;
     }
     if ($shiftFilter !== '') {
-        $where .= ' AND vf.shift = :shift';
+        $whereScope .= ' AND vf.shift = :shift';
         $bind[':shift'] = $shiftFilter;
     }
     if ($search !== '') {
-        $where .= ' AND (p.name LIKE :q OR p.sku LIKE :q2 OR b.name LIKE :q3 OR b.code LIKE :q4)';
+        $whereScope .= ' AND (p.name LIKE :q OR p.sku LIKE :q2 OR b.name LIKE :q3 OR b.code LIKE :q4)';
         $bind[':q'] = "%{$search}%";
         $bind[':q2'] = "%{$search}%";
         $bind[':q3'] = "%{$search}%";
         $bind[':q4'] = "%{$search}%";
     }
 
-    $fromSql = 'FROM dl_variance_flags vf
+    $whereFiltered = $whereScope;
+    $bindFiltered = $bind;
+    $statusIsValid = in_array($statusFilter, ['unreviewed', 'investigated', 'corrected'], true);
+    if ($statusFilter !== '' && $statusIsValid) {
+        $whereFiltered .= ' AND vf.resolution_status = :st';
+        $bindFiltered[':st'] = $statusFilter;
+    }
+
+    $varianceFromSql = 'FROM dl_variance_flags vf
             INNER JOIN dl_products p ON p.id = vf.product_id
             INNER JOIN dl_branches b ON b.id = vf.branch_id
             LEFT JOIN dl_users reviewer ON reviewer.id = vf.reviewed_by
-            WHERE ' . $where;
+            WHERE ';
+    $scopeFromSql = $varianceFromSql . $whereScope;
+    $filteredFromSql = $varianceFromSql . $whereFiltered;
 
-    // Full-set aggregates: these drive the dashboard figures.
+    // Full-set aggregates over the scope (status excluded) — these drive the
+    // dashboard figures and every filter button's count.
     $aggStmt = $ctx->db()->prepare(
         'SELECT vf.resolution_status, vf.kind, COUNT(*) AS flag_count, COALESCE(SUM(vf.variance), 0) AS net_variance '
-        . $fromSql . ' GROUP BY vf.resolution_status, vf.kind'
+        . $scopeFromSql . ' GROUP BY vf.resolution_status, vf.kind'
     );
     $aggStmt->execute($bind);
     $aggRows = $aggStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -8114,18 +8125,18 @@ function handleAdminVariances(array $params = []): void
     $branchAggStmt = $ctx->db()->prepare(
         'SELECT vf.branch_id, b.name AS branch_name, b.code AS branch_code, vf.resolution_status,
                 COUNT(*) AS flag_count, COALESCE(SUM(vf.variance), 0) AS net_variance '
-        . $fromSql . ' GROUP BY vf.branch_id, b.name, b.code, vf.resolution_status'
+        . $scopeFromSql . ' GROUP BY vf.branch_id, b.name, b.code, vf.resolution_status'
     );
     $branchAggStmt->execute($bind);
     $branchAgg = $branchAggStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // The rendered slice. Counts above still describe every matching flag.
+    // The rendered slice: status-filtered, capped, newest first.
     $listStmt = $ctx->db()->prepare(
         'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
                 COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name '
-        . $fromSql . ' ORDER BY vf.ledger_date DESC, b.name, p.name LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT
+        . $filteredFromSql . ' ORDER BY vf.ledger_date DESC, b.name, p.name LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT
     );
-    $listStmt->execute($bind);
+    $listStmt->execute($bindFiltered);
     $variances = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // ── Aggregate stats ──────────────────────────────────────────────
@@ -8158,6 +8169,15 @@ function handleAdminVariances(array $params = []): void
     $statsTotalVariance = $kindFilter !== '' && isset($statsByKind[$kindFilter])
         ? $statsByKind[$kindFilter]['net']
         : null;
+
+    // How many rows the rendered list actually matches (status applied), so the
+    // truncation notice stays truthful while the buttons keep scope totals.
+    $filteredTotal = match ($statusFilter) {
+        'unreviewed' => $statsUnreviewed,
+        'investigated' => $statsInvestigated,
+        'corrected' => $statsCorrected,
+        default => $statsTotal,
+    };
 
     // ── Per-branch breakdown ─────────────────────────────────────────
     // Branch counts describe every matching flag; only the expandable item lists
@@ -8257,7 +8277,8 @@ function handleAdminVariances(array $params = []): void
         'stats_by_kind'      => $statsByKind,
         'stats_net_variance' => $statsTotalVariance,
         // Page slice vs full set, so the page can say what it is not showing
-        'variances_total_matching' => $statsTotal,
+        'variances_total_matching' => $filteredTotal,
+        'variances_scope_total'    => $statsTotal,
         'variances_shown'          => count($variances),
         'variances_row_limit'      => DL_VARIANCE_PAGE_ROW_LIMIT,
         // Branch breakdown
