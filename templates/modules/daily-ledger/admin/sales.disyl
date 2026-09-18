@@ -127,8 +127,18 @@
 <div class="card">
     <div class="card-header">
         <span>Sales Data</span>
-        <span class="text-sm text-muted">{sales_rows | count} rows</span>
+        <span class="text-sm text-muted">
+            {if sales_total_matching > sales_shown}showing the newest {sales_shown} of {sales_total_matching} rows{else}{sales_total_matching} rows{/if}
+        </span>
     </div>
+    {if sales_total_matching > sales_shown}
+    <div class="card-body text-sm text-amber-900 bg-amber-50 border-b border-amber-200">
+        <span class="font-semibold">Showing the newest {sales_shown} of {sales_total_matching} matching rows.</span>
+        The totals below cover all of them. Narrow the date range, or open
+        <a class="underline font-medium" href="{base_url}/admin/reports/sales">Reports &rarr; Daily Sales</a>
+        to view and export the full set as CSV or PDF.
+    </div>
+    {/if}
     <div class="table-wrap">
         <table>
             <thead>

@@ -791,4 +791,43 @@ foreach ([$pA, $pB, $pC, 99064] as $pid) {
 saveModuleSettings('daily-ledger', is_array($origSettings) ? $origSettings : []);
 dlModuleSettings(true);
 
+$h->section('Render Ceiling — Page Lists Are Capped');
+$handlersSrc = (string)file_get_contents($h->basePath() . '/modules/daily-ledger/handlers.php');
+$variancesTpl = (string)file_get_contents($h->basePath() . '/templates/modules/daily-ledger/admin/variances.disyl');
+$salesTpl = (string)file_get_contents($h->basePath() . '/templates/modules/daily-ledger/admin/sales.disyl');
+// Without a cap, a busy tenant pushes the DiSyL renderer past its 5 MB ceiling
+// and the page fails with "Template output exceeds maximum allowed size".
+$h->test(
+    'both unbounded list pages declare a render cap',
+    defined('DL_VARIANCE_PAGE_ROW_LIMIT') && defined('DL_SALES_PAGE_ROW_LIMIT')
+        && DL_VARIANCE_PAGE_ROW_LIMIT > 0 && DL_VARIANCE_PAGE_ROW_LIMIT <= 1000
+        && DL_SALES_PAGE_ROW_LIMIT > 0 && DL_SALES_PAGE_ROW_LIMIT <= 1000
+);
+$h->test(
+    'the capped list queries actually apply their limits',
+    str_contains($handlersSrc, "LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT")
+        && str_contains($handlersSrc, "LIMIT ' . DL_SALES_PAGE_ROW_LIMIT")
+);
+// The dashboard figures must describe every matching row, never the page slice.
+$h->test(
+    'variance stats are aggregated over the full set, not the capped slice',
+    str_contains($handlersSrc, 'foreach ($aggRows as $agg)')
+        && str_contains($handlersSrc, 'foreach ($branchAgg as $agg)')
+        && str_contains($handlersSrc, 'GROUP BY vf.resolution_status, vf.kind')
+        && !str_contains($handlersSrc, '$statsTotal = count($variances)')
+);
+$h->test(
+    'sales totals are aggregated over the full set, not the capped slice',
+    str_contains($handlersSrc, 'COALESCE(SUM(CASE WHEN')
+        && !str_contains($handlersSrc, "foreach (\$salesRows as \$r) {")
+        && str_contains($handlersSrc, "'sales_total_matching' => \$salesTotalMatching")
+);
+$h->test(
+    'both pages disclose truncation instead of implying they show everything',
+    str_contains($variancesTpl, '{if variances_total_matching > variances_shown}')
+        && str_contains($variancesTpl, 'Showing the newest {variances_shown} of {variances_total_matching}')
+        && str_contains($salesTpl, '{if sales_total_matching > sales_shown}')
+        && str_contains($salesTpl, 'Showing the newest {sales_shown} of {sales_total_matching}')
+);
+
 $h->done();

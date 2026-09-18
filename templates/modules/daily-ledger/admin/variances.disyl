@@ -352,6 +352,16 @@
     </div>
     {/if}
 
+    {if variances_total_matching > variances_shown}
+    <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <span class="font-semibold">Showing the newest {variances_shown} of {variances_total_matching} matching flags.</span>
+        <span class="text-amber-800">The totals and per-branch counts above cover all of them.</span>
+        <span class="text-amber-800">Add ?date=YYYY-MM-DD to this page to see a single day in full, or</span>
+        <a class="underline font-medium" href="{base_url}/admin/reports/variances">open the Variance Report</a>
+        <span class="text-amber-800">to filter by date range and export everything to CSV or PDF.</span>
+    </div>
+    {/if}
+
     {if variances | length == 0}
     <div class="card">
         <div class="card-body text-center py-12">

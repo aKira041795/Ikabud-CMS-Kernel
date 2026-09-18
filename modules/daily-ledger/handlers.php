@@ -2,6 +2,18 @@
 
 declare(strict_types=1);
 
+// The variance dashboard renders each flag in both the grouped and the list view,
+// so a busy tenant can push the DiSyL renderer past its 5 MB output ceiling and
+// the page fails with "Template output exceeds maximum allowed size". The rendered
+// list is capped; the dashboard figures stay true because they are aggregated in
+// SQL over every matching flag rather than over this page slice.
+const DL_VARIANCE_PAGE_ROW_LIMIT = 400;
+
+// The sales page lists ledger rows for the filtered range. A wide range on a
+// busy tenant exceeds the same 5 MB ceiling, so the rendered list is capped and
+// the grand totals are aggregated in SQL over every matching row.
+const DL_SALES_PAGE_ROW_LIMIT = 400;
+
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/helpers/entity-views.php';
 require_once __DIR__ . '/helpers/reporting.php';
@@ -7148,57 +7160,65 @@ function handleAdminSales(array $params = []): void
     // shift_status marks unfinalized manual PM rows as provisional.
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $amountExpr = dl_ledgerSalesAmountSql('dl');
-    $sql = 'SELECT dl.ledger_date, dl.shift, p.name AS product_name, p.sku, b.name AS branch_name,
-                   dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end,
-                   ' . $salesExpr . ' AS sales,
-                   dl.price_snapshot,
-                   (' . $amountExpr . ') AS amount,
-                   ss.status AS shift_status
-             FROM dl_daily_ledger dl
-             INNER JOIN dl_products p ON p.id = dl.product_id
-             INNER JOIN dl_branches b ON b.id = dl.branch_id
-             LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
-            WHERE dl.branch_id IN (' . $branchPlaceholders . ') AND dl.ledger_date BETWEEN ? AND ?';
+    // A row is provisional when its ending is uncounted (NULL) or it is an
+    // unfinalized manual PM row. Kept in one place so the aggregate totals and
+    // the rendered rows cannot disagree about it.
+    $provisionalExpr = "(dl.bal_end IS NULL OR (dl.shift = 'PM' AND COALESCE(ss.status, '') <> 'finalized'))";
+
+    $where = 'dl.branch_id IN (' . $branchPlaceholders . ') AND dl.ledger_date BETWEEN ? AND ?';
     $bind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);
 
     if ($branchId) {
-        $sql .= ' AND dl.branch_id = ?';
+        $where .= ' AND dl.branch_id = ?';
         $bind[] = $branchId;
     }
     if ($search !== '') {
-        $sql .= ' AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)';
+        $where .= ' AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)';
         $like = "%{$search}%";
         $bind[] = $like;
         $bind[] = $like;
         $bind[] = $like;
     }
     if ($shiftFilter !== '') {
-        $sql .= ' AND dl.shift = ?';
+        $where .= ' AND dl.shift = ?';
         $bind[] = $shiftFilter;
     }
-    $sql .= ' ORDER BY dl.ledger_date DESC, b.name, p.name';
 
-    $stmt = $ctx->db()->prepare($sql);
-    $stmt->execute($bind);
-    $salesRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $salesFromSql = 'FROM dl_daily_ledger dl
+             INNER JOIN dl_products p ON p.id = dl.product_id
+             INNER JOIN dl_branches b ON b.id = dl.branch_id
+             LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+            WHERE ' . $where;
 
-    // Grand totals — official vs provisional. A row is provisional when its
-    // ending is uncounted (NULL) or it is an unfinalized manual PM row.
-    $grandUnits = 0;
-    $grandAmount = 0.0;
-    $provisionalUnits = 0;
-    $provisionalAmount = 0.0;
-    foreach ($salesRows as $r) {
-        $isProvisional = ($r['bal_end'] === null)
-            || ((string)($r['shift'] ?? '') === 'PM' && (string)($r['shift_status'] ?? '') !== 'finalized');
-        if ($isProvisional) {
-            $provisionalUnits  += (int)$r['sales'];
-            $provisionalAmount += (float)$r['amount'];
-        } else {
-            $grandUnits  += (int)$r['sales'];
-            $grandAmount += (float)$r['amount'];
-        }
-    }
+    // Grand totals — official vs provisional — over every matching row, not over
+    // the capped slice rendered below.
+    $totalsStmt = $ctx->db()->prepare(
+        'SELECT COUNT(*) AS row_count,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE (' . $salesExpr . ') END), 0) AS official_units,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE (' . $amountExpr . ') END), 0) AS official_amount,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN (' . $salesExpr . ') ELSE 0 END), 0) AS provisional_units,
+                COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN (' . $amountExpr . ') ELSE 0 END), 0) AS provisional_amount '
+        . $salesFromSql
+    );
+    $totalsStmt->execute($bind);
+    $salesTotals = $totalsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $salesTotalMatching = (int)($salesTotals['row_count'] ?? 0);
+    $grandUnits = (int)($salesTotals['official_units'] ?? 0);
+    $grandAmount = (float)($salesTotals['official_amount'] ?? 0);
+    $provisionalUnits = (int)($salesTotals['provisional_units'] ?? 0);
+    $provisionalAmount = (float)($salesTotals['provisional_amount'] ?? 0);
+
+    $listStmt = $ctx->db()->prepare(
+        'SELECT dl.ledger_date, dl.shift, p.name AS product_name, p.sku, b.name AS branch_name,
+                   dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end,
+                   ' . $salesExpr . ' AS sales,
+                   dl.price_snapshot,
+                   (' . $amountExpr . ') AS amount,
+                   ss.status AS shift_status '
+        . $salesFromSql . ' ORDER BY dl.ledger_date DESC, b.name, p.name LIMIT ' . DL_SALES_PAGE_ROW_LIMIT
+    );
+    $listStmt->execute($bind);
+    $salesRows = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -7252,6 +7272,9 @@ function handleAdminSales(array $params = []): void
         'branch_id'    => $branchId,
         'branches'     => $branches,
         'sales_rows'   => $salesRows,
+        'sales_total_matching' => $salesTotalMatching,
+        'sales_shown'          => count($salesRows),
+        'sales_row_limit'      => DL_SALES_PAGE_ROW_LIMIT,
         'grand_units'  => $grandUnits,
         'grand_amount' => $grandAmount,
         'provisional_units' => $provisionalUnits,
@@ -7985,18 +8008,21 @@ function handleAdminVariances(array $params = []): void
     // enhancement (imports, pre-deployment data) never triggered recompute.
     dl_refreshVariancesForDateView($dateFilter, $accessibleBranchIds);
 
-    // Build the variance query
-    $sql = 'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
-                   COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name
-            FROM dl_variance_flags vf
-            INNER JOIN dl_products p ON p.id = vf.product_id
-            INNER JOIN dl_branches b ON b.id = vf.branch_id
-            LEFT JOIN dl_users reviewer ON reviewer.id = vf.reviewed_by
-            WHERE 1=1';
+    // Build the variance filter. The predicates are shared by the aggregate
+    // queries and the capped list query so they can never disagree.
+    $where = '1=1';
     $bind = [];
 
+    // An explicit ?date= scopes the list to that day. The default view stays the
+    // newest flags across all dates; the date is always used for self-healing.
+    $explicitDate = trim((string)($input['date'] ?? ''));
+    if ($explicitDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $explicitDate) === 1) {
+        $where .= ' AND vf.ledger_date = :vdate';
+        $bind[':vdate'] = $explicitDate;
+    }
+
     if ($branchId) {
-        $sql .= ' AND vf.branch_id = :bid';
+        $where .= ' AND vf.branch_id = :bid';
         $bind[':bid'] = $branchId;
     } elseif ($isSupervisor && !empty($supervisorBranchIds)) {
         // Auto-scope to supervisor branches when no explicit filter
@@ -8006,37 +8032,64 @@ function handleAdminVariances(array $params = []): void
             $placeholders[] = $key;
             $bind[$key] = $sbId;
         }
-        $sql .= ' AND vf.branch_id IN (' . implode(',', $placeholders) . ')';
+        $where .= ' AND vf.branch_id IN (' . implode(',', $placeholders) . ')';
     }
 
     if ($statusFilter !== '' && in_array($statusFilter, ['unreviewed', 'investigated', 'corrected'], true)) {
-        $sql .= ' AND vf.resolution_status = :st';
+        $where .= ' AND vf.resolution_status = :st';
         $bind[':st'] = $statusFilter;
     }
     if ($kindFilter !== '') {
-        $sql .= ' AND vf.kind = :kind';
+        $where .= ' AND vf.kind = :kind';
         $bind[':kind'] = $kindFilter;
     }
     if ($shiftFilter !== '') {
-        $sql .= ' AND vf.shift = :shift';
+        $where .= ' AND vf.shift = :shift';
         $bind[':shift'] = $shiftFilter;
     }
     if ($search !== '') {
-        $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2 OR b.name LIKE :q3 OR b.code LIKE :q4)';
+        $where .= ' AND (p.name LIKE :q OR p.sku LIKE :q2 OR b.name LIKE :q3 OR b.code LIKE :q4)';
         $bind[':q'] = "%{$search}%";
         $bind[':q2'] = "%{$search}%";
         $bind[':q3'] = "%{$search}%";
         $bind[':q4'] = "%{$search}%";
     }
 
-    $sql .= ' ORDER BY vf.ledger_date DESC, b.name, p.name';
+    $fromSql = 'FROM dl_variance_flags vf
+            INNER JOIN dl_products p ON p.id = vf.product_id
+            INNER JOIN dl_branches b ON b.id = vf.branch_id
+            LEFT JOIN dl_users reviewer ON reviewer.id = vf.reviewed_by
+            WHERE ' . $where;
 
-    $stmt = $ctx->db()->prepare($sql);
-    $stmt->execute($bind);
-    $variances = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // Full-set aggregates: these drive the dashboard figures.
+    $aggStmt = $ctx->db()->prepare(
+        'SELECT vf.resolution_status, vf.kind, COUNT(*) AS flag_count, COALESCE(SUM(vf.variance), 0) AS net_variance '
+        . $fromSql . ' GROUP BY vf.resolution_status, vf.kind'
+    );
+    $aggStmt->execute($bind);
+    $aggRows = $aggStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $branchAggStmt = $ctx->db()->prepare(
+        'SELECT vf.branch_id, b.name AS branch_name, b.code AS branch_code, vf.resolution_status,
+                COUNT(*) AS flag_count, COALESCE(SUM(vf.variance), 0) AS net_variance '
+        . $fromSql . ' GROUP BY vf.branch_id, b.name, b.code, vf.resolution_status'
+    );
+    $branchAggStmt->execute($bind);
+    $branchAgg = $branchAggStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // The rendered slice. Counts above still describe every matching flag.
+    $listStmt = $ctx->db()->prepare(
+        'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
+                COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name '
+        . $fromSql . ' ORDER BY vf.ledger_date DESC, b.name, p.name LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT
+    );
+    $listStmt->execute($bind);
+    $variances = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // ── Aggregate stats ──────────────────────────────────────────────
-    $statsTotal = count($variances);
+    // Counted in SQL over every matching flag: the rendered list below is capped,
+    // so counting it here would understate the dashboard.
+    $statsTotal = 0;
     $statsUnreviewed = 0;
     $statsInvestigated = 0;
     $statsCorrected = 0;
@@ -8046,15 +8099,17 @@ function handleAdminVariances(array $params = []): void
         'ending' => ['count' => 0, 'net' => 0],
         'sales' => ['count' => 0, 'net' => 0],
     ];
-    foreach ($variances as $v) {
-        $st = (string)($v['resolution_status'] ?? '');
-        if ($st === 'unreviewed') { $statsUnreviewed++; }
-        elseif ($st === 'investigated') { $statsInvestigated++; }
-        elseif ($st === 'corrected') { $statsCorrected++; }
-        $k = (string)($v['kind'] ?? 'overnight');
-        if (isset($statsByKind[$k])) {
-            $statsByKind[$k]['count']++;
-            $statsByKind[$k]['net'] += (int)($v['variance'] ?? 0);
+    foreach ($aggRows as $agg) {
+        $aggCount = (int)($agg['flag_count'] ?? 0);
+        $statsTotal += $aggCount;
+        $aggStatus = (string)($agg['resolution_status'] ?? '');
+        if ($aggStatus === 'unreviewed') { $statsUnreviewed += $aggCount; }
+        elseif ($aggStatus === 'investigated') { $statsInvestigated += $aggCount; }
+        elseif ($aggStatus === 'corrected') { $statsCorrected += $aggCount; }
+        $aggKind = (string)($agg['kind'] ?? 'overnight');
+        if (isset($statsByKind[$aggKind])) {
+            $statsByKind[$aggKind]['count'] += $aggCount;
+            $statsByKind[$aggKind]['net'] += (int)($agg['net_variance'] ?? 0);
         }
     }
     // Net is only meaningful within a single variance kind — never across kinds.
@@ -8063,14 +8118,38 @@ function handleAdminVariances(array $params = []): void
         : null;
 
     // ── Per-branch breakdown ─────────────────────────────────────────
+    // Branch counts describe every matching flag; only the expandable item lists
+    // come from the capped page slice.
     $branchSummary = [];
-    foreach ($variances as $v) {
-        $bid = (int)($v['branch_id'] ?? 0);
-        $bname = (string)($v['branch_name'] ?? 'Unknown');
+    foreach ($branchAgg as $agg) {
+        $bid = (int)($agg['branch_id'] ?? 0);
         if (!isset($branchSummary[$bid])) {
             $branchSummary[$bid] = [
                 'branch_id'   => $bid,
-                'branch_name' => $bname,
+                'branch_name' => (string)($agg['branch_name'] ?? 'Unknown'),
+                'branch_code'  => (string)($agg['branch_code'] ?? ''),
+                'total'       => 0,
+                'unreviewed'  => 0,
+                'investigated'=> 0,
+                'corrected'   => 0,
+                'net_variance'=> 0,
+                'items'       => [],
+            ];
+        }
+        $aggCount = (int)($agg['flag_count'] ?? 0);
+        $branchSummary[$bid]['total'] += $aggCount;
+        $branchSummary[$bid]['net_variance'] += (int)($agg['net_variance'] ?? 0);
+        $aggStatus = (string)($agg['resolution_status'] ?? '');
+        if (isset($branchSummary[$bid][$aggStatus])) {
+            $branchSummary[$bid][$aggStatus] += $aggCount;
+        }
+    }
+    foreach ($variances as $v) {
+        $bid = (int)($v['branch_id'] ?? 0);
+        if (!isset($branchSummary[$bid])) {
+            $branchSummary[$bid] = [
+                'branch_id'   => $bid,
+                'branch_name' => (string)($v['branch_name'] ?? 'Unknown'),
                 'branch_code'  => (string)($v['branch_code'] ?? ''),
                 'total'       => 0,
                 'unreviewed'  => 0,
@@ -8080,12 +8159,6 @@ function handleAdminVariances(array $params = []): void
                 'items'       => [],
             ];
         }
-        $branchSummary[$bid]['total']++;
-        $st = (string)($v['resolution_status'] ?? '');
-        if ($st === 'unreviewed') { $branchSummary[$bid]['unreviewed']++; }
-        elseif ($st === 'investigated') { $branchSummary[$bid]['investigated']++; }
-        elseif ($st === 'corrected') { $branchSummary[$bid]['corrected']++; }
-        $branchSummary[$bid]['net_variance'] += (int)($v['variance'] ?? 0);
         $branchSummary[$bid]['items'][] = $v;
     }
     // Sort branches by unreviewed count desc, then name
@@ -8124,6 +8197,10 @@ function handleAdminVariances(array $params = []): void
         'stats_corrected'    => $statsCorrected,
         'stats_by_kind'      => $statsByKind,
         'stats_net_variance' => $statsTotalVariance,
+        // Page slice vs full set, so the page can say what it is not showing
+        'variances_total_matching' => $statsTotal,
+        'variances_shown'          => count($variances),
+        'variances_row_limit'      => DL_VARIANCE_PAGE_ROW_LIMIT,
         // Branch breakdown
         'branch_summary' => $branchSummary,
     ]);
