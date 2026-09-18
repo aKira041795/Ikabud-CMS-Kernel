@@ -203,6 +203,22 @@
           "first"
         ],
         "description": "Governed Daily Ledger month-end export"
+      },
+      {
+        "id": "export.daily_ledger_category_sales@1",
+        "priority": 50,
+        "modes": [
+          "first"
+        ],
+        "description": "Governed Daily Ledger sales-by-category export"
+      },
+      {
+        "id": "export.daily_ledger_data_integrity@1",
+        "priority": 50,
+        "modes": [
+          "first"
+        ],
+        "description": "Governed Daily Ledger encoding exceptions export"
       }
     ],
     "depends": [],
@@ -265,6 +281,30 @@
       ],
       "permission": "export.daily_ledger_month_end@1",
       "schedule": "monthly"
+    },
+    {
+      "id": "category-sales",
+      "title": "Sales by Category",
+      "description": "Official and provisional sales grouped by product category, with each category's share of the period.",
+      "entity_type": "daily_ledger_category_sales",
+      "formats": [
+        "pdf",
+        "csv"
+      ],
+      "permission": "export.daily_ledger_category_sales@1",
+      "schedule": "weekly"
+    },
+    {
+      "id": "data-integrity",
+      "title": "Encoding Exceptions",
+      "description": "Ledger days with unfinished (pending) entries or sales dominated by zero-ending stock, with the amount at risk.",
+      "entity_type": "daily_ledger_data_integrity",
+      "formats": [
+        "pdf",
+        "csv"
+      ],
+      "permission": "export.daily_ledger_data_integrity@1",
+      "schedule": "daily"
     }
   ],
   "settings_fields": [
@@ -379,6 +419,13 @@
       "label": "Max Offline Days",
       "default": "14",
       "description": "Offline access granted to an enrolled device expires after this many days. Revocation is unknowable fully offline, so expiry plus next-contact validation bound the offline window. Range 1-90."
+    },
+    {
+      "key": "net_sales_deduction_percent",
+      "type": "text",
+      "label": "Net Sales Deduction %",
+      "default": "0",
+      "description": "Percentage deducted from gross sales to report net sales on the Business Overview. A value of 0 (or blank/non-numeric) means net sales are not configured."
     }
   ],
   "auth_cookie": "daily_ledger_token",

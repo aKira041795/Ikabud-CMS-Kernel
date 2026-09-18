@@ -6707,73 +6707,116 @@ function handleAdminOverview(array $params = []): void
         [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : 0;
+    // Ranking controls for the product tables. Pareto itself stays amount-ordered
+    // because cumulative accumulation is only meaningful strongest-first.
+    $sortBy = dl_overviewNormalizeSortBy($input['sort_by'] ?? 'amount');
+    $sortDir = dl_overviewNormalizeSortDir($input['sort_dir'] ?? 'desc');
+    // Chart-only controls: how many series to plot, and whether series with no
+    // sales are plotted at all (empty branches previously rendered as long grey
+    // tracks that carried no information).
+    $chartLimit = dl_overviewNormalizeChartLimit($input['chart_limit'] ?? DL_OVERVIEW_CHART_LIMIT_DEFAULT);
+    $chartShowEmpty = !empty($input['chart_show_empty']);
+    // Pending ledger rows are excluded by default so only completed entries are
+    // counted; the checkbox lets the viewer include them.
+    $pendingRowsMode = dl_overviewPendingRowsMode($input['pending_rows'] ?? null);
 
     $accessibleBranchIds = dl_accessibleBranchIds($user);
     if (count($accessibleBranchIds) === 0) {
         $accessibleBranchIds = [0];
     }
-    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
-    $branches->execute($accessibleBranchIds);
-    $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // Top saleable products (ranked by units sold, then amount) for the period.
-    $topProductsSql =
-        'SELECT p.id, p.name, p.sku, p.product_category,
-                SUM(' . dl_ledgerSalesQuantitySql('dl') . ') AS units,
-                SUM(' . dl_ledgerSalesAmountSql('dl') . ') AS amount,
-                COUNT(DISTINCT dl.branch_id) AS branch_count
-         FROM dl_daily_ledger dl
-         INNER JOIN dl_products p ON p.id = dl.product_id
-         WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
-    $topProductsBind = array_merge([$dateFrom, $dateTo], $accessibleBranchIds);
+    // Branch selection narrows the displayed scope. An explicitly requested
+    // branch that is not accessible yields an empty scope instead of widening
+    // the queries back to every accessible branch.
+    $scopedBranchIds = $accessibleBranchIds;
     if ($branchId > 0) {
-        $topProductsSql .= ' AND dl.branch_id = ?';
-        $topProductsBind[] = $branchId;
+        $scopedBranchIds = in_array($branchId, $accessibleBranchIds, true) ? [$branchId] : [];
     }
-    $topProductsSql .= ' GROUP BY p.id, p.name, p.sku, p.product_category
-         ORDER BY units DESC, amount DESC
-         LIMIT 10';
-    $topStmt = $ctx->db()->prepare($topProductsSql);
-    $topStmt->execute($topProductsBind);
-    $topProducts = $topStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // The filter dropdown always lists every authorized active branch so a user
+    // can switch directly between them. $scopedBranchIds (not $branches) drives
+    // the cards, queries, and analytics for the selected scope.
+    $branches = [];
+    if ($accessibleBranchIds !== []) {
+        $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+        $branchStmt = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+        $branchStmt->execute($accessibleBranchIds);
+        $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $scopedBranches = [];
+    if ($scopedBranchIds !== []) {
+        foreach ($branches as $br) {
+            if (in_array((int)$br['id'], $scopedBranchIds, true)) {
+                $scopedBranches[] = $br;
+            }
+        }
+    }
+
+    $filters = [
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'branch_id' => $branchId,
+        'product_id' => 0,
+        'shift' => '',
+        'accessible_branch_ids' => $accessibleBranchIds,
+        'pending_rows_mode' => $pendingRowsMode,
+    ];
+
+    // Overall product totals feed both the ranked tables and the Pareto
+    // accumulation. Products with no completed sales are already excluded by the
+    // query itself.
+    $productTotals = dl_overviewProductTotals($ctx->db(), $filters);
+    $pareto = dl_overviewPareto($productTotals, DL_OVERVIEW_PARETO_THRESHOLD);
+    $topProducts = dl_overviewTopProducts(dl_overviewSortProducts($productTotals, $sortBy, $sortDir), DL_OVERVIEW_TOP_PRODUCTS_LIMIT);
+    foreach ($topProducts as &$tp) {
+        $tp['share'] = $pareto['total_amount'] > 0
+            ? round(((float)($tp['amount'] ?? 0)) / $pareto['total_amount'] * 100, 1)
+            : 0.0;
+    }
+    unset($tp);
+    $topProducts = dl_overviewBarPercentages($topProducts, 'amount');
+    // Pareto contributors are charted on the canonical amount order (which is
+    // still descending) with their cumulative share carried per row.
+    $pareto['contributors'] = dl_overviewBarPercentages($pareto['contributors'], 'amount');
+    $branchTopProducts = dl_overviewBranchProductTotals($ctx->db(), $filters, DL_OVERVIEW_PER_BRANCH_PRODUCTS_LIMIT, $sortBy, $sortDir);
 
     // Sales per branch for the period.
-    $salesSql =
-        'SELECT dl.branch_id, b.name AS branch_name,
-                SUM(' . dl_ledgerSalesQuantitySql('dl') . ') AS total_units,
-                SUM(' . dl_ledgerSalesAmountSql('dl') . ') AS total_amount,
-                COUNT(DISTINCT dl.product_id) AS product_count
-         FROM dl_daily_ledger dl
-         INNER JOIN dl_branches b ON b.id = dl.branch_id
-         WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
-    $salesBind = array_merge([$dateFrom, $dateTo], $accessibleBranchIds);
-    if ($branchId > 0) {
-        $salesSql .= ' AND dl.branch_id = ?';
-        $salesBind[] = $branchId;
-    }
-    $salesSql .= ' GROUP BY dl.branch_id ORDER BY b.name';
-    $salesStmt = $ctx->db()->prepare($salesSql);
-    $salesStmt->execute($salesBind);
-    $branchSales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    // Day status per branch for the end date.
-    $statusStmt = $ctx->db()->prepare("SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = ? AND branch_id IN ({$branchPlaceholders})");
-    $statusStmt->execute(array_merge([$dateTo], $accessibleBranchIds));
-    $dayStatuses = [];
-    foreach ($statusStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
-        $dayStatuses[(int)$s['branch_id']] = $s['status'];
-    }
-
-    $branchSalesMap = [];
-    foreach ($branchSales as $row) {
-        $branchSalesMap[(int)$row['branch_id']] = $row;
-    }
-
     $grandUnits = 0;
     $grandAmount = 0.0;
+    $dayStatuses = [];
+    $branchSalesMap = [];
+    if ($scopedBranchIds !== []) {
+        $branchPlaceholders = implode(',', array_fill(0, count($scopedBranchIds), '?'));
+        $salesSql =
+            'SELECT dl.branch_id, b.name AS branch_name,
+                    COALESCE(SUM(' . dl_ledgerSalesQuantitySql('dl') . '), 0) AS total_units,
+                    COALESCE(SUM(' . dl_ledgerSalesAmountSql('dl') . '), 0) AS total_amount,
+                    COUNT(DISTINCT dl.product_id) AS product_count
+             FROM dl_daily_ledger dl
+             INNER JOIN dl_branches b ON b.id = dl.branch_id
+             WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
+        $salesBind = array_merge([$dateFrom, $dateTo], $scopedBranchIds);
+        if ($pendingRowsMode === 'exclude') {
+            $salesSql .= dl_overviewPendingPredicate('dl');
+        }
+        $salesSql .= ' GROUP BY dl.branch_id, b.name ORDER BY b.name';
+        $salesStmt = $ctx->db()->prepare($salesSql);
+        $salesStmt->execute($salesBind);
+        foreach ($salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $branchSalesMap[(int)$row['branch_id']] = $row;
+        }
+
+        // Day status per branch for the end date.
+        $statusStmt = $ctx->db()->prepare("SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = ? AND branch_id IN ({$branchPlaceholders})");
+        $statusStmt->execute(array_merge([$dateTo], $scopedBranchIds));
+        foreach ($statusStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
+            $dayStatuses[(int)$s['branch_id']] = $s['status'];
+        }
+    }
+
     $cards = [];
-    foreach ($branches as $br) {
+    foreach ($scopedBranches as $br) {
         $bid = (int)$br['id'];
         $s = $branchSalesMap[$bid] ?? null;
         $units = $s ? (int)$s['total_units'] : 0;
@@ -6789,6 +6832,46 @@ function handleAdminOverview(array $params = []): void
         ];
     }
 
+    // Configurable net sales deduction. 0% (or a non-numeric setting) is
+    // reported as "not configured" rather than echoing gross as a net value.
+    $settings = dlModuleSettings();
+    $netSetting = (string)($settings['net_sales_deduction_percent'] ?? '0');
+    $netSales = dl_overviewNetSales($grandAmount, $netSetting);
+    foreach ($cards as &$card) {
+        $card['net_amount'] = dl_overviewNetSales((float)$card['amount'], $netSetting)['net'];
+        $card['net_configured'] = $netSales['configured'];
+    }
+    unset($card);
+    // Branch bars are scaled against the strongest branch in scope, and the plot
+    // is ranked strongest-first so a shortened chart still shows the leaders.
+    $cards = dl_overviewBarPercentages($cards, 'amount');
+    $branchChartSource = dl_overviewSortProducts(array_map(static function (array $card): array {
+        $card['id'] = (int)$card['branch_id'];
+        return $card;
+    }, $cards), 'amount', 'desc');
+    $branchChartSellable = array_values(array_filter($branchChartSource, static fn(array $card): bool => (float)$card['amount'] > 0.0));
+    $branchChart = dl_overviewChartSeries($branchChartSource, $chartLimit, $chartShowEmpty, 'amount');
+    $branchChart = dl_overviewValueShares(dl_overviewBarPercentages($branchChart, 'amount'), 'amount');
+    $branchChartEmpty = max(0, count($branchChartSource) - count($branchChartSellable));
+    $branchChartPool = $chartShowEmpty ? count($branchChartSource) : count($branchChartSellable);
+
+    // Production forecast anchored at the selected date_to (target = next day).
+    $forecastWindow = dl_overviewForecastWindow($input['forecast_window'] ?? null);
+    $forecastPeriod = dl_overviewNormalizeForecastPeriod((string)($input['forecast_period'] ?? 'daily'));
+    $forecastRows = dl_overviewForecastRows($ctx->db(), $filters, $dateTo, $forecastWindow);
+    $forecast = dl_overviewForecastSummary($forecastRows, $forecastPeriod);
+    // Forecast bars are scaled against the largest projected product volume. The
+    // table keeps every product; the chart plots the strongest $chartLimit so it
+    // stays readable when a period has many products.
+    $forecast['products'] = dl_overviewBarPercentages($forecast['products'], 'projected_units');
+    $forecastChart = dl_overviewValueShares(
+        dl_overviewBarPercentages(dl_overviewChartSeries($forecast['products'], $chartLimit, false, 'projected_units'), 'projected_units'),
+        'projected_units'
+    );
+    $anchor = DateTimeImmutable::createFromFormat('!Y-m-d', $dateTo) ?: new DateTimeImmutable($dateTo);
+    $forecastHistoryFrom = $anchor->modify('+' . (1 - $forecastWindow) . ' days')->format('Y-m-d');
+    $forecastTargetDate = $anchor->modify('+1 day')->format('Y-m-d');
+
     $periodLabel = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $clockLabel = dl_operatingClockLabel();
@@ -6803,11 +6886,38 @@ function handleAdminOverview(array $params = []): void
         'date_to' => $dateTo,
         'branch_id' => $branchId,
         'branches' => $branches,
+        'scoped_branch_count' => count($scopedBranches),
         'branch_cards' => $cards,
         'top_products' => $topProducts,
+        // Denominator for the 80/20 statement: products with sales value only.
+        'product_scope_count' => $pareto['scope_count'],
+        'sort_by' => $sortBy,
+        'sort_dir' => $sortDir,
+        'sort_label' => dl_overviewSortLabel($sortBy, $sortDir),
+        'chart_limit' => $chartLimit,
+        'chart_show_empty' => $chartShowEmpty,
+        'exclude_pending' => $pendingRowsMode === 'exclude',
+        // The form carries this marker, so the cue can tell a submitted filter
+        // from a plain page load where the same defaults are in force.
+        'filters_applied' => !empty($input['filters_applied']),
+        'branch_chart' => $branchChart,
+        'branch_chart_pool' => $branchChartPool,
+        'branch_chart_empty' => $branchChartEmpty,
+        'forecast_chart' => $forecastChart,
+        'branch_top_products' => $branchTopProducts,
+        'pareto' => $pareto,
+        'net_sales' => $netSales,
+        'net_sales_configured' => $netSales['configured'],
         'grand_units' => $grandUnits,
         'grand_amount' => $grandAmount,
         'period_label' => $periodLabel,
+        'forecast' => $forecast,
+        'forecast_window' => $forecastWindow,
+        'forecast_period' => $forecastPeriod,
+        'forecast_period_days' => $forecast['period_days'],
+        'forecast_history_from' => $forecastHistoryFrom,
+        'forecast_history_to' => $dateTo,
+        'forecast_target_date' => $forecastTargetDate,
         'business_date_label' => $clockLabel['business_date'],
         'close_of_day_time' => $clockLabel['close_of_day_time'],
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
@@ -6820,7 +6930,7 @@ function handleAdminReports(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
-    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor', 'viewer']);
     $role = (string)($user['role'] ?? '');
     $packs = array_values(array_filter(
         \Ikabud\Kernel\Services\ReportManager::moduleReportPacks(),
@@ -6857,7 +6967,7 @@ function dl_handleAdminReport(string $type): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
-    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor', 'viewer']);
     $definitions = dl_reportDefinitions();
     if (!isset($definitions[$type])) { http_response_code(404); echo 'Report not found'; return; }
     $reportInput = $ctx->input();
@@ -6882,6 +6992,8 @@ function dl_handleAdminReport(string $type): void
         'report_title' => $definitions[$type]['title'],
         'report_rows' => $data['rows'],
         'totals' => $data['totals'],
+        'data_quality' => $data['data_quality'] ?? null,
+        'data_quality_label' => (string)($data['data_quality']['label'] ?? ''),
         'filters' => $filters,
         'branches' => dl_reportFilterBranches($ctx->db(), $filters),
         'products' => dl_reportFilterProducts($ctx->db(), $filters),
@@ -6893,12 +7005,14 @@ function handleAdminReportSales(array $params = []): void { dl_handleAdminReport
 function handleAdminReportVariances(array $params = []): void { dl_handleAdminReport('variances'); }
 function handleAdminReportBranchSummary(array $params = []): void { dl_handleAdminReport('branch-summary'); }
 function handleAdminReportMonthEnd(array $params = []): void { dl_handleAdminReport('month-end'); }
+function handleAdminReportCategorySales(array $params = []): void { dl_handleAdminReport('category-sales'); }
+function handleAdminReportDataIntegrity(array $params = []): void { dl_handleAdminReport('data-integrity'); }
 
 function dl_handleAdminReportExport(string $type): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
-    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor', 'viewer']);
     $input = $ctx->input();
     $format = strtolower(trim((string)($input['format'] ?? 'pdf')));
     if (!in_array($format, ['pdf', 'csv'], true)) { http_response_code(422); echo 'Unsupported format'; return; }
@@ -6933,6 +7047,8 @@ function handleAdminReportSalesExport(array $params = []): void { dl_handleAdmin
 function handleAdminReportVariancesExport(array $params = []): void { dl_handleAdminReportExport('variances'); }
 function handleAdminReportBranchSummaryExport(array $params = []): void { dl_handleAdminReportExport('branch-summary'); }
 function handleAdminReportMonthEndExport(array $params = []): void { dl_handleAdminReportExport('month-end'); }
+function handleAdminReportCategorySalesExport(array $params = []): void { dl_handleAdminReportExport('category-sales'); }
+function handleAdminReportDataIntegrityExport(array $params = []): void { dl_handleAdminReportExport('data-integrity'); }
 
 function handleAdminForecast(array $params = []): void
 {

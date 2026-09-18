@@ -7,12 +7,26 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Business Overview</h2>
-        <p class="text-sm text-gray-500">Sales data and top saleable products. Read-only.</p>
+        <p class="text-sm text-gray-500">Sales data, top saleable products, Pareto 80/20, and production forecast. Read-only.</p>
         <p class="text-xs text-gray-500 mt-1">
             Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
             · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>
             · Region: <span class="font-medium text-gray-700">{operating_region}</span>
         </p>
+        {if filters_applied}
+        {if exclude_pending}
+        <p class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+            <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+            <span>Filters applied — pending ledger rows are excluded</span>
+        </p>
+        {/if}
+        {if exclude_pending == false}
+        <p class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+            <span class="inline-block h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+            <span>Filters applied — pending ledger rows are included, so unfilled entries are counted</span>
+        </p>
+        {/if}
+        {/if}
     </div>
     <span class="text-sm text-gray-500">{period_label}</span>
 </div>
@@ -20,7 +34,8 @@
 <form class="card mb-6 print-hide" action="{base_url}/admin/overview" method="GET"
       onsubmit="return window.dlLoadForm(this)">
     <div class="card-body">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+        <input type="hidden" name="filters_applied" value="1">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
             <div class="form-group">
                 <label class="form-label">From</label>
                 <input type="date" class="form-input" name="date_from" value="{date_from}">
@@ -38,17 +53,67 @@
                     {/foreach}
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Filter Sales</button>
+            <div class="form-group">
+                <label class="form-label">Forecast Window (days)</label>
+                <input type="number" min="3" max="90" class="form-input" name="forecast_window" value="{forecast_window}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Forecast Period</label>
+                <select class="form-input" name="forecast_period">
+                    <option value="daily" {if forecast_period == 'daily'}selected{/if}>Daily</option>
+                    <option value="weekly" {if forecast_period == 'weekly'}selected{/if}>Weekly</option>
+                    <option value="monthly" {if forecast_period == 'monthly'}selected{/if}>Monthly</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Rank By</label>
+                <select class="form-input" name="sort_by">
+                    <option value="amount" {if sort_by == 'amount'}selected{/if}>Sales Amount</option>
+                    <option value="units" {if sort_by == 'units'}selected{/if}>Units Sold</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Order</label>
+                <select class="form-input" name="sort_dir">
+                    <option value="desc" {if sort_dir == 'desc'}selected{/if}>Descending</option>
+                    <option value="asc" {if sort_dir == 'asc'}selected{/if}>Ascending</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Chart Series</label>
+                <select class="form-input" name="chart_limit">
+                    <option value="5" {if chart_limit == 5}selected{/if}>Top 5</option>
+                    <option value="10" {if chart_limit == 10}selected{/if}>Top 10</option>
+                    <option value="25" {if chart_limit == 25}selected{/if}>Top 25</option>
+                    <option value="0" {if chart_limit == 0}selected{/if}>All</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Empty Series</label>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="chart_show_empty" value="1" {if chart_show_empty}checked{/if}>
+                    <span>Include branches with no sales</span>
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Pending Rows</label>
+                <input type="hidden" name="pending_rows" value="include">
+                <label class="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-gray-700 {if exclude_pending}bg-emerald-50 ring-1 ring-inset ring-emerald-200{/if}">
+                    <input type="checkbox" name="pending_rows" value="exclude" {if exclude_pending}checked{/if}>
+                    <span>Exclude pending rows</span>
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
         </div>
     </div>
 </form>
 
 <!-- Stats row -->
-<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
     <div class="card">
         <div class="card-body">
             <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branches</div>
-            <div class="mt-1 text-3xl font-semibold text-gray-900">{branches | count}</div>
+            <div class="mt-1 text-3xl font-semibold text-gray-900">{scoped_branch_count}</div>
             <div class="mt-1 text-sm text-gray-500">Active branches in scope</div>
         </div>
     </div>
@@ -71,6 +136,20 @@
             <div class="mt-1 text-sm text-gray-500">across {branch_cards | count} branches</div>
         </div>
     </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Net Sales</div>
+            {if net_sales_configured}
+            <div class="mt-1 text-3xl font-semibold text-teal-600">PHP {net_sales.net | number_format:2}</div>
+            <div class="mt-1 text-sm text-gray-500">{net_sales.percent | number_format:2}% deduction from PHP {net_sales.gross | number_format:2} gross</div>
+            {/if}
+            {if net_sales_configured == false}
+            <div class="mt-1 text-lg font-semibold text-gray-500">Not configured</div>
+            <div class="mt-1 text-sm text-gray-500">Set “Net Sales Deduction %” in module settings to report net sales.</div>
+            {/if}
+        </div>
+    </div>
 </div>
 
 <!-- Branch sales breakdown -->
@@ -81,11 +160,49 @@
     </div>
     <div class="card-body p-0">
         {if branch_cards | count == 0}
-        <div class="px-4 py-6 text-sm text-gray-500">No active branches.</div>
+        <div class="px-4 py-6 text-sm text-gray-500">No active branches in scope.</div>
+        {/if}
+        {if branch_chart | count > 0}
+        <div class="border-b border-gray-100 px-4 py-4">
+            <div class="mb-3 flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Sales amount by branch</span>
+                <span class="text-xs text-gray-400">{branch_chart | count} of {branch_chart_pool} plotted</span>
+            </div>
+            <div class="space-y-3">
+                {foreach branch_chart as b}
+                <div>
+                    <div class="flex items-baseline justify-between gap-3">
+                        <span class="truncate text-sm font-medium text-gray-800">{b.name}</span>
+                        <span class="shrink-0 text-sm font-semibold text-gray-900">PHP {b.amount | number_format:2}</span>
+                    </div>
+                    <div class="mt-1 flex items-center gap-2">
+                        <div class="h-3 flex-1 overflow-hidden rounded-full bg-gray-100">
+                            <div class="h-3 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600" style="width:{b.bar_pct}%"></div>
+                        </div>
+                        <span class="w-14 shrink-0 text-right text-xs font-semibold text-gray-500">{b.share_pct | number_format:1}%</span>
+                    </div>
+                    <div class="mt-0.5 text-xs text-gray-400">{b.units} units sold</div>
+                </div>
+                {/foreach}
+            </div>
+            {if chart_show_empty == false}
+            {if branch_chart_empty > 0}
+            <p class="mt-3 text-xs text-gray-400">{branch_chart_empty} branch(es) with no sales are not plotted — enable “Include branches with no sales” to plot them.</p>
+            {/if}
+            {/if}
+            {if branch_chart_pool > branch_chart | count}
+            <p class="mt-1 text-xs text-gray-400">Showing the strongest {branch_chart | count} of {branch_chart_pool} — raise “Chart Series” to plot more.</p>
+            {/if}
+        </div>
+        {/if}
+        {if branch_cards | count > 0}
+        {if branch_chart | count == 0}
+        <div class="px-4 py-6 text-sm text-gray-500">No branch sales recorded for this period.</div>
+        {/if}
         {/if}
         {foreach branch_cards as card}
         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-b-0">
-            <div>
+            <div class="min-w-0 flex-1 pr-4">
                 <div class="text-sm font-semibold text-gray-900">{card.name}</div>
                 <div class="text-xs text-gray-500">
                     {if card.units > 0}{card.units} units sold{/if}
@@ -94,6 +211,9 @@
             </div>
             <div class="text-right">
                 <div class="text-sm font-semibold text-gray-900">{if card.amount > 0}PHP {card.amount | number_format:2}{/if}{if card.amount == 0}—{/if}</div>
+                {if card.net_configured}
+                <div class="text-xs text-teal-700">Net PHP {card.net_amount | number_format:2}</div>
+                {/if}
                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset mt-1
                     {if card.status == 'open'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
                     {if card.status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}
@@ -108,11 +228,11 @@
     </div>
 </div>
 
-<!-- Top saleable products -->
-<div class="card">
+<!-- Top saleable products (overall) -->
+<div class="card mb-6">
     <div class="card-header">
         <span>Top Saleable Products</span>
-        <span class="text-sm text-muted">{period_label} · ranked by units sold</span>
+        <span class="text-sm text-muted">{period_label} · ranked by {sort_label}</span>
     </div>
     <div class="table-wrap">
         <table>
@@ -124,28 +244,213 @@
                     <th>Category</th>
                     <th class="text-right">Units Sold</th>
                     <th class="text-right">Sales Amount</th>
+                    <th class="text-right">Share</th>
                     <th class="text-center">Branches</th>
                 </tr>
             </thead>
             <tbody>
                 {if top_products | count == 0}
                 <tr>
-                    <td colspan="7" class="text-center text-sm text-gray-500 py-6">No sales recorded for this period.</td>
+                    <td colspan="8" class="text-center text-sm text-gray-500 py-6">No sales recorded for this period.</td>
                 </tr>
                 {/if}
                 {foreach top_products as idx => tp}
                 <tr>
                     <td class="text-sm text-gray-500">{idx + 1}</td>
-                    <td class="text-sm font-semibold text-gray-900">{tp.name}</td>
+                    <td class="relative">
+                        <div class="absolute inset-y-0 left-0 rounded-r bg-emerald-100" style="width:{tp.bar_pct}%"></div>
+                        <span class="relative text-sm font-semibold text-gray-900">{tp.name}</span>
+                    </td>
                     <td class="text-sm text-gray-500">{tp.sku}</td>
                     <td class="text-sm text-gray-500">{tp.product_category}</td>
                     <td class="text-sm text-right font-semibold text-gray-900">{tp.units}</td>
                     <td class="text-sm text-right text-gray-900">PHP {tp.amount | number_format:2}</td>
+                    <td class="text-sm text-right text-gray-500">{tp.share | number_format:1}%</td>
                     <td class="text-sm text-center text-gray-500">{tp.branch_count}</td>
                 </tr>
                 {/foreach}
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Per-branch top products -->
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Top Products by Branch</span>
+        <span class="text-sm text-muted">{period_label} · top 5 per branch by {sort_label}</span>
+    </div>
+    <div class="card-body p-0">
+        {if branch_top_products | count == 0}
+        <div class="px-4 py-6 text-sm text-gray-500">No branch sales recorded for this period.</div>
+        {/if}
+        {foreach branch_top_products as btp}
+        <div class="border-b border-gray-100 last:border-b-0">
+            <div class="px-4 py-2 bg-gray-50 text-sm font-semibold text-gray-700">{btp.branch_name}</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th class="text-right">Units Sold</th>
+                            <th class="text-right">Sales Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach btp.products as idx => tp}
+                        <tr>
+                            <td class="text-sm text-gray-500">{idx + 1}</td>
+                            <td class="text-sm font-semibold text-gray-900">{tp.name}</td>
+                            <td class="text-sm text-gray-500">{tp.sku}</td>
+                            <td class="text-sm text-right font-semibold text-gray-900">{tp.units}</td>
+                            <td class="text-sm text-right text-gray-900">PHP {tp.amount | number_format:2}</td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {/foreach}
+    </div>
+</div>
+
+<!-- Pareto 80/20 -->
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Pareto 80/20</span>
+        <span class="text-sm text-muted">{period_label}</span>
+    </div>
+    <div class="card-body">
+        {if pareto.has_data == false}
+        <div class="text-sm text-gray-500">No sales amount recorded for this period, so no Pareto analysis is available.</div>
+        {/if}
+        {if pareto.has_data}
+        <p class="text-sm text-gray-700 mb-3">
+            <span class="font-semibold text-gray-900">{pareto.contributor_count}</span>
+            of <span class="font-semibold text-gray-900">{product_scope_count}</span> products drive
+            <span class="font-semibold text-gray-900">{pareto.contributor_share | number_format:1}%</span>
+            (PHP {pareto.contributor_amount | number_format:2}) of PHP {pareto.total_amount | number_format:2} gross sales.
+            <span class="text-gray-500">{pareto.bottom_count} bottom product(s) contribute the remainder.</span>
+        </p>
+        <div class="mb-5">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Coverage reached</span>
+                <span class="text-xs text-gray-500">{pareto.contributor_count} product(s) reach {pareto.contributor_share | number_format:1}%</span>
+            </div>
+            <div class="relative mt-2">
+                <div class="h-3 w-full overflow-hidden rounded-full bg-gray-100">
+                    <div class="h-3 rounded-full bg-gradient-to-r from-indigo-400 to-indigo-600" style="width:{pareto.contributor_share | number_format:2}%"></div>
+                </div>
+                <div class="absolute inset-y-0 w-0.5 bg-rose-500" style="left:80%"></div>
+            </div>
+            <div class="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                <span class="inline-block h-2 w-0.5 bg-rose-500"></span>
+                <span>The red tick marks the 80% threshold.</span>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th class="text-right">Sales Amount</th>
+                        <th class="text-right">Cumulative Share</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach pareto.contributors as idx => c}
+                    <tr>
+                        <td class="text-sm text-gray-500">{idx + 1}</td>
+                        <td class="relative">
+                            <div class="absolute inset-y-0 left-0 rounded-r bg-indigo-100" style="width:{c.bar_pct}%"></div>
+                            <span class="relative text-sm font-semibold text-gray-900">{c.name}</span>
+                        </td>
+                        <td class="text-sm text-gray-500">{c.sku}</td>
+                        <td class="text-sm text-right text-gray-900">PHP {c.amount | number_format:2}</td>
+                        <td class="text-sm text-right font-semibold text-gray-700">{c.cumulative_share | number_format:1}%</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {/if}
+    </div>
+</div>
+
+<!-- Production forecast -->
+<div class="card">
+    <div class="card-header">
+        <span>Production Forecast</span>
+        <span class="text-sm text-muted">history {forecast_history_from} to {forecast_history_to} · {forecast_window}-day window · {forecast_period}</span>
+    </div>
+    <div class="card-body">
+        <p class="text-xs text-gray-500 mb-3">
+            Projected units for the {forecast_period} period ({forecast_period_days} day(s)) targeting {forecast_target_date},
+            based on per-day average sales recorded from {forecast_history_from} to {forecast_history_to}.
+        </p>
+        {if forecast.products | count == 0}
+        <div class="text-sm text-gray-500">No recorded sales history in this window, so no forecast is available.</div>
+        {/if}
+        {if forecast.products | count > 0}
+        {if forecast_chart | count > 0}
+        <div class="mb-5">
+            <div class="mb-3 flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Projected units by product</span>
+                <span class="text-xs text-gray-400">{forecast_chart | count} of {forecast.products | count} plotted</span>
+            </div>
+            <div class="space-y-3">
+                {foreach forecast_chart as fp}
+                <div>
+                    <div class="flex items-baseline justify-between gap-3">
+                        <span class="truncate text-sm font-medium text-gray-800">{fp.product_name}</span>
+                        <span class="shrink-0 text-sm font-semibold text-indigo-700">{fp.projected_units} units</span>
+                    </div>
+                    <div class="mt-1 flex items-center gap-2">
+                        <div class="h-3 flex-1 overflow-hidden rounded-full bg-gray-100">
+                            <div class="h-3 rounded-full bg-gradient-to-r from-indigo-400 to-indigo-600" style="width:{fp.bar_pct}%"></div>
+                        </div>
+                        <span class="w-16 shrink-0 text-right text-xs font-semibold text-gray-500">{fp.daily_average | number_format:2}/day</span>
+                    </div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/if}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th class="text-right">Daily Average</th>
+                        <th class="text-right">{forecast_period} Projection</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach forecast.products as idx => fp}
+                    <tr>
+                        <td class="text-sm text-gray-500">{idx + 1}</td>
+                        <td class="text-sm font-semibold text-gray-900">{fp.product_name}</td>
+                        <td class="text-sm text-gray-500">{fp.sku}</td>
+                        <td class="text-sm text-right text-gray-900">{fp.daily_average | number_format:2}</td>
+                        <td class="text-sm text-right font-semibold text-indigo-700">{fp.projected_units}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" class="text-right text-sm font-semibold text-gray-700">Total projected units</td>
+                        <td class="text-right text-sm font-semibold text-indigo-700">{forecast.total_units}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {/if}
     </div>
 </div>
 {/block}

@@ -305,6 +305,8 @@ function daily_ledger_capability_handlers(): array
         'export.daily_ledger_variances@1' => 'dl_cap_export_report_1',
         'export.daily_ledger_branch_summary@1' => 'dl_cap_export_report_1',
         'export.daily_ledger_month_end@1' => 'dl_cap_export_report_1',
+        'export.daily_ledger_category_sales@1' => 'dl_cap_export_report_1',
+        'export.daily_ledger_data_integrity@1' => 'dl_cap_export_report_1',
     ];
 }
 

@@ -333,6 +333,14 @@ final class KernelExport
             if ($filterSummary !== '') $metaParts[] = 'Filters: ' . $filterSummary;
             $html .= '<div class="meta">' . htmlspecialchars(implode(' | ', $metaParts), ENT_QUOTES, 'UTF-8') . '</div>';
 
+            // Optional caveat line (e.g. data-quality warnings). Only rendered when
+            // the caller supplies one, so existing exports are unaffected.
+            $notice = trim((string)($options['notice'] ?? ''));
+            if ($notice !== '') {
+                $html .= '<div style="margin:8px 0 12px;padding:8px 10px;border:1px solid #f0c36d;background:#fdf6e3;color:#7a4f01;font-size:9px;">'
+                    . '<strong>' . htmlspecialchars($notice, ENT_QUOTES, 'UTF-8') . '</strong></div>';
+            }
+
             // Table
             $html .= '<table><thead><tr>';
             foreach ($columns as $col) {

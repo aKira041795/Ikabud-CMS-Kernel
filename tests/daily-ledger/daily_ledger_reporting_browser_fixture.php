@@ -11,6 +11,7 @@ $_SERVER['REQUEST_URI'] = '/cli/daily-ledger/browser-fixture';
 $app = kernelCliBootstrap($basePath);
 $mode = $argv[1] ?? '';
 $userId = 99202;
+$viewerId = 99203;
 $branchId = 99202;
 $productId = 99202;
 $date = '2031-03-15';
@@ -30,10 +31,10 @@ if (!$context) {
 }
 $db = $context->db();
 
-$cleanup = static function () use ($db, $userId, $branchId, $productId, $basePath): void {
+$cleanup = static function () use ($db, $userId, $viewerId, $branchId, $productId, $basePath): void {
     foreach (glob($basePath . '/storage/report-archive/*.json') ?: [] as $metaPath) {
         $meta = json_decode((string)file_get_contents($metaPath), true);
-        if (!is_array($meta) || (int)($meta['generated_by_id'] ?? 0) !== $userId) continue;
+        if (!is_array($meta) || !in_array((int)($meta['generated_by_id'] ?? 0), [$userId, $viewerId], true)) continue;
         $archiveId = (string)($meta['id'] ?? basename($metaPath, '.json'));
         $db->prepare("DELETE FROM audit_logs WHERE module = 'daily-ledger' AND action = 'report_export' AND entity_id = ?")->execute([$archiveId]);
         if (is_file((string)($meta['file'] ?? ''))) @unlink((string)$meta['file']);
@@ -41,9 +42,11 @@ $cleanup = static function () use ($db, $userId, $branchId, $productId, $basePat
     }
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :id', [':id' => $branchId]);
     $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :id', [':id' => $branchId]);
-    $db->execute('DELETE FROM dl_user_branches WHERE user_id = :id OR branch_id = :branch', [':id' => $userId, ':branch' => $branchId]);
-    $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :id', [':id' => $branchId]);
-    $db->execute('DELETE FROM dl_users WHERE id = :id', [':id' => $userId]);
+    $db->execute('DELETE FROM dl_user_branches WHERE branch_id = :branch', [':branch' => $branchId]);
+    foreach ([$userId, $viewerId] as $fixtureUserId) {
+        $db->execute('DELETE FROM dl_user_branches WHERE user_id = :id', [':id' => $fixtureUserId]);
+        $db->execute('DELETE FROM dl_users WHERE id = :id', [':id' => $fixtureUserId]);
+    }
     $db->execute('DELETE FROM dl_branches WHERE id = :id', [':id' => $branchId]);
     $db->execute('DELETE FROM dl_products WHERE id = :id', [':id' => $productId]);
 };
@@ -68,6 +71,16 @@ $db->execute('INSERT INTO dl_users (id, username, password_hash, full_name, role
     ':password' => password_hash('BrowserReport!2031', PASSWORD_BCRYPT),
     ':name' => 'Browser Report Admin',
     ':role' => 'admin',
+]);
+// Branch products must be cleared before the branch row goes, and the viewer is
+// seeded alongside the admin so the viewer-role export path is exercised.
+$db->execute('DELETE FROM dl_branch_products WHERE branch_id = :id', [':id' => $branchId]);
+$db->execute('INSERT INTO dl_users (id, username, password_hash, full_name, role, is_active) VALUES (:id, :username, :password, :name, :role, 1)', [
+    ':id' => $viewerId,
+    ':username' => 'browser-report-viewer',
+    ':password' => password_hash('BrowserReport!2031', PASSWORD_BCRYPT),
+    ':name' => 'Browser Report Viewer',
+    ':role' => 'viewer',
 ]);
 $db->execute("INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales) VALUES (:branch, :product, :date, 'AM', 25, 10, 0, 0, 4, 6)", [':branch' => $branchId, ':product' => $productId, ':date' => $date]);
 echo "Browser fixture ready.\n";

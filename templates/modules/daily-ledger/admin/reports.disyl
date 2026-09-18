@@ -34,6 +34,16 @@
 {/if}
 
 {if !landing}
+{if data_quality_label}
+<div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    <span class="inline-flex items-center gap-1.5 font-semibold">
+        <span class="inline-block h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+        {data_quality_label}
+    </span>
+    <span class="text-amber-800">These figures include days that are unfinished or derived from zero-ending stock.</span>
+    <a class="underline font-medium" href="{base_url}/admin/reports/data-integrity?date_from={filters.date_from}&date_to={filters.date_to}">See the exceptions</a>
+</div>
+{/if}
 <form class="card mb-6" action="{base_url}/admin/reports/{report_type}" method="GET" onsubmit="return window.dlLoadForm(this)">
     <div class="card-body grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
         <div class="form-group"><label class="form-label">From</label><input class="form-input" type="date" name="date_from" value="{filters.date_from}"></div>
@@ -54,7 +64,8 @@
     <div class="card-header"><span>Totals</span><span class="text-sm text-muted">{report_rows | count} rows</span></div>
     <div class="card-body text-sm text-gray-700">
         {if report_type == 'variances'}Unreviewed: <strong>{totals.unreviewed}</strong> · Absolute variance: <strong>{totals.absolute_variance}</strong>{/if}
-        {if report_type != 'variances'}Official: <strong>{totals.official_units}</strong> units · PHP <strong>{totals.official_amount | number_format:2}</strong> · Provisional: <strong>{totals.provisional_units}</strong> units · PHP <strong>{totals.provisional_amount | number_format:2}</strong>{/if}
+        {if report_type == 'data-integrity'}Flagged days: <strong>{totals.flagged_days}</strong> · Pending rows: <strong>{totals.pending_rows}</strong> · Zero-ending rows: <strong>{totals.zero_ending_rows}</strong> · Amount at risk: PHP <strong>{totals.unencoded_amount | number_format:2}</strong>{/if}
+        {if report_type != 'variances' && report_type != 'data-integrity'}Official: <strong>{totals.official_units}</strong> units · PHP <strong>{totals.official_amount | number_format:2}</strong> · Provisional: <strong>{totals.provisional_units}</strong> units · PHP <strong>{totals.provisional_amount | number_format:2}</strong>{/if}
     </div>
 </div>
 
@@ -70,13 +81,23 @@
 </tbody>
 {/if}
 {if report_type == 'branch-summary'}
-<thead><tr><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th></tr></thead><tbody>
-{foreach report_rows as row}<tr><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td></tr>{/foreach}
+<thead><tr><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th><th>Net</th><th>Share</th></tr></thead><tbody>
+{foreach report_rows as row}<tr><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
 </tbody>
 {/if}
 {if report_type == 'month-end'}
-<thead><tr><th>Month</th><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th></tr></thead><tbody>
-{foreach report_rows as row}<tr><td>{row.month}</td><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td></tr>{/foreach}
+<thead><tr><th>Month</th><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th><th>Net</th><th>Share</th></tr></thead><tbody>
+{foreach report_rows as row}<tr><td>{row.month}</td><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
+</tbody>
+{/if}
+{if report_type == 'category-sales'}
+<thead><tr><th>Category</th><th>Products</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th><th>Net</th><th>Share</th></tr></thead><tbody>
+{foreach report_rows as row}<tr><td>{row.product_category}</td><td>{row.product_count}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
+</tbody>
+{/if}
+{if report_type == 'data-integrity'}
+<thead><tr><th>Date</th><th>Branch</th><th>Rows</th><th>Pending</th><th>Zero-Ending</th><th>Encoded</th><th>Encoded Amount</th><th>At Risk</th><th>Issue</th></tr></thead><tbody>
+{foreach report_rows as row}<tr><td>{row.ledger_date}</td><td>{row.branch_name}</td><td>{row.rows_total}</td><td>{row.pending_rows}</td><td>{row.zero_ending_rows}</td><td>{row.encoded_rows}</td><td>PHP {row.encoded_amount | number_format:2}</td><td>PHP {row.unencoded_amount | number_format:2}</td><td>{row.issue}</td></tr>{/foreach}
 </tbody>
 {/if}
 </table></div></div>
