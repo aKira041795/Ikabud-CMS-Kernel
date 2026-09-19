@@ -25,8 +25,6 @@
             </label>
             <button @click="load()" type="button"
                     class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700">Apply</button>
-            <a x-bind:href="exportUrl()"
-               class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-200">Export CSV</a>
             <span x-show="busy" class="text-xs text-gray-500">Loading…</span>
             <span x-show="error" x-text="error" class="text-xs text-red-600"></span>
         </div>
@@ -48,8 +46,8 @@
                 </div>
                 <div class="flex items-end gap-0.5 h-32" x-show="dailyBars.length">
                     <template x-for="b in dailyBars" :key="b.key">
-                        <div class="flex-1 bg-amber-500 rounded-t hover:bg-amber-600 transition-colors"
-                             x-bind:style="'height: ' + b.pct + '%'"
+                        <div class="flex-1 rounded-t transition-all hover:opacity-80"
+                             x-bind:style="b.style"
                              x-bind:title="b.title"></div>
                     </template>
                 </div>
@@ -63,10 +61,11 @@
                         <div>
                             <div class="flex justify-between text-xs mb-1">
                                 <span class="text-gray-700 font-medium" x-text="b.name"></span>
-                                <span class="text-gray-500">₱<span x-text="money(b.revenue)"></span></span>
+                                <span x-bind:style="'color: ' + b.valueColor">₱<span x-text="money(b.revenue)"></span></span>
                             </div>
-                            <div class="bg-gray-100 rounded-full h-2.5 w-full">
-                                <div class="bg-amber-500 h-2.5 rounded-full" x-bind:style="'width: ' + b.pct + '%'"></div>
+                            <div class="rounded-full h-2.5 w-full" style="background: #f3f4f6">
+                                <div class="h-2.5 rounded-full transition-all"
+                                     x-bind:style="'width: ' + b.pct + '%; background: ' + b.color"></div>
                             </div>
                         </div>
                     </template>
@@ -341,13 +340,9 @@ function dcAnalytics() {
             return rows;
         },
 
-        exportUrl() {
-            const q = new URLSearchParams();
-            if (this.from) q.set('from', this.from);
-            if (this.to) q.set('to', this.to);
-            if (this.storeId) q.set('store_id', this.storeId);
-            return '/dc-cafe/api/v1/analytics/export?' + q.toString();
-        },
+        // No export action here on purpose. This block is the dashboard — where the owner reads
+        // the figures. Producing a file is the reports page's job, and the same action living in
+        // two places is how the two come to disagree about what was exported.
 
         // Bars, not a line: no path maths, nothing to distort, and a zero day still shows a
         // sliver rather than vanishing — an invisible day reads as missing data.
@@ -357,23 +352,43 @@ function dcAnalytics() {
                 ? raw.map(p => [p.date, p.revenue])
                 : Object.entries(raw);
             const max = Math.max(...entries.map(e => parseFloat(e[1]) || 0), 0);
-            return entries.map(e => ({
-                key: e[0],
-                pct: max > 0 ? Math.max(2, ((parseFloat(e[1]) || 0) / max) * 100) : 2,
-                title: e[0] + ' · ₱' + this.money(e[1]),
-            }));
+            return entries.map(e => {
+                const revenue = parseFloat(e[1]) || 0;
+                const pct = max > 0 ? Math.max(2, (revenue / max) * 100) : 2;
+                return {
+                    key: e[0],
+                    pct: pct,
+                    // Inline rather than a Tailwind class: these are built in JS, and a class
+                    // only referenced from a string is the kind of thing that silently renders
+                    // unstyled. The gradient gives the bars depth without a library.
+                    style: 'height: ' + pct + '%; background: linear-gradient(180deg, #fcd34d 0%, #f59e0b 60%, #d97706 100%);',
+                    title: e[0] + ' · ₱' + this.money(e[1]),
+                };
+            });
         },
 
         // Every branch is present, including one that took nothing: its bar is short, not absent.
+        //
+        // A distinct hue per branch so they can be told apart at a glance. A branch that sold
+        // nothing gets a neutral grey — still drawn, so a silent branch stays visible, but not
+        // competing for attention with one that traded.
         get branchBars() {
+            const palette = ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
             const rows = this.data.sales.branches || [];
             const max = Math.max(...rows.map(b => parseFloat(b.revenue) || 0), 0);
-            return rows.map(b => ({
-                store_id: b.store_id,
-                name: b.name,
-                revenue: b.revenue,
-                pct: max > 0 ? Math.max(1, ((parseFloat(b.revenue) || 0) / max) * 100) : 1,
-            }));
+            return rows.map((b, i) => {
+                const revenue = parseFloat(b.revenue) || 0;
+                const sold = revenue > 0;
+                return {
+                    store_id: b.store_id,
+                    name: b.name,
+                    revenue: b.revenue,
+                    sold: sold,
+                    color: sold ? palette[i % palette.length] : '#d1d5db',
+                    valueColor: sold ? '#374151' : '#9ca3af',
+                    pct: max > 0 ? Math.max(1, (revenue / max) * 100) : 1,
+                };
+            });
         },
 
         load() {
