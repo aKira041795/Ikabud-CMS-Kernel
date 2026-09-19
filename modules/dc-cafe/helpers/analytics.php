@@ -588,6 +588,9 @@ function dcAnalyticsBundle(?string $from = null, ?string $to = null, ?int $store
     return [
         'range' => $range,
         'store_id' => $storeId,
+        // Already computed for the forecast buckets; returned so a chart can plot the same
+        // series rather than deriving its own and eventually disagreeing with the tables.
+        'daily' => $daily,
         'sales' => $sales,
         'products' => [
             'top' => dcAnalyticsTopProducts($productRows, 10),

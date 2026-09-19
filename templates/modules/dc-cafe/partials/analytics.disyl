@@ -37,6 +37,43 @@
     <template x-if="ready">
     <div class="space-y-4">
 
+        {* The shape before the numbers. Bars built from divs, reusing the pattern the Pareto
+           table already uses — no chart library, no CDN, nothing to distort, and it survives
+           into the PDF export. Both read the same bundle as the tables below them. *}
+        <div class="grid lg:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div class="flex items-baseline justify-between mb-3">
+                    <h3 class="font-bold text-gray-800">Revenue over time</h3>
+                    <span class="text-xs text-gray-400" x-text="range.from + ' → ' + range.to"></span>
+                </div>
+                <div class="flex items-end gap-0.5 h-32" x-show="dailyBars.length">
+                    <template x-for="b in dailyBars" :key="b.key">
+                        <div class="flex-1 bg-amber-500 rounded-t hover:bg-amber-600 transition-colors"
+                             x-bind:style="'height: ' + b.pct + '%'"
+                             x-bind:title="b.title"></div>
+                    </template>
+                </div>
+                <p x-show="!dailyBars.length" class="text-sm text-gray-400 py-8">No sales in this period.</p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h3 class="font-bold text-gray-800 mb-3">Revenue per branch</h3>
+                <div class="space-y-2.5">
+                    <template x-for="b in branchBars" :key="b.store_id">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-700 font-medium" x-text="b.name"></span>
+                                <span class="text-gray-500">₱<span x-text="money(b.revenue)"></span></span>
+                            </div>
+                            <div class="bg-gray-100 rounded-full h-2.5 w-full">
+                                <div class="bg-amber-500 h-2.5 rounded-full" x-bind:style="'width: ' + b.pct + '%'"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
         {* Sales: overall, then per branch *}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -310,6 +347,33 @@ function dcAnalytics() {
             if (this.to) q.set('to', this.to);
             if (this.storeId) q.set('store_id', this.storeId);
             return '/dc-cafe/api/v1/analytics/export?' + q.toString();
+        },
+
+        // Bars, not a line: no path maths, nothing to distort, and a zero day still shows a
+        // sliver rather than vanishing — an invisible day reads as missing data.
+        get dailyBars() {
+            const raw = this.data.daily || {};
+            const entries = Array.isArray(raw)
+                ? raw.map(p => [p.date, p.revenue])
+                : Object.entries(raw);
+            const max = Math.max(...entries.map(e => parseFloat(e[1]) || 0), 0);
+            return entries.map(e => ({
+                key: e[0],
+                pct: max > 0 ? Math.max(2, ((parseFloat(e[1]) || 0) / max) * 100) : 2,
+                title: e[0] + ' · ₱' + this.money(e[1]),
+            }));
+        },
+
+        // Every branch is present, including one that took nothing: its bar is short, not absent.
+        get branchBars() {
+            const rows = this.data.sales.branches || [];
+            const max = Math.max(...rows.map(b => parseFloat(b.revenue) || 0), 0);
+            return rows.map(b => ({
+                store_id: b.store_id,
+                name: b.name,
+                revenue: b.revenue,
+                pct: max > 0 ? Math.max(1, ((parseFloat(b.revenue) || 0) / max) * 100) : 1,
+            }));
         },
 
         load() {
