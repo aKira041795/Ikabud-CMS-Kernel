@@ -40,5 +40,11 @@ function apiCreateCustomer(array $params = []): void
     );
     $customerId = (int) $db->lastInsertId();
 
+    // Only the creating path is recorded. A repeat phone returns the existing
+    // customer and changes nothing, so there is no change to describe.
+    dc_auditLog('customer.created', 'dc_customers', (string) $customerId, null, [
+        'name' => $name,
+    ]);
+
     dcJsonResponse(['ok' => true, 'customer_id' => $customerId, 'existing' => false]);
 }

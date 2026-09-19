@@ -26,6 +26,29 @@ use Ikabud\Kernel\Database\KernelPDO;
 
 final class ModuleContext implements AuthContract, LogContract
 {
+    /**
+     * Whether any handler wrote an audit row during this request.
+     *
+     * Static on purpose: the question is about the request, not about one
+     * module context. The kernel's mutation fallback reads it to record a change
+     * that no handler described, so nothing is silently unlogged.
+     */
+    private static bool $auditWrittenThisRequest = false;
+
+    public static function auditWritten(): bool
+    {
+        return self::$auditWrittenThisRequest;
+    }
+
+    /**
+     * Clear the flag. Only needed when one process serves more than one request
+     * (tests, long-running workers).
+     */
+    public static function resetAuditTracking(): void
+    {
+        self::$auditWrittenThisRequest = false;
+    }
+
     private App $app;
     private string $moduleId;
     private DatabaseContract $db;
@@ -100,6 +123,15 @@ final class ModuleContext implements AuthContract, LogContract
         $this->app->log("[{$this->moduleId}] {$message}", $level, $context);
     }
 
+    /**
+     * Record an audit row.
+     *
+     * $connection is the database the change was made in. Normally resolved
+     * from the current request, but a caller recording after the request has
+     * ended (a shutdown hook, a queue worker) must pass the connection it used:
+     * late re-resolution can land on the base database instead of the tenant
+     * one, filing the record in a database where the change did not happen.
+     */
     public function audit(
         string $action,
         ?int $branchId = null,
@@ -107,7 +139,8 @@ final class ModuleContext implements AuthContract, LogContract
         ?string $entityId = null,
         mixed $oldData = null,
         mixed $newData = null,
-        ?string $reason = null
+        ?string $reason = null,
+        ?\PDO $connection = null
     ): void {
         $user = $this->app->user();
         $source = (string)($user['source'] ?? '');
@@ -125,7 +158,7 @@ final class ModuleContext implements AuthContract, LogContract
 
         try {
             KernelPDO::kernelEscalationEnter();
-            $db = $this->app->db();
+            $db = $connection ?? $this->app->db();
             $supportsActorColumns = $this->auditLogSupportsActorColumns($db);
             if ($supportsActorColumns) {
                 $stmt = $db->prepare(
@@ -160,6 +193,9 @@ final class ModuleContext implements AuthContract, LogContract
                     ':new' => $newData !== null ? json_encode($newData) : null,
                 ]);
             }
+
+            // A specific row exists, so the kernel's mutation fallback stands down.
+            self::$auditWrittenThisRequest = true;
         } catch (\Throwable $e) {
             // Non-fatal — log but don't crash
             $this->log('Audit log write failed: ' . $e->getMessage(), 'error');

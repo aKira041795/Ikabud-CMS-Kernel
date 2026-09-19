@@ -49,9 +49,14 @@
         "dc_password_resets",
         "dc_product_stock_movements",
         "dc_product_store_stock",
+        "dc_product_components",
+        "dc_discount_types",
+        "dc_void_attempts",
         "dc_ledger_groups"
     ],
-    "reads_tables": [],
+    "reads_tables": [
+        "audit_logs"
+    ],
     "migrations": [
         "database/migrations/001_create_dc_users.sql",
         "database/migrations/002_create_dc_stores.sql",
@@ -83,7 +88,14 @@
         "database/migrations/028_create_dc_product_store_stock.sql",
         "database/migrations/029_add_store_id_to_product_stock_movements.sql",
         "database/migrations/030_create_dc_ledger_groups.sql",
-        "database/migrations/031_add_inventory_ending_count_metadata.sql"
+        "database/migrations/031_add_inventory_ending_count_metadata.sql",
+        "database/migrations/032_add_movement_consumption_channel.sql",
+        "database/migrations/033_create_box_composition.sql",
+        "database/migrations/034_mark_doughnut_boxes.sql",
+        "database/migrations/035_mark_mini_dozen_box.sql",
+        "database/migrations/036_create_discount_types.sql",
+        "database/migrations/037_add_void_approval.sql",
+        "database/migrations/038_add_order_queue.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -165,6 +177,169 @@
         ]
     },
     "routes": true,
+    "settings_fields": [
+        {
+            "key": "low_stock_alerts_enabled",
+            "type": "checkbox",
+            "label": "Low-stock alerts",
+            "default": "1",
+            "description": "Show the low-stock tile and list on the dashboard. Turning this off hides the alert everywhere."
+        },
+        {
+            "key": "low_stock_include_products",
+            "type": "checkbox",
+            "label": "Include finished products in alerts",
+            "default": "1",
+            "description": "Alerts cover doughnuts and meals as well as ingredients. Without this only ingredients are counted."
+        },
+        {
+            "key": "low_stock_verify_required",
+            "type": "checkbox",
+            "label": "Alert only from verified counts",
+            "default": "0",
+            "description": "Base the alert on the last recorded physical count (Ending) instead of the running balance, which drifts when receiving is entered late."
+        },
+        {
+            "key": "low_stock_email_enabled",
+            "type": "checkbox",
+            "label": "Email a low-stock digest",
+            "default": "0",
+            "description": "Send the low-stock list by email. At most one digest is sent per day."
+        },
+        {
+            "key": "low_stock_email_to",
+            "type": "email",
+            "label": "Low-stock digest recipients",
+            "default": "",
+            "description": "Comma-separated addresses. Defaults to the branch supervisor when left blank.",
+            "placeholder": "owner@example.com, supervisor@example.com"
+        },
+        {
+            "key": "pos_stock_policy",
+            "type": "select",
+            "label": "Selling below zero stock",
+            "default": "warn",
+            "description": "Warn (default) lets the cashier sell what is physically on the rack even when receiving has not been entered yet, and records a shortfall for follow-up. Strict blocks the sale. Allow negative permits a negative balance without flagging it.",
+            "options": [
+                {
+                    "value": "warn",
+                    "label": "Warn — sell it and flag the shortfall"
+                },
+                {
+                    "value": "strict",
+                    "label": "Strict — block the sale"
+                },
+                {
+                    "value": "allow_negative",
+                    "label": "Allow negative stock silently"
+                }
+            ]
+        },
+        {
+            "key": "pos_default_view",
+            "type": "select",
+            "label": "Default product view",
+            "default": "list",
+            "description": "How the product menu opens for a cashier who has not chosen a view.",
+            "options": [
+                {
+                    "value": "list",
+                    "label": "List (rows)"
+                },
+                {
+                    "value": "grid",
+                    "label": "Cards"
+                }
+            ]
+        },
+        {
+            "key": "pos_hide_out_of_stock",
+            "type": "checkbox",
+            "label": "Hide out-of-stock items at the till",
+            "default": "0",
+            "description": "Removes items showing OUT from the product menu so a cashier cannot tap them by mistake."
+        },
+        {
+            "key": "pos_quick_stock_entry",
+            "type": "checkbox",
+            "label": "Allow stock top-up from the till",
+            "default": "1",
+            "description": "Shows an Add stock button when a cashier taps an item showing OUT, so a delivery that has not been entered yet can be recorded as the day goes on."
+        },
+        {
+            "key": "pos_allow_discount",
+            "type": "checkbox",
+            "label": "Allow discounts at the till",
+            "default": "1",
+            "description": "Turning this off hides the discount controls from the cashier."
+        },
+        {
+            "key": "pos_max_discount_pct",
+            "type": "number",
+            "label": "Maximum discount a cashier may give (%)",
+            "default": "20",
+            "min": 0,
+            "max": 100,
+            "description": "Caps the discount on a single sale, whatever the reason, including a voucher. 0 blocks discounts entirely; 100 leaves only the subtotal as the limit. Set above your largest statutory rate if you run bigger promos."
+        },
+        {
+            "key": "pos_void_enabled",
+            "type": "checkbox",
+            "label": "Allow voiding a sale",
+            "default": "1",
+            "description": "On by default. A supervisor still approves each void with their PIN. Turn this off to make completed sales final — the void control disappears from the till and the server refuses the request."
+        },
+        {
+            "key": "pos_require_gcash_reference",
+            "type": "checkbox",
+            "label": "Require a GCash reference number",
+            "default": "0",
+            "description": "Off by default — the reference stays optional. Turn on if the branch must record it before completing a GCash sale."
+        },
+        {
+            "key": "pos_order_queue_enabled",
+            "type": "checkbox",
+            "label": "Allow parking an order (order queue)",
+            "default": "0",
+            "description": "Off by default. Turn on to let the cashier park the current sale as Pending so the next customer can be served, then bring it back and take payment. A parked order holds no stock and is not counted as a sale until it is finalized."
+        },
+        {
+            "key": "pos_discard_supervisor_only",
+            "type": "checkbox",
+            "label": "Require a supervisor to discard a parked order",
+            "default": "0",
+            "description": "Off by default — any cashier can drop a parked order, since it is their own held sale and nothing was sold. Turn on to require an administrator or supervisor; the discard control disappears from the till and the server refuses the request."
+        },
+        {
+            "key": "pos_auto_print_receipt",
+            "type": "checkbox",
+            "label": "Auto-open the receipt after payment",
+            "default": "0",
+            "description": "Opens the print dialog automatically once a sale completes."
+        },
+        {
+            "key": "receipt_footer_text",
+            "type": "text",
+            "label": "Receipt footer",
+            "default": "",
+            "description": "Printed under the receipt, for example a thank-you line or contact details.",
+            "placeholder": "Thank you! Follow us @dccafe"
+        },
+        {
+            "key": "production_view_enabled",
+            "type": "checkbox",
+            "label": "Enable the production view",
+            "default": "0",
+            "description": "Gives kitchen staff a dedicated ingredients view without exposing sales or cash figures."
+        },
+        {
+            "key": "commissary_enabled",
+            "type": "checkbox",
+            "label": "Enable commissary roll-up",
+            "default": "0",
+            "description": "Shows the supplying kitchen combined shortfall across its assigned branches."
+        }
+    ],
     "nav": [
         {
             "label": "DC Cafe POS",

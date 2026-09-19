@@ -21,7 +21,7 @@ function dc_cap_entity_list_product_1(array $params = []): array
     // BOM-tracked items (has_stock=0) have no stock row and are always sellable.
     $rows = $db->query(
         "SELECT p.product_id, p.name, p.base_price, p.is_variable, p.is_active,
-                p.has_stock,
+                p.has_stock, p.slot_count,
                 COALESCE(pss.on_hand_qty, p.current_stock) AS current_stock,
                 COALESCE(pss.reorder_level, p.reorder_level) AS reorder_level,
                 c.name AS category_name, c.category_id
@@ -44,6 +44,8 @@ function dc_cap_entity_list_product_1(array $params = []): array
             'category_id' => (int) $row['category_id'],
             'is_variable' => (bool) $row['is_variable'],
             'is_active'   => (bool) $row['is_active'],
+            'slot_count'  => (int) ($row['slot_count'] ?? 0),
+            'is_box'      => (int) ($row['slot_count'] ?? 0) > 0,
             'current_stock' => (float) $row['current_stock'],
             'has_stock'     => (bool) $row['has_stock'],
             'reorder_level' => (float) $row['reorder_level'],
@@ -130,7 +132,7 @@ function dc_cap_entity_list_order_1(array $params = []): array
                 o.transaction_date, pm.name AS payment_method,
                 u.full_name AS cashier_name
          FROM dc_orders o
-         JOIN dc_payment_methods pm ON pm.payment_method_id = o.payment_method_id
+         LEFT JOIN dc_payment_methods pm ON pm.payment_method_id = o.payment_method_id
          JOIN dc_users u ON u.user_id = o.cashier_id
          WHERE o.store_id = ?
          ORDER BY o.transaction_date DESC
@@ -161,7 +163,7 @@ function dc_cap_entity_get_order_1(array $params = []): ?array
         "SELECT o.*, pm.name AS payment_method, u.full_name AS cashier_name,
                 s.shift_type, s.shift_start
          FROM dc_orders o
-         JOIN dc_payment_methods pm ON pm.payment_method_id = o.payment_method_id
+         LEFT JOIN dc_payment_methods pm ON pm.payment_method_id = o.payment_method_id
          JOIN dc_users u ON u.user_id = o.cashier_id
          JOIN dc_sessions s ON s.session_id = o.session_id
          WHERE o.order_id = ?",

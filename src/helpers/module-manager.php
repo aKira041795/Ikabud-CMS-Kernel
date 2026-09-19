@@ -3001,6 +3001,12 @@ function executeModuleHandler(string $handler, array $params = []): void
     // ── Output-buffered, exception-safe handler execution ────────────
     // Prevents stray echo/print from corrupting responses and ensures
     // uncaught exceptions produce a clean error page, not a white screen.
+
+    // Safety net for a state change no handler described. Registered for opted-in
+    // modules before the callable runs, so it still applies when the handler
+    // exits early on success.
+    \Ikabud\Kernel\Audit\MutationAuditFallback::register($moduleId, (string) $requestMethod, $requestUri);
+
     ob_start();
     try {
         // Set active module context for KernelPDO (replaces debug_backtrace)

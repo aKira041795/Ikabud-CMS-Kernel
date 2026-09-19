@@ -45,6 +45,13 @@ function apiGenerateBackup(array $params = []): void
         dcJsonError('Failed to generate backup.', 500);
     }
 
+    // A backup copies the whole dataset off the system, so it belongs in the
+    // trail alongside any other data-movement event.
+    dc_auditLog('backup.generated', 'dc-cafe', null, null, [
+        'file' => (string) ($result['file_name'] ?? ''),
+        'tables' => is_array($result['tables'] ?? null) ? count($result['tables']) : null,
+    ]);
+
     dcJsonResponse([
         'ok' => true,
         'backup' => $result,

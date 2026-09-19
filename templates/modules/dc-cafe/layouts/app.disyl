@@ -19,8 +19,8 @@
                     {if user.role != 'auditor'}
                     <a href="/dc-cafe/pos" class="text-amber-200 hover:text-white text-sm">POS</a>
                     {/if}
-                    {* Role: all *}
-                    <a href="/dc-cafe/orders" class="text-amber-200 hover:text-white text-sm">Orders</a>
+                    {* Role: all. The trail covers every activity, not just sales. *}
+                    <a href="/dc-cafe/audit" class="text-amber-200 hover:text-white text-sm">Audit</a>
                     {* Role: all *}
                     <a href="/dc-cafe/inventory" class="text-amber-200 hover:text-white text-sm">Inventory</a>
                     <a href="/dc-cafe/inventory/ledger" class="text-amber-200 hover:text-white text-sm">Ledger</a>

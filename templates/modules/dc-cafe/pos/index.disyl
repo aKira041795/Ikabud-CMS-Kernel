@@ -51,24 +51,69 @@
                 </template>
             </div>
 
-            {* Search *}
-            <input type="text" x-model="search" placeholder="Search products..."
-                   class="w-full px-3 py-2 border rounded-lg mb-3 text-sm">
+            {* Search + view switch *}
+            <div class="flex gap-2 mb-3">
+                <input type="text" x-model="search" placeholder="Search products..."
+                       class="flex-1 px-3 py-2 border rounded-lg text-sm">
+                <div class="flex rounded-lg border border-gray-300 overflow-hidden shrink-0"
+                     role="group" aria-label="Product view">
+                    <button type="button" @click="setView('grid')" title="Card view"
+                            aria-label="Card view" :aria-pressed="view === 'grid'"
+                            class="px-3 py-2 text-sm"
+                            :class="view === 'grid' ? 'bg-amber-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'">▦</button>
+                    <button type="button" @click="setView('list')" title="List view"
+                            aria-label="List view" :aria-pressed="view === 'list'"
+                            class="px-3 py-2 text-sm border-l border-gray-300"
+                            :class="view === 'list' ? 'bg-amber-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'">☰</button>
+                </div>
+            </div>
 
             {* Product Cards *}
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {* Both views stay mounted and toggle via x-show: at this menu size the duplicate
+               DOM costs less than re-rendering the whole list on every switch.
+               lean-ctx: fine to ~500 products; move the hidden view to x-if beyond that. *}
+            <div x-show="view === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <template x-for="p in filteredProducts" :key="p.id">
                     <div @click="addToCart(p)"
                          class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-amber-300 transition text-center relative">
                         <div class="text-lg font-bold text-amber-700" x-text="p.name"></div>
                         <div class="text-xs text-gray-500 mt-1" x-text="p.category"></div>
                         <div class="text-sm font-semibold text-gray-800 mt-2">₱<span x-text="p.price.toFixed(2)"></span></div>
+                        <div x-show="p.is_box"
+                             class="absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800"
+                             x-text="p.slot_count + ' pcs'"></div>
                         <div x-show="p.has_stock && p.current_stock <= 5"
                              class="absolute top-1 right-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
                              :class="p.current_stock <= 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'"
                              x-text="p.current_stock <= 0 ? 'OUT' : p.current_stock"></div>
                     </div>
                 </template>
+            </div>
+
+            {* Product Rows — denser, for scanning a long menu *}
+            <div x-show="view === 'list'" class="space-y-1.5">
+                <template x-for="p in filteredProducts" :key="'row-' + p.id">
+                    <div @click="addToCart(p)"
+                         class="flex items-center gap-3 bg-white rounded-lg px-3 py-2.5 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-amber-300 transition">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-amber-700 truncate" x-text="p.name"></div>
+                            <div class="text-[11px] text-gray-500 truncate" x-text="p.category"></div>
+                        </div>
+                        <div x-show="p.is_box"
+                             class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800"
+                             x-text="p.slot_count + ' pcs'"></div>
+                        <div x-show="p.has_stock && p.current_stock <= 5"
+                             class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                             :class="p.current_stock <= 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'"
+                             x-text="p.current_stock <= 0 ? 'OUT' : p.current_stock"></div>
+                        <div class="shrink-0 font-bold text-gray-800 tabular-nums">₱<span x-text="p.price.toFixed(2)"></span></div>
+                    </div>
+                </template>
+            </div>
+
+            <div x-show="!loading.products && filteredProducts.length === 0"
+                 class="text-center text-gray-400 py-10 text-sm">
+                No products match your search.
             </div>
         </div>
 
@@ -78,6 +123,43 @@
                 <h2 class="font-bold text-lg">Current Order</h2>
             </div>
 
+            {* Order queue — parked sales waiting for their customer. Shown only
+               when the branch has the queue switched on. *}
+            <div x-show="orderQueueEnabled" x-cloak class="p-4 border-b border-amber-100 bg-amber-50">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-bold text-amber-900 uppercase tracking-wide">Order queue</h3>
+                    <span class="text-xs text-amber-800"
+                          x-text="parkedOrders.length === 0 ? 'empty' : parkedOrders.length + ' waiting'"></span>
+                </div>
+                <div class="space-y-1 max-h-44 overflow-y-auto">
+                    <template x-for="po in parkedOrders" :key="po.order_id">
+                        <div class="flex items-center justify-between bg-white rounded px-2 py-1.5">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs font-semibold text-gray-800">
+                                    #<span x-text="po.order_id"></span> · ₱<span x-text="po.total.toFixed(2)"></span>
+                                    <span x-show="resumingOrderId === po.order_id" class="text-amber-600">· on till</span>
+                                </div>
+                                <div class="text-xs text-gray-500 truncate">
+                                    <span x-text="po.item_count"></span> item(s) ·
+                                    <span x-text="po.cashier"></span> ·
+                                    <span x-text="po.parked_at"></span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1 ml-2">
+                                <button @click="resumeParked(po.order_id)" type="button"
+                                        class="text-xs bg-amber-600 text-white px-2 py-0.5 rounded hover:bg-amber-700 font-medium">Resume</button>
+                                <button x-show="canDiscardParked" @click="discardParked(po.order_id)" type="button"
+                                        class="text-xs text-red-400 hover:text-red-600 px-1"
+                                        title="Discard this parked order">✕</button>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="parkedOrders.length === 0" class="text-xs text-amber-700 py-1">
+                        No parked orders.
+                    </div>
+                </div>
+            </div>
+
             <div class="flex-1 overflow-y-auto p-4 space-y-3">
                 <template x-for="(item, idx) in cart" :key="idx">
                     <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
@@ -85,6 +167,25 @@
                             <div class="font-medium text-sm" x-text="item.name"></div>
                             <div class="text-xs text-gray-500">₱<span x-text="item.price.toFixed(2)"></span> × <span x-text="item.qty"></span></div>
                             <div x-show="item.custLabel" class="text-xs text-amber-600 italic mt-1 truncate max-w-[200px]" x-text="item.custLabel"></div>
+                            {* Stock-tracked item sold past zero — let the cashier top it up
+                               mid-shift instead of sending them to Inventory. *}
+                            <div x-show="quickStockEntry && item.has_stock && item.current_stock <= 0" class="mt-1">
+                                <button x-show="quickStockFor !== item.id" @click="startQuickStock(item)" type="button"
+                                        class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded hover:bg-amber-200 font-medium">
+                                    ⚠ Out of stock — Add stock
+                                </button>
+                                <div x-show="quickStockFor === item.id" class="flex items-center gap-1">
+                                    <input type="number" step="1" min="1" x-model="quickStockQty"
+                                           @keydown.enter="saveQuickStock(item)"
+                                           class="w-16 px-2 py-0.5 border rounded text-xs">
+                                    <button @click="saveQuickStock(item)" x-bind:disabled="quickStockBusy"
+                                            class="text-xs bg-green-600 text-white px-2 py-0.5 rounded disabled:opacity-50">Save</button>
+                                    <button @click="cancelQuickStock()" type="button"
+                                            class="text-xs text-gray-500 px-1 hover:text-gray-700">✕</button>
+                                </div>
+                                <div x-show="quickStockMsgFor === item.id" x-text="quickStockMsg"
+                                     class="text-xs mt-1" :class="quickStockError ? 'text-red-600' : 'text-green-700'"></div>
+                            </div>
                         </div>
                         <div class="flex items-center space-x-2">
                             <button @click="item.qty > 1 ? item.qty-- : removeFromCart(idx)"
@@ -109,15 +210,16 @@
                 </div>
 
                 {* Discount *}
-                <div class="border-t pt-3">
+                <div x-show="allowDiscount" class="border-t pt-3">
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Discount</label>
                     <div class="flex gap-2 mb-2">
-                        <select x-model="discountType" @change="applyDiscount()"
+                        <select x-model="discountType" @change="onDiscountTypeChange()"
                                 class="flex-1 px-3 py-1.5 border rounded text-sm bg-white">
                             <option value="">None</option>
-                            <option value="senior">Senior Citizen</option>
-                            <option value="promo">Promo</option>
-                            <option value="sale">Sale</option>
+                            <template x-for="dt in discountTypes" :key="dt.code">
+                                <option x-bind:value="dt.code"
+                                        x-text="dt.default_pct > 0 ? dt.name + ' (' + dt.default_pct + '%)' : dt.name"></option>
+                            </template>
                         </select>
                         <div class="flex-1 flex gap-1">
                             <input type="text" x-model="discountInput" @input="applyDiscount()"
@@ -130,6 +232,10 @@
                     <div x-show="discount > 0" class="flex justify-between text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded">
                         <span x-text="discountReason || discountTypeLabel"></span>
                         <span>-₱<span x-text="discount.toFixed(2)"></span></span>
+                    </div>
+                    <div x-show="discountCeilingMsg" class="text-xs text-amber-700 mt-1" x-text="discountCeilingMsg"></div>
+                    <div x-show="maxDiscountPct < 100" class="text-xs text-gray-400 mt-1">
+                        Branch limit: <span x-text="maxDiscountPct"></span>% per sale
                     </div>
                 </div>
 
@@ -144,15 +250,33 @@
 
                 {* Payment *}
                 <div class="flex gap-2">
-                    <select x-model="paymentMethod" class="flex-1 px-3 py-2 border rounded text-sm bg-white">
+                    <select x-model="paymentMethod" @change="onPaymentMethodChange()"
+                            class="flex-1 px-3 py-2 border rounded text-sm bg-white">
                         <template x-for="pm in paymentMethods" :key="pm.payment_method_id">
                             <option x-bind:value="pm.payment_method_id" x-text="pm.name"></option>
                         </template>
                     </select>
-                    <input type="number" x-model="amountTendered" @input.debounce="" placeholder="Amount tendered"
-                           class="flex-1 px-3 py-2 border rounded text-sm"
-                           x-bind:class="{'border-green-400': change >= 0 && amountTendered > 0}">
+                    <template x-if="!isGcashPayment">
+                        <input type="number" x-model="amountTendered" placeholder="Amount tendered"
+                               class="flex-1 px-3 py-2 border rounded text-sm"
+                               x-bind:class="{'border-green-400': change >= 0 && amountTendered > 0}">
+                    </template>
+                    <template x-if="isGcashPayment">
+                        <div class="flex-1 px-3 py-2 border rounded text-sm bg-gray-50 flex items-center justify-between">
+                            <span class="text-xs text-gray-500">Amount paid</span>
+                            <span class="font-semibold text-gray-800">₱<span x-text="finalTotal.toFixed(2)"></span></span>
+                        </div>
+                    </template>
                 </div>
+
+                {* GCash reference — optional unless the branch requires it *}
+                <div x-show="isGcashPayment">
+                    <input type="text" x-model="referenceId" maxlength="50"
+                           :placeholder="requireGcashReference ? 'GCash reference no. (required)' : 'GCash reference no. (optional)'"
+                           :class="requireGcashReference && !referenceId ? 'border-amber-400' : ''"
+                           class="w-full px-3 py-1.5 border rounded text-sm">
+                </div>
+
                 <div x-show="isCashPayment && change >= 0 && amountTendered > 0"
                      class="flex justify-between text-sm bg-blue-50 px-3 py-2 rounded text-blue-700 font-semibold">
                     <span>Change</span>
@@ -174,6 +298,26 @@
                     <span x-show="processing">Processing...</span>
                 </button>
 
+                {* Secondary till actions. Parking holds the sale for a later
+                   payment; cancelling clears the till and leaves any parked
+                   order in the queue. *}
+                <div class="flex gap-2">
+                    <button x-show="orderQueueEnabled" x-cloak @click="parkOrder" type="button"
+                            class="flex-1 bg-amber-100 text-amber-800 py-2 rounded-lg font-semibold text-sm hover:bg-amber-200 disabled:opacity-50"
+                            x-bind:disabled="cart.length === 0 || processing || parking">
+                        <span x-show="!parking">Park order</span>
+                        <span x-show="parking">Parking...</span>
+                    </button>
+                    <button @click="cancelOrder" type="button"
+                            class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-semibold text-sm hover:bg-gray-200 disabled:opacity-50"
+                            x-bind:disabled="cart.length === 0">
+                        Cancel order
+                    </button>
+                </div>
+
+                <div x-show="saleNotice" x-text="saleNotice"
+                     class="bg-amber-50 text-amber-800 p-2 rounded text-xs text-center font-semibold"></div>
+
                 <div x-show="successMessage" class="bg-green-50 text-green-700 p-3 rounded-lg text-sm text-center font-semibold"
                      x-text="successMessage"></div>
 
@@ -183,7 +327,7 @@
                             class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-700">
                         🖨 Print Receipt
                     </button>
-                    <button @click="lastOrder = null; successMessage = ''"
+                    <button @click="newOrder()"
                             class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-300">
                         New Order
                     </button>
@@ -205,6 +349,9 @@
            evaluated while lastOrder is null — x-show still evaluates child
            x-text/x-for and logs Alpine "Cannot read properties of null" on load *}
         <template x-if="lastOrder">
+        {* x-if renders a single root element, so the receipt body and the void
+           control below it share one wrapper. *}
+        <div>
         <div class="border-t border-b py-3 space-y-1 text-sm">
             <div class="flex justify-between text-gray-600">
                 <span>Order #</span>
@@ -233,7 +380,26 @@
                 <span x-text="lastOrder.points_earned"></span>
             </div>
         </div>
+        {* Mistyped or walked-away sale: the cashier can reverse it straight
+           away, but a supervisor has to approve with their void PIN. Hidden
+           entirely when the branch has switched voiding off.
+           Inside the x-if, so lastOrder.* is never read while it is null. *}
+        <div x-show="voidEnabled" class="mt-3 pt-3 border-t flex items-center justify-between gap-3">
+            <p class="text-xs text-gray-500">
+                Wrong sale? Voiding returns the stock.
+            </p>
+            <button type="button"
+                    x-on:click="dcAskVoid(lastOrder.order_id)"
+                    class="bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-100 whitespace-nowrap">
+                Void this sale
+            </button>
+        </div>
+        </div>
         </template>
+        <div x-show="voidMessage" x-cloak class="mt-2 text-xs text-center text-green-600" x-text="voidMessage"></div>
+        <div x-show="receiptFooter" class="mt-4 pt-3 border-t text-center text-xs text-gray-600"
+             x-text="receiptFooter"></div>
+
         <div class="flex gap-2 mt-4">
             <button @click="window.print()"
                     class="flex-1 bg-amber-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-amber-700">
@@ -243,6 +409,67 @@
                     class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-300">
                 Close
             </button>
+        </div>
+    </div>
+</div>
+
+{* Box (variable product) Slot Picker Modal — inside the x-data root *}
+<div x-show="boxOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+     x-cloak @click.away="boxOpen = false">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+        <div class="p-6 border-b sticky top-0 bg-white z-10">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold" x-text="'Fill your box: ' + (boxProduct ? boxProduct.name : '')"></h2>
+                <button @click="boxOpen = false" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+                Tap a slot, then choose a flavour. Each slot becomes a stock pullout for that flavour.
+            </p>
+        </div>
+
+        <div class="p-6 space-y-6">
+            {* Slots *}
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">Slots</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <template x-for="slot in boxSlots" :key="slot.slot_no">
+                        <button @click="boxActiveSlot = slot.slot_no"
+                                class="px-3 py-2 rounded-lg text-sm border text-left transition"
+                                :class="boxActiveSlot === slot.slot_no ? 'border-amber-500 bg-amber-50' : 'border-gray-300 hover:border-amber-400'">
+                            <div class="text-[11px] text-gray-400" x-text="'Slot ' + slot.slot_no"></div>
+                            <div class="font-medium"
+                                 :class="slot.available ? 'text-gray-800' : 'text-red-600'"
+                                 x-text="slot.name || 'Choose...'"></div>
+                            <div x-show="!slot.available" class="text-[10px] text-red-500">needs a swap</div>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            {* Eligible flavours only — same category, inside this box's price band *}
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">
+                    Flavours <span class="text-xs text-gray-400">(only flavours priced for this box)</span>
+                </h3>
+                <div x-show="boxChoices.length === 0" class="text-sm text-red-600">
+                    No flavour is priced for this box. Set the box price band first.
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="c in boxChoices" :key="c.product_id">
+                        <button @click="assignBoxSlot(c)"
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium border transition"
+                                :class="c.branch_stock > 0 ? 'bg-white text-gray-700 border-gray-300 hover:border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-200'"
+                                x-text="c.name + ' · ₱' + c.price.toFixed(2) + (c.branch_stock > 0 ? '' : ' (out)')"></button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 border-t flex items-center justify-between sticky bottom-0 bg-white">
+            <div class="text-lg font-bold">₱<span x-text="boxProduct ? boxProduct.price.toFixed(2) : '0.00'"></span></div>
+            <button @click="confirmBox" :disabled="!boxFilled"
+                    class="px-5 py-2.5 rounded-lg font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+                    x-text="boxFilled ? 'Add to Order' : 'Fill all slots'"></button>
         </div>
     </div>
 </div>
@@ -333,6 +560,9 @@
 </div>
 </div>
 
+{* Void approval — shared with the order detail page so the flow is identical. *}
+{include "modules/dc-cafe/partials/void-approval.disyl"}
+
 <script>
 function posApp() {
     return {
@@ -341,12 +571,62 @@ function posApp() {
         cart: [],
         search: '',
         categoryFilter: '',
+        // List is the default: a cashier scans a long menu faster in rows.
+        view: 'list',
         paymentMethod: 1,
         amountTendered: 0,
         discountType: '',
         discountInput: '',
         discount: 0,
         discountReason: '',
+        // RA 9994 standard senior citizen discount.
+        seniorDiscountPct: 20,
+        // Optional payment reference (e.g. GCash reference number).
+        referenceId: '',
+        // Branch preferences (see loadConfig). These are the fallbacks used
+        // before the config request returns.
+        viewChosen: false,
+        allowDiscount: true,
+        // Branch cap on a single sale's discount. Permissive until the config
+        // arrives — the server is the authority, so a failed read must not
+        // block a legitimate discount.
+        maxDiscountPct: 100,
+        discountCeilingMsg: '',
+        // Voiding is an admin policy switch (pos_void_enabled), on by default.
+        voidEnabled: true,
+        // Order queue (pos_order_queue_enabled, off by default). With a queue the
+        // cashier can hold a sale and serve the next customer meanwhile.
+        orderQueueEnabled: false,
+        parkedOrders: [],
+        parking: false,
+        // The parked order currently on the till. Sent as order_id so taking
+        // payment completes that order instead of opening a new one.
+        resumingOrderId: null,
+        // Feedback for till actions that are not a completed sale.
+        saleNotice: '',
+        // Whether to offer discarding a parked order. The server decides this
+        // and refuses the call anyway, so the control is never the policy.
+        canDiscardParked: false,
+        hideOutOfStock: false,
+        requireGcashReference: false,
+        autoPrintReceipt: false,
+        receiptFooter: '',
+        // Quick stock entry — granular restock against a single product.
+        quickStockFor: null,
+        quickStockQty: 1,
+        quickStockBusy: false,
+        quickStockMsg: '',
+        quickStockMsgFor: null,
+        quickStockError: false,
+        stockPolicy: 'warn',
+        quickStockEntry: true,
+        // Discount types come from the branch's configured list. The built-in
+        // set is only a fallback for when the endpoint cannot be reached.
+        discountTypes: [
+            {code: 'senior', name: 'Senior Citizen', default_pct: 20},
+            {code: 'promo', name: 'Promo', default_pct: 0},
+            {code: 'sale', name: 'Sale', default_pct: 0},
+        ],
         voucherCode: '',
         voucherMessage: '',
         voucherValid: false,
@@ -360,6 +640,8 @@ function posApp() {
         // Print
         showPrintModal: false,
         lastOrder: null,
+        // Shown after a supervisor approves voiding the sale just completed.
+        voidMessage: '',
 
         // Loading/error states
         loading: { products: true, payments: true, bases: true, sauces: true, toppings: true, addons: true },
@@ -377,11 +659,21 @@ function posApp() {
         custToppingOptions: [],
         custAddonOptions: [],
 
+        // Box (variable product) state
+        boxOpen: false,
+        boxBusy: false,
+        boxProduct: null,
+        boxOptions: null,
+        boxSlots: [],
+        boxActiveSlot: 1,
+
         get filteredProducts() {
             return this.products.filter(p => {
                 const matchesSearch = p.name.toLowerCase().includes(this.search.toLowerCase());
                 const matchesCat = !this.categoryFilter || p.category === this.categoryFilter;
-                return matchesSearch && matchesCat && p.is_active;
+                // Optionally keep items the till cannot sell out of sight.
+                const stocked = !this.hideOutOfStock || !(p.has_stock && p.current_stock <= 0);
+                return matchesSearch && matchesCat && p.is_active && stocked;
             });
         },
 
@@ -394,20 +686,130 @@ function posApp() {
         },
 
         get discountTypeLabel() {
+            // Read the label from the configured list so a branch-added type
+            // (PAG-IBIG, PWD, ...) is named correctly on the receipt.
+            const found = this.discountTypes.find(t => t.code === this.discountType);
+            if (found) return found.name;
             const labels = {'senior': 'Senior Citizen', 'promo': 'Promo', 'sale': 'Sale'};
             return labels[this.discountType] || this.discountReason || 'Discount';
         },
 
+        get selectedPaymentMethod() {
+            return this.paymentMethods.find(p => p.payment_method_id === parseInt(this.paymentMethod)) || null;
+        },
+
+        paymentMethodMatches(code, name) {
+            const pm = this.selectedPaymentMethod;
+            if (!pm) return false;
+            return String(pm.code || '').toLowerCase() === code
+                || String(pm.name || '').toLowerCase() === name;
+        },
+
         get isCashPayment() {
-            const pm = this.paymentMethods.find(p => p.payment_method_id === parseInt(this.paymentMethod));
-            return pm && pm.name.toLowerCase() === 'cash';
+            return this.paymentMethodMatches('cash', 'cash');
+        },
+
+        get isGcashPayment() {
+            return this.paymentMethodMatches('gcash', 'gcash');
+        },
+
+        get effectiveTendered() {
+            // A digital payment settles at the exact amount due — there is no
+            // change to hand back, so the tendered field is not meaningful.
+            return this.isGcashPayment ? this.finalTotal : (parseFloat(this.amountTendered) || 0);
+        },
+
+        // The branch cap, expressed against the current sale. `discount` is
+        // normally already clamped by applyDiscount; these exist so the voucher
+        // path and the payment guard share one rule.
+        discountValueOverCeiling(amount) {
+            if (!(amount > 0) || this.cartTotal <= 0) return false;
+            return (amount / this.cartTotal) * 100 > this.maxDiscountPct + 0.01;
+        },
+
+        get discountOverCeiling() {
+            return this.discountValueOverCeiling(this.discount);
+        },
+
+        get discountReasonForPayload() {
+            if (this.discountReason) return this.discountReason;
+            if (this.discount <= 0) return '';
+            // Record the rate with the label so the discount can be audited later
+            // (a peso-amount discount carries no percentage).
+            const pct = String(this.discountInput || '').includes('%')
+                ? parseFloat(String(this.discountInput).replace('%', '')) || 0
+                : 0;
+            return pct > 0 ? this.discountTypeLabel + ' (' + pct + '%)' : this.discountTypeLabel;
         },
 
         get change() {
-            return parseFloat(this.amountTendered || 0) - this.finalTotal;
+            return this.effectiveTendered - this.finalTotal;
+        },
+
+        setView(next) {
+            this.view = next === 'list' ? 'list' : 'grid';
+            try {
+                localStorage.setItem('dcPosView', this.view);
+            } catch (e) {
+                // Private mode or storage disabled — view simply is not remembered.
+            }
+        },
+
+        loadConfig() {
+            fetch('/dc-cafe/api/v1/pos/config')
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.ok) return;
+                    // Branch policy supplies the default; an explicit choice on
+                    // this device still wins.
+                    if (!this.viewChosen) {
+                        this.view = d.default_view === 'grid' ? 'grid' : 'list';
+                    }
+                    this.seniorDiscountPct = parseFloat(d.senior_discount_pct) || 20;
+                    this.allowDiscount = !!d.allow_discount;
+                    const ceiling = parseFloat(d.max_discount_pct);
+                    this.maxDiscountPct = (isFinite(ceiling) && ceiling >= 0) ? ceiling : 100;
+                    this.voidEnabled = !!d.void_enabled;
+                    this.hideOutOfStock = !!d.hide_out_of_stock;
+                    this.requireGcashReference = !!d.require_gcash_reference;
+                    this.autoPrintReceipt = !!d.auto_print_receipt;
+                    this.receiptFooter = d.receipt_footer || '';
+                    this.stockPolicy = d.stock_policy || 'warn';
+                    this.quickStockEntry = !!d.quick_stock_entry;
+                    // Whether the till may park a sale for payment later.
+                    this.orderQueueEnabled = !!d.order_queue_enabled;
+                    this.canDiscardParked = !!d.can_discard_parked;
+                })
+                .catch(() => {
+                    // Keep the built-in defaults if the config cannot be read.
+                });
         },
 
         init() {
+            try {
+                const savedView = localStorage.getItem('dcPosView');
+                if (savedView === 'list' || savedView === 'grid') {
+                    this.view = savedView;
+                    this.viewChosen = true;
+                }
+            } catch (e) {
+                // Ignore storage errors and keep the default card view.
+            }
+            this.loadConfig();
+            this.loadDiscountTypes();
+            // Read the queue after the policy is known, so a branch without the
+            // queue never asks for one.
+            this.loadQueue();
+
+            // A supervisor approved voiding the sale just rung up: clear the
+            // receipt and re-read stock, since the void restored it.
+            const self = this;
+            dcOnVoidDone(function (orderId, approvedBy) {
+                self.voidMessage = 'Voided — approved by ' + approvedBy;
+                self.showPrintModal = false;
+                self.refreshProducts();
+            });
+
             this.loading = { products: true, payments: true, bases: true, sauces: true, toppings: true, addons: true };
             this.errors = { products: null, payments: null, bases: null, sauces: null, toppings: null, addons: null };
             fetch('/dc-cafe/api/v1/products?store_id=' + this.storeId)
@@ -432,6 +834,77 @@ function posApp() {
             fetch('/dc-cafe/api/v1/soft-serve/addons').then(r => r.json()).then(d => { if (d.ok) this.custAddonOptions = d.addons; this.loading.addons = false; }).catch(e => { this.loading.addons = false; this.errors.addons = 'Could not load addons.'; });
         },
 
+        // ── Quick stock entry ─────────────────────────────────────────
+        // Granular restock during the shift. Goes through the receive-batch
+        // endpoint, which cashiers are permitted to call, so no admin needed.
+        startQuickStock(item) {
+            this.quickStockFor = item.id;
+            this.quickStockQty = 1;
+            this.quickStockMsg = '';
+            this.quickStockMsgFor = null;
+            this.quickStockError = false;
+        },
+
+        cancelQuickStock() {
+            this.quickStockFor = null;
+            this.quickStockMsg = '';
+            this.quickStockMsgFor = null;
+        },
+
+        saveQuickStock(item) {
+            const qty = parseFloat(this.quickStockQty);
+            this.quickStockMsgFor = item.id;
+            if (!(qty > 0)) {
+                this.quickStockError = true;
+                this.quickStockMsg = 'Enter a quantity above zero.';
+                return;
+            }
+            if (this.quickStockBusy) return;
+            this.quickStockBusy = true;
+            fetch('/dc-cafe/api/v1/products/receive/batch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    store_id: this.storeId,
+                    items: [{product_id: item.id, quantity: qty, notes: 'POS quick stock entry'}],
+                })
+            })
+            .then(r => r.json())
+            .then(d => {
+                this.quickStockBusy = false;
+                if (!d.ok) {
+                    this.quickStockError = true;
+                    this.quickStockMsg = d.error || 'Could not add stock.';
+                    return;
+                }
+                this.quickStockError = false;
+                this.quickStockMsg = 'Added ' + qty + ' to ' + item.name + '.';
+                this.quickStockFor = null;
+                this.refreshProducts();
+            })
+            .catch(() => {
+                this.quickStockBusy = false;
+                this.quickStockError = true;
+                this.quickStockMsg = 'Could not reach the server.';
+            });
+        },
+
+        refreshProducts() {
+            fetch('/dc-cafe/api/v1/products?store_id=' + this.storeId)
+                .then(r => r.json()).then(d => {
+                    if (!d.ok) return;
+                    this.products = d.products;
+                    // Keep cart rows in step with the new balances so the
+                    // out-of-stock prompt clears without a page reload.
+                    const byId = {};
+                    d.products.forEach(p => { byId[p.id] = p; });
+                    this.cart.forEach(i => {
+                        if (byId[i.id]) i.current_stock = byId[i.id].current_stock;
+                    });
+                })
+                .catch(() => {});
+        },
+
         addToCart(product) {
             if (product.is_variable) {
                 this.customizingProduct = product;
@@ -442,12 +915,120 @@ function posApp() {
                 this.showCustomizer = true;
                 return;
             }
+            if (product.is_box) {
+                this.startBoxAdd(product);
+                return;
+            }
             const existing = this.cart.find(i => i.id === product.id);
             if (existing) {
                 existing.qty++;
             } else {
                 this.cart.push({...product, qty: 1, customizations: null, custLabel: ''});
             }
+        },
+
+        // ── Box (variable product) ────────────────────────────────────
+        // The cashier picks the components. Component stock leaves the branch
+        // as box pullout; the price is the box price, so components add nothing.
+        startBoxAdd(product) {
+            if (this.boxBusy) return;
+            this.boxBusy = true;
+            fetch('/dc-cafe/api/v1/products/' + product.id + '/box-options?store_id=' + this.storeId)
+                .then(r => r.json())
+                .then(d => {
+                    this.boxBusy = false;
+                    if (!d.ok) {
+                        alert(d.error || 'This box is unavailable.');
+                        return;
+                    }
+                    // Every standard flavour is stocked: add in a single tap,
+                    // no picker. The picker only opens when it must.
+                    if (d.has_standard_set && !d.requires_selection) {
+                        const ids = d.standard_set.map(s => Number(s.product_id));
+                        const names = d.standard_set.map(s => s.name);
+                        this.pushBoxToCart(product, d, ids, names);
+                        return;
+                    }
+                    this.openBoxPicker(product, d);
+                })
+                .catch(() => {
+                    this.boxBusy = false;
+                    alert('Could not load box options.');
+                });
+        },
+
+        openBoxPicker(product, options) {
+            this.boxProduct = product;
+            this.boxOptions = options;
+            const slots = [];
+            for (let i = 1; i <= options.slot_count; i++) {
+                const std = (options.standard_set || []).find(s => Number(s.slot_no) === i);
+                const slot = {};
+                slot.slot_no = i;
+                slot.product_id = std ? Number(std.product_id) : null;
+                slot.name = std ? (std.name || '') : '';
+                slot.available = std ? !!std.available : false;
+                slots.push(slot);
+            }
+            this.boxSlots = slots;
+            this.boxActiveSlot = this.firstShortSlot();
+            this.boxOpen = true;
+        },
+
+        firstShortSlot() {
+            const short = this.boxSlots.find(s => !s.available);
+            if (short) return short.slot_no;
+            const empty = this.boxSlots.find(s => !s.product_id);
+            return empty ? empty.slot_no : 1;
+        },
+
+        get boxChoices() {
+            return this.boxOptions ? (this.boxOptions.choices || []) : [];
+        },
+
+        get boxFilled() {
+            return this.boxSlots.length > 0 && this.boxSlots.every(s => s.product_id);
+        },
+
+        assignBoxSlot(choice) {
+            const slot = this.boxSlots.find(s => s.slot_no === this.boxActiveSlot);
+            if (!slot) return;
+            slot.product_id = Number(choice.product_id);
+            slot.name = choice.name;
+            slot.available = true;
+            const next = this.boxSlots.find(s => !s.product_id);
+            if (next) this.boxActiveSlot = next.slot_no;
+        },
+
+        confirmBox() {
+            if (!this.boxFilled) return;
+            const ids = this.boxSlots.map(s => Number(s.product_id));
+            const names = this.boxSlots.map(s => s.name);
+            this.pushBoxToCart(this.boxProduct, this.boxOptions, ids, names);
+            this.boxOpen = false;
+        },
+
+        pushBoxToCart(product, options, componentIds, componentNames) {
+            const signature = componentIds.join(',');
+            const existing = this.cart.find(i => i.id === product.id
+                && i.customizations && i.customizations.box
+                && i.customizations.box.components.join(',') === signature);
+            if (existing) {
+                existing.qty++;
+                return;
+            }
+            const box = {};
+            box.box_product_id = product.id;
+            box.box_name = product.name;
+            box.slot_count = options.slot_count;
+            box.components = componentIds;
+
+            this.cart.push({
+                ...product,
+                qty: 1,
+                customizations: {box: box},
+                custLabel: componentNames.join(', '),
+            });
         },
 
         confirmCustomization() {
@@ -502,19 +1083,72 @@ function posApp() {
             this.cart.splice(idx, 1);
         },
 
+        onPaymentMethodChange() {
+            // A reference belongs to the tender it was captured for.
+            if (!this.isGcashPayment) {
+                this.referenceId = '';
+            }
+        },
+
+        onDiscountTypeChange() {
+            // Pre-fill the rate configured for this discount type. The cashier
+            // can still override it — some promotions are not a straight rate.
+            const rate = this.discountRateFor(this.discountType);
+            if (rate !== null && rate > 0) {
+                this.discountInput = rate + '%';
+            } else if (this.discountInput === '' || /%\s*$/.test(this.discountInput)) {
+                // Never carry a previous type's rate onto the new one.
+                this.discountInput = '';
+            }
+            this.applyDiscount();
+        },
+
+        // Configured rate for a discount code, or null when unknown.
+        discountRateFor(code) {
+            if (!code) return null;
+            const found = this.discountTypes.find(t => t.code === code);
+            if (found) return parseFloat(found.default_pct) || 0;
+            // Senior survives a failed config load so the statutory rate still applies.
+            return code === 'senior' ? this.seniorDiscountPct : null;
+        },
+
+        loadDiscountTypes() {
+            fetch('/dc-cafe/api/v1/discount-types')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.ok && Array.isArray(d.discount_types) && d.discount_types.length) {
+                        this.discountTypes = d.discount_types;
+                    }
+                })
+                .catch(() => {
+                    // Keep the built-in fallback list.
+                });
+        },
+
         applyDiscount() {
             const input = (this.discountInput || '').toString().trim();
+            this.discountCeilingMsg = '';
             if (input === '' || this.discountType === '') {
                 this.discount = 0;
                 this.discountReason = '';
                 return;
             }
+            let next;
             if (input.includes('%')) {
                 const pct = parseFloat(input.replace('%', '')) || 0;
-                this.discount = Math.min(this.cartTotal * pct / 100, this.cartTotal);
+                next = Math.min(this.cartTotal * pct / 100, this.cartTotal);
             } else {
-                this.discount = Math.min(parseFloat(input) || 0, this.cartTotal);
+                next = Math.min(parseFloat(input) || 0, this.cartTotal);
             }
+            // An administrator caps what may be given away on a single sale.
+            // Clamp rather than refuse, so the cashier is never stuck.
+            const cap = this.cartTotal * (this.maxDiscountPct / 100);
+            if (next > cap) {
+                next = cap;
+                this.discountCeilingMsg = 'Capped at the branch limit of '
+                    + this.maxDiscountPct + '%';
+            }
+            this.discount = next;
             if (this.discount <= 0) this.discountReason = '';
         },
 
@@ -527,7 +1161,17 @@ function posApp() {
             })
             .then(r => r.json()).then(d => {
                 if (d.ok) {
+                    // A voucher is pre-authorised, but the branch ceiling still
+                    // applies to the sale's final discount on the server. Say so
+                    // here rather than letting the sale fail at the counter.
+                    if (this.discountValueOverCeiling(d.discount_amount)) {
+                        this.voucherValid = false;
+                        this.voucherMessage = 'Voucher is above the '
+                            + this.maxDiscountPct + '% branch limit. Ask an administrator to raise it.';
+                        return;
+                    }
                     this.discount = d.discount_amount;
+                    this.discountCeilingMsg = '';
                     this.discountReason = 'Voucher: ' + d.voucher.code;
                     this.voucherMessage = 'Discount: ₱' + d.discount_amount.toFixed(2);
                     this.voucherValid = true;
@@ -538,17 +1182,45 @@ function posApp() {
             });
         },
 
-        processPayment() {
-            if (this.cart.length === 0) return;
-            this.processing = true;
+        // ── Order queue ───────────────────────────────────────────────
+        // A parked order is a saved cart, not a sale: no stock moves and no money
+        // is taken until it is finalized.
 
+        // One place that clears the till, so "new order", "cancel order" and a
+        // completed sale cannot drift apart in what they leave behind.
+        resetSale(opts) {
+            const keepReceipt = !!(opts && opts.keepReceipt);
+            this.cart = [];
+            this.discount = 0;
+            this.discountInput = '';
+            this.discountType = '';
+            this.discountReason = '';
+            this.discountCeilingMsg = '';
+            this.amountTendered = 0;
+            this.referenceId = '';
+            this.voucherCode = '';
+            this.voucherMessage = '';
+            this.voucherValid = false;
+            this.customerPhone = '';
+            this.customerName = '';
+            this.resumingOrderId = null;
+            if (!keepReceipt) {
+                this.lastOrder = null;
+                this.successMessage = '';
+            }
+        },
+
+        // The payload that both paying and parking send, so the two can never
+        // disagree about what is on the till.
+        salePayload() {
             const payload = {
                 store_id: this.storeId,
                 session_id: this.sessionId,
                 payment_method_id: parseInt(this.paymentMethod),
-                amount_tendered: parseFloat(this.amountTendered) || 0,
+                amount_tendered: this.effectiveTendered,
                 discount_amount: this.discount,
-                discount_reason: this.discountReason,
+                discount_reason: this.discountReasonForPayload,
+                reference_id: this.referenceId || undefined,
                 voucher_code: this.voucherCode || undefined,
                 items: this.cart.map(i => ({
                     product_id: i.id,
@@ -557,13 +1229,180 @@ function posApp() {
                     customizations: i.customizations || undefined,
                 })),
             };
-
             if (this.customerPhone || this.customerName) {
                 payload.customer = {
                     name: this.customerName || 'Guest',
                     phone: this.customerPhone || '0000000000',
                 };
             }
+            // Finalizing a parked order completes that order rather than opening
+            // a new one, so the trail shows one transaction from park to payment.
+            if (this.resumingOrderId) {
+                payload.order_id = this.resumingOrderId;
+            }
+            return payload;
+        },
+
+        newOrder() {
+            if (this.cart.length > 0
+                && !window.confirm('Clear the items on the till and start a new order?')) {
+                return;
+            }
+            this.saleNotice = '';
+            this.resetSale();
+        },
+
+        cancelOrder() {
+            if (this.cart.length === 0) {
+                this.resetSale();
+                return;
+            }
+            // Cancelling the till must never destroy a parked order: the customer
+            // is coming back for it, so it stays in the queue.
+            const tail = this.resumingOrderId
+                ? ' Parked order #' + this.resumingOrderId + ' stays in the queue.'
+                : '';
+            if (!window.confirm('Cancel this order? The items on the till will be cleared.' + tail)) {
+                return;
+            }
+            const wasResuming = this.resumingOrderId;
+            this.resetSale();
+            this.saleNotice = wasResuming
+                ? 'Order cancelled. #' + wasResuming + ' is still parked.'
+                : 'Order cancelled.';
+            this.loadQueue();
+        },
+
+        loadQueue() {
+            fetch('/dc-cafe/api/v1/orders/pending?store_id=' + encodeURIComponent(this.storeId))
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.ok) return;
+                    this.orderQueueEnabled = !!d.enabled;
+                    this.parkedOrders = d.orders || [];
+                })
+                .catch(() => {
+                    // The queue is an aid, not a requirement: a failed read must
+                    // not stand between the cashier and a sale.
+                });
+        },
+
+        parkOrder() {
+            if (this.cart.length === 0 || this.processing || this.parking) return;
+            // The same guard as payment, so a park cannot hold a discount the
+            // branch would refuse when it is paid for.
+            if (this.discountOverCeiling) {
+                this.discountCeilingMsg = 'This discount is above the '
+                    + this.maxDiscountPct + '% branch limit. Reduce it before parking.';
+                return;
+            }
+            this.parking = true;
+            this.saleNotice = '';
+            const payload = this.salePayload();
+            payload.park = true;
+
+            fetch('/dc-cafe/api/v1/orders', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json()).then(d => {
+                if (!d.ok) {
+                    alert(d.error || 'Could not park the order');
+                    return;
+                }
+                this.resetSale();
+                this.saleNotice = 'Order #' + d.order_id + ' parked — ₱' + d.total.toFixed(2)
+                    + '. Serve the next customer.';
+                this.loadQueue();
+            })
+            .catch(() => { alert('Connection error'); })
+            .finally(() => { this.parking = false; });
+        },
+
+        resumeParked(orderId) {
+            if (this.cart.length > 0
+                && !window.confirm('Replace the items on the till with parked order #' + orderId + '?')) {
+                return;
+            }
+            fetch('/dc-cafe/api/v1/orders/' + orderId)
+                .then(r => r.json()).then(d => {
+                    if (!d.ok || !d.order) {
+                        alert(d.error || 'Could not load that parked order');
+                        return;
+                    }
+                    const o = d.order;
+                    this.resetSale();
+                    // Rebuild the cart from the stored lines, customisations and
+                    // all: an addon or box selection is part of the price, and the
+                    // server re-checks that price when payment is taken.
+                    this.cart = (o.items || []).map(it => ({
+                        id: it.product_id,
+                        name: it.product_name,
+                        price: it.unit_price,
+                        qty: it.quantity,
+                        customizations: it.customizations || null,
+                        custLabel: this.customizationLabel(it.customizations),
+                    }));
+                    this.resumingOrderId = o.id;
+                    // The parked order carried its own discount, so restore it
+                    // rather than surprise the cashier with a different total.
+                    this.discount = o.discount || 0;
+                    this.saleNotice = 'Order #' + o.id + ' reinstated — take payment to finish it.';
+                })
+                .catch(() => { alert('Connection error'); });
+        },
+
+        discardParked(orderId) {
+            if (!window.confirm('Discard parked order #' + orderId
+                + '? Nothing was sold, so no stock or money is affected.')) {
+                return;
+            }
+            fetch('/dc-cafe/api/v1/orders/' + orderId + '/discard', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({store_id: this.storeId})
+            })
+            .then(r => r.json()).then(d => {
+                if (!d.ok) {
+                    alert(d.error || 'Could not discard the parked order');
+                    return;
+                }
+                if (this.resumingOrderId === orderId) {
+                    // The order on the till was just dropped, so the till is too.
+                    this.resetSale();
+                }
+                this.loadQueue();
+            })
+            .catch(() => { alert('Connection error'); });
+        },
+
+        // A parked line's choices, named the way adding them named them.
+        customizationLabel(cust) {
+            if (!cust) return '';
+            if (cust.box && Array.isArray(cust.box.components)) {
+                return cust.box.components.map(c => c.name).join(', ');
+            }
+            if (Array.isArray(cust.addons)) {
+                return cust.addons.map(a => a.name).join(', ');
+            }
+            return '';
+        },
+
+        processPayment() {
+            if (this.cart.length === 0) return;
+            // Defence in depth: the server refuses an over-ceiling discount too,
+            // but the cashier should not lose the sale to a round trip.
+            if (this.discountOverCeiling) {
+                this.discountCeilingMsg = 'This discount is above the '
+                    + this.maxDiscountPct + '% branch limit. Reduce it before paying.';
+                return;
+            }
+            this.processing = true;
+
+            // One payload builder, shared with parking, so a reinstated order
+            // carries order_id and finishes that order.
+            const payload = this.salePayload();
 
             fetch('/dc-cafe/api/v1/orders', {
                 method: 'POST',
@@ -582,16 +1421,15 @@ function posApp() {
                     };
                     this.successMessage = 'Order #' + d.order_id + ' — ₱' + d.total.toFixed(2)
                         + (d.points_earned > 0 ? ' (+' + d.points_earned + ' pts)' : '');
-                    this.cart = [];
-                    this.discount = 0;
-                    this.discountInput = '';
-                    this.discountType = '';
-                    this.discountReason = '';
-                    this.amountTendered = 0;
-                    this.voucherCode = '';
-                    this.voucherMessage = '';
-                    this.customerPhone = '';
-                    this.customerName = '';
+                    // Clear the till but keep the receipt on screen. A reinstated
+                    // order is finished, so the queue no longer holds it.
+                    this.resetSale({ keepReceipt: true });
+                    this.saleNotice = '';
+                    this.loadQueue();
+                    // Branch preference: open the receipt without the cashier asking.
+                    if (this.autoPrintReceipt) {
+                        this.showPrintModal = true;
+                    }
                     // Refresh today total
                     fetch('/dc-cafe/api/v1/dashboard/today').then(r => r.json()).then(td => {
                         if (td.ok) document.getElementById('today-total').textContent = td.today.total.toFixed(2);

@@ -589,12 +589,40 @@ try {
     ], $branchCashier, $insufficientBranchPayload);
     $insufficientBranchJson = dcJsonResponse($insufficientBranchResponse);
 
-    $h->test('Branch oversell is rejected before order write', (int) $insufficientBranchResponse['status'] === 400, $insufficientBranchResponse['raw']);
+    // This suite resolves no tenant, so module settings fall back to the shipped
+    // default — `warn`: the till must be able to sell what is physically on the
+    // rack even when the delivery has not been entered yet. The sale is allowed
+    // and a shortfall is recorded rather than the customer being turned away.
     $h->test(
-        'Branch oversell reports insufficient stock',
-        is_array($insufficientBranchJson) && str_contains((string) ($insufficientBranchJson['error'] ?? ''), 'Insufficient stock'),
+        'Branch oversell is allowed under the shipped (warn) policy',
+        (int) $insufficientBranchResponse['status'] === 200
+        && is_array($insufficientBranchJson)
+        && !empty($insufficientBranchJson['order_id']),
+        $insufficientBranchResponse['raw']
+    );
+    $h->test(
+        'Branch oversell is not reported as insufficient stock',
+        is_array($insufficientBranchJson) && empty($insufficientBranchJson['error']),
         $insufficientBranchResponse['body']
     );
+
+    // That sale consumed branch stock and BOM. Roll it back so the stock
+    // assertions later in this suite measure only the orders they create.
+    $oversellOrderId = (int) ($insufficientBranchJson['order_id'] ?? 0);
+    if ($oversellOrderId > 0) {
+        $db->prepare(
+            "UPDATE dc_product_store_stock SET on_hand_qty = on_hand_qty + 4
+             WHERE product_id = ? AND store_id = ?"
+        )->execute([$productId, $secondaryStoreId]);
+        $db->prepare("UPDATE dc_ingredients SET current_stock = current_stock + 2 WHERE ingredient_id = ?")
+            ->execute([$mixIngredientId]);
+        $db->prepare("DELETE FROM dc_product_stock_movements WHERE reference_type = 'order' AND reference_id = ?")
+            ->execute([$oversellOrderId]);
+        $db->prepare("DELETE FROM dc_inventory_movements WHERE reference_type = 'order' AND reference_id = ?")
+            ->execute([$oversellOrderId]);
+        $db->prepare("DELETE FROM dc_order_items WHERE order_id = ?")->execute([$oversellOrderId]);
+        $db->prepare("DELETE FROM dc_orders WHERE order_id = ?")->execute([$oversellOrderId]);
+    }
 
     $h->section('Tampered Price Rejection');
 
@@ -790,6 +818,14 @@ try {
 
     $h->section('Void Order');
 
+    // Voiding needs a supervisor approval PIN. Provision one for the test
+    // approver in whichever database this suite resolves to, so the real flow
+    // is exercised rather than bypassed.
+    $voidPin = '246810';
+    $db->prepare("UPDATE dc_users SET void_pin_hash = ? WHERE user_id = ?")
+        ->execute([password_hash($voidPin, PASSWORD_BCRYPT), (int) $supervisor['user_id']]);
+    $db->prepare("DELETE FROM dc_void_attempts WHERE store_id = ?")->execute([$storeId]);
+
     $db->prepare("UPDATE dc_product_ingredients SET quantity = 3.50 WHERE product_id = ? AND ingredient_id = ?")
         ->execute([$productId, $mixIngredientId]);
     $db->prepare("UPDATE dc_addon_ingredients SET quantity = 1.75 WHERE addon_id = ? AND ingredient_id = ?")
@@ -802,7 +838,7 @@ try {
         'SERVER_NAME' => 'baronbakeshop',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
-    ], $supervisor, []);
+    ], $supervisor, ['void_pin' => $voidPin]);
     $voidJson = dcJsonResponse($voidResponse);
 
     $h->test('Void returns HTTP 200', (int) $voidResponse['status'] === 200, $voidResponse['raw']);
@@ -829,7 +865,7 @@ try {
         'SERVER_NAME' => 'baronbakeshop',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
-    ], $supervisor, []);
+    ], $supervisor, ['void_pin' => $voidPin]);
     $repeatVoidJson = dcJsonResponse($repeatVoidResponse);
 
     $h->test('Repeat void rejected', (int) $repeatVoidResponse['status'] === 400, $repeatVoidResponse['raw']);

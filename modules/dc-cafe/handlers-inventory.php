@@ -32,6 +32,19 @@ function _dcLoadInventorySession(int $sessionId, bool $mustBeActive = false): ar
 /**
  * Derive reconciliation metrics from inventory counts and POS sales.
  *
+ * $boxPulloutQty is system-derived (never stored): the quantity of this product
+ * consumed as a component of box/bundle orders in the session. It is added to
+ * the manually entered pullout so the worksheet cell stays fully editable while
+ * the equation still balances.
+ *
+ * $additionalQty is also system-derived: stock that arrived during the shift
+ * outside production (a delivery, or a manual correction). Without it a
+ * delivery made mid-shift inflated Calculated Sales by exactly the quantity
+ * added, because the equation only knew about production.
+ *
+ * Sales and void restores are deliberately NOT additional: a sale is counted by
+ * the physical ending count, and a void merely reverses a sale that never stood.
+ *
  * @return array{calculated_sales_qty:?float,sales_variance_qty:?float,stock_variance_qty:?float}
  */
 function _dcInventoryDerivedMetrics(
@@ -40,7 +53,9 @@ function _dcInventoryDerivedMetrics(
     float $pulloutQty,
     ?float $endingQty,
     float $posSalesQty,
-    float $branchStockQty
+    float $branchStockQty,
+    float $boxPulloutQty = 0.0,
+    float $additionalQty = 0.0
 ): array {
     if ($endingQty === null) {
         return [
@@ -50,7 +65,9 @@ function _dcInventoryDerivedMetrics(
         ];
     }
 
-    $calculatedSalesQty = $beginningQty + $productionQty - $pulloutQty - $endingQty;
+    // Ending = Beginning + Production + Additional - Pullouts - Sales
+    $calculatedSalesQty = $beginningQty + $productionQty + $additionalQty
+        - $pulloutQty - $boxPulloutQty - $endingQty;
 
     return [
         'calculated_sales_qty' => $calculatedSalesQty,
@@ -107,6 +124,61 @@ function apiGetReconciliation(array $params = []): void
         $salesMap[(int) $s['product_id']] = (float) $s['qty_sold'];
     }
 
+    // Sales reversed this shift. Reported alongside the completed figure so a
+    // void is visible in the worksheet instead of silently shrinking the number.
+    $voided = $db->query(
+        "SELECT oi.product_id, SUM(oi.quantity) AS qty_voided
+         FROM dc_order_items oi
+         JOIN dc_orders o ON o.order_id = oi.order_id
+         WHERE o.session_id = ? AND o.status = 'voided'
+         GROUP BY oi.product_id",
+        [$sessionId]
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $voidedMap = [];
+    foreach ($voided as $v) {
+        $voidedMap[(int) $v['product_id']] = (float) $v['qty_voided'];
+    }
+
+    // Box/bundle consumption — a component leaves stock to fill a box order, so it
+    // is reported as pullout, not as a counter sale. Derived from the movement
+    // journal so it can never drift from the worksheet the supervisor edits by
+    // hand, and so voiding an order removes it automatically.
+    $boxRows = $db->query(
+        "SELECT m.product_id, SUM(-m.quantity_change) AS qty
+         FROM dc_product_stock_movements m
+         JOIN dc_orders o ON o.order_id = m.reference_id
+         WHERE m.reference_type = 'order'
+           AND o.session_id = ?
+           AND o.status = 'completed'
+           AND m.consumption_channel = 'bundle'
+         GROUP BY m.product_id",
+        [$sessionId]
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $boxPulloutMap = [];
+    foreach ($boxRows as $b) {
+        $boxPulloutMap[(int) $b['product_id']] = (float) $b['qty'];
+    }
+
+    // Stock added during the shift outside production: a delivery received, or a
+    // manual correction. Sales and void restores are excluded on purpose — a
+    // sale is already reflected in the physical ending count, and a void only
+    // reverses one, so counting either here would double-count.
+    $windowEnd = !empty($session['shift_end']) ? (string) $session['shift_end'] : date('Y-m-d H:i:s');
+    $additionalRows = $db->query(
+        "SELECT m.product_id, SUM(m.quantity_change) AS qty
+         FROM dc_product_stock_movements m
+         WHERE m.store_id = ?
+           AND m.movement_type IN ('purchase', 'adjustment')
+           AND m.created_at >= ?
+           AND m.created_at <= ?
+         GROUP BY m.product_id",
+        [$storeId, (string) $session['shift_start'], $windowEnd]
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $additionalMap = [];
+    foreach ($additionalRows as $a) {
+        $additionalMap[(int) $a['product_id']] = (float) $a['qty'];
+    }
+
     // Saved progress (manual count worksheet values)
     $progress = $db->query(
         "SELECT * FROM dc_inventory_progress WHERE session_id = ?",
@@ -130,6 +202,7 @@ function apiGetReconciliation(array $params = []): void
          LEFT JOIN dc_product_store_stock pss
            ON pss.product_id = p.product_id AND pss.store_id = ?
          WHERE p.store_id = ? AND p.is_active = 1 AND c.is_active = 1
+           AND p.slot_count IS NULL
          ORDER BY COALESCE(g.sort_order, c.sort_order), COALESCE(g.name, c.name), c.sort_order, p.name",
         [$storeId, $catalogStoreId]
     )->fetchAll(\PDO::FETCH_ASSOC);
@@ -145,13 +218,19 @@ function apiGetReconciliation(array $params = []): void
         $endingQty = $endingRecorded ? (float) $saved['ending_qty'] : null;
         $posSalesQty = $salesMap[$pid] ?? 0.0;
         $branchStockQty = (float) $p['branch_stock'];
+        // System-derived box consumption, additive to the manual pullout cell.
+        $boxPulloutQty = $boxPulloutMap[$pid] ?? 0.0;
+        // System-derived stock received or corrected during this shift.
+        $additionalQty = $additionalMap[$pid] ?? 0.0;
         $derived = _dcInventoryDerivedMetrics(
             $beginningQty,
             $productionQty,
             $pulloutQty,
             $endingQty,
             $posSalesQty,
-            $branchStockQty
+            $branchStockQty,
+            $boxPulloutQty,
+            $additionalQty
         );
         $item = [
             'product_id' => $pid,
@@ -160,13 +239,18 @@ function apiGetReconciliation(array $params = []): void
             'ledger_group' => $p['ledger_group'],
             'beginning_qty' => $beginningQty,
             'production_qty' => $productionQty,
+            'additional_qty' => $additionalQty,
             'pullout_qty' => $pulloutQty,
+            'box_pullout_qty' => $boxPulloutQty,
             'ending_qty' => $endingQty,
             'ending_recorded' => $endingRecorded,
             'ending_counted_at' => $saved['ending_counted_at'] ?? null,
             'ending_counted_by' => isset($saved['ending_counted_by']) ? (int) $saved['ending_counted_by'] : null,
             'calculated_sales_qty' => $derived['calculated_sales_qty'],
             'pos_sales_qty' => $posSalesQty,
+            // Reversed sales for this product in this shift; excluded from the
+            // completed figure above, shown so the drop is explainable.
+            'voided_sales_qty' => $voidedMap[$pid] ?? 0.0,
             'sales_variance_qty' => $derived['sales_variance_qty'],
             'notes' => $saved ? ($saved['notes'] ?? '') : '',
             'branch_stock_qty' => $branchStockQty,
@@ -306,6 +390,15 @@ function apiReceiveStockBatch(array $params = []): void
         $db->rollBack();
         dcJsonError('Failed to process batch: ' . $e->getMessage(), 500);
     }
+
+    // Receiving is stock coming in, so it belongs in the trail beside the sales
+    // that take stock out. Both counts are recorded: a batch that quietly skipped
+    // half its lines is exactly what someone would want to find later.
+    dc_auditLog('stock.received', 'dc_ingredients', null, null, [
+        'items' => $processed,
+        'submitted' => count($items),
+        'errors' => $errors,
+    ]);
 
     dcJsonResponse([
         'ok' => true,
@@ -579,7 +672,13 @@ function apiCreateSupplier(array $params = []): void
     if ($name === '') { dcJsonError('Supplier name is required'); }
     dcDb()->query("INSERT INTO dc_suppliers (name, contact_person, phone, email) VALUES (?, ?, ?, ?)",
         [$name, dcInput('contact_person') ?: null, dcInput('phone') ?: null, dcInput('email') ?: null]);
-    dcJsonResponse(['ok' => true, 'supplier_id' => (int) dcDb()->lastInsertId()]);
+    $supplierId = (int) dcDb()->lastInsertId();
+
+    dc_auditLog('supplier.created', 'dc_suppliers', (string) $supplierId, null, [
+        'name' => $name,
+    ]);
+
+    dcJsonResponse(['ok' => true, 'supplier_id' => $supplierId]);
 }
 
 function apiUpdateSupplier(array $params = []): void
@@ -587,10 +686,17 @@ function apiUpdateSupplier(array $params = []): void
     $ctx = dcCtx();
     $ctx->requireAnyRole('admin', 'supervisor');
     $id = (int) ($params['id'] ?? 0);
+    $name = (string) (dcInput('name') ?? '');
     dcDb()->query(
         "UPDATE dc_suppliers SET name = ?, contact_person = ?, phone = ?, email = ? WHERE supplier_id = ?",
-        [dcInput('name') ?? '', dcInput('contact_person') ?: null, dcInput('phone') ?: null, dcInput('email') ?: null, $id]
+        [$name, dcInput('contact_person') ?: null, dcInput('phone') ?: null, dcInput('email') ?: null, $id]
     );
+
+    dc_auditLog('supplier.updated', 'dc_suppliers', (string) $id, null, [
+        'name' => $name,
+        'changes' => ['name', 'contact_person', 'phone', 'email'],
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 
@@ -636,7 +742,14 @@ function apiCreateIngredient(array $params = []): void
         [$name, $unit, (float) (dcInput('cost_per_unit') ?? 0), (float) (dcInput('reorder_level') ?? 0),
          dcInput('supplier_id') ? (int) dcInput('supplier_id') : null]
     );
-    dcJsonResponse(['ok' => true, 'ingredient_id' => (int) dcDb()->lastInsertId()]);
+    $ingredientId = (int) dcDb()->lastInsertId();
+
+    dc_auditLog('ingredient.created', 'dc_ingredients', (string) $ingredientId, null, [
+        'name' => $name,
+        'unit' => $unit,
+    ]);
+
+    dcJsonResponse(['ok' => true, 'ingredient_id' => $ingredientId]);
 }
 
 function apiUpdateIngredient(array $params = []): void
@@ -644,12 +757,21 @@ function apiUpdateIngredient(array $params = []): void
     $ctx = dcCtx();
     $ctx->requireAnyRole('admin', 'supervisor');
     $id = (int) ($params['id'] ?? 0);
+    $name = (string) (dcInput('name') ?? '');
     dcDb()->query(
         "UPDATE dc_ingredients SET name = ?, unit = ?, cost_per_unit = ?, reorder_level = ?, supplier_id = ?
          WHERE ingredient_id = ?",
-        [dcInput('name') ?? '', dcInput('unit') ?? '', (float) (dcInput('cost_per_unit') ?? 0),
+        [$name, dcInput('unit') ?? '', (float) (dcInput('cost_per_unit') ?? 0),
          (float) (dcInput('reorder_level') ?? 0), dcInput('supplier_id') ? (int) dcInput('supplier_id') : null, $id]
     );
+
+    // Cost per unit is recorded because it is what the recipes and costing read;
+    // a quiet change to it moves every margin that depends on this ingredient.
+    dc_auditLog('ingredient.updated', 'dc_ingredients', (string) $id, null, [
+        'name' => $name,
+        'changes' => ['name', 'unit', 'cost_per_unit', 'reorder_level', 'supplier_id'],
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 
@@ -722,6 +844,19 @@ function apiUpdateInventoryStock(array $params = []): void
         );
     }
 
+    // An inline edit changes stock with no sale behind it, which is exactly the
+    // kind of change worth being able to trace afterwards. The reorder level is
+    // recorded too, since it is set on the same screen and changes what the till
+    // warns about.
+    dc_auditLog('stock.adjusted', 'dc_ingredients', (string) $id, [
+        'on_hand_qty' => $oldStock,
+    ], [
+        'delta' => $hasStock ? $diff : 0,
+        'on_hand_qty' => $hasStock ? (float) $currentStock : $oldStock,
+        'reorder_level' => $hasReorder ? (float) $reorderLevel : null,
+        'source' => 'inline',
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 
@@ -758,6 +893,12 @@ function apiResetProductInventory(array $params = []): void
     ], [
         'event'   => 'dc_cafe.inventory.reset',
         'by_user' => (int) ($ctx->user()['user_id'] ?? 0),
+    ]);
+
+    // Irreversible and it wipes the ledger history, so the trail must record
+    // that it happened even though the reset clears the data it moved.
+    dc_auditLog('inventory.reset', 'dc-cafe', null, null, [
+        'tables' => $tables,
     ]);
 
     dcJsonResponse([

@@ -40,17 +40,25 @@ return [
         '/dc-cafe/settings'                   => 'dc-cafe:pageDcCafeSettings',
 
         // Customer views
+        '/dc-cafe/audit'                      => 'dc-cafe:pageAuditLog',
         '/dc-cafe/customers'                  => 'dc-cafe:pageCustomerList',
         '/dc-cafe/customers/{id}'             => 'dc-cafe:pageCustomerDetail',
 
         // API: products
         '/dc-cafe/api/v1/products'            => 'dc-cafe:apiGetProducts',
+        '/dc-cafe/api/v1/pos/config'          => 'dc-cafe:apiGetPosConfig',
+        '/dc-cafe/api/v1/discount-types'      => 'dc-cafe:apiGetDiscountTypes',
         '/dc-cafe/api/v1/products/stock'      => 'dc-cafe:apiGetProductStockLevels',
+        // Registered before the {id} route so the literal suffix is not shadowed.
+        '/dc-cafe/api/v1/products/{id}/box-options' => 'dc-cafe:apiGetBoxOptions',
         '/dc-cafe/api/v1/products/{id}'       => 'dc-cafe:apiGetProduct',
 
         // API: orders
         '/dc-cafe/api/v1/orders'              => 'dc-cafe:apiListOrders',
         '/dc-cafe/api/v1/orders/export'       => 'dc-cafe:apiExportOrdersCsv',
+        // Order queue. Registered before the {id} route so 'pending' is read as the
+        // queue rather than as an order id.
+        '/dc-cafe/api/v1/orders/pending'      => 'dc-cafe:apiListPendingOrders',
         '/dc-cafe/api/v1/orders/{id}'         => 'dc-cafe:apiGetOrder',
 
         // API: sessions
@@ -120,6 +128,8 @@ return [
         // Orders
         '/dc-cafe/api/v1/orders'              => 'dc-cafe:apiCreateOrder',
         '/dc-cafe/api/v1/orders/{id}/void'    => 'dc-cafe:apiVoidOrder',
+        // Order queue: a parked order is dropped, never voided — nothing was sold.
+        '/dc-cafe/api/v1/orders/{id}/discard' => 'dc-cafe:apiDiscardPendingOrder',
 
         // Customers
         '/dc-cafe/api/v1/customers'           => 'dc-cafe:apiCreateCustomer',
@@ -166,6 +176,10 @@ return [
 
         // Ledger group management
         '/dc-cafe/api/v1/settings/ledger-groups/create' => 'dc-cafe:apiCreateLedgerGroup',
+        '/dc-cafe/api/v1/settings/preferences' => 'dc-cafe:apiSaveDcPreferences',
+        '/dc-cafe/api/v1/discount-types/save'  => 'dc-cafe:apiSaveDiscountType',
+        // Void approval — a supervisor PIN gates voiding a completed sale.
+        '/dc-cafe/api/v1/users/{id}/void-pin'  => 'dc-cafe:apiSetVoidPin',
         '/dc-cafe/api/v1/settings/ledger-groups/remap'  => 'dc-cafe:apiRemapLedgerGroupCategory',
 
         // Vouchers

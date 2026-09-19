@@ -73,6 +73,10 @@ class ModuleDB implements DatabaseContract
     public function prepare(string $sql): PDOStatement
     {
         $this->enforceAccess($sql);
+        // Only execution paths observe writes; assertAccess() is a check, not a
+        // statement. Prepares count because ModuleDB hands back a raw
+        // PDOStatement whose execute() the module calls directly.
+        \Ikabud\Kernel\Audit\MutationAuditFallback::noteStatement($sql);
         $prevModule = \Ikabud\Kernel\Database\KernelPDO::getActiveModule();
         \Ikabud\Kernel\Database\KernelPDO::setActiveModule($this->moduleId);
         try {
@@ -85,6 +89,7 @@ class ModuleDB implements DatabaseContract
     public function query(string $sql, array $params = []): PDOStatement
     {
         $this->enforceAccess($sql);
+        \Ikabud\Kernel\Audit\MutationAuditFallback::noteStatement($sql);
         $prevModule = \Ikabud\Kernel\Database\KernelPDO::getActiveModule();
         \Ikabud\Kernel\Database\KernelPDO::setActiveModule($this->moduleId);
         try {
@@ -109,6 +114,7 @@ class ModuleDB implements DatabaseContract
     public function execute(string $sql, array $params = []): bool
     {
         $this->enforceAccess($sql);
+        \Ikabud\Kernel\Audit\MutationAuditFallback::noteStatement($sql);
         $prevModule = \Ikabud\Kernel\Database\KernelPDO::getActiveModule();
         \Ikabud\Kernel\Database\KernelPDO::setActiveModule($this->moduleId);
         try {

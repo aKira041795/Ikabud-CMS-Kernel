@@ -72,6 +72,10 @@ function apiReceiveProductsBatch(array $params = []): void
     $userId = (int) $ctx->user()['user_id'];
     $processed = 0;
     $errors = [];
+    // What actually landed, with the branch each item resolved to. Collected
+    // here rather than from the raw payload so the trail cannot report store 0
+    // for a request that omitted store_id.
+    $received = [];
     // Use session store_id as default branch for receiving
     $defaultStoreId = _dcResolveInventoryStoreId($ctx, (int) (dcInput('store_id') ?? 0));
 
@@ -115,11 +119,27 @@ function apiReceiveProductsBatch(array $params = []): void
             );
 
             $processed++;
+            if (count($received) < 20) {
+                $received[] = [
+                    'product_id' => $productId,
+                    'quantity' => $quantity,
+                    'store_id' => $itemStoreId,
+                ];
+            }
         }
         $db->commit();
     } catch (\Throwable $e) {
         $db->rollBack();
         dcJsonError('Failed to process product delivery: ' . $e->getMessage(), 500);
+    }
+
+    // Stock arriving is a ledger event: it becomes the Additional column in the
+    // reconciliation, so it belongs in the trail alongside the movement itself.
+    if ($received !== []) {
+        dc_auditLog('stock.received', 'dc_products', (string) $defaultStoreId, null, [
+            'products' => $processed,
+            'items' => $received,
+        ]);
     }
 
     dcJsonResponse([
@@ -244,5 +264,81 @@ function apiUpdateProductStock(array $params = []): void
         dcJsonError('Failed to update product stock: ' . $e->getMessage(), 500);
     }
 
+    // A manual correction also lands in the reconciliation's Additional column,
+    // so the trail records who moved stock by hand and by how much.
+    if ($stockChanged) {
+        dc_auditLog('stock.adjusted', 'dc_products', (string) $id, ['on_hand_qty' => $oldStock], [
+            'on_hand_qty' => $newStock,
+            'delta' => $newStock - $oldStock,
+            'store_id' => $adjustStoreId,
+        ]);
+    } elseif ($hasReorder) {
+        dc_auditLog('product.reorder_level_changed', 'dc_products', (string) $id, null, [
+            'reorder_level' => (float) $reorderLevel,
+        ]);
+    }
+
     dcJsonResponse(['ok' => true]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/products/{id}/box-options — slot picker data for a box.
+ *
+ * Returns the box's standard flavour set (pre-filled defaults) and every flavour
+ * eligible to fill a slot: same category, inside the box's price band, in stock.
+ */
+function apiGetBoxOptions(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor', 'cashier');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid product ID', 400);
+    }
+
+    $storeId = _dcResolveInventoryStoreId($ctx, (int) (dcInput('store_id') ?? 0));
+    $catalogStoreId = dcCatalogStoreId($storeId);
+
+    $box = dcDb()->query(
+        "SELECT p.product_id, p.name, p.base_price, p.has_stock, p.slot_count,
+                p.component_category_id, p.component_min_price, p.component_max_price
+         FROM dc_products p
+         WHERE p.product_id = ? AND p.store_id = ? AND p.is_active = 1",
+        [$id, $catalogStoreId]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$box) {
+        dcJsonError('Product not found', 404);
+    }
+    if (!dcBoxIsContainer($box)) {
+        dcJsonError('Product is not a box', 422);
+    }
+
+    $definition = dcBoxDefinition($box, $storeId);
+
+    // A standard slot that is out of stock forces the cashier to swap it.
+    $shortSlots = [];
+    foreach ($definition['standard_set'] as $standard) {
+        if (!$standard['available']) {
+            $shortSlots[] = (int) $standard['slot_no'];
+        }
+    }
+
+    dcJsonResponse([
+        'ok'                  => true,
+        'product_id'          => (int) $box['product_id'],
+        'name'                => (string) $box['name'],
+        'price'               => (float) $box['base_price'],
+        'slot_count'          => $definition['slot_count'],
+        'min_price'           => $definition['min_price'],
+        'max_price'           => $definition['max_price'],
+        'has_standard_set'    => $definition['standard_set'] !== [],
+        'standard_set'        => $definition['standard_set'],
+        'choices'             => $definition['choices'],
+        'short_slots'         => $shortSlots,
+        // False when every standard flavour is stocked — the POS then adds the
+        // box in a single tap without opening the picker.
+        'requires_selection'  => $shortSlots !== [],
+    ]);
 }

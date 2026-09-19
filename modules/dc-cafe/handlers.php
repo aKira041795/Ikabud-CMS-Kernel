@@ -25,16 +25,10 @@ if (is_dir(__DIR__ . '/helpers/views')) {
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
-function dc_auditLog(string $action, ?string $entityType = null, ?string $entityId = null, $oldData = null, $newData = null, ?string $reason = null): void
-{
-    $ctx = module('dc-cafe');
-    if (!$ctx) return;
-    try {
-        $ctx->audit($action, null, $entityType, $entityId, $oldData, $newData, $reason);
-    } catch (\Throwable $e) {
-        // Non-fatal
-    }
-}
+// dc_auditLog() lives in helpers.php. The split handler files (handlers-orders,
+// handlers-products, ...) are loaded directly by some entry points without this
+// file, so anything they call must come from helpers.php, which the kernel
+// always loads.
 
 function dc_storeInput(?string $key = null, mixed $default = null): mixed
 {
@@ -93,6 +87,10 @@ function handleAuthLogin(array $params = []): void
     // Wrap it in the pipeline format the kernel expects.
     $userRow = dc_cap_kernel_auth_authenticate_1(['username' => $username, 'password' => $password]);
     if (!$userRow || !is_array($userRow)) {
+        // Failed sign-ins belong in the trail: repeated attempts are the signal.
+        dc_auditLog('auth.login_failed', 'dc_users', null, null, [
+            'username' => mb_substr($username, 0, 100),
+        ]);
         http_response_code(401);
         echo json_encode(['ok' => false, 'error' => 'Invalid username or password.']);
         exit;
@@ -125,6 +123,12 @@ function handleAuthLogin(array $params = []): void
         'samesite' => 'Strict',
     ]);
     app()->csrfRotate(true);
+
+    dc_auditLog('auth.login', 'dc_users', (string) $userId, null, [
+        'username' => (string) ($userRow['username'] ?? $username),
+        'role' => $role,
+        'store_id' => $userRow['store_id'] ?? null,
+    ]);
 
     echo json_encode([
         'ok' => true,
@@ -211,6 +215,13 @@ function apiDcCafeForgotPassword(array $params = []): void
 
     // Always return success — don't reveal whether account exists
     if (!$user) {
+        // The response stays deliberately vague to prevent user enumeration, but
+        // the attempt itself is worth recording: a run of unknown identities is
+        // what probing looks like from the inside.
+        dc_auditLog('auth.password_reset_unknown', null, null, null, [
+            'identity' => $identity,
+            'ip' => (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+        ]);
         echo json_encode(['ok' => true, 'message' => 'If the account exists, a reset link has been sent.']);
         exit;
     }
@@ -226,6 +237,13 @@ function apiDcCafeForgotPassword(array $params = []): void
          VALUES (?, ?, ?, ?)",
         [$userId, $tokenHash, $ip !== '' ? $ip : null, $expiresAt]
     );
+
+    // A reset link is a credential in circulation. The trail needs to show one was
+    // issued even when the email never arrives.
+    dc_auditLog('auth.password_reset_requested', 'dc_users', (string) $userId, null, [
+        'username' => (string) $user['username'],
+        'ip' => $ip,
+    ]);
 
     // Build reset link using the actual request host
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -307,6 +325,14 @@ function apiDcCafeResetPassword(array $params = []): void
         echo json_encode(['ok' => false, 'error' => 'Failed to reset password.']);
         exit;
     }
+
+    // Changing a password is the highest-value thing that can happen to an
+    // account. Nobody is signed in on this route, so the actor fields stay empty
+    // and the account is named by entity_id — who did it is unknown, which is
+    // itself the honest record.
+    dc_auditLog('auth.password_reset', 'dc_users', (string) $userId, null, [
+        'ip' => (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+    ]);
 
     echo json_encode(['ok' => true, 'message' => 'Password has been reset. You may now log in.']);
     exit;
@@ -656,6 +682,266 @@ function apiGetPaymentMethods(array $params = []): void
     dcJsonResponse(['ok' => true, 'payment_methods' => $methods]);
 }
 
+// ─── Module Preferences ───────────────────────────────────────────────
+
+/**
+ * POST /dc-cafe/api/v1/settings/preferences — save tenant preferences.
+ *
+ * Only keys declared in module.json `settings_fields` are accepted, so a
+ * crafted request cannot write arbitrary settings. Each value is normalised to
+ * its declared type before storage.
+ */
+function apiSaveDcPreferences(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin');
+
+    $input = dcInput('settings');
+    if (!is_array($input)) {
+        dcJsonError('A settings object is required');
+    }
+
+    $declared = [];
+    foreach (dcSettingsFields() as $field) {
+        $declared[(string) $field['key']] = $field;
+    }
+
+    $toSave = [];
+    foreach ($input as $key => $value) {
+        $key = (string) $key;
+        if (!isset($declared[$key])) {
+            dcJsonError("Unknown setting '{$key}'");
+        }
+        $type = (string) ($declared[$key]['type'] ?? 'text');
+
+        if ($type === 'checkbox' || $type === 'bool') {
+            $toSave[$key] = in_array(strtolower((string) $value), ['1', 'true', 'yes', 'on'], true) ? '1' : '0';
+            continue;
+        }
+
+        if ($type === 'number') {
+            if (!is_numeric($value)) {
+                dcJsonError("Setting '{$key}' must be a number");
+            }
+            $number = (float) $value;
+            if (!is_finite($number) || $number < 0) {
+                dcJsonError("Setting '{$key}' must be a non-negative number");
+            }
+            // Optional bounds declared alongside the field, so a limit is
+            // enforced at the point of entry rather than silently clamped later.
+            $declaredMin = $declared[$key]['min'] ?? null;
+            $declaredMax = $declared[$key]['max'] ?? null;
+            if ($declaredMin !== null && $number < (float) $declaredMin) {
+                dcJsonError("Setting '{$key}' must be at least {$declaredMin}");
+            }
+            if ($declaredMax !== null && $number > (float) $declaredMax) {
+                dcJsonError("Setting '{$key}' must be at most {$declaredMax}");
+            }
+            $toSave[$key] = (string) $number;
+            continue;
+        }
+
+        if ($type === 'select') {
+            $allowed = [];
+            foreach ((array) ($declared[$key]['options'] ?? []) as $option) {
+                if (is_array($option) && isset($option['value'])) {
+                    $allowed[] = (string) $option['value'];
+                }
+            }
+            $candidate = trim((string) $value);
+            if ($allowed !== [] && !in_array($candidate, $allowed, true)) {
+                dcJsonError("Setting '{$key}' has an invalid value");
+            }
+            $toSave[$key] = $candidate;
+            continue;
+        }
+
+        if ($type === 'email') {
+            $addresses = [];
+            foreach (explode(',', (string) $value) as $address) {
+                $address = trim($address);
+                if ($address === '') {
+                    continue;
+                }
+                if (!filter_var($address, FILTER_VALIDATE_EMAIL)) {
+                    dcJsonError("'{$address}' is not a valid email address");
+                }
+                $addresses[] = $address;
+            }
+            $toSave[$key] = implode(', ', $addresses);
+            continue;
+        }
+
+        $toSave[$key] = mb_substr(trim((string) $value), 0, 255);
+    }
+
+    if ($toSave === []) {
+        dcJsonError('No settings supplied');
+    }
+
+    if (!function_exists('saveTenantModuleSettings')) {
+        dcJsonError('Settings storage is unavailable', 500);
+    }
+    if (!saveTenantModuleSettings('dc-cafe', $toSave)) {
+        dcJsonError('Could not save settings', 500);
+    }
+
+    dc_auditLog('settings.preferences_saved', 'dc-cafe', null, ['keys' => array_keys($toSave)], null);
+
+    dcJsonResponse([
+        'ok' => true,
+        'saved' => array_keys($toSave),
+        'settings' => dcSettings(),
+    ]);
+}
+
+// ─── POS Configuration ────────────────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/pos/config — tenant preferences the till needs.
+ *
+ * Only POS-facing settings are exposed; stock policy is included so the till can
+ * explain itself when it is set to block.
+ */
+function apiGetPosConfig(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor', 'cashier');
+
+    dcJsonResponse([
+        'ok'                        => true,
+        'default_view'              => (string) (dcSettings()['pos_default_view'] ?? 'list'),
+        // Derived from the discount-type list so the rate lives in one place.
+        'senior_discount_pct'       => dcDiscountTypeRate('senior') ?? 20.0,
+        'allow_discount'            => dcSettingBool('pos_allow_discount'),
+        // The till needs the cap to warn before the sale is attempted.
+        'max_discount_pct'          => dcMaxDiscountPct(),
+        // Whether the till should offer to void a sale at all.
+        'void_enabled'              => dcVoidEnabled(),
+        // Whether the till may park a sale so the next customer can be served.
+        'order_queue_enabled'       => dcOrderQueueEnabled(),
+        // Whether to offer the discard control for a parked order. Decided here
+        // rather than in the template, so the policy sits with the server that
+        // enforces it. Discarding is open to a cashier unless the branch says
+        // otherwise.
+        'can_discard_parked'        => dcCanDiscardParkedOrder(
+            (string) (($ctx->user() ?? [])['role'] ?? '')
+        ),
+        'hide_out_of_stock'         => dcSettingBool('pos_hide_out_of_stock'),
+        'require_gcash_reference'   => dcSettingBool('pos_require_gcash_reference'),
+        'auto_print_receipt'        => dcSettingBool('pos_auto_print_receipt'),
+        'receipt_footer'            => (string) (dcSettings()['receipt_footer_text'] ?? ''),
+        'stock_policy'              => dcStockPolicy(),
+        // Whether a cashier may top up stock from the till.
+        'quick_stock_entry'         => dcSettingBool('pos_quick_stock_entry'),
+    ]);
+}
+
+// ─── Discount Types API ────────────────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/discount-types
+ *
+ * The till builds its discount list from this, so a branch can add a partner
+ * or statutory discount (PAG-IBIG, PWD, ...) without a code change.
+ */
+function apiGetDiscountTypes(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor', 'cashier');
+
+    // The till only needs the sellable ones; an administrator managing the list
+    // needs to see the disabled entries too.
+    $isAdmin = (($ctx->user()['role'] ?? '') === 'admin');
+
+    dcJsonResponse(['ok' => true, 'discount_types' => dcDiscountTypes(!$isAdmin)]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/discount-types
+ *
+ * Create or update a discount type. Admin only — rates affect revenue.
+ * When `discount_type_id` is omitted a new type is created.
+ */
+function apiSaveDiscountType(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin');
+
+    $id     = (int) (dcInput('discount_type_id') ?? 0);
+    $name   = trim((string) (dcInput('name') ?? ''));
+    $code   = strtolower(trim((string) (dcInput('code') ?? '')));
+    $pct    = dcInput('default_pct');
+    $pct    = $pct === null || $pct === '' ? null : (float) $pct;
+    $active = dcInput('is_active');
+
+    if ($name === '') {
+        dcJsonError('A discount name is required');
+    }
+    if (mb_strlen($name) > 100) {
+        dcJsonError('Discount name is too long (max 100 characters)');
+    }
+    if ($code === '') {
+        // Derive a stable code from the name so the till can round-trip it.
+        $code = preg_replace('/[^a-z0-9]+/', '_', strtolower($name)) ?? '';
+        $code = trim($code, '_');
+    }
+    if ($code === '' || mb_strlen($code) > 40) {
+        dcJsonError('Could not derive a valid code — provide one explicitly');
+    }
+    if ($pct === null || $pct < 0 || $pct > 100) {
+        dcJsonError('Discount rate must be between 0 and 100');
+    }
+
+    $db = dcDb();
+
+    // The code is the identity the till sends back, so a clash must be
+    // rejected rather than silently overwriting another type.
+    $clash = $db->query(
+        'SELECT discount_type_id, name FROM dc_discount_types WHERE code = ? AND discount_type_id <> ?',
+        [$code, $id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if ($clash) {
+        dcJsonError('That code is already used by "' . $clash['name'] . '"');
+    }
+
+    $isActive = ($active === null || $active === '') ? 1 : (int) ((bool) $active);
+
+    if ($id > 0) {
+        $exists = $db->query(
+            'SELECT discount_type_id FROM dc_discount_types WHERE discount_type_id = ?',
+            [$id]
+        )->fetch(\PDO::FETCH_ASSOC);
+        if (!$exists) {
+            dcJsonError('Discount type not found', 404);
+        }
+        $db->query(
+            'UPDATE dc_discount_types SET code = ?, name = ?, default_pct = ?, is_active = ? WHERE discount_type_id = ?',
+            [$code, $name, $pct, $isActive, $id]
+        );
+    } else {
+        $next = (int) ($db->query('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM dc_discount_types')->fetchColumn() ?: 10);
+        $db->query(
+            'INSERT INTO dc_discount_types (code, name, default_pct, is_active, sort_order) VALUES (?, ?, ?, ?, ?)',
+            [$code, $name, $pct, $isActive, $next]
+        );
+        $id = (int) $db->lastInsertId();
+    }
+
+    dc_auditLog('discount_type.saved', 'dc_discount_types', (string) $id, null, [
+        'code' => $code,
+        'name' => $name,
+        'default_pct' => $pct,
+        'is_active' => $isActive,
+    ]);
+
+    dcJsonResponse([
+        'ok'            => true,
+        'discount_type' => ['discount_type_id' => $id, 'code' => $code, 'name' => $name, 'default_pct' => $pct],
+        'message'       => 'Discount type saved.',
+    ]);
+}
+
 // ─── Soft-Serve Options API ────────────────────────────────────────────
 
 /**
@@ -801,6 +1087,46 @@ function pageOrderList(array $params = []): void
 }
 
 /**
+ * GET /dc-cafe/audit — every logged activity, with who did it.
+ *
+ * Replaces Orders in the navigation: the order is one entity in the trail, not
+ * a separate record set. The sales list stays reachable from here.
+ */
+function pageAuditLog(array $params = []): void
+{
+    $ctx = dcCtx();
+    // Matches the old Orders page so a cashier keeps a route to a sale they
+    // need to void, and so an auditor can read the trail.
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor', 'cashier');
+
+    $filters = [
+        'module' => (string) (dcInput('module') ?? ''),
+        'action' => (string) (dcInput('action') ?? ''),
+        'entity_type' => (string) (dcInput('entity_type') ?? ''),
+        'q' => (string) (dcInput('q') ?? ''),
+    ];
+
+    $page = max(1, (int) (dcInput('page') ?? 1));
+    $total = dcAuditTrailCount($filters);
+    $perPage = DC_AUDIT_PAGE_SIZE;
+    $pages = max(1, (int) ceil($total / $perPage));
+    if ($page > $pages) {
+        $page = $pages;
+    }
+
+    echo dcRender('audit/index.disyl', [
+        'page_title' => 'Audit',
+        'entries' => dcAuditTrail($filters, $perPage, ($page - 1) * $perPage),
+        'filters' => $filters,
+        'action_options' => dcAuditActionOptions(),
+        'module_options' => dcAuditModuleOptions(),
+        'total' => $total,
+        'page' => $page,
+        'pages' => $pages,
+    ]);
+}
+
+/**
  * GET /dc-cafe/orders/{id}
  */
 function pageOrderDetail(array $params = []): void
@@ -820,6 +1146,10 @@ function pageOrderDetail(array $params = []): void
     echo dcRender('orders/detail.disyl', [
         'page_title' => 'Order #' . $orderId,
         'order' => $order,
+        // Voiding is an admin policy switch; the page hides the control when off.
+        'void_enabled' => dcVoidEnabled(),
+        // The order is the record of everything that happened to this sale.
+        'activity' => dcOrderActivity($orderId),
     ]);
 }
 
@@ -1096,7 +1426,8 @@ function pageDcCafeSettings(array $params = []): void
 
     $users = $db->query(
         "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.store_id, u.is_active, u.last_login_at,
-                s.name AS store_name
+                s.name AS store_name,
+                (u.void_pin_hash IS NOT NULL AND u.void_pin_hash <> '') AS has_void_pin
          FROM dc_users u
          LEFT JOIN dc_stores s ON s.store_id = u.store_id
          WHERE u.deleted_at IS NULL
@@ -1141,8 +1472,15 @@ function pageDcCafeSettings(array $params = []): void
         'addons' => $addons,
         'ledgerGroups' => $ledgerGroups,
         'categories' => $categories,
+        // Discount types, including disabled ones so an administrator can re-enable them.
+        'discountTypes' => dcDiscountTypes(false),
+        // Declared preference fields plus the tenant's effective values, so the
+        // Preferences tab renders from module.json rather than a hand-built form.
+        'settingsFields' => dcSettingsFields(),
+        'settingsValues' => dcSettings(),
         'backups' => \Ikabud\Kernel\Services\ModuleBackupService::list('dc-cafe', dc_backupDownloadPath()),
         'currentUserId' => (int) ($ctx->user()['user_id'] ?? 0),
+        'currentUserRole' => (string) ($ctx->user()['role'] ?? ''),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     echo dcRender('settings/index.disyl', [
@@ -1197,10 +1535,16 @@ function apiCreatePaymentMethod(array $params = []): void
         "INSERT INTO dc_payment_methods (code, name, sort_order) VALUES (?, ?, ?)",
         [strtoupper($code), $name, $sortOrder]
     );
+    $paymentMethodId = (int) $db->lastInsertId();
+
+    dc_auditLog('payment_method.created', 'dc_payment_methods', (string) $paymentMethodId, null, [
+        'name' => $name,
+        'code' => strtoupper($code),
+    ]);
 
     dcJsonResponse([
         'ok' => true,
-        'payment_method_id' => (int) $db->lastInsertId(),
+        'payment_method_id' => $paymentMethodId,
     ]);
 }
 
@@ -1255,6 +1599,17 @@ function apiUpdatePaymentMethod(array $params = []): void
 
     $vals[] = $id;
     $db->query("UPDATE dc_payment_methods SET " . implode(', ', $sets) . " WHERE payment_method_id = ?", $vals);
+
+    // Retiring a payment method changes what the till will accept, so it is worth
+    // more than a change of label.
+    dc_auditLog('payment_method.updated', 'dc_payment_methods', (string) $id, [
+        'name' => (string) $existing['name'],
+        'is_active' => (int) $existing['is_active'],
+    ], [
+        'name' => $name !== null ? (string) $name : (string) $existing['name'],
+        'is_active' => $isActive !== null ? ($isActive ? 1 : 0) : (int) $existing['is_active'],
+        'changes' => array_map(static fn(string $s): string => trim(explode('=', $s)[0]), $sets),
+    ]);
 
     dcJsonResponse(['ok' => true]);
 }
@@ -1404,6 +1759,15 @@ function apiUpdateStore(array $params = []): void
     $vals[] = $id;
     $db->query("UPDATE dc_stores SET " . implode(', ', $sets) . " WHERE store_id = ?", $vals);
 
+    // A store edit can move the branch address, reposition it on the map, or take
+    // it out of service, so the change is recorded whichever field moved.
+    dc_auditLog('store.updated', 'dc_stores', (string) $id, [
+        'name' => (string) $existing['name'],
+    ], [
+        'name' => $name !== null ? (string) $name : (string) $existing['name'],
+        'changes' => array_map(static fn(string $s): string => trim(explode('=', $s)[0]), $sets),
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 
@@ -1419,7 +1783,8 @@ function apiListUsers(array $params = []): void
 
     $users = dcDb()->query(
         "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.store_id, u.is_active, u.last_login_at,
-                s.name AS store_name
+                s.name AS store_name,
+                (u.void_pin_hash IS NOT NULL AND u.void_pin_hash <> '') AS has_void_pin
          FROM dc_users u
          LEFT JOIN dc_stores s ON s.store_id = u.store_id
          WHERE u.deleted_at IS NULL
@@ -1427,6 +1792,67 @@ function apiListUsers(array $params = []): void
     )->fetchAll(\PDO::FETCH_ASSOC);
 
     dcJsonResponse(['ok' => true, 'users' => $users]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/users/{id}/void-pin — set or clear a void approval PIN.
+ *
+ * Admin only. Only administrators and supervisors can approve a void, so a PIN
+ * on any other role would be a secret that never opens anything — it is refused
+ * rather than stored.
+ */
+function apiSetVoidPin(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid user ID');
+    }
+
+    $rawPin = (string) (dcInput('pin') ?? '');
+    $pin = trim($rawPin);
+    $clearing = ($pin === '');
+
+    $db = dcDb();
+    $user = $db->query(
+        'SELECT user_id, username, role FROM dc_users WHERE user_id = ? AND deleted_at IS NULL',
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$user) {
+        dcJsonError('User not found', 404);
+    }
+
+    if (!$clearing) {
+        if (!in_array((string) $user['role'], ['admin', 'supervisor'], true)) {
+            dcJsonError('Only an administrator or supervisor can approve a void');
+        }
+        // Digits only: the PIN is typed on a counter keypad, and a fixed
+        // character set keeps the secret easy to enter correctly under pressure.
+        if (!preg_match('/^[0-9]{4,12}$/', $pin)) {
+            dcJsonError('The void PIN must be 4 to 12 digits');
+        }
+    }
+
+    $db->query(
+        'UPDATE dc_users SET void_pin_hash = ? WHERE user_id = ?',
+        [$clearing ? null : password_hash($pin, PASSWORD_BCRYPT), $id]
+    );
+
+    dc_auditLog($clearing ? 'user.void_pin_cleared' : 'user.void_pin_set', 'dc_users', (string) $id, null, [
+        'username' => (string) $user['username'],
+        // Never the PIN itself, only the fact that one exists.
+        'has_void_pin' => !$clearing,
+    ]);
+
+    dcJsonResponse([
+        'ok' => true,
+        'has_void_pin' => !$clearing,
+        'message' => $clearing
+            ? 'Void PIN removed for ' . $user['username'] . '.'
+            : 'Void PIN set for ' . $user['username'] . '.',
+    ]);
 }
 
 /**
@@ -1492,6 +1918,11 @@ function apiToggleUserActive(array $params = []): void
         [$newActive, $id]
     );
 
+    // Access changes belong in the trail: who could sign in changed here.
+    dc_auditLog($newActive ? 'user.activated' : 'user.deactivated', 'dc_users', (string) $id, null, [
+        'is_active' => $newActive,
+    ]);
+
     dcJsonResponse(['ok' => true, 'is_active' => $newActive]);
 }
 
@@ -1551,9 +1982,16 @@ function apiCreateUser(array $params = []): void
         ]
     );
 
+    $newUserId = (int) $db->lastInsertId();
+    dc_auditLog('user.created', 'dc_users', (string) $newUserId, null, [
+        'username' => $username,
+        'role' => $role,
+        'store_id' => $storeId !== null ? (int) $storeId : null,
+    ]);
+
     dcJsonResponse([
         'ok' => true,
-        'user_id' => (int) $db->lastInsertId(),
+        'user_id' => $newUserId,
     ]);
 }
 
@@ -1628,6 +2066,22 @@ function apiUpdateUser(array $params = []): void
 
     $vals[] = $id;
     $db->query("UPDATE dc_users SET " . implode(', ', $sets) . " WHERE user_id = ?", $vals);
+
+    // Record what changed by name. A role or password change is the difference
+    // between an ordinary edit and an access change worth reviewing.
+    $changed = [];
+    foreach (['full_name', 'email', 'role', 'store_id'] as $field) {
+        if (in_array($field . ' = ?', $sets, true)) {
+            $changed[] = $field;
+        }
+    }
+    if (in_array('password_hash = ?', $sets, true)) {
+        $changed[] = 'password';
+    }
+    dc_auditLog('user.updated', 'dc_users', (string) $id, null, [
+        'changed' => $changed,
+        'password_changed' => in_array('password_hash = ?', $sets, true),
+    ]);
 
     dcJsonResponse(['ok' => true]);
 }
@@ -1713,7 +2167,9 @@ function apiCreateSoftServeBase(array $params = []): void
     }
 
     $db->query("INSERT INTO dc_soft_serve_bases (name) VALUES (?)", [strtoupper($name)]);
-    dcJsonResponse(['ok' => true, 'base_id' => (int) $db->lastInsertId()]);
+    $newBaseId = (int) $db->lastInsertId();
+    dc_auditLog('softserve.base_saved', 'dc_soft_serve_bases', (string) $newBaseId, null, ['created' => true, 'name' => strtoupper($name)]);
+    dcJsonResponse(['ok' => true, 'base_id' => $newBaseId]);
 }
 
 /**
@@ -1757,6 +2213,18 @@ function apiUpdateSoftServeBase(array $params = []): void
 
     $vals[] = $id;
     $db->query("UPDATE dc_soft_serve_bases SET " . implode(', ', $sets) . " WHERE base_id = ?", $vals);
+
+    // Same action as the create, so one option reads as one story; the payload is
+    // what separates a rename from a new record.
+    dc_auditLog('softserve.base_saved', 'dc_soft_serve_bases', (string) $id, [
+        'name' => (string) $existing['name'],
+        'is_active' => (int) $existing['is_active'],
+    ], [
+        'name' => $name !== null ? strtoupper((string) $name) : (string) $existing['name'],
+        'is_active' => $isActive !== null ? ($isActive ? 1 : 0) : (int) $existing['is_active'],
+        'changes' => array_map(static fn(string $s): string => trim(explode('=', $s)[0]), $sets),
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 
@@ -1785,7 +2253,9 @@ function apiCreateSoftServeSauce(array $params = []): void
     }
 
     $db->query("INSERT INTO dc_soft_serve_sauces (name) VALUES (?)", [strtoupper($name)]);
-    dcJsonResponse(['ok' => true, 'sauce_id' => (int) $db->lastInsertId()]);
+    $newSauceId = (int) $db->lastInsertId();
+    dc_auditLog('softserve.sauce_saved', 'dc_soft_serve_sauces', (string) $newSauceId, null, ['created' => true, 'name' => strtoupper($name)]);
+    dcJsonResponse(['ok' => true, 'sauce_id' => $newSauceId]);
 }
 
 /**
@@ -1829,6 +2299,16 @@ function apiUpdateSoftServeSauce(array $params = []): void
 
     $vals[] = $id;
     $db->query("UPDATE dc_soft_serve_sauces SET " . implode(', ', $sets) . " WHERE sauce_id = ?", $vals);
+
+    dc_auditLog('softserve.sauce_saved', 'dc_soft_serve_sauces', (string) $id, [
+        'name' => (string) $existing['name'],
+        'is_active' => (int) $existing['is_active'],
+    ], [
+        'name' => $name !== null ? strtoupper((string) $name) : (string) $existing['name'],
+        'is_active' => $isActive !== null ? ($isActive ? 1 : 0) : (int) $existing['is_active'],
+        'changes' => array_map(static fn(string $s): string => trim(explode('=', $s)[0]), $sets),
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 
@@ -1857,7 +2337,9 @@ function apiCreateSoftServeTopping(array $params = []): void
     }
 
     $db->query("INSERT INTO dc_soft_serve_toppings (name) VALUES (?)", [strtoupper($name)]);
-    dcJsonResponse(['ok' => true, 'topping_id' => (int) $db->lastInsertId()]);
+    $newToppingId = (int) $db->lastInsertId();
+    dc_auditLog('softserve.topping_saved', 'dc_soft_serve_toppings', (string) $newToppingId, null, ['created' => true, 'name' => strtoupper($name)]);
+    dcJsonResponse(['ok' => true, 'topping_id' => $newToppingId]);
 }
 
 /**
@@ -1901,6 +2383,16 @@ function apiUpdateSoftServeTopping(array $params = []): void
 
     $vals[] = $id;
     $db->query("UPDATE dc_soft_serve_toppings SET " . implode(', ', $sets) . " WHERE topping_id = ?", $vals);
+
+    dc_auditLog('softserve.topping_saved', 'dc_soft_serve_toppings', (string) $id, [
+        'name' => (string) $existing['name'],
+        'is_active' => (int) $existing['is_active'],
+    ], [
+        'name' => $name !== null ? strtoupper((string) $name) : (string) $existing['name'],
+        'is_active' => $isActive !== null ? ($isActive ? 1 : 0) : (int) $existing['is_active'],
+        'changes' => array_map(static fn(string $s): string => trim(explode('=', $s)[0]), $sets),
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 
@@ -1941,7 +2433,9 @@ function apiCreateSoftServeAddon(array $params = []): void
         "INSERT INTO dc_soft_serve_addons (name, price, type) VALUES (?, ?, ?)",
         [strtoupper($name), $price, $type]
     );
-    dcJsonResponse(['ok' => true, 'addon_id' => (int) $db->lastInsertId()]);
+    $newAddonId = (int) $db->lastInsertId();
+    dc_auditLog('softserve.addon_saved', 'dc_soft_serve_addons', (string) $newAddonId, null, ['created' => true, 'name' => strtoupper($name), 'price' => $price]);
+    dcJsonResponse(['ok' => true, 'addon_id' => $newAddonId]);
 }
 
 /**
@@ -2003,6 +2497,18 @@ function apiUpdateSoftServeAddon(array $params = []): void
 
     $vals[] = $id;
     $db->query("UPDATE dc_soft_serve_addons SET " . implode(', ', $sets) . " WHERE addon_id = ?", $vals);
+
+    // The price is part of the payload: it is what the till charges for this addon.
+    dc_auditLog('softserve.addon_saved', 'dc_soft_serve_addons', (string) $id, [
+        'name' => (string) $existing['name'],
+        'price' => (float) $existing['price'],
+    ], [
+        'name' => $name !== null ? strtoupper((string) $name) : (string) $existing['name'],
+        'price' => $price !== null ? (float) $price : (float) $existing['price'],
+        'is_active' => $isActive !== null ? ($isActive ? 1 : 0) : (int) $existing['is_active'],
+        'changes' => array_map(static fn(string $s): string => trim(explode('=', $s)[0]), $sets),
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
 

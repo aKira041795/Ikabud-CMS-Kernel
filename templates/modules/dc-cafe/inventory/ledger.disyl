@@ -54,8 +54,8 @@
 
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <span class="font-semibold">Calculated Sales</span>
-        = Beginning + Production − Pullouts − Ending.
-        <span class="ml-1 text-xs text-amber-700">POS Sales comes from completed orders. Stock Variance compares Ending with current Branch Stock.</span>
+        = Beginning + Production + Additional − Pullouts − Ending.
+        <span class="ml-1 text-xs text-amber-700">Additional is stock received or corrected during this shift (deliveries and manual adjustments), read from the movement journal. Pullouts include doughnuts taken for box orders, shown in blue under the Pullouts cell. POS Sales counts completed orders only, so a voided sale drops out. Stock Variance compares Ending with current Branch Stock.</span>
     </div>
 
     <div x-show="!sessionId && !loading" class="rounded-xl border bg-white py-12 text-center text-gray-400">
@@ -93,6 +93,7 @@
                                 <th class="px-4 py-3 text-left">Product</th>
                                 <th class="px-3 py-3 text-right">Beginning</th>
                                 <th class="px-3 py-3 text-right">Production</th>
+                                <th class="px-3 py-3 text-right">Additional</th>
                                 <th class="px-3 py-3 text-right">Pullouts</th>
                                 <th class="px-3 py-3 text-right">Ending</th>
                                 <th class="px-3 py-3 text-right">Calculated Sales</th>
@@ -118,10 +119,20 @@
                                                :disabled="!editable" @input="queueSave(row)"
                                                class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
                                     </td>
+                                    {* Read-only: derived from the movement journal so it cannot
+                                       drift from what was actually received or corrected. *}
+                                    <td class="px-3 py-2 text-right">
+                                        <span class="font-medium"
+                                              :class="additional(row) > 0 ? 'text-emerald-700' : 'text-gray-400'"
+                                              x-text="additional(row) !== 0 ? formatSigned(additional(row)) : '—'"></span>
+                                    </td>
                                     <td class="px-3 py-2">
                                         <input type="number" min="0" step="any" x-model.number="row.pullout_qty"
                                                :disabled="!editable" @input="queueSave(row)"
                                                class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
+                                        <div x-show="boxPullout(row) > 0"
+                                             class="mt-1 text-[11px] text-sky-600"
+                                             x-text="'+' + formatQty(boxPullout(row)) + ' from boxes'"></div>
                                     </td>
                                     <td class="px-3 py-2">
                                         <input type="number" min="0" step="any" x-model="row.ending_input"
@@ -134,7 +145,14 @@
                                     <td class="px-3 py-2 text-right font-semibold"
                                         :class="row.negative_calculated ? 'text-red-700' : 'text-gray-800'"
                                         x-text="displayDerived(row.calculated_sales_qty)"></td>
-                                    <td class="px-3 py-2 text-right font-medium" x-text="formatQty(row.pos_sales_qty)"></td>
+                                    <td class="px-3 py-2 text-right font-medium">
+                                        <span x-text="formatQty(row.pos_sales_qty)"></span>
+                                        {* Reversed sales are excluded from the figure above, so say
+                                           so here instead of letting the number silently shrink. *}
+                                        <div x-show="voidedSales(row) > 0"
+                                             class="text-[11px] text-red-600"
+                                             x-text="'−' + formatQty(voidedSales(row)) + ' voided'"></div>
+                                    </td>
                                     <td class="px-3 py-2 text-right font-semibold"
                                         :class="row.sales_variance_class"
                                         x-text="displayDerived(row.sales_variance_qty)"></td>
@@ -227,10 +245,27 @@ function inventoryLedger() {
             const parsed = new Date(String(value).replace(' ', 'T'));
             return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
         },
+        boxPullout(row) {
+            return parseFloat(row.box_pullout_qty) || 0;
+        },
+        // Stock received or corrected during the shift, read from the movement
+        // journal. Read-only: it is not a manual worksheet cell.
+        additional(row) {
+            return parseFloat(row.additional_qty) || 0;
+        },
+        voidedSales(row) {
+            return parseFloat(row.voided_sales_qty) || 0;
+        },
+        formatSigned(value) {
+            const qty = Number(value) || 0;
+            return (qty > 0 ? '+' : '') + this.formatQty(qty);
+        },
         syncDerived(row) {
             const beginning = parseFloat(row.beginning_qty) || 0;
             const production = parseFloat(row.production_qty) || 0;
+            const additional = this.additional(row);
             const pullout = parseFloat(row.pullout_qty) || 0;
+            const boxPullout = this.boxPullout(row);
             const posSales = parseFloat(row.pos_sales_qty) || 0;
             const branchStock = parseFloat(row.branch_stock_qty) || 0;
             const ending = row.ending_input !== '' && row.ending_input !== null
@@ -253,7 +288,7 @@ function inventoryLedger() {
             }
 
             row.ending_recorded = true;
-            row.calculated_sales_qty = beginning + production - pullout - ending;
+            row.calculated_sales_qty = beginning + production + additional - pullout - boxPullout - ending;
             row.sales_variance_qty = row.calculated_sales_qty - posSales;
             row.stock_variance_qty = ending - branchStock;
             row.negative_calculated = row.calculated_sales_qty < 0;
@@ -323,6 +358,11 @@ function inventoryLedger() {
                         beginning_qty: beginning,
                         production_qty: production,
                         pullout_qty: pullout,
+                        box_pullout_qty: parseFloat(item.box_pullout_qty) || 0,
+                        additional_qty: parseFloat(item.additional_qty) || 0,
+                        // Sales that were reversed this shift, shown so the sales
+                        // figure is transparent rather than silently smaller.
+                        voided_sales_qty: parseFloat(item.voided_sales_qty) || 0,
                         ending_input: endingRecorded && endingQty !== null ? String(endingQty) : '',
                         ending_qty: endingQty,
                         ending_recorded: endingRecorded,

@@ -48,12 +48,25 @@ return [
         ],
     ],
 
+    // Audit trail.
+    'audit' => [
+        // Modules whose state-mutating requests get a generic audit row when the
+        // handler recorded nothing specific (see Kernel\Audit\MutationAuditFallback).
+        //
+        // Deliberately an explicit list, not "all modules": the fallback writes a
+        // row on every unaudited mutation, so a module is opted in once its own
+        // audit coverage has been reviewed. Add a module id here to extend it.
+        'mutation_fallback_modules' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) ($_ENV['AUDIT_MUTATION_FALLBACK_MODULES'] ?? 'dc-cafe'))
+        ))),
+    ],
+
     'modules' => [
         // Backward compatible default: eagerly load each enabled module's helpers.php
         // during route loading. Set APP_EAGER_MODULE_HELPERS=0 to experiment with
         // lazy helper loading patterns.
-        'eager_helpers' => (bool) ($_ENV['APP_EAGER_MODULE_HELPERS'] ?? true),
-        // warn  => log route ambiguities and continue registering
+        'eager_helpers' => (bool) ($_ENV['APP_EAGER_MODULE_HELPERS'] ?? true),        // warn  => log route ambiguities and continue registering
         // block => reject ambiguous dynamic/static route registrations
         'route_ambiguity_mode' => (string) ($_ENV['APP_ROUTE_AMBIGUITY_MODE'] ?? 'warn'),
     ],

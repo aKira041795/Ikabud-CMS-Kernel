@@ -1,0 +1,133 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div class="max-w-6xl mx-auto space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Audit</h1>
+            <p class="text-sm text-gray-500">
+                Every logged activity across the app, newest first, with who did it.
+                {if total} <span class="text-gray-400">· {total} entr{if total == 1}y{else}ies{/if} recorded</span>{/if}
+            </p>
+        </div>
+        {* The sales list is still where a sale is opened and voided; the trail
+           records that it happened, this is where you act on it. *}
+        <a href="/dc-cafe/orders"
+           class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700 whitespace-nowrap">
+            Sales list
+        </a>
+    </div>
+
+    {* Filters *}
+    <form method="get" action="/dc-cafe/audit"
+          class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex flex-wrap items-end gap-2">
+        <div class="flex-1 min-w-[180px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1" for="audit-q">Search</label>
+            <input id="audit-q" type="text" name="q" value="{filters.q}"
+                   placeholder="Action, order, or person"
+                   class="w-full border rounded px-3 py-1.5 text-sm">
+        </div>
+        <div class="min-w-[150px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1" for="audit-module">Module</label>
+            <select id="audit-module" name="module" class="w-full border rounded px-3 py-1.5 text-sm bg-white">
+                <option value="">All modules</option>
+                {for option in module_options}
+                <option value="{option}" {if filters.module == option}selected{/if}>{option}</option>
+                {/for}
+            </select>
+        </div>
+        <div class="min-w-[190px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1" for="audit-action">Activity</label>
+            <select id="audit-action" name="action" class="w-full border rounded px-3 py-1.5 text-sm bg-white">
+                <option value="">All activity</option>
+                {for option in action_options}
+                <option value="{option.value}" {if filters.action == option.value}selected{/if}>{option.label}</option>
+                {/for}
+            </select>
+        </div>
+        <button type="submit"
+                class="bg-gray-800 text-white px-4 py-1.5 rounded text-sm font-semibold hover:bg-gray-900">Filter</button>
+        {if filters.action || filters.q || filters.entity_type || filters.module}
+        <a href="/dc-cafe/audit" class="text-sm text-gray-500 hover:text-gray-700 px-2 py-1.5">Clear</a>
+        {/if}
+    </form>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                        <th class="px-4 py-3 text-left">When</th>
+                        <th class="px-4 py-3 text-left">Module</th>
+                        <th class="px-4 py-3 text-left">Actor</th>
+                        <th class="px-4 py-3 text-left">Activity</th>
+                        <th class="px-4 py-3 text-left">Record</th>
+                        <th class="px-4 py-3 text-left">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for entry in entries}
+                    <tr class="border-t border-gray-100 align-top">
+                        <td class="px-4 py-2 whitespace-nowrap text-gray-500 text-xs">{entry.at}</td>
+                        <td class="px-4 py-2 whitespace-nowrap">
+                            <span class="text-xs font-medium text-gray-700">{entry.module}</span>
+                        </td>
+                        <td class="px-4 py-2 whitespace-nowrap">
+                            <div class="font-medium text-gray-800">{entry.actor_label}</div>
+                            {if entry.actor_detail || entry.actor_role}
+                            <div class="text-[11px] text-gray-400">
+                                {entry.actor_detail}{if entry.actor_detail && entry.actor_role} · {/if}{entry.actor_role}
+                            </div>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-2">
+                            <div class="flex items-center gap-2">
+                                <span class="h-2 w-2 shrink-0 rounded-full
+                                    {if entry.tone == 'ok'}bg-green-500{/if}
+                                    {if entry.tone == 'warn'}bg-amber-500{/if}
+                                    {if entry.tone == 'danger'}bg-red-500{/if}
+                                    {if entry.tone == 'neutral'}bg-gray-300{/if}"></span>
+                                <span class="font-medium text-gray-800">{entry.label}</span>
+                            </div>
+                            <div class="text-[11px] text-gray-400 mt-0.5">{entry.action}</div>
+                        </td>
+                        <td class="px-4 py-2 whitespace-nowrap">
+                            {if entry.entity_type == 'dc_orders' && entry.entity_id}
+                            <a href="/dc-cafe/orders/{entry.entity_id}" class="text-amber-700 hover:underline">
+                                Order #{entry.entity_id}
+                            </a>
+                            {else}
+                            <span class="text-gray-500">{entry.entity_type}{if entry.entity_id} #{entry.entity_id}{/if}</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-2 text-gray-600">{entry.detail}</td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+
+        {if !entries}
+        <div class="py-12 text-center text-gray-400 text-sm">
+            No activity matches these filters.
+        </div>
+        {/if}
+    </div>
+
+    {if pages > 1}
+    <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-500">Page {page} of {pages}</span>
+        <div class="flex gap-2">
+            {if page > 1}
+            <a href="/dc-cafe/audit?page={page - 1}&action={filters.action}&module={filters.module}&q={filters.q}"
+               class="px-3 py-1.5 rounded border border-gray-200 text-gray-700 hover:bg-gray-50">Previous</a>
+            {/if}
+            {if page < pages}
+            <a href="/dc-cafe/audit?page={page + 1}&action={filters.action}&module={filters.module}&q={filters.q}"
+               class="px-3 py-1.5 rounded border border-gray-200 text-gray-700 hover:bg-gray-50">Next</a>
+            {/if}
+        </div>
+    </div>
+    {/if}
+</div>
+{/block}

@@ -10,6 +10,7 @@
             <span class="px-3 py-1 rounded-full text-xs font-semibold
                 {if order.status == 'completed'}bg-green-100 text-green-700{/if}
                 {if order.status == 'voided'}bg-red-100 text-red-700{/if}
+                {if order.status == 'pending'}bg-amber-100 text-amber-800{/if}
                 {if order.status == 'draft'}bg-gray-100 text-gray-700{/if}">
                 {order.status|capitalize}
             </span>
@@ -42,6 +43,75 @@
         <div class="border-t pt-4 text-right">
             <div class="text-xl font-bold">Total: ₱{order.total|number_format:2}</div>
         </div>
+
+        {* Voiding returns the stock and removes the sale, so it needs a
+           supervisor's approval. Only a completed sale can be voided, and only
+           when the branch has voiding enabled. *}
+        {if order.status == 'completed' && void_enabled}
+        {* x-data is required for Alpine to process x-on:click at all — the
+           button is a plain callback, but it still needs a component scope. *}
+        <div x-data>
+            <div class="border-t mt-4 pt-4 flex items-center justify-between gap-3">
+                <p class="text-xs text-gray-500">
+                    Voiding reverses the stock movements for this sale.
+                </p>
+                <button type="button"
+                        x-on:click="dcAskVoid({order.id})"
+                        class="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 whitespace-nowrap">
+                    Void this sale
+                </button>
+            </div>
+        </div>
+        {/if}
+
+        {if order.status == 'voided'}
+        <div class="border-t mt-4 pt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+            This sale has been voided. Its stock movements were reversed.
+        </div>
+        {/if}
+    </div>
+
+    {* Everything recorded against this sale. The order is the unit of record,
+       so its history lives with it rather than only in a separate log screen. *}
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <h2 class="font-semibold text-gray-800">Activity</h2>
+        <p class="text-xs text-gray-500">Recorded history for this sale. Nothing here can be edited — it is the audit trail.</p>
+
+        {if activity && count(activity) > 0}
+        <ol class="mt-4 space-y-3">
+            {for entry in activity}
+            <li class="flex gap-3">
+                <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full
+                    {if entry.tone == 'ok'}bg-green-500{/if}
+                    {if entry.tone == 'warn'}bg-amber-500{/if}
+                    {if entry.tone == 'danger'}bg-red-500{/if}
+                    {if entry.tone == 'neutral'}bg-gray-300{/if}"></span>
+                <div class="min-w-0">
+                    <div class="text-sm font-medium text-gray-800">
+                        {entry.label}
+                        <span class="ml-2 text-xs font-normal text-gray-400">{entry.at}</span>
+                    </div>
+                    {if entry.detail}
+                    <div class="text-xs text-gray-500">{entry.detail}</div>
+                    {/if}
+                </div>
+            </li>
+            {/for}
+        </ol>
+        {else}
+        <p class="mt-3 text-sm text-gray-400">
+            No recorded history for this sale. Older orders predate activity logging.
+        </p>
+        {/if}
     </div>
 </div>
+
+{include "modules/dc-cafe/partials/void-approval.disyl"}
+
+<script>
+// The detail page has nothing to refresh — reloading shows the voided state.
+dcOnVoidDone(function () {
+    location.reload();
+});
+</script>
 {/block}

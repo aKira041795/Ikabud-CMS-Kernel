@@ -95,8 +95,23 @@
 
     {* Products tab *}
     <div x-show="tab === 'products'" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div x-show="prodItems.length"
+             class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100">
+            <span class="text-xs text-gray-400 mr-auto">View</span>
+            <div class="flex rounded-lg border border-gray-300 overflow-hidden"
+                 role="group" aria-label="Product view">
+                <button type="button" @click="setProdView('table')" title="Table view"
+                        aria-label="Table view" :aria-pressed="prodView === 'table'"
+                        class="px-3 py-1.5 text-sm"
+                        :class="prodView === 'table' ? 'bg-amber-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'">☰</button>
+                <button type="button" @click="setProdView('cards')" title="Card view"
+                        aria-label="Card view" :aria-pressed="prodView === 'cards'"
+                        class="px-3 py-1.5 text-sm border-l border-gray-300"
+                        :class="prodView === 'cards' ? 'bg-amber-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'">▦</button>
+            </div>
+        </div>
         <div x-show="!prodItems.length" class="text-center py-8 text-gray-500">Loading...</div>
-        <div x-show="prodItems.length" class="overflow-x-auto">
+        <div x-show="prodItems.length && prodView === 'table'" class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide border-b">
@@ -156,6 +171,61 @@
                 </tbody>
             </table>
         </div>
+
+        {* Cards — easier to scan on a narrow counter screen *}
+        <div x-show="prodItems.length && prodView === 'cards'"
+             class="p-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <template x-for="item in prodItems" :key="'pc-' + item.product_id">
+                <div class="rounded-xl border p-3"
+                     :class="item.is_low ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-white'">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <div class="font-semibold text-gray-800 truncate" x-text="item.name"></div>
+                            <div class="text-[11px] text-gray-500 truncate" x-text="item.category_name"></div>
+                        </div>
+                        <span x-show="item.is_low"
+                              class="shrink-0 bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded">LOW</span>
+                        <span x-show="!item.is_low"
+                              class="shrink-0 bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">OK</span>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between text-sm">
+                        <span class="text-xs text-gray-500">Price</span>
+                        <span class="font-semibold text-gray-800">₱<span x-text="parseFloat(item.base_price).toFixed(2)"></span></span>
+                    </div>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                        <label class="block">
+                            <span class="block text-[11px] text-gray-500 mb-0.5">Stock</span>
+                            {if user.role == 'admin' || user.role == 'supervisor'}
+                            <input type="number" step="any" min="0"
+                                   x-model="item.current_stock"
+                                   @input.debounce.800="saveProdStock(item)"
+                                   class="w-full text-right px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                                   :class="{'border-red-300 bg-red-50': item.is_low}">
+                            {else}
+                            <span class="block text-right font-semibold"
+                                  :class="item.is_low ? 'text-red-600' : 'text-gray-800'"
+                                  x-text="parseFloat(item.current_stock).toFixed(0)"></span>
+                            {/if}
+                        </label>
+                        <label class="block">
+                            <span class="block text-[11px] text-gray-500 mb-0.5">Reorder at</span>
+                            {if user.role == 'admin' || user.role == 'supervisor'}
+                            <input type="number" step="any" min="0"
+                                   x-model="item.reorder_level"
+                                   @input.debounce.800="saveProdReorder(item)"
+                                   class="w-full text-right px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                            {else}
+                            <span class="block text-right text-gray-700" x-text="parseFloat(item.reorder_level).toFixed(0)"></span>
+                            {/if}
+                        </label>
+                    </div>
+                    <div class="mt-1 text-right text-[11px] text-gray-400">
+                        <span x-show="item.saving || item.savingReorder">saving…</span>
+                        <span x-show="item.saved || item.savedReorder" class="text-green-600">saved ✓</span>
+                    </div>
+                </div>
+            </template>
+        </div>
     </div>
 </div>
 
@@ -163,9 +233,27 @@
 function inventoryApp() {
     return {
         tab: 'ingredients',
+        // The table stays the default here: inline stock editing is the job.
+        prodView: 'table',
         items: [],
         prodItems: [],
+        setProdView(next) {
+            this.prodView = next === 'cards' ? 'cards' : 'table';
+            try {
+                localStorage.setItem('dcInvProdView', this.prodView);
+            } catch (e) {
+                // Private mode — view simply is not remembered.
+            }
+        },
         init() {
+            try {
+                const savedProdView = localStorage.getItem('dcInvProdView');
+                if (savedProdView === 'cards' || savedProdView === 'table') {
+                    this.prodView = savedProdView;
+                }
+            } catch (e) {
+                // Ignore storage errors and keep the default table view.
+            }
             fetch('/dc-cafe/api/v1/inventory')
                 .then(r => r.json()).then(d => {
                     if (d.ok) this.items = d.inventory;

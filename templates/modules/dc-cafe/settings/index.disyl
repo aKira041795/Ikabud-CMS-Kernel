@@ -21,6 +21,8 @@
         <button @click="setTab('toppings')" :class="tab === 'toppings' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Toppings</button>
         <button @click="setTab('addons')" :class="tab === 'addons' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Addons</button>
         <button @click="setTab('ledger')" :class="tab === 'ledger' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Ledger Groups</button>
+        <button @click="setTab('discounts')" :class="tab === 'discounts' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Discount Types</button>
+        <button @click="setTab('preferences')" :class="tab === 'preferences' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Preferences</button>
     </div>
 
     {* ── Payment Methods Tab ── *}
@@ -283,13 +285,34 @@
                         <span x-show="u.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
                         <span x-show="!u.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
                     </td>
+                    {* Only an administrator or supervisor can approve a void, so a
+                       PIN on any other role would be a secret that opens nothing. *}
+                    <td class="p-2">
+                        <template x-if="u.role === 'admin' || u.role === 'supervisor'">
+                            <div>
+                                <button type="button" @click="startVoidPin(u)"
+                                        class="text-xs px-2 py-0.5 rounded border"
+                                        :class="Number(u.has_void_pin) ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500 hover:text-gray-700'"
+                                        x-text="Number(u.has_void_pin) ? 'PIN set' : 'Set PIN'"></button>
+                                <div x-show="voidPinFor === u.user_id" class="mt-1 flex items-center gap-1">
+                                    <input type="password" inputmode="numeric" autocomplete="new-password"
+                                           x-model="voidPinValue" maxlength="12" placeholder="4-12 digits"
+                                           class="w-24 border rounded px-2 py-0.5 text-xs">
+                                    <button type="button" @click="saveVoidPin(u)" :disabled="voidPinBusy"
+                                            class="text-xs bg-amber-600 text-white px-2 py-0.5 rounded disabled:opacity-50">Save</button>
+                                    <button type="button" @click="voidPinFor = null; voidPinValue = ''"
+                                            class="text-xs text-gray-500 hover:text-gray-700">✕</button>
+                                </div>
+                            </div>
+                        </template>
+                        <span x-show="u.role !== 'admin' && u.role !== 'supervisor'" class="text-xs text-gray-300">n/a</span>
+                    </td>
                     <td class="p-2 space-x-1">
                         <button @click="editUser(u)" class="text-blue-600 hover:text-blue-800 text-xs">Edit</button>
                         <button @click="toggleUserActive(u.user_id)" class="text-gray-600 hover:text-gray-800 text-xs" :disabled="u.user_id == currentUserId">
                             <span x-text="u.is_active ? 'Deactivate' : 'Activate'"></span>
                         </button>
-                    </td>
-                </tr>
+                    </td>                </tr>
                 </template>
             </tbody>
         </table>
@@ -657,6 +680,145 @@
             </div>
         </div>
     </div>
+
+    {* Discount Types tab — the rates offered at the till. *}
+    <div x-show="tab === 'discounts'" class="bg-white rounded-lg border p-6">
+        <h2 class="font-semibold text-gray-800">Discount Types</h2>
+        <p class="text-sm text-gray-500">Statutory and partner-card discounts belong here — Senior Citizen, PWD, PAG-IBIG — not in the payment methods list. The rate pre-fills at the till and stays editable for the current sale.</p>
+
+        <div x-show="!canEditPrefs"
+             class="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            Only an administrator can change these. You can review them here.
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-xs uppercase text-gray-500 border-b">
+                        <th class="py-2 pr-3">Name</th>
+                        <th class="py-2 pr-3 w-28">Rate&nbsp;%</th>
+                        <th class="py-2 pr-3 w-20">Active</th>
+                        <th class="py-2 w-20"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="dt in discountTypes" :key="dt.discount_type_id">
+                        <tr class="border-b last:border-0">
+                            <td class="py-2 pr-3">
+                                <input type="text" x-model="dt.name" maxlength="100" :disabled="!canEditPrefs"
+                                       class="w-full border rounded px-2 py-1 text-sm disabled:bg-gray-100">
+                            </td>
+                            <td class="py-2 pr-3">
+                                <input type="number" step="0.01" min="0" max="100" x-model="dt.default_pct"
+                                       :disabled="!canEditPrefs"
+                                       class="w-full border rounded px-2 py-1 text-sm disabled:bg-gray-100">
+                            </td>
+                            <td class="py-2 pr-3">
+                                <input type="checkbox" x-model="dt.is_active" :disabled="!canEditPrefs" class="h-4 w-4">
+                            </td>
+                            <td class="py-2 text-right">
+                                <button @click="saveDiscountType(dt)" :disabled="!canEditPrefs || dt.saving"
+                                        class="text-amber-700 hover:text-amber-900 text-xs font-semibold disabled:opacity-50"
+                                        x-text="dt.saving ? 'Saving…' : 'Save'"></button>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="discountTypes.length === 0">
+                        <td colspan="4" class="py-4 text-center text-gray-400 text-sm">No discount types configured.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-5 pt-4 border-t">
+            <h3 class="text-sm font-semibold text-gray-700">Add a discount type</h3>
+            <div class="mt-2 flex items-end gap-2">
+                <div class="flex-1">
+                    <label class="block text-xs text-gray-500 mb-1">Name</label>
+                    <input type="text" x-model="newDiscount.name" maxlength="100" :disabled="!canEditPrefs"
+                           placeholder="e.g. PAG-IBIG"
+                           class="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100">
+                </div>
+                <div class="w-28">
+                    <label class="block text-xs text-gray-500 mb-1">Rate&nbsp;%</label>
+                    <input type="number" step="0.01" min="0" max="100" x-model="newDiscount.default_pct"
+                           :disabled="!canEditPrefs"
+                           class="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100">
+                </div>
+                <button @click="createDiscountType()" :disabled="!canEditPrefs || newDiscount.saving"
+                        class="bg-amber-600 text-white px-4 py-1.5 rounded text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                        x-text="newDiscount.saving ? 'Adding…' : 'Add'"></button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">The internal code is derived from the name. Set the rate your branch actually offers — partner rates vary by establishment.</p>
+        </div>
+
+        <div x-show="dtMessage" class="mt-4 text-sm"
+             :class="dtError ? 'text-red-600' : 'text-green-600'" x-text="dtMessage"></div>
+    </div>
+
+    {* Preferences tab — rendered from module.json settings_fields, so a new
+       setting appears here without editing this template. *}
+    <div x-show="tab === 'preferences'" class="bg-white rounded-lg border p-6">
+        <h2 class="font-semibold text-gray-800">Preferences</h2>
+        <p class="text-sm text-gray-500">Operational switches for this branch. Changes apply immediately.</p>
+
+        <div x-show="!canEditPrefs"
+             class="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            Only an administrator can change these. You can review them here.
+        </div>
+
+        <div class="mt-4 divide-y divide-gray-100">
+            <template x-for="field in prefFields" :key="field.key">
+                <div class="py-3 flex items-start gap-4">
+                    <div class="flex-1 min-w-0">
+                        <label class="block text-sm font-medium text-gray-800" x-text="field.label"></label>
+                        <p x-show="field.description" class="text-xs text-gray-500 mt-0.5" x-text="field.description"></p>
+                    </div>
+                    <div class="w-56 shrink-0 text-right">
+                        <template x-if="field.type === 'checkbox'">
+                            <button type="button" @click="togglePref(field)" :disabled="!canEditPrefs"
+                                    :aria-pressed="isChecked(prefValues[field.key])"
+                                    class="inline-flex items-center gap-2 text-sm disabled:opacity-60">
+                                <span class="w-10 h-5 rounded-full inline-block relative transition"
+                                      :class="isChecked(prefValues[field.key]) ? 'bg-amber-600' : 'bg-gray-300'">
+                                    <span class="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all"
+                                          :class="isChecked(prefValues[field.key]) ? 'left-5' : 'left-0.5'"></span>
+                                </span>
+                                <span class="text-xs text-gray-600"
+                                      x-text="isChecked(prefValues[field.key]) ? 'On' : 'Off'"></span>
+                            </button>
+                        </template>
+
+                        <template x-if="field.type === 'select'">
+                            <select x-model="prefValues[field.key]" :disabled="!canEditPrefs"
+                                    class="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100">
+                                <template x-for="opt in (field.options || [])" :key="opt.value">
+                                    <option :value="opt.value" x-text="opt.label"></option>
+                                </template>
+                            </select>
+                        </template>
+
+                        <template x-if="field.type !== 'checkbox' && field.type !== 'select'">
+                            <input :type="field.type === 'number' ? 'number' : 'text'"
+                                   x-model="prefValues[field.key]" :disabled="!canEditPrefs"
+                                   :placeholder="field.placeholder || ''"
+                                   :min="field.type === 'number' ? (field.min || 0) : null"
+                                   :max="field.type === 'number' ? (field.max || '') : null"
+                                   class="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100">
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div class="mt-5 flex items-center gap-3">
+            <button @click="savePreferences()" :disabled="!canEditPrefs || prefSaving"
+                    class="bg-amber-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                    x-text="prefSaving ? 'Saving…' : 'Save Preferences'"></button>
+            <span x-show="prefMessage" class="text-sm"
+                  :class="prefError ? 'text-red-600' : 'text-green-600'" x-text="prefMessage"></span>
+        </div>
+    </div>
 </div>
 
 <script id="dc-settings-data" type="application/json">{settings_data_json|raw}</script>
@@ -736,7 +898,7 @@ function settingsApp(initialData) {
     });
 
     // Restore last-active tab from URL hash; validate against whitelist
-    const validTabs = ['payment', 'stores', 'users', 'bases', 'sauces', 'toppings', 'addons', 'ledger'];
+    const validTabs = ['payment', 'stores', 'users', 'bases', 'sauces', 'toppings', 'addons', 'ledger', 'preferences'];
     const hashTab = location.hash.replace('#', '');
     const initialTab = validTabs.includes(hashTab) ? hashTab : 'payment';
     // Normalize hash if it was invalid or empty
@@ -773,6 +935,33 @@ function settingsApp(initialData) {
         ledgerGroups: initialLedgerGroups,
         categories: initialCategories,
         currentUserId: initialData.currentUserId || 0,
+        currentUserRole: initialData.currentUserRole || '',
+
+        // Preferences: rendered from the module.json field declarations so a
+        // new setting appears here without touching this template.
+        prefFields: initialData.settingsFields || [],
+        prefValues: Object.assign({}, initialData.settingsValues || {}),
+        prefSaving: false,
+        prefMessage: '',
+        prefError: false,
+        // Discount types: the rates offered at the till. Statutory and
+        // partner-card discounts live here rather than in the settings fields,
+        // because the list is a collection rather than a scalar.
+        discountTypes: (initialData.discountTypes || []).map(r => ({
+            discount_type_id: Number(r.discount_type_id),
+            code: r.code,
+            name: r.name,
+            default_pct: parseFloat(r.default_pct) || 0,
+            is_active: !!r.is_active,
+            saving: false,
+        })),
+        newDiscount: { name: '', default_pct: 0, saving: false },
+        dtMessage: '',
+        dtError: false,
+        // Void approval PIN editing (admin only, approver roles only).
+        voidPinFor: null,
+        voidPinValue: '',
+        voidPinBusy: false,
 
         // Ledger group state
         showAddLedgerGroup: false,
@@ -804,16 +993,163 @@ function settingsApp(initialData) {
         toast: { show: false, message: '', type: 'success' },
 
         setTab(name) {
-            const v = ['payment', 'stores', 'users', 'bases', 'sauces', 'toppings', 'addons', 'ledger'];
+            const v = ['payment', 'stores', 'users', 'bases', 'sauces', 'toppings', 'addons', 'ledger', 'discounts', 'preferences'];
             if (!v.includes(name)) name = 'payment';
             this.tab = name;
             location.hash = name;
+        },
+
+        // ── Preferences (declared in module.json settings_fields) ──
+        get canEditPrefs() {
+            return this.currentUserRole === 'admin';
+        },
+
+        isChecked(value) {
+            return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+        },
+
+        togglePref(field) {
+            this.prefValues[field.key] = this.isChecked(this.prefValues[field.key]) ? '0' : '1';
+        },
+
+        savePreferences() {
+            if (!this.canEditPrefs) return;
+            this.prefSaving = true;
+            this.prefMessage = '';
+            fetch('/dc-cafe/api/v1/settings/preferences', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({settings: this.prefValues}),
+            })
+            .then(r => r.json())
+            .then(d => {
+                this.prefSaving = false;
+                if (d.ok) {
+                    this.prefValues = Object.assign({}, d.settings || {});
+                    this.prefMessage = 'Preferences saved.';
+                    this.prefError = false;
+                } else {
+                    this.prefMessage = d.error || 'Could not save preferences.';
+                    this.prefError = true;
+                }
+            })
+            .catch(() => {
+                this.prefSaving = false;
+                this.prefMessage = 'Could not save preferences.';
+                this.prefError = true;
+            });
         },
 
         showToast(message, type) {
             this.toast = { show: true, message, type };
             clearTimeout(this._toastTimer);
             this._toastTimer = setTimeout(() => { this.toast.show = false; }, 3000);
+        },
+
+        // ── Void approval PIN ─────────────────────────────────────────
+        // A supervisor approves a void with their own PIN, so the audit records
+        // who approved rather than just that a password was used.
+        startVoidPin(u) {
+            this.voidPinFor = u.user_id;
+            this.voidPinValue = '';
+            this.dtMessage = '';
+        },
+
+        saveVoidPin(u) {
+            const pin = (this.voidPinValue || '').trim();
+            this.voidPinBusy = true;
+            this.api('/dc-cafe/api/v1/users/' + u.user_id + '/void-pin', 'POST', {pin: pin})
+                .then(d => {
+                    this.voidPinBusy = false;
+                    if (d.ok) {
+                        u.has_void_pin = d.has_void_pin ? 1 : 0;
+                        this.voidPinFor = null;
+                        this.voidPinValue = '';
+                        this.showToast(d.message || 'Void PIN saved', 'success');
+                    } else {
+                        this.showToast(d.error || 'Could not save the void PIN', 'error');
+                    }
+                })
+                .catch(() => {
+                    this.voidPinBusy = false;
+                    this.showToast('Could not reach the server', 'error');
+                });
+        },
+
+        // ── Discount types ────────────────────────────────────────────
+        // Coerce API rows into the shape the table binds to: a numeric rate and
+        // a real boolean for the active toggle.
+        normaliseDiscounts(rows) {
+            return (rows || []).map(r => ({
+                discount_type_id: Number(r.discount_type_id),
+                code: r.code,
+                name: r.name,
+                default_pct: parseFloat(r.default_pct) || 0,
+                is_active: !!r.is_active,
+                saving: false,
+            }));
+        },
+
+        saveDiscountType(dt) {
+            dt.saving = true;
+            this.dtMessage = '';
+            this.api('/dc-cafe/api/v1/discount-types/save', 'POST', {
+                discount_type_id: dt.discount_type_id,
+                code: dt.code,
+                name: dt.name,
+                default_pct: dt.default_pct,
+                is_active: dt.is_active ? 1 : 0,
+            })
+            .then(d => {
+                dt.saving = false;
+                if (d.ok) {
+                    this.dtError = false;
+                    this.dtMessage = '"' + dt.name + '" saved.';
+                    this.showToast('Discount type saved', 'success');
+                } else {
+                    this.dtError = true;
+                    this.dtMessage = d.error || 'Could not save the discount type.';
+                }
+            })
+            .catch(() => {
+                dt.saving = false;
+                this.dtError = true;
+                this.dtMessage = 'Could not reach the server.';
+            });
+        },
+
+        createDiscountType() {
+            if (!this.newDiscount.name.trim()) {
+                this.dtError = true;
+                this.dtMessage = 'Enter a name for the new discount type.';
+                return;
+            }
+            this.newDiscount.saving = true;
+            this.dtMessage = '';
+            this.api('/dc-cafe/api/v1/discount-types/save', 'POST', {
+                name: this.newDiscount.name,
+                default_pct: this.newDiscount.default_pct,
+                is_active: 1,
+            })
+            .then(d => {
+                this.newDiscount.saving = false;
+                if (d.ok) {
+                    this.dtError = false;
+                    this.dtMessage = '"' + this.newDiscount.name + '" added.';
+                    this.newDiscount = { name: '', default_pct: 0, saving: false };
+                    const created = this.normaliseDiscounts([d.discount_type]);
+                    this.discountTypes = this.discountTypes.concat(created);
+                    this.showToast('Discount type added', 'success');
+                } else {
+                    this.dtError = true;
+                    this.dtMessage = d.error || 'Could not add the discount type.';
+                }
+            })
+            .catch(() => {
+                this.newDiscount.saving = false;
+                this.dtError = true;
+                this.dtMessage = 'Could not reach the server.';
+            });
         },
 
         // Fetch fresh data for current tab without page reload
@@ -827,8 +1163,10 @@ function settingsApp(initialData) {
                 stores: this.api('/dc-cafe/api/v1/stores', 'GET'),
                 users: this.api('/dc-cafe/api/v1/users', 'GET'),
                 ledger: this.api('/dc-cafe/api/v1/settings/ledger-groups', 'GET'),
+                discounts: this.api('/dc-cafe/api/v1/discount-types', 'GET'),
             };
             Promise.all(Object.values(fetches)).then(() => {
+                fetches.discounts.then(d => { if (d.ok) this.discountTypes = this.normaliseDiscounts(d.discount_types); });
                 fetches.payment.then(d => { if (d.ok) this.paymentMethods = d.payment_methods; });
                 fetches.bases.then(d => { if (d.ok) this.bases = d.bases; });
                 fetches.sauces.then(d => { if (d.ok) this.sauces = d.sauces; });
