@@ -621,3 +621,32 @@ function dcAnalyticsRoles(): array
         ? ['admin', 'supervisor', 'auditor', 'viewer']
         : ['admin', 'supervisor', 'auditor'];
 }
+
+/**
+ * Where a signed-in user of this role belongs.
+ *
+ * One decision in one place. This ternary used to be written out three times, and
+ * that is exactly how a role ends up being sent somewhere it is refused.
+ */
+function dcLandingForRole(string $role): string
+{
+    return in_array($role, ['admin', 'supervisor', 'cashier'], true)
+        ? '/dc-cafe/pos'
+        : '/dc-cafe/dashboard';
+}
+
+/**
+ * Whether this user's session has anywhere left that it may go.
+ *
+ * A viewer is the only role that can lose every one of its pages while it is signed
+ * in, because the branch setting that grants them can be switched off underneath it.
+ * When that happens the landing above must not be followed: it is refused, which
+ * bounces back to the entry route, which offers the same landing again. Callers use
+ * this to end the session instead — see pageDcCafeLogin().
+ *
+ * @param array<string, mixed> $user
+ */
+function dcSessionHasLanding(array $user): bool
+{
+    return (string) ($user['role'] ?? '') !== 'viewer' || dcViewerDashboardEnabled();
+}

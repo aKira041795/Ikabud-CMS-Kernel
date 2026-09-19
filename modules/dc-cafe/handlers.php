@@ -52,12 +52,27 @@ function pageDcCafeLogin(array $params = []): void
 {
     $ctx = dcCtx();
     $user = $ctx->user();
-    if ($user) {
+    if ($user && dcSessionHasLanding($user)) {
         // Role-aware: auditor cannot access /dc-cafe/pos (redirect loop
         // otherwise). Send auditor to the dashboard.
-        $role = (string) ($user['role'] ?? '');
-        header('Location: ' . (in_array($role, ['admin', 'supervisor', 'cashier'], true) ? '/dc-cafe/pos' : '/dc-cafe/dashboard'));
+        header('Location: ' . dcLandingForRole((string) ($user['role'] ?? '')));
         exit;
+    }
+
+    // Reached when a session has nowhere to go: a viewer whose branch switched the
+    // viewer surface off while it was signed in. Following the landing from here
+    // would be refused, bounce back here, and go round and round. End the session
+    // and show the sign-in page — a fresh attempt is then refused at the door, with
+    // a reason, instead of spinning.
+    if ($user) {
+        $cookieName = config('app.cookie_name', 'app_token');
+        setcookie($cookieName, '', [
+            'expires' => time() - 86400,
+            'path' => '/',
+            'httponly' => true,
+            'secure' => is_https(),
+            'samesite' => 'Strict',
+        ]);
     }
 
     echo dcRender('login.disyl', [
@@ -151,7 +166,7 @@ function handleAuthLogin(array $params = []): void
         // (requireAnyRole excludes it); sending them there bounces to '/' →
         // back to /dc-cafe/pos → ERR_TOO_MANY_REDIRECTS. Auditor lands on the
         // dashboard instead.
-        'redirect' => in_array($role, ['admin', 'supervisor', 'cashier'], true) ? '/dc-cafe/pos' : '/dc-cafe/dashboard',
+        'redirect' => dcLandingForRole($role),
         'user' => [
             'id' => $userId,
             'username' => (string) ($userRow['username'] ?? ''),

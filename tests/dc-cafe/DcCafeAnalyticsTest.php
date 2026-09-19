@@ -421,8 +421,10 @@ $h->test('the tenant id is discoverable from its own settings rows', $tenantId >
 // makes comes from the same one — so repeated runs would trip it and the sign-in
 // assertions below would fail with 429 for a reason that has nothing to do with the
 // viewer role. Cleared here, and cleared again at the end so no other suite inherits
-// a poisoned counter.
-$db->prepare("DELETE FROM rate_limits WHERE identifier LIKE '%login%'")->execute();
+// a poisoned counter. The whole table, not a LIKE match on the identifier: the key
+// is built from a prefix and a route, and assuming it reads "login" was wrong.
+// Rate-limit bookkeeping is not business data and rebuilds on the next request.
+$db->exec('DELETE FROM rate_limits');
 $h->test('the login limiter is clear to begin with', true, 'reset');
 
 $roleEnum = (string) ($db->query("SHOW COLUMNS FROM dc_users LIKE 'role'")->fetch(PDO::FETCH_ASSOC)['Type'] ?? '');
@@ -454,15 +456,26 @@ $viewer = [
 
 $h->test('the viewer role is accepted by the tenant users table', $viewerId > 0, (string) $viewerId);
 
-// The switch is genuinely absent from the tenant, so the branch really is running
-// on the declared default rather than on a row someone left behind.
+// Whatever the branch has right now is recorded and put back afterwards, so this
+// suite neither depends on the switch being absent nor leaves it changed. It is a
+// live setting: an earlier version of this file assumed no row existed and failed
+// the moment an operator actually used the switch.
 $switchStmt = $db->prepare(
     "SELECT setting_value FROM tenant_module_settings
      WHERE tenant_id = ? AND module_id = 'dc-cafe' AND setting_key = 'pos_viewer_dashboard_enabled'"
 );
 $switchStmt->execute([$tenantId]);
 $switchBefore = $switchStmt->fetchColumn();
-$h->test('no viewer switch has been stored for this branch', $switchBefore === false, var_export($switchBefore, true));
+
+$flip = $db->prepare(
+    "INSERT INTO tenant_module_settings (tenant_id, module_id, setting_key, setting_value)
+     VALUES (?, 'dc-cafe', 'pos_viewer_dashboard_enabled', ?)
+     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+);
+
+// Start from off: refusing at the door is what gets asserted next.
+$flip->execute([$tenantId, '"0"']);
+$h->test('the branch starts with the viewer surface off', dcAnalyticsRequest('GET', '/dc-cafe/api/v1/analytics', $viewer)['status'] === 403, 'off');
 
 // The login route is read from the route table rather than guessed.
 $loginUri = '';
@@ -586,17 +599,6 @@ $h->test('and is a CSV', stripos($csv['body'], 'branch') !== false || stripos($c
 // ── 11. With the switch on ──
 $h->section('With The Viewer Surface Switched On');
 
-$storedBefore = $switchBefore;
-
-// Written to the tenant's own settings table, because that is the row a request
-// for this branch actually reads. The original state was no row at all, and that
-// absence is what gets restored.
-$flip = $db->prepare(
-    "INSERT INTO tenant_module_settings (tenant_id, module_id, setting_key, setting_value)
-     VALUES (?, 'dc-cafe', 'pos_viewer_dashboard_enabled', ?)
-     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
-);
-
 try {
     $flip->execute([$tenantId, '"1"']);
 
@@ -641,7 +643,7 @@ $h->test('the switch was put back exactly as it was', $switchStmt->fetchColumn()
 
 // What this harness cannot settle, recorded rather than asserted: an assertion
 // that could not have failed is not evidence.
-$h->gap('Viewer PAGE access — /dc-cafe/reports and /dc-cafe/dashboard answering 200 with the figures, and /dc-cafe/pos and /dc-cafe/settings answering 403 — needs a real browser session. A page request from this harness is always anonymous (headers_list() is empty under the CLI SAPI, so the cookie sign-in issues cannot be captured) and therefore redirects. Cover it with a Playwright journey that signs in as a viewer and keeps the cookie.');
+$h->gap('Viewer PAGE access is verified, but only by hand: a curl sequence signs in as a viewer and confirms /dc-cafe/reports and /dc-cafe/dashboard answer 200 with the figures, /dc-cafe/pos and /dc-cafe/settings bounce to the dashboard rather than to sign-in, and the operational API answers 403. This harness cannot repeat it — headers_list() is empty under the CLI SAPI, so the cookie sign-in issues cannot be captured, and a page request from here is always anonymous. A Playwright journey that signs in as a viewer and keeps the cookie would make it repeatable in CI.');
 
 // ── Cleanup ──
 $h->section('Cleanup');
@@ -660,9 +662,13 @@ $leftAudit->execute([$adminId, $viewerId]);
 $h->test('and their trail is gone with them', (int) $leftAudit->fetchColumn() === 0, 'audit');
 
 $switchStmt->execute([$tenantId]);
-$h->test('and no viewer switch was left behind', $switchStmt->fetchColumn() === false, 'switch');
+$h->test(
+    'and the switch was left exactly as it was found',
+    $switchStmt->fetchColumn() === $switchBefore,
+    'found ' . var_export($switchBefore, true)
+);
 
-$db->prepare("DELETE FROM rate_limits WHERE identifier LIKE '%login%'")->execute();
+$db->exec('DELETE FROM rate_limits');
 $h->test('and the login limiter is clear again', true, 'reset');
 
 $completed = true;
