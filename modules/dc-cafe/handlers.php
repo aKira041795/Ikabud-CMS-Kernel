@@ -17,6 +17,7 @@ require_once __DIR__ . '/handlers-inventory.php';
 require_once __DIR__ . '/handlers-customers.php';
 require_once __DIR__ . '/handlers-products.php';
 require_once __DIR__ . '/handlers-backup.php';
+require_once __DIR__ . '/handlers-analytics.php';
 
 // Load DiSyL entity view configs
 if (is_dir(__DIR__ . '/helpers/views')) {
@@ -98,6 +99,20 @@ function handleAuthLogin(array $params = []): void
 
     $role = (string) ($userRow['role'] ?? 'cashier');
     $userId = (int) ($userRow['user_id'] ?? 0);
+
+    // Credentials are correct, but this branch has the viewer surface switched
+    // off, so the account has nothing it may read. Refused at the door rather
+    // than at every page: signing someone in to an account that is refused
+    // everywhere is worse than telling them plainly.
+    if ($role === 'viewer' && !dcViewerDashboardEnabled()) {
+        dc_auditLog('auth.viewer_refused', 'dc_users', (string) $userId, null, [
+            'username' => (string) ($userRow['username'] ?? $username),
+        ]);
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'The viewer dashboard is not enabled for this branch.']);
+        exit;
+    }
+
     $sub = $role . ':' . $userId;
 
     $payload = [
@@ -996,7 +1011,10 @@ function apiGetSoftServeAddons(array $params = []): void
 function apiGetTodaySalesData(array $params = []): void
 {
     $ctx = dcCtx();
-    $ctx->requireAnyRole('admin', 'supervisor', 'auditor');
+    // Operational view of today: individual orders and stock levels. A viewer
+    // reads aggregates, so this stays closed to them even when the branch has
+    // allowed the viewer surface.
+    $ctx->requireAnyRole(...array_values(array_diff(dcAnalyticsRoles(), ['viewer'])));
 
     $storeId = (int) (dcInput('store_id') ?? 1);
 
@@ -1064,7 +1082,9 @@ function apiGetTodaySalesData(array $params = []): void
 function pageDashboard(array $params = []): void
 {
     $ctx = dcCtx();
-    $ctx->requireAnyRole('admin', 'supervisor', 'auditor');
+    // The dashboard carries the analytics, so whoever may read those may read
+    // this — including a viewer, when the branch has allowed one.
+    $ctx->requireAnyRole(...dcAnalyticsRoles());
 
     echo dcRender('dashboard.disyl', [
         'page_title' => 'DC Cafe Dashboard',

@@ -837,11 +837,14 @@ function dcAuditActionLabels(): array
         'auth.password_reset_requested' => 'Password reset requested',
         'auth.password_reset' => 'Password reset completed',
         'auth.password_reset_unknown' => 'Password reset for unknown account',
+        // A viewer signing in to a branch that has the viewer surface switched off.
+        'auth.viewer_refused' => 'Viewer sign-in refused',
         'softserve.base_saved' => 'Soft-serve base saved',
         'softserve.sauce_saved' => 'Soft-serve sauce saved',
         'softserve.topping_saved' => 'Soft-serve topping saved',
         'softserve.addon_saved' => 'Soft-serve addon saved',
         'backup.generated' => 'Backup generated',
+        'report.exported' => 'Report exported',
         'ledger_group.create' => 'Ledger group created',
         'ledger_group.remap' => 'Ledger group remapped',
         // Catalog records created or edited from Settings. These decide what the
@@ -882,7 +885,7 @@ function dcAuditActionTone(string $action): string
     if (in_array($action, ['order.voided', 'order.create_failed', 'auth.login_failed', 'inventory.reset', 'auth.password_reset_unknown'], true)) {
         return 'danger';
     }
-    if (in_array($action, ['stock.shortfall', 'user.deactivated', 'user.void_pin_cleared', 'auth.password_reset'], true)) {
+    if (in_array($action, ['stock.shortfall', 'user.deactivated', 'user.void_pin_cleared', 'auth.password_reset', 'auth.viewer_refused'], true)) {
         return 'warn';
     }
     // A parked order is unfinished business, and a discarded park is business that
@@ -931,6 +934,15 @@ function dcAuditDetail(string $action, array $new, array $old = []): string
             $who = (string) ($new['username'] ?? '');
             return $who !== '' ? 'Reset link issued for ' . $who : 'Reset link issued';
 
+        case 'report.exported':
+            $kind = ucfirst((string) ($new['kind'] ?? 'report'));
+            $from = (string) ($new['from'] ?? '');
+            $to = (string) ($new['to'] ?? '');
+            $scope = (int) ($new['store_id'] ?? 0) > 0 ? ' for branch #' . (int) $new['store_id'] : '';
+            return $from !== '' && $to !== ''
+                ? $kind . ' exported' . $scope . ' for ' . $from . ' to ' . $to
+                : $kind . ' exported' . $scope;
+
         case 'auth.password_reset':
             $ip = (string) ($new['ip'] ?? '');
             return $ip !== '' ? 'Password changed from ' . $ip : 'Password changed';
@@ -938,6 +950,12 @@ function dcAuditDetail(string $action, array $new, array $old = []): string
         case 'auth.password_reset_unknown':
             $identity = (string) ($new['identity'] ?? '');
             return $identity !== '' ? 'No account matched "' . $identity . '"' : 'No account matched';
+
+        case 'auth.viewer_refused':
+            $who = (string) ($new['username'] ?? '');
+            return $who !== ''
+                ? $who . ' signed in while the viewer dashboard is switched off'
+                : 'Viewer sign-in refused';
 
         case 'customer.created':
         case 'supplier.created':
@@ -1112,3 +1130,8 @@ require_once __DIR__ . '/helpers/entity-views.php';
 
 // Box (variable product) composition helpers.
 require_once __DIR__ . '/helpers/boxes.php';
+
+// Sales analytics: overall and per-branch totals, best sellers, Pareto split and
+// the weekly/monthly projection. Loaded here because a split handler file gets
+// helpers.php and nothing else, so anything a handler calls must live behind it.
+require_once __DIR__ . '/helpers/analytics.php';

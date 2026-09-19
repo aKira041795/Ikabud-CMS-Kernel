@@ -1,0 +1,344 @@
+{* Sales analytics, shared by the dashboard and the reports screen.
+   One implementation on purpose: two copies of this would eventually disagree,
+   and the whole point of the numbers is that they can be trusted.
+
+   Products that did not sell in the period are absent — the handler only returns
+   products with sold lines. Branches are always listed, including ones with no
+   takings, because a quiet branch is a fact and there are only a few of them. *}
+<div x-data="dcAnalytics()" x-init="load()" class="space-y-4">
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div class="flex flex-wrap items-end gap-3">
+            <label class="block text-xs font-semibold text-gray-600">From
+                <input type="date" x-model="from" class="block mt-1 px-3 py-1.5 border rounded text-sm">
+            </label>
+            <label class="block text-xs font-semibold text-gray-600">To
+                <input type="date" x-model="to" class="block mt-1 px-3 py-1.5 border rounded text-sm">
+            </label>
+            <label class="block text-xs font-semibold text-gray-600">Branch
+                <select x-model="storeId" class="block mt-1 px-3 py-1.5 border rounded text-sm bg-white">
+                    <option value="">All branches</option>
+                    <template x-for="b in branches" :key="b.store_id">
+                        <option x-bind:value="b.store_id" x-text="b.name"></option>
+                    </template>
+                </select>
+            </label>
+            <button @click="load()" type="button"
+                    class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700">Apply</button>
+            <a x-bind:href="exportUrl()"
+               class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-200">Export CSV</a>
+            <span x-show="busy" class="text-xs text-gray-500">Loading…</span>
+            <span x-show="error" x-text="error" class="text-xs text-red-600"></span>
+        </div>
+        <p x-show="range.clamped" class="text-xs text-amber-700 mt-2"
+           x-text="'Showing the most recent ' + range.max_days + ' days — a longer range than that is not aggregated in one request.'"></p>
+    </div>
+
+    <template x-if="ready">
+    <div class="space-y-4">
+
+        {* Sales: overall, then per branch *}
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div class="text-xs text-gray-500">Revenue</div>
+                <div class="text-2xl font-bold text-gray-800">₱<span x-text="money(data.sales.overall.revenue)"></span></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div class="text-xs text-gray-500">Orders</div>
+                <div class="text-2xl font-bold text-gray-800" x-text="data.sales.overall.orders"></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div class="text-xs text-gray-500">Average ticket</div>
+                <div class="text-2xl font-bold text-gray-800">₱<span x-text="money(data.sales.overall.avg_ticket)"></span></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div class="text-xs text-gray-500">Units sold</div>
+                <div class="text-2xl font-bold text-gray-800" x-text="data.sales.overall.items"></div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 class="font-bold text-gray-800 mb-3">Sales per branch</h3>
+            <table class="w-full text-sm">
+                <thead class="text-xs text-gray-500 border-b">
+                    <tr>
+                        <th class="text-left py-2">Branch</th>
+                        <th class="text-right py-2">Orders</th>
+                        <th class="text-right py-2">Revenue</th>
+                        <th class="text-right py-2">Average ticket</th>
+                        <th class="text-right py-2">Share</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="b in data.sales.branches" :key="b.store_id">
+                        <tr class="border-b border-gray-50">
+                            <td class="py-2 text-gray-800" x-text="b.name"></td>
+                            <td class="py-2 text-right text-gray-600" x-text="b.orders"></td>
+                            <td class="py-2 text-right font-semibold text-gray-800">₱<span x-text="money(b.revenue)"></span></td>
+                            <td class="py-2 text-right text-gray-600">₱<span x-text="money(b.avg_ticket)"></span></td>
+                            <td class="py-2 text-right text-gray-600"><span x-text="b.share_pct"></span>%</td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        {* Best sellers, overall and per branch *}
+        <div class="grid lg:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div class="flex items-baseline justify-between mb-3">
+                    <h3 class="font-bold text-gray-800">Top products</h3>
+                    <div class="flex gap-1 text-xs">
+                        <button @click="by = 'revenue'" type="button"
+                                x-bind:class="by === 'revenue' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600'"
+                                class="px-2 py-0.5 rounded">By revenue</button>
+                        <button @click="by = 'qty'" type="button"
+                                x-bind:class="by === 'qty' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600'"
+                                class="px-2 py-0.5 rounded">By units</button>
+                    </div>
+                </div>
+                <table class="w-full text-sm">
+                    <thead class="text-xs text-gray-500 border-b">
+                        <tr>
+                            <th class="text-left py-2">#</th>
+                            <th class="text-left py-2">Product</th>
+                            <th class="text-right py-2">Units</th>
+                            <th class="text-right py-2">Revenue</th>
+                            <th class="text-right py-2">Share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="p in topProducts" :key="p.product_id">
+                            <tr class="border-b border-gray-50">
+                                <td class="py-2 text-gray-400" x-text="p.rank"></td>
+                                <td class="py-2 text-gray-800" x-text="p.name"></td>
+                                <td class="py-2 text-right text-gray-600" x-text="p.qty"></td>
+                                <td class="py-2 text-right font-semibold text-gray-800">₱<span x-text="money(p.revenue)"></span></td>
+                                <td class="py-2 text-right text-gray-600"><span x-text="p.revenue_share_pct"></span>%</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <p x-show="data.products.sold_count === 0" class="text-sm text-gray-400 py-3">
+                    Nothing sold in this period. Products with no sales are left out.
+                </p>
+                <p x-show="data.products.sold_count > 0" class="text-xs text-gray-400 mt-2"
+                   x-text="data.products.sold_count + ' product(s) sold in this period; unsold products are not listed.'"></p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h3 class="font-bold text-gray-800 mb-3">Top products per branch</h3>
+                <div class="space-y-3">
+                    <template x-for="b in data.products.by_branch" :key="b.store_id">
+                        <div>
+                            <div class="text-xs font-semibold text-gray-600" x-text="b.name"></div>
+                            <template x-if="b.products.length === 0">
+                                <div class="text-xs text-gray-400 py-1">No sales in this period.</div>
+                            </template>
+                            <table class="w-full text-sm">
+                                <tbody>
+                                    <template x-for="p in b.products" :key="b.store_id + '-' + p.product_id">
+                                        <tr class="border-b border-gray-50">
+                                            <td class="py-1 text-gray-400 w-6" x-text="p.rank"></td>
+                                            <td class="py-1 text-gray-800" x-text="p.name"></td>
+                                            <td class="py-1 text-right text-gray-600" x-text="p.qty"></td>
+                                            <td class="py-1 text-right font-semibold text-gray-800">₱<span x-text="money(p.revenue)"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        {* Pareto *}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 class="font-bold text-gray-800">Pareto — what carries the revenue</h3>
+            <p class="text-sm text-gray-600 mt-1 mb-3">
+                <span class="font-semibold" x-text="data.pareto.vital_few"></span> of
+                <span class="font-semibold" x-text="data.pareto.total_products"></span> products sold account for
+                <span class="font-semibold" x-text="data.pareto.cut_pct"></span>% of revenue.
+                The shaded rows are that group.
+            </p>
+            <table class="w-full text-sm">
+                <thead class="text-xs text-gray-500 border-b">
+                    <tr>
+                        <th class="text-left py-2">#</th>
+                        <th class="text-left py-2">Product</th>
+                        <th class="text-right py-2">Revenue</th>
+                        <th class="text-left py-2 w-32">Cumulative</th>
+                        <th class="text-right py-2">Cumulative %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="r in data.pareto.rows" :key="r.product_id">
+                        <tr x-bind:class="r.rank <= data.pareto.vital_few ? 'bg-amber-50' : ''" class="border-b border-gray-50">
+                            <td class="py-2 text-gray-400" x-text="r.rank"></td>
+                            <td class="py-2 text-gray-800" x-text="r.name"></td>
+                            <td class="py-2 text-right text-gray-800">₱<span x-text="money(r.revenue)"></span></td>
+                            <td class="py-2">
+                                <div class="bg-gray-100 rounded h-2 w-full">
+                                    <div class="bg-amber-500 h-2 rounded" x-bind:style="'width: ' + r.cumulative_pct + '%'"></div>
+                                </div>
+                            </td>
+                            <td class="py-2 text-right text-gray-600" x-text="r.cumulative_pct"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <p x-show="data.pareto.total_products === 0" class="text-sm text-gray-400 py-3">
+                No revenue in this period, so there is nothing to rank.
+            </p>
+        </div>
+
+        {* Forecast *}
+        <div class="grid lg:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h3 class="font-bold text-gray-800 mb-1">Forecast — weekly</h3>
+                <p class="text-xs text-gray-500 mb-2" x-text="data.forecast.weekly.note"></p>
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs px-2 py-0.5 rounded font-semibold"
+                          x-bind:class="confidenceClass(data.forecast.weekly.confidence)"
+                          x-text="'confidence: ' + data.forecast.weekly.confidence"></span>
+                    <span class="text-xs text-gray-500" x-text="'mean per week ₱' + money(data.forecast.weekly.average)"></span>
+                </div>
+                <table class="w-full text-sm">
+                    <thead class="text-xs text-gray-500 border-b">
+                        <tr><th class="text-left py-2">Period</th><th class="text-right py-2">Revenue</th><th class="text-right py-2">Kind</th></tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="b in data.forecast.weekly.observed" :key="b.key">
+                            <tr x-show="b.complete" class="border-b border-gray-50">
+                                <td class="py-1 text-gray-700" x-text="b.label"></td>
+                                <td class="py-1 text-right text-gray-800">₱<span x-text="money(b.revenue)"></span></td>
+                                <td class="py-1 text-right text-xs text-gray-400">actual</td>
+                            </tr>
+                        </template>
+                        <template x-for="p in data.forecast.weekly.projection" :key="'wp' + p.period">
+                            <tr class="border-b border-gray-50 bg-blue-50">
+                                <td class="py-1 text-gray-600" x-text="'+' + p.period + ' week' + (p.period === 1 ? '' : 's')"></td>
+                                <td class="py-1 text-right font-semibold text-blue-800">₱<span x-text="money(p.revenue)"></span></td>
+                                <td class="py-1 text-right text-xs text-blue-600">projected</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h3 class="font-bold text-gray-800 mb-1">Forecast — monthly</h3>
+                <p class="text-xs text-gray-500 mb-2" x-text="data.forecast.monthly.note"></p>
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs px-2 py-0.5 rounded font-semibold"
+                          x-bind:class="confidenceClass(data.forecast.monthly.confidence)"
+                          x-text="'confidence: ' + data.forecast.monthly.confidence"></span>
+                    <span class="text-xs text-gray-500" x-text="'mean per month ₱' + money(data.forecast.monthly.average)"></span>
+                </div>
+                <table class="w-full text-sm">
+                    <thead class="text-xs text-gray-500 border-b">
+                        <tr><th class="text-left py-2">Period</th><th class="text-right py-2">Revenue</th><th class="text-right py-2">Kind</th></tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="b in data.forecast.monthly.observed" :key="b.key">
+                            <tr x-show="b.complete" class="border-b border-gray-50">
+                                <td class="py-1 text-gray-700" x-text="b.label"></td>
+                                <td class="py-1 text-right text-gray-800">₱<span x-text="money(b.revenue)"></span></td>
+                                <td class="py-1 text-right text-xs text-gray-400">actual</td>
+                            </tr>
+                        </template>
+                        <template x-for="p in data.forecast.monthly.projection" :key="'mp' + p.period">
+                            <tr class="border-b border-gray-50 bg-blue-50">
+                                <td class="py-1 text-gray-600" x-text="'+' + p.period + ' month' + (p.period === 1 ? '' : 's')"></td>
+                                <td class="py-1 text-right font-semibold text-blue-800">₱<span x-text="money(p.revenue)"></span></td>
+                                <td class="py-1 text-right text-xs text-blue-600">projected</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    </template>
+
+    <div x-show="!ready && !busy" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-sm text-gray-400">
+        No figures to show yet.
+    </div>
+</div>
+
+<script>
+function dcAnalytics() {
+    return {
+        from: '',
+        to: '',
+        storeId: '',
+        by: 'revenue',
+        busy: false,
+        ready: false,
+        error: '',
+        data: null,
+        range: {clamped: false, max_days: 0},
+        branches: [],
+
+        money(v) {
+            const n = parseFloat(v);
+            return isFinite(n) ? n.toFixed(2) : '0.00';
+        },
+
+        // Confidence is stated rather than implied: a projection fitted to two
+        // trading weeks and one fitted to twenty should not look the same.
+        confidenceClass(level) {
+            if (level === 'medium') return 'bg-green-100 text-green-700';
+            if (level === 'low') return 'bg-amber-100 text-amber-800';
+            return 'bg-red-100 text-red-700';
+        },
+
+        // Ranked the way the reader asked for, from the rows the server sent.
+        get topProducts() {
+            if (!this.data) return [];
+            const rows = this.data.products.top.slice();
+            const key = this.by === 'qty' ? 'qty' : 'revenue';
+            rows.sort((a, b) => b[key] - a[key]);
+            return rows;
+        },
+
+        exportUrl() {
+            const q = new URLSearchParams();
+            if (this.from) q.set('from', this.from);
+            if (this.to) q.set('to', this.to);
+            if (this.storeId) q.set('store_id', this.storeId);
+            return '/dc-cafe/api/v1/analytics/export?' + q.toString();
+        },
+
+        load() {
+            this.busy = true;
+            this.error = '';
+            const q = new URLSearchParams();
+            if (this.from) q.set('from', this.from);
+            if (this.to) q.set('to', this.to);
+            if (this.storeId) q.set('store_id', this.storeId);
+
+            fetch('/dc-cafe/api/v1/analytics?' + q.toString(), {headers: {'Accept': 'application/json'}})
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.ok) {
+                        this.error = d.error || 'Could not load the figures';
+                        return;
+                    }
+                    this.data = d;
+                    this.range = d.range;
+                    this.branches = d.sales.branches;
+                    // Reflect the window the server actually used, so a clamped
+                    // range is visible in the inputs too.
+                    this.from = d.range.from;
+                    this.to = d.range.to;
+                    this.ready = true;
+                })
+                .catch(() => { this.error = 'Could not load the figures'; })
+                .finally(() => { this.busy = false; });
+        },
+    };
+}
+</script>

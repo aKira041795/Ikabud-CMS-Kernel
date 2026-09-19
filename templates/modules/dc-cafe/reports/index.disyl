@@ -1,0 +1,20 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Reports</h1>
+            <p class="text-sm text-gray-500">
+                Sales overall and per branch, best sellers, the Pareto split, and a weekly/monthly
+                projection. Completed sales only — voided sales are not revenue, and a parked order
+                was never a sale. Products that did not sell in the period are left out.
+            </p>
+        </div>
+        <a href="/dc-cafe/dashboard" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200">Dashboard</a>
+    </div>
+
+    {* The same block the dashboard shows, so the two cannot disagree. *}
+    {include "modules/dc-cafe/partials/analytics.disyl"}
+</div>
+{/block}

@@ -95,7 +95,8 @@
         "database/migrations/035_mark_mini_dozen_box.sql",
         "database/migrations/036_create_discount_types.sql",
         "database/migrations/037_add_void_approval.sql",
-        "database/migrations/038_add_order_queue.sql"
+        "database/migrations/038_add_order_queue.sql",
+        "database/migrations/039_add_viewer_role.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -309,6 +310,13 @@
             "label": "Require a supervisor to discard a parked order",
             "default": "0",
             "description": "Off by default — any cashier can drop a parked order, since it is their own held sale and nothing was sold. Turn on to require an administrator or supervisor; the discard control disappears from the till and the server refuses the request."
+        },
+        {
+            "key": "pos_viewer_dashboard_enabled",
+            "type": "checkbox",
+            "label": "Allow a viewer to see the dashboard and reports",
+            "default": "0",
+            "description": "Off by default. Turn on to let a user with the Viewer role sign in and read the analytics dashboard and reports — sales overall and per branch, best sellers, Pareto split and the weekly/monthly projection. A viewer cannot reach the till, orders, inventory or settings."
         },
         {
             "key": "pos_auto_print_receipt",

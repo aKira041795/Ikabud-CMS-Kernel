@@ -25,6 +25,10 @@ return [
 
         // Dashboard
         '/dc-cafe/dashboard'                  => 'dc-cafe:pageDashboard',
+        // Reporting surface. A viewer reaches this and the dashboard; the
+        // handler decides who may, and refuses when the branch has the viewer
+        // surface switched off.
+        '/dc-cafe/reports'                    => 'dc-cafe:pageReports',
 
         // Order views
         '/dc-cafe/orders'                     => 'dc-cafe:pageOrderList',
@@ -105,6 +109,10 @@ return [
 
         // API: dashboard
         '/dc-cafe/api/v1/dashboard/today'     => 'dc-cafe:apiGetTodaySalesData',
+
+        // Reporting: the analytics the dashboard and the reports screen both read.
+        '/dc-cafe/api/v1/analytics'           => 'dc-cafe:apiGetAnalytics',
+        '/dc-cafe/api/v1/analytics/export'    => 'dc-cafe:apiExportAnalyticsCsv',
 
         // API: backup download
         '/dc-cafe/api/v1/backup/download'     => 'dc-cafe:handleBackupDownload',

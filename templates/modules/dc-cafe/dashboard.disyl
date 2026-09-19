@@ -1,6 +1,9 @@
 {extends "modules/dc-cafe/layouts/app.disyl"}
 
 {block content}
+{* A viewer gets the figures, not the till's day-to-day: the tiles below report on
+   individual orders and stock, which is not what the reporting role is for. *}
+{if user.role != 'viewer'}
 <div x-data="dashboard()" x-init="load()" class="space-y-6">
     <h1 class="text-2xl font-bold text-gray-800">DC Cafe Dashboard</h1>
 
@@ -111,6 +114,13 @@
         </table>
         </div>
     </div>
+</div>
+{/if}
+
+<div class="space-y-6">
+    <h1 class="text-2xl font-bold text-gray-800">Sales Analytics</h1>
+    {* The same block the reports screen shows, so the two cannot disagree. *}
+    {include "modules/dc-cafe/partials/analytics.disyl"}
 </div>
 
 <script>
