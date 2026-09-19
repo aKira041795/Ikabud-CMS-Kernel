@@ -105,6 +105,28 @@ foreach (["base" => app()->db(), "tenant" => app()->dbForTenant(583)] as $l => $
 
 **Recommended fix:** establish the tenant database as the single source and remove (or hard-fail on) the stale base copies. Which of the two a request should read is a deployment decision, so this is deliberately left unscheduled.
 
+### Confirmed 2026-09-19 — the kernel database is not any tenant's database
+
+Every tenant maps to its own database in `kernel_tenant_db_connections` (`cmsnewtest`, `baronledger`, `guidance`, `juliesmodule`, `ehrtest`, `zapattendance`, `palsystem`, `wmstest`, `aiss`, `dccafe`, `akira`, `moto`, `bakeshop_seed_…`). **No tenant maps to `applicationostest`.** So the kernel database holds only the control plane and the module tables left over from the single-database layout — those tables serve nobody.
+
+Scale: **397 tables and 6,698 rows** in `applicationostest` are declared module-owned tables.
+
+### Two blockers before anything is dropped
+
+1. **`owns_tables` is not a complete inventory.** Classification by manifest found 397 module tables to remove, but the set left behind still contains plainly module-owned tables — `ehr_users`, `ehr_admissions`, `ehr_password_resets`, `bakeshop_ingredient_usage`, `cms_theme_registry`, `cli_tenant_migrate_*`. Only 36 manifests declare `owns_tables`. Removing on this list would leave duplicates behind and keep module tables: it fails the rule in both directions.
+2. **The backup path needs the app's connection.** `mysqldump -u root` is refused (`Access denied … using password: NO`) — the credentials live in the app's config. A dump therefore has to be produced through the app's own PDO connection (`SHOW CREATE TABLE` + `INSERT`), not through the CLI client. No removal should happen before that dump exists.
+
+### Direction (owner directive 2026-09-19)
+
+> No duplicate of any module's tables in the kernel database — standalone modules, and extensions/submodules of standalone modules alike. The kernel module handles its own users; every other module owns its own.
+
+Safest sequence, once the inventory is reliable:
+
+1. Dump the kernel database through the app's connection; verify the dump reloads.
+2. Complete `owns_tables` in every manifest, **or** classify by exclusion against the kernel's own schema (keep `kernel_*`, `_migrations`, `tenant_*`, control-plane and kernel-owned tables; remove everything else).
+3. Remove with `RENAME TABLE tmp_orphan_<name>` first — reversible in one statement — then drop once the app is confirmed healthy.
+4. Re-check that `applicationostest` holds no module table, and that every module's tables exist in its tenant's database.
+
 ---
 
 ## Related note — shared runtime cache and file ownership
