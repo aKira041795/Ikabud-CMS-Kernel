@@ -1978,7 +1978,10 @@ function apiCreateUser(array $params = []): void
     $fullName = (string) (dcInput('full_name') ?? '');
     $email = (string) (dcInput('email') ?? '');
     $role = (string) (dcInput('role') ?? 'cashier');
-    $storeId = dcInput('store_id');
+    // A viewer is the business owner's read-only seat and reads every branch, so a branch
+    // assignment does not apply. Storing one would imply a scope that the reports do not
+    // honour — the analytics scope comes from the request, never from the user's branch.
+    $storeId = $role === 'viewer' ? null : dcInput('store_id');
 
     if ($username === '' || $password === '' || $fullName === '') {
         dcJsonError('Username, password, and full name are required');
@@ -2049,6 +2052,10 @@ function apiUpdateUser(array $params = []): void
     $email = dcInput('email');
     $role = dcInput('role');
     $storeId = dcInput('store_id');
+    // Promoting somebody to viewer clears the branch they had: a viewer reads every branch.
+    if ($role === 'viewer') {
+        $storeId = null;
+    }
     $password = dcInput('password');
 
     if ($fullName === null && $email === null && $role === null && $storeId === null && $password === null) {

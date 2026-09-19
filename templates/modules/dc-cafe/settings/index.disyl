@@ -346,7 +346,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Assigned Branch</label>
-                        <select x-model="editUserData.store_id" class="border rounded w-full px-3 py-2 text-sm">
+                        <select x-show="editUserData.role !== 'viewer'" x-model="editUserData.store_id" class="border rounded w-full px-3 py-2 text-sm">
                             <option :value="null">— Unassigned —</option>
                             <template x-for="s in stores" :key="s.store_id">
                                 <option :value="s.store_id" x-text="s.name"></option>
@@ -394,7 +394,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Assigned Branch</label>
-                        <select x-model="newUser.store_id" class="border rounded w-full px-3 py-2 text-sm">
+                        <select x-show="newUser.role !== 'viewer'" x-model="newUser.store_id" class="border rounded w-full px-3 py-2 text-sm">
                             <option :value="null">— Unassigned —</option>
                             <template x-for="s in stores" :key="s.store_id">
                                 <option :value="s.store_id" x-text="s.name"></option>
