@@ -59,6 +59,9 @@ class TestHarness
 
     private string $host = 'localhost';
 
+    /** Whether done() was reached. Read by the shutdown guard. */
+    private bool $completed = false;
+
     /**
      * @param string $suiteName Unique test suite identifier (used for filename)
      * @param string $mode MODE_PURE or MODE_INTEGRATION
@@ -73,6 +76,17 @@ class TestHarness
         $this->resultsDir = dirname(__DIR__, 2) . '/test_results';
         $this->resultsFile = $this->resultsDir . '/' . $suiteName . '.json';
         $this->sectionStart = microtime(true);
+
+        // A suite that dies half way must not exit 0. The kernel's exception handler renders
+        // an HTML page and exits cleanly, so a crashed run has reported success: DcCafeHttpTest
+        // did exactly that once the module tables it was accidentally reading were removed,
+        // and DcCafePosTest has been doing it silently for as long as it has existed.
+        register_shutdown_function(function (): void {
+            if (!$this->completed) {
+                echo "\n  SUITE ABORTED before the end — treat as FAIL\n";
+                exit(1);
+            }
+        });
 
         if (!is_dir($this->resultsDir)) {
             mkdir($this->resultsDir, 0777, true);
@@ -322,6 +336,8 @@ class TestHarness
 
     public function done(): void
     {
+        $this->completed = true;
+
         $elapsed = round((microtime(true) - $this->startMicrotime) * 1000, 1);
         $total = $this->passed + $this->failed;
 

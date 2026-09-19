@@ -10,7 +10,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../harness/TestHarness.php';
 
-$h = new TestHarness('dc-cafe-http', TestHarness::MODE_INTEGRATION, 'baronbakeshop');
+$h = new TestHarness('dc-cafe-http', TestHarness::MODE_INTEGRATION, 'dccafe.test');
 require_once __DIR__ . '/../../src/helpers/module-manager.php';
 require_once __DIR__ . '/../../src/helpers/module-migrations.php';
 $h->fingerprint('modules/dc-cafe/routes.php');
@@ -55,7 +55,7 @@ function dcRunEntrypointRequest(array $server, ?array $user = null, ?array $post
         . "foreach (" . var_export($server, true) . " as \$key => \$value) { \$_SERVER[(string) \$key] = \$value; }\n"
         . "if (!isset(\$_SERVER['REQUEST_METHOD'])) { \$_SERVER['REQUEST_METHOD'] = 'GET'; }\n"
         . "if (!isset(\$_SERVER['REQUEST_URI'])) { \$_SERVER['REQUEST_URI'] = '/'; }\n"
-        . "if (!isset(\$_SERVER['HTTP_HOST'])) { \$_SERVER['HTTP_HOST'] = 'baronbakeshop'; }\n"
+        . "if (!isset(\$_SERVER['HTTP_HOST'])) { \$_SERVER['HTTP_HOST'] = 'dccafe.test'; }\n"
         . "if (!isset(\$_SERVER['SERVER_NAME'])) { \$_SERVER['SERVER_NAME'] = \$_SERVER['HTTP_HOST']; }\n"
         . "if (!isset(\$_SERVER['HTTP_ACCEPT'])) { \$_SERVER['HTTP_ACCEPT'] = 'application/json'; }\n"
         . "\$_GET = [];\n"
@@ -116,8 +116,8 @@ function dcRunDirectHandler(string $handlerFile, string $handlerName, array $par
     $script = "<?php\n"
         . "\$_SERVER['REQUEST_METHOD'] = 'POST';\n"
         . "\$_SERVER['REQUEST_URI'] = '/__direct-handler';\n"
-        . "\$_SERVER['HTTP_HOST'] = 'baronbakeshop';\n"
-        . "\$_SERVER['SERVER_NAME'] = 'baronbakeshop';\n"
+        . "\$_SERVER['HTTP_HOST'] = 'dccafe.test';\n"
+        . "\$_SERVER['SERVER_NAME'] = 'dccafe.test';\n"
         . "\$_SERVER['CONTENT_TYPE'] = 'application/x-www-form-urlencoded';\n"
         . "\$_GET = [];\n"
         . "\$_POST = " . var_export($postData, true) . " ?: [];\n"
@@ -311,8 +311,8 @@ try {
     $productsResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
         'REQUEST_URI' => '/dc-cafe/api/v1/products?store_id=' . $secondaryStoreId,
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier);
     $productsJson = dcJsonResponse($productsResponse);
@@ -331,8 +331,8 @@ try {
     $ledgerPageResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
         'REQUEST_URI' => '/dc-cafe/inventory/ledger',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'HTTP_ACCEPT' => 'text/html',
     ], $branchCashier);
     $h->test('Cashier ledger page renders', (int) $ledgerPageResponse['status'] === 200, $ledgerPageResponse['raw']);
@@ -348,8 +348,8 @@ try {
     $reconciliationResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $branchSessionId,
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier);
     $reconciliationJson = dcJsonResponse($reconciliationResponse);
@@ -389,8 +389,8 @@ try {
     $ledgerGroupsResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
         'REQUEST_URI' => '/dc-cafe/api/v1/settings/ledger-groups',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'HTTP_ACCEPT' => 'application/json',
     ], $supervisor);
     $ledgerGroupsJson = dcJsonResponse($ledgerGroupsResponse);
@@ -425,8 +425,8 @@ try {
     $invalidProgressResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier, [
@@ -446,8 +446,8 @@ try {
     $validProgressResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier, [
@@ -473,8 +473,8 @@ try {
     $postSaveReconciliationResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $branchSessionId,
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier);
     $postSaveReconciliationJson = dcJsonResponse($postSaveReconciliationResponse);
@@ -494,8 +494,8 @@ try {
     $clearEndingResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier, [
@@ -520,8 +520,8 @@ try {
     $clearedReconciliationResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $branchSessionId,
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier);
     $clearedReconciliationJson = dcJsonResponse($clearedReconciliationResponse);
@@ -542,8 +542,8 @@ try {
     $closedReconciliationResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $closedBranchSessionId,
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier);
     $closedReconciliationJson = dcJsonResponse($closedReconciliationResponse);
@@ -553,8 +553,8 @@ try {
     $closedSaveResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier, [
@@ -582,8 +582,8 @@ try {
     $insufficientBranchResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/orders',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier, $insufficientBranchPayload);
@@ -645,8 +645,8 @@ try {
     $tamperedResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/orders',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $cashier, $tamperedPayload);
@@ -682,8 +682,8 @@ try {
     $createResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/orders',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $cashier, $goodPayload);
@@ -719,8 +719,8 @@ try {
     $blockedReceiveResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/products/receive/batch',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier, [
@@ -764,8 +764,8 @@ try {
     $branchOrderResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/orders',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $branchCashier, $branchPayload);
@@ -834,8 +834,8 @@ try {
     $voidResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/orders/' . $orderId . '/void',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $supervisor, ['void_pin' => $voidPin]);
@@ -861,8 +861,8 @@ try {
     $repeatVoidResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'POST',
         'REQUEST_URI' => '/dc-cafe/api/v1/orders/' . $orderId . '/void',
-        'HTTP_HOST' => 'baronbakeshop',
-        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_HOST' => 'dccafe.test',
+        'SERVER_NAME' => 'dccafe.test',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
         'HTTP_ACCEPT' => 'application/json',
     ], $supervisor, ['void_pin' => $voidPin]);

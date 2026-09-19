@@ -12,7 +12,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../harness/TestHarness.php';
 
-$h = new TestHarness('dc-cafe-pos', TestHarness::MODE_INTEGRATION, 'baronbakeshop');
+$h = new TestHarness('dc-cafe-pos', TestHarness::MODE_INTEGRATION, 'dccafe.test');
 
 // Fingerprint the source files we're testing
 $h->fingerprint('modules/dc-cafe/handlers.php');
