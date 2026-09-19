@@ -104,6 +104,8 @@ class TestHarness
         echo "  {$suiteName}\n";
         echo "  Started: {$this->startTime}\n";
         echo "══════════════════════════════════════\n";
+
+        $this->reportUnresolvedHost();
     }
 
     /**
@@ -131,6 +133,45 @@ class TestHarness
                 @chmod($item->getPathname(), $item->isDir() ? 0777 : 0666);
             }
         }
+    }
+
+    /**
+     * Report when the suite's host belongs to no tenant.
+     *
+     * A hostname no tenant claims is not an error to the kernel — resolution falls through to
+     * the kernel database. So a suite pointed at a stale or mistyped host reads the wrong
+     * database and reports success. DcCafeHttpTest did exactly that: 40 requests to
+     * `baronbakeshop`, a host that no longer existed, and it passed against the orphaned module
+     * tables sitting in the kernel database — requests which were themselves what put the tables
+     * there.
+     *
+     * Reported rather than failed on purpose: a test may use an unregistered host deliberately,
+     * to check the fallback itself. Publishing the list makes the accidental ones obvious and
+     * leaves the deliberate ones to be declared. Graduating this to a hard failure is a one-line
+     * change once they are told apart.
+     */
+    private function reportUnresolvedHost(): void
+    {
+        $host = strtolower(trim($this->host));
+        if ($host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            return;
+        }
+
+        try {
+            $stmt = app()->db()->prepare('SELECT COUNT(*) FROM kernel_tenant_domains WHERE domain = ?');
+            $stmt->execute([$host]);
+            if ((int) $stmt->fetchColumn() > 0) {
+                return;
+            }
+            $domains = app()->db()->query('SELECT domain FROM kernel_tenant_domains ORDER BY domain')->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+        } catch (\Throwable $e) {
+            return; // No control plane reachable (pure mode) — nothing to check against.
+        }
+
+        echo "\n  ⚠ HOST '{$host}' BELONGS TO NO TENANT\n";
+        echo "    Requests to it fall through to the kernel database, so this suite is not\n";
+        echo "    testing the database its name claims. Registered domains:\n";
+        echo '      ' . implode(', ', $domains) . "\n";
     }
 
     // ─── Bootstrap ───────────────────────────────────────────────
