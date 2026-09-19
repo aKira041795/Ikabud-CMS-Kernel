@@ -397,7 +397,12 @@ $h->test('the export leaves a record, because taking data out is an event', str_
 
 $h->test('the reports page template exists', is_file(__DIR__ . '/../../templates/modules/dc-cafe/reports/index.disyl'));
 $h->test('the shared block exists', is_file(__DIR__ . '/../../templates/modules/dc-cafe/partials/analytics.disyl'));
-$h->test('the reports page uses the shared block', str_contains($read('templates/modules/dc-cafe/reports/index.disyl'), 'partials/analytics.disyl'));
+// The reports page must not render the analytics block any more. That duplication is exactly
+// what let the same figures live in two places; it generates now, the dashboard displays.
+$h->test(
+    'the reports page does not repeat the dashboard',
+    !str_contains($read('templates/modules/dc-cafe/reports/index.disyl'), 'partials/analytics.disyl')
+);
 $h->test('so does the dashboard, so the two cannot disagree', str_contains($dashboardTpl, 'partials/analytics.disyl'));
 $h->test('the shared block reads the one analytics endpoint', substr_count($partial, '/dc-cafe/api/v1/analytics') >= 1);
 $h->test('the partial is self-contained — it declares its own component', str_contains($partial, 'x-data="dcAnalytics()"') && str_contains($partial, 'function dcAnalytics()'));
@@ -544,10 +549,12 @@ $h->test(
 // An admin is unaffected by the switch.
 $adminReports = dcAnalyticsRequest('GET', '/dc-cafe/reports', $admin);
 $h->test('an admin reaches the reports page', $adminReports['status'] === 200, (string) $adminReports['status']);
-$h->test('and it really rendered — the shared block is in the page', str_contains($adminReports['body'], 'dcAnalytics()'), mb_substr($adminReports['body'], 0, 200));
-$h->test('the period controls are there', str_contains($adminReports['body'], '/dc-cafe/api/v1/analytics/export'), mb_substr($adminReports['body'], 0, 200));
-$h->test('the word Pareto reached the page', stripos($adminReports['body'], 'pareto') !== false, 'body');
-$h->test('so did the weekly forecast', stripos($adminReports['body'], 'Forecast') !== false, 'body');
+// Generating is the page's whole purpose, so the downloads must be there — and the figures must
+// not be, which is the point of the split.
+$h->test('the reports page offers the CSV download', str_contains($adminReports['body'], 'Download CSV'), mb_substr($adminReports['body'], 0, 200));
+$h->test('and the PDF download', str_contains($adminReports['body'], 'Download PDF'), mb_substr($adminReports['body'], 0, 200));
+$h->test('and the period controls', str_contains($adminReports['body'], '/dc-cafe/api/v1/analytics/export'), mb_substr($adminReports['body'], 0, 200));
+$h->test('and it does not display the analytics', !str_contains($adminReports['body'], 'dcAnalytics()'), mb_substr($adminReports['body'], 0, 200));
 
 $adminDash = dcAnalyticsRequest('GET', '/dc-cafe/dashboard', $admin);
 $h->test('an admin still gets the operational dashboard', $adminDash['status'] === 200, (string) $adminDash['status']);

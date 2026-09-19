@@ -63,6 +63,15 @@ class TestHarness
     private bool $completed = false;
 
     /**
+     * Log sizes at construction. app.log belongs to the web user, so this process cannot
+     * truncate it — the baseline is what makes "did this run dirty the log?" answerable
+     * without owning the file.
+     *
+     * @var array<string, int|null>
+     */
+    private array $logBaseline = [];
+
+    /**
      * @param string $suiteName Unique test suite identifier (used for filename)
      * @param string $mode MODE_PURE or MODE_INTEGRATION
      * @param string $host HTTP_HOST for tenant resolution (default: localhost)
@@ -98,7 +107,9 @@ class TestHarness
         }
 
         // Clear logs
-        $this->clearLogs();
+        // Clear what can be cleared, and record the rest so the run's own output can be told
+        // apart from the web server's. See captureLogBaseline().
+        $this->captureLogBaseline();
 
         echo "\n══════════════════════════════════════\n";
         echo "  {$suiteName}\n";
@@ -152,8 +163,15 @@ class TestHarness
      */
     private function reportUnresolvedHost(): void
     {
+        if (!$this->isBootstrapped()) {
+            return; // A pure suite has no database, so it has no tenant to be wrong about.
+        }
+
         $host = strtolower(trim($this->host));
         if ($host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            // Not a failure: the harness defaults to localhost, and a suite may not care which
+            // tenant it lands on. But it is unverified, and saying so beats implying otherwise.
+            $this->gap("Suite did not name a tenant host (using '{$host}'), so which database it read is unverified.");
             return;
         }
 
@@ -165,13 +183,15 @@ class TestHarness
             }
             $domains = app()->db()->query('SELECT domain FROM kernel_tenant_domains ORDER BY domain')->fetchAll(\PDO::FETCH_COLUMN) ?: [];
         } catch (\Throwable $e) {
-            return; // No control plane reachable (pure mode) — nothing to check against.
+            return; // No control plane reachable — nothing to check against.
         }
 
-        echo "\n  ⚠ HOST '{$host}' BELONGS TO NO TENANT\n";
-        echo "    Requests to it fall through to the kernel database, so this suite is not\n";
-        echo "    testing the database its name claims. Registered domains:\n";
-        echo '      ' . implode(', ', $domains) . "\n";
+        // A failure, not a warning. A warning here was ignored for as long as it existed, and
+        // the suites it concerned were reading the kernel database the whole time.
+        $this->fail(
+            "suite host '{$host}' belongs to no tenant",
+            'requests to it fall through to the kernel database. Registered: ' . implode(', ', array_slice($domains, 0, 8))
+        );
     }
 
     // ─── Bootstrap ───────────────────────────────────────────────
@@ -200,11 +220,29 @@ class TestHarness
         $this->bootstrapped = true;
     }
 
-    private function clearLogs(): void
+    /**
+     * Truncate the logs this process can, and take a size baseline for the ones it cannot.
+     *
+     * app.log is owned by the web server and is not writable here. Truncating it failed
+     * silently (the error was suppressed), so every log complaint a suite made was really
+     * about the web server's traffic — hundreds of kilobytes of it — and the harness had no
+     * way to know. A baseline answers the question that was actually being asked: what did
+     * THIS run add?
+     */
+    private function captureLogBaseline(): void
     {
         $storage = dirname(__DIR__, 2) . '/storage/logs';
-        @file_put_contents($storage . '/app.log', '');
-        @file_put_contents($storage . '/error.log', '');
+
+        foreach (['app.log', 'error.log'] as $name) {
+            $path = $storage . '/' . $name;
+
+            // Truncation is used where it works, to keep a run's output small.
+            if (!is_file($path) || is_writable($path)) {
+                @file_put_contents($path, '');
+            }
+
+            $this->logBaseline[$name] = is_file($path) ? (int) filesize($path) : null;
+        }
     }
 
     // ─── Source Integrity ────────────────────────────────────────
@@ -380,9 +418,12 @@ class TestHarness
         $this->completed = true;
 
         $elapsed = round((microtime(true) - $this->startMicrotime) * 1000, 1);
-        $total = $this->passed + $this->failed;
 
+        // Run before the total is computed, so a log failure is counted in the tally and not
+        // merely listed while the arithmetic ignores it.
         $this->checkLogs();
+
+        $total = $this->passed + $this->failed;
 
         echo "\n══════════════════════════════════════\n";
         echo "  RESULTS\n";
@@ -447,19 +488,39 @@ class TestHarness
         return true;
     }
 
+    /**
+     * Fail the run if it wrote to a log.
+     *
+     * This used to echo a warning and nothing else, so "the logs are clean" was never an
+     * enforced property — a suite could log errors and still pass. It is now a failure, and
+     * it measures growth against the baseline rather than the file's total size.
+     *
+     * A caveat worth stating: traffic to the web server during a suite also grows app.log, and
+     * this cannot tell the two apart. On a quiet development machine that is not a problem; on
+     * a busy one it may report the web server's activity as the suite's.
+     */
     private function checkLogs(): void
     {
         $storage = dirname(__DIR__, 2) . '/storage/logs';
-        $appLog = $storage . '/app.log';
-        $errorLog = $storage . '/error.log';
 
-        $appSize = is_file($appLog) ? filesize($appLog) : 0;
-        $errorSize = is_file($errorLog) ? filesize($errorLog) : 0;
+        foreach (['app.log', 'error.log'] as $name) {
+            $path = $storage . '/' . $name;
+            if (!is_file($path)) {
+                continue;
+            }
 
-        if ($appSize > 0 || $errorSize > 0) {
-            echo "\n  ⚠ Logs generated:\n";
-            if ($appSize > 0) echo "    app.log: {$appSize} bytes\n";
-            if ($errorSize > 0) echo "    error.log: {$errorSize} bytes\n";
+            $size = (int) filesize($path);
+            $baseline = $this->logBaseline[$name] ?? null;
+
+            if ($baseline === null) {
+                $this->fail("{$name} was created during the run", $size . ' byte(s)');
+                continue;
+            }
+
+            $added = $size - $baseline;
+            if ($added > 0) {
+                $this->fail("{$name} was written during the run", $added . ' byte(s) added');
+            }
         }
     }
 
