@@ -216,7 +216,7 @@
                             <td class="py-2 text-right text-gray-800">₱<span x-text="money(r.revenue)"></span></td>
                             <td class="py-2">
                                 <div class="bg-gray-100 rounded h-2 w-full">
-                                    <div class="bg-amber-500 h-2 rounded" x-bind:style="'width: ' + r.cumulative_pct + '%'"></div>
+                                    <div class="bg-blue-500 h-2 rounded" x-bind:style="'width: ' + r.cumulative_pct + '%'"></div>
                                 </div>
                             </td>
                             <td class="py-2 text-right text-gray-600" x-text="r.cumulative_pct"></td>
@@ -361,7 +361,9 @@ function dcAnalytics() {
                     // Inline rather than a Tailwind class: these are built in JS, and a class
                     // only referenced from a string is the kind of thing that silently renders
                     // unstyled. The gradient gives the bars depth without a library.
-                    style: 'height: ' + pct + '%; background: linear-gradient(180deg, #fcd34d 0%, #f59e0b 60%, #d97706 100%);',
+                    // Blue rather than the application's orange: orange is the chrome here, so an
+                    // orange bar reads as interface instead of as data.
+                    style: 'height: ' + pct + '%; background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 60%, #2563eb 100%);',
                     title: e[0] + ' · ₱' + this.money(e[1]),
                 };
             });
@@ -373,7 +375,9 @@ function dcAnalytics() {
         // nothing gets a neutral grey — still drawn, so a silent branch stays visible, but not
         // competing for attention with one that traded.
         get branchBars() {
-            const palette = ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
+            // Blues and greens, deliberately not the application's orange — orange is the chrome.
+            // Enough distance between them to compare branches at a glance.
+            const palette = ['#3b82f6', '#10b981', '#0ea5e9', '#22c55e', '#6366f1', '#14b8a6'];
             const rows = this.data.sales.branches || [];
             const max = Math.max(...rows.map(b => parseFloat(b.revenue) || 0), 0);
             return rows.map((b, i) => {
