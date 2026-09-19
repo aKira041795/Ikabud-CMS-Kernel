@@ -113,6 +113,7 @@ return [
         // Reporting: the analytics the dashboard and the reports screen both read.
         '/dc-cafe/api/v1/analytics'           => 'dc-cafe:apiGetAnalytics',
         '/dc-cafe/api/v1/analytics/export'    => 'dc-cafe:apiExportAnalyticsCsv',
+        '/dc-cafe/api/v1/analytics/export.pdf' => 'dc-cafe:apiExportAnalyticsPdf',
 
         // API: backup download
         '/dc-cafe/api/v1/backup/download'     => 'dc-cafe:handleBackupDownload',
