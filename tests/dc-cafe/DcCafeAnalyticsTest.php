@@ -430,7 +430,10 @@ $h->test('the login limiter is clear to begin with', true, 'reset');
 $roleEnum = (string) ($db->query("SHOW COLUMNS FROM dc_users LIKE 'role'")->fetch(PDO::FETCH_ASSOC)['Type'] ?? '');
 $h->test('the tenant users table knows the viewer role', str_contains($roleEnum, "'viewer'"), $roleEnum);
 
-$suffix = 'an' . bin2hex(random_bytes(4));
+// A deliberately unmistakable prefix. Auth rows record no actor, so cleanup has to
+// find them by the username in the payload, and a sweep that could match a real
+// account's name has no business running against an audit trail.
+$suffix = 'zzfxa' . bin2hex(random_bytes(4));
 $db->prepare(
     "INSERT INTO dc_users (username, password_hash, email, full_name, role, store_id, is_active)
      VALUES (?, ?, ?, 'Analytics Admin', 'admin', 1, 1)"
@@ -442,7 +445,7 @@ $admin = [
     'role' => 'admin', 'store_id' => 1, 'source' => 'dc-cafe',
 ];
 
-$viewerSuffix = 'vw' . bin2hex(random_bytes(4));
+$viewerSuffix = 'zzfxv' . bin2hex(random_bytes(4));
 $db->prepare(
     "INSERT INTO dc_users (username, password_hash, email, full_name, role, store_id, is_active)
      VALUES (?, ?, ?, 'Analytics Viewer', 'viewer', 1, 1)"
@@ -648,18 +651,44 @@ $h->gap('Viewer PAGE access is verified, but only by hand: a curl sequence signs
 // ── Cleanup ──
 $h->section('Cleanup');
 
-foreach ([$adminId, $viewerId] as $uid) {
-    $db->prepare('DELETE FROM audit_logs WHERE actor_user_id = ?')->execute([$uid]);
+// Auth rows carry no actor: at the instant of a sign-in nobody is authenticated
+// yet, so the identity is recorded in entity_id and in the payload instead. An
+// earlier version deleted only on actor_user_id, matched none of them, and left
+// every sign-in behind — while the assertion below passed against rows it had
+// never looked at. It now deletes by what the rows actually carry.
+$purge = $db->prepare(
+    "DELETE FROM audit_logs
+     WHERE actor_user_id = ?
+        OR (entity_type = 'dc_users' AND entity_id = ?)
+        OR new_data LIKE ?"
+);
+foreach ([[$adminId, $suffix], [$viewerId, $viewerSuffix]] as [$uid, $username]) {
+    $purge->execute([$uid, (string) $uid, '%"' . $username . '"%']);
     $db->prepare('DELETE FROM dc_users WHERE user_id = ?')->execute([$uid]);
 }
+
+// Belt and braces: sweep anything a previous run left, now that the prefix makes
+// that safe to do against a real audit trail.
+$db->prepare("DELETE FROM audit_logs WHERE new_data LIKE '%\"zzfx%'")->execute();
+
+// Exporting a report is a real event and the suite's export records one too. It is
+// found by the range the test asks for, which no real export will ever request. Its
+// actor is empty here only because this suite stubs the user instead of holding a
+// session; a real export records whoever ran it.
+$db->prepare("DELETE FROM audit_logs WHERE entity_type = 'dc_reports' AND new_data LIKE ?")
+    ->execute(['%2001-01-01%']);
 
 $left = $db->prepare('SELECT COUNT(*) FROM dc_users WHERE user_id IN (?, ?)');
 $left->execute([$adminId, $viewerId]);
 $h->test('the fixture users are gone', (int) $left->fetchColumn() === 0, 'users');
 
-$leftAudit = $db->prepare('SELECT COUNT(*) FROM audit_logs WHERE actor_user_id IN (?, ?)');
-$leftAudit->execute([$adminId, $viewerId]);
-$h->test('and their trail is gone with them', (int) $leftAudit->fetchColumn() === 0, 'audit');
+$leftAudit = $db->prepare('SELECT COUNT(*) FROM audit_logs WHERE new_data LIKE ? OR new_data LIKE ?');
+$leftAudit->execute(['%"' . $suffix . '"%', '%"' . $viewerSuffix . '"%']);
+$h->test(
+    'and their trail is gone with them',
+    (int) $leftAudit->fetchColumn() === 0,
+    'looked for ' . $suffix . ' and ' . $viewerSuffix
+);
 
 $switchStmt->execute([$tenantId]);
 $h->test(
