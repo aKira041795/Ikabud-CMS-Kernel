@@ -156,6 +156,35 @@ $h->test(
     (bool) preg_match('/function dcAnalyticsRoles\(\)[\s\S]{0,400}dcViewerDashboardEnabled\(\)/', $analyticsSrc)
 );
 
+// The role has to be assignable, or an administrator can define it and never use it.
+// Two handlers validated against a hand-written list that did not include it, so the
+// app refused the role the database accepts.
+$h->test(
+    'a user can actually be given the viewer role',
+    in_array('viewer', dcAssignableRoles(), true),
+    implode(', ', dcAssignableRoles())
+);
+$h->test(
+    'user management no longer validates against a hand-written role list',
+    !str_contains($read('modules/dc-cafe/handlers.php'), "['admin', 'supervisor', 'auditor', 'cashier']")
+);
+$h->test(
+    'and the user form offers it',
+    str_contains($read('templates/modules/dc-cafe/settings/index.disyl'), '<option value="viewer">')
+);
+
+// PHP 8.4 deprecates fputcsv() without the $escape argument, and every row the export
+// wrote was doing that — one deprecation per line, hundreds per export, straight into
+// the error log.
+$h->test(
+    'the CSV export writes rows through a helper that passes the escape parameter',
+    str_contains($analyticsSrc, "fputcsv(\$handle, \$fields, ',', '\"', '\\\\')")
+);
+$h->test(
+    'and no call site omits it',
+    !str_contains($analyticsHandlers, 'fputcsv($out')
+);
+
 // ── 2. Range ──
 $h->section('Period Range');
 

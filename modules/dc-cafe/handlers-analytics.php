@@ -98,67 +98,67 @@ function apiExportAnalyticsCsv(array $params = []): void
     $out = fopen('php://output', 'w');
     fprintf($out, "\xEF\xBB\xBF"); // BOM so Excel reads the peso figures as UTF-8
 
-    fputcsv($out, ['DC Cafe analytics', $range['from'] . ' to ' . $range['to'], $scope]);
+    dcCsvRow($out, ['DC Cafe analytics', $range['from'] . ' to ' . $range['to'], $scope]);
     if (!empty($range['clamped'])) {
-        fputcsv($out, ['Note', 'Range limited to the most recent ' . $range['max_days'] . ' days']);
+        dcCsvRow($out, ['Note', 'Range limited to the most recent ' . $range['max_days'] . ' days']);
     }
-    fputcsv($out, []);
+    dcCsvRow($out, []);
 
-    fputcsv($out, ['Sales']);
-    fputcsv($out, ['Scope', 'Orders', 'Revenue', 'Average ticket', 'Share %']);
+    dcCsvRow($out, ['Sales']);
+    dcCsvRow($out, ['Scope', 'Orders', 'Revenue', 'Average ticket', 'Share %']);
     $overall = $bundle['sales']['overall'];
-    fputcsv($out, ['All branches', $overall['orders'], $overall['revenue'], $overall['avg_ticket'], 100]);
+    dcCsvRow($out, ['All branches', $overall['orders'], $overall['revenue'], $overall['avg_ticket'], 100]);
     foreach ($bundle['sales']['branches'] as $branch) {
-        fputcsv($out, [$branch['name'], $branch['orders'], $branch['revenue'], $branch['avg_ticket'], $branch['share_pct']]);
+        dcCsvRow($out, [$branch['name'], $branch['orders'], $branch['revenue'], $branch['avg_ticket'], $branch['share_pct']]);
     }
-    fputcsv($out, []);
+    dcCsvRow($out, []);
 
-    fputcsv($out, ['Best sellers (all branches)']);
-    fputcsv($out, ['Rank', 'Product', 'Units', 'Revenue', 'Share %']);
+    dcCsvRow($out, ['Best sellers (all branches)']);
+    dcCsvRow($out, ['Rank', 'Product', 'Units', 'Revenue', 'Share %']);
     foreach ($bundle['products']['top'] as $row) {
-        fputcsv($out, [$row['rank'], $row['name'], $row['qty'], $row['revenue'], $row['revenue_share_pct']]);
+        dcCsvRow($out, [$row['rank'], $row['name'], $row['qty'], $row['revenue'], $row['revenue_share_pct']]);
     }
-    fputcsv($out, []);
+    dcCsvRow($out, []);
 
-    fputcsv($out, ['Best sellers per branch']);
+    dcCsvRow($out, ['Best sellers per branch']);
     foreach ($bundle['products']['by_branch'] as $branch) {
-        fputcsv($out, [$branch['name']]);
+        dcCsvRow($out, [$branch['name']]);
         if ($branch['products'] === []) {
-            fputcsv($out, ['(no sales in this period)']);
+            dcCsvRow($out, ['(no sales in this period)']);
             continue;
         }
-        fputcsv($out, ['Rank', 'Product', 'Units', 'Revenue']);
+        dcCsvRow($out, ['Rank', 'Product', 'Units', 'Revenue']);
         foreach ($branch['products'] as $row) {
-            fputcsv($out, [$row['rank'], $row['name'], $row['qty'], $row['revenue']]);
+            dcCsvRow($out, [$row['rank'], $row['name'], $row['qty'], $row['revenue']]);
         }
     }
-    fputcsv($out, []);
+    dcCsvRow($out, []);
 
     $pareto = $bundle['pareto'];
-    fputcsv($out, ['Pareto', $pareto['vital_few'] . ' of ' . $pareto['total_products'] . ' products make up '
+    dcCsvRow($out, ['Pareto', $pareto['vital_few'] . ' of ' . $pareto['total_products'] . ' products make up '
         . $pareto['cut_pct'] . '% of revenue']);
-    fputcsv($out, ['Rank', 'Product', 'Revenue', 'Cumulative', 'Cumulative %']);
+    dcCsvRow($out, ['Rank', 'Product', 'Revenue', 'Cumulative', 'Cumulative %']);
     foreach ($pareto['rows'] as $row) {
-        fputcsv($out, [$row['rank'], $row['name'], $row['revenue'], $row['cumulative_revenue'], $row['cumulative_pct']]);
+        dcCsvRow($out, [$row['rank'], $row['name'], $row['revenue'], $row['cumulative_revenue'], $row['cumulative_pct']]);
     }
-    fputcsv($out, []);
+    dcCsvRow($out, []);
 
     foreach (['weekly' => 'Forecast (weekly)', 'monthly' => 'Forecast (monthly)'] as $key => $heading) {
         $forecast = $bundle['forecast'][$key];
-        fputcsv($out, [$heading]);
-        fputcsv($out, ['Method', $forecast['method'], 'Confidence', $forecast['confidence']]);
-        fputcsv($out, ['Note', $forecast['note']]);
-        fputcsv($out, ['Period', 'Revenue', 'Kind']);
+        dcCsvRow($out, [$heading]);
+        dcCsvRow($out, ['Method', $forecast['method'], 'Confidence', $forecast['confidence']]);
+        dcCsvRow($out, ['Note', $forecast['note']]);
+        dcCsvRow($out, ['Period', 'Revenue', 'Kind']);
         foreach ($forecast['observed'] as $bucket) {
             if (empty($bucket['complete'])) {
                 continue; // Not fitted on, so not reported as though it were.
             }
-            fputcsv($out, [$bucket['label'], $bucket['revenue'], 'actual']);
+            dcCsvRow($out, [$bucket['label'], $bucket['revenue'], 'actual']);
         }
         foreach ($forecast['projection'] as $step) {
-            fputcsv($out, ['+' . $step['period'], $step['revenue'], 'projected']);
+            dcCsvRow($out, ['+' . $step['period'], $step['revenue'], 'projected']);
         }
-        fputcsv($out, []);
+        dcCsvRow($out, []);
     }
 
     fclose($out);

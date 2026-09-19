@@ -1983,8 +1983,8 @@ function apiCreateUser(array $params = []): void
     if ($username === '' || $password === '' || $fullName === '') {
         dcJsonError('Username, password, and full name are required');
     }
-    if (!in_array($role, ['admin', 'supervisor', 'auditor', 'cashier'], true)) {
-        dcJsonError('Invalid role. Must be admin, supervisor, auditor, or cashier');
+    if (!in_array($role, dcAssignableRoles(), true)) {
+        dcJsonError('Invalid role. Must be one of: ' . implode(', ', dcAssignableRoles()));
     }
     if (strlen($password) < 6) {
         dcJsonError('Password must be at least 6 characters');
@@ -2055,8 +2055,8 @@ function apiUpdateUser(array $params = []): void
         dcJsonError('Nothing to update', 400);
     }
 
-    if ($role !== null && !in_array((string) $role, ['admin', 'supervisor', 'auditor', 'cashier'], true)) {
-        dcJsonError('Invalid role. Must be admin, supervisor, auditor, or cashier');
+    if ($role !== null && !in_array((string) $role, dcAssignableRoles(), true)) {
+        dcJsonError('Invalid role. Must be one of: ' . implode(', ', dcAssignableRoles()));
     }
 
     if ($password !== null && strlen((string) $password) < 6) {

@@ -636,6 +636,39 @@ function dcLandingForRole(string $role): string
 }
 
 /**
+ * The roles that may be handed to a user through user management.
+ *
+ * The viewer role is a real role in the schema, so it is offered whenever the branch
+ * could use it — which is why the two places that validate a role against a hand-written
+ * list were stopping an administrator from creating one at all. The branch setting
+ * governs whether a viewer may sign in and read, and a viewer on a branch that has the
+ * surface switched off is refused at the door with a reason, rather than being refused
+ * the role in the first place.
+ *
+ * @return array<int, string>
+ */
+function dcAssignableRoles(): array
+{
+    return ['admin', 'supervisor', 'auditor', 'cashier', 'viewer'];
+}
+
+/**
+ * Write one CSV row.
+ *
+ * PHP 8.4 deprecates calling fputcsv() without the $escape argument, and every row
+ * this app writes was doing exactly that — an export filled the error log with one
+ * deprecation per line. Passing today's default explicitly keeps the output byte for
+ * byte the same while removing the deprecation.
+ *
+ * @param resource          $handle
+ * @param array<int, mixed> $fields
+ */
+function dcCsvRow($handle, array $fields): void
+{
+    fputcsv($handle, $fields, ',', '"', '\\');
+}
+
+/**
  * Whether this user's session has anywhere left that it may go.
  *
  * A viewer is the only role that can lose every one of its pages while it is signed
