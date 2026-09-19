@@ -92,6 +92,33 @@ class TestHarness
         echo "══════════════════════════════════════\n";
     }
 
+    /**
+     * Make the compiled template cache writable by whoever serves the app.
+     *
+     * Compiled templates are derived data, so nothing here needs preserving — the only thing
+     * that matters is that the web user can rewrite them. Entries this process does not own
+     * cannot be chmod'ed and do not need to be: they already belong to the web user, which is
+     * why a failure here is silent rather than noisy.
+     */
+    private function relaxCompiledTemplateCache(): void
+    {
+        $cacheDir = dirname(__DIR__, 2) . '/storage/cache';
+        if (!is_dir($cacheDir)) {
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($cacheDir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if ($item instanceof \SplFileInfo) {
+                @chmod($item->getPathname(), $item->isDir() ? 0777 : 0666);
+            }
+        }
+    }
+
     // ─── Bootstrap ───────────────────────────────────────────────
 
     private function bootstrap(): void
@@ -327,6 +354,13 @@ class TestHarness
         echo "\n  Suite: {$this->suiteName}\n";
         echo "  Time: " . round($elapsed / 1000, 2) . "s\n";
         echo "══════════════════════════════════════\n\n";
+
+        // Repair again on the way out. The run itself writes cache entries — compiled
+        // templates, but also the kernel state cache and workflow seeds — and those are
+        // exactly the ones the web user could not overwrite afterwards. Repairing only on
+        // the way in undid yesterday's damage and did nothing about the damage this run was
+        // about to cause.
+        $this->relaxCompiledTemplateCache();
 
         $this->writeResults($elapsed);
 
