@@ -6,15 +6,71 @@
         <div>
             <h1 class="text-2xl font-bold text-gray-800">Reports</h1>
             <p class="text-sm text-gray-500">
-                Sales overall and per branch, best sellers, the Pareto split, and a weekly/monthly
-                projection. Completed sales only — voided sales are not revenue, and a parked order
-                was never a sale. Products that did not sell in the period are left out.
+                Choose a period and take the report away as a file. The figures themselves are on
+                the dashboard — this page builds the CSV or PDF, it does not display.
             </p>
         </div>
         <a href="/dc-cafe/dashboard" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200">Dashboard</a>
     </div>
 
-    {* The same block the dashboard shows, so the two cannot disagree. *}
-    {include "modules/dc-cafe/partials/analytics.disyl"}
+    {* Generation only. No analytics are rendered here: the dashboard is where the numbers are
+       read, and repeating them would be a second place for them to be wrong. *}
+    <div x-data="dcReportForm()" class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <div class="flex flex-wrap items-end gap-3">
+            <label class="block text-xs font-semibold text-gray-600">From
+                <input type="date" x-model="from" class="block mt-1 px-3 py-1.5 border rounded text-sm">
+            </label>
+            <label class="block text-xs font-semibold text-gray-600">To
+                <input type="date" x-model="to" class="block mt-1 px-3 py-1.5 border rounded text-sm">
+            </label>
+            <label class="block text-xs font-semibold text-gray-600">Branch
+                <select x-model="storeId" class="block mt-1 px-3 py-1.5 border rounded text-sm bg-white">
+                    <option value="">All branches</option>
+                    {for branch in branches}
+                    <option value="{branch.store_id}">{branch.name}</option>
+                    {/for}
+                </select>
+            </label>
+        </div>
+
+        <p class="text-xs text-gray-500" x-text="summary()"></p>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <a x-bind:href="exportUrl('')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700">Download CSV</a>
+            <a x-bind:href="exportUrl('.pdf')" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-900">Download PDF</a>
+        </div>
+
+        <p class="text-xs text-gray-400">
+            The report covers sales overall and per branch, best sellers, the Pareto split, and the
+            weekly and monthly projection — completed sales only, so voided sales and parked orders
+            are not revenue. Branches that took nothing are listed; products that did not sell are not.
+        </p>
+    </div>
+
+    <script>
+    function dcReportForm() {
+        return {
+            from: '{default_from}',
+            to: '{default_to}',
+            storeId: '',
+
+            exportUrl(suffix) {
+                const q = new URLSearchParams();
+                if (this.from) q.set('from', this.from);
+                if (this.to) q.set('to', this.to);
+                if (this.storeId) q.set('store_id', this.storeId);
+                return '/dc-cafe/api/v1/analytics/export' + suffix + '?' + q.toString();
+            },
+
+            summary() {
+                if (!this.from && !this.to) {
+                    return 'The most recent 30 days, all branches.';
+                }
+                return 'From ' + (this.from || 'the beginning') + ' to ' + (this.to || 'today')
+                    + ' · ' + (this.storeId ? 'one branch' : 'all branches') + '.';
+            },
+        };
+    }
+    </script>
 </div>
 {/block}

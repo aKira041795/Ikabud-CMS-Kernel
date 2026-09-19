@@ -17,16 +17,22 @@ declare(strict_types=1);
 /**
  * GET /dc-cafe/reports — the reporting screen.
  *
- * Renders the same analytics block the dashboard uses, so the two can never
- * disagree about a number.
+ * Report generation. This page produces a file: choose the period, then take it away as CSV or
+ * PDF. Nothing is displayed here on purpose — the dashboard is where the numbers are read, and
+ * showing them again would create a second place for them to be wrong.
  */
 function pageReports(array $params = []): void
 {
     $ctx = dcCtx();
     $ctx->requireAnyRole(...dcAnalyticsRoles());
 
+    $range = dcAnalyticsRange(null, null);
+
     echo dcRender('reports/index.disyl', [
         'page_title' => 'DC Cafe Reports',
+        'branches' => dcAnalyticsBranches(),
+        'default_from' => $range['from'],
+        'default_to' => $range['to'],
     ]);
 }
 
