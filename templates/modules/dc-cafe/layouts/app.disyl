@@ -14,7 +14,7 @@
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-14 py-2">
                 <div class="flex flex-wrap items-center gap-x-3 sm:gap-x-6">
-                    <a href="/dc-cafe/pos" class="font-bold text-lg">DC Cafe</a>
+                    <a href="{home_url}" class="font-bold text-lg">DC Cafe</a>
                     {* A viewer is here to read the numbers, so the till-facing links are
                        not offered at all rather than shown and then refused. The other
                        roles keep the exclusion rules they had. *}
@@ -34,8 +34,10 @@
                     {* Role: all *}
                     <a href="/dc-cafe/customers" class="text-amber-200 hover:text-white text-sm">Customers</a>
                     {/if}
-                    {* Role: admin, supervisor, auditor, and a viewer when the branch allows one *}
-                    {if user.role != 'cashier'}
+                    {* Whatever dcAnalyticsRoles() allows, so the link and the page it opens
+                       cannot disagree — including a viewer whose branch switched the surface
+                       off while the session was already open. *}
+                    {if can_view_analytics}
                     <a href="/dc-cafe/dashboard" class="text-amber-200 hover:text-white text-sm">Dashboard</a>
                     <a href="/dc-cafe/reports" class="text-amber-200 hover:text-white text-sm">Reports</a>
                     {/if}

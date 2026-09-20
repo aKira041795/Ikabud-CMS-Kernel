@@ -47,6 +47,16 @@ function dcRender(string $template, array $context = []): string
         ? $template
         : 'modules/dc-cafe/' . ltrim($template, '/');
 
+    // Derived once at dc-cafe's single render entry point, so every page's navigation
+    // agrees with the handlers about who may read the analytics and where a signed-in user
+    // belongs. Each template deciding for itself is how the layout came to restate a role
+    // rule that could drift from dcAnalyticsRoles() when the branch setting changed under
+    // an open session, and how the sign-in form came to hold its own copy of the landing.
+    $context += [
+        'can_view_analytics' => dcCanViewAnalytics(),
+        'home_url' => dcHomeUrl(),
+    ];
+
     return dcCtx()->render($resolved, kernelPrepareRenderContext($resolved, $context));
 }
 

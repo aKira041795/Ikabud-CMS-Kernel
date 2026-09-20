@@ -406,6 +406,13 @@ $h->test(
 $h->test('so does the dashboard, so the two cannot disagree', str_contains($dashboardTpl, 'partials/analytics.disyl'));
 $h->test('the shared block reads the one analytics endpoint', substr_count($partial, '/dc-cafe/api/v1/analytics') >= 1);
 $h->test('the partial is self-contained — it declares its own component', str_contains($partial, 'x-data="dcAnalytics()"') && str_contains($partial, 'function dcAnalytics()'));
+// The Share column appended its sign in markup while the Pareto table did not, so the same
+// kind of figure appeared as "69.7%" in one table and "69.7" in the next.
+$h->test(
+    'the Pareto cumulative share is rendered with a percent sign',
+    str_contains($partial, '<span x-text="r.cumulative_pct"></span>%'),
+    'percent sign present'
+);
 $h->test('the dashboard hides the operational tiles from a viewer', (bool) preg_match("/\{if user\.role != 'viewer'\}/", $dashboardTpl));
 
 // ── 9. Navigation ──
@@ -429,11 +436,25 @@ $h->test(
     'settings'
 );
 
-$dashGuard = strpos($layout, "{if user.role != 'cashier'}");
+// The guard is derived from dcAnalyticsRoles() now rather than written out as a role
+// literal. Asserting the old string would have pinned the drift in place and kept this
+// test green while the nav offered a link the handler refused, so it is asserted against
+// the rule instead — and against the absence of the literal that caused that.
+$dashGuard = strpos($layout, '{if can_view_analytics}');
 $h->test(
-    'a cashier still does not get the dashboard',
-    $dashGuard !== false && str_contains(substr($layout, (int) $dashGuard, 300), 'href="/dc-cafe/dashboard"'),
-    'dashboard'
+    'the analytics links sit inside a derived guard, not a role literal',
+    $dashGuard !== false
+        && !str_contains($layout, "{if user.role != 'cashier'}")
+        && str_contains(substr($layout, (int) $dashGuard, 300), 'href="/dc-cafe/dashboard"'),
+    'derived guard'
+);
+$h->test('a cashier is not among the roles that may read the analytics', !in_array('cashier', dcAnalyticsRoles(), true), json_encode(dcAnalyticsRoles()));
+$h->test('an admin is', in_array('admin', dcAnalyticsRoles(), true), json_encode(dcAnalyticsRoles()));
+$h->test('an auditor is', in_array('auditor', dcAnalyticsRoles(), true), json_encode(dcAnalyticsRoles()));
+$h->test(
+    'and a viewer is included exactly when the branch switch says so',
+    in_array('viewer', dcAnalyticsRoles(), true) === dcViewerDashboardEnabled(),
+    'switch=' . (dcViewerDashboardEnabled() ? 'on' : 'off') . ' roles=' . json_encode(dcAnalyticsRoles())
 );
 
 // ── 10. Live HTTP ──
@@ -568,6 +589,23 @@ $h->test('with a range', isset($bundle['range']['from'], $bundle['range']['to'])
 $h->test('with overall sales', isset($bundle['sales']['overall']['revenue']), json_encode($bundle['sales']['overall'] ?? null));
 $h->test('with a branch breakdown', isset($bundle['sales']['branches']) && is_array($bundle['sales']['branches']), 'branches');
 $h->test('with top products', isset($bundle['products']['top']) && is_array($bundle['products']['top']), 'top');
+// Both rankings are cut on the server over every product that sold, so the units view can
+// surface a product the revenue view leaves out. Re-sorting the revenue top ten in the
+// browser could not: it can only reorder products that are already in that ten.
+$h->test('and a units ranking alongside it', isset($bundle['products']['top_by_qty']) && is_array($bundle['products']['top_by_qty']), 'top_by_qty');
+$mixed = [
+    ['product_id' => 1, 'name' => 'Revenue leader', 'revenue' => 900.0, 'qty' => 1.0, 'orders' => 1],
+    ['product_id' => 2, 'name' => 'Volume leader', 'revenue' => 100.0, 'qty' => 50.0, 'orders' => 5],
+    ['product_id' => 3, 'name' => 'Mid', 'revenue' => 300.0, 'qty' => 10.0, 'orders' => 3],
+];
+$byRev = dcAnalyticsTopProducts($mixed, 1, 'revenue');
+$byQty = dcAnalyticsTopProducts($mixed, 1, 'qty');
+$h->test('the revenue ranking leads on revenue', ($byRev[0]['product_id'] ?? 0) === 1, json_encode($byRev[0] ?? null));
+$h->test(
+    'and the units ranking reaches a product the revenue cut excludes',
+    ($byQty[0]['product_id'] ?? 0) === 2,
+    json_encode($byQty[0] ?? null)
+);
 $h->test('with a products-per-branch breakdown', isset($bundle['products']['by_branch']) && is_array($bundle['products']['by_branch']), 'by_branch');
 $h->test('with a Pareto split', isset($bundle['pareto']['rows']) && is_array($bundle['pareto']['rows']), 'pareto');
 $h->test('with a weekly forecast', isset($bundle['forecast']['weekly']['projection']), 'weekly');
@@ -577,11 +615,48 @@ $h->test(
     count((array) ($bundle['forecast']['weekly']['projection'] ?? [])) === 4,
     (string) count((array) ($bundle['forecast']['weekly']['projection'] ?? []))
 );
+// This window's complete periods hold no trading, so a monthly projection here could only
+// be a column of ₱0.00 rows presented as a forecast. It is withheld and the reason is
+// stated. The projection itself is exercised with periods that did trade, further down,
+// so withholding cannot be satisfied by simply never forecasting.
 $h->test(
-    'the monthly forecast projects three',
-    count((array) ($bundle['forecast']['monthly']['projection'] ?? [])) === 3,
+    'no monthly forecast rows are invented when no complete month traded',
+    count((array) ($bundle['forecast']['monthly']['projection'] ?? [])) === 0,
     (string) count((array) ($bundle['forecast']['monthly']['projection'] ?? []))
 );
+$h->test(
+    'and the empty window is stated rather than a zero average called typical',
+    !str_contains((string) ($bundle['forecast']['monthly']['note'] ?? ''), 'typical period'),
+    (string) ($bundle['forecast']['monthly']['note'] ?? '')
+);
+$h->test(
+    'while a week that did trade still forecasts, so the two differ for a reason',
+    count((array) ($bundle['forecast']['weekly']['projection'] ?? [])) === 4,
+    'weekly=' . count((array) ($bundle['forecast']['weekly']['projection'] ?? []))
+);
+
+// The projection on its own, with buckets built here rather than read from the database,
+// so the arithmetic is asserted independently of whatever the demo data happens to hold.
+$traded = [];
+foreach ([120.0, 180.0, 240.0] as $i => $rev) {
+    $traded[] = ['key' => 'w' . $i, 'label' => 'W' . $i, 'revenue' => $rev, 'complete' => true];
+}
+$fit = dcAnalyticsProjection($traded, 3);
+$h->test('three trading periods do produce a projection', count($fit['projection']) === 3, json_encode($fit['projection']));
+$h->test('fitted as a trend, since three periods traded', ($fit['method'] ?? '') === 'trend', (string) ($fit['method'] ?? ''));
+$h->test('and a rising run projects above its last observation', (float) $fit['projection'][0]['revenue'] > 240.0, json_encode($fit['projection'][0] ?? null));
+
+$quiet = [];
+foreach ([0, 0, 0] as $i => $rev) {
+    $quiet[] = ['key' => 'q' . $i, 'label' => 'Q' . $i, 'revenue' => 0.0, 'complete' => true];
+}
+$none = dcAnalyticsProjection($quiet, 3);
+$h->test('three empty periods produce no projection', count($none['projection']) === 0, json_encode($none['projection']));
+$h->test('and are named as insufficient evidence', ($none['confidence'] ?? '') === 'insufficient', (string) ($none['confidence'] ?? ''));
+
+$void = dcAnalyticsProjection([], 3);
+$h->test('no complete period at all produces no projection', count($void['projection']) === 0, json_encode($void['projection']));
+$h->test('and is not described as a typical period', !str_contains((string) $void['note'], 'typical period'), (string) $void['note']);
 $h->test(
     'the recent window has real sales, so the assertions above are not vacuous',
     (int) ($bundle['sales']['overall']['orders'] ?? 0) > 0,

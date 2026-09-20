@@ -501,18 +501,24 @@ function dcAnalyticsProjection(array $buckets, int $periods = 4, float $clampAtZ
         }
     }
 
+    // Projections are withheld when nothing traded in the window. Extrapolating from
+    // zero trading periods yields a confident-looking column of ₱0.00, and a reader takes
+    // that as a forecast of no revenue rather than as the absence of a forecast. The note
+    // below says why; printing the rows anyway would contradict it.
     $projection = [];
-    for ($step = 1; $step <= $periods; $step++) {
-        // Predicted from the fitted line, not from the last observed period. A
-        // single quiet week at the end of the window would otherwise drag the
-        // whole projection down with it.
-        $value = ($trend !== null && $intercept !== null)
-            ? $intercept + ($trend * ($count - 1 + $step))
-            : $average;
-        // Revenue cannot be negative, so a steep downward trend is floored rather
-        // than reported as a negative forecast.
-        $value = max($clampAtZero, $value);
-        $projection[] = ['period' => $step, 'revenue' => round($value, 2)];
+    if ($withSales > 0) {
+        for ($step = 1; $step <= $periods; $step++) {
+            // Predicted from the fitted line, not from the last observed period. A
+            // single quiet week at the end of the window would otherwise drag the
+            // whole projection down with it.
+            $value = ($trend !== null && $intercept !== null)
+                ? $intercept + ($trend * ($count - 1 + $step))
+                : $average;
+            // Revenue cannot be negative, so a steep downward trend is floored rather
+            // than reported as a negative forecast.
+            $value = max($clampAtZero, $value);
+            $projection[] = ['period' => $step, 'revenue' => round($value, 2)];
+        }
     }
 
     if ($withSales >= 8) {
@@ -523,10 +529,14 @@ function dcAnalyticsProjection(array $buckets, int $periods = 4, float $clampAtZ
         $confidence = 'insufficient';
     }
 
-    $note = match ($confidence) {
-        'insufficient' => 'Only ' . $withSales . ' of ' . $count
+    // "0 of 0 complete periods" is not a typical period — there is no period to be
+    // typical of — so the empty-window case is stated separately rather than being
+    // reported as though an average of nothing had been measured.
+    $note = match (true) {
+        $count === 0 => 'No complete period has finished in this range yet, so there is nothing to project from.',
+        $confidence === 'insufficient' => 'Only ' . $withSales . ' of ' . $count
             . ' complete periods had any sales, so this is the typical period rather than a trend.',
-        'low' => $withSales . ' of ' . $count
+        $confidence === 'low' => $withSales . ' of ' . $count
             . ' complete periods had sales; treat the direction as indicative only.',
         default => 'Based on ' . $withSales . ' trading periods out of ' . $count . ' complete.',
     };
@@ -593,7 +603,12 @@ function dcAnalyticsBundle(?string $from = null, ?string $to = null, ?int $store
         'daily' => $daily,
         'sales' => $sales,
         'products' => [
-            'top' => dcAnalyticsTopProducts($productRows, 10),
+            // Both rankings are cut on the server, over every product that sold. Sending
+            // one ranking and re-sorting it in the browser can only reorder the products
+            // already in that ranking, so a product that led on units but sat outside the
+            // revenue top ten would be missing from the units view entirely.
+            'top' => dcAnalyticsTopProducts($productRows, 10, 'revenue'),
+            'top_by_qty' => dcAnalyticsTopProducts($productRows, 10, 'qty'),
             'by_branch' => $perBranchProducts,
             'sold_count' => count($productRows),
         ],
@@ -623,6 +638,39 @@ function dcAnalyticsRoles(): array
     return dcViewerDashboardEnabled()
         ? ['admin', 'supervisor', 'auditor', 'viewer']
         : ['admin', 'supervisor', 'auditor'];
+}
+
+/**
+ * Whether the signed-in user may see the analytics surfaces.
+ *
+ * The one source of truth for both the navigation and the handlers' guards, so a link
+ * and the page it opens cannot disagree. The layout used to restate this rule as
+ * `user.role != 'cashier'`, which quietly diverges the moment a branch switches the
+ * viewer surface off underneath a session that is already open: the link stays on
+ * screen and the page then refuses it.
+ *
+ * No user at all resolves to '' and is refused, so this is safe on an entry page.
+ */
+function dcCanViewAnalytics(): bool
+{
+    $user = dcCtx()->user();
+
+    return in_array((string) ($user['role'] ?? ''), dcAnalyticsRoles(), true);
+}
+
+/**
+ * Where the signed-in user belongs when they ask for "home".
+ *
+ * The same decision the sign-in redirect uses, exposed to the layout so the brand link
+ * stops sending a viewer to the till. The sign-in form held its own copy of this as a
+ * literal, which is the reason a viewer signing in travelled through a page that refuses
+ * them on the way to the one they are allowed to see.
+ */
+function dcHomeUrl(): string
+{
+    $user = dcCtx()->user();
+
+    return dcLandingForRole((string) ($user['role'] ?? ''));
 }
 
 /**

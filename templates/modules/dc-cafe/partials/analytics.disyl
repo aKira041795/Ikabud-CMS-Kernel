@@ -219,7 +219,7 @@
                                     <div class="bg-blue-500 h-2 rounded" x-bind:style="'width: ' + r.cumulative_pct + '%'"></div>
                                 </div>
                             </td>
-                            <td class="py-2 text-right text-gray-600" x-text="r.cumulative_pct"></td>
+                            <td class="py-2 text-right text-gray-600"><span x-text="r.cumulative_pct"></span>%</td>
                         </tr>
                     </template>
                 </tbody>
@@ -238,7 +238,8 @@
                     <span class="text-xs px-2 py-0.5 rounded font-semibold"
                           x-bind:class="confidenceClass(data.forecast.weekly.confidence)"
                           x-text="'confidence: ' + data.forecast.weekly.confidence"></span>
-                    <span class="text-xs text-gray-500" x-text="'mean per week ₱' + money(data.forecast.weekly.average)"></span>
+                    <span class="text-xs text-gray-500" x-show="data.forecast.weekly.periods > 0"
+                          x-text="'mean per week ₱' + money(data.forecast.weekly.average)"></span>
                 </div>
                 <table class="w-full text-sm">
                     <thead class="text-xs text-gray-500 border-b">
@@ -270,7 +271,8 @@
                     <span class="text-xs px-2 py-0.5 rounded font-semibold"
                           x-bind:class="confidenceClass(data.forecast.monthly.confidence)"
                           x-text="'confidence: ' + data.forecast.monthly.confidence"></span>
-                    <span class="text-xs text-gray-500" x-text="'mean per month ₱' + money(data.forecast.monthly.average)"></span>
+                    <span class="text-xs text-gray-500" x-show="data.forecast.monthly.periods > 0"
+                          x-text="'mean per month ₱' + money(data.forecast.monthly.average)"></span>
                 </div>
                 <table class="w-full text-sm">
                     <thead class="text-xs text-gray-500 border-b">
@@ -331,13 +333,15 @@ function dcAnalytics() {
             return 'bg-red-100 text-red-700';
         },
 
-        // Ranked the way the reader asked for, from the rows the server sent.
+        // Each ranking is cut by the server over every product that sold, so switching to
+        // units shows the products that actually moved the most units. Re-sorting the
+        // revenue top ten here could only ever reorder that same ten.
         get topProducts() {
             if (!this.data) return [];
-            const rows = this.data.products.top.slice();
-            const key = this.by === 'qty' ? 'qty' : 'revenue';
-            rows.sort((a, b) => b[key] - a[key]);
-            return rows;
+            const src = this.by === 'qty'
+                ? (this.data.products.top_by_qty || this.data.products.top)
+                : this.data.products.top;
+            return (src || []).slice();
         },
 
         // No export action here on purpose. This block is the dashboard — where the owner reads

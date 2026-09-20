@@ -50,7 +50,11 @@ function loginForm() {
             })
             .then(r => r.json())
             .then(d => {
-                if (d.ok) { window.location.href = '/dc-cafe/pos'; }
+                // The server decides where a role belongs and returns it; this used to be a
+                // literal '/dc-cafe/pos', so a viewer signed in by way of the till, which
+                // refuses them and bounced them on to the dashboard. A role must not be
+                // routed through a page it is not allowed to open.
+                if (d.ok) { window.location.href = d.redirect || '/dc-cafe/dashboard'; }
                 else { this.error = d.error || 'Login failed'; }
             })
             .catch(() => { this.error = 'Connection error'; })

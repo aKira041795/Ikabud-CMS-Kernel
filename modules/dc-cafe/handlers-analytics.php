@@ -316,8 +316,14 @@ function dcAnalyticsPdfHtml(array $bundle): string
         $h .= '<h2>' . $e($heading) . '</h2>';
         // Confidence and the note travel with the numbers: a projection without them reads as a
         // fact, and the note is where an excluded part-finished period is disclosed.
-        $h .= '<p class="muted">Method: ' . $e($f['method']) . ' &middot; Confidence: ' . $e($f['confidence'])
-            . ' &middot; Mean per period: ' . $money($f['average']) . '</p>';
+        // The mean is quoted only when there was something to average. With no complete
+        // period in range, "Mean per period: ₱0.00" beside a note saying nothing could be
+        // projected reads as a measurement rather than as the absence of one.
+        $h .= '<p class="muted">Method: ' . $e($f['method']) . ' &middot; Confidence: ' . $e($f['confidence']);
+        if ((int) ($f['periods'] ?? 0) > 0) {
+            $h .= ' &middot; Mean per period: ' . $money($f['average']);
+        }
+        $h .= '</p>';
         $h .= '<p class="note">' . $e($f['note']) . '</p>';
         $h .= '<table><tr><th>Period</th><th class="r">Revenue</th><th>Kind</th></tr>';
         foreach ($f['observed'] as $b) {
