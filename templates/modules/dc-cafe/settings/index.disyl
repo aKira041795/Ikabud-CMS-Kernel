@@ -248,6 +248,36 @@
                 </button>
             </div>
         </div>
+
+        {* Danger Zone — Reset Sales (keeps the catalogue, wipes the trading history) *}
+        <div class="mt-8 border-2 border-red-200 rounded-xl p-5 bg-red-50/50">
+            <h3 class="font-semibold text-red-700 mb-1">Danger Zone — Reset Sales</h3>
+            <p class="text-xs text-gray-600 mb-2">
+                Clears orders, their lines, the shifts that produced them, the reconciliation
+                worksheets written against those shifts, and voucher and void bookkeeping.
+                Products, prices, categories, users, customers, stores, vouchers, discounts,
+                suppliers and current stock are <strong>kept</strong>.
+            </p>
+            <p class="text-xs text-gray-600 mb-4">
+                A <strong>backup is taken first</strong> and the reset will not run without one,
+                so there is always a restore point. Use Generate Backup above if you want a copy
+                of your own. This cannot be undone.
+            </p>
+            <div class="flex flex-wrap items-center gap-3">
+                <input type="text" x-model="salesResetConfirm" placeholder="Type RESET SALES to confirm"
+                       class="border rounded px-3 py-2 text-sm w-56 uppercase"
+                       :class="salesResetConfirm === 'RESET SALES' ? 'border-red-400' : 'border-gray-300'">
+                <button @click="resetSales()"
+                        :disabled="salesResetting || salesResetConfirm !== 'RESET SALES'"
+                        class="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+                    <span x-show="!salesResetting">Reset Sales</span>
+                    <span x-show="salesResetting">Backing up, then resetting…</span>
+                </button>
+            </div>
+            <div x-show="salesResetMessage" class="text-sm mt-3"
+                 :class="salesResetError ? 'text-red-600' : 'text-green-700'"
+                 x-text="salesResetMessage"></div>
+        </div>
     </div>
 
     {* ── User Accounts Tab ── *}
@@ -920,6 +950,7 @@ function settingsApp(initialData) {
         editStoreName, editStoreAddress, editStoreContact, editStoreLat, editStoreLng,
         showAddStore: false, newStoreName: '', newStoreAddress: '', newStoreContact: '', newStoreLat: '', newStoreLng: '',
         resetConfirm: '', resetting: false,
+        salesResetConfirm: '', salesResetting: false, salesResetMessage: '', salesResetError: false,
         showAddUser: false, showEditUser: false,
         editUserData: {user_id: 0, full_name: '', email: '', role: 'cashier', store_id: null, password: ''},
         newUser: {username: '', password: '', full_name: '', email: '', role: 'cashier', store_id: null},
@@ -1267,6 +1298,27 @@ function settingsApp(initialData) {
                     else { this.onError(d.error); }
                 })
                 .finally(() => { this.resetting = false; });
+        },
+
+        resetSales() {
+            if (this.salesResetConfirm !== 'RESET SALES') { this.showToast('Type RESET SALES to confirm', 'error'); return; }
+            if (!confirm('Reset ALL sales history?\n\nOrders, order lines, shifts, reconciliation worksheets, voucher redemptions and void attempts are cleared. Products, prices, categories, users, customers, stores and current stock are kept.\n\nA backup is taken first. This cannot be undone.')) return;
+            this.salesResetting = true;
+            this.salesResetMessage = '';
+            this.salesResetError = false;
+            this.api('/dc-cafe/api/v1/sales/reset', 'POST', { confirm: this.salesResetConfirm })
+                .then(d => {
+                    if (d.ok) {
+                        this.salesResetConfirm = '';
+                        this.salesResetMessage = d.message || 'Sales history reset';
+                        this.onSuccess(d.message || 'Sales history reset');
+                    } else {
+                        this.salesResetMessage = d.error || 'Reset failed';
+                        this.salesResetError = true;
+                        this.onError(d.error);
+                    }
+                })
+                .finally(() => { this.salesResetting = false; });
         },
 
         generateBackup() {

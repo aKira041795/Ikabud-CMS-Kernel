@@ -907,3 +907,66 @@ function apiResetProductInventory(array $params = []): void
         'tables'  => $tables,
     ]);
 }
+
+/**
+ * POST /dc-cafe/api/v1/sales/reset — clear the sales history, keeping the catalogue.
+ *
+ * The companion to the inventory reset above: that one clears what was counted,
+ * this one clears what was sold. Orders, their lines, the shifts that produced
+ * them, the reconciliation worksheets written against those shifts, and the
+ * voucher and void bookkeeping hanging off them all go. Products, prices,
+ * categories, users, customers, stores, payment methods, vouchers, discounts,
+ * ledger groups, suppliers, ingredients and current stock levels stay, so a fresh
+ * round of testing starts from the same catalogue with an empty trading history.
+ *
+ * A backup is taken first and the reset refuses to run without one. This is the one
+ * operation in the module that destroys the record of a sale, and the settings
+ * screen places it directly beneath the backup button for that reason — but
+ * depending on the operator to press that button first is not a guarantee.
+ */
+function apiResetSales(array $params = []): void
+{
+    $ctx = dcCtx();
+    // Admin only. The inventory reset is open to a supervisor because it clears
+    // counts; this one destroys the sales record itself.
+    $ctx->requireAnyRole('admin');
+
+    $confirm = strtoupper(trim((string) (dcInput('confirm') ?? '')));
+    if ($confirm !== 'RESET SALES') {
+        dcJsonError('Type RESET SALES to confirm.', 422);
+    }
+
+    try {
+        \Ikabud\Kernel\Services\ModuleBackupService::generate($ctx, 'dc_', 'pre sales reset', [
+            'download_path' => dc_backupDownloadPath(),
+            'retention_days' => 14,
+            'event' => 'dc_cafe.backup.created',
+            'by_user' => (int) ($ctx->user()['user_id'] ?? 0),
+        ]);
+    } catch (\Throwable $e) {
+        // Fail closed: an irreversible wipe with no restore point is worse than
+        // a reset the operator has to retry once the backup problem is fixed.
+        write_log('dc_cafe.sales_reset.backup_failed', 'error', ['message' => $e->getMessage()]);
+        dcJsonError('Backup failed, so nothing was reset. ' . $e->getMessage(), 500);
+    }
+
+    $tables = \Ikabud\Kernel\Services\ModuleDataResetService::reset(dcDb(), [
+        ['table' => 'dc_order_items',        'mode' => 'truncate'],
+        ['table' => 'dc_orders',             'mode' => 'truncate'],
+        ['table' => 'dc_sessions',           'mode' => 'truncate'],
+        ['table' => 'dc_inventory_progress', 'mode' => 'truncate'],
+        ['table' => 'dc_voucher_usages',     'mode' => 'truncate'],
+        ['table' => 'dc_void_attempts',      'mode' => 'truncate'],
+    ], [
+        'event'   => 'dc_cafe.sales.reset',
+        'by_user' => (int) ($ctx->user()['user_id'] ?? 0),
+    ]);
+
+    dc_auditLog('sales.reset', 'dc-cafe', null, null, ['tables' => $tables]);
+
+    dcJsonResponse([
+        'ok'      => true,
+        'message' => 'Sales history reset, after taking a backup. Orders, shifts and reconciliation worksheets are cleared; the catalogue is untouched.',
+        'tables'  => $tables,
+    ]);
+}

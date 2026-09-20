@@ -203,4 +203,73 @@ $delUser = $db->prepare("SELECT COUNT(*) FROM dc_users WHERE user_id = :id");
 $delUser->execute(['id' => $testUserId]);
 $h->test('Test user cleanup succeeds', (int) $delUser->fetchColumn() === 0);
 
+// ── 7. Reset Sales (danger zone) ──
+// A destructive action is asserted through its guard rails rather than by running it:
+// what matters is that it cannot fire without the typed confirmation, that it cannot
+// fire without first taking a backup, and that it cannot reach the catalogue.
+$h->section('Reset Sales');
+
+$routes = (string) file_get_contents(__DIR__ . '/../../modules/dc-cafe/routes.php');
+$resetHandler = (string) file_get_contents(__DIR__ . '/../../modules/dc-cafe/handlers-inventory.php');
+$resetBody = strstr($resetHandler, 'function apiResetSales(');
+$resetBody = $resetBody === false ? '' : substr($resetBody, 0, 3000);
+
+$h->test(
+    'the reset-sales route is registered',
+    str_contains($routes, "'/dc-cafe/api/v1/sales/reset'")
+        && str_contains($routes, 'dc-cafe:apiResetSales')
+);
+$h->test('and its handler exists', str_contains($resetHandler, 'function apiResetSales('));
+
+$h->test(
+    'it is admin-only, unlike the inventory reset which a supervisor may run',
+    str_contains($resetBody, "requireAnyRole('admin')")
+        && !str_contains($resetBody, "requireAnyRole('admin', 'supervisor')")
+);
+$h->test(
+    'it refuses without the exact typed confirmation',
+    str_contains($resetBody, "'RESET SALES'")
+);
+
+$backupAt = strpos($resetBody, 'ModuleBackupService::generate');
+$wipeAt = strpos($resetBody, 'ModuleDataResetService::reset');
+$h->test(
+    'it takes a backup before it wipes anything',
+    $backupAt !== false && $wipeAt !== false && $backupAt < $wipeAt
+);
+$h->test(
+    'and refuses to wipe at all if that backup fails',
+    str_contains($resetBody, 'Backup failed, so nothing was reset')
+);
+
+$h->test(
+    'it clears the sales tables',
+    str_contains($resetBody, "'dc_orders'")
+        && str_contains($resetBody, "'dc_order_items'")
+        && str_contains($resetBody, "'dc_sessions'")
+);
+$h->test(
+    'and cannot reach the catalogue or the accounts',
+    !str_contains($resetBody, "'dc_products'")
+        && !str_contains($resetBody, "'dc_users'")
+        && !str_contains($resetBody, "'dc_stores'")
+        && !str_contains($resetBody, "'dc_customers'")
+);
+
+// An audit entry outlives the record it describes. Offering a link to something that
+// has been deleted produces a link that can only answer 404, which is what a reset
+// would otherwise leave behind across the whole trail.
+$auditHelpers = (string) file_get_contents(__DIR__ . '/../../modules/dc-cafe/helpers.php');
+$auditTpl = (string) file_get_contents(__DIR__ . '/../../templates/modules/dc-cafe/audit/index.disyl');
+
+$h->test(
+    'the audit trail resolves whether a referenced order still exists',
+    str_contains($auditHelpers, 'entity_linkable')
+        && str_contains($auditHelpers, 'FROM dc_orders WHERE order_id IN')
+);
+$h->test(
+    'and the audit view links only what is still there',
+    str_contains($auditTpl, 'entry.entity_linkable')
+);
+
 $h->done();
