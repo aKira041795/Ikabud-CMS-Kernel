@@ -4608,7 +4608,12 @@ MD;
                     if ($tenantModules === []) {
                         $skipReason = trim((string)($sync['skipped'] ?? ''));
                         if ($skipReason === 'module_not_in_plan') {
-                            out('    ' . dim('Module not in tenant plan.'));
+                            // Name the module: the tenant line alone does not say which one
+                            // was withheld, and "not in plan" for the module just requested
+                            // is the whole point of the message.
+                            $skippedId = trim((string)($sync['skipped_module_id'] ?? ''));
+                            out('    ' . dim('Skipped' . ($skippedId !== '' ? ' ' . $skippedId : '')
+                                . ' — not part of this tenant\'s provisioning plan.'));
                         } else {
                             out('    ' . dim('Nothing to migrate.'));
                         }

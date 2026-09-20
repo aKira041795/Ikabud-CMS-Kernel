@@ -1863,6 +1863,27 @@ function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = nul
                     'modules' => $results,
                 ];
             }
+
+            // An explicitly requested module is only migrated into a tenant that would
+            // have provisioned it anyway. A bare `migrate` already goes through the
+            // plan; the explicit form did not, so `php ikabud migrate <module>` wrote
+            // that module's schema — and whatever seed data its migrations carry — into
+            // every tenant database on the host. That is how the CMS tenant's database
+            // came to hold all 28 of dc-cafe's tables and dc-cafe's four default seeded
+            // accounts, none of which it was ever granted.
+            if (!tenantModuleIsInProvisionPlan($entryModuleId, $requestedModuleId)) {
+                // 'skipped' => 'module_not_in_plan' is the contract the migrate command
+                // already reads and prints; until now nothing produced that value, so the
+                // command carried a branch for a case that could not occur.
+                return [
+                    'ok' => true,
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+                    'modules' => [],
+                    'skipped' => 'module_not_in_plan',
+                    'skipped_module_id' => $requestedModuleId,
+                ];
+            }
         }
 
         $coordinated = tenantRunCoordinatedProvisionMigrations(
@@ -1896,6 +1917,43 @@ function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = nul
             'modules' => $results,
         ];
     }
+}
+
+/**
+ * Whether a module belongs to the set a tenant would provision on its own.
+ *
+ * `tenantProvisionModulePlan()` already answers this for a tenant's entry module,
+ * which is what a bare `migrate` uses. This exposes the same answer to the explicit
+ * `migrate <module>` path so the two cannot disagree about who owns a module.
+ *
+ * Deliberately fails open. A tenant with no entry module, or a plan that cannot be
+ * built, is allowed to proceed: refusing to migrate a tenant that genuinely needs the
+ * module would be a worse failure than the stray tables this guard prevents, and the
+ * stray tables are now recoverable with tools/tenant-foreign-tables.php.
+ */
+function tenantModuleIsInProvisionPlan(string $entryModuleId, string $moduleId): bool
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '' || $moduleId === '_kernel') {
+        return true;
+    }
+
+    $entryModuleId = trim($entryModuleId);
+    if ($entryModuleId === '') {
+        return true;
+    }
+
+    try {
+        $plan = tenantProvisionModulePlan($entryModuleId);
+    } catch (Throwable $e) {
+        return true;
+    }
+
+    if (!is_array($plan) || $plan === []) {
+        return true;
+    }
+
+    return in_array($moduleId, $plan, true);
 }
 
 /**
