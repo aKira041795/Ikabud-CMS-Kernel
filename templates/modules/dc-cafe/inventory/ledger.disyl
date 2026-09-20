@@ -87,7 +87,7 @@
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[1380px] text-sm">
+                    <table class="w-full min-w-[1140px] text-sm">
                         <thead class="bg-white text-xs uppercase tracking-wide text-gray-500">
                             <tr>
                                 <th class="px-4 py-3 text-left">Product</th>
@@ -101,14 +101,21 @@
                                 <th class="px-3 py-3 text-right">Sales Variance</th>
                                 <th class="px-3 py-3 text-right">Branch stock</th>
                                 <th class="px-3 py-3 text-right">Stock Variance</th>
-                                <th class="px-4 py-3 text-left">Notes</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="row in group.products" :key="row.product_id">
                                 <tr class="border-t border-gray-100"
                                     :class="row.has_discrepancy ? 'bg-amber-50/50' : ''">
-                                    <td class="px-4 py-2 font-medium text-gray-800" x-text="row.name"></td>
+                                    <td class="px-4 py-2">
+                                        <div class="font-medium text-gray-800" x-text="row.name"></div>
+                                        {* The per-row explanation used to live in the Notes column. It
+                                           interprets the figures rather than recording a note, so it
+                                           belongs with the product. *}
+                                        <div class="mt-0.5 text-[11px]"
+                                             :class="row.info_class"
+                                             x-text="row.info_text"></div>
+                                    </td>
                                     <td class="px-3 py-2">
                                         <input type="number" min="0" step="any" x-model.number="row.beginning_qty"
                                                :disabled="!editable" @input="queueSave(row)"
@@ -160,14 +167,6 @@
                                     <td class="px-3 py-2 text-right font-semibold"
                                         :class="row.stock_variance_class"
                                         x-text="displayDerived(row.stock_variance_qty)"></td>
-                                    <td class="px-4 py-2">
-                                        <input type="text" x-model="row.notes" :disabled="!editable"
-                                               @input.debounce.1000ms="queueSave(row)" placeholder="Optional note"
-                                               class="w-44 rounded border px-2 py-1.5 disabled:bg-gray-100 disabled:text-gray-500">
-                                        <div class="mt-1 text-[11px]"
-                                             :class="row.info_class"
-                                             x-text="row.info_text"></div>
-                                    </td>
                                 </tr>
                             </template>
                         </tbody>
@@ -373,6 +372,10 @@ function inventoryLedger() {
                         branch_stock_qty: parseFloat(item.branch_stock_qty) || 0,
                         stock_variance_qty: item.stock_variance_qty === null ? null : parseFloat(item.stock_variance_qty),
                         notes: item.notes || '',
+                        // notes is loaded and sent back even though the worksheet no longer offers
+                        // a field for it: the save handler writes null for a blank note, so dropping
+                        // it from the payload would silently erase notes already recorded on older
+                        // progress rows.
                         _dirty: false,
                         negative_calculated: false,
                         sales_variance_class: 'text-gray-500',

@@ -11,7 +11,7 @@
 </head>
 <body class="bg-gray-50">
     <nav class="bg-amber-700 text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
+        <div class="max-w-[1800px] mx-auto px-4">
             <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-14 py-2">
                 <div class="flex flex-wrap items-center gap-x-3 sm:gap-x-6">
                     <a href="{home_url}" class="font-bold text-lg">DC Cafe</a>
@@ -53,6 +53,6 @@
             </div>
         </div>
     </nav>
-    <main class="max-w-7xl mx-auto px-4 py-6">{block content}{/block}</main>
+    <main class="max-w-[1800px] mx-auto px-4 py-6">{block content}{/block}</main>
 </body>
 </html>
