@@ -22,10 +22,10 @@
                 <input type="number" x-model="startingCash" step="0.01" min="0" value="1000" required
                        class="w-full px-4 py-2.5 border rounded-lg">
             </div>
-            <div class="flex items-center">
-                <input type="checkbox" x-model="isLateReport" class="mr-2">
-                <label class="text-sm text-gray-600">Late report</label>
-            </div>
+            {* A "Late report" checkbox stood here. It posted dc_sessions.is_late_report, a column
+               carried over from the previous system (migration 006) that no code ever read, and
+               which every session in the live tenant held as 0. Removed rather than explained:
+               a control with no effect is worse than no control. *}
             <div x-show="error" x-text="error" class="text-red-600 text-sm bg-red-50 p-3 rounded-lg"></div>
             <button type="submit" x-bind:disabled="loading"
                     class="w-full bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-700 disabled:opacity-50">
@@ -41,7 +41,6 @@ function sessionStart() {
     return {
         shiftType: 'morning',
         startingCash: 1000,
-        isLateReport: false,
         error: '',
         loading: false,
         start() {
@@ -53,7 +52,6 @@ function sessionStart() {
                 body: JSON.stringify({
                     shift_type: this.shiftType,
                     starting_cash: parseFloat(this.startingCash) || 0,
-                    is_late_report: this.isLateReport ? 1 : 0,
                 })
             })
             .then(r => r.json()).then(d => {

@@ -548,7 +548,11 @@ function apiStartSession(array $params = []): void
     $storeId = (int) (dcInput('store_id') ?? $user['store_id'] ?? 1);
     $startingCash = (float) (dcInput('starting_cash') ?? 0);
     $shiftType = (string) (dcInput('shift_type') ?? 'morning');
-    $isLateReport = (int) (dcInput('is_late_report') ?? 0);
+
+    // is_late_report is deliberately not read or written. The column survives from the
+    // previous system (see migration 006) and nothing in the module reads it, so the
+    // checkbox that used to populate it has been removed and the column is left to its
+    // own default. Keeping the column means any external query against it still works.
 
     // Validate shift type
     if (!in_array($shiftType, ['morning', 'afternoon', 'night'], true)) {
@@ -572,9 +576,9 @@ function apiStartSession(array $params = []): void
 
     $db = dcDb();
     $db->query(
-        "INSERT INTO dc_sessions (user_id, store_id, starting_cash, shift_type, shift_start, status, is_late_report)
-         VALUES (?, ?, ?, ?, NOW(), 'active', ?)",
-        [(int) $user['user_id'], $storeId, $startingCash, $shiftType, $isLateReport]
+        "INSERT INTO dc_sessions (user_id, store_id, starting_cash, shift_type, shift_start, status)
+         VALUES (?, ?, ?, ?, NOW(), 'active')",
+        [(int) $user['user_id'], $storeId, $startingCash, $shiftType]
     );
 
     $sessionId = (int) $db->lastInsertId();
