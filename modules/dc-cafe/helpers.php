@@ -687,11 +687,43 @@ function dcAuditTrail(array $filters = [], int $limit = DC_AUDIT_PAGE_SIZE, int 
     }
 
     $out = [];
+    $orderIds = [];
     foreach ($rows as $row) {
         $new = json_decode((string) ($row['new_data'] ?? ''), true);
         $old = json_decode((string) ($row['old_data'] ?? ''), true);
-        $out[] = dcAuditTrailEntry($row, is_array($new) ? $new : [], is_array($old) ? $old : []);
+        $entry = dcAuditTrailEntry($row, is_array($new) ? $new : [], is_array($old) ? $old : []);
+        // An entry outlives the record it describes — orders are reset and deleted
+        // while the trail of them stays. Linking to a row that is gone offers a link
+        // that can only answer 404, so existence is resolved for the whole page in one
+        // query and the view links only what is still there.
+        $entry['entity_linkable'] = false;
+        if ($entry['entity_type'] === 'dc_orders' && $entry['entity_id'] !== '') {
+            $orderIds[$entry['entity_id']] = true;
+        }
+        $out[] = $entry;
     }
+
+    if ($orderIds !== []) {
+        $ids = array_map('intval', array_keys($orderIds));
+        try {
+            $live = dcDb()->query(
+                'SELECT order_id FROM dc_orders WHERE order_id IN ('
+                    . implode(',', array_fill(0, count($ids), '?')) . ')',
+                $ids
+            )->fetchAll(\PDO::FETCH_COLUMN);
+            $live = array_flip(array_map('strval', $live));
+            foreach ($out as $index => $entry) {
+                if (isset($live[$entry['entity_id']])) {
+                    $out[$index]['entity_linkable'] = true;
+                }
+            }
+        } catch (\Throwable $e) {
+            // A trail page must still render if the existence check cannot run.
+            write_log('dc_cafe.audit_link_resolve_failed', 'warning', ['message' => $e->getMessage()]);
+            return $out;
+        }
+    }
+
     return $out;
 }
 

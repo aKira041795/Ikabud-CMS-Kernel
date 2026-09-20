@@ -92,11 +92,14 @@
                             <div class="text-[11px] text-gray-400 mt-0.5">{entry.action}</div>
                         </td>
                         <td class="px-4 py-2 whitespace-nowrap">
-                            {if entry.entity_type == 'dc_orders' && entry.entity_id}
+                            {if entry.entity_type == 'dc_orders' && entry.entity_id && entry.entity_linkable}
                             <a href="/dc-cafe/orders/{entry.entity_id}" class="text-amber-700 hover:underline">
                                 Order #{entry.entity_id}
                             </a>
                             {else}
+                            {* The order is gone, or the entry never pointed at one. What happened
+                               is still true, so it is shown plainly rather than as a link that
+                               can only answer 404. *}
                             <span class="text-gray-500">{entry.entity_type}{if entry.entity_id} #{entry.entity_id}{/if}</span>
                             {/if}
                         </td>
