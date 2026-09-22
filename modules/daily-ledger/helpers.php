@@ -676,6 +676,114 @@ function dlBrandAssetFallbackUrl(string $relativePath): string
     return '/uploads/daily-ledger' . $tenantSegment . '/' . ltrim($relativePath, '/');
 }
 
+/**
+ * Shrink an uploaded branding asset to the size it is actually displayed at.
+ *
+ * These arrive at design/camera resolution - the live logo is 800x800 and 336KB -
+ * but the largest place one is shown is 64px tall (max-h-16 on login; h-8 w-8 in
+ * the app header). On shared hosting that gap is not cosmetic: measured from
+ * outside the host, that one file took ~20s to transfer at ~18KB/s while the same
+ * page's 7KB of HTML moved at ~2MB/s. Apache serves public/uploads directly (the
+ * !-f rewrite condition keeps PHP out of the path), so neither application code
+ * nor edge compression can help - and a PNG is already DEFLATE-compressed inside,
+ * so gzip saves 1%. The bytes themselves have to get smaller, which means doing it
+ * where they arrive. This also makes re-uploading the same oversized file heal
+ * itself, for every tenant.
+ *
+ * Rewrites $path in place, preserving the source format. Returns null when nothing
+ * was done. Never throws: a failed resize must not fail a valid upload.
+ *
+ * @return array{width:int,height:int,bytes:int,original_bytes:int}|null
+ */
+function dlDownscaleBrandAssetInPlace(string $path, string $mimeType, string $assetType): ?array
+{
+    if (!function_exists('imagecreatefrompng') || !function_exists('imagecopyresampled')) {
+        return null;
+    }
+
+    // SVG is resolution-independent, and ICO is a multi-size container GD cannot
+    // encode. GIF is skipped deliberately: GD flattens an animated GIF to one
+    // frame, and silently killing an animation is worse than a slow logo.
+    $loaders = [
+        'image/jpeg' => 'imagecreatefromjpeg',
+        'image/png'  => 'imagecreatefrompng',
+        'image/webp' => 'imagecreatefromwebp',
+    ];
+    if (!isset($loaders[$mimeType]) || !function_exists($loaders[$mimeType])) {
+        return null;
+    }
+
+    $info = @getimagesize($path);
+    if (!is_array($info)) {
+        return null;
+    }
+    $srcW = (int)($info[0] ?? 0);
+    $srcH = (int)($info[1] ?? 0);
+    if ($srcW <= 0 || $srcH <= 0) {
+        return null;
+    }
+
+    // 3x the largest display (64px) covers the densest phone screen. A favicon has
+    // the extra job of serving as an apple-touch-icon.
+    $maxEdge = $assetType === 'favicon' ? 180 : 192;
+    if (max($srcW, $srcH) <= $maxEdge) {
+        return null; // already small enough - leave the bytes untouched
+    }
+
+    $scale = $maxEdge / max($srcW, $srcH);
+    $dstW  = max(1, (int)round($srcW * $scale));
+    $dstH  = max(1, (int)round($srcH * $scale));
+
+    $src = @$loaders[$mimeType]($path);
+    if (!$src) {
+        return null;
+    }
+    $dst = imagecreatetruecolor($dstW, $dstH);
+    if (!$dst) {
+        return null;
+    }
+
+    // Logos are transparent far more often than not; without this the alpha channel
+    // is composited onto black.
+    if ($mimeType !== 'image/jpeg') {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        imagefilledrectangle($dst, 0, 0, $dstW - 1, $dstH - 1, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+    }
+
+    // Note: no imagedestroy() calls. It has been a no-op since PHP 8.0 and is
+    // deprecated in 8.5, where it is enough to abort a request under this app's error
+    // handling - the handles are freed when these locals go out of scope anyway.
+    $resampled = imagecopyresampled($dst, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
+    if (!$resampled) {
+        return null;
+    }
+
+    // Encode to a sibling file first: a failed encode must not truncate the original.
+    $staging = $path . '.resize-tmp';
+    $encoded = match ($mimeType) {
+        'image/jpeg' => @imagejpeg($dst, $staging, 88),
+        'image/webp' => @imagewebp($dst, $staging, 88),
+        default      => @imagepng($dst, $staging, 9),
+    };
+
+    $originalBytes = (int)@filesize($path);
+    $newBytes      = (int)@filesize($staging);
+
+    // Refuse to swap in a file that is not actually smaller; the point is bytes.
+    if (!$encoded || $newBytes <= 0 || $newBytes >= $originalBytes || !@rename($staging, $path)) {
+        @unlink($staging);
+        return null;
+    }
+
+    return [
+        'width' => $dstW,
+        'height' => $dstH,
+        'bytes' => $newBytes,
+        'original_bytes' => $originalBytes,
+    ];
+}
+
 function dlUploadBrandAsset(string $assetType, array $file): array
 {
     $assetType = strtolower(trim($assetType));
@@ -750,6 +858,20 @@ function dlUploadBrandAsset(string $assetType, array $file): array
     $filename = $assetType . '_' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '.' . $ext;
     $subDir = 'branding/' . date('Y') . '/' . date('m');
     $relativePath = $subDir . '/' . $filename;
+
+    // Shrink before storing, so both destinations get the small copy. The size and
+    // mime checks above deliberately ran against the ORIGINAL upload first, so this
+    // cannot be used to slip an oversized file past the limit.
+    $downscaled = dlDownscaleBrandAssetInPlace($tmpPath, $mimeType, $assetType);
+    if (is_array($downscaled) && function_exists('write_log')) {
+        write_log('daily-ledger branding asset downscaled for transfer', 'info', [
+            'asset_type' => $assetType,
+            'mime_type' => $mimeType,
+            'from_bytes' => $downscaled['original_bytes'],
+            'to_bytes' => $downscaled['bytes'],
+            'dimensions' => $downscaled['width'] . 'x' . $downscaled['height'],
+        ]);
+    }
 
     $destinations = [];
     if (function_exists('cmsUploadsPath') && function_exists('cmsResolveUploadUrl')) {
