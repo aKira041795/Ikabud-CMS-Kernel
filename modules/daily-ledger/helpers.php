@@ -105,6 +105,101 @@ function dl_resolveWithdrawalLineUnit(\Ikabud\Kernel\Contracts\ModuleDB $db, int
 }
 
 /**
+ * Reconcile `dl_daily_ledger.addtl` against the evidence that is supposed to
+ * produce it, so a ballooned figure becomes visible instead of silent.
+ *
+ * `addtl` ACCUMULATES - unlike beg_bal/bal_end it is not a counted value - and
+ * nothing has ever checked it against its sources. A retry that is not byte
+ * identical to the original is not a duplicate to the dedup index, so it lands as
+ * a NEW row: the amount inflates with no error and no evidence trail. That is the
+ * mechanism behind an Addt'l figure nobody can explain.
+ *
+ * Compared at DAY level (AM + PM summed) ON PURPOSE. Receivings are not
+ * shift-scoped (dl_branch_receivings carries received_ledger_date and no shift), so
+ * a per-shift comparison would report discrepancies that are only an attribution
+ * artefact. Better a slightly coarser answer that is true than a precise one that
+ * cries wolf.
+ *
+ * Sources summed, and nothing else:
+ *   - posted receivings into this branch (dl_branch_receiving_items.quantity_received)
+ *   - cashier `adjustment_add` rows (the only cashier-side writer of addtl)
+ *   - non-reversed production OUTPUT movements
+ *
+ * So a non-zero `difference` means "not explained by these sources", NOT
+ * necessarily "wrong". Other paths can move addtl (edited deliveries, corrections
+ * to a receiving), and this function deliberately does not guess at them: it
+ * reports the disagreement and leaves the judgement to a human. Read it as a
+ * triage list - largest first - not as a verdict.
+ *
+ * @return array<int, array<string, mixed>> Rows with product/date, each source,
+ *         the recorded total and the difference. Empty when everything reconciles.
+ */
+function dl_reconcileAddtl(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, string $fromDate, string $toDate, int $limit = 200): array
+{
+    if ($branchId <= 0 || $fromDate === '' || $toDate === '') {
+        return [];
+    }
+    $limit = max(1, min(1000, $limit));
+
+    $stmt = $db->prepare(
+        "SELECT dl.product_id,
+                p.name AS product_name,
+                dl.ledger_date,
+                SUM(dl.addtl) AS recorded,
+                COALESCE(rcv.qty, 0) AS receiving_qty,
+                COALESCE(adj.qty, 0) AS adjustment_qty,
+                COALESCE(prd.qty, 0) AS production_qty,
+                SUM(dl.addtl)
+                    - (COALESCE(rcv.qty, 0) + COALESCE(adj.qty, 0) + COALESCE(prd.qty, 0)) AS difference
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_products p ON p.id = dl.product_id
+           LEFT JOIN (
+                SELECT bri.product_id AS product_id, br.received_ledger_date AS ledger_date,
+                       SUM(bri.quantity_received) AS qty
+                  FROM dl_branch_receivings br
+                  INNER JOIN dl_branch_receiving_items bri ON bri.receiving_id = br.id
+                 WHERE br.branch_id = :rcv_bid AND br.status = 'posted'
+                   AND br.received_ledger_date BETWEEN :rcv_from AND :rcv_to
+                 GROUP BY bri.product_id, br.received_ledger_date
+           ) rcv ON rcv.product_id = dl.product_id AND rcv.ledger_date = dl.ledger_date
+           LEFT JOIN (
+                SELECT cw.product_id AS product_id, cw.ledger_date AS ledger_date,
+                       SUM(cw.quantity) AS qty
+                  FROM dl_cashier_withdrawals cw
+                 WHERE cw.branch_id = :adj_bid AND cw.withdrawal_type = 'adjustment_add'
+                   AND cw.ledger_date BETWEEN :adj_from AND :adj_to
+                 GROUP BY cw.product_id, cw.ledger_date
+           ) adj ON adj.product_id = dl.product_id AND adj.ledger_date = dl.ledger_date
+           LEFT JOIN (
+                SELECT pm.product_id AS product_id, pm.ledger_date AS ledger_date,
+                       SUM(pm.quantity) AS qty
+                  FROM dl_production_movements pm
+                 WHERE pm.destination_branch_id = :prd_bid AND pm.movement_type = 'output'
+                   AND pm.ledger_date BETWEEN :prd_from AND :prd_to
+                   AND NOT EXISTS (
+                        SELECT 1 FROM dl_production_movements r
+                         WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
+                   )
+                 GROUP BY pm.product_id, pm.ledger_date
+           ) prd ON prd.product_id = dl.product_id AND prd.ledger_date = dl.ledger_date
+          WHERE dl.branch_id = :led_bid
+            AND dl.ledger_date BETWEEN :led_from AND :led_to
+          GROUP BY dl.product_id, p.name, dl.ledger_date, rcv.qty, adj.qty, prd.qty
+         HAVING difference <> 0
+          ORDER BY ABS(difference) DESC, dl.ledger_date DESC
+          LIMIT {$limit}"
+    );
+    $stmt->execute([
+        ':rcv_bid' => $branchId, ':rcv_from' => $fromDate, ':rcv_to' => $toDate,
+        ':adj_bid' => $branchId, ':adj_from' => $fromDate, ':adj_to' => $toDate,
+        ':prd_bid' => $branchId, ':prd_from' => $fromDate, ':prd_to' => $toDate,
+        ':led_bid' => $branchId, ':led_from' => $fromDate, ':led_to' => $toDate,
+    ]);
+
+    return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
  * Whether a withdrawal type accepts a negative quantity (a reduction).
  *
  * Two types do, for the same reason — an amount is on the ledger that should

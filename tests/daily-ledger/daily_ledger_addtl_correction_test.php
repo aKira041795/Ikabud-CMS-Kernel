@@ -521,11 +521,84 @@ $h->test(
     'fnLen=' . strlen($paintFn)
 );
 
+// ─── addtl reconciliation: an unexplained figure must be visible ────────
+// addtl accumulates and nothing has ever checked it against its sources, so a
+// figure inflated by non-identical retries stayed invisible. This reports where the
+// stored total disagrees with the entries that should account for it.
+$h->section('addtl reconciliation');
+
+$reconcile = static fn (int $bid = 0): array => dl_reconcileAddtl(
+    $db,
+    $bid > 0 ? $bid : $branchId,
+    $date,
+    $date
+);
+
+$h->test(
+    'a figure its evidence fully explains is not reported',
+    $reconcile() === [],
+    'rows=' . count($reconcile())
+);
+
+// An addtl increase with no receiving behind it - the exact shape of a balloon.
+dl_applyLedgerDelta($branchId, $productId, $date, 50, 999999, 'addtl', $shift);
+$flagged = $reconcile();
+$row = $flagged[0] ?? [];
+$h->test('an unexplained addtl increase is reported', count($flagged) === 1, 'rows=' . count($flagged));
+$h->test(
+    'the unexplained amount is reported as the difference',
+    (int)($row['difference'] ?? 0) === 50,
+    'diff=' . var_export($row['difference'] ?? null, true)
+);
+$h->test(
+    'each source is broken out so the gap is attributable',
+    (int)($row['receiving_qty'] ?? -1) === 0 && (int)($row['adjustment_qty'] ?? -1) === 7,
+    'receiving=' . var_export($row['receiving_qty'] ?? null, true)
+        . ' adjustments=' . var_export($row['adjustment_qty'] ?? null, true)
+);
+
+// Posting the evidence closes the gap. The report is a triage list, not a verdict:
+// it says "not explained by these sources", and a human decides.
+$db->execute(
+    "INSERT INTO dl_branch_receivings (branch_id, origin_type, received_ledger_date, status)
+     VALUES (:b, 'manual_adjustment', :d, 'posted')",
+    [':b' => $branchId, ':d' => $date]
+);
+$receivingId = (int)$db->lastInsertId();
+$db->execute(
+    "INSERT INTO dl_branch_receiving_items (receiving_id, product_id, quantity_received, unit)
+     VALUES (:r, :p, 50, 'pcs')",
+    [':r' => $receivingId, ':p' => $productId]
+);
+$h->test(
+    'posting the receiving evidence clears the figure',
+    $reconcile() === [],
+    'rows=' . count($reconcile())
+);
+
+// Only POSTED receivings count. A draft is not evidence, and treating it as such
+// would clear a real discrepancy without anything having arrived.
+$db->execute("UPDATE dl_branch_receivings SET status = 'draft' WHERE id = :r", [':r' => $receivingId]);
+$h->test(
+    'a draft receiving is not counted as evidence',
+    count($reconcile()) === 1,
+    'rows=' . count($reconcile())
+);
+$db->execute("UPDATE dl_branch_receivings SET status = 'posted' WHERE id = :r", [':r' => $receivingId]);
+
+$h->test(
+    'an unusable branch is refused rather than scanning the estate',
+    dl_reconcileAddtl($db, 0, $date, $date) === []
+        && dl_reconcileAddtl($db, $branchId, '', '') === []
+);
+
 // ─── Cleanup ───────────────────────────────────────────────────────────
 $h->section('Cleanup');
 
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_cashier_withdrawals WHERE branch_id = :b', [':b' => $branchId]);
+// Receiving items follow their header (FK ON DELETE CASCADE).
+$db->execute('DELETE FROM dl_branch_receivings WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $productId]);
