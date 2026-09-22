@@ -43,7 +43,25 @@ function createWorkbenchTest(config) {
     // renamed the Ledger-Admin account. adminFullName pins it explicitly when wanted.
     var adminFullName = config.adminFullName || null;
     var adminTenantId = config.adminTenantId || null;
+    // Optional hook run ONCE per worker process, immediately before the first login.
+    // Adapters that seed their own login account use it: doing the seeding at module
+    // load was skipped in some run orders, and a swallowed error hid that.
+    var prepareLoginHook = config.prepareLogin || null;
+    var loginPrepared = false;
     var loginFullNameCache = {};
+
+    function prepareLogin() {
+        if (loginPrepared) return;
+        loginPrepared = true;
+        if (typeof prepareLoginHook !== 'function') return;
+        try {
+            prepareLoginHook();
+        } catch (e) {
+            // Loud, not silent: a fixture that cannot prepare its account makes every
+            // spec in the file fail at login, so the reason must be visible.
+            console.error('[WorkbenchFixture] prepareLogin failed: ' + (e && e.message ? e.message : e));
+        }
+    }
 
     function resolveLoginFullName(username) {
         if (adminFullName) return adminFullName;
@@ -141,6 +159,7 @@ function createWorkbenchTest(config) {
             });
 
             await page.goto('' + appUrl + loginPath);
+            prepareLogin();
             await page.fill('input[name="username"]', adminUser);
             // Modules with a login-time full name field (e.g. daily-ledger)
             // fill it; modules without one are unaffected.
@@ -171,6 +190,7 @@ function createWorkbenchTest(config) {
         loginAs: [async function ({ page }, use) {
             await use(async function (username, password, fullName) {
                 await page.goto('' + appUrl + loginPath);
+                prepareLogin();
                 await page.fill('input[name="username"]', username);
                 var dlFullName = page.locator('input[name="full_name"]');
                 if (await dlFullName.count()) {

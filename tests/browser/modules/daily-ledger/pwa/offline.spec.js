@@ -183,7 +183,10 @@ test.describe('Daily Ledger PWA offline vault', () => {
         //    the hand re-keyed replacement is what duplicated the ledger. It must now
         //    report the failure and hold nothing.
         await page.goto(APP_URL + BASE + '/admin/production-output');
-        await page.waitForLoadState('networkidle');
+        // NOT 'networkidle': this page keeps polling (the offline-output retry timer and the
+        // connectivity probe), so the network never goes idle and the wait times out before
+        // any assertion runs. Wait for the shell instead - it is the real ready condition.
+        await page.waitForLoadState('domcontentloaded');
         await shell.expectVisible();
         await context.setOffline(true);
         if (await page.locator('#submit-output').count() > 0) {

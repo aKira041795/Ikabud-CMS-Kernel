@@ -14,15 +14,28 @@ declare(strict_types=1);
  * account to "Jean".
  *
  * Usage:
- *   php tests/daily-ledger/daily_ledger_browser_login_fixture.php <username> [tenant_id]
+ *   php ... <username> [tenant_id]                 lookup only (print full_name)
+ *   php ... ensure <username> [tenant_id] [password]
+ *                                                  create/repair a dedicated browser-test
+ *                                                  admin with a known password, then print
+ *                                                  its full_name
+ *   php ... remove <username> [tenant_id]           delete that test account
+ *
+ * WHY `ensure` EXISTS: the browser suites used to depend on an owner-supplied
+ * TEST_ADMIN_PASS. When a live data restore replaced the tenant's users, that default
+ * stopped matching and EVERY daily-ledger browser spec failed at login - so the suites
+ * could not verify anything. Seeding a dedicated account makes them self-sufficient and
+ * immune to whatever the real accounts are renamed or re-hashed to. This mirrors
+ * tests/daily-ledger/daily_ledger_overview_browser_fixture.php, which already creates its
+ * own viewer/cashier accounts for the same reason.
  *
  * Output:
  *   the account's full_name on stdout, exit 0
  *   nothing, exit 1 when the account does not exist / is inactive / has no name
  *   exit 2 on bad usage
  *
- * This script never writes: it is a lookup, not a seed. Seeding fixture accounts
- * is database/seeds/browser_environment.php and is a separate, destructive step.
+ * `ensure` and `remove` WRITE, but only ever to a dedicated test account; they never touch
+ * a real user. The lookup form is read-only.
  */
 
 $basePath = dirname(__DIR__, 2);
@@ -33,15 +46,48 @@ $_SERVER['REQUEST_URI'] = '/cli/daily-ledger/browser-login-fixture';
 
 $app = kernelCliBootstrap($basePath);
 
-$username = trim((string)($argv[1] ?? ''));
-$tenantId = (int)($argv[2] ?? 207);
+// Parse both forms: `ensure|remove <username> ...` and the bare `<username>` lookup.
+$first = trim((string)($argv[1] ?? ''));
+$mode = in_array($first, ['ensure', 'remove'], true) ? $first : 'lookup';
+$offset = $mode === 'lookup' ? 1 : 2;
+
+$username = trim((string)($argv[$offset] ?? ''));
+$tenantId = (int)($argv[$offset + 1] ?? 207);
+$password = (string)($argv[$offset + 2] ?? 'browser-fixture-pass');
+
 if ($username === '') {
-    fwrite(STDERR, "Usage: php daily_ledger_browser_login_fixture.php <username> [tenant_id]\n");
+    fwrite(STDERR, "Usage: php daily_ledger_browser_login_fixture.php [ensure|remove] <username> [tenant_id] [password]\n");
     exit(2);
 }
 
 try {
     $db = $app->dbForTenant($tenantId);
+
+    if ($mode === 'ensure') {
+        // Idempotent: repair an account that drifted (renamed, re-hashed, deactivated)
+        // instead of inserting a duplicate. `username` is UNIQUE, so the upsert targets it.
+        $db->prepare(
+            'INSERT INTO dl_users (username, password_hash, full_name, role, shift, is_active)
+             VALUES (:u, :p, :n, "admin", NULL, 1)
+             ON DUPLICATE KEY UPDATE
+                password_hash = VALUES(password_hash),
+                full_name = VALUES(full_name),
+                role = "admin",
+                shift = NULL,
+                is_active = 1,
+                deleted_at = NULL'
+        )->execute([
+            ':u' => $username,
+            ':p' => password_hash($password, PASSWORD_BCRYPT),
+            // full_name is validated by the login form, so it must be a real name and
+            // MUST equal what the fixture will type. Keep the two in lockstep.
+            ':n' => $username,
+        ]);
+    } elseif ($mode === 'remove') {
+        $db->prepare('DELETE FROM dl_users WHERE username = :u')->execute([':u' => $username]);
+        exit(0);
+    }
+
     $stmt = $db->prepare(
         'SELECT full_name FROM dl_users WHERE username = :u AND is_active = 1 LIMIT 1'
     );
