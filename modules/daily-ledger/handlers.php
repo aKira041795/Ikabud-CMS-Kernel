@@ -2602,14 +2602,31 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
         $ledgerStmt->execute([':bid' => $branchId, ':d' => $date]);
         $rows = $ledgerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // Recorded prior ending per product (any earlier date, PM preferred).
+        // Recorded prior ending per product (latest earlier date, PM preferred).
+        //
+        // This used to pull EVERY earlier date for the branch and let PHP keep the first
+        // row per product: 5,700 to 7,400 rows reduced to 174, on a function that runs
+        // after every adjustment save, batch save and close. That was the ~2.1s the
+        // withdrawal POST took, and it is why an operator saw nothing after a confirmed
+        // write and keyed the amount a second time.
+        //
+        // The join below selects only the latest earlier date that carries an ending, per
+        // product; PHP still applies the same PM-over-AM preference, so the resulting map
+        // is unchanged - verified identical on six dates, 340-348 rows instead of up to
+        // 7,433. Separate placeholders because PDO may not reuse a named parameter.
         $prevStmt = $db->prepare(
-            'SELECT product_id, shift, bal_end
-               FROM dl_daily_ledger
-              WHERE branch_id = :bid AND ledger_date < :d AND bal_end IS NOT NULL
-              ORDER BY ledger_date DESC, CASE shift WHEN \'PM\' THEN 1 ELSE 0 END DESC'
+            'SELECT dl.product_id, dl.shift, dl.bal_end
+               FROM dl_daily_ledger dl
+               INNER JOIN (
+                   SELECT product_id, MAX(ledger_date) AS max_date
+                     FROM dl_daily_ledger
+                    WHERE branch_id = :bid1 AND ledger_date < :d1 AND bal_end IS NOT NULL
+                    GROUP BY product_id
+               ) latest ON latest.product_id = dl.product_id AND latest.max_date = dl.ledger_date
+              WHERE dl.branch_id = :bid2 AND dl.bal_end IS NOT NULL
+              ORDER BY dl.product_id, CASE dl.shift WHEN \'PM\' THEN 1 ELSE 0 END DESC'
         );
-        $prevStmt->execute([':bid' => $branchId, ':d' => $date]);
+        $prevStmt->execute([':bid1' => $branchId, ':d1' => $date, ':bid2' => $branchId]);
         $prevEnd = [];
         foreach ($prevStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
             $pid = (int)$r['product_id'];
