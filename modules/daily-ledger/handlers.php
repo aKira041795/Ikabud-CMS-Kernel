@@ -4072,16 +4072,11 @@ function apiSaveCashierWithdrawals(array $params = []): void
             'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, liable_user_name, dedup_hash)
              VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :luid_name, :dedup)'
         );
-        $stmtSum = $ctx->db()->prepare(
-            'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
-               AND shift = :shift AND withdrawal_type <> :excludeType'
-        );
-        // addtl is read as well as id: an Add Stock line moves addtl by a DELTA, and
-        // the below-zero check has to see the current value under the same row lock
-        // the update takes. Only `id` is used on the withdraw branch.
+        // Both accumulator columns are read under the row lock. Cashier rows are
+        // only one source of ledger movement (dispatches also move withdraw), so
+        // neither accumulator may ever be rebuilt from the cashier-row SUM.
         $stmtCheck = $ctx->db()->prepare(
-            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
+            'SELECT id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
         // adjustment_add moves addtl (positive adds stock back to the branch, negative
         // takes back an amount recorded too high); charge/pullout increase withdraw
@@ -4098,12 +4093,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
             );
         } else {
             $stmtUpd = $ctx->db()->prepare(
-                'UPDATE dl_daily_ledger SET withdraw = :wdr, updated_by = :uid
+                'UPDATE dl_daily_ledger SET withdraw = withdraw + :qty, updated_by = :uid
                  WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
             );
             $stmtInit = $ctx->db()->prepare(
                 'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, withdraw, encoded_by, updated_by)
-                 VALUES (:bid, :pid, :d, :shift, :prc, :wdr, :uid_enc, :uid_upd)'
+                 VALUES (:bid, :pid, :d, :shift, :prc, :qty, :uid_enc, :uid_upd)'
             );
         }
 
@@ -4202,14 +4197,17 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 // back by 4", where the resulting "6" could be taken for the delta.
                 $totals[] = ['product_id' => $pid, 'addtl' => $qty];
             } else {
-                // charge/pullout: recalc withdraw from sum of all withdrawals
-                $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':excludeType' => 'adjustment_add']);
-                $newTotal = max(0, (int)$stmtSum->fetchColumn());
-
+                // Withdraw accumulates from cashier rows AND dispatches. Apply only
+                // this row's delta; replacing it with a cashier SUM erases dispatches.
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
-                if ($stmtCheck->fetch()) {
+                $ledgerRowForWithdraw = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+                if ($ledgerRowForWithdraw) {
+                    $newTotal = (int)$ledgerRowForWithdraw['withdraw'] + $qty;
+                    if ($newTotal < 0) {
+                        throw new RuntimeException('Cannot reduce withdrawals below zero: this product has ' . (int)$ledgerRowForWithdraw['withdraw'] . ' recorded for this date and shift.', 422);
+                    }
                     $stmtUpd->execute([
-                        ':wdr' => $newTotal,
+                        ':qty' => $qty,
                         ':uid' => $userId,
                         ':bid' => $branchId,
                         ':pid' => $pid,
@@ -4217,6 +4215,10 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':shift' => $shift,
                     ]);
                 } else {
+                    if ($qty < 0) {
+                        throw new RuntimeException('There are no withdrawals recorded for this product, date and shift to reduce.', 422);
+                    }
+                    $newTotal = $qty;
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
                     $stmtInit->execute([
                         ':bid' => $branchId,
@@ -4224,7 +4226,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':d' => $date,
                         ':shift' => $shift,
                         ':prc' => $price,
-                        ':wdr' => $newTotal,
+                        ':qty' => $qty,
                         ':uid_enc' => $userId,
                         ':uid_upd' => $userId,
                     ]);
@@ -4336,6 +4338,11 @@ function apiSaveCashierWithdrawals(array $params = []): void
             }
         }
 
+        $ctx->db()->commit();
+
+        // These are post-commit side effects. In particular, never publish a
+        // successful audit before the data transaction is durable: audit uses the
+        // kernel connection and may not share a stale module context's transaction.
         dl_auditLog('withdrawal', $branchId, 'dl_cashier_withdrawals', "{$date}-{$shift}", null, [
             'withdrawal_type' => $type,
             'reason_code' => $reasonCode,
@@ -4345,10 +4352,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
             'liable_user_name' => $liableUserName,
             'lines' => $totals,
         ]);
-
         dl_recomputeVariancesForDay($branchId, $date);
 
-        $ctx->db()->commit();
         $response = ['ok' => true, 'totals' => $totals];
         if ($returnDeliveryId !== null) {
             $response['delivery_id'] = $returnDeliveryId;
@@ -4359,7 +4364,9 @@ function apiSaveCashierWithdrawals(array $params = []): void
         }
         $ctx->json($response);
     } catch (\Throwable $e) {
-        $ctx->db()->rollBack();
+        if ($ctx->db()->inTransaction()) {
+            $ctx->db()->rollBack();
+        }
         if ($e instanceof DlDuplicateWithdrawalException) {
             // Idempotent replay: identical withdrawal already recorded, so the
             // transaction (including any ledger delta) was rolled back whole.
@@ -4607,9 +4614,8 @@ function apiUpdateCashierWithdrawal(array $params = []): void
         ]);
 
         // ── Recompute the shift-scoped daily-ledger row ─────────────
-        // addtl accumulates from many sources (formal receive, informal receive,
-        // adjustment_add) so an adjustment_add edit applies a DELTA, never a SUM.
-        // withdraw = SUM of non-adjustment_add rows (mirrors the insert path).
+        // Both columns accumulate from multiple sources. Apply old→new deltas;
+        // rebuilding withdraw from cashier rows would erase dispatch quantities.
         $oldIsAddtl = ($rowType === 'adjustment_add');
         $newIsAddtl = ($type === 'adjustment_add');
 
@@ -4623,9 +4629,11 @@ function apiUpdateCashierWithdrawal(array $params = []): void
 
         $hasLedgerRow = is_array($ledgerRow);
         $curAddtl = $hasLedgerRow ? (int)$ledgerRow['addtl'] : 0;
+        $curWithdraw = $hasLedgerRow ? (int)$ledgerRow['withdraw'] : 0;
+        $nextAddtl = $curAddtl - ($oldIsAddtl ? $oldQty : 0) + ($newIsAddtl ? $newQty : 0);
+        $nextWithdraw = $curWithdraw - (!$oldIsAddtl ? $oldQty : 0) + (!$newIsAddtl ? $newQty : 0);
 
         if ($oldIsAddtl || $newIsAddtl) {
-            $nextAddtl = $curAddtl - ($oldIsAddtl ? $oldQty : 0) + ($newIsAddtl ? $newQty : 0);
             if ($nextAddtl < 0) {
                 // Rejected, not clamped. Clamping to zero would store the edited row
                 // while leaving addtl short of what the row claims, so the ledger and
@@ -4639,43 +4647,33 @@ function apiUpdateCashierWithdrawal(array $params = []): void
                 ], 422);
                 return;
             }
-            if ($hasLedgerRow) {
-                $db->prepare('UPDATE dl_daily_ledger SET addtl = :a, updated_by = :u WHERE id = :id')
-                    ->execute([':a' => $nextAddtl, ':u' => $actorId, ':id' => (int)$ledgerRow['id']]);
-            } elseif ($nextAddtl > 0) {
-                $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
-                $db->prepare(
-                    'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, addtl, encoded_by, updated_by)
-                     VALUES (:bid, :pid, :d, :shift, :prc, :addtl, :u_enc, :u_upd)'
-                )->execute([
-                    ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift,
-                    ':prc' => $price, ':addtl' => $nextAddtl, ':u_enc' => $actorId, ':u_upd' => $actorId,
-                ]);
-            }
+        }
+        if ($nextWithdraw < 0) {
+            $db->rollBack();
+            $ctx->json([
+                'ok' => false,
+                'error' => 'This change would take withdrawals below zero (recorded: ' . $curWithdraw
+                    . '). Reduce the quantity, or correct the earlier entry instead.',
+            ], 422);
+            return;
         }
 
-        if (!$newIsAddtl) {
-            $sum = $db->prepare(
-                'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
-                  WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
-                    AND shift = :shift AND withdrawal_type <> "adjustment_add"'
-            );
-            $sum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift]);
-            $nextWithdraw = max(0, (int)$sum->fetchColumn());
-            if ($hasLedgerRow) {
-                $db->prepare('UPDATE dl_daily_ledger SET withdraw = :w, updated_by = :u WHERE id = :id')
-                    ->execute([':w' => $nextWithdraw, ':u' => $actorId, ':id' => (int)$ledgerRow['id']]);
-            } elseif ($nextWithdraw > 0) {
-                $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
-                $db->prepare(
-                    'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, withdraw, encoded_by, updated_by)
-                     VALUES (:bid, :pid, :d, :shift, :prc, :w, :u_enc, :u_upd)'
-                )->execute([
-                    ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift,
-                    ':prc' => $price, ':w' => $nextWithdraw, ':u_enc' => $actorId, ':u_upd' => $actorId,
-                ]);
-            }
+        if ($hasLedgerRow) {
+            $db->prepare('UPDATE dl_daily_ledger SET addtl = :a, withdraw = :w, updated_by = :u WHERE id = :id')
+                ->execute([':a' => $nextAddtl, ':w' => $nextWithdraw, ':u' => $actorId, ':id' => (int)$ledgerRow['id']]);
+        } else {
+            $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
+            $db->prepare(
+                'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, addtl, withdraw, encoded_by, updated_by)
+                 VALUES (:bid, :pid, :d, :shift, :prc, :addtl, :withdraw, :u_enc, :u_upd)'
+            )->execute([
+                ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $rowShift,
+                ':prc' => $price, ':addtl' => $nextAddtl, ':withdraw' => $nextWithdraw,
+                ':u_enc' => $actorId, ':u_upd' => $actorId,
+            ]);
         }
+
+        $db->commit();
 
         dl_auditLog('withdrawal_updated', $branchId, 'dl_cashier_withdrawals', (string)$withdrawalId, $oldRowForAudit, [
             'withdrawal_type' => $type,
@@ -4691,13 +4689,13 @@ function apiUpdateCashierWithdrawal(array $params = []): void
             'shift' => $rowShift,
             'context' => 'cashier_retry_correction',
         ]);
-
         dl_recomputeVariancesForDay($branchId, $date);
 
-        $db->commit();
         $ctx->json(['ok' => true, 'withdrawal_id' => $withdrawalId, 'quantity' => $newQty, 'unit' => $newUnit]);
     } catch (\Throwable $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         $code = $e instanceof RuntimeException ? $e->getCode() : 0;
         $status = in_array($code, [403, 404, 409, 422], true) ? $code : 400;
         $ctx->log('apiUpdateCashierWithdrawal error: ' . $e->getMessage(), 'error');

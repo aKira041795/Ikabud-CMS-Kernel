@@ -680,15 +680,10 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, liable_user_name, dedup_hash)
              VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :luid_name, :dedup)'
         );
-        $stmtSum = $ctx->db()->prepare(
-            'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
-               AND shift = :shift AND withdrawal_type <> :excludeType'
-        );
-        // Mirrors apiSaveCashierWithdrawals: addtl is read alongside id so the
-        // below-zero check sees the current value under the row lock.
+        // Mirrors apiSaveCashierWithdrawals: both accumulators are read under
+        // lock because cashier rows are not the only source of ledger movement.
         $stmtCheck = $ctx->db()->prepare(
-            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
+            'SELECT id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
         $isAddtl = ($type === 'adjustment_add');
         if ($isAddtl) {
@@ -702,12 +697,12 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             );
         } else {
             $stmtUpd = $ctx->db()->prepare(
-                'UPDATE dl_daily_ledger SET withdraw = :wdr, updated_by = :uid
+                'UPDATE dl_daily_ledger SET withdraw = withdraw + :qty, updated_by = :uid
                  WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
             );
             $stmtInit = $ctx->db()->prepare(
                 'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, withdraw, encoded_by, updated_by)
-                 VALUES (:bid, :pid, :d, :shift, :prc, :wdr, :uid_enc, :uid_upd)'
+                 VALUES (:bid, :pid, :d, :shift, :prc, :qty, :uid_enc, :uid_upd)'
             );
         }
 
@@ -781,14 +776,21 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                 // The delta, not the resulting balance — mirrors the online path.
                 $totals[] = ['product_id' => $pid, 'addtl' => $qty];
             } else {
-                $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':excludeType' => 'adjustment_add']);
-                $newTotal = max(0, (int)$stmtSum->fetchColumn());
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
-                if ($stmtCheck->fetch()) {
-                    $stmtUpd->execute([':wdr' => $newTotal, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
+                $ledgerRowForWithdraw = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+                if ($ledgerRowForWithdraw) {
+                    $newTotal = (int)$ledgerRowForWithdraw['withdraw'] + $qty;
+                    if ($newTotal < 0) {
+                        throw new RuntimeException('Cannot reduce withdrawals below zero: this product has ' . (int)$ledgerRowForWithdraw['withdraw'] . ' recorded for this date and shift.', 422);
+                    }
+                    $stmtUpd->execute([':qty' => $qty, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
                 } else {
+                    if ($qty < 0) {
+                        throw new RuntimeException('There are no withdrawals recorded for this product, date and shift to reduce.', 422);
+                    }
+                    $newTotal = $qty;
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
-                    $stmtInit->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':prc' => $price, ':wdr' => $newTotal, ':uid_enc' => $userId, ':uid_upd' => $userId]);
+                    $stmtInit->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':prc' => $price, ':qty' => $qty, ':uid_enc' => $userId, ':uid_upd' => $userId]);
                 }
                 $totals[] = ['product_id' => $pid, 'total' => $newTotal];
             }
@@ -868,6 +870,12 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             }
         }
 
+        if (!$inTx) {
+            $ctx->db()->commit();
+        }
+
+        // For the standalone worker, publish success only after the data commit.
+        // In reconcile mode the caller owns the surrounding transaction.
         dl_auditLog('withdrawal', $branchId, 'dl_cashier_withdrawals', "{$date}-{$shift}", null, [
             'withdrawal_type' => $type,
             'reason_code' => $reasonCode,
@@ -876,11 +884,6 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             'liable_user_id' => $liableUserId,
             'lines' => $totals,
         ]);
-
-        if (!$inTx) {
-            $ctx->db()->commit();
-        }
-
         dl_recomputeVariancesForDay($branchId, $date);
 
         $response = ['ok' => true, 'totals' => $totals];

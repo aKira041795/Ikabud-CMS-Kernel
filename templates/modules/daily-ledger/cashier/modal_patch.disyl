@@ -30,8 +30,9 @@
                                 <option value="charge">Charge</option>
                                 <option value="pullout">Pullout</option>
                                 <option value="used">Used (for a product/order)</option>
-                                <option value="correction">Correction (wrong entry)</option>
+                                <option value="correction">Correction — W/Draw (wrong entry)</option>
                                 <option value="adjustment_add">Add Stock (missed entry / variance)</option>
+                                <option value="correction_addtl">Correction — Additional (wrong entry)</option>
                             </select>
                         </div>
                         <div>
@@ -55,6 +56,12 @@
                     <div class="mb-4" x-show="allowsNegative()">
                         <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">
                             <span class="font-semibold" x-text="header.withdrawal_type === 'correction' ? 'Correction' : 'Add Stock'"></span> adds to today's total by default. To <span class="font-semibold">reduce</span> an amount that was recorded too high, put a minus sign first (e.g. <span class="font-mono font-semibold">-3</span>). This is the way to take back Additional stock that was keyed too high — the ledger's Addt'l cell cannot be edited directly. Logged as its own row, so the trail reads: original entry → correction.
+                        </div>
+                    </div>
+
+                    <div class="mb-4" x-show="header.withdrawal_type === 'correction_addtl'">
+                        <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">
+                            Enter how much to <span class="font-semibold">reduce Additional by</span> — a plain positive number, e.g. <span class="font-mono font-semibold">80</span>. No minus sign needed; this is recorded as a reduction and logged as its own row, so the trail reads: original entry → correction.
                         </div>
                     </div>
 
@@ -226,19 +233,32 @@ function withdrawalModal() {
         closeModal() {
             if (window.dlSetBusy) window.dlSetBusy(false);
             this.isOpen = false;
+            // A genuinely new adjustment on the next open, so a fresh intent is not
+            // swallowed as a replay of this one.
+            this.idempotencyKey = null;
+        },
+
+        // The withdrawal type the SERVER sees. "Correction — Additional" is not a
+        // separate withdrawal type: it is an Add Stock that moves `addtl` the other
+        // way, so it reuses that whole path — same reason codes, same liable rules,
+        // same floor check, same audit — and differs only in the sign. Keeping the
+        // mapping in one place is what lets every rule below stay correct for it;
+        // checking `withdrawal_type` directly would silently miss the new option.
+        serverType() {
+            return this.header.withdrawal_type === 'correction_addtl' ? 'adjustment_add' : this.header.withdrawal_type;
         },
 
         // A charge removes stock and can be billed to the person responsible, so
         // it offers the same list as Add Stock — optional there, because the
         // amount may simply stay on the branch.
         showsLiable() {
-            return this.header.withdrawal_type === 'adjustment_add' || this.header.withdrawal_type === 'charge';
+            return this.serverType() === 'adjustment_add' || this.serverType() === 'charge';
         },
 
         // Stock that was never lost: Add Stock recorded because the entry was
         // simply missed. No charge, no liable person.
         isOmission() {
-            return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code === 'encoder_omission';
+            return this.serverType() === 'adjustment_add' && this.header.reason_code === 'encoder_omission';
         },
 
         // Only Add Stock that resolves a shortage MUST name who is charged: the
@@ -246,16 +266,17 @@ function withdrawalModal() {
         // other type records what it records and charges nobody by default. Must
         // mirror the server rule in apiSaveCashierWithdrawals / handlers-offline.
         needsLiable() {
-            return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';
+            return this.serverType() === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';
         },
 
         // A minus sign means "take back an amount recorded too high". Correction does
-        // that for Withdraw, Add Stock for Addt'l — the Addt'l cell has no input, so
-        // this is the only way to reduce it. Mirrors dl_withdrawalTypeAllowsNegative
-        // on the server; the modal only decides whether the operator MAY type a
-        // minus, the server is what enforces it.
+        // that for Withdraw, Add Stock for Addt'l. Correction-Additional is entered
+        // as a plain "reduce by" amount, so a stray minus is accepted too rather
+        // than rejected outright.
         allowsNegative() {
-            return this.header.withdrawal_type === 'correction' || this.header.withdrawal_type === 'adjustment_add';
+            return this.header.withdrawal_type === 'correction'
+                || this.header.withdrawal_type === 'adjustment_add'
+                || this.header.withdrawal_type === 'correction_addtl';
         },
 
         addEmptyLine() { this.lines.push({ product_id: '', quantity: '', unit: 'pcs' }); },
@@ -363,6 +384,10 @@ function withdrawalModal() {
                 if (q < 0 && !allowsNegative) return false;
                 return true;
             });
+            // "Reduce Additional by N" is entered as a plain size and sent negated:
+            // the operator states how much, the modal owns the direction. Computed
+            // out here because `this` is not bound inside the lines.map callback.
+            var reduceAddtl = this.header.withdrawal_type === 'correction_addtl';
             var payload = {
                 date: LEDGER_DATE,
                 // The shift being viewed. Without this the server guesses from the
@@ -371,7 +396,9 @@ function withdrawalModal() {
                 // and the Addt'l cell the operator is fixing stays at zero.
                 shift: (window.SHIFT || ''),
                 header: {
-                    withdrawal_type: this.header.withdrawal_type,
+                    // The type the server records. Correction-Additional reuses the Add
+                    // Stock path and only flips the sign, so its amount is sent negated.
+                    withdrawal_type: this.serverType(),
                     reason_code: this.header.reason_code || 'manual_adjustment',
                     custom_reason: this.header.reason_code === 'other' ? (this.header.custom_reason || '').trim() : '',
                     // Sent whenever the field is offered (Add Stock and Charge), so a
@@ -382,8 +409,11 @@ function withdrawalModal() {
                     var q = parseInt(l.quantity, 10);
                     return {
                         product_id: parseInt(l.product_id),
-                        quantity: q,
-                        unit: (l.unit === 'box' && q >= 0) ? 'box' : 'pcs'
+                        // "Reduce Additional by 80" is entered as 80 (or -80) and sent
+                        // as -80: the operator states the size of the correction, the
+                        // modal owns the direction. The server floor-checks it.
+                        quantity: reduceAddtl ? -Math.abs(q) : q,
+                        unit: (!reduceAddtl && l.unit === 'box' && q >= 0) ? 'box' : 'pcs'
                     };
                 })
             };
@@ -392,7 +422,15 @@ function withdrawalModal() {
             else if (this.header.withdrawal_type === 'pullout' && window.COMMISSARY_BRANCH_ID && window.COMMISSARY_BRANCH_ID !== '') {
                 payload.header.target_branch_id = parseInt(window.COMMISSARY_BRANCH_ID, 10);
             }
-            payload.idempotency_key = this.idempotencyKey || (window.generateOperationId ? window.generateOperationId() : String(Date.now()));
+            // ONE operation id per opened modal, reused for every retry of that
+            // intent. Regenerating it per attempt would make a retry look like a NEW
+            // entry — that is how one adjustment becomes two rows and Addt'l
+            // balloons. The server caches the response against this key and the row
+            // carries a UNIQUE dedup hash, so a retry cannot double-apply.
+            if (!this.idempotencyKey) {
+                this.idempotencyKey = window.generateOperationId ? window.generateOperationId() : String(Date.now());
+            }
+            payload.idempotency_key = this.idempotencyKey;
 
             // ONLINE-ONLY (owner decision 2026-09-22). A ledger write is never
             // buffered on the device, not even when the browser reports no connection:
@@ -425,6 +463,13 @@ function withdrawalModal() {
             .then(function(data) {
                 this.saving = false;
                 if (data.ok) {
+                    // Push the change back into the ledger view. An operator who cannot
+                    // see their entry land re-enters it, and that repetition is what
+                    // inflates Addt'l — saying "Saved" is not enough, the cell has to
+                    // show the new number.
+                    if (typeof window.refreshLedgerTotals === 'function') {
+                        window.refreshLedgerTotals();
+                    }
                     var msg = isEdit ? 'Adjustment updated' : 'Adjustment saved';
                     if (!isEdit && data.duplicate) {
                         // DB-level dedup guard replay: identical line(s) already recorded.

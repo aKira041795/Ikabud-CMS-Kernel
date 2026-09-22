@@ -223,19 +223,70 @@ $h->section('Online path mirrors the offline worker');
 $onlineSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
 $offlineSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers-offline.php');
 
-// Both addtl accumulation sites read it under the row lock, which is what makes
-// the floor check safe against a concurrent receive. There are two on purpose:
-// the withdrawal create path (below) and the delivery receive path, which had
-// the same read-add-store shape already.
-$addtlLockSites = substr_count($onlineSrc, "'SELECT id, addtl FROM dl_daily_ledger");
+// Both accumulator columns are read under the row lock before a delta is
+// applied, so the floor checks see the current value and a concurrent writer
+// cannot interleave. Assert the CONTRACT (a locked read of the accumulators),
+// never the exact column list: adding a column to that SELECT is a legitimate
+// change, and pinning the literal string made this test fail for a correct edit.
+$lockReads = static function (string $src): int {
+    return (int)preg_match_all(
+        "/SELECT id, addtl(?:, withdraw)? FROM dl_daily_ledger[^']*FOR UPDATE/",
+        $src
+    );
+};
 $h->test(
-    'every online addtl accumulation site reads it under FOR UPDATE',
-    $addtlLockSites === 2,
-    'occurrences=' . $addtlLockSites
+    'every online accumulation site reads the columns under FOR UPDATE',
+    $lockReads($onlineSrc) >= 2,
+    'occurrences=' . $lockReads($onlineSrc) . ' (withdrawal create + delivery receive)'
 );
 $h->test(
-    'the offline replay reads addtl under FOR UPDATE',
-    substr_count($offlineSrc, "'SELECT id, addtl FROM dl_daily_ledger") === 1
+    'the offline replay reads the columns under FOR UPDATE',
+    $lockReads($offlineSrc) >= 1,
+    'occurrences=' . $lockReads($offlineSrc)
+);
+
+// ─── withdraw must ACCUMULATE, not be rebuilt from the cashier rows ────
+// A dispatch also moves `withdraw`. Rebuilding it from SUM(cashier rows) after
+// a dispatch discards the dispatched quantity, so a cashier entry following a
+// dispatch silently erased it (reproduced: dispatch 60 then cashier 43 gave 43,
+// not 103). Both paths must apply this row's delta instead.
+$h->test(
+    'the online withdraw write applies a delta, not a rebuilt total',
+    str_contains($onlineSrc, 'SET withdraw = withdraw + :qty')
+);
+$h->test(
+    'the offline withdraw write applies a delta, not a rebuilt total',
+    str_contains($offlineSrc, 'SET withdraw = withdraw + :qty')
+);
+$h->test(
+    'neither path rebuilds withdraw from the cashier-row SUM',
+    !str_contains($onlineSrc, 'newTotal = max(0, (int)$stmtSum')
+        && !str_contains($offlineSrc, 'newTotal = max(0, (int)$stmtSum')
+);
+$h->test(
+    'the online path rejects a withdraw reduction below zero',
+    str_contains($onlineSrc, 'Cannot reduce withdrawals below zero')
+);
+$h->test(
+    'the offline path rejects a withdraw reduction below zero',
+    str_contains($offlineSrc, 'Cannot reduce withdrawals below zero')
+);
+$h->test(
+    'a reduction with nothing recorded is rejected on the withdraw side too',
+    str_contains($onlineSrc, 'There are no withdrawals recorded')
+);
+
+// ─── an audit record must never outlive its rollback ───────────────────
+// dl_auditLog() writes through the kernel connection, which does not share the
+// module transaction. Publishing it BEFORE the commit is what produced audit
+// rows claiming six successful withdrawals on a day when only one row existed:
+// the audit survived the rollback and reported a write that never landed.
+$commitPos = strpos($onlineSrc, "\$ctx->db()->commit();");
+$auditPos = strpos($onlineSrc, "dl_auditLog('withdrawal'");
+$h->test(
+    'the withdrawal transaction commits before the audit is published',
+    $commitPos !== false && $auditPos !== false && $commitPos < $auditPos,
+    'commitPos=' . var_export($commitPos, true) . ' auditPos=' . var_export($auditPos, true)
 );
 $h->test(
     'the online path rejects a below-zero reduction',
@@ -310,10 +361,55 @@ $h->test(
     str_contains($modalSrc, 'Additional stock reduced')
 );
 // The client decides whether a minus MAY be typed; the server enforces it.
+// Correction-Additional reuses the Add Stock path, so the modal must decide
+// direction and type through one mapping rather than by matching the raw option
+// value. Naming all three reducing types here keeps that list honest.
 $h->test(
-    'the modal rule names both types explicitly',
-    str_contains($modalSrc, "=== 'correction' || this.header.withdrawal_type === 'adjustment_add'")
+    'the modal rule names all three reducing types',
+    str_contains($modalSrc, "=== 'correction'")
+        && str_contains($modalSrc, "=== 'adjustment_add'")
+        && str_contains($modalSrc, "=== 'correction_addtl'")
 );
+
+// ─── withdraw must COMPOSE with its other source ───────────────────────
+// `withdraw` is not only the sum of cashier rows: a dispatch (Send to Branch)
+// increments it too, via dl_applyLedgerDelta(..., 'withdraw', ...). The cashier
+// path used to REBUILD the column from SUM(cashier rows), which discarded the
+// dispatched quantity — an order-dependent, silent understatement of withdraw,
+// and therefore an overstatement of sales. Both writers must apply a delta.
+$h->section('withdraw composes with its other source');
+
+$ledgerWithdraw = static fn (): int => (int)$db->query(
+    "SELECT COALESCE(SUM(withdraw), 0) FROM dl_daily_ledger
+      WHERE branch_id = {$branchId} AND product_id = {$productId} AND shift = '{$shift}'"
+)->fetchColumn();
+
+$h->test('withdraw starts at zero for this key', $ledgerWithdraw() === 0, 'withdraw=' . $ledgerWithdraw());
+
+// Exactly what a dispatch does.
+dl_applyLedgerDelta($branchId, $productId, $date, 60, 999999, 'withdraw', $shift);
+$h->test('a dispatch increments withdraw to 60', $ledgerWithdraw() === 60, 'withdraw=' . $ledgerWithdraw());
+
+$composed = $apply(['withdrawal_type' => 'charge', 'reason_code' => 'manual_adjustment'], 43);
+$h->test('the cashier charge is accepted alongside it', $composed['ok'], $composed['error']);
+$h->test(
+    'the two sources compose (60 + 43 = 103) instead of the dispatch being erased',
+    $ledgerWithdraw() === 103,
+    'withdraw=' . $ledgerWithdraw() . ' (43 means the dispatch was dropped)'
+);
+
+$withdrawFloor = $apply(['withdrawal_type' => 'correction', 'reason_code' => 'manual_adjustment'], -200);
+$h->test(
+    'a withdraw reduction below zero is rejected as 422, not clamped to zero',
+    !$withdrawFloor['ok'] && $withdrawFloor['code'] === 422,
+    'code=' . $withdrawFloor['code'] . ' ' . $withdrawFloor['error']
+);
+$h->test(
+    'the rejection names what is recorded',
+    str_contains($withdrawFloor['error'], 'Cannot reduce withdrawals below zero'),
+    $withdrawFloor['error']
+);
+$h->test('the rejected reduction left withdraw untouched', $ledgerWithdraw() === 103, 'withdraw=' . $ledgerWithdraw());
 
 // ─── Cleanup ───────────────────────────────────────────────────────────
 $h->section('Cleanup');

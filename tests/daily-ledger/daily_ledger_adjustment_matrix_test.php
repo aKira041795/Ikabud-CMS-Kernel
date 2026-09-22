@@ -232,10 +232,13 @@ $h->section('Modal rule mirrors the server');
 $modalSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
 $h->test(
     'needsLiable() is limited to Add Stock that is not an encoder omission',
-    str_contains($modalSrc, "return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';")
+    // Reads the type the SERVER will receive (serverType), so Correction-Additional
+    // — which is recorded as adjustment_add — inherits the rule instead of slipping
+    // past it and being rejected server-side.
+    str_contains($modalSrc, "return this.serverType() === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';")
 );
 $h->test('validate() uses needsLiable()', str_contains($modalSrc, 'if (this.needsLiable() &&'));
-$h->test('the Charge-to field is offered for Add Stock and for Charge', str_contains($modalSrc, 'x-show="showsLiable()"') && str_contains($modalSrc, "=== 'adjustment_add' || this.header.withdrawal_type === 'charge'"));
+$h->test('the Charge-to field is offered for Add Stock and for Charge', str_contains($modalSrc, 'x-show="showsLiable()"') && str_contains($modalSrc, "=== 'adjustment_add' || this.serverType() === 'charge'"));
 $h->test('an encoder omission shows the nothing-lost note instead of the picker', str_contains($modalSrc, 'isOmission()') && str_contains($modalSrc, 'Nothing was lost'));
 $h->test('the field is optional for a charge and required for Add Stock', str_contains($modalSrc, '<span x-show="!needsLiable()" class="text-gray-400 font-normal">(optional)</span>'));
 $h->test('the payload sends the person whenever the field is offered', str_contains($modalSrc, 'liable_user_id: this.showsLiable() ?'));
