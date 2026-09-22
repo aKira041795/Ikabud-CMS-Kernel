@@ -475,10 +475,16 @@
     var CLOUD_PROBE_MS = 120000;
 
     // Recovery cadence. While the banner is amber, day-close and POS are blocked, so
-    // coming back must not wait out the whole 120s steady interval. Retry quickly for
-    // as long as we believe we are offline; the first success clears the state at
-    // once. Costs nothing while online (no request is issued).
-    var CLOUD_PROBE_RETRY_MS = 10000;
+    // coming back must not wait out the whole 120s steady interval. This issues NO
+    // request while online (the tick is guarded on cloudOnline === false).
+    //
+    // Not 10s. Each retry is a FULL application request - it boots the kernel, then
+    // queues behind the page on the PHP session file lock - so on shared hosting one
+    // retry costs seconds and competes with the page the cashier is trying to use.
+    // Probing a struggling connection 12x more eagerly than a healthy one is
+    // backwards: it added load exactly when the host had least to spare, which made
+    // recovery slower rather than faster. 30s keeps recovery prompt without that.
+    var CLOUD_PROBE_RETRY_MS = 30000;
 
     function dlResponseJson(response) {
         return response.json().then(function(body) {
