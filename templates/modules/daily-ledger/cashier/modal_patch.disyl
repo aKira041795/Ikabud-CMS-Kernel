@@ -510,8 +510,6 @@ function withdrawalModal() {
                     }
                     showToast(msg, 'success');
                     this.closeModal();
-                    if (typeof window.dlRefreshTodayAdjustments === 'function') window.dlRefreshTodayAdjustments();
-                    if (typeof window.refreshMainContent === 'function') window.refreshMainContent();
                 } else if (!isEdit && window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
                     // ONLINE-ONLY: a retryable server error is reported, not buffered.
                     this.errorMsg = 'NOT saved — the server is not accepting changes right now ('

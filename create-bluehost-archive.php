@@ -116,6 +116,15 @@ $excludePrefixes = [
     'storage/locks/',
     'storage/backups/',
     'storage/module-exports/',
+    // Tenant DATA, not code. A deploy package gets copied to FTP shares and mailboxes, so a
+    // database dump or a maintenance export must never ride in it: 2026-09-22 a 2.9 MB
+    // dl_daily_ledger snapshot and a 40 KB sales export were both landing in the zip.
+    'storage/db-snapshots/',
+    'storage/maintenance/',
+    // Dev-only endpoints. Both are unauthenticated and reset SHARED caches (opcache, APCu),
+    // so leaving them in public/ on shared hosting hands anyone a one-request outage.
+    'public/_tmp_cache_flush.php',
+    'public/debug-opcache.php',
     // Node.js build artifacts inside modules
     'modules/cms/builder-ui/node_modules/',
     // This script itself

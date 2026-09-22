@@ -166,10 +166,10 @@ $handlersSource = (string) file_get_contents($base . '/modules/daily-ledger/hand
 $ledgerTemplateSource = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/ledger.disyl');
 $ledgerRowsTemplateSource = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/partials/ledger-rows.disyl');
 $h->test('cashier row payloads expose prev_bal_end consistently', substr_count($handlersSource, 'END AS prev_bal_end') === 3);
-$h->test('AM handoff default preserves the stored beginning guard', str_contains($ledgerRowsTemplateSource, "shift == 'AM' && row.beg_bal == 0 && row.prev_bal_end !== null"));
+$h->test('beginning displays its persisted value including zero', str_contains($ledgerRowsTemplateSource, 'value="{row.beg_bal}"'));
 $h->test('AM handoff input retains data-orig-beg guard', str_contains($ledgerRowsTemplateSource, 'data-prev-end="{row.prev_bal_end}"') && str_contains($ledgerRowsTemplateSource, 'data-orig-beg="{row.beg_bal}"'));
-$h->test('AM adopter is shift and original-beginning guarded', str_contains($ledgerTemplateSource, "window.adoptAmBegBal = function()") && str_contains($ledgerTemplateSource, "if (SHIFT !== 'AM') return;") && str_contains($ledgerTemplateSource, 'if (orig !== 0 || prevEnd <= 0) return;'));
-$h->test('AM adopter posts current AM batch and reloads with PM adopter intact', str_contains($ledgerTemplateSource, "shift: 'AM'") && str_contains($ledgerTemplateSource, "window.adoptAmBegBal();\n            window.adoptPmBegBal();"));
+$h->test('carry-forward requires an explicit action', str_contains($ledgerTemplateSource, 'window.dlUsePreviousEnding = function(button)') && !str_contains($ledgerTemplateSource, 'window.adoptAmBegBal();'));
+$h->test('carry-forward uses the audited field save', str_contains($ledgerTemplateSource, 'input.value = button.dataset.ending;') && str_contains($ledgerTemplateSource, 'saveField(input);'));
 $h->test('handoff hints use legible secondary text size', substr_count($ledgerRowsTemplateSource, 'mt-0.5 text-xs leading-tight text-indigo-600') === 3 && !str_contains($ledgerRowsTemplateSource, 'mt-0.5 text-[10px] leading-tight text-indigo-600'));
 $h->test('custom_reason persisted in withdrawal insert', str_contains($handlersSource, 'custom_reason'));
 $h->test('custom reason required when reason is other', str_contains($handlersSource, 'A custom reason is required when reason is Other.'));

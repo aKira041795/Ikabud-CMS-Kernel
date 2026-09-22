@@ -55,6 +55,10 @@ storage/.installed
 storage/locks/
 storage/logs/
 storage/module-exports/
+# Tenant DATA, never source: a mysql dump or a maintenance export must not be committable
+# (and must not ride in a deploy package - see create-bluehost-archive.php).
+storage/db-snapshots/
+storage/maintenance/
 storage/modules.json
 # Broader storage/private exclusion — keep specific allowlisted subdirs
 /storage/private/**

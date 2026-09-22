@@ -3503,7 +3503,14 @@ function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $b
         ':bidprevpm' => $branchId, ':dprevpm' => $prevDate,
         ':bidprevam' => $branchId, ':dprevam' => $prevDate,
     ]);
-    return dl_applyLedgerDisplayPrices($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], $branchId, $ledgerDate);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rows as &$row) {
+        // Explicit flags avoid ambiguous nullable comparisons in the template.
+        $row['has_ending'] = $row['bal_end'] !== null;
+        $row['has_previous_ending'] = $row['prev_bal_end'] !== null;
+    }
+    unset($row);
+    return dl_applyLedgerDisplayPrices($rows, $branchId, $ledgerDate);
 }
 
 function handleCashierLedger(array $params = []): void
@@ -3918,7 +3925,7 @@ function apiTodayCashierWithdrawals(array $params = []): void
     $actorId = dl_getActorUserId($user);
     $sql = 'SELECT cw.id, cw.product_id, p.name AS product_name, cw.withdrawal_type, cw.reason_code,
                    cw.custom_reason, cw.dr_number, cw.target_branch_id, cw.quantity, cw.unit, cw.pack_qty,
-                   cw.liable_user_id, cw.encoded_by, cw.shift, cw.created_at,
+                   cw.liable_user_id, cw.encoded_by, cw.shift, cw.created_at, cw.received_at,
                    COALESCE(NULLIF(cw.liable_user_name, \'\'), NULLIF(lu.full_name, \'\'), lu.username, \'\') AS liable_user_name
               FROM dl_cashier_withdrawals cw
               INNER JOIN dl_products p ON p.id = cw.product_id
@@ -3938,6 +3945,7 @@ function apiTodayCashierWithdrawals(array $params = []): void
     $stmt = $ctx->db()->prepare($sql);
     $stmt->execute($bind);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $editableDate = $date === dl_businessDate() || $role === 'admin' || dl_isKernelAdmin($user);
     foreach ($rows as &$r) {
         $r['id'] = (int)$r['id'];
         $r['product_id'] = (int)$r['product_id'];
@@ -3949,7 +3957,7 @@ function apiTodayCashierWithdrawals(array $params = []): void
         $r['shift'] = $r['shift'] !== null ? (string)$r['shift'] : null;
         $r['editable'] = !in_array((string)$r['withdrawal_type'], ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)
             ? false
-            : (($r['target_branch_id'] ?? null) === null);
+            : ($editableDate && empty($r['received_at']) && ($r['target_branch_id'] ?? null) === null);
     }
     unset($r);
     $ctx->json(['ok' => true, 'date' => $date, 'withdrawals' => $rows]);
@@ -4724,7 +4732,13 @@ function apiUpdateCashierWithdrawal(array $params = []): void
         ]);
         dl_recomputeVariancesForDay($branchId, $date);
 
-        $ctx->json(['ok' => true, 'withdrawal_id' => $withdrawalId, 'quantity' => $newQty, 'unit' => $newUnit]);
+        $ctx->json([
+            'ok' => true, 'withdrawal_id' => $withdrawalId, 'quantity' => $newQty, 'unit' => $newUnit,
+            'totals' => [
+                ['product_id' => $pid, 'field' => 'addtl', 'result' => $nextAddtl],
+                ['product_id' => $pid, 'field' => 'withdraw', 'result' => $nextWithdraw],
+            ],
+        ]);
     } catch (\Throwable $e) {
         if ($db->inTransaction()) {
             $db->rollBack();
@@ -5671,6 +5685,7 @@ function apiSaveLedgerBatch(array $params = []): void
         // why the carry-forward adopt routines could never safely be called.
         $hasAdd = array_key_exists('addtl', $r);
         $hasWith = array_key_exists('withdraw', $r);
+        $hasBeg = array_key_exists('beg_bal', $r);
 
         if ($beg < 0 || $add < 0 || $with < 0 || $beg > 999999999 || $add > 999999999 || $with > 999999999
             || ($end !== null && ($end < 0 || $end > 999999999))) {
@@ -5687,6 +5702,7 @@ function apiSaveLedgerBatch(array $params = []): void
             'has_bal_end' => $hasEnd,
             'has_addtl' => $hasAdd,
             'has_withdraw' => $hasWith,
+            'has_beg_bal' => $hasBeg,
         ];
     }
 
@@ -5741,7 +5757,7 @@ function apiSaveLedgerBatch(array $params = []): void
             'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
              VALUES (:bid, :pid, :d, :shift, :price, :beg, :addtl, :withdraw, :end, :uid, :uid2)
              ON DUPLICATE KEY UPDATE
-                beg_bal = VALUES(beg_bal),
+                beg_bal = IF(:has_beg_bal, VALUES(beg_bal), beg_bal),
                 addtl = IF(:has_addtl, VALUES(addtl), addtl),
                 withdraw = IF(:has_withdraw, VALUES(withdraw), withdraw),
                 bal_end = VALUES(bal_end),
@@ -5752,7 +5768,7 @@ function apiSaveLedgerBatch(array $params = []): void
             'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, encoded_by, updated_by)
              VALUES (:bid, :pid, :d, :shift, :price, :beg, :addtl, :withdraw, :uid, :uid2)
              ON DUPLICATE KEY UPDATE
-                beg_bal = VALUES(beg_bal),
+                beg_bal = IF(:has_beg_bal, VALUES(beg_bal), beg_bal),
                 addtl = IF(:has_addtl, VALUES(addtl), addtl),
                 withdraw = IF(:has_withdraw, VALUES(withdraw), withdraw),
                 updated_by = VALUES(updated_by),
@@ -5815,6 +5831,7 @@ function apiSaveLedgerBatch(array $params = []): void
                     ':end'      => $r['bal_end'],
                     ':has_addtl' => !empty($r['has_addtl']) ? 1 : 0,
                     ':has_withdraw' => !empty($r['has_withdraw']) ? 1 : 0,
+                    ':has_beg_bal' => !empty($r['has_beg_bal']) ? 1 : 0,
                     ':uid'      => $userId,
                     ':uid2'     => $userId,
                 ]);
@@ -5830,6 +5847,7 @@ function apiSaveLedgerBatch(array $params = []): void
                     ':withdraw' => $withdrawVal,
                     ':has_addtl' => !empty($r['has_addtl']) ? 1 : 0,
                     ':has_withdraw' => !empty($r['has_withdraw']) ? 1 : 0,
+                    ':has_beg_bal' => !empty($r['has_beg_bal']) ? 1 : 0,
                     ':uid'      => $userId,
                     ':uid2'     => $userId,
                 ]);
@@ -5846,10 +5864,10 @@ function apiSaveLedgerBatch(array $params = []): void
                 "{$branchId}-{$pid}-{$date}-{$shift}",
                 $old,
                 [
-                    'beg_bal'  => (int)$r['beg_bal'],
-                    'addtl'    => $addtlVal,
-                    'withdraw' => $withdrawVal,
-                    'bal_end'  => $r['bal_end'],
+                    'beg_bal'  => !empty($r['has_beg_bal']) ? (int)$r['beg_bal'] : (int)($old['beg_bal'] ?? 0),
+                    'addtl'    => !empty($r['has_addtl']) ? $addtlVal : (int)($old['addtl'] ?? 0),
+                    'withdraw' => !empty($r['has_withdraw']) ? $withdrawVal : (int)($old['withdraw'] ?? 0),
+                    'bal_end'  => !empty($r['has_bal_end']) ? $r['bal_end'] : ($old['bal_end'] ?? null),
                 ]
             );
         }

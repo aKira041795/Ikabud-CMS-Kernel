@@ -9,6 +9,43 @@
 {/block}
 
 {block content}
+{* Day actions live at the TOP of the sheet, pinned while the operator scrolls. A
+   174-product ledger puts the close/reopen control below the fold, so the person who
+   cannot find it either scrolls the whole table or assumes the action is missing. The
+   bar is the single home for these controls - the bottom copies were removed so the
+   same button never exists twice (closeDay() resolves #close-day-btn by id). *}
+<div id="ledger-action-bar" class="sticky top-0 z-[5] -mx-6 -mt-6 mb-6 border-b border-gray-200 bg-white/95 px-6 py-3 backdrop-blur print:hidden">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset
+            {if day_status == 'open'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+            {if day_status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+        " id="action-bar-day-status">{day_status}</span>
+        <span class="text-xs font-semibold text-gray-600">{ledger_date} · {shift} shift</span>
+        {if reference_only}
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Reference only</span>
+        {/if}
+
+        <span class="hidden lg:inline text-xs text-gray-500 ml-2">Sales are derived from the saved Beg. Bal, Addt'l, W/Draw and Bal. End.</span>
+
+        <span class="ml-auto"></span>
+
+        {if day_status == 'closed'}
+            {if can_ledger_override}
+            <button type="button" class="btn btn-primary" id="reopen-day-btn" onclick="reopenDay()" data-online-action="Day reopen">Reopen Day</button>
+            {else}
+            <span class="text-sm text-gray-500">Closed. Ask an admin or supervisor to reopen it.</span>
+            {/if}
+        {elseif !reference_only}
+        <button type="button" class="btn btn-primary" id="close-day-btn" onclick="closeDay()" data-online-action="Day close">Close Day</button>
+        {/if}
+
+        <button type="button" class="btn btn-outline btn-sm" id="recompute-sales-btn"
+                onclick="window.dlRecomputeSales()"
+                title="Re-read saved counts and refresh sales, and carry the previous shift's ending into any beginning that was not recorded. Needs an open day. Sales = beginning + additional − withdrawals − ending; an unrecorded ending remains Pending.">
+            Recompute sales
+        </button>
+    </div>
+</div>
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Sales Report</h2>
@@ -247,11 +284,6 @@
 
 <div class="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
     <span class="text-xs text-gray-500">Sales are derived from the saved Beg. Bal, Addt'l, W/Draw and Bal. End.</span>
-    <button type="button" class="btn btn-outline btn-sm" id="recompute-sales-btn"
-            onclick="window.dlRecomputeSales()"
-            title="Re-read the saved values and repaint the Sales column. Sales are computed server-side from the four saved columns, so a row whose Beg. Bal was never recorded can recompute lower than the carry-forward shown in that cell.">
-        Recompute sales
-    </button>
 </div>
 
 {if day_status == 'open' && !reference_only}
@@ -269,19 +301,9 @@
 </div>
 {/if}
 
-{if day_status == 'open' && !reference_only}
-<div class="mt-6 flex justify-end gap-3">
-    <button class="btn btn-primary" id="close-day-btn" onclick="closeDay()" data-online-action="Day close">Close Day</button>
-</div>
-{/if}
-{if day_status == 'closed'}
-<div class="mt-6 flex items-center justify-end gap-3">
-    <span class="text-sm text-gray-500">This day has been closed.</span>
-    {if can_ledger_override}
-    <button class="btn btn-outline" onclick="reopenDay()" data-online-action="Day reopen">Reopen Day</button>
-    {/if}
-</div>
-{/if}
+{* Closing and reopening the day are in the pinned action bar at the top. A second copy
+   down here would give the same control two ids, and "I could not find the button" is
+   exactly what the pinned bar removes. *}
 
 {include "modules/daily-ledger/cashier/modal_patch.disyl"}
 {include "modules/daily-ledger/cashier/dispatch_modal.disyl"}
@@ -301,6 +323,7 @@
     var SHIFT_LOCKED = {if shift_locked}true{else}false{/if};
     var DAY_STATUS = '{day_status}';
     var SHIFT_STATUS = '{shift_status}';
+    var REFERENCE_ONLY = {if reference_only}true{else}false{/if};
     var FORMAL_DELIVERY_ENABLED = {if formal_delivery_enabled}true{else}false{/if};
     var COMMISSARY_BRANCH_ID = '{commissary_branch_id}';
     var COMMISSARY_BRANCH_NAME = '{commissary_branch_name}';
@@ -312,6 +335,8 @@
     window.SHIFT = SHIFT;
     window.SHIFT_LOCKED = SHIFT_LOCKED;
     window.SHIFT_STATUS = SHIFT_STATUS;
+    window.DAY_STATUS = DAY_STATUS;
+    window.REFERENCE_ONLY = REFERENCE_ONLY;
     window.FORMAL_DELIVERY_ENABLED = FORMAL_DELIVERY_ENABLED;
     window.COMMISSARY_BRANCH_ID = COMMISSARY_BRANCH_ID;
     window.COMMISSARY_BRANCH_NAME = COMMISSARY_BRANCH_NAME;
@@ -384,7 +409,8 @@
                 window.dlSessionExpired(data);
                 return;
             }
-            var rows = (data && data.ok) ? (data.withdrawals || []) : [];
+            if (!data || !data.ok) throw new Error('Could not load adjustments');
+            var rows = data.withdrawals || [];
             __dlTodayAdjCache = rows;
             if (!rows.length) {
                 wrap.innerHTML = '<div class="px-4 py-6 text-center text-sm text-gray-400">No adjustments recorded for today.</div>';
@@ -395,11 +421,13 @@
                 '<th class="px-4 py-2">Reason</th><th class="px-4 py-2">Charged to</th><th class="px-4 py-2">Time</th><th class="px-4 py-2 text-right">Action</th></tr></thead><tbody>';
             rows.forEach(function(r) {
                 var typeL = dlAdjTypeLabel(r.withdrawal_type);
-                var qty = String(r.quantity || 0) + (r.unit === 'box' ? ' box (' + (r.quantity || 0) + ' pcs)' : ' pcs');
+                var qty = r.unit === 'box'
+                    ? String(r.pack_qty || 0) + ' box (' + (r.quantity || 0) + ' pcs)'
+                    : String(r.quantity || 0) + ' pcs';
                 var reason = r.reason_code || '';
                 if (r.custom_reason) reason += ' — ' + r.custom_reason;
                 var time = String(r.created_at || '').slice(11, 16);
-                var btn = (r.editable && window.DAY_STATUS === 'open')
+                var btn = (r.editable && window.DAY_STATUS === 'open' && window.SHIFT_STATUS !== 'finalized')
                     ? '<button type="button" class="btn btn-outline btn-xs" data-adj-edit="' + r.id + '">Edit</button>'
                     : '';
                 html += '<tr class="border-b border-gray-100">' +
@@ -1035,13 +1063,16 @@
     // (sales, totals, variance) back in line with the cell.
     window.dlPaintLedgerCells = function(totals) {
         if (!Array.isArray(totals)) return;
+        var products = new Set();
         totals.forEach(function(t) {
             if (!t || !t.field || typeof t.result === 'undefined' || t.result === null) return;
             var cells = document.querySelectorAll(
                 '[data-field="' + t.field + '"][data-product="' + t.product_id + '"]'
             );
             cells.forEach(function(el) { el.textContent = String(t.result); });
+            products.add(t.product_id);
         });
+        products.forEach(function(productId) { computeSales(productId); });
     };
 
     function refreshLedgerTotals() {
@@ -1055,6 +1086,58 @@
         if (typeof window.dlRefreshTodayAdjustments === 'function') window.dlRefreshTodayAdjustments();
     }
 
+    // Rows the per-row "Use previous ending" button would offer, gathered in one pass.
+    // It applies the SAME rule that button uses - an editable Beg. Bal still at 0 whose
+    // preceding shift recorded a positive ending - so a product the cashier could carry
+    // by hand is carried here too, and nothing else is touched. `data-orig-beg` is the
+    // server's stored beginning: a row that already has one is never overwritten.
+    function dlPendingCarryForward() {
+        var out = [];
+        var attr = (SHIFT === 'PM') ? 'data-am-end' : 'data-prev-end';
+        var inputs = document.querySelectorAll('#ledger-body input[data-field="beg_bal"]');
+        Array.prototype.forEach.call(inputs, function(input) {
+            if (input.disabled) return;
+            if (parseInt(input.getAttribute('data-orig-beg') || '0', 10) !== 0) return;
+            if (parseInt(input.value || '0', 10) !== 0) return;
+            var ending = parseInt(input.getAttribute(attr) || '0', 10);
+            var productId = parseInt(input.getAttribute('data-product'), 10) || 0;
+            if (!(ending > 0) || productId <= 0) return;
+            out.push({ product_id: productId, beg_bal: ending });
+        });
+        return out;
+    }
+
+    // Carry the preceding shift's ending into every unrecorded beginning, in ONE batch.
+    // Doing it here is what removes the per-product link clicking: the cashier presses
+    // Recompute sales once instead of opening "Use previous ending" on each row. It is
+    // still an explicit, audited edit - a batch save through the same endpoint the row
+    // link uses - and it never runs on load or on a plain re-read.
+    function dlCarryForwardBeginnings(carry, onDone) {
+        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save-batch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                date: LEDGER_DATE,
+                branch_id: BRANCH_ID,
+                shift: SHIFT,
+                idempotency_key: 'carry-forward-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + SHIFT + '-' + Date.now(),
+                // Only beg_bal is sent: absent keys preserve the stored addtl/withdraw/ending.
+                rows: carry
+            })
+        }, 'Carrying the beginning forward')
+        .then(dlResponseJson)
+        .then(function(res) {
+            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); onDone(false); return; }
+            onDone(!!(res && res.ok), res);
+        })
+        .catch(function() { onDone(false); });
+    }
+
     // Re-read the saved values and repaint the Sales column, reporting how many cells
     // moved.
     //
@@ -1064,12 +1147,26 @@
     // figure on screen can be computed client-side from a cell the server has not
     // accepted yet, and that difference is invisible until a reload.
     //
-    // It will NOT always agree with arithmetic done from the columns you can see. Beg. Bal
-    // shows the previous shift's ending as a carry-forward when beg_bal was never
-    // recorded (the recorded value sits in data-orig-beg), and the server derives from the
-    // recorded one. So "Beg 2 / End 15" can correctly recompute to 0 - that is the
-    // recorded beginning, not a failed recompute.
+    // It also carries a preceding shift's ending into the beginnings that were never
+    // recorded (see dlPendingCarryForward), so the carry-forward is one press for the
+    // whole sheet rather than one link per product.
     window.dlRecomputeSales = function() {
+        // Carrying a beginning forward is a WRITE. On a closed day, a finalized shift or a
+        // read-only date it cannot happen, so say which block is in the way instead of
+        // re-reading and reporting "sales already match" - that reads as "nothing to do"
+        // and sends the operator looking for a fault in the numbers.
+        if (DAY_STATUS === 'closed') {
+            showToast('This day is closed. Use Reopen Day (top bar) first - Recompute sales carries the beginnings forward and cannot write to a closed day.', 'error');
+            return;
+        }
+        if (SHIFT_STATUS === 'finalized') {
+            showToast('The ' + SHIFT + ' shift is finalized. Reopen the shift first, then recompute sales.', 'error');
+            return;
+        }
+        if (REFERENCE_ONLY) {
+            showToast('This date is read-only for your role, so the beginnings cannot be carried forward here.', 'error');
+            return;
+        }
         var body = document.getElementById('ledger-body');
         if (!body || !window.htmx) return;
 
@@ -1083,6 +1180,7 @@
 
         var label = btn ? btn.textContent : '';
         var settled = false;
+        var carried = 0;
         if (btn) { btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = 'Recomputing…'; }
 
         var settle = function(ok) {
@@ -1093,7 +1191,11 @@
             body.removeEventListener('htmx:sendError', onFail);
             if (btn) { delete btn.dataset.busy; btn.disabled = false; btn.textContent = label; }
             if (!ok) {
-                if (window.showToast) window.showToast('Could not re-read the ledger — nothing was changed.', 'error');
+                if (window.showToast) {
+                    window.showToast(carried > 0
+                        ? 'Carried ' + carried + ' beginning' + (carried === 1 ? '' : 's') + ' forward, but the ledger could not be re-read - reload to see them.'
+                        : 'Could not re-read the ledger — nothing was changed.', 'error');
+                }
                 return;
             }
             var changed = 0;
@@ -1107,10 +1209,13 @@
                 }
             });
             if (window.showToast) {
+                var carriedNote = carried > 0
+                    ? ' Carried ' + carried + ' beginning' + (carried === 1 ? '' : 's') + ' forward from the previous ending.'
+                    : '';
                 window.showToast(
-                    changed === 0
+                    (changed === 0
                         ? 'Sales already match the saved values.'
-                        : 'Recomputed ' + changed + ' sales cell' + (changed === 1 ? '' : 's') + example,
+                        : 'Recomputed ' + changed + ' sales cell' + (changed === 1 ? '' : 's') + example) + carriedNote,
                     'success'
                 );
             }
@@ -1124,7 +1229,16 @@
         // Safety net: htmx fires neither event if the request is swallowed entirely.
         setTimeout(function() { settle(false); }, 25000);
 
-        htmx.trigger(body, 'dl:rows-refresh');
+        var carry = dlPendingCarryForward();
+        if (carry.length === 0) {
+            htmx.trigger(body, 'dl:rows-refresh');
+            return;
+        }
+        dlCarryForwardBeginnings(carry, function(ok) {
+            if (!ok) { settle(false); return; }
+            carried = carry.length;
+            htmx.trigger(body, 'dl:rows-refresh');
+        });
     };
 
     // Compute sales = beg_bal + addtl - withdraw - bal_end (pending when no ending)
@@ -1995,130 +2109,14 @@
         });
     };
 
-    // Overnight handoff: auto-adopt the previous day's recorded ending as the
-    // AM beginning. Disabled inputs cover closed/reference-only days, and the
-    // stored original beginning guard ensures cashier-entered values win.
-    window.adoptAmBegBal = function() {
-        if (SHIFT !== 'AM') return;
-        var rows = [];
-        var inputs = document.querySelectorAll('#ledger-body input[data-field="beg_bal"][data-prev-end]');
-        inputs.forEach(function(input) {
-            if (input.disabled) return;
-            var orig = parseInt(input.getAttribute('data-orig-beg') || '0', 10);
-            var prevEnd = parseInt(input.getAttribute('data-prev-end') || '0', 10);
-            if (orig !== 0 || prevEnd <= 0) return;
-            rows.push({ product_id: parseInt(input.getAttribute('data-product'), 10) || 0, beg_bal: prevEnd });
-        });
-        if (rows.length === 0) return;
-
-        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save-batch', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': (window.DL_CSRF || ''),
-                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
-            },
-            body: JSON.stringify({
-                date: LEDGER_DATE,
-                branch_id: BRANCH_ID,
-                shift: 'AM',
-                idempotency_key: 'am-handoff-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + Date.now(),
-                rows: rows
-            })
-        }, 'Carrying the AM beginning forward')
-        .then(dlResponseJson)
-        .then(function(res) {
-            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
-            if (res.ok && rows.length > 0 && window.showToast) {
-                showToast('Carried forward the previous ending as AM beginning for ' + rows.length + ' product(s). Verify counts and adjust if needed.', 'success');
-            }
-            // Reload rows so the adopted beg_bal values are persisted/visible.
-            if (window.htmx && document.getElementById('ledger-body')) {
-                htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
-            }
-        })
-        .catch(function(err) {
-            // Never swallow this. A handoff that fails silently leaves Beg. Bal showing
-            // a carry-forward the server does not hold, so Sales reads low and looks
-            // like a display fault - which is what made this hard to trace.
-            if (window.showToast) {
-                window.showToast('Could not carry the previous ending into the AM beginning. ' + (err && err.message ? err.message : ''), 'error');
-            }
-        });
+    // Carry-forward is an explicit, audited edit. Zero is a valid saved count;
+    // reading or refreshing a ledger must never replace it with another shift's ending.
+    window.dlUsePreviousEnding = function(button) {
+        var input = button.closest('td').querySelector('input[data-field="beg_bal"]');
+        if (!input || input.disabled) return;
+        dlSnapshotCell(input);
+        input.value = button.dataset.ending;
+        saveField(input);
     };
-
-    // PM shift handoff: auto-adopt the AM shift's ending count as the PM
-    // beginning (one batch save), so the PM cashier validates instead of
-    // re-typing every product. Only runs for new PM rows (stored beg_bal = 0)
-    // where the AM ending exists, on an open day. PM can still edit after.
-    window.adoptPmBegBal = function() {
-        if (SHIFT !== 'PM') return;
-        var rows = [];
-        var inputs = document.querySelectorAll('#ledger-body input[data-field="beg_bal"][data-am-end]');
-        inputs.forEach(function(input) {
-            if (input.disabled) return;
-            var orig = parseInt(input.getAttribute('data-orig-beg') || '0', 10);
-            var amEnd = parseInt(input.getAttribute('data-am-end') || '0', 10);
-            if (orig !== 0 || amEnd <= 0) return;
-            rows.push({ product_id: parseInt(input.getAttribute('data-product'), 10) || 0, beg_bal: amEnd });
-        });
-        if (rows.length === 0) return;
-
-        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save-batch', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': (window.DL_CSRF || ''),
-                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
-            },
-            body: JSON.stringify({
-                date: LEDGER_DATE,
-                branch_id: BRANCH_ID,
-                shift: 'PM',
-                idempotency_key: 'pm-handoff-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + Date.now(),
-                rows: rows
-            })
-        }, 'Adopting the AM ending as the PM beginning')
-        .then(dlResponseJson)
-        .then(function(res) {
-            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
-            if (res.ok && rows.length > 0 && window.showToast) {
-                showToast('Adopted AM ending as PM beginning for ' + rows.length + ' product(s). Verify counts and adjust if needed.', 'success');
-            }
-            // Reload rows so the adopted beg_bal values are persisted/visible.
-            if (window.htmx && document.getElementById('ledger-body')) {
-                htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
-            }
-        })
-        .catch(function(err) {
-            // Same reasoning as the AM handoff above: report it rather than leaving a
-            // beginning that was displayed but never recorded.
-            if (window.showToast) {
-                window.showToast('Could not carry the AM ending into the PM beginning. ' + (err && err.message ? err.message : ''), 'error');
-            }
-        });
-    };
-
-    document.addEventListener('htmx:afterSwap', function(e) {
-        if (e.target && e.target.id === 'ledger-body') {
-            window.adoptAmBegBal();
-            window.adoptPmBegBal();
-        }
-    });
-
-    // Adopt the carried-forward beginnings on the FIRST view, not only after a
-    // rows-refresh. Wiring this solely to htmx:afterSwap meant a fresh page load painted
-    // the previous shift's ending into Beg. Bal while beg_bal stayed 0 - and Sales derives
-    // from the STORED value, so it read 0 for most products. The cell looked recorded, the
-    // figure beside it disagreed, and it went back on reload.
-    //
-    // Must sit AFTER both definitions above. They are assigned to window at runtime, not
-    // hoisted, so calling them earlier in this block throws and takes the rest of the
-    // script with it. Both no-op when their inputs are disabled (closed or finalized
-    // days) or when nothing is unrecorded.
-    window.adoptAmBegBal();
-    window.adoptPmBegBal();
 </script>
 {/block}

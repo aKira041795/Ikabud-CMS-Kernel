@@ -5,7 +5,7 @@
     <td class="align-middle text-right">
         <input type="number" class="ledger-cell ledger-input" inputmode="numeric" enterkeyhint="next" min="0"
                data-product="{row.product_id}" data-field="beg_bal"
-               value="{if shift == 'PM' && row.beg_bal == 0 && row.am_bal_end > 0}{row.am_bal_end}{elseif shift == 'AM' && row.beg_bal == 0 && row.prev_bal_end !== null && row.prev_bal_end !== ''}{row.prev_bal_end}{else}{row.beg_bal}{/if}"
+               value="{row.beg_bal}"
                data-am-end="{if shift == 'PM'}{row.am_bal_end}{else}0{/if}"
                data-prev-end="{row.prev_bal_end}"
                data-orig-beg="{row.beg_bal}"
@@ -14,10 +14,17 @@
                {if day_status == 'closed' || reference_only || shift_status == 'finalized'}disabled{/if}>
         {if shift == 'PM'}
         <div class="mt-0.5 text-xs leading-tight text-indigo-600">AM end: {row.am_bal_end}</div>
-        {elseif row.prev_bal_end !== null && row.prev_bal_end !== ''}
+        {elseif row.has_previous_ending}
         <div class="mt-0.5 text-xs leading-tight text-indigo-600">Prev end: {row.prev_bal_end}</div>
         {elseif row.prev_pm_pending}
         <div class="mt-0.5 text-xs leading-tight text-indigo-600">PM ending pending</div>
+        {/if}
+        {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
+        {if shift == 'PM' && row.beg_bal == 0 && row.am_bal_end > 0}
+        <button type="button" class="text-xs text-indigo-700 underline" data-ending="{row.am_bal_end}" onclick="dlUsePreviousEnding(this)">Use AM ending</button>
+        {elseif shift == 'AM' && row.beg_bal == 0 && row.prev_bal_end > 0}
+        <button type="button" class="text-xs text-indigo-700 underline" data-ending="{row.prev_bal_end}" onclick="dlUsePreviousEnding(this)">Use previous ending</button>
+        {/if}
         {/if}
     </td>
     <td class="align-middle text-right">
@@ -53,13 +60,13 @@
     <td class="align-middle text-right">
         <input type="number" class="ledger-cell ledger-input" inputmode="numeric" enterkeyhint="next" min="0"
                data-product="{row.product_id}" data-field="bal_end"
-               value="{if row.bal_end !== null && row.bal_end !== ''}{row.bal_end}{/if}"
+               value="{if row.has_ending}{row.bal_end}{/if}"
                onfocus="dlSnapshotCell(this); this.select()"
                onchange="saveField(this)"
                {if day_status == 'closed' || reference_only || shift_status == 'finalized'}disabled{/if}>
     </td>
     <td class="align-middle text-right">
-        {if row.bal_end !== null && row.bal_end !== ''}
+        {if row.has_ending}
         <span class="ledger-chip sales-computed" data-product="{row.product_id}">{row.sales}</span>
         {else}
         <span class="ledger-chip ledger-chip-pending sales-computed" data-product="{row.product_id}" data-pending="1">Pending</span>

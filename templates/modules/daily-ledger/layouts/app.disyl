@@ -363,6 +363,14 @@
          * cannot differ between a POST that saved and the GET that refreshes.
          */
         window.dlLoadUrl = function(url, usePush) {
+            // The ledger owns page-level state and timers outside #main-content.
+            // Replacing only its markup leaves the old date/branch and callbacks live.
+            var nextPath = new URL(url, window.location.href).pathname;
+            if (/\/daily-ledger\/ledger\/?$/.test(nextPath)
+                || /\/daily-ledger\/ledger\/?$/.test(window.location.pathname)) {
+                window.location.assign(url);
+                return;
+            }
             var headers = {
                 'Accept': 'text/html',
                 'X-Requested-With': 'XMLHttpRequest'
