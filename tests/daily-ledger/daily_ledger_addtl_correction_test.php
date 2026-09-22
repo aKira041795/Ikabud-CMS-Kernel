@@ -411,6 +411,42 @@ $h->test(
 );
 $h->test('the rejected reduction left withdraw untouched', $ledgerWithdraw() === 103, 'withdraw=' . $ledgerWithdraw());
 
+// ─── an unknown outcome must not be reported as a failure ───────────────
+// Aborting a fetch does not cancel the server's work, so after a timeout the
+// client cannot know whether the write landed. Claiming it did not is what sends
+// an operator back to re-key the entry by hand - the duplicate mechanism.
+$h->section('A timed-out write reports uncertainty, not failure');
+
+$layoutSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/layouts/app.disyl');
+// Scope the negative check to the message FUNCTION. Asserting on the whole file
+// also matches the prose comment that explains the old wording, so the check would
+// fail on its own documentation - the same trap as pinning an exact SQL string.
+$msgFnStart = strpos($layoutSrc, 'window.dlWriteTimeoutMessage = function');
+$msgFnEnd = $msgFnStart !== false ? strpos($layoutSrc, '};', $msgFnStart) : false;
+$msgFn = ($msgFnStart !== false && $msgFnEnd !== false)
+    ? substr($layoutSrc, $msgFnStart, $msgFnEnd - $msgFnStart)
+    : '';
+$h->test(
+    'the timeout message function no longer asserts the change was not recorded',
+    $msgFn !== ''
+        && !str_contains($msgFn, 'was NOT recorded')
+        && !str_contains($msgFn, 'NOT saved'),
+    'fnLen=' . strlen($msgFn)
+);
+$h->test(
+    'the timeout message admits the outcome is unknown',
+    str_contains($layoutSrc, 'NOT yet known whether')
+);
+$h->test(
+    'the timeout message tells the operator Retry is safe and not to re-key',
+    str_contains($layoutSrc, 'will not create a second entry')
+        && str_contains($layoutSrc, 'Do not key it in again')
+);
+$h->test(
+    'the Retry control states that repeating is safe',
+    str_contains($layoutSrc, 'Retry — safe, will not duplicate')
+);
+
 // ─── Cleanup ───────────────────────────────────────────────────────────
 $h->section('Cleanup');
 

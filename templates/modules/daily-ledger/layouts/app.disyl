@@ -220,10 +220,18 @@
                 return Promise.reject(err);
             });
         };
+        // Wording matters more than it looks. Aborting the request cancels the
+        // CLIENT wait - it does not cancel the work the server already started, so
+        // after a timeout we genuinely do not know whether the row landed. Saying
+        // "was NOT recorded" asserted something we cannot know, and an operator who
+        // believes it will key the same entry again: that repetition is how
+        // duplicates get created. So state the uncertainty, and say plainly that
+        // Retry is safe, which is what actually stops the hand-re-keying.
         window.dlWriteTimeoutMessage = function(label) {
-            return 'NOT saved — the connection took longer than '
-                + Math.round(window.DL_WRITE_TIMEOUT_MS / 1000) + 's. '
-                + (label || 'The change') + ' was NOT recorded. Check the connection and retry.';
+            return 'No reply in '
+                + Math.round(window.DL_WRITE_TIMEOUT_MS / 1000) + 's — it is NOT yet known whether '
+                + (label || 'the change') + ' was recorded. Press Retry: it is safe to repeat and '
+                + 'will not create a second entry. Do not key it in again.';
         };
 
         // ── Persistent write-failure notice ──────────────────────────────────
@@ -435,7 +443,7 @@
                 <p id="dl-write-failure-text" class="mt-1 text-xs leading-5 text-red-800"></p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-                <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="if (window.dlWriteFailureRetry) { var f = window.dlWriteFailureRetry; window.dlClearWriteFailure(); f(); }">Retry</button>
+                <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="if (window.dlWriteFailureRetry) { var f = window.dlWriteFailureRetry; window.dlClearWriteFailure(); f(); }">Retry — safe, will not duplicate</button>
                 <button type="button" class="btn btn-outline btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
             </div>
         </div>
