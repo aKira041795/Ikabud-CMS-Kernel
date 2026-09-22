@@ -309,11 +309,13 @@
         box.textContent = 'Production output synchronized.';
     }
 
-    function queueOutputBatch(batch) {
-        var batches = getPendingOutputBatches().filter(function(batch) { return batch.blocked !== true; });
-        batches.push(batch);
-        return setPendingOutputBatches(batches);
-    }
+    // There is deliberately NO function here that adds a batch to the pending
+    // store. Submission is online-only (see submitOutputByBatch): buffering told
+    // the encoder a batch was stored when it was not, and the entries believed
+    // saved were then re-keyed by hand, which is how duplicates ballooned. The
+    // pending store still exists, but only to DRAIN batches left by an older
+    // build - setPendingOutputBatches is reached from the retry path and nowhere
+    // else. Do not add a queue function back.
 
     function sendOutputBatch(batch) {
         return window.dlWriteTimeout('{base_url}/api/v1/production/sync-batch', {

@@ -52,9 +52,9 @@
                         </div>
                     </div>
 
-                    <div class="mb-4" x-show="header.withdrawal_type === 'correction'">
+                    <div class="mb-4" x-show="allowsNegative()">
                         <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">
-                            <span class="font-semibold">Correction</span> adds to today's total by default. To <span class="font-semibold">reduce</span> an amount that was recorded too high, put a minus sign first (e.g. <span class="font-mono font-semibold">-3</span>). Every correction is logged, so the trail reads: original entry → error correction.
+                            <span class="font-semibold" x-text="header.withdrawal_type === 'correction' ? 'Correction' : 'Add Stock'"></span> adds to today's total by default. To <span class="font-semibold">reduce</span> an amount that was recorded too high, put a minus sign first (e.g. <span class="font-mono font-semibold">-3</span>). This is the way to take back Additional stock that was keyed too high — the ledger's Addt'l cell cannot be edited directly. Logged as its own row, so the trail reads: original entry → correction.
                         </div>
                     </div>
 
@@ -121,8 +121,8 @@
                                             </template>
                                         </td>
                                         <td class="py-2 pr-2">
-                                            <input type="number" x-model="line.quantity" :min="header.withdrawal_type === 'correction' ? -999999 : 0" class="form-input mt-0 py-1 px-2 text-right w-full">
-                                            <div x-show="header.withdrawal_type === 'correction' && line.quantity < 0" class="mt-0.5 text-right text-[10px] font-semibold leading-tight text-orange-600">reduces today's total</div>
+                                            <input type="number" x-model="line.quantity" :min="allowsNegative() ? -999999 : 0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                            <div x-show="allowsNegative() && line.quantity < 0" class="mt-0.5 text-right text-[10px] font-semibold leading-tight text-orange-600">reduces today's total</div>
                                             <div x-show="line.unit === 'box' && packFor(line.product_id)" class="mt-0.5 text-right text-[10px] leading-tight text-gray-400">
                                                 1 box = <span x-text="packFor(line.product_id)"></span> pcs
                                             </div>
@@ -249,6 +249,15 @@ function withdrawalModal() {
             return this.header.withdrawal_type === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';
         },
 
+        // A minus sign means "take back an amount recorded too high". Correction does
+        // that for Withdraw, Add Stock for Addt'l — the Addt'l cell has no input, so
+        // this is the only way to reduce it. Mirrors dl_withdrawalTypeAllowsNegative
+        // on the server; the modal only decides whether the operator MAY type a
+        // minus, the server is what enforces it.
+        allowsNegative() {
+            return this.header.withdrawal_type === 'correction' || this.header.withdrawal_type === 'adjustment_add';
+        },
+
         addEmptyLine() { this.lines.push({ product_id: '', quantity: '', unit: 'pcs' }); },
 
         // pcs_per_pack for a product (0 = not sold by box)
@@ -320,14 +329,14 @@ function withdrawalModal() {
                 this.errorMsg = 'Charge to (liable person) is required for Add Stock that resolves a shortage. Use the Encoder omission reason if nothing was lost.';
                 return false;
             }
-            var isCorrection = this.header.withdrawal_type === 'correction';
+            var allowsNegative = this.allowsNegative();
             var hasInvalidNegative = false;
             this.lines.forEach(function(l) {
                 var q = parseInt(l.quantity, 10);
-                if (!isNaN(q) && q < 0 && !isCorrection) hasInvalidNegative = true;
+                if (!isNaN(q) && q < 0 && !allowsNegative) hasInvalidNegative = true;
             });
             if (hasInvalidNegative) {
-                this.errorMsg = 'Negative quantities are only allowed on a Correction entry (use -3 to reduce).';
+                this.errorMsg = 'Negative quantities are only allowed on a Correction or Add Stock entry (use -3 to reduce).';
                 return false;
             }
             var validLines = this.lines.filter(function(l) {
@@ -347,11 +356,11 @@ function withdrawalModal() {
             if (window.dlSetBusy) window.dlSetBusy(true, 'Saving adjustment…');
             var isEdit = !!this.editId;
 
-            var isCorrection = this.header.withdrawal_type === 'correction';
+            var allowsNegative = this.allowsNegative();
             var validLines = this.lines.filter(function(l) {
                 var q = parseInt(l.quantity, 10);
                 if (!l.product_id || isNaN(q) || q === 0) return false;
-                if (q < 0 && !isCorrection) return false;
+                if (q < 0 && !allowsNegative) return false;
                 return true;
             });
             var payload = {
@@ -421,9 +430,15 @@ function withdrawalModal() {
                         // DB-level dedup guard replay: identical line(s) already recorded.
                         msg = 'Duplicate ignored — identical adjustment already recorded';
                     } else if (!isEdit && this.header.withdrawal_type === 'adjustment_add') {
-                        msg = this.needsLiable()
-                            ? 'Stock added — charged to liable person'
-                            : 'Stock added — entry correction, nothing was lost';
+                        // A minus on Add Stock takes stock BACK, so reporting "Stock
+                        // added" would state the opposite of what was recorded.
+                        if (this.totalQty() < 0) {
+                            msg = 'Additional stock reduced — entry correction';
+                        } else {
+                            msg = this.needsLiable()
+                                ? 'Stock added — charged to liable person'
+                                : 'Stock added — entry correction, nothing was lost';
+                        }
                     } else if (!isEdit && data.delivery_id && data.receiving_id) {
                         msg = 'Pullout recorded and returned to commissary';
                     }

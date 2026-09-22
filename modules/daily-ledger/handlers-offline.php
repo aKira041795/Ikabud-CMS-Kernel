@@ -685,8 +685,10 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
              WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
                AND shift = :shift AND withdrawal_type <> :excludeType'
         );
+        // Mirrors apiSaveCashierWithdrawals: addtl is read alongside id so the
+        // below-zero check sees the current value under the row lock.
         $stmtCheck = $ctx->db()->prepare(
-            'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
+            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
         $isAddtl = ($type === 'adjustment_add');
         if ($isAddtl) {
@@ -757,13 +759,26 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             }
 
             if ($isAddtl) {
+                // Mirrors apiSaveCashierWithdrawals: a negative qty takes back stock
+                // recorded too high and may not drive addtl below zero. The 422 here
+                // becomes a 'rejected' receipt with this message, so the device shows
+                // the reason instead of retrying forever.
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
-                if ($stmtCheck->fetch()) {
+                $ledgerRowForAddtl = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+                if ($ledgerRowForAddtl) {
+                    $nextAddtl = (int)$ledgerRowForAddtl['addtl'] + $qty;
+                    if ($nextAddtl < 0) {
+                        throw new RuntimeException('Cannot reduce additional stock below zero: this product has ' . (int)$ledgerRowForAddtl['addtl'] . ' recorded for this date and shift.', 422);
+                    }
                     $stmtUpd->execute([':qty' => $qty, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
                 } else {
+                    if ($qty < 0) {
+                        throw new RuntimeException('There is no additional stock recorded for this product, date and shift to reduce.', 422);
+                    }
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
                     $stmtInit->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':prc' => $price, ':qty' => $qty, ':uid_enc' => $userId, ':uid_upd' => $userId]);
                 }
+                // The delta, not the resulting balance — mirrors the online path.
                 $totals[] = ['product_id' => $pid, 'addtl' => $qty];
             } else {
                 $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':excludeType' => 'adjustment_add']);

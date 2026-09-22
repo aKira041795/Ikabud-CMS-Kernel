@@ -160,8 +160,14 @@ $h->test('ledger routes pending saves and ops through the encrypted vault adapte
 $h->test('withdrawal modal never buffers offline, sends an idempotency key, and fails visibly with a retry', !str_contains($withdrawalModal, "enqueueOperation('") && str_contains($withdrawalModal, 'payload.idempotency_key') && str_contains($withdrawalModal, 'dlWriteTimeout') && str_contains($withdrawalModal, 'NOT saved') && str_contains($withdrawalModal, 'ONLINE-ONLY'));
 $h->test('paper-DR receive never buffers offline, sends an idempotency key, and fails visibly with a retry', !str_contains($receiveModal, "enqueueOperation('") && str_contains($receiveModal, 'payload.idempotency_key') && str_contains($receiveModal, 'dlWriteTimeout') && str_contains($receiveModal, 'NOT saved') && str_contains($receiveModal, 'ONLINE-ONLY'));
 $h->test('dispatch and delivery-edit block offline with a clear message', str_contains($dispatchModal, 'sending stock needs connectivity') && str_contains($editDeliveryModal, 'correcting a delivery needs connectivity'));
-$h->test('ledger write paths are online-only and report failures with a retry', !str_contains($ledger, 'vaultOrLegacyAddPending(pendingPayload)') && str_contains($ledger, 'ONLINE-ONLY') && str_contains($ledger, 'dlWriteTimeout') && str_contains($ledger, 'DL_WRITE_TIMEOUT_MS') && str_contains($ledger, 'dlReportWriteFailure'));
-$h->test('production output never buffers offline and reports failure', !str_contains($production, 'queueOutputBatch(batch)') && str_contains($production, 'NOT saved — no connection') && str_contains($production, 'dlWriteTimeout'));
+$h->test('ledger write paths are online-only and report failures with a retry', !str_contains($ledger, 'vaultOrLegacyAddPending(pendingPayload)') && str_contains($ledger, 'ONLINE-ONLY') && str_contains($ledger, 'dlWriteTimeout') && str_contains($ledger, 'dlReportWriteFailure'));
+// The one timeout constant is defined once in the shared layout and read off
+// window by every template, so it belongs to the layout, not to the ledger page.
+$h->test('the write timeout is defined once in the shared layout', str_contains($layout, 'DL_WRITE_TIMEOUT_MS'));
+// No buffer-insert primitive may exist here at all. The old assertion matched the
+// string "queueOutputBatch(batch)", which the function's own DEFINITION satisfies -
+// so it could not tell a dead definition from a live call site. The name is gone.
+$h->test('production output never buffers offline and reports failure', !str_contains($production, 'queueOutputBatch') && str_contains($production, 'NOT saved — no connection') && str_contains($production, 'dlWriteTimeout'));
 $h->test('offline auth overlay is retired to a compatibility shim', str_contains($offlineAuth, 'RETIRED') && !str_contains($offlineAuth, 'id="offline-lock"') && str_contains($offlineAuth, 'dlMaybeLockOffline'));
 $h->test('offline reference is vault-backed with legacy fallback', str_contains($offlineReference, 'DLOfflineVault') && str_contains($offlineReference, 'getBootstrap') && str_contains($offlineReference, 'daily-ledger-reference') && str_contains($offlineReference, 'dlReadProductReference'));
 $h->test('cashier modals fall back to the (vault-backed) offline product reference', str_contains($withdrawalModal, 'dlReadProductReference') && str_contains($receiveModal, 'dlReadProductReference'));

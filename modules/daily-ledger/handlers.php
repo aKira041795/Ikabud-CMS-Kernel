@@ -4077,10 +4077,14 @@ function apiSaveCashierWithdrawals(array $params = []): void
              WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d
                AND shift = :shift AND withdrawal_type <> :excludeType'
         );
+        // addtl is read as well as id: an Add Stock line moves addtl by a DELTA, and
+        // the below-zero check has to see the current value under the same row lock
+        // the update takes. Only `id` is used on the withdraw branch.
         $stmtCheck = $ctx->db()->prepare(
-            'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
+            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
-        // adjustment_add increases addtl (branch gets stock back); charge/pullout increase withdraw
+        // adjustment_add moves addtl (positive adds stock back to the branch, negative
+        // takes back an amount recorded too high); charge/pullout increase withdraw
         $isAddtl = ($type === 'adjustment_add');
         if ($isAddtl) {
             // addtl accumulates from multiple sources — use increment, not replace
@@ -4150,9 +4154,25 @@ function apiSaveCashierWithdrawals(array $params = []): void
             }
 
             if ($isAddtl) {
-                // adjustment_add: increment addtl by qty (adds stock back to branch)
+                // adjustment_add moves addtl by qty: positive adds stock back to the
+                // branch, negative takes back an amount that was recorded too high.
+                // addtl accumulates from several sources (formal receive, informal
+                // receive, adjustment_add), so this is a DELTA, never a replace.
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
-                if ($stmtCheck->fetch()) {
+                $ledgerRowForAddtl = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+                if ($ledgerRowForAddtl) {
+                    // Floor at zero: the ledger row is the evidence of what was
+                    // recorded, so it must never go negative. Reject rather than clamp
+                    // — a silent clamp would store a row whose quantity disagrees with
+                    // the addtl it moved, and the operator would believe it landed.
+                    $nextAddtl = (int)$ledgerRowForAddtl['addtl'] + $qty;
+                    if ($nextAddtl < 0) {
+                        throw new RuntimeException(
+                            'Cannot reduce additional stock below zero: this product has '
+                            . (int)$ledgerRowForAddtl['addtl'] . ' recorded for this date and shift.',
+                            422
+                        );
+                    }
                     $stmtUpd->execute([
                         ':qty' => $qty,
                         ':uid' => $userId,
@@ -4162,6 +4182,9 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':shift' => $shift,
                     ]);
                 } else {
+                    if ($qty < 0) {
+                        throw new RuntimeException('There is no additional stock recorded for this product, date and shift to reduce.', 422);
+                    }
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
                     $stmtInit->execute([
                         ':bid' => $branchId,
@@ -4174,6 +4197,9 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':uid_upd' => $userId,
                     ]);
                 }
+                // The DELTA, not the resulting balance. This value is both the API
+                // response and the audit line, and "-4" reads unambiguously as "moved
+                // back by 4", where the resulting "6" could be taken for the delta.
                 $totals[] = ['product_id' => $pid, 'addtl' => $qty];
             } else {
                 // charge/pullout: recalc withdraw from sum of all withdrawals
@@ -4338,6 +4364,14 @@ function apiSaveCashierWithdrawals(array $params = []): void
             // Idempotent replay: identical withdrawal already recorded, so the
             // transaction (including any ledger delta) was rolled back whole.
             $ctx->json(['ok' => true, 'duplicate' => true, 'message' => 'Identical withdrawal already recorded — no changes made.']);
+            return;
+        }
+        if ($e instanceof RuntimeException && $e->getCode() === 422) {
+            // Validation raised inside the transaction — e.g. an Add Stock reduction
+            // that would drive addtl below zero. Surfaced verbatim: falling through to
+            // the generic handler would report "Database error", which tells the
+            // operator nothing about what to change and looks like a system fault.
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
             return;
         }
         $ctx->log('apiSaveCashierWithdrawals error: ' . $e->getMessage(), 'error');
@@ -4592,7 +4626,19 @@ function apiUpdateCashierWithdrawal(array $params = []): void
 
         if ($oldIsAddtl || $newIsAddtl) {
             $nextAddtl = $curAddtl - ($oldIsAddtl ? $oldQty : 0) + ($newIsAddtl ? $newQty : 0);
-            $nextAddtl = max(0, $nextAddtl);
+            if ($nextAddtl < 0) {
+                // Rejected, not clamped. Clamping to zero would store the edited row
+                // while leaving addtl short of what the row claims, so the ledger and
+                // the recorded evidence would silently disagree — the operator would
+                // see "saved" on a correction that did not fully apply.
+                $db->rollBack();
+                $ctx->json([
+                    'ok' => false,
+                    'error' => 'This change would take additional stock below zero (recorded: ' . $curAddtl
+                        . '). Reduce the quantity, or correct the earlier entry instead.',
+                ], 422);
+                return;
+            }
             if ($hasLedgerRow) {
                 $db->prepare('UPDATE dl_daily_ledger SET addtl = :a, updated_by = :u WHERE id = :id')
                     ->execute([':a' => $nextAddtl, ':u' => $actorId, ':id' => (int)$ledgerRow['id']]);

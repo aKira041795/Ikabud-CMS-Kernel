@@ -105,21 +105,40 @@ function dl_resolveWithdrawalLineUnit(\Ikabud\Kernel\Contracts\ModuleDB $db, int
 }
 
 /**
+ * Whether a withdrawal type accepts a negative quantity (a reduction).
+ *
+ * Two types do, for the same reason — an amount is on the ledger that should
+ * not be:
+ *   - `correction`    reduces `withdraw` (the row sums into it)
+ *   - `adjustment_add` reduces `addtl` (the row moves it by a delta)
+ *
+ * `addtl` has no direct-edit cell in the ledger, so a negative Add Stock is the
+ * ONLY way an operator can take back additional stock that was recorded too
+ * high. Keeping the rule here means the create path, the offline replay and the
+ * modal all agree on it instead of each re-deriving it.
+ */
+function dl_withdrawalTypeAllowsNegative(string $type): bool
+{
+    return in_array($type, ['correction', 'adjustment_add'], true);
+}
+
+/**
  * Resolve a withdrawal line for a given withdrawal type, allowing negative
- * quantities ONLY on `correction` entries (the cashier prefixes the amount
- * with a minus, e.g. -3, to REDUCE an over-recorded amount). A negative
- * correction is always piece-based (unit pcs, no pack conversion). Positive
+ * quantities on the types that reduce an amount (see
+ * dl_withdrawalTypeAllowsNegative — `correction` for `withdraw`, `adjustment_add`
+ * for `addtl`). A negative is always piece-based (unit pcs, no pack conversion):
+ * "-2 boxes" has no unambiguous meaning, and the ledger counts pieces. Positive
  * quantities resolve normally (pcs or box) via dl_resolveWithdrawalLineUnit.
  *
  * @return array{quantity:int, unit:string, pack_qty:?int}
- * @throws \RuntimeException code 422 when a negative qty is used on a
- *         non-correction type.
+ * @throws \RuntimeException code 422 when a negative qty is used on a type that
+ *         does not allow one.
  */
 function dl_resolveWithdrawalLineForType(\Ikabud\Kernel\Contracts\ModuleDB $db, int $productId, int $quantity, $unit, string $type): array
 {
     if ($quantity < 0) {
-        if ($type !== 'correction') {
-            throw new \RuntimeException('Negative quantities are only allowed on Correction entries (use a minus sign, e.g. -3, to reduce an over-recorded amount).', 422);
+        if (!dl_withdrawalTypeAllowsNegative($type)) {
+            throw new \RuntimeException('Negative quantities are only allowed on Correction and Add Stock entries (use a minus sign, e.g. -3, to reduce an amount recorded too high).', 422);
         }
         return ['quantity' => $quantity, 'unit' => 'pcs', 'pack_qty' => null];
     }
@@ -142,6 +161,11 @@ function dl_allowedWithdrawalReasons(): array
  * somebody. `encoder_omission` is different: the stock was never lost, the
  * entry was simply not recorded, so there is nothing to charge and no liable
  * person is recorded (the flow stores liable_user_id = NULL).
+ *
+ * A NEGATIVE Add Stock (taking back an amount recorded too high) is the same
+ * kind of mistake, so it is also an encoder omission and charges nobody — the
+ * amount was keyed wrong, not lost. The rule is direction-independent on
+ * purpose: it is the reason that decides, not the sign.
  */
 function dl_adjustmentAddNeedsLiable(?string $reasonCode): bool
 {
