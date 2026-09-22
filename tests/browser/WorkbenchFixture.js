@@ -28,6 +28,7 @@ var { FormHarness } = require('../../storage/application-profiles/ark-workbench/
 var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
+var { execFileSync } = require('child_process');
 
 function createWorkbenchTest(config) {
     var appUrl = config.appUrl;
@@ -35,6 +36,41 @@ function createWorkbenchTest(config) {
     var landingPath = config.landingPath;
     var adminUser = config.adminUser || 'admin';
     var adminPass = config.adminPass || 'password';
+    // Modules whose login form validates a Full Name field (daily-ledger) compare it
+    // against dl_users.full_name - per-tenant DATA that can be renamed at any time.
+    // READ it from the app instead of assuming full_name === username: that assumption
+    // is what failed every daily-ledger browser spec at login once a data restore
+    // renamed the Ledger-Admin account. adminFullName pins it explicitly when wanted.
+    var adminFullName = config.adminFullName || null;
+    var adminTenantId = config.adminTenantId || null;
+    var loginFullNameCache = {};
+
+    function resolveLoginFullName(username) {
+        if (adminFullName) return adminFullName;
+        if (Object.prototype.hasOwnProperty.call(loginFullNameCache, username)) {
+            return loginFullNameCache[username];
+        }
+        var resolved = username;
+        try {
+            var script = path.join(__dirname, '..', 'daily-ledger', 'daily_ledger_browser_login_fixture.php');
+            if (fs.existsSync(script)) {
+                var args = [script, username];
+                if (adminTenantId) args.push(String(adminTenantId));
+                var out = execFileSync('php', args, {
+                    cwd: path.join(__dirname, '..', '..'),
+                    encoding: 'utf8',
+                    timeout: 30000,
+                    stdio: ['ignore', 'pipe', 'ignore'],
+                }).trim();
+                if (out) resolved = out;
+            }
+        } catch (e) {
+            // Lookup miss (unknown account / no tenant access): fall back to the
+            // username so environments seeded with full_name === username still work.
+        }
+        loginFullNameCache[username] = resolved;
+        return resolved;
+    }
     // Kernel-admin pages (e.g. /superadmin/workbench) do not emit the module
     // app-shell component, so allow adapters to declare their own landing selector.
     var landingSelector = config.landingSelector || '[data-wb-component="app-shell"]';
@@ -110,7 +146,7 @@ function createWorkbenchTest(config) {
             // fill it; modules without one are unaffected.
             var dlFullName = page.locator('input[name="full_name"]');
             if (await dlFullName.count()) {
-                await dlFullName.fill(adminUser);
+                await dlFullName.fill(resolveLoginFullName(adminUser));
             }
             await page.fill('input[name="password"]', adminPass);
             await page.click('button[type="submit"]');
@@ -133,12 +169,12 @@ function createWorkbenchTest(config) {
         form: async function ({ page }, use) { await use(new FormHarness(page)); },
 
         loginAs: [async function ({ page }, use) {
-            await use(async function (username, password) {
+            await use(async function (username, password, fullName) {
                 await page.goto('' + appUrl + loginPath);
                 await page.fill('input[name="username"]', username);
                 var dlFullName = page.locator('input[name="full_name"]');
                 if (await dlFullName.count()) {
-                    await dlFullName.fill(username);
+                    await dlFullName.fill(fullName || resolveLoginFullName(username));
                 }
                 await page.fill('input[name="password"]', password);
                 await page.click('button[type="submit"]');

@@ -316,7 +316,7 @@
     }
 
     function sendOutputBatch(batch) {
-        return fetch('{base_url}/api/v1/production/sync-batch', {
+        return window.dlWriteTimeout('{base_url}/api/v1/production/sync-batch', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -325,7 +325,7 @@
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
             body: JSON.stringify({ operations: batch.operations, idempotency_key: batch.idempotency_key })
-        }).then(function(response) {
+        }, 'This output submission').then(function(response) {
             var contentType = response.headers.get('Content-Type') || '';
             if (response.redirected || contentType.indexOf('application/json') === -1) {
                 var authError = new Error('Authentication required');
@@ -489,11 +489,10 @@
             created_at: new Date().toISOString()
         };
         if (!navigator.onLine) {
-            if (queueOutputBatch(batch)) {
-                resetOutputBatches();
-                showToast('Production output saved on this device and will sync on reconnect.', 'success');
-                renderOutputOfflineStatus();
-            }
+            // ONLINE-ONLY (owner decision 2026-09-22): output is never buffered on the
+            // device. Buffering told the encoder the batch was stored when it was not,
+            // and the re-keyed replacement is what duplicates data. Report it instead.
+            showToast('NOT saved — no connection. Reconnect and submit the output again.', 'error');
             btn.disabled = false;
             btn.textContent = 'Submit Output';
             return;
@@ -516,11 +515,13 @@
                 showToast('Your session expired. Sign in again before submitting output.', 'error');
                 return;
             }
-            if (queueOutputBatch(batch)) {
-                resetOutputBatches();
-                showToast('Network unavailable. Production output saved on this device.', 'success');
-                renderOutputOfflineStatus();
-            }
+            // ONLINE-ONLY: a timeout or any failure is reported, never buffered.
+            showToast(
+                (error && error.dlTimedOut)
+                    ? window.dlWriteTimeoutMessage('This output submission')
+                    : 'NOT saved — the server could not be reached. Check the connection and submit again.',
+                'error'
+            );
         })
         .finally(function() {
             btn.disabled = false;

@@ -6,6 +6,8 @@
  *   TEST_BASE_URL   — target site (e.g. https://baronledger.test)
  *   TEST_ADMIN_USER — admin login username
  *   TEST_ADMIN_PASS — admin login password
+ *   TEST_ADMIN_FULL_NAME — optional; overrides reading the real dl_users.full_name
+ *   TEST_TENANT_ID  — tenant whose dl_users holds the login account (default 207)
  */
 
 // @ts-check
@@ -23,6 +25,11 @@ var dl = createWorkbenchTest({
     landingPath: '/daily-ledger/admin/dashboard',
     adminUser: adminUser,
     adminPass: adminPass,
+    // The login form validates Full Name against dl_users.full_name, so the fixture
+    // reads it via tests/daily-ledger/daily_ledger_browser_login_fixture.php rather
+    // than sending the username. Pin it with TEST_ADMIN_FULL_NAME if ever needed.
+    adminFullName: process.env.TEST_ADMIN_FULL_NAME || null,
+    adminTenantId: parseInt(process.env.TEST_TENANT_ID || '207', 10),
 });
 
 module.exports = { test: dl.test, expect: dl.expect };

@@ -436,8 +436,12 @@
         SHIFT || 'AM'
     ].join(':');
     var QUARANTINE_KEY = [PENDING_STORAGE_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
-    var cloudOnline = false;
-    var cloudProbeDone = false;
+    // Start ONLINE. This HTML was just delivered by the server over this very
+    // connection, so connectivity was proven a moment ago; assuming 'offline' until
+    // the first probe answers made every page load flash an amber "Offline" banner
+    // and blocked day-close/POS for the whole round trip. The first probe can only
+    // ever DOWNGRADE this on real evidence.
+    var cloudOnline = true;
     // Shared hosting cold renders routinely exceed a few seconds - a local ledger
     // GET already measured >1s - so a 4s probe timeout declared a healthy cloud
     // "offline". That is not cosmetic: a false offline stops drainPendingWork() and
@@ -446,6 +450,10 @@
     var CLOUD_PROBE_TIMEOUT_MS = 10000;
     var CLOUD_PROBE_FAILURE_LIMIT = 2;
     var cloudProbeFailures = 0;
+    // Whether the sync heartbeat has ever answered. This is the ONLY probe flag other
+    // code may branch on, and only for display - never to decide whether a write is
+    // attempted. (A separate `cloudProbeDone` flag used to gate queueing in five
+    // templates; that is exactly what let a stale verdict swallow a real save.)
     var cloudProbeAnswered = false;
     var syncingPending = false;
     var storageAvailable = true;
@@ -453,6 +461,7 @@
     var saveFieldVersions = {};
     var sessionExpired = false;
     var cloudProbeInterval = null;
+    var cloudRetryInterval = null;
     var pendingDrainInterval = null;
     var sessionRedirectTimer = null;
 
@@ -464,6 +473,12 @@
     // block): immediate check on reconnect, on returning to the tab, and while
     // queued work is waiting to drain.
     var CLOUD_PROBE_MS = 120000;
+
+    // Recovery cadence. While the banner is amber, day-close and POS are blocked, so
+    // coming back must not wait out the whole 120s steady interval. Retry quickly for
+    // as long as we believe we are offline; the first success clears the state at
+    // once. Costs nothing while online (no request is issued).
+    var CLOUD_PROBE_RETRY_MS = 10000;
 
     function dlResponseJson(response) {
         return response.json().then(function(body) {
@@ -488,6 +503,10 @@
             clearInterval(pendingDrainInterval);
             pendingDrainInterval = null;
         }
+        if (cloudRetryInterval !== null) {
+            clearInterval(cloudRetryInterval);
+            cloudRetryInterval = null;
+        }
         window.removeEventListener('online', probeCloud);
         var box = document.getElementById('connectivity-banner');
         var text = document.getElementById('connectivity-banner-text');
@@ -496,7 +515,7 @@
             box.setAttribute('role', 'alert');
             box.classList.remove('hidden');
         }
-        if (text) text.textContent = 'Your session has expired. Please sign in again - your unsaved entries are kept and will be retried.';
+        if (text) text.textContent = 'Your session has expired. Please sign in again - the edit was NOT saved and nothing is held on this device.';
         if (window.showToast) window.showToast('Your session has expired. Please sign in again.', 'error');
         sessionRedirectTimer = setTimeout(function() {
             window.location.assign('/daily-ledger/login');
@@ -806,7 +825,9 @@
                         pending_count: pendingReport.pending_count, pending_since: pendingReport.pending_since, pending_fields: pendingReport.pending_fields })
                 }).then(dlResponseJson).then(function(res) {
                     if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
-                    if (!res.ok) { cloudOnline = false; return; }
+                    // A JSON rejection is an APPLICATION answer, not a lost connection:
+                    // the server is demonstrably reachable, so never mark it offline here.
+                    if (!res.ok) { return; }
                     var remove = [];
                     (res.results || []).forEach(function(r) {
                         if (r.status === 'applied' || r.duplicate) {
@@ -822,7 +843,7 @@
                     });
                 });
             });
-        }).catch(function() { cloudOnline = false; }).then(function() {
+        }).catch(function() { markCloudProbeFailure(); }).then(function() {
             updateGlobalStatus('saved');
             renderConnectivityBanner();
         });
@@ -865,6 +886,11 @@
         return entry;
     }
 
+    // DRAIN-ONLY since 2026-09-22. Ledger writes are online-only (owner decision):
+    // nothing new is ever buffered, because a queued entry the cashier believes is
+    // stored gets re-keyed by hand and duplicates the ledger. These writers are kept
+    // ONLY so entries buffered by the previous behaviour still reconcile on reconnect.
+    // Do NOT call enqueueOperation from a write path.
     window.enqueueOperation = function(op, payload) {
         if (vaultQueueActive && window.DLOfflineVault && window.DLOfflineVault.isUnlocked()) {
             vaultEnqueue(op, payload || {}).then(function(res) {
@@ -942,7 +968,7 @@
                 : BASE + '/api/v1/cashier/ledger/receive-paper-dr';
             var payload = JSON.parse(JSON.stringify(entry.payload || {}));
             payload.idempotency_key = entry.idempotency_key;
-            return fetch(url, {
+            return window.dlWriteTimeout(url, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -951,10 +977,11 @@
                     'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
                 },
                 body: JSON.stringify(payload)
-            })
+            }, 'This queued entry')
             .then(dlResponseJson)
             .then(function(res) {
                 if (res.ok) {
+                    markCloudProbeSuccess();
                     removePendingOperation(entry.idempotency_key);
                 } else if (isSessionExpiredResponse(res)) {
                     window.dlSessionExpired(res);
@@ -963,7 +990,7 @@
                     removePendingOperation(entry.idempotency_key);
                 }
             })
-            .catch(function() { cloudOnline = false; });
+            .catch(function() { markCloudProbeFailure(); });
         });
         return Promise.all(requests).then(function() {
             updateGlobalStatus(pendingTotal() > 0 ? 'pending' : 'saved');
@@ -971,10 +998,24 @@
         });
     }
     function drainPendingWork() {
-        if (vaultQueueActive && window.DLOfflineVault && window.DLOfflineVault.isUnlocked()) {
-            return drainVault();
+        var queuedBefore = pendingTotal();
+        var drained = (vaultQueueActive && window.DLOfflineVault && window.DLOfflineVault.isUnlocked())
+            ? drainVault()
+            : retryPending().then(function() { return replayPendingOperations(); });
+        return drained.then(function() {
+            // A withdrawal queued while the banner was amber has now reached the cloud,
+            // but the cells on screen were rendered before it landed - and the ledger
+            // TOTAL for that product only moves when the row is re-read. Without this
+            // the operator sees the old number and concludes the entry was refused.
+            if (pendingTotal() < queuedBefore) refreshLedgerTotals();
+        });
+    }
+
+    function refreshLedgerTotals() {
+        if (window.htmx && document.getElementById('ledger-body')) {
+            htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
         }
-        return retryPending().then(function() { return replayPendingOperations(); });
+        if (typeof window.dlRefreshTodayAdjustments === 'function') window.dlRefreshTodayAdjustments();
     }
 
     // Compute sales = beg_bal + addtl - withdraw - bal_end (pending when no ending)
@@ -1016,7 +1057,7 @@
             shift: SHIFT
         };
         if (BRANCH_ID) payload.branch_id = BRANCH_ID;
-        return fetch(BASE + '/api/v1/cashier/ledger/save', {
+        return window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -1025,7 +1066,7 @@
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
             body: JSON.stringify(payload)
-        }).then(dlResponseJson);
+        }, 'This edit').then(dlResponseJson);
     }
 
     // The rendered cell value is the server's last word for that cell. Snapshot it
@@ -1043,14 +1084,19 @@
         return true;
     }
 
-    function saveField(input) {
-        var productId = input.dataset.product;
-        var field = input.dataset.field;
+    // Send one cell value. Split out of saveField so a failed write can be RETRIED
+    // with the value the operator actually typed - the cell is rolled back to the
+    // server's value on failure, so re-reading the input would re-send the old number.
+    //
+    // ONLINE-ONLY (owner decision 2026-09-22): a ledger edit is NEVER buffered on the
+    // device. It is attempted; if it fails it is rolled back and reported with the
+    // reason and a Retry. Buffering gave editors/cashiers a false sense of stored data,
+    // and the hand re-keying that followed is what duplicated entries. Do NOT
+    // reintroduce a queue here.
+    function sendFieldValue(input, productId, field, value) {
         var saveKey = String(productId) + ':' + String(field);
         var saveVersion = (saveFieldVersions[saveKey] || 0) + 1;
         saveFieldVersions[saveKey] = saveVersion;
-        var value = (field === 'bal_end' && input.value.trim() === '') ? null : (parseInt(input.value, 10) || 0);
-        var pendingPayload = buildPendingPayload(productId, field, value);
         if (value === null) { input.value = ''; } else { input.value = value; }
         input.classList.remove('saved', 'error');
         input.classList.add('saving');
@@ -1073,18 +1119,28 @@
                 setTimeout(function() { input.classList.remove('saved'); }, 1500);
                 removePending(productId, field);
                 input.dataset.serverValue = input.value;
+                if (window.dlClearWriteFailure) window.dlClearWriteFailure();
                 if (window.dlToastSaved) { window.dlToastSaved('Saved'); }
                 else if (window.showToast) { window.showToast('Saved', 'success'); }
             } else {
                 input.classList.add('error');
                 if (isSessionExpiredResponse(res)) {
-                    vaultOrLegacyAddPending(pendingPayload);
+                    // ONLINE-ONLY: nothing was recorded and nothing is held, so say that
+                    // rather than claiming the entries are kept and will be retried.
+                    revertCellToServerValue(input);
+                    computeSales(productId);
                     window.dlSessionExpired(res);
                 } else if (shouldQueueServerFailure(res)) {
-                    // Queued, NOT committed. Say so explicitly: previously this was
-                    // silent, so a deferred edit looked identical to a saved one.
-                    vaultOrLegacyAddPending(pendingPayload);
-                    if (window.showToast) window.showToast('Saved on this device — will sync when connectivity returns', 'info');
+                    // ONLINE-ONLY (owner decision 2026-09-22): a retryable server error is
+                    // reported with a Retry, never buffered on the device.
+                    revertCellToServerValue(input);
+                    computeSales(productId);
+                    var busyMsg = 'NOT saved — the server is not accepting changes right now'
+                        + (res.error ? ' (' + res.error + ')' : '') + '. Retry in a moment.';
+                    if (window.dlReportWriteFailure) {
+                        window.dlReportWriteFailure(busyMsg, function() { sendFieldValue(input, productId, field, value); });
+                    }
+                    if (window.showToast) window.showToast(busyMsg, 'error');
                 } else {
                     // Deterministic rejection (locked shift, closed day, reference
                     // only): the ledger will still read the old value after reload,
@@ -1105,15 +1161,35 @@
             }
             updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
         })
-        .catch(function() {
+        .catch(function(err) {
             if (window.dlSetBusy) window.dlSetBusy(false);
             if (saveFieldVersions[saveKey] !== saveVersion) return;
             input.classList.remove('saving');
             input.classList.add('error');
-            vaultOrLegacyAddPending(pendingPayload);
-            updateGlobalStatus('pending');
-            if (window.showToast) window.showToast('Network error — edit kept on this device and will sync', 'info');
+            // ONLINE-ONLY (owner decision 2026-09-22): the edit is NEVER buffered. It is
+            // rolled back to the server's value and reported with the reason plus a Retry,
+            // so the screen can never suggest a value that was not recorded.
+            revertCellToServerValue(input);
+            computeSales(productId);
+            updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
+            var reason = (err && err.dlTimedOut)
+                ? window.dlWriteTimeoutMessage('This edit')
+                : 'NOT saved — the server could not be reached.';
+            if (window.dlReportWriteFailure) {
+                window.dlReportWriteFailure(
+                    reason + ' The cell was put back to its last saved value so the screen is not misleading.',
+                    function() { sendFieldValue(input, productId, field, value); }
+                );
+            }
+            if (window.showToast) window.showToast(reason, 'error');
         });
+    }
+
+    function saveField(input) {
+        var productId = input.dataset.product;
+        var field = input.dataset.field;
+        var value = (field === 'bal_end' && input.value.trim() === '') ? null : (parseInt(input.value, 10) || 0);
+        sendFieldValue(input, productId, field, value);
     }
 
     function addPending(payload) {
@@ -1170,7 +1246,10 @@
     }
 
     function retryPending() {
-        if (syncingPending || !cloudOnline || !storageAvailable) return Promise.resolve();
+        // Gate on the browser's own signal, never on the probe's. A stale "offline"
+        // verdict must not stop queued work from draining - that is how a queued
+        // entry stayed stranded while the cloud was perfectly reachable.
+        if (syncingPending || !navigator.onLine || !storageAvailable) return Promise.resolve();
         var list = getPending();
         if (list.length === 0) {
             lastCloudSync = new Date();
@@ -1187,7 +1266,7 @@
                 renderPendingWarning();
                 return Promise.resolve();
             }
-            return fetch(BASE + '/api/v1/cashier/ledger/save', {
+            return window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -1196,10 +1275,14 @@
                     'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
                 },
                 body: JSON.stringify(payload)
-            })
+            }, 'This edit')
             .then(dlResponseJson)
             .then(function(res) {
                 if (res.ok) {
+                    // A successful round trip IS proof of connectivity - clear any
+                    // offline state now instead of waiting for the next heartbeat.
+                    markCloudProbeSuccess();
+                    lastCloudSync = new Date();
                     removePendingIfUnchanged(payload);
                     if (getPending().length === 0) updateGlobalStatus('saved');
                 } else if (isSessionExpiredResponse(res)) {
@@ -1210,7 +1293,7 @@
                     renderPendingWarning();
                 }
             })
-            .catch(function() { cloudOnline = false; });
+            .catch(function() { markCloudProbeFailure(); });
         });
         return Promise.all(requests).then(function() {
             if (cloudOnline) lastCloudSync = new Date();
@@ -1234,13 +1317,31 @@
             return;
         }
         var pending = pendingTotal();
-        if (cloudOnline) {
+        if (pending > 0) {
+            // Entries exist ONLY on this device. Never claim a successful sync here:
+            // "Cloud synchronized" alongside a pending count is a false assurance, and
+            // it is the difference between an operator trusting the screen and knowing
+            // the work still has to reach the server.
+            box.className += ' border-amber-300 bg-amber-50 text-amber-900';
+            if (!navigator.onLine) {
+                text.textContent = 'Offline · ' + pending + ' not on the server yet · Day close & POS need connectivity';
+            } else {
+                text.textContent = 'Online · ' + pending + ' not on the server yet · syncing now';
+            }
+        } else if (cloudOnline) {
             box.className += ' border-emerald-300 bg-emerald-50 text-emerald-800';
-            var stamp = lastCloudSync ? lastCloudSync.toLocaleTimeString() : new Date().toLocaleTimeString();
-            text.textContent = 'Online · Cloud synchronized ' + stamp + (pending ? ' · ' + pending + ' pending' : '');
+            if (!cloudProbeAnswered) {
+                // The document arrived over this connection, so we ARE online - the
+                // sync heartbeat just has not answered yet. Say that, instead of
+                // claiming a sync timestamp we have not verified.
+                text.textContent = 'Online · Checking cloud sync…';
+            } else {
+                var stamp = lastCloudSync ? lastCloudSync.toLocaleTimeString() : new Date().toLocaleTimeString();
+                text.textContent = 'Online · Cloud synchronized ' + stamp;
+            }
         } else {
             box.className += ' border-amber-300 bg-amber-50 text-amber-900';
-            text.textContent = 'Offline · Saved on this device · ' + pending + ' pending · Day close & POS need connectivity';
+            text.textContent = 'Offline · nothing pending · Day close & POS need connectivity';
         }
         if (pending > 0) updateGlobalStatus('pending');
     }
@@ -1301,7 +1402,6 @@
             return markCloudProbeFailure();
         }).finally(function() {
             if (timer) clearTimeout(timer);
-            cloudProbeDone = true;
             cloudProbeAnswered = true;
             renderConnectivityBanner();
         });
@@ -1318,7 +1418,10 @@
 
     document.addEventListener('click', function(event) {
         var target = event.target && event.target.closest ? event.target.closest('[data-online-action]') : null;
-        if (!target || (navigator.onLine && cloudOnline)) return;
+        // Only the browser's own signal blocks these. Gating on the probe meant a
+        // stale "offline" verdict refused day-close and POS on a host that was up.
+        // If the cloud really is unreachable the action fails and says so.
+        if (!target || navigator.onLine) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         blockOnlineAction(target.getAttribute('data-online-action') || 'This action');
@@ -1332,6 +1435,14 @@
         if (!navigator.onLine || document.hidden) return;
         probeCloud();
     }, CLOUD_PROBE_MS);
+
+    // While the banner is amber, day-close and POS are blocked, so recovery must not
+    // wait out the steady 120s cadence. Retry quickly until the cloud answers; a
+    // single success restores online at once. This issues no request while online.
+    cloudRetryInterval = setInterval(function() {
+        if (sessionExpired || !navigator.onLine || document.hidden) return;
+        if (cloudOnline === false && cloudProbeAnswered) probeCloud();
+    }, CLOUD_PROBE_RETRY_MS);
 
     // Queued entries must not wait out the full interval to reach the cloud. This
     // tick is free when there is nothing pending - it issues no request at all.
@@ -1392,7 +1503,7 @@
         var payload = { date: LEDGER_DATE, branch_id: BRANCH_ID };
         if (acknowledgeVariance) { payload.acknowledge_variance = true; }
 
-        fetch(BASE + '/api/v1/cashier/ledger/close-day', {
+        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/close-day', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -1401,7 +1512,7 @@
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
             body: JSON.stringify(payload)
-        })
+        }, 'Closing the day')
         .then(dlResponseJson)
         .then(function(res) {
             if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
@@ -1733,7 +1844,7 @@
         if (btn) { btn.disabled = true; btn.textContent = 'Finalizing…'; }
         var box = document.getElementById('finalize-pm-result');
         if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
-        fetch(BASE + '/api/v1/cashier/ledger/finalize-pm', {
+        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/finalize-pm', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -1742,7 +1853,7 @@
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
             body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
-        })
+        }, 'Finalizing the PM shift')
         .then(dlResponseJson)
         .then(function(res) {
             if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
@@ -1791,7 +1902,7 @@
         });
         if (rows.length === 0) return;
 
-        fetch(BASE + '/api/v1/cashier/ledger/save-batch', {
+        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save-batch', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -1806,7 +1917,7 @@
                 idempotency_key: 'am-handoff-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + Date.now(),
                 rows: rows
             })
-        })
+        }, 'Carrying the AM beginning forward')
         .then(dlResponseJson)
         .then(function(res) {
             if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
@@ -1838,7 +1949,7 @@
         });
         if (rows.length === 0) return;
 
-        fetch(BASE + '/api/v1/cashier/ledger/save-batch', {
+        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save-batch', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -1853,7 +1964,7 @@
                 idempotency_key: 'pm-handoff-' + BRANCH_ID + '-' + LEDGER_DATE + '-' + Date.now(),
                 rows: rows
             })
-        })
+        }, 'Adopting the AM ending as the PM beginning')
         .then(dlResponseJson)
         .then(function(res) {
             if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }

@@ -128,7 +128,7 @@ test.describe('Daily Ledger PWA offline vault', () => {
         expect(result.modalProducts).toEqual(result.expected);
     });
 
-    test('offline queue drains via reconcile on reconnect, online-only actions stay blocked, and production output queues offline', async ({ page, context, shell }) => {
+    test('offline queue drains via reconcile on reconnect, online-only actions stay blocked, and production output is never buffered', async ({ page, context, shell }) => {
         await page.goto(APP_URL + BASE + '/ledger');
         await page.waitForLoadState('networkidle');
         await shell.expectVisible();
@@ -178,7 +178,10 @@ test.describe('Daily Ledger PWA offline vault', () => {
         await expect(page.locator('#online-action-blocked')).toContainText('requires cloud connectivity');
         await context.setOffline(false);
 
-        // 3) Production output queues offline with an idempotency key.
+        // 3) Production output is ONLINE-ONLY (owner decision 2026-09-22). It used to
+        //    queue offline, which told the encoder the batch was stored when it was not;
+        //    the hand re-keyed replacement is what duplicated the ledger. It must now
+        //    report the failure and hold nothing.
         await page.goto(APP_URL + BASE + '/admin/production-output');
         await page.waitForLoadState('networkidle');
         await shell.expectVisible();
@@ -190,27 +193,13 @@ test.describe('Daily Ledger PWA offline vault', () => {
             });
             await page.locator('.output-qty-input').first().fill('3');
             await page.locator('#submit-output').click();
-        } else {
-            await page.evaluate(() => {
-                queueOutputBatch({
-                    idempotency_key: 'production-output-contract-test',
-                    created_at: new Date().toISOString(),
-                    operations: [{
-                        type: 'output', destination_branch_id: 1, product_id: 1,
-                        ledger_date: '2026-08-14', quantity: 3, flow_mode: 'production',
-                        reason: 'offline contract test', client_op_id: 'output-contract-test-1'
-                    }]
-                });
-                renderOutputOfflineStatus();
-            });
+            await expect(page.locator('#toast-container')).toContainText('NOT saved — no connection');
         }
         var queued = await page.evaluate(() => {
             var key = ['daily-ledger:pending-production-output', String(window.DL_TENANT_SCOPE || 'tenant'), String(window.DL_USER_ID || 'anonymous')].join(':');
             return JSON.parse(localStorage.getItem(key) || '[]');
         });
-        expect(queued).toHaveLength(1);
-        expect(queued[0].idempotency_key).toContain('production-output');
-        await expect(page.locator('#production-offline-status')).toContainText('1 pending batch');
+        expect(queued).toHaveLength(0);
         await context.setOffline(false);
     });
 

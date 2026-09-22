@@ -155,21 +155,29 @@
 
                 var el = document.createElement('div');
                 // Colour carries the outcome, so a cashier can read the result at a
-                // glance without waiting for the (slow) view refresh: green = the
-                // server accepted it, red = it failed, slate = informational
-                // (queued/pending). Previously every non-error toast was slate, so
-                // success and "queued" were visually identical.
+                // glance without waiting for the (slow) view refresh:
+                //   green  = the SERVER accepted it
+                //   amber  = queued on this device, NOT yet on the server
+                //   red    = the server refused it or the request failed
+                //   slate  = purely informational
+                // 'queued' must never be green: it is the one outcome the operator
+                // cannot otherwise tell apart from a real save, and mistaking it for
+                // one is how a lost adjustment gets reported as "it won't add".
                 var cls = (type === 'error')
                     ? 'bg-red-600 text-white'
-                    : (type === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white');
+                    : (type === 'success'
+                        ? 'bg-emerald-600 text-white'
+                        : (type === 'warning' ? 'bg-amber-500 text-white' : 'bg-slate-900 text-white'));
                 el.className = 'mb-2 px-4 py-3 rounded-xl shadow text-sm ' + cls;
                 el.setAttribute('role', type === 'error' ? 'alert' : 'status');
                 el.textContent = String(message || 'OK');
                 cont.appendChild(el);
 
+                // A queued entry needs reading time - it is the only notice that the
+                // work is not on the server yet.
                 setTimeout(function() {
                     if (el && el.parentNode) el.parentNode.removeChild(el);
-                }, (type === 'error') ? 6000 : 2800);
+                }, (type === 'error' || type === 'warning') ? 6000 : 2800);
             } catch (e) {
             }
         };
@@ -178,6 +186,67 @@
             if (!d) return;
             window.showToast(d.message || 'OK', d.type || 'success');
         });
+
+        // ── Bounded writes: a slow transaction FAILS, it is not held ─────────
+        // A ledger write is something the operator has to be able to trust. If the
+        // server has not answered inside this window we declare it NOT SAVED and say
+        // so. Holding it on the device is worse than losing it: an entry the cashier
+        // believes is recorded is discovered at close-of-day with no way to tell what
+        // happened, whereas a refused one is retried in seconds. Retrying is safe -
+        // every write carries an idempotency key (response cached 24h) and
+        // dl_cashier_withdrawals has a UNIQUE dedup_hash index, so Retry cannot
+        // produce a duplicate.
+        window.DL_WRITE_TIMEOUT_MS = 15000;
+        window.dlWriteTimeout = function(url, options, label) {
+            if (typeof AbortController === 'undefined') return fetch(url, options);
+            var controller = new AbortController();
+            var opts = {};
+            for (var k in options) {
+                if (Object.prototype.hasOwnProperty.call(options, k)) opts[k] = options[k];
+            }
+            opts.signal = controller.signal;
+            var timer = setTimeout(function() { controller.abort(); }, window.DL_WRITE_TIMEOUT_MS);
+            return fetch(url, opts).then(function(res) {
+                clearTimeout(timer);
+                return res;
+            }, function(err) {
+                clearTimeout(timer);
+                if (controller.signal.aborted) {
+                    var e = new Error('WRITE_TIMEOUT');
+                    e.dlTimedOut = true;
+                    e.dlLabel = label || 'The change';
+                    return Promise.reject(e);
+                }
+                return Promise.reject(err);
+            });
+        };
+        window.dlWriteTimeoutMessage = function(label) {
+            return 'NOT saved — the connection took longer than '
+                + Math.round(window.DL_WRITE_TIMEOUT_MS / 1000) + 's. '
+                + (label || 'The change') + ' was NOT recorded. Check the connection and retry.';
+        };
+
+        // ── Persistent write-failure notice ──────────────────────────────────
+        // A failed ledger write must not be reported only by a toast that vanishes
+        // after a few seconds. The operator needs the REASON and a Retry in front of
+        // them: without it they either assume it went in, or re-key it by hand - which
+        // is exactly how duplicate entries balloon the data.
+        window.dlWriteFailureRetry = null;
+        window.dlReportWriteFailure = function(reason, retry) {
+            var box = document.getElementById('dl-write-failure');
+            var text = document.getElementById('dl-write-failure-text');
+            var btn = document.getElementById('dl-write-failure-retry');
+            if (!box || !text) return;
+            window.dlWriteFailureRetry = (typeof retry === 'function') ? retry : null;
+            text.textContent = reason || 'The change did not reach the server.';
+            if (btn) btn.classList.toggle('hidden', !window.dlWriteFailureRetry);
+            box.classList.remove('hidden');
+        };
+        window.dlClearWriteFailure = function() {
+            var box = document.getElementById('dl-write-failure');
+            if (box) box.classList.add('hidden');
+            window.dlWriteFailureRetry = null;
+        };
 
         // ── Submit feedback ────────────────────────────────────────────────
         // A slow link makes the view refresh lag far behind the request, so the
@@ -356,6 +425,21 @@
 <body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }" data-wb-component="app-shell">
 
     <div id="toast-container" class="fixed top-4 right-4 z-50" role="status" aria-live="polite"></div>
+
+    <!-- Persistent write-failure notice. See window.dlReportWriteFailure. -->
+    <div id="dl-write-failure" class="hidden fixed bottom-4 left-1/2 z-[60] w-[min(46rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-red-300 bg-red-50 px-4 py-3 shadow-2xl" role="alert" aria-live="assertive">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-triangle-exclamation mt-1 text-red-600" aria-hidden="true"></i>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-red-900">Not saved</p>
+                <p id="dl-write-failure-text" class="mt-1 text-xs leading-5 text-red-800"></p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+                <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="if (window.dlWriteFailureRetry) { var f = window.dlWriteFailureRetry; window.dlClearWriteFailure(); f(); }">Retry</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
+            </div>
+        </div>
+    </div>
 
     <!-- In-flight indicator. Deliberately non-blocking (pointer-events-none): on a
          slow link a modal overlay would freeze the cashier for the whole request,

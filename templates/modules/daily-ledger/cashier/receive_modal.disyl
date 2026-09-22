@@ -219,7 +219,13 @@
                             </div>
 
                             <div class="flex justify-end">
-                                <button type="button" class="btn btn-primary" x-bind:disabled="paperSaving" @click="submitPaperDelivery()" x-text="paperSaving ? 'Receiving...' : 'Save and Receive Paper DR'"></button>
+                                <button type="button" class="btn btn-primary inline-flex items-center justify-center" x-bind:disabled="paperSaving" @click="submitPaperDelivery()">
+                                    <svg x-show="paperSaving" class="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                    </svg>
+                                    <span x-text="paperSaving ? 'Receiving...' : 'Save and Receive Paper DR'"></span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -293,14 +299,6 @@ function receiveModal() {
                 auto_dr: false,
                 items: [{ product_id: '', quantity: '' }]
             };
-        },
-
-        // Auto-DR production receive mints the DR server-side, so it cannot be
-        // queued offline (the offline replay requires an explicit paper DR).
-        autoDrBlockedOffline() {
-            if (!this.paperForm.auto_dr) return false;
-            this.errorMsg = 'Auto-DR production receive requires connectivity. Reconnect and retry, or enter the paper DR number.';
-            return true;
         },
 
         currentBranchId() {
@@ -386,21 +384,14 @@ function receiveModal() {
             };
             payload.idempotency_key = window.generateOperationId ? window.generateOperationId() : String(Date.now());
 
-            // Offline: queue the paper-DR receive on this device and sync later.
-            // Auto-DR production receive is online-only (server mints the DR).
-            if (!navigator.onLine || (window.cloudProbeDone && window.cloudOnline === false)) {
-                if (this.autoDrBlockedOffline()) {
-                    this.paperSaving = false;
-                    return;
-                }
-                window.enqueueOperation('receive_paper_dr', payload);
-                this.paperSaving = false;
-                showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
-                this.closeModal();
-                return;
-            }
+            // ONLINE-ONLY (owner decision 2026-09-22). Nothing is buffered on the
+            // device: a receive that is believed recorded but is not gets re-keyed by
+            // hand, which is how duplicates balloon the ledger. Attempt it; if it fails
+            // the modal stays open with the reason and Save is the Retry. Safe to retry
+            // because the payload carries an idempotency key and the server dedupes the
+            // replay by it. Do NOT reintroduce enqueueOperation here.
 
-            fetch(BASE + '/api/v1/cashier/ledger/receive-paper-dr', {
+            window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/receive-paper-dr', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -408,7 +399,7 @@ function receiveModal() {
                     'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
                 },
                 body: JSON.stringify(payload)
-            })
+            }, 'This Paper DR')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 this.paperSaving = false;
@@ -417,25 +408,20 @@ function receiveModal() {
                     this.closeModal();
                     window.refreshMainContent();
                 } else if (window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
-                    if (this.autoDrBlockedOffline()) {
-                        this.paperSaving = false;
-                        return;
-                    }
-                    window.enqueueOperation('receive_paper_dr', payload);
-                    showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
-                    this.closeModal();
+                    // ONLINE-ONLY: a retryable server error is reported, not buffered.
+                    this.errorMsg = 'NOT saved — the server is not accepting receives right now ('
+                        + (data && data.error ? data.error : 'temporary error') + '). Retry in a moment.';
                 } else {
                     this.errorMsg = (data && data.error) || 'Failed to receive paper DR.';
                 }
             }.bind(this))
-            .catch(function() {
+            .catch(function(err) {
                 this.paperSaving = false;
-                if (this.autoDrBlockedOffline()) {
-                    return;
-                }
-                window.enqueueOperation('receive_paper_dr', payload);
-                showToast('Paper DR saved on this device — will sync when connectivity returns', 'success');
-                this.closeModal();
+                // ONLINE-ONLY: never buffered. The modal stays open with the reason so
+                // the Save button is the retry.
+                this.errorMsg = (err && err.dlTimedOut)
+                    ? window.dlWriteTimeoutMessage('This Paper DR')
+                    : 'NOT saved — the server could not be reached. Check the connection and retry.';
             }.bind(this));
         },
 
@@ -510,7 +496,7 @@ function receiveModal() {
             var bid = this.currentBranchId();
             if (bid) payload.branch_id = bid;
 
-            fetch(BASE + '/api/v1/cashier/ledger/receive-delivery', {
+            window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/receive-delivery', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -518,7 +504,7 @@ function receiveModal() {
                     'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
                 },
                 body: JSON.stringify(payload)
-            })
+            }, 'This receipt')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 this.busyKey = '';
