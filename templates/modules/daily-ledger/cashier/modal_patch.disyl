@@ -463,10 +463,16 @@ function withdrawalModal() {
             .then(function(data) {
                 this.saving = false;
                 if (data.ok) {
-                    // Push the change back into the ledger view. An operator who cannot
-                    // see their entry land re-enters it, and that repetition is what
-                    // inflates Addt'l — saying "Saved" is not enough, the cell has to
-                    // show the new number.
+                    // Paint the number the server confirmed FIRST, then re-read the rows.
+                    // The re-read is a full round trip, so without the paint the cell sits
+                    // stale for that long - and an operator who cannot see their entry land
+                    // keys it again, which is how the amount duplicates. The value painted
+                    // comes from the response, so it is authoritative, not a guess. The
+                    // refresh still has to run: sales, the day totals and the variance
+                    // badges are derived from the row and would otherwise disagree.
+                    if (typeof window.dlPaintLedgerCells === 'function') {
+                        window.dlPaintLedgerCells(data.totals);
+                    }
                     if (typeof window.refreshLedgerTotals === 'function') {
                         window.refreshLedgerTotals();
                     }

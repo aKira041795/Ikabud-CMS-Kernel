@@ -471,6 +471,56 @@ $h->test(
         && str_contains($ledgerSrc, 'id="ledger-body"')
 );
 
+// ─── the confirmed value is painted before the row re-read ──────────────
+// The row re-read is a full round trip. Without an immediate paint the number sits
+// stale for that whole time, and an operator who cannot see the entry land keys it
+// again. The painted value must come from the write RESPONSE, never from client
+// arithmetic, or it can disagree with what was actually stored.
+$h->section('The confirmed value is painted before the row re-read');
+
+$h->test(
+    'the online path returns the resulting balance and the column it belongs to',
+    str_contains($onlineSrc, "'result' => \$nextAddtl ?? \$qty, 'field' => 'addtl'")
+        && str_contains($onlineSrc, "'result' => \$newTotal, 'field' => 'withdraw'")
+);
+$h->test(
+    'the offline replay returns the same response shape',
+    str_contains($offlineSrc, "'result' => \$nextAddtl ?? \$qty, 'field' => 'addtl'")
+        && str_contains($offlineSrc, "'result' => \$newTotal, 'field' => 'withdraw'")
+);
+$h->test(
+    'the delta keys survive, so the audit line still reads a delta',
+    str_contains($onlineSrc, "'addtl' => \$qty, 'result'") && str_contains($onlineSrc, "'total' => \$newTotal, 'result'")
+);
+// Scope these to the painter's own body. Matching the whole file also matches the
+// same attribute names in the row markup and in unrelated helpers, and pinning an
+// exact concatenation breaks on any requote - both have already bitten this suite.
+$paintStart = strpos($ledgerSrc, 'window.dlPaintLedgerCells = function');
+$paintEnd = $paintStart !== false ? strpos($ledgerSrc, '};', $paintStart) : false;
+$paintFn = ($paintStart !== false && $paintEnd !== false)
+    ? substr($ledgerSrc, $paintStart, $paintEnd - $paintStart)
+    : '';
+$h->test(
+    'the ledger exposes a painter keyed by field and product',
+    $paintFn !== ''
+        && str_contains($paintFn, 'querySelectorAll')
+        && str_contains($paintFn, 'data-field=')
+        && str_contains($paintFn, 'data-product='),
+    'fnLen=' . strlen($paintFn)
+);
+$h->test(
+    'the modal paints from the response before refreshing',
+    str_contains($modalSrc, 'window.dlPaintLedgerCells(data.totals);')
+        && strpos($modalSrc, 'dlPaintLedgerCells(data.totals)') < strpos($modalSrc, 'window.refreshLedgerTotals();')
+);
+$h->test(
+    'the painter refuses to write a missing/undefined result',
+    $paintFn !== ''
+        && str_contains($paintFn, "typeof t.result === 'undefined'")
+        && str_contains($paintFn, 't.result === null'),
+    'fnLen=' . strlen($paintFn)
+);
+
 // ─── Cleanup ───────────────────────────────────────────────────────────
 $h->section('Cleanup');
 

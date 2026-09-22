@@ -4195,7 +4195,9 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 // The DELTA, not the resulting balance. This value is both the API
                 // response and the audit line, and "-4" reads unambiguously as "moved
                 // back by 4", where the resulting "6" could be taken for the delta.
-                $totals[] = ['product_id' => $pid, 'addtl' => $qty];
+                // `result` is added alongside it so the client can show the new balance
+                // at once without guessing at it: the value comes from the write itself.
+                $totals[] = ['product_id' => $pid, 'addtl' => $qty, 'result' => $nextAddtl ?? $qty, 'field' => 'addtl'];
             } else {
                 // Withdraw accumulates from cashier rows AND dispatches. Apply only
                 // this row's delta; replacing it with a cashier SUM erases dispatches.
@@ -4231,7 +4233,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                         ':uid_upd' => $userId,
                     ]);
                 }
-                $totals[] = ['product_id' => $pid, 'total' => $newTotal];
+                $totals[] = ['product_id' => $pid, 'total' => $newTotal, 'result' => $newTotal, 'field' => 'withdraw'];
             }
         }
 

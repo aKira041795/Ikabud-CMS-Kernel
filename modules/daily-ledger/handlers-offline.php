@@ -773,8 +773,9 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
                     $stmtInit->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':prc' => $price, ':qty' => $qty, ':uid_enc' => $userId, ':uid_upd' => $userId]);
                 }
-                // The delta, not the resulting balance — mirrors the online path.
-                $totals[] = ['product_id' => $pid, 'addtl' => $qty];
+                // The delta, not the resulting balance - mirrors the online path.
+                // `result` carries the new balance so the device can show the cell at once.
+                $totals[] = ['product_id' => $pid, 'addtl' => $qty, 'result' => $nextAddtl ?? $qty, 'field' => 'addtl'];
             } else {
                 $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift]);
                 $ledgerRowForWithdraw = $stmtCheck->fetch(PDO::FETCH_ASSOC);
@@ -792,7 +793,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                     $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
                     $stmtInit->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':shift' => $shift, ':prc' => $price, ':qty' => $qty, ':uid_enc' => $userId, ':uid_upd' => $userId]);
                 }
-                $totals[] = ['product_id' => $pid, 'total' => $newTotal];
+                $totals[] = ['product_id' => $pid, 'total' => $newTotal, 'result' => $newTotal, 'field' => 'withdraw'];
             }
         }
 

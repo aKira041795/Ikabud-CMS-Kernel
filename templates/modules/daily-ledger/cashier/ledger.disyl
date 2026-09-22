@@ -1011,6 +1011,24 @@
         });
     }
 
+    // Show the cell(s) a write just changed, using the value the SERVER returned.
+    // The row re-read is a full round trip, so without this the number sits stale
+    // for that whole time and an operator who does not see it move keys the entry
+    // again - the repetition that duplicates the amount. This is NOT an optimistic
+    // client guess: `result` comes from the write response, so it cannot disagree
+    // with what was stored. The refresh below then brings the derived numbers
+    // (sales, totals, variance) back in line with the cell.
+    window.dlPaintLedgerCells = function(totals) {
+        if (!Array.isArray(totals)) return;
+        totals.forEach(function(t) {
+            if (!t || !t.field || typeof t.result === 'undefined' || t.result === null) return;
+            var cells = document.querySelectorAll(
+                '[data-field="' + t.field + '"][data-product="' + t.product_id + '"]'
+            );
+            cells.forEach(function(el) { el.textContent = String(t.result); });
+        });
+    };
+
     function refreshLedgerTotals() {
         // Re-read the rows so the cells show what the server actually holds. An
         // operator who cannot see their entry land keys it again, and that
