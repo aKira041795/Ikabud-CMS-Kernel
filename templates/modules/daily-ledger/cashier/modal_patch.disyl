@@ -470,8 +470,23 @@ function withdrawalModal() {
                     // comes from the response, so it is authoritative, not a guess. The
                     // refresh still has to run: sales, the day totals and the variance
                     // badges are derived from the row and would otherwise disagree.
-                    if (typeof window.dlPaintLedgerCells === 'function') {
-                        window.dlPaintLedgerCells(data.totals);
+                    // Only paint when the response actually carries the confirmed values.
+                    // A duplicate replay returns ok + duplicate and NO totals, and so does
+                    // a cached idempotent response. dlPaintLedgerCells ignores a non-array
+                    // silently, so passing undefined made the immediate paint a no-op that
+                    // LOOKED like the entry had not been recorded - the operator then waits
+                    // on the full rows refresh (or re-keys the amount, which duplicates it).
+                    if (Array.isArray(data.totals) && data.totals.length > 0) {
+                        if (typeof window.dlPaintLedgerCells === 'function') {
+                            window.dlPaintLedgerCells(data.totals);
+                        }
+                    } else if (!data.duplicate) {
+                        // A real write that returned no totals is unexpected; the refresh
+                        // below is then the only thing that shows the value, so surface it
+                        // rather than letting it pass unnoticed.
+                        if (window.console && console.warn) {
+                            console.warn('[daily-ledger] save response carried no totals; relying on the rows refresh', data);
+                        }
                     }
                     if (typeof window.refreshLedgerTotals === 'function') {
                         window.refreshLedgerTotals();
