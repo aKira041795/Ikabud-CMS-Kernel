@@ -158,3 +158,60 @@ test('reconciliation repairs both null mismatch directions and is idempotent', (
     expect(rows.find(row => row.shift === 'PM').sales).toBeNull();
     expect(Number(reconcile(true).before.affected_rows)).toBe(0);
 });
+
+// The duplicate guard exists to stop a REPLAY. Keyed on content alone it also stopped a
+// legitimate repeat - "another 3 arrived, same reason, same person" - for the rest of the
+// day and shift, and taking the first one back did not free it (the correcting -3 is its
+// own row). The submission's idempotency key is what tells the two apart.
+test('identical Add Stock is recorded on a new submission, and a replay still does not double-apply', async ({ page }) => {
+    await login(page);
+    const header = { withdrawal_type: 'adjustment_add', reason_code: 'encoder_omission' };
+    const lines = [{ product_id: scope.product_id, quantity: 3, unit: 'pcs' }];
+    // Unique per run: the API caches a response per idempotency key, so a fixed key would be
+    // answered from the previous run's cache and prove nothing about the duplicate guard.
+    const tag = 'dedup-spec-' + Date.now();
+    const addtlOf = () => Number(JSON.parse(run('read')).find(row => row.shift === 'AM').addtl);
+    const before = addtlOf();
+
+    const first = await api(page, 'withdrawals', { idempotency_key: tag + '-A', header, lines });
+    expect(first.ok).toBe(true);
+    expect(addtlOf(), 'the first entry applies').toBe(before + 3);
+
+    // Same content, NEW submission: a genuine repeat, and it must be recorded.
+    const second = await api(page, 'withdrawals', { idempotency_key: tag + '-B', header, lines });
+    expect(second.ok).toBe(true);
+    expect(second.duplicate, 'a new submission must not be reported as a duplicate').toBeFalsy();
+    expect(addtlOf(), 'the repeat applies as well').toBe(before + 6);
+
+    // Same content, SAME submission: replayed, so it must not apply a third time.
+    const replay = await api(page, 'withdrawals', { idempotency_key: tag + '-A', header, lines });
+    expect(replay.ok).toBe(true);
+    expect(addtlOf(), 'a replayed submission must not apply again').toBe(before + 6);
+});
+
+// The live case, in the order it happened: add, take it back, then add the same amount for
+// real. The take-back is its OWN row, so before the identity fix the original +9 kept owning
+// its fingerprint and the third step was refused as "identical withdrawal already recorded"
+// for the rest of the day and shift.
+test('taking an Add Stock back does not claim the amount forever', async ({ page }) => {
+    await login(page);
+    const header = { withdrawal_type: 'adjustment_add', reason_code: 'encoder_omission' };
+    const amount = 9;
+    const tag = 'takeback-spec-' + Date.now();
+    const addtlOf = () => Number(JSON.parse(run('read')).find(row => row.shift === 'AM').addtl);
+    const before = addtlOf();
+    const line = qty => [{ product_id: scope.product_id, quantity: qty, unit: 'pcs' }];
+
+    const added = await api(page, 'withdrawals', { idempotency_key: tag + '-add', header, lines: line(amount) });
+    expect(added.ok).toBe(true);
+    expect(addtlOf(), 'the entry applies').toBe(before + amount);
+
+    const undone = await api(page, 'withdrawals', { idempotency_key: tag + '-undo', header, lines: line(-amount) });
+    expect(undone.ok).toBe(true);
+    expect(addtlOf(), 'the take-back puts the ledger back').toBe(before);
+
+    const again = await api(page, 'withdrawals', { idempotency_key: tag + '-again', header, lines: line(amount) });
+    expect(again.ok).toBe(true);
+    expect(again.duplicate, 'the same amount must be recordable again after a take-back').toBeFalsy();
+    expect(addtlOf(), 'and it applies').toBe(before + amount);
+});

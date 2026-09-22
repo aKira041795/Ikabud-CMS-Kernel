@@ -163,6 +163,8 @@ $h->test('apiChangeDeliveryDestination available', function_exists('apiChangeDel
 $h->test('dl_moveDeliveryToBranch available', function_exists('dl_moveDeliveryToBranch'));
 
 $handlersSource = (string) file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$helpersSource = (string) file_get_contents($base . '/modules/daily-ledger/helpers.php');
+$offlineSource = (string) file_get_contents($base . '/modules/daily-ledger/handlers-offline.php');
 $ledgerTemplateSource = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/ledger.disyl');
 $ledgerRowsTemplateSource = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/partials/ledger-rows.disyl');
 $h->test('cashier row payloads expose prev_bal_end consistently', substr_count($handlersSource, 'END AS prev_bal_end') === 3);
@@ -608,5 +610,37 @@ $h->test(
 );
 $h->test('the AM source is the preceding ending', str_contains($handlersSource, 'WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end'));
 $h->test('the PM source is its own morning ending', str_contains($handlersSource, 'WHEN :isPm = 1 THEN am.bal_end'));
+
+// THE ROOT CAUSE, pinned. The duplicate guard keyed on CONTENT, which cannot tell a replay
+// ("this request arrived twice" - refuse) from a legitimate repeat ("27 more arrived, same
+// reason" - record). Content-identity produced the same bug three times: box-vs-pcs (057),
+// AM-vs-PM (059), then a taken-back entry keeping its claim. The identity is the SUBMISSION.
+$h->section('Withdrawal dedup keys on the submission, not on the content');
+
+$h->test('the submission identity is minted when a caller sends no key', str_contains($helpersSource, 'function dl_withdrawalSubmissionId('));
+$h->test('an absent key is a NEW submission, not a content fallback', str_contains($helpersSource, "return \$key !== '' ? \$key : 'auto-' . bin2hex(random_bytes(8));"));
+// One per add path. Removing either re-opens the bug for that path only, which is exactly
+// the kind of half-fix that is invisible in production.
+$h->test(
+    'both add paths key on the submission identity',
+    substr_count($handlersSource . $offlineSource, 'dl_withdrawalSubmissionId($idempotencyKey)') === 2
+);
+$h->test('the edit path stays content-only on purpose', str_contains($handlersSource, 'CONTENT-only fingerprint, deliberately keyless'));
+
+// A frozen fingerprint is the guard against the treadmill: it fails if WHICH fields the
+// fingerprint is built from changes, which is the moment a migration re-hashing stored rows
+// becomes mandatory. If this breaks, ask whether the real fix is the submission identity.
+$h->test(
+    'the content-only fingerprint still matches the migration-052 formula',
+    dl_withdrawalDedupHash(1, 2, '2026-01-01', 'adjustment_add', 'encoder_omission', null, null, null, 5, null, 'pcs', 'AM')
+        === '017b2825ae5bdc2eedad6e879401471a73313e81'
+);
+$h->test(
+    'a submission nonce changes the fingerprint',
+    dl_withdrawalDedupHash(1, 2, '2026-01-01', 'adjustment_add', 'encoder_omission', null, null, null, 5, null, 'pcs', 'AM', 'sub-1')
+        === '1ae7533fee090bd966de04cc5dd5b2a2e1837a63'
+);
+$h->test('two keyless submissions get different identities', dl_withdrawalSubmissionId('') !== dl_withdrawalSubmissionId(''));
+$h->test('a supplied key is used verbatim', dl_withdrawalSubmissionId('  keep-me  ') === 'keep-me');
 
 $h->done();

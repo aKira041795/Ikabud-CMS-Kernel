@@ -721,7 +721,10 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                 $qty,
                 $liableUserId,
                 $unit,
-                $shift
+                $shift,
+                // The queued op's own identity, minted when it carries no key. Must match the
+                // online path - see dl_withdrawalSubmissionId().
+                dl_withdrawalSubmissionId($idempotencyKey)
             );
 
             try {

@@ -4260,7 +4260,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 $qty,
                 $liableUserId,
                 $unit,
-                $shift
+                $shift,
+                // The SUBMISSION's identity, minted when the caller sent no key. A replay of
+                // this request is still refused; a new submission of the same content is
+                // recorded. Never fall back to content identity - see
+                // dl_withdrawalSubmissionId().
+                dl_withdrawalSubmissionId($idempotencyKey)
             );
 
             try {
@@ -4719,6 +4724,9 @@ function apiUpdateCashierWithdrawal(array $params = []): void
         }
         dl_assertShiftMutable($db, $branchId, $date, $rowShift);
 
+        // CONTENT-only fingerprint, deliberately keyless: this check asks "does ANOTHER row
+        // already hold this content", so the content IS the identity here. Passing a
+        // submission key would make the comparison meaningless.
         $newDedup = dl_withdrawalDedupHash(
             $branchId, $pid, $date, $type,
             $reasonCode,

@@ -28,6 +28,35 @@ function dl_isDuplicateKeyError(\PDOException $e): bool
 }
 
 /**
+ * The identity a withdrawal submission is deduplicated by.
+ *
+ * THE ROOT CAUSE THIS EXISTS FOR: the guard used to key on CONTENT, and content cannot
+ * tell a replay apart from a legitimate repeat.
+ *
+ *   "this exact request arrived twice"            -> must be refused
+ *   "27 more arrived, same reason, same person"   -> must be recorded
+ *
+ * Those two submissions are byte-identical without a per-submission key. Keying on content
+ * therefore produced the same bug three times, each fixed by bolting another field into the
+ * fingerprint (box-vs-pcs -> 057, AM-vs-PM -> 059) and re-hashing every stored row. It got
+ * worse when a take-back was added: the correcting -27 is its OWN row, so the original +27
+ * keeps owning its fingerprint and the same amount could never be recorded again that day.
+ *
+ * So the identity is the SUBMISSION, and absence of a key means "a new submission", not
+ * "fall back to content". Callers that carry a real key (the modal, the offline queue) keep
+ * full replay protection: the same key returns the cached response and, as a backstop,
+ * produces the same fingerprint.
+ *
+ * Do NOT "fix" a blocked-but-legitimate entry by adding another content field to
+ * dl_withdrawalDedupHash. That is the treadmill this replaces.
+ */
+function dl_withdrawalSubmissionId(string $idempotencyKey): string
+{
+    $key = trim($idempotencyKey);
+    return $key !== '' ? $key : 'auto-' . bin2hex(random_bytes(8));
+}
+
+/**
  * Deterministic fingerprint of one cashier-withdrawal line, matching the
  * migration-052 SQL backfill byte-for-byte:
  *
@@ -50,10 +79,20 @@ function dl_isDuplicateKeyError(\PDOException $e): bool
  * shifts of one date. Without it, recording 1 pc on PM after 1 pc was already
  * recorded on AM was rejected as a duplicate (the guard matches on content,
  * and the shift was not part of the content).
+ *
+ * `$nonce` is the SUBMISSION's identity (see dl_withdrawalSubmissionId) and is the only
+ * thing that separates a replay from a legitimate repeat. The add paths must never pass ''
+ * — an empty nonce is exactly the content-identity behaviour described above, which is the
+ * bug this parameter exists to remove.
+ *
+ * The content fields stay in the fingerprint because stored rows and the migration-052
+ * backfill are built from them, and because the EDIT path legitimately asks "does another
+ * row already hold this content" — there, content IS the question. They are not, any more,
+ * the identity of a submission.
  */
-function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDate, string $type, ?string $reasonCode, ?string $customReason, ?string $drNumber, ?int $targetBranchId, int $qty, ?int $liableUserId, string $unit = 'pcs', ?string $shift = null): string
+function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDate, string $type, ?string $reasonCode, ?string $customReason, ?string $drNumber, ?int $targetBranchId, int $qty, ?int $liableUserId, string $unit = 'pcs', ?string $shift = null, string $nonce = ''): string
 {
-    return sha1(implode('|', [
+    $parts = [
         (string)$branchId,
         (string)$productId,
         $ledgerDate,
@@ -66,7 +105,13 @@ function dl_withdrawalDedupHash(int $branchId, int $productId, string $ledgerDat
         (string)($liableUserId ?? ''),
         (string)($unit === '' ? 'pcs' : $unit),
         (string)($shift ?? ''),
-    ]));
+    ];
+    // Appended ONLY when present, so a keyless hash stays byte-identical to the
+    // migration-052 backfill (the edit path compares against stored fingerprints).
+    if ($nonce !== '') {
+        $parts[] = 'n=' . $nonce;
+    }
+    return sha1(implode('|', $parts));
 }
 
 /**
