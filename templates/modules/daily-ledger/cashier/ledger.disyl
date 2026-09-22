@@ -2038,7 +2038,14 @@
                 htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
             }
         })
-        .catch(function() {});
+        .catch(function(err) {
+            // Never swallow this. A handoff that fails silently leaves Beg. Bal showing
+            // a carry-forward the server does not hold, so Sales reads low and looks
+            // like a display fault - which is what made this hard to trace.
+            if (window.showToast) {
+                window.showToast('Could not carry the previous ending into the AM beginning. ' + (err && err.message ? err.message : ''), 'error');
+            }
+        });
     };
 
     // PM shift handoff: auto-adopt the AM shift's ending count as the PM
@@ -2085,7 +2092,13 @@
                 htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
             }
         })
-        .catch(function() {});
+        .catch(function(err) {
+            // Same reasoning as the AM handoff above: report it rather than leaving a
+            // beginning that was displayed but never recorded.
+            if (window.showToast) {
+                window.showToast('Could not carry the AM ending into the PM beginning. ' + (err && err.message ? err.message : ''), 'error');
+            }
+        });
     };
 
     document.addEventListener('htmx:afterSwap', function(e) {
@@ -2094,5 +2107,18 @@
             window.adoptPmBegBal();
         }
     });
+
+    // Adopt the carried-forward beginnings on the FIRST view, not only after a
+    // rows-refresh. Wiring this solely to htmx:afterSwap meant a fresh page load painted
+    // the previous shift's ending into Beg. Bal while beg_bal stayed 0 - and Sales derives
+    // from the STORED value, so it read 0 for most products. The cell looked recorded, the
+    // figure beside it disagreed, and it went back on reload.
+    //
+    // Must sit AFTER both definitions above. They are assigned to window at runtime, not
+    // hoisted, so calling them earlier in this block throws and takes the rest of the
+    // script with it. Both no-op when their inputs are disabled (closed or finalized
+    // days) or when nothing is unrecorded.
+    window.adoptAmBegBal();
+    window.adoptPmBegBal();
 </script>
 {/block}

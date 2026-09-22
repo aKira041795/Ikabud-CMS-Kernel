@@ -5648,6 +5648,13 @@ function apiSaveLedgerBatch(array $params = []): void
         $hasEnd = array_key_exists('bal_end', $r);
         $end = $hasEnd && $r['bal_end'] !== null && $r['bal_end'] !== '' ? (int)$r['bal_end'] : null;
 
+        // The same rule the ending already follows must hold for the counted columns.
+        // The AM/PM handoff payload carries only beg_bal, so defaulting addtl and
+        // withdraw to 0 and then writing them erases real quantities - which is exactly
+        // why the carry-forward adopt routines could never safely be called.
+        $hasAdd = array_key_exists('addtl', $r);
+        $hasWith = array_key_exists('withdraw', $r);
+
         if ($beg < 0 || $add < 0 || $with < 0 || $beg > 999999999 || $add > 999999999 || $with > 999999999
             || ($end !== null && ($end < 0 || $end > 999999999))) {
             $ctx->json(['ok' => false, 'error' => 'Values are out of bounds'], 422);
@@ -5661,6 +5668,8 @@ function apiSaveLedgerBatch(array $params = []): void
             'withdraw' => $with,
             'bal_end' => $end,
             'has_bal_end' => $hasEnd,
+            'has_addtl' => $hasAdd,
+            'has_withdraw' => $hasWith,
         ];
     }
 
@@ -5707,14 +5716,17 @@ function apiSaveLedgerBatch(array $params = []): void
             'SELECT beg_bal, addtl, withdraw, bal_end FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
 
-        // Two upsert variants: bal_end written only when explicitly present.
+        // Two upsert variants: bal_end written only when explicitly present. addtl and
+        // withdraw are guarded the same way - an absent key preserves the stored value
+        // instead of stamping 0, so a handoff payload that carries only beg_bal cannot
+        // erase quantities recorded by another path.
         $upsertWithEnd = $ctx->db()->prepare(
             'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
              VALUES (:bid, :pid, :d, :shift, :price, :beg, :addtl, :withdraw, :end, :uid, :uid2)
              ON DUPLICATE KEY UPDATE
                 beg_bal = VALUES(beg_bal),
-                addtl = VALUES(addtl),
-                withdraw = VALUES(withdraw),
+                addtl = IF(:has_addtl, VALUES(addtl), addtl),
+                withdraw = IF(:has_withdraw, VALUES(withdraw), withdraw),
                 bal_end = VALUES(bal_end),
                 updated_by = VALUES(updated_by),
                 updated_at = CURRENT_TIMESTAMP'
@@ -5724,8 +5736,8 @@ function apiSaveLedgerBatch(array $params = []): void
              VALUES (:bid, :pid, :d, :shift, :price, :beg, :addtl, :withdraw, :uid, :uid2)
              ON DUPLICATE KEY UPDATE
                 beg_bal = VALUES(beg_bal),
-                addtl = VALUES(addtl),
-                withdraw = VALUES(withdraw),
+                addtl = IF(:has_addtl, VALUES(addtl), addtl),
+                withdraw = IF(:has_withdraw, VALUES(withdraw), withdraw),
                 updated_by = VALUES(updated_by),
                 updated_at = CURRENT_TIMESTAMP'
         );
@@ -5784,6 +5796,8 @@ function apiSaveLedgerBatch(array $params = []): void
                     ':addtl'    => $addtlVal,
                     ':withdraw' => $withdrawVal,
                     ':end'      => $r['bal_end'],
+                    ':has_addtl' => !empty($r['has_addtl']) ? 1 : 0,
+                    ':has_withdraw' => !empty($r['has_withdraw']) ? 1 : 0,
                     ':uid'      => $userId,
                     ':uid2'     => $userId,
                 ]);
@@ -5797,6 +5811,8 @@ function apiSaveLedgerBatch(array $params = []): void
                     ':beg'      => (int)$r['beg_bal'],
                     ':addtl'    => $addtlVal,
                     ':withdraw' => $withdrawVal,
+                    ':has_addtl' => !empty($r['has_addtl']) ? 1 : 0,
+                    ':has_withdraw' => !empty($r['has_withdraw']) ? 1 : 0,
                     ':uid'      => $userId,
                     ':uid2'     => $userId,
                 ]);
