@@ -17,9 +17,15 @@
 -- already computing this same expression.
 --
 -- Idempotent: only rows that actually disagree are touched, so re-running is a no-op.
--- updated_at is deliberately NOT bumped: this is a derived column being brought back into
--- agreement, not an operator edit, and stamping it would pair today's timestamp with the
--- original updated_by and misattribute the change.
+--
+-- updated_at IS advanced on the rows this changes - the column carries
+-- ON UPDATE CURRENT_TIMESTAMP, so the SET below bumps it whether or not we ask. An
+-- earlier draft of this comment claimed otherwise, which was wrong about the effect.
+-- Migration 007's equivalent bumps it deliberately, so this follows that precedent
+-- rather than working around it by assigning updated_at to itself. The cost is that the
+-- timestamp that helped prove the original bug is overwritten on the affected rows;
+-- updated_by is deliberately left alone, so the repair is not attributed to whichever
+-- operator last edited the row.
 --
 -- @mysql57-compat: CASE / GREATEST / COALESCE / <=> only — no window functions, no CTEs.
 
