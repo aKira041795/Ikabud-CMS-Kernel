@@ -1012,6 +1012,10 @@
     }
 
     function refreshLedgerTotals() {
+        // Re-read the rows so the cells show what the server actually holds. An
+        // operator who cannot see their entry land keys it again, and that
+        // repetition is what duplicates the amount - so every write path must call
+        // this on success, not just the queue drain.
         if (window.htmx && document.getElementById('ledger-body')) {
             htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh');
         }

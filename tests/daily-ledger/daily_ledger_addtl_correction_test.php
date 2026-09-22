@@ -447,6 +447,30 @@ $h->test(
     str_contains($layoutSrc, 'Retry — safe, will not duplicate')
 );
 
+// ─── a successful save must re-read the rows ────────────────────────────
+// refreshLedgerTotals() fires the dl:rows-refresh that re-reads the ledger rows,
+// so the cell shows what the server actually holds. It existed all along, but no
+// write path called it: the operator's number never moved, they concluded the entry
+// was refused, and keyed it again - the repetition that duplicates an amount.
+// Measured on the live page 2026-09-22: a modal save now issues the rows request.
+$h->section('A successful save re-reads the ledger rows');
+
+$h->test(
+    'the modal calls refreshLedgerTotals on a successful save',
+    str_contains($modalSrc, "typeof window.refreshLedgerTotals === 'function'")
+        && str_contains($modalSrc, 'window.refreshLedgerTotals();')
+);
+$ledgerSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/ledger.disyl');
+$h->test(
+    'refreshLedgerTotals still fires the rows refresh',
+    str_contains($ledgerSrc, "htmx.trigger(document.getElementById('ledger-body'), 'dl:rows-refresh')")
+);
+$h->test(
+    'the rows container listens for that event and re-reads the partial',
+    str_contains($ledgerSrc, 'hx-trigger="dl:rows-refresh"')
+        && str_contains($ledgerSrc, 'id="ledger-body"')
+);
+
 // ─── Cleanup ───────────────────────────────────────────────────────────
 $h->section('Cleanup');
 
