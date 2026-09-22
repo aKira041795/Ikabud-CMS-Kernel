@@ -121,11 +121,22 @@ test.describe('Daily Ledger PWA offline vault', () => {
         // The vault bootstrap is branch-bound. Under the spoofed branch the
         // synthetic reference key/scope prefix changes, but the product IDENTITY
         // set must be identical (no foreign branch can leak in).
+        // LIMITATION (measured 2026-09-22): every active branch in this tenant
+        // carries the SAME 174 products, so this cannot detect a leak that swaps
+        // one branch's set for another's - only one that introduces products this
+        // branch does not have. Sharpening it needs a fixture whose branches differ.
         var identity = function (list) {
             return list.map(function (p) { return String(p.id) + '|' + String(p.name); }).sort();
         };
         expect(identity(result.spoofed)).toEqual(identity(result.expected));
-        expect(result.modalProducts).toEqual(result.expected);
+        // Compare product IDENTITY, not the raw rows. The two sides deliberately
+        // carry different transport metadata: a vault reference row is
+        // {key, scope, id, name} - key and scope are what make it branch-bound -
+        // while a modal product is {id, name, pack}, because the modal needs
+        // pcs_per_pack to offer box units. Deep equality between the rows could
+        // therefore never pass, and so proved nothing about the modal. Both sides
+        // carry the same 174 products of the enrolled branch (measured, 2026-09-22).
+        expect(identity(result.modalProducts)).toEqual(identity(result.expected));
     });
 
     test('offline queue drains via reconcile on reconnect, online-only actions stay blocked, and production output is never buffered', async ({ page, context, shell }) => {
