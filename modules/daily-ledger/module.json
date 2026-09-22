@@ -134,7 +134,8 @@
     "database/migrations/057_refresh_dedup_hash_with_unit.sql",
     "database/migrations/058_encoder_omission_reason.sql",
     "database/migrations/059_refresh_dedup_hash_with_shift.sql",
-    "database/migrations/060_snapshot_liable_user_name.sql"
+    "database/migrations/060_snapshot_liable_user_name.sql",
+    "database/migrations/061_recompute_stale_sales.sql"
   ],
   "capabilities": {
     "exposes": [
