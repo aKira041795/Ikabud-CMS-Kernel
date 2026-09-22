@@ -4235,6 +4235,16 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 }
                 $totals[] = ['product_id' => $pid, 'total' => $newTotal, 'result' => $newTotal, 'field' => 'withdraw'];
             }
+
+            // Both branches move the sales invariant: sales = beg_bal + addtl -
+            // withdraw - bal_end, so charge/pullout (withdraw) and Add Stock (addtl)
+            // each shift it. This handler used to recompute only the variance flags,
+            // so `sales` kept the value it held when the ending was set - computed
+            // while withdraw was still 0 - and then silently disagreed with the three
+            // columns printed beside it. Reports stayed correct the whole time because
+            // they derive sales themselves, which is exactly what made the stale cell
+            // read as a display glitch instead of a stored-value bug.
+            dl_recomputeSales($branchId, $pid, $date, $userId, $shift);
         }
 
         // ── Pullout return to commissary ──────────────────────────────
@@ -4674,6 +4684,10 @@ function apiUpdateCashierWithdrawal(array $params = []): void
                 ':u_enc' => $actorId, ':u_upd' => $actorId,
             ]);
         }
+
+        // Editing a withdrawal rewrites addtl and/or withdraw, so the stored sales
+        // value has to follow it for the same reason as the create path above.
+        dl_recomputeSales($branchId, $pid, $date, $actorId, $rowShift);
 
         $db->commit();
 

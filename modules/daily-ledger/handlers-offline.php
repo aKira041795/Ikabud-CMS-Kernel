@@ -795,6 +795,12 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                 }
                 $totals[] = ['product_id' => $pid, 'total' => $newTotal, 'result' => $newTotal, 'field' => 'withdraw'];
             }
+
+            // Parity with apiSaveCashierWithdrawals: both branches move the sales
+            // invariant, so the synced row must recompute it too. Without this a
+            // withdrawal replayed from the device left the same stale sales cell the
+            // online path did.
+            dl_recomputeSales($branchId, $pid, $date, $userId, $shift);
         }
 
         if ($type === 'pullout' && $targetBranchId !== null && dl_isFormalDeliveryEnabled()) {
