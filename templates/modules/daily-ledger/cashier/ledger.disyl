@@ -245,6 +245,15 @@
     </div>
 </div>
 
+<div class="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+    <span class="text-xs text-gray-500">Sales are derived from the saved Beg. Bal, Addt'l, W/Draw and Bal. End.</span>
+    <button type="button" class="btn btn-outline btn-sm" id="recompute-sales-btn"
+            onclick="window.dlRecomputeSales()"
+            title="Re-read the saved values and repaint the Sales column. Sales are computed server-side from the four saved columns, so a row whose Beg. Bal was never recorded can recompute lower than the carry-forward shown in that cell.">
+        Recompute sales
+    </button>
+</div>
+
 {if day_status == 'open' && !reference_only}
 <div class="mt-6">
     <div class="flex items-center justify-between gap-3 mb-2">
@@ -1045,6 +1054,78 @@
         }
         if (typeof window.dlRefreshTodayAdjustments === 'function') window.dlRefreshTodayAdjustments();
     }
+
+    // Re-read the saved values and repaint the Sales column, reporting how many cells
+    // moved.
+    //
+    // Sales is derived SERVER-side (beg_bal + addtl - withdraw - bal_end), so there is no
+    // stored total to repair and no server call that "recomputes" one - this re-reads the
+    // four saved columns and redraws what they imply. It earns its place because the
+    // figure on screen can be computed client-side from a cell the server has not
+    // accepted yet, and that difference is invisible until a reload.
+    //
+    // It will NOT always agree with arithmetic done from the columns you can see. Beg. Bal
+    // shows the previous shift's ending as a carry-forward when beg_bal was never
+    // recorded (the recorded value sits in data-orig-beg), and the server derives from the
+    // recorded one. So "Beg 2 / End 15" can correctly recompute to 0 - that is the
+    // recorded beginning, not a failed recompute.
+    window.dlRecomputeSales = function() {
+        var body = document.getElementById('ledger-body');
+        if (!body || !window.htmx) return;
+
+        var btn = document.getElementById('recompute-sales-btn');
+        if (btn && btn.dataset.busy === '1') return;
+
+        var before = {};
+        body.querySelectorAll('.sales-computed').forEach(function(el) {
+            before[el.getAttribute('data-product')] = (el.textContent || '').trim();
+        });
+
+        var label = btn ? btn.textContent : '';
+        var settled = false;
+        if (btn) { btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = 'Recomputing…'; }
+
+        var settle = function(ok) {
+            if (settled) return;
+            settled = true;
+            body.removeEventListener('htmx:afterSwap', onSwap);
+            body.removeEventListener('htmx:responseError', onFail);
+            body.removeEventListener('htmx:sendError', onFail);
+            if (btn) { delete btn.dataset.busy; btn.disabled = false; btn.textContent = label; }
+            if (!ok) {
+                if (window.showToast) window.showToast('Could not re-read the ledger — nothing was changed.', 'error');
+                return;
+            }
+            var changed = 0;
+            var example = '';
+            body.querySelectorAll('.sales-computed').forEach(function(el) {
+                var pid = el.getAttribute('data-product');
+                var now = (el.textContent || '').trim();
+                if (before[pid] !== undefined && before[pid] !== now) {
+                    changed++;
+                    if (example === '') example = ' #' + pid + ': ' + before[pid] + ' \u2192 ' + now;
+                }
+            });
+            if (window.showToast) {
+                window.showToast(
+                    changed === 0
+                        ? 'Sales already match the saved values.'
+                        : 'Recomputed ' + changed + ' sales cell' + (changed === 1 ? '' : 's') + example,
+                    'success'
+                );
+            }
+        };
+        var onSwap = function() { settle(true); };
+        var onFail = function() { settle(false); };
+
+        body.addEventListener('htmx:afterSwap', onSwap);
+        body.addEventListener('htmx:responseError', onFail);
+        body.addEventListener('htmx:sendError', onFail);
+        // Safety net: htmx fires neither event if the request is swallowed entirely.
+        setTimeout(function() { settle(false); }, 25000);
+
+        htmx.trigger(body, 'dl:rows-refresh');
+    };
 
     // Compute sales = beg_bal + addtl - withdraw - bal_end (pending when no ending)
     function computeSales(productId) {
