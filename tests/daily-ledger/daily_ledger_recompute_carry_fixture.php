@@ -33,20 +33,34 @@ $db = $ctx->db();
 $branchId = 99472;
 $userId = 99472;
 
-/** product_id => [am_ending, pm_beginning] */
+/** product_id => [am_ending, pm_beginning, create_pm_row] */
 $products = [
-    99472 => [10, 0],
-    99473 => [7, 0],
-    99474 => [30, 25],
+    99472 => [10, 0, true],
+    99473 => [7, 0, true],
+    99474 => [30, 25, true],
+    // No PM row at all: the "nobody has started this shift" case, where simply opening the
+    // sheet must adopt the AM ending with no press from anyone.
+    99475 => [5, null, false],
 ];
 $pmAddtl = 100;
 $pmWithdraw = 5;
 $pmEnding = 10;
 
 $mode = $argv[1] ?? '';
-if (!in_array($mode, ['setup', 'cleanup', 'read', 'zero', 'close', 'open'], true)) {
-    fwrite(STDERR, "usage: fixture setup|cleanup|read|zero|close|open\n");
+if (!in_array($mode, ['setup', 'cleanup', 'read', 'read-variance', 'zero', 'close', 'open'], true)) {
+    fwrite(STDERR, "usage: fixture setup|cleanup|read|read-variance|zero|close|open\n");
     exit(2);
+}
+
+// What the variance engine recorded for this branch: an adopted beginning that somebody
+// corrected must show up as `handoff` (PM beginning vs AM ending) or `overnight` (AM
+// beginning vs the preceding ending).
+if ($mode === 'read-variance') {
+    echo json_encode($db->query(
+        'SELECT product_id, kind, shift, variance, prev_bal_end, current_beg_bal
+           FROM dl_variance_flags WHERE branch_id = 99472 ORDER BY id'
+    )->fetchAll(PDO::FETCH_ASSOC));
+    exit;
 }
 
 // `close` / `open` flip ONLY the day-status row. Driving apiCloseDay instead would need a
@@ -116,7 +130,7 @@ $db->execute('INSERT INTO dl_users (id, username, full_name, password_hash, role
 $db->execute('INSERT INTO dl_user_branches (branch_id, user_id) VALUES (?, ?)', [$branchId, $userId]);
 
 $expected = [];
-foreach ($products as $pid => [$amEnding, $pmBeginning]) {
+foreach ($products as $pid => [$amEnding, $pmBeginning, $createPm]) {
     $db->execute('INSERT INTO dl_products (id, sku, name, current_price, pcs_per_pack, is_active) VALUES (?, ?, ?, 10, 12, 1)', [$pid, 'CARRY-TEST-' . substr((string)$pid, -1), 'Carry Test Product ' . substr((string)$pid, -1)]);
     $db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)', [$branchId, $pid]);
 
@@ -131,21 +145,27 @@ foreach ($products as $pid => [$amEnding, $pmBeginning]) {
         [$branchId, $pid, $date, 'AM', $amBeg, $amAddtl, $amWithdraw, $amEnding, $amSales, $userId, $userId]
     );
 
-    $pmSalesBefore = max(0, $pmBeginning + $pmAddtl - $pmWithdraw - $pmEnding);
-    $db->execute(
-        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales, encoded_by, updated_by)
-         VALUES (?, ?, ?, ?, 10, ?, ?, ?, ?, ?, ?, ?)',
-        [$branchId, $pid, $date, 'PM', $pmBeginning, $pmAddtl, $pmWithdraw, $pmEnding, $pmSalesBefore, $userId, $userId]
-    );
+    if ($createPm) {
+        $pmSalesBefore = max(0, $pmBeginning + $pmAddtl - $pmWithdraw - $pmEnding);
+        $db->execute(
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales, encoded_by, updated_by)
+             VALUES (?, ?, ?, ?, 10, ?, ?, ?, ?, ?, ?, ?)',
+            [$branchId, $pid, $date, 'PM', $pmBeginning, $pmAddtl, $pmWithdraw, $pmEnding, $pmSalesBefore, $userId, $userId]
+        );
+    }
 
+    // No PM row means the beginning is unrecorded, so opening the sheet adopts the AM
+    // ending; a PM row that already exists is never replaced, whatever it holds.
+    $beginning = $createPm ? $pmBeginning : $amEnding;
     $expected[] = [
         'product_id' => $pid,
         'name' => 'Carry Test Product ' . substr((string)$pid, -1),
         'am_ending' => $amEnding,
-        'pm_beginning' => $pmBeginning,
-        'carried' => $pmBeginning === 0 ? $amEnding : $pmBeginning,
-        'sales_before' => $pmSalesBefore,
-        'sales_after' => max(0, ($pmBeginning === 0 ? $amEnding : $pmBeginning) + $pmAddtl - $pmWithdraw - $pmEnding),
+        'pm_beginning' => $createPm ? $pmBeginning : null,
+        'pm_row_exists' => $createPm,
+        'carried' => $createPm && $pmBeginning !== 0 ? $pmBeginning : $amEnding,
+        'sales_before' => max(0, $beginning + $pmAddtl - $pmWithdraw - $pmEnding),
+        'sales_after' => max(0, ($createPm && $pmBeginning !== 0 ? $pmBeginning : $amEnding) + $pmAddtl - $pmWithdraw - $pmEnding),
     ];
 }
 

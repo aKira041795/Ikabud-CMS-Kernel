@@ -171,8 +171,7 @@ $h->test('AM handoff input retains data-orig-beg guard', str_contains($ledgerRow
 $h->test('carry-forward requires an explicit action', str_contains($ledgerTemplateSource, 'window.dlUsePreviousEnding = function(button)') && !str_contains($ledgerTemplateSource, 'window.adoptAmBegBal();'));
 $h->test('carry-forward uses the audited field save', str_contains($ledgerTemplateSource, 'input.value = button.dataset.ending;') && str_contains($ledgerTemplateSource, 'saveField(input);'));
 $h->test('handoff hints use legible secondary text size', substr_count($ledgerRowsTemplateSource, 'mt-0.5 text-xs leading-tight text-indigo-600') === 3 && !str_contains($ledgerRowsTemplateSource, 'mt-0.5 text-[10px] leading-tight text-indigo-600'));
-$h->test('custom_reason persisted in withdrawal insert', str_contains($handlersSource, 'custom_reason'));
-$h->test('custom reason required when reason is other', str_contains($handlersSource, 'A custom reason is required when reason is Other.'));
+$h->test('custom_reason persisted in withdrawal insert', str_contains($handlersSource, 'custom_reason'));$h->test('custom reason required when reason is other', str_contains($handlersSource, 'A custom reason is required when reason is Other.'));
 $h->test('apiSaveRolePermissions persists pos_enabled', str_contains($handlersSource, "'pos_enabled' => \$posEnabled ? '1' : '0'"));
 $h->test('feature settings include pos_sort_by_sales', str_contains($handlersSource, "'pos_sort_by_sales' => dl_settingToBool(\$settings['pos_sort_by_sales'] ?? true),"));
 $h->test('settings save persists pos_sort_by_sales', str_contains($handlersSource, "'pos_sort_by_sales' => \$posSortBySales ? '1' : '0'"));
@@ -576,5 +575,38 @@ try {
 } catch (\Throwable $e) {
     $h->test('row validator rejects missing price', str_contains($e->getMessage(), 'Missing or invalid product name/price'));
 }
+
+// Opening a shift nobody has started adopts the preceding ending, so the cashier confirms a
+// filled sheet instead of typing 174 numbers. What keeps that safe is the SCOPE, so the scope
+// is what is asserted: only rows that do not exist are created.
+$h->section('Auto-forward adopts the preceding ending - and only where nothing exists');
+
+$h->test('the helper exists', str_contains($handlersSource, 'function dl_autoCarryBeginnings('));
+$h->test(
+    'it refuses any date other than the current business date',
+    str_contains($handlersSource, "if (\$branchId <= 0 || \$ledgerDate !== dl_businessDate()) {")
+);
+$h->test('it only creates rows that do not exist yet', str_contains($handlersSource, 'AND cur.id IS NULL'));
+$h->test(
+    'a recorded zero is not a reference to carry from',
+    str_contains($handlersSource, "if (\$productId <= 0 || \$from === null || (int)\$from <= 0) {")
+);
+$h->test(
+    'the ledger page auto-carries only a writable day',
+    str_contains($handlersSource, "if (\$branchId && \$dayStatus === 'open' && !\$referenceOnly && \$shiftStatus !== 'finalized') {")
+);
+$h->test('the adoption is audited as its own action, not a row_update', str_contains($handlersSource, "'auto_carry'"));
+$h->test(
+    'a concurrent create wins over the adoption',
+    str_contains($handlersSource, "if ((string)\$e->getCode() !== '23000') {")
+);
+// The adopted row carries the beginning only: no counts, no ending, so the shift stays
+// Pending until somebody counts it.
+$h->test(
+    'it writes the beginning and nothing else',
+    str_contains($handlersSource, 'VALUES (:bid, :pid, :d, :shift, :price, :beg, 0, 0, NULL, :uid, :uid2)')
+);
+$h->test('the AM source is the preceding ending', str_contains($handlersSource, 'WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end'));
+$h->test('the PM source is its own morning ending', str_contains($handlersSource, 'WHEN :isPm = 1 THEN am.bal_end'));
 
 $h->done();

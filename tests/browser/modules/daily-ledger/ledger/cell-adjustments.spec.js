@@ -24,8 +24,10 @@ async function api(page, suffix, payload) {
     return page.evaluate(async ({ suffix, payload }) => {
         const response = await fetch(window.BASE + '/api/v1/cashier/ledger/' + suffix, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.DL_CSRF,
-                Authorization: 'Bearer ' + window.DL_TOKEN },
+            headers: {
+                'Content-Type': 'application/json', 'X-CSRF-Token': window.DL_CSRF,
+                Authorization: 'Bearer ' + window.DL_TOKEN
+            },
             body: JSON.stringify({ branch_id: window.BRANCH_ID, date: window.LEDGER_DATE, shift: window.SHIFT, ...payload }),
         });
         return response.json();
@@ -73,16 +75,15 @@ test('modal create and edit immediately update counts and sales before the rows 
     expect(errors).toEqual([]);
 });
 
-test('zero beginning stays zero across refresh; one Recompute sales press carries the ending forward; partial batch preserves other counts', async ({ page }) => {
+test('zero beginning stays zero across refresh; one carry press adopts the AM ending; partial batch preserves other counts', async ({ page }) => {
     await login(page, 'PM');
     expect((await api(page, 'save', { product_id: scope.product_id, field: 'beg_bal', value: 0 })).ok).toBe(true);
     await page.reload();
     // Reading the sheet must not invent a beginning: a reload leaves the saved 0 alone.
     await expect(page.locator('[data-field="beg_bal"]')).toHaveValue('0');
     await expect(page.locator('.sales-computed')).toHaveText('85');
-    // The explicit press carries the AM ending in for the whole sheet - no per-row link.
-    await page.locator('#recompute-sales-btn').click();
-    await expect(page.locator('#recompute-sales-btn')).toBeEnabled();
+    // The explicit carry press adopts the AM ending for the whole sheet - no per-row link.
+    await page.locator('#carry-beginnings-btn').click();
     await expect(page.locator('[data-field="beg_bal"]')).toHaveValue('10');
     await expect(page.locator('.sales-computed')).toHaveText('95');
     expect(Number(JSON.parse(run('read')).find(row => row.shift === 'PM').beg_bal)).toBe(10);

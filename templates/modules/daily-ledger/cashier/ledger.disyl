@@ -29,6 +29,18 @@
 
         <span class="ml-auto"></span>
 
+        {* The carry-forward is its own, named action. It used to hide inside "Recompute
+           sales", a label nobody reads as "populate the beginnings". Both the count and
+           the button are filled in by dlRefreshCarryAffordance(), so what is offered is
+           always exactly what the press will do - and the note says so when the day or
+           shift refuses writes, before anyone clicks. *}
+        <span id="carry-beginnings-note" class="hidden text-xs font-semibold text-amber-700"></span>
+        <button type="button" class="btn btn-primary hidden" id="carry-beginnings-btn"
+                onclick="window.dlCarryBeginningsFromPreviousShift()"
+                title="Write the preceding shift's ending into every beginning that was never recorded. A beginning somebody already recorded is left alone.">
+            Carry beginnings forward
+        </button>
+
         {if day_status == 'closed'}
             {if can_ledger_override}
             <button type="button" class="btn btn-primary" id="reopen-day-btn" onclick="reopenDay()" data-online-action="Day reopen">Reopen Day</button>
@@ -41,7 +53,7 @@
 
         <button type="button" class="btn btn-outline btn-sm" id="recompute-sales-btn"
                 onclick="window.dlRecomputeSales()"
-                title="Re-read saved counts and refresh sales, and carry the previous shift's ending into any beginning that was not recorded. Needs an open day. Sales = beginning + additional − withdrawals − ending; an unrecorded ending remains Pending.">
+                title="Re-read the saved counts and repaint the Sales column. Sales = beginning + additional − withdrawals − ending; an unrecorded ending remains Pending. Needs an open day.">
             Recompute sales
         </button>
     </div>
@@ -1087,31 +1099,113 @@
     }
 
     // Rows the per-row "Use previous ending" button would offer, gathered in one pass.
-    // It applies the SAME rule that button uses - an editable Beg. Bal still at 0 whose
-    // preceding shift recorded a positive ending - so a product the cashier could carry
-    // by hand is carried here too, and nothing else is touched. `data-orig-beg` is the
-    // server's stored beginning: a row that already has one is never overwritten.
-    function dlPendingCarryForward() {
+    // It applies the SAME rule that button uses - a beginning still at 0 whose preceding
+    // shift recorded a positive ending - so a product the cashier could carry by hand is
+    // carried here too, and nothing else is touched. `data-orig-beg` is the server's stored
+    // beginning: a row that already has one is never overwritten.
+    //
+    // `disabled` is REPORTED, not filtered: a locked cell means "there is something to
+    // carry but this day/shift refuses writes", which is a different message from "nothing
+    // to carry", and the bar has to tell them apart.
+    function dlCarryCandidates() {
         var out = [];
         var attr = (SHIFT === 'PM') ? 'data-am-end' : 'data-prev-end';
         var inputs = document.querySelectorAll('#ledger-body input[data-field="beg_bal"]');
         Array.prototype.forEach.call(inputs, function(input) {
-            if (input.disabled) return;
             if (parseInt(input.getAttribute('data-orig-beg') || '0', 10) !== 0) return;
             if (parseInt(input.value || '0', 10) !== 0) return;
             var ending = parseInt(input.getAttribute(attr) || '0', 10);
             var productId = parseInt(input.getAttribute('data-product'), 10) || 0;
             if (!(ending > 0) || productId <= 0) return;
-            out.push({ product_id: productId, beg_bal: ending });
+            out.push({ product_id: productId, beg_bal: ending, disabled: input.disabled });
         });
         return out;
     }
 
+    // The pending list drops the locked cells and the display-only flag: the batch endpoint
+    // takes {product_id, beg_bal} and nothing else.
+    function dlPendingCarryForward() {
+        return dlCarryCandidates()
+            .filter(function(row) { return !row.disabled; })
+            .map(function(row) { return { product_id: row.product_id, beg_bal: row.beg_bal }; });
+    }
+
+    // Say what the carry would do BEFORE anyone presses it: how many beginnings are waiting,
+    // or - when the day or shift refuses writes - that they are waiting on a reopen rather
+    // than on the operator. A count of 0 hides the affordance; this is the only place the
+    // two states are told apart.
+    function dlRefreshCarryAffordance() {
+        var btn = document.getElementById('carry-beginnings-btn');
+        var note = document.getElementById('carry-beginnings-note');
+        if (!btn || !note) return;
+
+        var ready = 0;
+        var blocked = 0;
+        dlCarryCandidates().forEach(function(row) { if (row.disabled) { blocked++; } else { ready++; } });
+
+        if (ready > 0) {
+            btn.textContent = 'Carry ' + ready + ' beginning' + (ready === 1 ? '' : 's') + ' forward';
+            btn.classList.remove('hidden');
+            note.classList.add('hidden');
+            return;
+        }
+
+        btn.classList.add('hidden');
+        if (blocked === 0) {
+            note.classList.add('hidden');
+            return;
+        }
+        var reason = (DAY_STATUS === 'closed')
+            ? 'this day is closed'
+            : ((SHIFT_STATUS === 'finalized') ? ('the ' + SHIFT + ' shift is finalized') : 'this date is read-only for your role');
+        note.textContent = blocked + ' beginning' + (blocked === 1 ? '' : 's') + ' waiting on a reopen - ' + reason + '.';
+        note.classList.remove('hidden');
+    }
+
+    // The carry, as its own action. Same rule, same audited batch endpoint and still ONE
+    // request for the whole sheet - it is simply no longer hidden behind a control labelled
+    // "Recompute sales", where nobody would look for it.
+    window.dlCarryBeginningsFromPreviousShift = function() {
+        if (DAY_STATUS === 'closed') {
+            showToast('This day is closed. Use Reopen Day (top bar) first - a beginning cannot be carried into a closed day.', 'error');
+            return;
+        }
+        if (SHIFT_STATUS === 'finalized') {
+            showToast('The ' + SHIFT + ' shift is finalized. Reopen the shift first, then carry the beginnings.', 'error');
+            return;
+        }
+        if (REFERENCE_ONLY) {
+            showToast('This date is read-only for your role, so the beginnings cannot be carried forward here.', 'error');
+            return;
+        }
+
+        var carry = dlPendingCarryForward();
+        if (carry.length === 0) {
+            showToast('Nothing to carry - every beginning here is either already recorded or has no previous ending.', 'warning');
+            return;
+        }
+
+        var btn = document.getElementById('carry-beginnings-btn');
+        var label = btn ? btn.textContent : '';
+        if (btn) { btn.disabled = true; btn.textContent = 'Carrying…'; }
+        dlCarryForwardBeginnings(carry, function(ok) {
+            if (btn) { btn.disabled = false; btn.textContent = label; }
+            if (!ok) {
+                showToast('Could not carry the beginnings forward - nothing was changed.', 'error');
+                return;
+            }
+            showToast('Carried ' + carry.length + ' beginning' + (carry.length === 1 ? '' : 's') + ' forward from the previous ending.', 'success');
+            // Re-read the rows so the carried values are the server's, and the affordance
+            // hides itself once there is nothing left to carry.
+            refreshLedgerTotals();
+        });
+    };
+
     // Carry the preceding shift's ending into every unrecorded beginning, in ONE batch.
-    // Doing it here is what removes the per-product link clicking: the cashier presses
-    // Recompute sales once instead of opening "Use previous ending" on each row. It is
-    // still an explicit, audited edit - a batch save through the same endpoint the row
-    // link uses - and it never runs on load or on a plain re-read.
+    // Doing it here is what removes the per-product link clicking: one press replaces
+    // opening "Use previous ending" on each row. It is still an explicit, audited edit - a
+    // batch save through the same endpoint the row link uses - and it never runs on load
+    // or on a plain re-read.
     function dlCarryForwardBeginnings(carry, onDone) {
         window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save-batch', {
             method: 'POST',
@@ -1147,26 +1241,10 @@
     // figure on screen can be computed client-side from a cell the server has not
     // accepted yet, and that difference is invisible until a reload.
     //
-    // It also carries a preceding shift's ending into the beginnings that were never
-    // recorded (see dlPendingCarryForward), so the carry-forward is one press for the
-    // whole sheet rather than one link per product.
+    // The carry that used to hide here is now its own named control, so this is ONLY a
+    // repaint: a write inside something labelled "recompute" is how an operator stops
+    // being sure whether they changed the day (see dlCarryBeginningsFromPreviousShift).
     window.dlRecomputeSales = function() {
-        // Carrying a beginning forward is a WRITE. On a closed day, a finalized shift or a
-        // read-only date it cannot happen, so say which block is in the way instead of
-        // re-reading and reporting "sales already match" - that reads as "nothing to do"
-        // and sends the operator looking for a fault in the numbers.
-        if (DAY_STATUS === 'closed') {
-            showToast('This day is closed. Use Reopen Day (top bar) first - Recompute sales carries the beginnings forward and cannot write to a closed day.', 'error');
-            return;
-        }
-        if (SHIFT_STATUS === 'finalized') {
-            showToast('The ' + SHIFT + ' shift is finalized. Reopen the shift first, then recompute sales.', 'error');
-            return;
-        }
-        if (REFERENCE_ONLY) {
-            showToast('This date is read-only for your role, so the beginnings cannot be carried forward here.', 'error');
-            return;
-        }
         var body = document.getElementById('ledger-body');
         if (!body || !window.htmx) return;
 
@@ -1180,7 +1258,6 @@
 
         var label = btn ? btn.textContent : '';
         var settled = false;
-        var carried = 0;
         if (btn) { btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = 'Recomputing…'; }
 
         var settle = function(ok) {
@@ -1191,11 +1268,7 @@
             body.removeEventListener('htmx:sendError', onFail);
             if (btn) { delete btn.dataset.busy; btn.disabled = false; btn.textContent = label; }
             if (!ok) {
-                if (window.showToast) {
-                    window.showToast(carried > 0
-                        ? 'Carried ' + carried + ' beginning' + (carried === 1 ? '' : 's') + ' forward, but the ledger could not be re-read - reload to see them.'
-                        : 'Could not re-read the ledger — nothing was changed.', 'error');
-                }
+                if (window.showToast) window.showToast('Could not re-read the ledger — nothing was changed.', 'error');
                 return;
             }
             var changed = 0;
@@ -1209,13 +1282,10 @@
                 }
             });
             if (window.showToast) {
-                var carriedNote = carried > 0
-                    ? ' Carried ' + carried + ' beginning' + (carried === 1 ? '' : 's') + ' forward from the previous ending.'
-                    : '';
                 window.showToast(
-                    (changed === 0
+                    changed === 0
                         ? 'Sales already match the saved values.'
-                        : 'Recomputed ' + changed + ' sales cell' + (changed === 1 ? '' : 's') + example) + carriedNote,
+                        : 'Recomputed ' + changed + ' sales cell' + (changed === 1 ? '' : 's') + example,
                     'success'
                 );
             }
@@ -1229,16 +1299,7 @@
         // Safety net: htmx fires neither event if the request is swallowed entirely.
         setTimeout(function() { settle(false); }, 25000);
 
-        var carry = dlPendingCarryForward();
-        if (carry.length === 0) {
-            htmx.trigger(body, 'dl:rows-refresh');
-            return;
-        }
-        dlCarryForwardBeginnings(carry, function(ok) {
-            if (!ok) { settle(false); return; }
-            carried = carry.length;
-            htmx.trigger(body, 'dl:rows-refresh');
-        });
+        htmx.trigger(body, 'dl:rows-refresh');
     };
 
     // Compute sales = beg_bal + addtl - withdraw - bal_end (pending when no ending)
@@ -2118,5 +2179,12 @@
         input.value = button.dataset.ending;
         saveField(input);
     };
+
+    // The rows are rendered inline, so the first paint can already offer a carry; every
+    // later rows swap (a save, a carry, a repair) re-decides it.
+    if (document.getElementById('ledger-body')) {
+        dlRefreshCarryAffordance();
+        document.getElementById('ledger-body').addEventListener('htmx:afterSwap', dlRefreshCarryAffordance);
+    }
 </script>
 {/block}

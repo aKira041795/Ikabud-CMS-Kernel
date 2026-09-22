@@ -68,18 +68,25 @@ $h->test(
 // not carried here either.
 $h->section('One press carries the unrecorded beginnings forward');
 
-$carryStart = strpos($tpl, 'function dlPendingCarryForward()');
+$carryStart = strpos($tpl, 'function dlCarryCandidates()');
 $carryEnd = strpos($tpl, 'function dlCarryForwardBeginnings(', $carryStart === false ? 0 : $carryStart);
 $carryBody = ($carryStart === false || $carryEnd === false) ? '' : substr($tpl, $carryStart, $carryEnd - $carryStart);
 
 $h->test('the gather body was located', $carryBody !== '');
-$h->test('it gathers the editable beginning cells', str_contains($carryBody, 'input[data-field="beg_bal"]') && str_contains($carryBody, 'if (input.disabled) return;'));
+$h->test('it gathers the beginning cells', str_contains($carryBody, 'input[data-field="beg_bal"]'));
 $h->test('it never overwrites a recorded beginning', str_contains($carryBody, 'data-orig-beg'));
 $h->test('it reads the AM ending for PM and the previous ending for AM', str_contains($carryBody, "'data-am-end' : 'data-prev-end'"));
 $h->test('it skips a row with no ending to carry', str_contains($carryBody, 'if (!(ending > 0) || productId <= 0) return;'));
 // Only beg_bal travels: an absent addtl/withdraw/bal_end key is what preserves them.
-$h->test('it sends begin balance alone, never the other counts', str_contains($carryBody, '{ product_id: productId, beg_bal: ending }'));
+$h->test('it sends begin balance alone, never the other counts', str_contains($carryBody, '{ product_id: productId, beg_bal: ending, disabled: input.disabled }'));
 $h->test('that is the same field the row link writes', str_contains($tpl, "input.value = button.dataset.ending;"));
+
+// A locked cell is "there is something, but this day/shift refuses writes" - a different
+// message from "nothing to carry", so the gather reports the flag instead of dropping it.
+$h->test('a locked cell is reported, not silently dropped', str_contains($carryBody, 'disabled: input.disabled'));
+$h->test('the pending list filters the locked cells out', str_contains($tpl, 'return dlCarryCandidates()') && str_contains($tpl, '.filter(function(row) { return !row.disabled; })'));
+// The endpoint takes {product_id, beg_bal}; the disabled flag is for the bar, not the wire.
+$h->test('and sends only what the endpoint takes', str_contains($tpl, '.map(function(row) { return { product_id: row.product_id, beg_bal: row.beg_bal }; });'));
 
 $batchStart = strpos($tpl, 'function dlCarryForwardBeginnings(carry, onDone)');
 $batchEnd = strpos($tpl, 'window.dlRecomputeSales = function()', $batchStart === false ? 0 : $batchStart);
@@ -91,11 +98,32 @@ $h->test('it is one request for the whole sheet', str_contains($batchBody, 'rows
 $h->test('it carries an idempotency key', str_contains($batchBody, 'idempotency_key:'));
 $h->test('it stays online-only like every ledger write', str_contains($batchBody, 'window.dlWriteTimeout('));
 
-$h->test('the button press starts the carry', str_contains($tpl, 'var carry = dlPendingCarryForward();'));
-$h->test('a failed carry is reported, not silently refreshed past', str_contains($tpl, 'if (!ok) { settle(false); return; }'));
+// The carry is its own named action. It used to hide inside a control labelled
+// "Recompute sales", which nobody reads as "populate the beginnings".
+$h->section('The carry is named, counted and separate from the repaint');
+
+$actionStart = strpos($tpl, 'window.dlCarryBeginningsFromPreviousShift = function()');
+$actionEnd = strpos($tpl, 'function dlCarryForwardBeginnings(', $actionStart === false ? 0 : $actionStart);
+$actionBody = ($actionStart === false || $actionEnd === false) ? '' : substr($tpl, $actionStart, $actionEnd - $actionStart);
+
+$h->test('the carry action exists', $actionBody !== '');
+$h->test('it starts the carry', str_contains($actionBody, 'var carry = dlPendingCarryForward();'));
+$h->test('it reports a failed carry instead of refreshing past it', str_contains($actionBody, "showToast('Could not carry the beginnings forward - nothing was changed.'"));
+$h->test('it reports how many it carried', str_contains($actionBody, "'Carried ' + carry.length + ' beginning'"));
+$h->test('it re-reads the rows so the carried values are the server\'s', str_contains($actionBody, 'refreshLedgerTotals();'));
+
+// The count is what makes the affordance honest: it offers exactly what the press does.
+$h->test('the bar carries the named control', (bool)preg_match('/id="ledger-action-bar".*?id="carry-beginnings-btn"[^>]*onclick="window\.dlCarryBeginningsFromPreviousShift\(\)"/s', $tpl));
+$h->test('the label is the live count, not a promise', str_contains($tpl, "'Carry ' + ready + ' beginning' + (ready === 1 ? '' : 's') + ' forward'"));
+$h->test('it is refreshed on load', str_contains($tpl, 'dlRefreshCarryAffordance();'));
+$h->test('and after every rows swap', str_contains($tpl, "addEventListener('htmx:afterSwap', dlRefreshCarryAffordance)"));
+
+// Recompute sales must go back to meaning one thing: repaint the sales column.
+$h->test('the repaint does not carry anything', !str_contains($body, 'dlPendingCarryForward()') && !str_contains($body, 'dlCarryForwardBeginnings('));
+$h->test('the repaint is not blocked by day state', !str_contains($body, "DAY_STATUS === 'closed'"));
 
 // The sheet runs to 174 products on a real branch, so the day's own action has to be
-// reachable without scrolling - and whatever blocks a recompute has to be named.
+// reachable without scrolling - and whatever blocks a carry has to be named.
 $h->section('The day actions are pinned, and nothing exists twice');
 
 $h->test('a sticky action bar wraps the day actions', str_contains($tpl, 'id="ledger-action-bar"') && str_contains($tpl, 'sticky top-0'));
@@ -109,17 +137,16 @@ $h->test('the reopen lives behind the closed-day branch', (bool)preg_match('/\{i
 $h->test('exactly one day-close button', substr_count($tpl, 'id="close-day-btn"') === 1);
 $h->test('exactly one day-reopen button', substr_count($tpl, 'id="reopen-day-btn"') === 1);
 $h->test('exactly one recompute button', substr_count($tpl, 'id="recompute-sales-btn"') === 1);
+$h->test('exactly one carry button', substr_count($tpl, 'id="carry-beginnings-btn"') === 1);
 
-$h->section('A blocked recompute names the block');
+$h->section('A blocked carry is named before it is pressed');
 
-$h->test('a closed day points at the reopen', str_contains($tpl, "'This day is closed. Use Reopen Day (top bar) first"));
-$h->test('a finalized shift points at the shift reopen', str_contains($tpl, "'The ' + SHIFT + ' shift is finalized. Reopen the shift first"));
+$h->test('a closed day points at the reopen', str_contains($tpl, "'This day is closed. Use Reopen Day (top bar) first - a beginning cannot be carried into a closed day.'"));
+$h->test('a finalized shift points at the shift reopen', str_contains($tpl, "'The ' + SHIFT + ' shift is finalized. Reopen the shift first, then carry the beginnings.'"));
 $h->test('a read-only date is exported and checked', str_contains($tpl, 'var REFERENCE_ONLY = ') && str_contains($tpl, 'window.REFERENCE_ONLY = REFERENCE_ONLY;') && str_contains($tpl, "if (REFERENCE_ONLY) {"));
-$h->test(
-    'the block is tested before the sheet is re-read',
-    ($guard = strpos($body, "DAY_STATUS === 'closed'")) !== false
-        && ($read = strpos($body, "getElementById('ledger-body')")) !== false
-        && $guard < $read
-);
+$h->test('the guard runs before anything is written', ($guard = strpos($actionBody, "DAY_STATUS === 'closed'")) !== false && ($write = strpos($actionBody, 'dlCarryForwardBeginnings(carry')) !== false && $guard < $write);
+// Better than a toast after a click: the bar says how many are waiting and why.
+$h->test('the bar explains a blocked carry', str_contains($tpl, "' waiting on a reopen - ' + reason"));
+$h->test('and names the reason', str_contains($tpl, "? 'this day is closed'") && str_contains($tpl, ": 'this date is read-only for your role'"));
 
 $h->done();

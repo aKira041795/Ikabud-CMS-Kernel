@@ -3470,6 +3470,117 @@ function dailyLedgerLogout(): void
 }
 
 /**
+ * Adopt the preceding ending as this shift's beginning, for products nobody has touched.
+ *
+ * A shift that has not started should not ask anyone to type 174 numbers, so the sheet
+ * opens filled. The safety is entirely in the SCOPE: only rows that do not exist yet are
+ * created. A beginning somebody already recorded - a count, a deliberate 0, or a row a
+ * delivery/withdrawal created - is left exactly as it is; those are what the per-row
+ * "Use previous ending" link and the carry control are for. Treating "stored 0" as
+ * "not recorded" is precisely what made the earlier auto-adopt unsafe to keep.
+ *
+ * Only the current business date is eligible, so browsing an older open day never writes.
+ *
+ * Overriding an adopted number is an ordinary cell edit: audited as row_update, and
+ * measured against this same reference by dl_recomputeVariancesForDay (kind `overnight`
+ * for AM against the preceding ending, `handoff` for PM against the AM ending). So a
+ * cashier who disagrees with the carried figure stays in control, and the difference is
+ * recorded as a variance rather than lost.
+ *
+ * The reference is the same one the sheet displays: AM takes the preceding date's PM
+ * ending (falling back to that date's AM ending), PM takes its own morning's ending.
+ *
+ * @return int number of beginnings adopted
+ */
+function dl_autoCarryBeginnings(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, string $ledgerDate, string $shift, int $actorId): int
+{
+    if ($branchId <= 0 || $ledgerDate !== dl_businessDate()) {
+        return 0;
+    }
+    $shift = $shift === 'PM' ? 'PM' : 'AM';
+    $prevDate = (new \DateTimeImmutable($ledgerDate))->modify('-1 day')->format('Y-m-d');
+
+    // `cur.id IS NULL` is the whole safety rule: the row must not exist. One placeholder per
+    // binding because PDO does not reliably reuse a named parameter.
+    $stmt = $db->prepare(
+        "SELECT p.id AS product_id,
+                CASE
+                    WHEN :isPm = 1 THEN am.bal_end
+                    WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
+                    ELSE prev_am.bal_end
+                END AS carry_from
+           FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+           LEFT JOIN dl_daily_ledger cur
+                  ON cur.product_id = p.id AND cur.branch_id = :bid2 AND cur.ledger_date = :d AND cur.shift = :shift
+           LEFT JOIN dl_daily_ledger am
+                  ON am.product_id = p.id AND am.branch_id = :bid3 AND am.ledger_date = :d2 AND am.shift = 'AM'
+           LEFT JOIN dl_daily_ledger prev_pm
+                  ON prev_pm.product_id = p.id AND prev_pm.branch_id = :bid4 AND prev_pm.ledger_date = :dprev AND prev_pm.shift = 'PM'
+           LEFT JOIN dl_daily_ledger prev_am
+                  ON prev_am.product_id = p.id AND prev_am.branch_id = :bid5 AND prev_am.ledger_date = :dprev2 AND prev_am.shift = 'AM'
+          WHERE p.is_active = 1
+            AND cur.id IS NULL"
+    );
+    $stmt->execute([
+        ':isPm' => $shift === 'PM' ? 1 : 0,
+        ':bid' => $branchId, ':bid2' => $branchId, ':bid3' => $branchId, ':bid4' => $branchId, ':bid5' => $branchId,
+        ':d' => $ledgerDate, ':d2' => $ledgerDate, ':dprev' => $prevDate, ':dprev2' => $prevDate,
+        ':shift' => $shift,
+    ]);
+
+    $insert = $db->prepare(
+        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, encoded_by, updated_by)
+         VALUES (:bid, :pid, :d, :shift, :price, :beg, 0, 0, NULL, :uid, :uid2)'
+    );
+
+    $adopted = 0;
+    $products = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $productId = (int)($row['product_id'] ?? 0);
+        $from = $row['carry_from'] ?? null;
+        // A recorded 0 is not a reference to carry from - the explicit controls decide there.
+        if ($productId <= 0 || $from === null || (int)$from <= 0) {
+            continue;
+        }
+        try {
+            $insert->execute([
+                ':bid' => $branchId,
+                ':pid' => $productId,
+                ':d' => $ledgerDate,
+                ':shift' => $shift,
+                ':price' => dl_resolveBranchProductPrice($branchId, $productId, $ledgerDate),
+                ':beg' => (int)$from,
+                ':uid' => $actorId,
+                ':uid2' => $actorId,
+            ]);
+        } catch (\PDOException $e) {
+            // Another request created the row between the SELECT and here; their value wins.
+            if ((string)$e->getCode() !== '23000') {
+                throw $e;
+            }
+            continue;
+        }
+        $adopted++;
+        $products[] = $productId;
+    }
+
+    if ($adopted > 0) {
+        dl_auditLog(
+            'auto_carry',
+            $branchId,
+            'dl_daily_ledger',
+            "{$branchId}-{$ledgerDate}-{$shift}",
+            null,
+            ['adopted' => $adopted, 'products' => array_slice($products, 0, 50)],
+            $shift === 'PM' ? 'Adopted the AM ending as the PM beginning' : 'Adopted the preceding ending as the AM beginning'
+        );
+    }
+
+    return $adopted;
+}
+
+/**
  * @return array<int,array<string,mixed>>
  */
 function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, string $ledgerDate, string $shift): array
@@ -3641,8 +3752,15 @@ function handleCashierLedger(array $params = []): void
     // POS context: feature flag, cashier sell access, and the branch-day sales mode.
     $posEnabled = dl_isPosEnabled();
     $posMode = ($branchId && $posEnabled) ? dl_pos_dayMode($ctx->db(), $branchId, $ledgerDate) : ['mode' => 'manual', 'row' => null, 'decided' => false];
-    $ledgerRows = $branchId ? dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift) : [];
 
+    // A shift nobody has started opens filled with the preceding ending rather than asking
+    // for 174 numbers. Only rows that do not exist are created, so a beginning somebody
+    // already recorded - including a deliberate 0 - is never replaced by opening the sheet.
+    if ($branchId && $dayStatus === 'open' && !$referenceOnly && $shiftStatus !== 'finalized') {
+        dl_autoCarryBeginnings($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift, $actorId);
+    }
+
+    $ledgerRows = $branchId ? dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift) : [];
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
