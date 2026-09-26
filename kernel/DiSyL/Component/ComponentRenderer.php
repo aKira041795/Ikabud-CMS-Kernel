@@ -1472,7 +1472,12 @@ final class ComponentRenderer
             return '';
         }
 
-        $validViews = ['table', 'compact', 'card_grid', 'detailed', 'summary'];
+        // The declarative syntax must accept the same view vocabulary as
+        // EntityViewResolver::registerView(), or a module that registers views in
+        // PHP cannot express those views as declarations. `default` and
+        // `admin_row` were missing here, which is why modules/cms registers its
+        // views in PHP instead of declaring them like the other 14 modules.
+        $validViews = ['table', 'compact', 'card_grid', 'detailed', 'summary', 'default', 'admin_row'];
         if (!in_array($view, $validViews, true)) {
             $this->engine->logError("ikb_entity_view '{$name}': unknown view type '{$view}' — expected one of: " . implode(', ', $validViews));
         }
@@ -1590,6 +1595,29 @@ final class ComponentRenderer
         if ($renderer !== '') { $contract['renderer'] = $renderer; }
         if ($class !== '') { $contract['class'] = $class; }
         if ($timeoutMs !== null) { $contract['timeout_ms'] = $timeoutMs; }
+
+        // Presentation attributes that the PHP registration api accepts. Without
+        // these the declarative syntax is a strictly weaker surface than the code
+        // path, which is the second reason modules keep their views in PHP.
+        if (isset($attrs['limit']) && $attrs['limit'] !== '') {
+            $contract['limit'] = (int)$attrs['limit'];
+        }
+        $sortField = trim((string)($attrs['sort_field'] ?? $attrs['sort'] ?? ''));
+        if ($sortField !== '') {
+            $contract['sort'] = [
+                'field' => $sortField,
+                'direction' => strtolower(trim((string)($attrs['sort_direction'] ?? 'asc'))) === 'desc' ? 'desc' : 'asc',
+            ];
+        }
+        if (isset($attrs['empty_state']) && $attrs['empty_state'] !== '') {
+            $contract['empty_state'] = (string)$attrs['empty_state'];
+        }
+        if (isset($attrs['exportable']) && $attrs['exportable'] !== '') {
+            $contract['exportable'] = filter_var($attrs['exportable'], FILTER_VALIDATE_BOOLEAN);
+        }
+        if (isset($attrs['capability']) && $attrs['capability'] !== '') {
+            $contract['capability'] = (string)$attrs['capability'];
+        }
 
         // Store role→field mapping in contract so renderers can use semantic roles
         if (!empty($roleFields)) {
