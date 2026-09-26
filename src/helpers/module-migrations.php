@@ -612,15 +612,17 @@ function tenantConnectionResolvesToBaseDb(array $config): bool
  * @param array<string, mixed> $config Keys: driver, host, port, db_name|database
  * @return array{ok: bool, error?: string}
  */
-function tenantRejectBaseDbConnection(array $config): array
-{
-    if (tenantConnectionResolvesToBaseDb($config)) {
-        return [
-            'ok' => false,
-            'error' => 'Tenant DB connection resolves to the kernel/base app DB. The shared-DB capability is discontinued — configure a dedicated tenant database.',
-        ];
+if (!function_exists('tenantRejectBaseDbConnection')) {
+    function tenantRejectBaseDbConnection(array $config): array
+    {
+        if (tenantConnectionResolvesToBaseDb($config)) {
+            return [
+                'ok' => false,
+                'error' => 'Tenant DB connection resolves to the kernel/base app DB. The shared-DB capability is discontinued — configure a dedicated tenant database.',
+            ];
+        }
+        return ['ok' => true];
     }
-    return ['ok' => true];
 }
 
 /**

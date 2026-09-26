@@ -296,13 +296,30 @@ class ModuleDB implements DatabaseContract
         $clean = preg_replace('/ON\s+DUPLICATE\s+KEY\s+UPDATE\b.*/is', '', $clean);
 
         // FROM / JOIN clauses: FROM table [alias] [, table2 [alias2], ...]
-        // Also handles comma-separated table lists (implicit joins).
-        // Use word boundaries so column names ending in `from` (e.g. effective_from)
-        // followed by an identifier (e.g. ORDER BY effective_from DESC) are not
-        // misread as a FROM clause.
-        if (preg_match_all('/\b(?:FROM|JOIN)\s+`?(\w+)`?(?:\s+(?:AS\s+)?\w+)?(?:\s*,\s*`?(\w+)`?)*/i', $clean, $m, PREG_SET_ORDER)) {
+        // Also handles comma-separated table lists (implicit joins) and every
+        // table introduced by JOIN. Use word boundaries so column names ending
+        // in `from` (e.g. effective_from) followed by an identifier (e.g.
+        // ORDER BY effective_from DESC) are not misread as a FROM clause.
+        //
+        // The alias group must NOT consume a SQL keyword: the previous pattern
+        // treated the literal JOIN keyword as an alias, so the joined table was
+        // never extracted.
+        $aliasStop = 'JOIN|STRAIGHT_JOIN|LEFT|RIGHT|INNER|OUTER|CROSS|NATURAL|FULL|ON|USING|WHERE|GROUP|ORDER|HAVING|LIMIT|OFFSET|UNION|SET|VALUES|FOR|LOCK|IN|IS|NOT|NULL|LIKE|BETWEEN|EXISTS|AS|AND|OR';
+        $aliasGuard = '(?!(?:' . $aliasStop . ')\b)';
+        if (preg_match_all(
+            '/\b(?:FROM|JOIN|STRAIGHT_JOIN)\s+`?(\w+)`?(?:\s+(?:AS\s+)?' . $aliasGuard . '\w+)?'
+            . '((?:\s*,\s*`?\w+`?(?:\s+(?:AS\s+)?' . $aliasGuard . '\w+)?)*)/i',
+            $clean,
+            $m,
+            PREG_SET_ORDER
+        )) {
             foreach ($m as $match) {
                 $tables[] = $match[1];
+                if (($match[2] ?? '') !== '' && preg_match_all('/,\s*`?(\w+)`?/', $match[2], $extra)) {
+                    foreach ($extra[1] as $table) {
+                        $tables[] = $table;
+                    }
+                }
             }
         }
         // Capture additional comma-separated tables after FROM: FROM t1 [alias], t2 [alias], ...

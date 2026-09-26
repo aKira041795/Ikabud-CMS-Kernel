@@ -1266,11 +1266,9 @@ class TemplateEngine
                     $value = $this->resolveValue($expr, $context);
 
                     if (!is_scalar($value)) {
-                        $rootKey = explode('.', $expr, 2)[0];
-                        if (str_contains($expr, '.') || array_key_exists($rootKey, $context)) {
-                            return '';
-                        }
-                        return $match[0];
+                        // Unresolved expression: emit nothing, matching the
+                        // compiled path. Never leak the raw template token.
+                        return '';
                     }
 
                     return (string) $value;
@@ -1291,16 +1289,9 @@ class TemplateEngine
                 }
                 
                 if (!is_scalar($value)) {
-                    // Dot-path variables (e.g. user.name, cms_settings.site_tagline)
-                    // are always template expressions — never valid JS identifiers.
-                    // Also, if the top-level key exists in context, it's a template var.
-                    $rootKey = explode('.', $varPath, 2)[0];
-                    if (str_contains($varPath, '.') || array_key_exists($rootKey, $context)) {
-                        return '';
-                    }
-                    // Single-word variable not in context — might be a JS identifier;
-                    // preserve the original token to avoid breaking JS destructuring.
-                    return $match[0];
+                    // Unresolved expression: emit nothing, matching the
+                    // compiled path. Never leak the raw template token into JS.
+                    return '';
                 }
                 
                 return (string) $value;
