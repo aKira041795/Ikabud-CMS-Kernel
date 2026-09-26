@@ -1,0 +1,37 @@
+{ikb_entity_view name="cms_product" view="default" limit="25" sort_field="created_at" sort_direction="desc" empty_state="No products in the catalog." exportable="true"}
+    {field name="id"}
+    {field name="name"}
+    {field name="price"}
+    {field name="status"}
+    {field name="image"}
+    {field name="created_at"}
+    {action name="view"}
+    {action name="edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="cms_product" view="card_grid" limit="20" sort_field="name" sort_direction="asc" empty_state="No products available." exportable="false"}
+    {field name="name"}
+    {field name="price"}
+    {field name="image"}
+    {field name="status"}
+    {action name="view"}
+    {action name="add_to_cart"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="cms_product" view="compact" limit="10" sort_field="created_at" sort_direction="desc" empty_state="No featured products." exportable="false"}
+    {field name="name"}
+    {field name="price"}
+    {action name="view"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="cms_product" view="admin_row" limit="50" sort_field="created_at" sort_direction="desc" empty_state="No products in catalog." exportable="false"}
+    {field name="id"}
+    {field name="name"}
+    {field name="price"}
+    {field name="status"}
+    {field name="inventory"}
+    {field name="created_at"}
+    {action name="view"}
+    {action name="edit"}
+    {action name="delete"}
+{/ikb_entity_view}

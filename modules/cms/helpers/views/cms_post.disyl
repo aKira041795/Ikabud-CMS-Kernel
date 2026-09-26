@@ -26,3 +26,37 @@
     {field name="published_at" type="date" renderer="datetime:date"}
     {field name="status" type="enum" renderer="badge:{published|green|draft|gray}"}
 {/ikb_entity_view}
+
+
+{ikb_entity_view name="cms_post" view="default" limit="25" sort_field="published_at" sort_direction="desc" empty_state="No posts published yet." exportable="true"}
+    {field name="id"}
+    {field name="title"}
+    {field name="slug"}
+    {field name="status"}
+    {field name="excerpt"}
+    {field name="author_name"}
+    {field name="published_at"}
+    {action name="view"}
+    {action name="edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="cms_post" view="admin_row" limit="50" sort_field="created_at" sort_direction="desc" empty_state="No posts yet." exportable="false"}
+    {field name="id"}
+    {field name="title"}
+    {field name="status"}
+    {field name="author_name"}
+    {field name="published_at"}
+    {action name="view"}
+    {action name="edit"}
+    {action name="delete"}
+{/ikb_entity_view}
+
+
+{ikb_entity_view name="cms.post" view="card_grid" limit="12" sort_field="published_at" sort_direction="desc" empty_state="No posts to display." exportable="false" capability="cms.content.list@1"}
+    {field name="title"}
+    {field name="excerpt"}
+    {field name="image"}
+    {field name="author_name"}
+    {field name="published_at"}
+    {action name="view"}
+{/ikb_entity_view}

@@ -23,3 +23,38 @@
     {field name="status" type="enum" renderer="badge:{published|green|draft|gray}"}
     {field name="excerpt" type="string"}
 {/ikb_entity_view}
+
+
+{ikb_entity_view name="cms_page" view="default" limit="25" sort_field="updated_at" sort_direction="desc" empty_state="No pages yet. Create your first page in the CMS admin." exportable="true" capability="cms.content.list@1"}
+    {field name="id"}
+    {field name="title"}
+    {field name="slug"}
+    {field name="status"}
+    {field name="author_name"}
+    {field name="created_at"}
+    {field name="updated_at"}
+    {action name="view"}
+    {action name="edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="cms_page" view="admin_row" limit="50" sort_field="created_at" sort_direction="desc" empty_state="No pages in this collection." exportable="false"}
+    {field name="id"}
+    {field name="title"}
+    {field name="status"}
+    {field name="author_name"}
+    {field name="created_at"}
+    {action name="view"}
+    {action name="edit"}
+    {action name="delete"}
+{/ikb_entity_view}
+
+
+{ikb_entity_view name="cms.page" view="default" limit="25" sort_field="updated_at" sort_direction="desc" empty_state="No pages in this collection." exportable="false" capability="cms.content.list@1"}
+    {field name="id"}
+    {field name="title"}
+    {field name="slug"}
+    {field name="status"}
+    {field name="updated_at"}
+    {action name="view"}
+    {action name="edit"}
+{/ikb_entity_view}

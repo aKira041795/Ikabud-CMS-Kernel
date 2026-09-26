@@ -1,0 +1,10 @@
+{ikb_entity_view name="cms_user" view="admin_row" limit="50" sort_field="created_at" sort_direction="desc" empty_state="No users found." exportable="false" capability="cms.content.list@1"}
+    {field name="id"}
+    {field name="display_name"}
+    {field name="email"}
+    {field name="role"}
+    {field name="is_active"}
+    {field name="created_at"}
+    {action name="view"}
+    {action name="edit"}
+{/ikb_entity_view}

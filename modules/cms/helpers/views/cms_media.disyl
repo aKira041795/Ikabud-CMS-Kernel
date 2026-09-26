@@ -1,0 +1,9 @@
+{ikb_entity_view name="cms_media" view="card_grid" limit="30" sort_field="created_at" sort_direction="desc" empty_state="No media uploaded yet." exportable="false"}
+    {field name="filename"}
+    {field name="thumbnail_url"}
+    {field name="file_size"}
+    {field name="mime_type"}
+    {field name="created_at"}
+    {action name="view"}
+    {action name="delete"}
+{/ikb_entity_view}
