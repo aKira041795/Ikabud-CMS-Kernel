@@ -1,6 +1,6 @@
 {
     "schema": "ikabud-release-manifest/1",
-    "generated_at": "2026-09-26T08:47:40+00:00",
+    "generated_at": "2026-09-26T09:03:55+00:00",
     "commit": "b3c7e3e4bedb801106d0d527c1430a4d334b5d5d",
     "kernel_version": "6.1.0",
     "disyl_version": "4.8.0",

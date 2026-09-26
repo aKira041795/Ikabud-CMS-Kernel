@@ -32,23 +32,13 @@ if (file_exists($appPhp)) {
     }
 }
 
-// --- DiSyL version ---
+// --- DiSyL version from the engine's single declaration ---
 $disylVersion = 'unknown';
-// Try multiple version sources
-$grammarFile = $root . '/kernel/DiSyL/Grammar.php';
-if (file_exists($grammarFile)) {
-    $contents = file_get_contents($grammarFile);
-    if (preg_match("/SCHEMA_VERSION\s*=\s*'([^']+)'/", (string)$contents, $m)) {
+$disylVersionFile = $root . '/kernel/DiSyL/Version.php';
+if (file_exists($disylVersionFile)) {
+    $contents = file_get_contents($disylVersionFile);
+    if (preg_match("/DISYL_VERSION\s*=\s*'([^']+)'/", (string)$contents, $m)) {
         $disylVersion = $m[1];
-    }
-}
-if ($disylVersion === 'unknown') {
-    $compilerFile = $root . '/kernel/DiSyL/Compiler/TemplateCompiler.php';
-    if (file_exists($compilerFile)) {
-        $contents = file_get_contents($compilerFile);
-        if (preg_match("/COMPILER_VERSION\s*=\s*(\d+)/", (string)$contents, $m)) {
-            $disylVersion = 'compiler-v' . $m[1];
-        }
     }
 }
 
