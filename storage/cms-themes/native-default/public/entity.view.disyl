@@ -3,8 +3,6 @@
 {block head}
 {if cms_head}{cms_head | raw}{/if}
 {if structured_data}{structured_data | raw}{/if}
-{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
-{include "_cms_active_theme/public/partials/canonical-entity-styles.disyl"}
 {/block}
 
 {block content}

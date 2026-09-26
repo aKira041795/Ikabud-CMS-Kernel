@@ -1,7 +1,6 @@
 {extends "_cms_active_theme/layouts/public.disyl"}
 
 {block head}
-{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
 {/block}
 
 {block content}

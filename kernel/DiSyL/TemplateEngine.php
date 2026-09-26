@@ -950,6 +950,12 @@ class TemplateEngine
      */
     private function compileScriptBody(string $body, array $context): string
     {
+        // Most script bodies contain only JavaScript. Avoid the protection and
+        // compilation passes unless one whole-body scan finds a DiSyL construct.
+        if (!$this->bodyContainsDisylConstruct($body)) {
+            return $body;
+        }
+
         // Pattern matching DiSyL tags — opening/closing control structures,
         // variables (letter/underscore start), filters, set, include, etc.
         $disylPattern = '/\{(?:'             // Opening brace followed by:
@@ -1057,6 +1063,12 @@ class TemplateEngine
      */
     private function compileStyleBody(string $body, array $context): string
     {
+        // Most style bodies contain only CSS. Avoid the protection and
+        // compilation passes unless one whole-body scan finds a DiSyL construct.
+        if (!$this->bodyContainsDisylConstruct($body)) {
+            return $body;
+        }
+
         // Pattern matching DiSyL tags — same as script body
         $disylPattern = '/\{(?:'
             . '\/(?:if|for|foreach|each|literal|verbatim)\}'
@@ -1147,6 +1159,39 @@ class TemplateEngine
         return $body;
     }
     
+    /**
+     * Detect the literal union of preconditions for passes run on script/style bodies.
+     * If none of these match, the engine has no pass that can modify the body, so
+     * skipping the body pipeline is provably equivalent.
+     */
+    private function bodyContainsDisylConstruct(string $body): bool
+    {
+        if (preg_match('/\{\/?\s*(?:if|elseif|else|for|foreach|each|literal|verbatim|set|include|math)\b/', $body) === 1
+            || preg_match('/\{\@var\b/', $body) === 1
+            || preg_match('/\{\$[a-zA-Z_]\w*/', $body) === 1
+        ) {
+            return true;
+        }
+
+        // processScriptVariables() pass 1: nullish.
+        if (preg_match('/\{((?:[a-zA-Z_][\w.]*)\s*\?\?\s*[^}]+)\}/', $body) === 1) {
+            return true;
+        }
+
+        // processScriptVariables() pass 2: ternary.
+        if (preg_match('/\{([^}]+\?[^}]+:[^}]+)\}/', $body) === 1) {
+            return true;
+        }
+
+        // processScriptVariables() pass 3: arithmetic.
+        if (preg_match('/\{((?:[a-zA-Z_(]|\d)[^}]*[+\-*\/%][^}]*)\}/', $body) === 1) {
+            return true;
+        }
+
+        // processScriptVariables() pass 4: variable/filter.
+        return preg_match('/(?<!\$)\{([a-zA-Z_][\w.]*(?:\s*\|\s*[^}]+)?)\}/', $body) === 1;
+    }
+
     /** @var bool Whether we're compiling inside a <script> context (raw output) */
     private bool $scriptContext = false;
     
