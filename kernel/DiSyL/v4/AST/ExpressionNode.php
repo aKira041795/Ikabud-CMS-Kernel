@@ -7,13 +7,20 @@ final class ExpressionNode extends AbstractNode
     private AbstractNode $expression;
     private ?FilterChain $filters;
     private bool $autoEscape;
+    private bool $scriptEscape;
 
-    public function __construct(array $span, AbstractNode $expression, ?FilterChain $filters = null, bool $autoEscape = true)
-    {
+    public function __construct(
+        array $span,
+        AbstractNode $expression,
+        ?FilterChain $filters = null,
+        bool $autoEscape = true,
+        bool $scriptEscape = false
+    ) {
         parent::__construct($span);
         $this->expression = $expression;
         $this->filters = $filters;
         $this->autoEscape = $autoEscape;
+        $this->scriptEscape = $scriptEscape;
     }
 
     public function getType(): string
@@ -39,5 +46,10 @@ final class ExpressionNode extends AbstractNode
     public function isAutoEscape(): bool
     {
         return $this->autoEscape;
+    }
+
+    public function isScriptEscape(): bool
+    {
+        return $this->scriptEscape;
     }
 }

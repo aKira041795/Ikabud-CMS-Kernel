@@ -40,7 +40,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 14;
+    public const COMPILER_VERSION = 15;
 
     /**
      * Maximum iterations for unbounded loops ({while} and C-style {for}).
@@ -148,8 +148,11 @@ PHP;
     {
         $expr = $this->compileExpressionRawValue($node);
 
-        // Auto-escape only applies in output context
-        if ($node->isAutoEscape()) {
+        // Output escaping is context-sensitive. Script/style literals use
+        // JavaScript Unicode escapes; ordinary markup uses HTML escaping.
+        if ($node->isScriptEscape()) {
+            $expr = "\$this->escapeScript({$expr})";
+        } elseif ($node->isAutoEscape()) {
             $expr = "\$this->escape({$expr})";
         }
 

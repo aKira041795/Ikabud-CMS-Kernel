@@ -54,9 +54,9 @@ final class Parser
 
     /**
      * Byte ranges of `<script>`/`<style>` body text, computed once per parse.
-     * Expressions whose `{` starts inside one of these ranges are marked as
-     * non-escaping so the compiled pipeline matches the interpreted engine's
-     * raw script/style output semantics.
+     * Expressions whose `{` starts inside one of these ranges are marked for
+     * script-literal escaping so the compiled pipeline matches the interpreted
+     * engine's safe script/style output semantics.
      *
      * @var array<int, array{0:int, 1:int}>  [bodyStart, bodyEnd) offsets
      */
@@ -1448,8 +1448,12 @@ final class Parser
         $baseExpr = trim($parts[0]);
 
         $filterChain = null;
-        // Implicit escaping is suppressed for expressions in <script>/<style>
-        // bodies, matching the interpreted engine's raw script/style output.
+        // A raw-text body can also contain JavaScript/CSS brace blocks that
+        // the permissive parser recovers as expression nodes. Only mark the
+        // exact DiSyL value/filter form as interpolation output; otherwise a
+        // benign static quote inside a JS block would be rewritten.
+        $scriptEscape = $this->inRawOutputContext
+            && preg_match('/^[a-zA-Z_][\w.]*(?:\s*\|\s*[^}]+)?$/', $content) === 1;
         $autoEscape = !$this->inRawOutputContext;
 
         if (count($parts) > 1) {
@@ -1458,7 +1462,9 @@ final class Parser
                 $filter = $this->parseFilterSpec(trim($parts[$i]));
                 $filters[] = $filter;
                 if (in_array($filter->getName(), self::ESCAPE_FILTERS, true)) {
+                    // Explicit raw/escape filters own the output contract.
                     $autoEscape = false;
+                    $scriptEscape = false;
                 }
             }
             $filterChain = new FilterChain($filters);
@@ -1468,7 +1474,8 @@ final class Parser
             [],
             $this->parseExprValue($baseExpr),
             $filterChain,
-            $autoEscape
+            $autoEscape,
+            $scriptEscape
         );
     }
 
@@ -1486,9 +1493,10 @@ final class Parser
             $trueExpr = $cond;
         }
 
-        $rawOutput = !$this->inRawOutputContext;
-        $trueNode = new ExpressionNode([], $this->parseExprValue($trueExpr), null, $rawOutput);
-        $falseNode = new ExpressionNode([], $this->parseExprValue($falseExpr), null, $rawOutput);
+        $autoEscape = !$this->inRawOutputContext;
+        $scriptEscape = $this->inRawOutputContext;
+        $trueNode = new ExpressionNode([], $this->parseExprValue($trueExpr), null, $autoEscape, $scriptEscape);
+        $falseNode = new ExpressionNode([], $this->parseExprValue($falseExpr), null, $autoEscape, $scriptEscape);
 
         return new ControlNode(
             [],

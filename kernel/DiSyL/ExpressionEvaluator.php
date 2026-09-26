@@ -772,19 +772,35 @@ class ExpressionEvaluator
         $result = $this->evaluateCondition($condition, $context) ? $trueExpr : $falseExpr;
 
         if (preg_match('/^["\'](.*)["\']\s*$/', $result, $m)) {
-            return htmlspecialchars($m[1], ENT_QUOTES, 'UTF-8');
+            return $this->escapeOutputValue($m[1]);
         }
 
         $resolved = $this->resolveValueWithFilters($result, $context);
         if (is_scalar($resolved)) {
-            return htmlspecialchars((string) $resolved, ENT_QUOTES, 'UTF-8');
+            return $this->escapeOutputValue($resolved);
         }
 
         if (is_numeric($result)) {
             return $result;
         }
 
-        return htmlspecialchars($result, ENT_QUOTES, 'UTF-8');
+        return $this->escapeOutputValue($result);
+    }
+
+    private function escapeOutputValue(mixed $value): string
+    {
+        if (!$this->scriptContext) {
+            return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+        }
+
+        return strtr((string) $value, [
+            '\\' => '\\u005C',
+            '<' => '\\u003C',
+            '>' => '\\u003E',
+            '&' => '\\u0026',
+            "'" => '\\u0027',
+            '"' => '\\u0022',
+        ]);
     }
 
     // ── keyof ─────────────────────────────────────────────────────────

@@ -105,7 +105,11 @@ final class FilterRegistry
                 ? mb_substr((string)$v, 0, (int)($a[0] ?? 100)) . '...'
                 : (string)$v,
             'nl2br' => fn($v) => nl2br((string) $v),
-            'json' => fn($v) => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'json' => fn($v) => json_encode(
+                $v,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+                    | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            ),
             'date' => fn($v, $a) => $v ? date($a[0] ?? 'Y-m-d', is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
             'default' => fn($v, $a) => ($v !== null && $v !== '') ? $v : ($a[0] ?? ''),
             'count' => fn($v) => is_countable($v) ? count($v) : 0,

@@ -1009,9 +1009,9 @@ class TemplateEngine
 
         $body = implode('', $chunks);
         
-        // Step 2: Run full compilation (control structures + variables)
-        //         Variables are output raw by default in script context.
-        $this->scriptContext = true;
+        // Step 2: Run full compilation (control structures + variables).
+        // Values are escaped for safe script-literal embedding by default.
+        $this->setScriptContext(true);
         
         // Process {literal} blocks within the script
         $scriptLiterals = [];
@@ -1040,7 +1040,7 @@ class TemplateEngine
             $body = str_replace(array_keys($scriptLiterals), array_values($scriptLiterals), $body);
         }
         
-        $this->scriptContext = false;
+        $this->setScriptContext(false);
         
         // Step 3: Restore JS curly braces
         if (!empty($jsMarkers)) {
@@ -1120,7 +1120,7 @@ class TemplateEngine
         $body = implode('', $chunks);
         
         // Step 2: Run full DiSyL compilation (same pipeline as script bodies)
-        $this->scriptContext = true; // raw output, no HTML escaping
+        $this->setScriptContext(true);
         
         // Process {literal} blocks within the style
         $styleLiterals = [];
@@ -1149,7 +1149,7 @@ class TemplateEngine
             $body = str_replace(array_keys($styleLiterals), array_values($styleLiterals), $body);
         }
         
-        $this->scriptContext = false;
+        $this->setScriptContext(false);
         
         // Step 3: Restore CSS curly braces
         if (!empty($cssMarkers)) {
@@ -1192,16 +1192,35 @@ class TemplateEngine
         return preg_match('/(?<!\$)\{([a-zA-Z_][\w.]*(?:\s*\|\s*[^}]+)?)\}/', $body) === 1;
     }
 
-    /** @var bool Whether we're compiling inside a <script> context (raw output) */
+    /** @var bool Whether we're compiling inside a <script>/<style> body */
     private bool $scriptContext = false;
+
+    private function setScriptContext(bool $enabled): void
+    {
+        $this->scriptContext = $enabled;
+        if ($this->evaluator !== null) {
+            $this->evaluator->setScriptContext($enabled);
+        }
+    }
+
+    /** Escape only script/style breakout and literal-delimiter bytes. */
+    private function escapeScriptValue(mixed $value): string
+    {
+        return strtr((string) $value, [
+            '\\' => '\\u005C',
+            '<' => '\\u003C',
+            '>' => '\\u003E',
+            '&' => '\\u0026',
+            "'" => '\\u0027',
+            '"' => '\\u0022',
+        ]);
+    }
     
     /**
-     * Process DiSyL variables inside <script> blocks.
-     * 
-     * Resolves {variable} and {variable | filter} expressions.
-     * Variables inside <script> are output raw by default (no HTML-escaping)
-     * unless an explicit escape filter is used, because script content is
-     * not HTML context.
+     * Process DiSyL variables inside <script>/<style> blocks.
+     *
+     * Resolves {variable} and {variable | filter} expressions. Values use
+     * script-literal escaping by default; |raw restores the legacy output.
      */
     private function processScriptVariables(string $content, array $context): string
     {
@@ -1225,7 +1244,7 @@ class TemplateEngine
                     if (!is_scalar($value)) {
                         return $match[0];
                     }
-                    return (string) $value;
+                    return $this->escapeScriptValue($value);
                 },
                 $content
             );
@@ -1271,7 +1290,7 @@ class TemplateEngine
                         return '';
                     }
 
-                    return (string) $value;
+                    return $this->escapeScriptValue($value);
                 }
 
                 // Split filters
@@ -1281,10 +1300,18 @@ class TemplateEngine
                 // Resolve the value
                 $value = $this->resolveValue($varPath, $context);
                 
-                // Apply any explicit filters
+                // Apply explicit filters. |raw and existing explicit escaping
+                // filters retain ownership of their output contract.
+                $hasRaw = false;
+                $filterNames = [];
                 foreach ($filters as $filter) {
                     $filter = trim($filter);
-                    if ($filter === 'raw') continue; // raw is default in script context
+                    $filterName = trim(explode(':', $filter, 2)[0]);
+                    if ($filterName === 'raw') {
+                        $hasRaw = true;
+                        continue;
+                    }
+                    $filterNames[] = $filterName;
                     $value = $this->applyFilter($filter, $value, $context);
                 }
                 
@@ -1293,8 +1320,12 @@ class TemplateEngine
                     // compiled path. Never leak the raw template token into JS.
                     return '';
                 }
+
+                if ($hasRaw || $this->hasEscapeFilter($expr, $filterNames)) {
+                    return (string) $value;
+                }
                 
-                return (string) $value;
+                return $this->escapeScriptValue($value);
             },
             $content
         );
@@ -5115,7 +5146,11 @@ class TemplateEngine
                 ? mb_substr((string)$v, 0, (int)($n['length'] ?? ($a[0] ?? 100))) . '...'
                 : (string)$v,
             'nl2br' => fn($v) => nl2br(htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8')),
-            'json' => fn($v) => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'json' => fn($v) => json_encode(
+                $v,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+                    | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            ),
             // json_attr: JSON-encode then HTML-escape for safe embedding in double-quoted HTML attributes.
             // Use {myArray | json_attr} in x-data="{raw: {myArray | json_attr}}" and similar Alpine/x-* attrs.
             // Browsers decode &quot; → " before passing the attribute value to JS, so Alpine.js sees correct JSON.

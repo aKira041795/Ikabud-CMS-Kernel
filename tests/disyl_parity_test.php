@@ -477,29 +477,33 @@ parity('XSS script escaping', $engine, $cache,
     '{val}', ['val' => '<script>alert("xss")</script>']);
 
 // ─────────────────────────────────────────────────────────
-// 12. Script/style raw output (compiled pipeline)
+// 12. Script/style safe output (compiled pipeline)
 // ─────────────────────────────────────────────────────────
-section('12. Script/style raw output (compiled pipeline)');
+section('12. Script/style safe output (compiled pipeline)');
 
 $rawValue = "A&B<C>D'E\"F";
+$scriptEscape = static fn(string $value): string => strtr($value, [
+    '\\' => '\\u005C', '<' => '\\u003C', '>' => '\\u003E',
+    '&' => '\\u0026', "'" => '\\u0027', '"' => '\\u0022',
+]);
+$scriptEscapedValue = $scriptEscape($rawValue);
 
-// Interpreted reference already emits script/style bodies raw; these parity
-// cases pin the compiled pipeline to the same semantics.
-parity('script body emits raw value', $engine, $cache,
+// Script/style values are escaped by default in both pipelines.
+parity('script body emits script-escaped value', $engine, $cache,
     '<script>const value = "{value}";</script>', ['value' => $rawValue]);
 
-parity('style body emits raw value', $engine, $cache,
+parity('style body emits script-escaped value', $engine, $cache,
     '<style>.x { content: "{value}"; }</style>', ['value' => $rawValue]);
 
-parity('script body raw inside {if} true branch', $engine, $cache,
+parity('script body escaped inside {if} true branch', $engine, $cache,
     '<script>{if flag}const value = "{value}";{else}const value = "none";{/if}</script>',
     ['value' => $rawValue, 'flag' => true]);
 
-parity('script body raw inside {if} false branch', $engine, $cache,
+parity('script body escaped inside {if} false branch', $engine, $cache,
     '<script>{if flag}const value = "none";{else}const value = "{value}";{/if}</script>',
     ['value' => $rawValue, 'flag' => false]);
 
-parity('style body raw inside {if}', $engine, $cache,
+parity('style body escaped inside {if}', $engine, $cache,
     '<style>{if flag}.x { content: "{value}"; }{/if}</style>',
     ['value' => $rawValue, 'flag' => true]);
 
@@ -520,11 +524,10 @@ parity('explicit raw filter unchanged in HTML', $engine, $cache,
 parity('explicit esc_html filter unchanged in HTML', $engine, $cache,
     '<div>{value|esc_html}</div>', ['value' => $rawValue]);
 
-parity('filter in script body stays raw by default', $engine, $cache,
+parity('filter in script body is escaped by default', $engine, $cache,
     '<script>const value = "{value|upper}";</script>', ['value' => 'a&b']);
 
-// Explicit escape/raw filters keep their meaning inside script/style bodies
-// even though implicit escaping is suppressed there.
+// Explicit escape/raw filters keep their meaning inside script/style bodies.
 parity('explicit esc_html filter escapes in script body', $engine, $cache,
     '<script>const value = "{value|esc_html}";</script>', ['value' => $rawValue]);
 parity('explicit esc_html filter escapes in style body', $engine, $cache,
@@ -556,8 +559,8 @@ parity('verbatim fake style boundary does not suppress HTML escaping', $engine, 
 
 // Direct compiled-path assertions (do not rely on the interpreted engine).
 $escapedValue = htmlspecialchars($rawValue, ENT_QUOTES, 'UTF-8');
-check('compiled script body emits raw bytes',
-    '<script>const value = "' . $rawValue . '";</script>',
+check('compiled script body emits escaped bytes',
+    '<script>const value = "' . $scriptEscapedValue . '";</script>',
     compiled($cache, '<script>const value = "{value}";</script>', ['value' => $rawValue], 'direct_script_raw'));
 
 check('compiled script opening-tag attribute is escaped',
@@ -584,11 +587,9 @@ check('compiled verbatim fake style boundary stays escaped',
     '<style><div>' . $escapedValue . '</div></style>',
     compiled($cache, '{verbatim}<style>{/verbatim}<div>{value}</div>{verbatim}</style>{/verbatim}', ['value' => $rawValue], 'direct_verbatim_fake_style'));
 
-// Nested output nodes under a loop must inherit the raw context. The
-// interpreted engine resolves loop bodies through an escaped sub-compile, so
-// this is a compiled-only assertion of the raw script-context contract.
-check('compiled loop body in script emits raw bytes',
-    '<script>const v = "A&B";const v = "C\'D";</script>',
+// Nested output nodes under a loop must inherit script escaping.
+check('compiled loop body in script emits escaped bytes',
+    '<script>const v = "' . $scriptEscape('A&B') . '";const v = "' . $scriptEscape("C'D") . '";</script>',
     compiled($cache, '<script>{for item in items}const v = "{item}";{/for}</script>', ['items' => ['A&B', "C'D"]], 'direct_loop_raw'));
 
 // Negative: a `>` inside a quoted opening-tag attribute must not be treated as
@@ -600,8 +601,8 @@ check('compiled script attr with > keeps expression escaped',
 check('compiled style attr with > keeps expression escaped',
     "<style data-x='x>" . $escapedValue . "'>.a{color:red}</style>",
     compiled($cache, "<style data-x='x>{value}'>.a{color:red}</style>", ['value' => $rawValue], 'direct_style_attr_gt'));
-check('compiled script attr with > still emits body raw',
-    '<script data-x="x>y">' . $rawValue . '</script>',
+check('compiled script attr with > still escapes body',
+    '<script data-x="x>y">' . $scriptEscapedValue . '</script>',
     compiled($cache, '<script data-x="x>y">{value}</script>', ['value' => $rawValue], 'direct_script_attr_gt_body'));
 check('compiled explicit esc_html filter escapes in script body',
     '<script>const value = "' . $escapedValue . '";</script>',
@@ -650,13 +651,13 @@ $fallbackErrors = array_values(array_filter(
 ));
 check('e2e compiled render without fallback errors', 'none', $fallbackErrors === [] ? 'none' : implode(' | ', $fallbackErrors));
 
-check('e2e script body raw bytes survived render()',
+check('e2e script body escaped bytes survived render()',
     'yes',
-    str_contains($e2eCompiledOut, '<script>const value = "' . $rawValue . '";</script>') ? 'yes' : 'no');
+    str_contains($e2eCompiledOut, '<script>const value = "' . $scriptEscapedValue . '";</script>') ? 'yes' : 'no');
 
-check('e2e style body raw bytes survived render()',
+check('e2e style body escaped bytes survived render()',
     'yes',
-    str_contains($e2eCompiledOut, '<style>.x { content: "' . $rawValue . '"; }</style>') ? 'yes' : 'no');
+    str_contains($e2eCompiledOut, '<style>.x { content: "' . $scriptEscapedValue . '"; }</style>') ? 'yes' : 'no');
 
 check('e2e surrounding HTML expression stayed escaped',
     'yes',
@@ -666,16 +667,16 @@ check('e2e opening-tag attribute stayed escaped',
     'yes',
     str_contains($e2eCompiledOut, '<script src="a&amp;b/app.js"></script>') ? 'yes' : 'no');
 
-$e2eExpected = '<script>const value = "' . $rawValue . '";</script>'
+$e2eExpected = '<script>const value = "' . $scriptEscapedValue . '";</script>'
     . '<div>' . $escapedValue . '</div>'
     . '<script src="a&amp;b/app.js"></script>'
-    . '<style>.x { content: "' . $rawValue . '"; }</style>';
+    . '<style>.x { content: "' . $scriptEscapedValue . '"; }</style>';
 check('e2e compiled render equals explicit expected output', $e2eExpected, $e2eCompiledOut);
 
 // Negative e2e: a `>` inside a quoted opening-tag attribute must not flip the
-// attribute expression to raw output. Both script and style tags, with values
-// that contain both quote characters, verify entity escaping in the attribute
-// while the adjacent body expression stays raw.
+// attribute expression to script output. Both script and style tags, with
+// values that contain both quote characters, verify entity escaping in the
+// attribute while the adjacent body expression uses script escaping.
 $e2eAttrSource = '<script data-x="x>{value}">const v = "{value}";</script>'
     . "<style data-x='x>{value}'>.x { content: \"{value}\"; }</style>"
     . '<div>{value}</div>';
@@ -685,10 +686,10 @@ $e2eAttrEngine = new TemplateEngine($e2eTemplateDir, $e2eCacheDir);
 $e2eAttrEngine->enableCompiledMode(true);
 $e2eAttrOut = $e2eAttrEngine->render('script_attr_gt', ['value' => $rawValue]);
 
-$e2eAttrExpected = '<script data-x="x>' . $escapedValue . '">const v = "' . $rawValue . '";</script>'
-    . "<style data-x='x>" . $escapedValue . "'>.x { content: \"" . $rawValue . "\"; }</style>"
+$e2eAttrExpected = '<script data-x="x>' . $escapedValue . '">const v = "' . $scriptEscapedValue . '";</script>'
+    . "<style data-x='x>" . $escapedValue . "'>.x { content: \"" . $scriptEscapedValue . "\"; }</style>"
     . '<div>' . $escapedValue . '</div>';
-check('e2e attr with > stays escaped while body stays raw', $e2eAttrExpected, $e2eAttrOut);
+check('e2e attr with > stays escaped while body is script-escaped', $e2eAttrExpected, $e2eAttrOut);
 
 $e2eAttrFallback = array_values(array_filter(
     $e2eAttrEngine->getErrors(),
@@ -708,7 +709,7 @@ $cleanupSource = '<script>const value = "{value}";</script>';
 $cleanupVersion = \Ikabud\Kernel\DiSyL\Compiler\TemplateCompiler::COMPILER_VERSION;
 
 check('compiled source executes before cleanup',
-    '<script>const value = "A&B";</script>',
+    '<script>const value = "' . $scriptEscape('A&B') . '";</script>',
     $cleanupCache->compileSource($cleanupSource, 'cleanup_probe')->execute(['value' => 'A&B']));
 
 $cleanupFiles = glob($cleanupDir . '/Template_cleanup_probe_*.php') ?: [];
@@ -732,7 +733,7 @@ check('cleanup retains current-version source cache', 'yes',
 // current-version file must still render the correct output.
 $cleanupCacheAfter = new TemplateCache($cleanupDir, true);
 check('current-version source cache remains usable after cleanup',
-    '<script>const value = "A&B";</script>',
+    '<script>const value = "' . $scriptEscape('A&B') . '";</script>',
     $cleanupCacheAfter->compileSource($cleanupSource, 'cleanup_probe')->execute(['value' => 'A&B']));
 
 // ─────────────────────────────────────────────────────────

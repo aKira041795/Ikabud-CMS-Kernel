@@ -103,6 +103,26 @@ abstract class CompiledTemplate
     }
     
     /**
+     * Escape a value embedded in a script/style body without changing benign
+     * URL/path characters such as `/`.
+     */
+    protected function escapeScript(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return strtr((string) $value, [
+            '\\' => '\\u005C',
+            '<' => '\\u003C',
+            '>' => '\\u003E',
+            '&' => '\\u0026',
+            "'" => '\\u0027',
+            '"' => '\\u0022',
+        ]);
+    }
+
+    /**
      * Apply a filter
      */
     protected function filter(string $name, mixed $value, mixed ...$args): mixed
