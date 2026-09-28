@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-5xl mx-auto space-y-6">
@@ -21,7 +21,7 @@
                 {elseif order.status == 'cancelled'}bg-gray-100 text-gray-600
                 {else}bg-gray-100 text-gray-600{/if}">{order.status}</span>
             <div class="text-right">
-                <div class="text-xs uppercase tracking-wide text-gray-400">Total</div>
+                <div class="text-xs uppercase tracking-wide ark-commerce-muted">Total</div>
                 <div class="text-xl font-bold text-gray-900">{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</div>
             </div>
         </div>
@@ -93,7 +93,7 @@
                             <td class="px-5 py-4">
                                 <div class="font-medium text-gray-900">{item.product_title}</div>
                                 {if item.variant_label}<div class="text-xs text-gray-500 mt-1">{item.variant_label}</div>{/if}
-                                {if item.sku}<div class="text-xs text-gray-400 mt-1">SKU: {item.sku}</div>{/if}
+                                {if item.sku}<div class="text-xs ark-commerce-muted mt-1">SKU: {item.sku}</div>{/if}
                                 {if item.selected_addons | count > 0}
                                 <div class="mt-2 text-xs text-gray-500">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</div>
                                 {/if}
@@ -285,7 +285,7 @@
                             <label class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm">
                                 <span class="min-w-0">
                                     <span class="block font-medium text-gray-900">{item.product_title}</span>
-                                    <span class="block text-xs text-gray-400">Eligible to return: {item.returnable_qty}</span>
+                                    <span class="block text-xs ark-commerce-muted">Eligible to return: {item.returnable_qty}</span>
                                 </span>
                                 <input type="number" name="return_qty[{item.id}]" min="0" max="{item.returnable_qty}" value="0" class="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm text-gray-800">
                             </label>
@@ -338,7 +338,7 @@
                             <input type="hidden" name="action" value="send_message">
                             <input type="hidden" name="store_id" value="{thread.store.id}">
                             <textarea name="message_body" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800" placeholder="Ask about packing, delivery timing, stock, or item-specific issues."></textarea>
-                            <button type="submit" class="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Send Message</button>
+                            <button type="submit" class="inline-flex items-center rounded-lg ark-commerce-action px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Send Message</button>
                         </form>
                     </div>
                     {/foreach}
@@ -378,12 +378,12 @@
                         {if lic.download_token}
                         <div class="flex items-center gap-3">
                             <a href="{base_url}/ecommerce/download/{lic.download_token}"
-                               class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium">
+                               class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg ark-commerce-action hover:bg-orange-700 text-white text-sm font-medium">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                 Download License File
                             </a>
                             {if lic.downloaded_at}
-                            <span class="text-xs text-gray-400">First downloaded {lic.downloaded_at | date:'M j, Y'}</span>
+                            <span class="text-xs ark-commerce-muted">First downloaded {lic.downloaded_at | date:'M j, Y'}</span>
                             {/if}
                         </div>
                         {/if}

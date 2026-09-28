@@ -294,7 +294,10 @@ final class EntityViewResolver
         $sortField = (string)($overrides['sort_field'] ?? $contract['sort']['field'] ?? 'created_at');
         $sortDir = (string)($overrides['sort_direction'] ?? $contract['sort']['direction'] ?? 'desc');
         $filters = is_array($overrides['filters'] ?? null) ? $overrides['filters'] : [];
-        $offset = (int)($overrides['offset'] ?? 0);
+        $page = isset($overrides['page']) ? max(1, (int)$overrides['page']) : null;
+        $offset = array_key_exists('offset', $overrides)
+            ? max(0, (int)$overrides['offset'])
+            : ($page !== null ? ($page - 1) * max(1, $limit) : 0);
         $cursor = isset($overrides['cursor']) ? (string)$overrides['cursor'] : null;
         $prevCursor = isset($overrides['prev_cursor']) ? (string)$overrides['prev_cursor'] : null;
 
@@ -320,12 +323,19 @@ final class EntityViewResolver
             'view' => $view,
             'limit' => $limit,
             'offset' => $offset,
+            'page' => $page,
             'sort' => ['field' => $sortField, 'direction' => $sortDir],
             'filters' => $filters,
             'fields' => $queryFields,
         ];
         if ($cursor !== null) { $capabilityArgs['cursor'] = $cursor; }
         if ($prevCursor !== null) { $capabilityArgs['prev_cursor'] = $prevCursor; }
+        // Thread the render context's public signal so module list resolvers can
+        // apply public visibility only on public surfaces. Absent = non-public
+        // (admin/authenticated) and must stay byte-identical to before.
+        if (isset($overrides['public_render_origin']) && trim((string)$overrides['public_render_origin']) !== '') {
+            $capabilityArgs['public_render_origin'] = (string)$overrides['public_render_origin'];
+        }
 
         // Attempt to fetch via the capability bus
         // Normalize entity type: dots → underscores for capability IDs

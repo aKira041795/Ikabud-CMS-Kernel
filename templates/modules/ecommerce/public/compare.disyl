@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-7xl mx-auto space-y-6">
@@ -29,7 +29,7 @@
     <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
         <h2 class="text-xl font-semibold text-slate-900">Your comparison list is empty</h2>
         <p class="mt-2 text-sm text-slate-600">Add products from the shop or product pages to build a shortlist before you decide.</p>
-        <a href="{base_url}/ecommerce/shop" class="mt-6 inline-flex items-center rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">Start Comparing</a>
+        <a href="{base_url}/ecommerce/shop" class="mt-6 inline-flex items-center rounded-lg ark-commerce-action px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">Start Comparing</a>
     </div>
     {else}
     <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">

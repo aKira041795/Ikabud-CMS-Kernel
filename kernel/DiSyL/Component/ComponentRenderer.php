@@ -2005,7 +2005,18 @@ final class ComponentRenderer
         $view = (string)($attrs['view'] ?? 'compact');
         $overrides = [];
         if (isset($attrs['limit'])) { $overrides['limit'] = (int)$attrs['limit']; }
+        if (isset($attrs['page'])) { $overrides['page'] = max(1, (int)$attrs['page']); }
+        if (isset($attrs['offset'])) { $overrides['offset'] = max(0, (int)$attrs['offset']); }
         if (isset($attrs['actions'])) { $overrides['actions'] = array_map('trim', explode(',', (string)$attrs['actions'])); }
+
+        // Public theme renders always populate public_render_origin
+        // (cms/ecommerce). Admin/authenticated render contexts leave it
+        // unset. Thread it to the resolver so public surfaces can apply
+        // public visibility without changing admin behaviour.
+        $publicRenderOrigin = trim((string)($context['public_render_origin'] ?? ''));
+        if ($publicRenderOrigin !== '') {
+            $overrides['public_render_origin'] = $publicRenderOrigin;
+        }
 
         // Parse filter attribute: filter="project_id={project.id},status=approved"
         // Resolves {var.path} references from the template context.

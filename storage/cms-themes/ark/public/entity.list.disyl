@@ -34,12 +34,11 @@
         {# CMS blog / archive / tag / search via governed entity list #}
         {if public_route_kind == 'blog-home' or public_route_kind == 'archive' or public_route_kind == 'tag' or public_route_kind == 'search'}
 
-            {# Active filter summary #}
-            {if entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search}
+            {# Active filter chips only. The result count already renders in the
+               page intro above via list_description, so echoing it here printed
+               "63 results" twice on the blog listing. #}
+            {if entity_list_context.category_name or entity_list_context.search}
             <div class="ark-filter-summary">
-                {if entity_list_context.result_label}
-                <span class="ark-filter-summary__label">{entity_list_context.result_label}</span>
-                {/if}
                 {if entity_list_context.category_name}
                 <span class="ark-badge ark-badge--primary ark-filter-summary__pill">
                     {entity_list_context.category_name}
@@ -57,7 +56,7 @@
             {/if}
 
             {# Governed entity list — kernel resolves data, theme presents #}
-            {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="10" /}
+            {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="10" page="{pagination.current|default:1}" /}
 
             {# Pagination #}
             {if pagination and pagination.total > 1}
@@ -72,16 +71,62 @@
             </nav>
             {/if}
 
-        {# Pure entity-view context (any module, any entity type) #}
+        {# Declared content type (any module, any entity type).
+           The CMS has ALREADY resolved the rows and pagination for this route,
+           so ARK presents them in its own card language instead of re-resolving:
+           a declared type has no entity.list.{type} capability to call. #}
         {else if entity_type}
             {if entity_list_context.result_label}
             <p class="ark-page-intro__result">{entity_list_context.result_label}</p>
             {/if}
-            {ikb_entity_list
-                source="{entity_type}.{qualifier|default:'recent'}"
-                view="{entity_view|default:'card_grid'}"
-                limit="{entity_limit|default:12}"
-            /}
+
+            {if items}
+            <div class="ark-card-grid">
+                {foreach items as item}
+                <article class="ark-card"
+                         data-entity-kind="list-item"
+                         data-entity-type="{item.entity_type|default:entity_type}"
+                         data-entity-id="{item.id|default:''}"
+                         data-entity-slug="{item.slug|default:''}">
+                    {if item.primary_image_url}
+                    <a class="ark-card__image" href="{item.url|default:'#'}">
+                        <img src="{item.primary_image_url}" alt="{item.title|default:''}">
+                    </a>
+                    {/if}
+                    <div class="ark-card__body">
+                        {if entity_list_context.show_item_type_badge}
+                        <span class="ark-card__badge">{item.entity_type_label|default:item.content_type_label|default:entity_type}</span>
+                        {/if}
+                        <h3 class="ark-card__title">
+                            <a href="{item.url|default:'#'}">{item.title|default:''}</a>
+                        </h3>
+                        {if item.list_card_excerpt}
+                        <p class="ark-card__excerpt">{item.list_card_excerpt}</p>
+                        {/if}
+                        {if item.published_at}
+                        <p class="ark-card__meta">{item.published_at_display|default:item.published_at}</p>
+                        {/if}
+                    </div>
+                </article>
+                {/foreach}
+            </div>
+            {else}
+            <div class="ark-empty">
+                <p class="ark-empty__text">Nothing here yet.</p>
+            </div>
+            {/if}
+
+            {if pagination and pagination.total > 1}
+            <nav class="ark-pagination" aria-label="Pagination">
+                {if pagination.prev_url}
+                <a href="{pagination.prev_url}" class="ark-btn ark-btn--outline ark-btn--sm">&larr; Previous</a>
+                {/if}
+                <span class="ark-pagination__status">Page {pagination.current} of {pagination.total}</span>
+                {if pagination.next_url}
+                <a href="{pagination.next_url}" class="ark-btn ark-btn--outline ark-btn--sm">Next &rarr;</a>
+                {/if}
+            </nav>
+            {/if}
 
         {# Discovery dashboard (no context — show sample sections) #}
         {else}

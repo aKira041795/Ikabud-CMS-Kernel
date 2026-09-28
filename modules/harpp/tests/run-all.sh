@@ -8,6 +8,8 @@ printf '=== push_payload_crypto_test ===\n'
 if php modules/harpp/tests/push_payload_crypto_test.php; then echo 'PASS push_payload_crypto_test'; else echo 'FAIL push_payload_crypto_test'; fails=$((fails+1)); fi
 printf '=== integrity_collaboration_contract_test ===\n'
 if php modules/harpp/tests/integrity_collaboration_contract_test.php; then echo 'PASS integrity_collaboration_contract_test'; else echo 'FAIL integrity_collaboration_contract_test'; fails=$((fails+1)); fi
+printf '=== auth_abstention_pipeline_cli_test ===\n'
+if php modules/harpp/tests/auth_abstention_pipeline_cli_test.php; then echo 'PASS auth_abstention_pipeline_cli_test'; else echo 'FAIL auth_abstention_pipeline_cli_test'; fails=$((fails+1)); fi
 LOG_APP="$ROOT/storage/logs/app.log"
 LOG_ERR="$ROOT/storage/logs/error.log"
 printf '=== generated disposable MySQL decision/integrity sandbox ===\n'

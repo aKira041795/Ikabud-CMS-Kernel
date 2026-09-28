@@ -39,9 +39,21 @@ class ArkCustomizerProvider implements ThemeCustomizerProvider
     public function definition(): ThemeCustomizerDefinition
     {
         if ($this->cachedDefinition === null) {
+            // This provider lives at <theme>/src/ArkCustomizerProvider.php, so the
+            // theme root is always the parent of __DIR__. Deriving it from our own
+            // location keeps the provider working for any slug and any install path.
+            //
+            // The previous fallback appended '/../../storage/cms-themes/ark' to
+            // __DIR__, which resolved to <themes>/storage/cms-themes/ark — a path
+            // that never exists. ThemeDefinitionLoader::load() then returned null,
+            // the definition came back empty, and validateProvider() rejected the
+            // provider with "customizer.schema.json exists but no sections were
+            // parsed", so ARK silently fell back to the CMS built-in customizer.
+            // CMS_THEMES_PATH is not defined anywhere in this codebase, so that
+            // branch was never taken.
             $themePath = defined('CMS_THEMES_PATH')
-                ? rtrim(CMS_THEMES_PATH, '/') . '/ark'
-                : (__DIR__ . '/../../storage/cms-themes/ark');
+                ? rtrim((string)constant('CMS_THEMES_PATH'), '/') . '/' . $this->slug
+                : dirname(__DIR__);
 
             $this->cachedDefinition = ThemeDefinitionLoader::load($this->slug, $themePath)
                 ?? new ThemeCustomizerDefinition([], [], [], []);

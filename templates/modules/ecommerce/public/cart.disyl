@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-3xl mx-auto">
@@ -22,7 +22,7 @@
     <div class="text-center py-20">
         <svg class="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
         <p class="text-gray-500">Your cart is empty.</p>
-        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-block text-orange-600 hover:text-orange-700 font-medium">Continue Shopping →</a>
+        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-block ark-commerce-link hover:text-orange-700 font-medium">Continue Shopping →</a>
     </div>
     {else}
 
@@ -33,14 +33,14 @@
             <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
                 <div class="flex-1 min-w-0">
                     <div class="font-medium text-gray-900">{item.product_title}</div>
-                    {if item.sku}<div class="text-xs text-gray-400">{item.sku}</div>{/if}
+                    {if item.sku}<div class="text-xs ark-commerce-muted">{item.sku}</div>{/if}
                     {if item.selected_addons | count > 0}
                     <div class="mt-1 text-xs text-gray-500">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</div>
                     {/if}
                     {if item.booking.has_booking}
                     <div class="mt-1 text-xs text-sky-700">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</div>
                     {/if}
-                    <div class="text-sm text-orange-600 font-semibold mt-1">{item.unit_price_fmt} each</div>
+                    <div class="text-sm ark-commerce-link font-semibold mt-1">{item.unit_price_fmt} each</div>
                 </div>
                 <div class="flex items-center gap-2">
                     <form method="post" action="{base_url}/api/v1/ecommerce/cart/update">
@@ -49,7 +49,7 @@
                                class="border border-gray-300 rounded px-2 py-1 text-sm text-center"
                                onchange="updateCartItem({loop.index}, this.value)">
                     </form>
-                    <button onclick="removeCartItem({loop.index})" class="text-sm text-red-500 hover:text-red-700 ml-1">Remove</button>
+                    <button onclick="removeCartItem({loop.index})" class="text-sm ark-commerce-danger hover:text-red-700 ml-1">Remove</button>
                 </div>
                 <div class="text-sm font-bold text-gray-900 pl-2">{item.line_total_fmt}</div>
             </div>
@@ -63,7 +63,7 @@
                     <button type="button" onclick="applyCoupon()" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">Apply</button>
                 </form>
                 {if cart.totals.coupon}
-                <div class="mt-2 text-sm text-emerald-600 font-medium">
+                <div class="mt-2 text-sm ark-commerce-success font-medium">
                     {if cart.totals.coupon.type == 'gift_card'}Gift card{else}Coupon{/if} "{cart.coupon_code}" applied — saving {cart.totals.discount_fmt}
                 </div>
                 {/if}
@@ -82,13 +82,13 @@
                     <input type="number" id="loyalty-points" min="0" step="100" value="{cart.loyalty.selected_points | default:'0'}"
                            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
                            placeholder="Points to redeem">
-                    <button type="button" onclick="applyLoyalty()" class="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Redeem</button>
+                    <button type="button" onclick="applyLoyalty()" class="px-4 py-2 ark-commerce-action text-white text-sm rounded-lg hover:bg-orange-700">Redeem</button>
                     {if cart.loyalty.applied_points > 0}
                     <button type="button" onclick="clearLoyalty()" class="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50">Clear</button>
                     {/if}
                 </div>
                 {if cart.loyalty.applied_points > 0}
-                <div class="mt-2 text-sm text-emerald-600 font-medium">Redeeming {cart.loyalty.applied_points} points for {cart.loyalty.discount_amount_fmt} off this order.</div>
+                <div class="mt-2 text-sm ark-commerce-success font-medium">Redeeming {cart.loyalty.applied_points} points for {cart.loyalty.discount_amount_fmt} off this order.</div>
                 {/if}
             </div>
             {/if}
@@ -101,10 +101,10 @@
                 <div class="space-y-1.5 text-sm">
                     <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{cart.totals.subtotal_fmt}</span></div>
                     {if cart.totals.non_loyalty_discount_amount > 0}
-                    <div class="flex justify-between text-emerald-600"><span>{cart.totals.discount_label | default:'Discount'}</span><span>−{cart.totals.non_loyalty_discount_amount_fmt}</span></div>
+                    <div class="flex justify-between ark-commerce-success"><span>{cart.totals.discount_label | default:'Discount'}</span><span>−{cart.totals.non_loyalty_discount_amount_fmt}</span></div>
                     {/if}
                     {if cart.totals.loyalty_points_applied > 0}
-                    <div class="flex justify-between text-orange-600"><span>Loyalty ({cart.totals.loyalty_points_applied} pts)</span><span>−{cart.totals.loyalty_discount_amount_fmt}</span></div>
+                    <div class="flex justify-between ark-commerce-link"><span>Loyalty ({cart.totals.loyalty_points_applied} pts)</span><span>−{cart.totals.loyalty_discount_amount_fmt}</span></div>
                     {/if}
                     {if cart.totals.tax > 0}
                     <div class="flex justify-between text-gray-600"><span>{cart.totals.tax_label | default:'Tax'}</span><span>{cart.totals.tax_fmt}</span></div>
@@ -114,7 +114,7 @@
                     </div>
                 </div>
                 <a href="{base_url}/ecommerce/checkout"
-                   class="block w-full text-center py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
+                   class="block w-full text-center py-3 ark-commerce-action text-white font-medium rounded-lg hover:bg-orange-700">
                     Proceed to Checkout
                 </a>
                 <a href="{base_url}/ecommerce/shop" class="block w-full text-center py-2 border text-sm rounded-lg hover:bg-gray-50 text-gray-700">

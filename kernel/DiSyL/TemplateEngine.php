@@ -469,7 +469,7 @@ class TemplateEngine
                 }
                 if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                     $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
-                    throw new \RuntimeException("Template output exceeds maximum allowed size");
+                    throw new \Ikabud\Kernel\DiSyL\Exceptions\TemplateOutputTooLargeException("Template output exceeds maximum allowed size");
                 }
                 if ($sharedCacheKey !== null) {
                     apcu_store($sharedCacheKey, $result, $this->templateRenderer()->sharedOutputCacheTtl());
@@ -543,7 +543,7 @@ class TemplateEngine
 
             if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                 $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
-                throw new \RuntimeException("Template output exceeds maximum allowed size");
+                throw new \Ikabud\Kernel\DiSyL\Exceptions\TemplateOutputTooLargeException("Template output exceeds maximum allowed size");
             }
 
             // Evict oldest entry when cache is full to bound memory growth
@@ -561,7 +561,7 @@ class TemplateEngine
 
         if (strlen($result) > self::MAX_OUTPUT_BYTES) {
             $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
-            throw new \RuntimeException("Template output exceeds maximum allowed size");
+            throw new \Ikabud\Kernel\DiSyL\Exceptions\TemplateOutputTooLargeException("Template output exceeds maximum allowed size");
         }
 
         if ($sharedCacheKey !== null) {
@@ -618,7 +618,12 @@ class TemplateEngine
     {
         $this->errors = [];
         $context = array_merge($this->globals, $context);
-        return $this->compile($content, $context);
+        $result = $this->compile($content, $context);
+        if (strlen($result) > self::MAX_OUTPUT_BYTES) {
+            $this->logError('Template string output exceeds maximum size (' . self::MAX_OUTPUT_BYTES . ' bytes)');
+            throw new \Ikabud\Kernel\DiSyL\Exceptions\TemplateOutputTooLargeException('Template output exceeds maximum allowed size');
+        }
+        return $result;
     }
     
     /**

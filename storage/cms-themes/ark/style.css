@@ -1,8 +1,10 @@
 :root {
     /* Design tokens from tokens.json — single source of truth */
     /* Customizer overrides wire through --theme-site-max-width, --color-primary, etc. */
-    --ark-primary: var(--color-primary, #6366f1);
+    /* The dark brand step is the text-safe primary on light surfaces (6.29:1). */
+    --ark-primary: var(--color-primary-dark, #4f46e5);
     --ark-primary-dark: var(--color-primary-dark, #4f46e5);
+    --cms-button-bg: var(--color-primary-dark, #4f46e5);
     --ark-primary-light: var(--color-primary-light, #eef2ff);
     --ark-surface: var(--color-surface, #ffffff);
     --ark-surface-muted: var(--color-surface-muted, #f8fafc);
@@ -68,6 +70,11 @@ textarea,
     color: var(--ark-text);
     border-radius: var(--ark-radius-sm);
     padding: 0.5rem 0.75rem;
+}
+
+.ark-header__mobile-toggle:focus-visible {
+    outline: 2px solid var(--ark-primary-dark);
+    outline-offset: 2px;
 }
 
 .ark-form-group {
@@ -162,7 +169,7 @@ button:disabled {
     position: absolute;
     top: -100px;
     left: 0;
-    background: var(--ark-primary);
+    background: var(--ark-primary-dark);
     color: #fff;
     padding: 0.5rem 1rem;
     z-index: 10000;
@@ -208,74 +215,6 @@ button:disabled {
     text-decoration: underline;
 }
 
-/* ── Header ── */
-.ark-header {
-    height: var(--ark-header-height);
-    border-bottom: 1px solid var(--ark-border);
-    background: var(--ark-surface);
-    display: flex;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    padding: 0 var(--ark-spacing-md);
-}
-
-.ark-header__inner {
-    max-width: var(--ark-max-width);
-    width: 100%;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.ark-header__brand {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--ark-text);
-    text-decoration: none;
-    letter-spacing: -0.02em;
-}
-
-.ark-header__nav {
-    display: flex;
-    gap: 0.25rem;
-    align-items: center;
-}
-
-.ark-header__nav a {
-    color: var(--ark-text-secondary);
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    padding: 0.35rem 0.75rem;
-    border-radius: var(--ark-radius-sm);
-    transition: all 0.12s;
-}
-
-.ark-header__nav a:hover {
-    color: var(--ark-primary);
-    background: var(--ark-primary-light);
-}
-
-.ark-header__nav a[aria-current="page"] {
-    color: var(--ark-primary);
-    font-weight: 600;
-}
-
-.ark-header__nav ul {
-    list-style: none;
-    display: flex;
-    gap: 0.25rem;
-    padding: 0;
-    margin: 0;
-}
-
-.ark-header__nav li {
-    display: flex;
-}
-
 /* ── Main content ── */
 .ark-content-area {
     max-width: var(--ark-max-width);
@@ -285,13 +224,80 @@ button:disabled {
     align-items: flex-start;
 }
 
+/*
+ * Page-builder precedence over the theme shell.
+ *
+ * A builder-authored page is an authoring surface, not prose: its nodes carry
+ * their own width intent, so the ARK content cap must not be the final word on
+ * how wide they can be. Without this, `.ark-content-area` caps the entire
+ * subtree at --ark-max-width (1280px by default) and a builder hero asking for
+ * full width could only ever reach 1280px, centred, with the viewport gutter
+ * left empty on both sides.
+ *
+ * The previous attempt instead told the builder "no escape needed" and set
+ * --ikb-fullbleed-width to 100% of an already-capped box, which is why a
+ * full-bleed slideshow still stopped short on any viewport wider than the cap.
+ *
+ * Behaviour:
+ *   - the shell cap is released only where a builder document is present;
+ *   - builder sections keep the ARK gutter by default;
+ *   - a section that actually contains a full-bleed node is released, and the
+ *     builder's own width intent applies edge-to-edge.
+ * No viewport units are involved, so this stays scrollbar-safe (a 100vw escape
+ * overshoots by half a scrollbar and reintroduces horizontal overflow).
+ */
+.ark-content-area:has(.cms-builder-document) {
+    max-width: none;
+}
+
+.ark-content-area:has(.cms-builder-document)>.ark-main {
+    max-width: none;
+}
+
+.cms-builder-document>.cms-builder-node--section {
+    max-width: var(--ark-max-width, 1280px);
+    margin-inline: auto;
+}
+
+.cms-builder-document>.cms-builder-node--section:has([style*="--ikb-fullbleed-width"]) {
+    max-width: none;
+}
+
 .ark-main {
     flex: 1;
     min-width: 0;
+    max-width: 100%;
+    /* Defaults for the builder's full-bleed custom properties. ARK resolves them
+     * on its own shell element; other themes inherit the legacy viewport escape.
+     * ARK needs no viewport escape because the shell cap is released above for
+     * builder documents, so 100% here means the full shell width. */
+    --ikb-fullbleed-width: 100%;
+    --ikb-fullbleed-margin-left: 0;
+    overflow-x: clip;
     padding-top: var(--ark-spacing-lg);
     padding-bottom: var(--ark-spacing-lg);
     min-height: calc(100vh - var(--ark-header-height) - 200px);
+
 }
+
+/* The overflow guard above protects ordinary content from horizontal
+ * scrollbars. Page-builder content can carry an intentional full-bleed
+ * breakout, and an ancestor clip would cut that breakout off.
+ *
+ * That guard is deliberately NOT lifted any more. The escape it used to require
+ * assumed a viewport-based breakout (`width:100vw` + `margin-left:calc(-50vw +
+ * 50%)`), which overshoots by half a scrollbar whenever the parent is already
+ * full width -- and lifting the guard let off-canvas content (carousel slide
+ * tracks in particular) contribute to document scroll width, producing a real
+ * horizontal scrollbar. `cmsBuilderApplyFullWidth()` now emits
+ * `var(--ikb-fullbleed-width)` / `var(--ikb-fullbleed-margin-left)`, and ARK
+ * resolves those above because its content region is already full width, so
+ * builder full-bleed lands exactly on the content box and needs no escape.
+ *
+ * Known boundary: a full-width node nested inside a NARROW container resolves
+ * `width:100%` against that container, so it no longer bleeds to the viewport.
+ * ARK has no constrained builder container, so this does not arise today; a
+ * theme that introduces one must supply a breakout value of its own. */
 
 .ark-main:focus {
     outline: none;
@@ -304,46 +310,40 @@ button:disabled {
 }
 
 /* ── Footer ── */
+/* ── Footer wrapper ──
+ *
+ * ARK composes its footer from governed regions ({ikb_region name="footer"}
+ * plus the footer-bar). Those regions are styled by the Customizer, which
+ * gives each one its own background, padding and separation margin.
+ *
+ * The wrapper must therefore stay spatially neutral. Giving it its own
+ * padding produced double outer spacing: 48px of dead space below the
+ * footer bar (and a matching 48px above), while the wrapper's pale
+ * --ark-surface-muted background showed as a light strip above the dark
+ * region. The regions own the footer's spacing and paint.
+ *
+ * When no customized region is present the wrapper falls back to providing
+ * the spacing itself, so a region-less footer still looks correct.
+ */
 .ark-footer {
-    border-top: 1px solid var(--ark-border);
-    padding: var(--ark-spacing-xl) var(--ark-spacing-md);
-    background: var(--ark-surface-muted);
+    border-top: 0;
+    padding: 0;
+    background: transparent;
     font-size: 0.875rem;
     color: var(--ark-text-secondary);
 }
 
-.ark-footer__inner {
-    max-width: var(--ark-max-width);
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--ark-spacing-lg);
-}
-
-.ark-footer__col h4 {
-    font-weight: 600;
-    color: var(--ark-text);
-    margin: 0 0 var(--ark-spacing-sm);
-}
-
-.ark-footer__col a {
-    display: block;
-    color: var(--ark-text-secondary);
-    text-decoration: none;
-    padding: 0.2rem 0;
-}
-
-.ark-footer__col a:hover {
-    color: var(--ark-primary);
-}
-
-.ark-footer__bottom {
-    max-width: var(--ark-max-width);
-    margin: var(--ark-spacing-md) auto 0;
-    padding-top: var(--ark-spacing-md);
+.ark-footer:not(:has(.ark-customized-region)) {
     border-top: 1px solid var(--ark-border);
-    text-align: center;
-    font-size: 0.8rem;
+    padding: var(--ark-spacing-xl) var(--ark-spacing-md);
+    background: var(--ark-surface-muted);
+}
+
+/* The footer is the last element on the page, so a "space above region"
+ * separation margin only exposes the page background as a strip between
+ * the content and the footer. The regions own the footer's outer spacing. */
+.ark-footer .ark-customized-region.ark-region-footer {
+    margin-top: 0;
 }
 
 /* ── Entity cards ── */
@@ -706,7 +706,7 @@ button:disabled {
 }
 
 .ark-detail__body h3 {
-    font-size: 1.15rem;
+    font-size: 1.125rem;
 }
 
 /* ── Footer widgets (CMS entity view shell) ── */
@@ -753,59 +753,6 @@ button:disabled {
     }
 }
 
-/* ── Header cart & user indicators ── */
-.ark-header__cart {
-    color: var(--ark-text-secondary);
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    padding: 0.35rem 0.75rem;
-    border-radius: var(--ark-radius-sm);
-    transition: all 0.12s;
-    margin-left: 0.5rem;
-    padding-left: 0.75rem;
-    border-left: 1px solid var(--ark-border);
-}
-
-.ark-header__cart:hover {
-    color: var(--ark-primary);
-}
-
-.ark-header__user {
-    font-size: 0.8rem;
-    color: var(--ark-text-secondary);
-    margin-left: 0.5rem;
-    padding-left: 0.75rem;
-    border-left: 1px solid var(--ark-border);
-}
-
-/* ── Footer social links ── */
-.ark-footer__heading {
-    font-weight: 600;
-    color: var(--ark-text);
-    margin: 0 0 var(--ark-spacing-sm);
-}
-
-.ark-footer__text {
-    margin: 0;
-    font-size: 0.8rem;
-}
-
-.ark-footer__social {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: var(--ark-spacing-sm);
-}
-
-.ark-footer__social a {
-    color: var(--ark-text-secondary);
-    text-decoration: none;
-}
-
-.ark-footer__social a:hover {
-    color: var(--ark-primary);
-}
-
 /* ── Utility ── */
 .ark-empty {
     text-align: center;
@@ -830,10 +777,6 @@ button:disabled {
 }
 
 @media (max-width: 768px) {
-    .ark-footer__inner {
-        grid-template-columns: 1fr;
-    }
-
     .ark-card-grid {
         grid-template-columns: 1fr;
     }
@@ -880,7 +823,6 @@ button:disabled {
     }
 
     .ark-header,
-    .ark-header__nav,
     .ark-sidebar-region,
     .ark-footer {
         display: none !important;
@@ -903,6 +845,7 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -914,6 +857,7 @@ button:disabled {
 }
 
 @media (forced-colors: active) {
+
     .ark-button,
     .ark-panel,
     .ark-input,
@@ -939,7 +883,7 @@ button:disabled {
 }
 
 .ark-panel--elevated {
-    box-shadow: var(--shadow-md, 0 4px 6px rgba(0,0,0,0.07));
+    box-shadow: var(--shadow-md, 0 4px 6px rgba(0, 0, 0, 0.07));
 }
 
 .ark-panel--primary {
@@ -992,4 +936,1450 @@ button:disabled {
 
 .ark-panel--radius-full {
     border-radius: 9999px;
+}
+
+/* ── Governed region templates ────────────────────────────────────────────
+   templates/regions/{header,footer,sidebar}.disyl render through
+   ThemeCustomizerOrchestrator::renderRegion() and emit their own class
+   namespace (ark-region-*) so a region stays self-describing when it is
+   rendered on its own. These rules give that namespace the same presentation
+   as the ark-header/ark-footer partials, whose class names it deliberately
+   does not reuse — without them the region chrome renders unstyled. */
+
+/* Header region */
+.ark-region-header__inner {
+    display: flex;
+    align-items: center;
+    gap: var(--ark-spacing-md);
+}
+
+.ark-region-header__brand {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.ark-region-header__site-link {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    color: inherit;
+    text-decoration: none;
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.ark-region-header__logo {
+    display: block;
+    height: auto;
+}
+
+.ark-region-header__tagline {
+    font-size: 0.8125rem;
+    opacity: 0.75;
+}
+
+.ark-region-header__nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.ark-region-header__nav-links {
+    display: flex;
+    align-items: center;
+}
+
+/* The CMS menu walker emits <nav class="cms-nav"><ul class="cms-menu">.
+   Lay that out horizontally, since a bare ul renders as a vertical list. */
+.ark-region-header__nav-links .cms-nav {
+    display: block;
+}
+
+.ark-region-header__nav-links .cms-menu {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ark-region-header__nav-links .cms-menu>li {
+    position: relative;
+}
+
+.ark-region-header__nav-links .cms-menu a {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--ark-radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.ark-region-header__nav-links .cms-menu a:hover {
+    background: var(--ark-surface-muted);
+}
+
+.ark-region-header__nav-links .cms-menu a[aria-current="page"] {
+    color: var(--ark-primary);
+    background: var(--ark-primary-light);
+    font-weight: 600;
+}
+
+.ark-region-header__nav-links .cms-submenu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 50;
+    display: none;
+    min-width: 12rem;
+    margin: 0;
+    padding: 0.25rem;
+    list-style: none;
+    background: var(--ark-surface);
+    border: 1px solid var(--ark-border);
+    border-radius: var(--ark-radius-md);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+}
+
+.ark-region-header__nav-links .cms-menu>li:hover>.cms-submenu {
+    display: block;
+}
+
+.ark-region-header__nav-links .cms-submenu a {
+    display: block;
+}
+
+.ark-region-header__search {
+    padding: 0.4rem;
+    background: none;
+    border: 0;
+    border-radius: var(--ark-radius-sm);
+    line-height: 0;
+    cursor: pointer;
+}
+
+.ark-region-header__cta {
+    display: inline-block;
+    padding: 0.45rem 0.95rem;
+    border-radius: var(--ark-radius-sm);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+@media (max-width: 768px) {
+    .ark-region-header__nav {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .ark-region-header__nav-links {
+        width: 100%;
+    }
+
+    .ark-region-header__nav-links .cms-menu {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+/* Footer region */
+.ark-region-footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ark-spacing-md);
+    max-width: var(--ark-max-width);
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+}
+
+.ark-region-footer__nav .cms-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ark-region-footer__nav .cms-menu a {
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.ark-region-footer__copy,
+.ark-region-footer__admin a {
+    font-size: 0.875rem;
+}
+
+.ark-region-footer-bar__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ark-spacing-md);
+    max-width: var(--ark-max-width);
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.ark-region-footer-bar__inner a,
+.ark-detail a[href^="javascript:history.back"],
+.ikb-row-action,
+.ark-pagination>a {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+}
+
+.ark-detail a[href^="javascript:history.back"] {
+    --color-primary: var(--color-primary-dark, #4f46e5);
+}
+
+/* Sidebar region */
+.ark-region-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ark-spacing-md);
+}
+
+/* An empty sidebar region must not reserve layout width. */
+.ark-sidebar-region:not(:has(.ark-region-sidebar__widget)):not(:has(.cms-sidebar-wrap)) {
+    display: none;
+}
+
+/* Storefront semantic colours replace palette utilities and bind module chrome
+   to ARK's accessible design tokens. Status hues are WCAG AA on white. */
+.ark-commerce-link {
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+a.ark-commerce-link,
+.ecommerce-public .cms-public-main aside a {
+    min-height: 40px;
+}
+
+a.ark-commerce-link {
+    display: inline-flex;
+    align-items: center;
+}
+
+.ecommerce-public .cms-public-main aside a {
+    display: flex;
+    align-items: center;
+}
+
+.ark-commerce-action {
+    background-color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-commerce-control {
+    accent-color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-commerce-muted {
+    color: var(--color-text-secondary, #475569);
+}
+
+.ark-commerce-accent {
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-commerce-success {
+    color: #047857;
+}
+
+.ark-commerce-warning {
+    color: #92400e;
+}
+
+.ark-commerce-danger {
+    color: #b91c1c;
+}
+
+/* ── ARK default component system ─────────────────────────────────────── */
+.ark-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0.625rem 1.25rem;
+    border: 1px solid var(--color-primary-dark, #4f46e5);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-primary-dark, #4f46e5);
+    color: var(--color-surface, #ffffff);
+    font-family: var(--font-family, Inter, system-ui, sans-serif);
+    font-size: var(--font-size-base, 16px);
+    font-weight: 600;
+    line-height: 1.25;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ark-btn--primary {
+    background: var(--color-primary-dark, #4f46e5);
+    border-color: var(--color-primary-dark, #4f46e5);
+    color: var(--color-surface, #ffffff);
+}
+
+.ark-btn--secondary {
+    background: var(--color-text, #0f172a);
+    border-color: var(--color-text, #0f172a);
+    color: var(--color-surface, #ffffff);
+}
+
+.ark-btn--outline {
+    background: var(--color-surface, #ffffff);
+    border-color: var(--color-primary-dark, #4f46e5);
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-btn--ghost {
+    background: var(--color-surface-muted, #f8fafc);
+    border-color: var(--color-border, #e2e8f0);
+    color: var(--color-text, #0f172a);
+}
+
+.ark-btn:hover {
+    background: var(--color-text, #0f172a);
+    border-color: var(--color-text, #0f172a);
+    color: var(--color-surface, #ffffff);
+}
+
+.ark-btn--outline:hover,
+.ark-btn--ghost:hover {
+    background: var(--color-primary-dark, #4f46e5);
+    border-color: var(--color-primary-dark, #4f46e5);
+    color: var(--color-surface, #ffffff);
+}
+
+.ark-btn:focus-visible {
+    outline: 2px solid var(--color-primary-dark, #4f46e5);
+    outline-offset: 3px;
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.ark-btn:disabled,
+.ark-btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.ark-btn--sm {
+    min-height: 36px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.ark-btn--md {
+    padding: 0.625rem 1.25rem;
+}
+
+.ark-btn--lg {
+    min-height: 52px;
+    padding: 0.875rem 1.75rem;
+    font-size: 1.125rem;
+}
+
+.ark-btn__icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+}
+
+.ark-btn__label {
+    display: inline-block;
+}
+
+.ark-content a.ark-btn,
+.ark-content a.ark-btn:hover {
+    color: var(--color-surface, #ffffff);
+    text-decoration: none;
+}
+
+.ark-content a.ark-btn--outline {
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-content a.ark-btn--outline:hover {
+    color: var(--color-surface, #ffffff);
+}
+
+.ark-action-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm, 0.75rem);
+    margin: var(--spacing-md, 1.25rem) 0;
+}
+
+.ark-action-group--centered,
+.ark-action-group--landing {
+    justify-content: center;
+}
+
+.ark-action-group--compact {
+    gap: 0.5rem;
+    margin: var(--spacing-sm, 0.75rem) 0;
+}
+
+.ark-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-lg, 1rem);
+    background: var(--color-surface-muted, #f8fafc);
+    color: var(--color-text, #0f172a);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.ark-badge--default,
+.ark-badge--gray {
+    background: var(--color-surface-muted, #f8fafc);
+    color: var(--color-text-secondary, #475569);
+}
+
+.ark-badge--primary,
+.ark-badge--certificate {
+    background: var(--color-primary-light, #eef2ff);
+    border-color: var(--color-primary, #6366f1);
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-badge--success {
+    background: var(--color-surface-muted, #f8fafc);
+    border-color: var(--color-primary-dark, #4f46e5);
+    color: var(--color-text, #0f172a);
+}
+
+.ark-badge--warning {
+    background: var(--color-primary-light, #eef2ff);
+    border-color: var(--color-text-secondary, #475569);
+    color: var(--color-text, #0f172a);
+}
+
+.ark-badge--danger {
+    background: var(--color-text, #0f172a);
+    border-color: var(--color-text, #0f172a);
+    color: var(--color-surface, #ffffff);
+}
+
+.ark-breadcrumbs {
+    margin-bottom: var(--spacing-md, 1.25rem);
+    color: var(--color-text-secondary, #475569);
+    font-size: 0.875rem;
+}
+
+.ark-breadcrumbs__list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ark-breadcrumbs__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.ark-breadcrumbs__item:not(:last-child)::after {
+    content: "/";
+    color: var(--color-text-muted, #94a3b8);
+}
+
+.ark-breadcrumbs__link {
+    color: var(--color-primary-dark, #4f46e5);
+    text-decoration: none;
+}
+
+.ark-breadcrumbs__link:hover {
+    text-decoration: underline;
+}
+
+.ark-breadcrumbs__current {
+    color: var(--color-text, #0f172a);
+    font-weight: 600;
+}
+
+.ark-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: var(--spacing-md, 1.25rem) 0;
+}
+
+.ark-pagination__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.ark-pagination__link,
+.ark-pagination__prev,
+.ark-pagination__next {
+    display: inline-flex;
+    min-width: 42px;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-sm, 0.375rem);
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text, #0f172a);
+    text-decoration: none;
+}
+
+.ark-pagination__link:hover,
+.ark-pagination__prev:hover,
+.ark-pagination__next:hover {
+    border-color: var(--color-primary-dark, #4f46e5);
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-pagination__link--disabled,
+.ark-pagination [aria-disabled="true"] {
+    color: var(--color-text-muted, #94a3b8);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.ark-pagination__info,
+.ark-pagination__status {
+    color: var(--color-text-secondary, #475569);
+    font-size: 0.875rem;
+}
+
+.ark-not-found {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: var(--spacing-xl, 3rem) var(--spacing-md, 1.25rem);
+    text-align: center;
+}
+
+.ark-not-found__code {
+    margin: 0;
+    color: var(--color-primary-dark, #4f46e5);
+    font-size: clamp(4rem, 14vw, 8rem);
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ark-not-found__title {
+    margin: var(--spacing-sm, 0.75rem) 0;
+    color: var(--color-text, #0f172a);
+    font-size: 2rem;
+}
+
+.ark-not-found__body {
+    color: var(--color-text-secondary, #475569);
+}
+
+.ark-not-found__search {
+    max-width: 36rem;
+    margin: var(--spacing-lg, 2rem) auto;
+}
+
+.ark-search-form {
+    width: 100%;
+}
+
+.ark-search-form__inner {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.35rem;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface, #ffffff);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.ark-search-form__input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.55rem 0.75rem;
+    border: 0;
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text, #0f172a);
+    font: inherit;
+}
+
+.ark-search-form__submit {
+    min-height: 44px;
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--color-primary-dark, #4f46e5);
+    border-radius: var(--radius-sm, 0.375rem);
+    background: var(--color-primary-dark, #4f46e5);
+    color: var(--color-surface, #ffffff);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ark-page-header,
+.ark-page-intro {
+    margin-bottom: var(--spacing-lg, 2rem);
+    padding-bottom: var(--spacing-md, 1.25rem);
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.ark-page-intro__description,
+.ark-page-intro__result {
+    max-width: 70ch;
+    margin: 0.5rem 0 0;
+    color: var(--color-text-secondary, #475569);
+}
+
+.ark-page-section-title {
+    margin: var(--spacing-lg, 2rem) 0 var(--spacing-sm, 0.75rem);
+    color: var(--color-text, #0f172a);
+    font-size: 1.35rem;
+}
+
+.ark-page-title--hero {
+    font-size: clamp(2.25rem, 6vw, 4rem);
+    line-height: 1.1;
+}
+
+.ark-hero-block {
+    padding: var(--spacing-xl, 3rem) var(--spacing-lg, 2rem);
+    border-radius: var(--radius-lg, 1rem);
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-hero-block--centered {
+    text-align: center;
+}
+
+.ark-hero-block__title {
+    margin: 0;
+    color: var(--color-text, #0f172a);
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    line-height: 1.1;
+}
+
+.ark-hero-block__subtitle {
+    margin: var(--spacing-sm, 0.75rem) 0 0;
+    color: var(--color-text-secondary, #475569);
+    font-size: 1.125rem;
+}
+
+.ark-card--batch,
+.ark-card--prescription {
+    padding: var(--spacing-md, 1.25rem);
+}
+
+.ark-card--featured-pricing {
+    border-color: var(--color-primary-dark, #4f46e5);
+    box-shadow: var(--shadow-lg, 0 10px 15px rgba(0, 0, 0, 0.1));
+}
+
+.ark-card__badge {
+    display: inline-flex;
+    margin-bottom: var(--spacing-sm, 0.75rem);
+}
+
+.ark-card__badge--link {
+    color: var(--color-primary-dark, #4f46e5);
+    text-decoration: none;
+}
+
+.ark-card__badge--stacked {
+    display: flex;
+    width: max-content;
+}
+
+.ark-card__excerpt {
+    color: var(--color-text-secondary, #475569);
+    line-height: 1.6;
+}
+
+.ark-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-sm, 0.75rem);
+    padding: var(--spacing-md, 1.25rem);
+}
+
+.ark-card__image-link {
+    display: block;
+    overflow: hidden;
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-card__link {
+    color: var(--color-text, #0f172a);
+    text-decoration: none;
+}
+
+.ark-card__link:hover {
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-card__price--tight {
+    margin: 0;
+}
+
+.ark-card__title--compact {
+    margin-bottom: 0.2rem;
+    font-size: 1rem;
+}
+
+.ark-progress,
+.ark-progress-card,
+.ark-progress-detail {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.ark-progress-card,
+.ark-progress-detail {
+    padding: var(--spacing-md, 1.25rem);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface, #ffffff);
+}
+
+.ark-progress-track,
+.ark-progress__track {
+    width: 100%;
+    height: 0.65rem;
+    overflow: hidden;
+    border-radius: var(--radius-lg, 1rem);
+    background: var(--color-border, #e2e8f0);
+}
+
+.ark-progress-fill,
+.ark-progress__fill {
+    display: block;
+    height: 100%;
+    min-width: 0.25rem;
+    border-radius: inherit;
+    background: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-progress-fill--overlay {
+    position: absolute;
+    inset: auto 0 0;
+    border-radius: 0;
+}
+
+.ark-progress-fill--square {
+    border-radius: 0;
+}
+
+.ark-progress-dot {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-progress-label,
+.ark-progress__label,
+.ark-progress-inline__label {
+    color: var(--color-text-secondary, #475569);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.ark-progress-value,
+.ark-progress__percent {
+    color: var(--color-text, #0f172a);
+    font-weight: 700;
+}
+
+.ark-progress-row,
+.ark-progress-inline {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 0.75rem);
+}
+
+.ark-progress-row--compact,
+.ark-progress-row--tight {
+    gap: 0.4rem;
+}
+
+.ark-progress-overlay {
+    position: relative;
+    overflow: hidden;
+}
+
+.ark-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 0.75rem);
+}
+
+.ark-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text, #0f172a);
+}
+
+.ark-table__head,
+.ark-table__row--head {
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-table__head,
+.ark-table__cell {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.ark-table__head--strong {
+    color: var(--color-text, #0f172a);
+    font-weight: 700;
+}
+
+.ark-table__head--actions,
+.ark-table__cell--actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.ark-table--compact .ark-table__head,
+.ark-table--compact .ark-table__cell,
+.ark-table__cell--compact {
+    padding: 0.45rem 0.65rem;
+}
+
+.ark-table__row--body:hover {
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-table__action-link,
+.ark-table__link {
+    color: var(--color-primary-dark, #4f46e5);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ark-table__thumb {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-sm, 0.375rem);
+    object-fit: cover;
+}
+
+.ark-table-view__title {
+    margin: 0 0 var(--spacing-sm, 0.75rem);
+    font-size: 1.25rem;
+}
+
+.ark-table-view__empty {
+    padding: var(--spacing-xl, 3rem);
+    color: var(--color-text-secondary, #475569);
+    text-align: center;
+}
+
+.ark-form {
+    display: grid;
+    gap: var(--spacing-md, 1.25rem);
+}
+
+.ark-form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-md, 1.25rem);
+}
+
+.ark-form-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--color-text, #0f172a);
+    font-weight: 600;
+}
+
+.ark-form-group--checkbox,
+.ark-form-checkbox__label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ark-form-checkbox__label {
+    color: var(--color-text, #0f172a);
+    cursor: pointer;
+}
+
+.ark-filter-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ark-filter-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: var(--spacing-sm, 0.75rem);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-filter-summary__pill {
+    display: inline-flex;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-lg, 1rem);
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text, #0f172a);
+}
+
+.ark-filter-summary__clear {
+    color: var(--color-primary-dark, #4f46e5);
+    font-weight: 600;
+}
+
+.ark-divider {
+    height: 0;
+    margin: var(--spacing-lg, 2rem) 0;
+    border: 0;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+.ark-divider--solid {
+    border-top-style: solid;
+}
+
+.ark-divider--dashed {
+    border-top-style: dashed;
+}
+
+.ark-divider--dotted {
+    border-top-style: dotted;
+}
+
+.ark-divider--thin {
+    border-top-width: 1px;
+}
+
+.ark-divider--medium {
+    border-top-width: 2px;
+}
+
+.ark-divider--thick {
+    border-top-width: 4px;
+}
+
+.ark-accordion {
+    overflow: hidden;
+    padding: var(--spacing-sm, 0.75rem);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface, #ffffff);
+}
+
+.ark-accordion--single,
+.ark-accordion--multiple {
+    padding: var(--spacing-sm, 0.75rem);
+}
+
+.ark-chart {
+    min-height: 18rem;
+    padding: var(--spacing-md, 1.25rem);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface, #ffffff);
+}
+
+.ark-chart--line,
+.ark-chart--bar,
+.ark-chart--pie,
+.ark-chart--doughnut,
+.ark-chart--area,
+.ark-chart--standard {
+    background: var(--color-surface, #ffffff);
+}
+
+.ark-chart--compact {
+    min-height: 12rem;
+}
+
+.ark-chart--tall {
+    min-height: 26rem;
+}
+
+.ark-media-gallery {
+    display: grid;
+    gap: var(--spacing-sm, 0.75rem);
+}
+
+.ark-media-gallery__featured {
+    overflow: hidden;
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-media-gallery__thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4rem, 1fr));
+    gap: 0.5rem;
+}
+
+.ark-media-gallery__thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-sm, 0.375rem);
+    background: var(--color-surface, #ffffff);
+    cursor: pointer;
+}
+
+.ark-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: var(--spacing-md, 1.25rem);
+}
+
+.ark-media-grid__figure {
+    margin: 0;
+    overflow: hidden;
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-simple-list,
+.ark-compact-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ark-simple-list--spaced {
+    display: grid;
+    gap: var(--spacing-sm, 0.75rem);
+}
+
+.ark-simple-list__item {
+    padding: var(--spacing-sm, 0.75rem) 0;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.ark-simple-list--compact .ark-simple-list__item {
+    padding: 0.4rem 0;
+}
+
+.ark-simple-list__item--card {
+    padding: var(--spacing-md, 1.25rem);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface, #ffffff);
+}
+
+.ark-simple-list__meta {
+    color: var(--color-text-secondary, #475569);
+    font-size: 0.875rem;
+}
+
+.ark-compact-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.ark-compact-list__item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 0.75rem);
+    padding: var(--spacing-sm, 0.75rem);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-sm, 0.375rem);
+    background: var(--color-surface, #ffffff);
+}
+
+.ark-compact-list__aside {
+    flex: 0 0 auto;
+}
+
+.ark-compact-list__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ark-compact-list__empty {
+    padding: var(--spacing-lg, 2rem);
+    color: var(--color-text-secondary, #475569);
+    text-align: center;
+}
+
+.ark-compact-list__excerpt {
+    color: var(--color-text-secondary, #475569);
+    font-size: 0.875rem;
+}
+
+.ark-compact-list__image {
+    width: 4rem;
+    height: 4rem;
+    border-radius: var(--radius-sm, 0.375rem);
+    object-fit: cover;
+}
+
+.ark-compact-list__link {
+    color: var(--color-text, #0f172a);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ark-compact-list__price {
+    color: var(--color-primary-dark, #4f46e5);
+    font-weight: 700;
+}
+
+.ark-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.ark-split--column,
+.ark-split--reverse-column {
+    grid-template-columns: 1fr;
+}
+
+.ark-split--row {
+    grid-auto-flow: row;
+}
+
+.ark-split--reverse-row {
+    direction: rtl;
+}
+
+.ark-split--reverse-row>* {
+    direction: ltr;
+}
+
+.ark-split--ratio-1\:1 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.ark-split--ratio-1\:2 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.ark-split--ratio-2\:1 {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.ark-split__panel {
+    min-width: 0;
+    padding: var(--spacing-lg, 2rem);
+}
+
+.ark-split__panel--a {
+    background: var(--color-surface, #ffffff);
+}
+
+.ark-split__panel--b {
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-sidebar {
+    display: grid;
+    gap: var(--spacing-md, 1.25rem);
+    padding: var(--spacing-md, 1.25rem);
+    border-radius: var(--radius-md, 0.75rem);
+}
+
+.ark-sidebar--primary {
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.ark-sidebar--secondary {
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm, 0.75rem);
+    margin-bottom: var(--spacing-md, 1.25rem);
+}
+
+.ark-list-toolbar--centered {
+    justify-content: center;
+}
+
+.ark-list-toolbar__grow {
+    flex: 1;
+}
+
+.ark-cart-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm, 0.75rem);
+    padding: var(--spacing-md, 1.25rem);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-cart-summary__count {
+    color: var(--color-text-secondary, #475569);
+}
+
+.ark-cart-summary__subtotal {
+    color: var(--color-text, #0f172a);
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.ark-post-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--spacing-md, 1.25rem);
+    margin-top: var(--spacing-xl, 3rem);
+    padding-top: var(--spacing-md, 1.25rem);
+    border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+.ark-post-nav__link {
+    color: var(--color-primary-dark, #4f46e5);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ark-post-nav__link--next {
+    margin-left: auto;
+    text-align: right;
+}
+
+.ark-stock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-lg, 1rem);
+    background: var(--color-surface-muted, #f8fafc);
+    color: var(--color-text, #0f172a);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.ark-stock-badge--card {
+    margin-top: var(--spacing-sm, 0.75rem);
+}
+
+.ark-stock-card-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ark-stock-dot {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-stock-dot--danger {
+    background: var(--color-text, #0f172a);
+}
+
+.ark-stock-dot--sm {
+    width: 0.5rem;
+    height: 0.5rem;
+}
+
+.ark-product-detail {
+    padding: var(--spacing-lg, 2rem) 0;
+}
+
+.ark-product-detail__actions,
+.ark-product-detail__cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm, 0.75rem);
+    margin-top: var(--spacing-md, 1.25rem);
+}
+
+.ark-product-detail__categories {
+    color: var(--color-text-secondary, #475569);
+    font-size: 0.875rem;
+}
+
+.ark-product-detail__description {
+    margin-top: var(--spacing-lg, 2rem);
+    line-height: 1.75;
+}
+
+.ark-product-detail__excerpt {
+    color: var(--color-text-secondary, #475569);
+    font-size: 1.05rem;
+    line-height: 1.65;
+}
+
+.ark-pricing-amount {
+    color: var(--color-text, #0f172a);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.ark-pricing-amount--card,
+.ark-pricing-amount--compact {
+    font-size: 1.5rem;
+}
+
+.ark-pricing-amount--featured-card,
+.ark-pricing-amount--featured-fallback {
+    color: var(--color-primary-dark, #4f46e5);
+}
+
+.ark-pricing-amount--lg {
+    font-size: 2.75rem;
+}
+
+.ark-pricing-cta__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.625rem 1.25rem;
+    border: 1px solid var(--color-primary-dark, #4f46e5);
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-primary-dark, #4f46e5);
+    color: var(--color-surface, #ffffff);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ark-pricing-cta__button--card {
+    width: 100%;
+}
+
+.ark-detail__image {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-md, 0.75rem);
+    object-fit: cover;
+}
+
+.ark-detail__image--featured {
+    max-height: 32rem;
+}
+
+.ark-detail__image--hero {
+    max-height: 42rem;
+}
+
+.ark-gallery__main {
+    overflow: hidden;
+    border-radius: var(--radius-md, 0.75rem);
+    background: var(--color-surface-muted, #f8fafc);
+}
+
+.ark-gallery__main-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+.ark-ledger-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--spacing-md, 1.25rem);
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.ark-ledger-row__label {
+    color: var(--color-text-secondary, #475569);
+}
+
+.ark-ledger-row__value {
+    color: var(--color-text, #0f172a);
+    font-weight: 600;
+    text-align: right;
+}
+
+/* Rich-content defaults complement the existing heading, link and list rules. */
+.ark-content figure {
+    margin: var(--spacing-lg, 2rem) auto;
+}
+
+.ark-content figcaption {
+    margin-top: 0.4rem;
+    color: var(--color-text-secondary, #475569);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.ark-content table {
+    width: 100%;
+    margin: var(--spacing-md, 1.25rem) 0;
+    border-collapse: collapse;
+}
+
+.ark-content th,
+.ark-content td {
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--color-border, #e2e8f0);
+    text-align: left;
+}
+
+.ark-content th {
+    background: var(--color-surface-muted, #f8fafc);
+    color: var(--color-text, #0f172a);
+    font-weight: 700;
+}
+
+@media (max-width: 768px) {
+
+    .ark-form-row,
+    .ark-split,
+    .ark-split--ratio-1\:2,
+    .ark-split--ratio-2\:1 {
+        grid-template-columns: 1fr;
+    }
+
+    .ark-split__panel {
+        padding: var(--spacing-md, 1.25rem);
+    }
+
+    .ark-search-form__inner {
+        flex-direction: column;
+    }
 }

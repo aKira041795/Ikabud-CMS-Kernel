@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-4xl mx-auto py-10 px-4">
@@ -6,9 +6,9 @@
     <p class="text-sm text-gray-500 mb-8">Browse products from individual stores.</p>
 
     {if stores | count == 0}
-    <div class="text-center py-20 text-gray-400">
+    <div class="text-center py-20 ark-commerce-muted">
         <p class="text-lg">No stores available at this time.</p>
-        <a href="{base_url}/ecommerce/shop" class="text-orange-600 text-sm mt-2 inline-block">Browse all products →</a>
+        <a href="{base_url}/ecommerce/shop" class="ark-commerce-link text-sm mt-2 inline-block">Browse all products →</a>
     </div>
     {else}
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -20,14 +20,14 @@
                         <span class="text-orange-700 font-bold text-lg">{store.name | substr:0:1 | escape | upper}</span>
                     </div>
                     <div>
-                        <h2 class="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">{store.name | escape}</h2>
-                        {if store.code}<span class="text-xs text-slate-400 font-mono">{store.code | escape}</span>{/if}
+                        <h2 class="font-semibold ark-commerce-accent transition-colors">{store.name | escape}</h2>
+                        {if store.code}<span class="text-xs ark-commerce-muted font-mono">{store.code | escape}</span>{/if}
                     </div>
                 </div>
                 {if store.description}
                 <p class="text-sm text-gray-500 line-clamp-2">{store.description | escape}</p>
                 {/if}
-                <div class="mt-4 text-xs font-medium text-orange-600 group-hover:underline">Browse store →</div>
+                <div class="mt-4 text-xs font-medium ark-commerce-accent group-hover:underline">Browse store →</div>
             </div>
         </a>
         {/foreach}

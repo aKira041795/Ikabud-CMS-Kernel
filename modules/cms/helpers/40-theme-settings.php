@@ -722,8 +722,19 @@ function cmsResolveThemeTemplateAliasPath(string $template): string
     }
 
     $activePath = cmsThemeTemplatePathForSlug(cmsActiveTheme(), $relativePath);
-    if ($activePath !== '') {
+    if ($activePath !== '' && is_file($activePath)) {
         return $activePath;
+    }
+
+    // A theme may override a module template under modules/<id>/..., while the
+    // module template remains the origin for every theme without an override.
+    // This keeps module layouts out of theme-relative fallback paths.
+    if (str_starts_with($relativePath, 'modules/')) {
+        $moduleOrigin = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3))
+            . '/templates/' . $relativePath;
+        if (is_file($moduleOrigin)) {
+            return $moduleOrigin;
+        }
     }
 
     return (string)CMS_THEME_SYMLINK . '/' . $relativePath;
@@ -1212,7 +1223,26 @@ function cmsPublicRenderNotFound(array $context = []): string
         'not_found_search_action' => $baseUrl . '/cms/search',
     ];
 
-    return cmsPublicRender('public/404.disyl', array_merge($defaults, $context));
+    // A theme's 404 is authored against the theme layout
+    // (`{extends "_cms_active_theme/layouts/public.disyl"}`), so it is only
+    // renderable if the theme layout's context is present — most importantly
+    // `theme_style_url`. Rendering with defaults alone omits the theme
+    // stylesheet and leaves every `ark-*` class unstyled. Supplying the public
+    // context here (rather than at each of the ~20 `cmsPublicRenderNotFound()`
+    // call sites) makes a themed 404 styled by construction.
+    $publicContext = [];
+    if (function_exists('cmsPublicContext')) {
+        try {
+            $publicContext = cmsPublicContext();
+        } catch (\Throwable $e) {
+            // Non-fatal: fall back to defaults so a broken context cannot turn
+            // a 404 into a 500. An unstyled 404 beats no 404.
+            $publicContext = [];
+        }
+    }
+
+    // Precedence: public context < 404 defaults < caller overrides.
+    return cmsPublicRender('public/404.disyl', array_merge($publicContext, $defaults, $context));
 }
 
 /**
@@ -1229,15 +1259,24 @@ function cmsThemeAssetUrl(string $assetPath, string $baseUrl = ''): string
     $basePath = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/');
     $active = cmsActiveTheme() ?? 'native-default';
 
+    // Theme assets are served from a stable path, so a published change is
+    // otherwise invisible to any browser that already cached the file — the
+    // theme keeps rendering the previous stylesheet until the cache expires.
+    // Version by mtime so a republish is picked up immediately.
+    $version = static function (string $file): string {
+        $mtime = @filemtime($file);
+        return $mtime !== false ? '?v=' . $mtime : '';
+    };
+
     $activePublicFile = $basePath . '/public/assets/cms/themes/' . $active . '/' . $assetPath;
     if (is_file($activePublicFile)) {
-        return rtrim($baseUrl, '/') . '/assets/cms/themes/' . rawurlencode($active) . '/' . str_replace('%2F', '/', rawurlencode($assetPath));
+        return rtrim($baseUrl, '/') . '/assets/cms/themes/' . rawurlencode($active) . '/' . str_replace('%2F', '/', rawurlencode($assetPath)) . $version($activePublicFile);
     }
 
     $fallback = 'native-default';
     $fallbackPublicFile = $basePath . '/public/assets/cms/themes/' . $fallback . '/' . $assetPath;
     if (is_file($fallbackPublicFile)) {
-        return rtrim($baseUrl, '/') . '/assets/cms/themes/' . rawurlencode($fallback) . '/' . str_replace('%2F', '/', rawurlencode($assetPath));
+        return rtrim($baseUrl, '/') . '/assets/cms/themes/' . rawurlencode($fallback) . '/' . str_replace('%2F', '/', rawurlencode($assetPath)) . $version($fallbackPublicFile);
     }
 
     return '';

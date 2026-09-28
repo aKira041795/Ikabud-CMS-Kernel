@@ -712,10 +712,11 @@ const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; childre
       padding: 'var(--cms-builder-section-padding, 48px 24px)',
       // User styles override defaults
       ...style,
-      // fullWidth: bleed edge-to-edge past any constraining ancestor
+      // fullWidth: bleed edge-to-edge past any constraining ancestor.
+      // Theme-overridable custom properties mirror cmsBuilderApplyFullWidth().
       ...(node.props.fullWidth === true ? {
-        width: '100vw',
-        marginLeft: 'calc(-50vw + 50%)',
+        width: 'var(--ikb-fullbleed-width, 100vw)',
+        marginLeft: 'var(--ikb-fullbleed-margin-left, calc(-50vw + 50%))',
         alignSelf: 'flex-start',
       } : {}),
     }}>
@@ -1819,8 +1820,8 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
           ...style,
           // fullWidth overrides MUST come after ...style spread so the `margin`
           // shorthand in defaultStyle ('0 auto') cannot clobber marginLeft.
-          width: fullWidth ? '100vw' : (style.width || '100%'),
-          marginLeft: fullWidth ? 'calc(-50vw + 50%)' : (style.marginLeft ?? '0'),
+          width: fullWidth ? 'var(--ikb-fullbleed-width, 100vw)' : (style.width || '100%'),
+          marginLeft: fullWidth ? 'var(--ikb-fullbleed-margin-left, calc(-50vw + 50%))' : (style.marginLeft ?? '0'),
           marginRight: fullWidth ? undefined : style.marginRight,
           alignSelf: fullWidth ? 'flex-start' : style.alignSelf,
         }}
@@ -4829,8 +4830,8 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     // Mirrors cmsBuilderApplyFullWidth() in builder-renderers.php.
     // Applied after all other width/margin props so it wins the override order.
     ...(node.props.fullWidth === true && ['image', 'video', 'gallery', 'map'].includes(node.type) ? {
-      width: '100vw',
-      marginLeft: 'calc(-50vw + 50%)',
+      width: 'var(--ikb-fullbleed-width, 100vw)',
+      marginLeft: 'var(--ikb-fullbleed-margin-left, calc(-50vw + 50%))',
       alignSelf: 'flex-start',
       overflow: 'hidden',
     } : {}),

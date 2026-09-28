@@ -55,7 +55,7 @@
     {/if}
 
     {# Entity list — governed component resolves data #}
-    {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="{posts_per_page|default:12}" /}
+    {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="{posts_per_page|default:12}" page="{pagination.current|default:1}" /}
 
     {# Pagination partial #}
     {include "partials/pagination.disyl"}

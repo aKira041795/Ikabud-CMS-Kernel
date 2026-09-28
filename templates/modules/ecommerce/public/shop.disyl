@@ -1,11 +1,11 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 {!-- Expose available entity fields for frontend features --}
 <div data-ikb-entity-fields-product="{keyof ecommerce_product}" data-ikb-entity-fields-order="{keyof ecommerce_order}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 {include "modules/ecommerce/public/partials/storefront-chrome.disyl"}
 <div
-    class="flex gap-8"
+    class="flex flex-col gap-8 md:flex-row"
     data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'shop_index'}"
     data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
     data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
@@ -14,11 +14,11 @@
     <!-- Sidebar: categories -->
     {if storefront.navigation.categories | count > 0}
     <aside class="w-44 shrink-0 hidden md:block">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Categories</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider ark-commerce-muted mb-3">Categories</h3>
         <nav class="space-y-1">
-            <a href="{if store_filter > 0}{base_url}/ecommerce/shop?store={store_filter}{elseif storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if storefront.filters.category_id|default:category_id == 0}font-semibold text-orange-600{else}text-gray-700{/if}">All Products</a>
+            <a href="{if store_filter > 0}{base_url}/ecommerce/shop?store={store_filter}{elseif storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if storefront.filters.category_id|default:category_id == 0}font-semibold ark-commerce-link{else}text-gray-700{/if}">All Products</a>
             {foreach storefront.navigation.categories as cat}
-            <a href="{if store_filter > 0}{base_url}/ecommerce/shop/category/{cat.slug}?store={store_filter}{elseif cat.url}{cat.url}{else}{base_url}/ecommerce/shop/category/{cat.slug}{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if cat.is_active or storefront.filters.category_id|default:category_id == cat.id}font-semibold text-orange-600{else}text-gray-700{/if}">{cat.name}</a>
+            <a href="{if store_filter > 0}{base_url}/ecommerce/shop/category/{cat.slug}?store={store_filter}{elseif cat.url}{cat.url}{else}{base_url}/ecommerce/shop/category/{cat.slug}{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if cat.is_active or storefront.filters.category_id|default:category_id == cat.id}font-semibold ark-commerce-link{else}text-gray-700{/if}">{cat.name}</a>
             {/foreach}
         </nav>
 
@@ -27,7 +27,7 @@
             {if storefront.filters.search}<input type="hidden" name="search" value="{storefront.filters.search}">{/if}
             {if store_filter > 0}<input type="hidden" name="store" value="{store_filter}">{/if}
             <div>
-                <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Filter</h3>
+                <h3 class="text-xs font-semibold uppercase tracking-wider ark-commerce-muted mb-3">Filter</h3>
                 <div class="space-y-4">
                     {foreach storefront.filters.attribute_facets as facet}
                     <div>
@@ -39,7 +39,7 @@
                                     <input type="checkbox" name="attr[{facet.attribute_slug}][]" value="{value.value_slug}" class="rounded border-gray-300" {if value.is_selected}checked{/if}>
                                     <span>{value.value_label}</span>
                                 </span>
-                                <span class="text-xs text-gray-400">{value.count}</span>
+                                <span class="text-xs ark-commerce-muted">{value.count}</span>
                             </label>
                             {/foreach}
                         </div>
@@ -50,7 +50,7 @@
             {* Phase 2 multi-store: store facet *}
             {if active_stores | count > 1}
             <div>
-                <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 mt-4">Stores</h3>
+                <h3 class="text-xs font-semibold uppercase tracking-wider ark-commerce-muted mb-2 mt-4">Stores</h3>
                 <div class="space-y-1.5">
                     <label class="flex items-center gap-2 text-sm text-gray-700">
                         <input type="radio" name="store" value="" class="border-gray-300" {if store_filter == 0}checked{/if}>
@@ -66,17 +66,17 @@
             </div>
             {/if}
             <div class="flex flex-col gap-2">
-                <button type="submit" class="px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Apply Filters</button>
+                <button type="submit" class="px-3 py-2 ark-commerce-action text-white text-sm rounded-lg hover:bg-orange-700">Apply Filters</button>
                 <a href="{if store_filter > 0}{base_url}/ecommerce/shop?store={store_filter}{elseif storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="text-xs text-gray-500 hover:text-gray-700">Reset filters</a>
             </div>
         </form>
         {elseif active_stores | count > 1}
         <div class="mt-6 space-y-4">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Stores</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-wider ark-commerce-muted mb-2">Stores</h3>
             <div class="space-y-1.5">
-                <a href="{base_url}/ecommerce/shop" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if store_filter == 0}font-semibold text-orange-600{else}text-gray-700{/if}">All stores</a>
+                <a href="{base_url}/ecommerce/shop" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if store_filter == 0}font-semibold ark-commerce-link{else}text-gray-700{/if}">All stores</a>
                 {foreach active_stores as ast}
-                <a href="{base_url}/ecommerce/shop?store={ast.id}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if store_filter == ast.id}font-semibold text-orange-600{else}text-gray-700{/if}">{ast.name | escape}</a>
+                <a href="{base_url}/ecommerce/shop?store={ast.id}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if store_filter == ast.id}font-semibold ark-commerce-link{else}text-gray-700{/if}">{ast.name | escape}</a>
                 {/foreach}
             </div>
         </div>
@@ -85,26 +85,26 @@
     </aside>
     {elseif categories | count > 0}
     <aside class="w-44 shrink-0 hidden md:block">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Categories</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider ark-commerce-muted mb-3">Categories</h3>
         <nav class="space-y-1">
-            <a href="{if store_filter > 0}{base_url}/ecommerce/shop?store={store_filter}{else}{base_url}/ecommerce/shop{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if category_id == 0}font-semibold text-orange-600{else}text-gray-700{/if}">All Products</a>
+            <a href="{if store_filter > 0}{base_url}/ecommerce/shop?store={store_filter}{else}{base_url}/ecommerce/shop{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if category_id == 0}font-semibold ark-commerce-link{else}text-gray-700{/if}">All Products</a>
             {foreach categories as cat}
-            <a href="{base_url}/ecommerce/shop/category/{cat.slug}{if store_filter > 0}?store={store_filter}{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if category_id == cat.id}font-semibold text-orange-600{else}text-gray-700{/if}">{cat.name}</a>
+            <a href="{base_url}/ecommerce/shop/category/{cat.slug}{if store_filter > 0}?store={store_filter}{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if category_id == cat.id}font-semibold ark-commerce-link{else}text-gray-700{/if}">{cat.name}</a>
             {/foreach}
         </nav>
     </aside>
     {/if}
 
     <!-- Main: product grid -->
-    <div class="flex-1">
-        <div class="flex items-center justify-between mb-5">
+    <div class="min-w-0 flex-1">
+        <div class="flex flex-col gap-4 mb-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">{storefront.page.title|default:page_title}</h1>
                 {if storefront.page.description}
                 <p class="mt-1 text-sm text-gray-500">{storefront.page.description}</p>
                 {/if}
             </div>
-            <form method="get" action="{if storefront.navigation.search_action_url}{storefront.navigation.search_action_url}{else}{base_url}/ecommerce/shop{/if}" class="flex gap-2">
+            <form method="get" action="{if storefront.navigation.search_action_url}{storefront.navigation.search_action_url}{else}{base_url}/ecommerce/shop{/if}" class="flex w-full min-w-0 gap-2 sm:w-auto">
                 {if storefront.filters.category_id|default:category_id > 0}<input type="hidden" name="cat" value="{storefront.filters.category_id|default:category_id}">{/if}
                 {if storefront.filters.attribute_filters | count > 0}
                 {foreach storefront.filters.attribute_filters as attrSlug => attrValues}
@@ -115,8 +115,8 @@
                 {/if}
                 {if store_filter > 0}<input type="hidden" name="store" value="{store_filter}">{/if}
                 <input type="text" name="search" value="{storefront.filters.search|default:search}" placeholder="Search…"
-                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Search</button>
+                       class="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <button type="submit" class="px-4 py-2 ark-commerce-action text-white text-sm rounded-lg hover:bg-orange-700">Search</button>
             </form>
         </div>
 
@@ -131,11 +131,11 @@
                 </div>
                 <div class="p-4">
                     <h3 class="font-medium text-gray-900 truncate text-sm">{p.title}</h3>
-                    {if p.excerpt}<p class="text-xs text-gray-400 mt-1 line-clamp-2">{p.excerpt}</p>{/if}
+                    {if p.excerpt}<p class="text-xs ark-commerce-muted mt-1 line-clamp-2">{p.excerpt}</p>{/if}
                     <div class="mt-2 flex items-center gap-2">
                         {if p.pricing.on_sale}
-                        <span class="font-bold text-orange-600">{p.pricing.formatted}</span>
-                        <span class="text-xs text-gray-400 line-through">{p.pricing.regular_fmt}</span>
+                        <span class="font-bold ark-commerce-link">{p.pricing.formatted}</span>
+                        <span class="text-xs ark-commerce-muted line-through">{p.pricing.regular_fmt}</span>
                         {if p.badges.sale|default:p.sale_badge_text}<span class="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-700">{p.badges.sale|default:p.sale_badge_text}</span>{/if}
                         {else}
                         <span class="font-bold text-gray-900">{p.pricing.formatted|default:'—'}</span>
@@ -145,11 +145,11 @@
                     <div class="mt-1 text-xs text-amber-700 font-medium">{p.review_summary.average_rating_formatted}/5 · {p.review_summary.approved_count} {if p.review_summary.approved_count == 1}review{else}reviews{/if}</div>
                     {/if}
                     {if p.inventory.badge.label|default:p.inventory_badge_text}
-                    <div class="mt-1 text-xs font-medium {if p.inventory.badge.tone|default:p.inventory_badge_tone == 'danger'}text-red-500{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'warning'}text-amber-600{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'success'}text-emerald-600{else}text-gray-500{/if}">{p.inventory.badge.label|default:p.inventory_badge_text}</div>
+                    <div class="mt-1 text-xs font-medium {if p.inventory.badge.tone|default:p.inventory_badge_tone == 'danger'}ark-commerce-danger{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'warning'}ark-commerce-warning{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'success'}ark-commerce-success{else}text-gray-500{/if}">{p.inventory.badge.label|default:p.inventory_badge_text}</div>
                     {elseif p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
-                    <div class="mt-1 text-xs text-red-500 font-medium">Out of stock</div>
+                    <div class="mt-1 text-xs ark-commerce-danger font-medium">Out of stock</div>
                     {elseif p.inventory.track_stock && p.inventory.low_stock}
-                    <div class="mt-1 text-xs text-amber-600 font-medium">Low stock - only {p.inventory.stock_qty} left</div>
+                    <div class="mt-1 text-xs ark-commerce-warning font-medium">Low stock - only {p.inventory.stock_qty} left</div>
                     {/if}
                     {* Phase 2 multi-store: store badge *}
                     {if p.store_name}
@@ -189,11 +189,11 @@
                 </div>
                 <div class="p-4">
                     <h3 class="font-medium text-gray-900 truncate text-sm">{p.title}</h3>
-                    {if p.excerpt}<p class="text-xs text-gray-400 mt-1 line-clamp-2">{p.excerpt}</p>{/if}
+                    {if p.excerpt}<p class="text-xs ark-commerce-muted mt-1 line-clamp-2">{p.excerpt}</p>{/if}
                     <div class="mt-2 flex items-center gap-2">
                         {if p.pricing.on_sale}
-                        <span class="font-bold text-orange-600">{p.pricing.formatted}</span>
-                        <span class="text-xs text-gray-400 line-through">{p.pricing.regular_fmt}</span>
+                        <span class="font-bold ark-commerce-link">{p.pricing.formatted}</span>
+                        <span class="text-xs ark-commerce-muted line-through">{p.pricing.regular_fmt}</span>
                         {else}
                         <span class="font-bold text-gray-900">{p.pricing.formatted|default:'—'}</span>
                         {/if}
@@ -202,9 +202,9 @@
                     <div class="mt-1 text-xs text-amber-700 font-medium">{p.review_summary.average_rating_formatted}/5 · {p.review_summary.approved_count} {if p.review_summary.approved_count == 1}review{else}reviews{/if}</div>
                     {/if}
                     {if p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
-                    <div class="mt-1 text-xs text-red-500 font-medium">Out of stock</div>
+                    <div class="mt-1 text-xs ark-commerce-danger font-medium">Out of stock</div>
                     {elseif p.inventory.track_stock && p.inventory.low_stock}
-                    <div class="mt-1 text-xs text-amber-600 font-medium">Low stock - only {p.inventory.stock_qty} left</div>
+                    <div class="mt-1 text-xs ark-commerce-warning font-medium">Low stock - only {p.inventory.stock_qty} left</div>
                     {/if}
                     {if p.store_name}
                     <div class="mt-1.5">
@@ -243,9 +243,9 @@
         {/if}
 
         {else}
-        <div class="text-center py-20 text-gray-400">
+        <div class="text-center py-20 ark-commerce-muted">
             <p class="text-lg">No products found.</p>
-            <a href="{if storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="text-orange-600 text-sm mt-2 inline-block">Browse all →</a>
+            <a href="{if storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="ark-commerce-link text-sm mt-2 inline-block">Browse all →</a>
         </div>
         {/if}
     </div>

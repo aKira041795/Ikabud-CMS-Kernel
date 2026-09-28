@@ -415,6 +415,7 @@ function cmsRenderMenu(string $location, $options = []): string
         'link_before'            => '',
         'link_after'             => '',
         'scope'                  => null,
+        'aria_label'             => '',
     ], $options);
 
     $currentPath = cmsMenuCurrentPath();
@@ -507,7 +508,12 @@ function cmsRenderMenu(string $location, $options = []): string
         return $out;
     };
 
-    $html = '<nav class="' . htmlspecialchars($opts['css_class'], ENT_QUOTES) . '">' . $renderItems($tree) . '</nav>';
+    // A theme may wrap this <nav> in its own navigation landmark (ARK groups
+    // the menu together with search and CTA links). Labelling each landmark
+    // keeps a nested nav pair distinguishable to assistive technology.
+    $ariaLabel = trim((string)($opts['aria_label'] ?? ''));
+    $ariaAttr = $ariaLabel !== '' ? ' aria-label="' . htmlspecialchars($ariaLabel, ENT_QUOTES) . '"' : '';
+    $html = '<nav class="' . htmlspecialchars($opts['css_class'], ENT_QUOTES) . '"' . $ariaAttr . '>' . $renderItems($tree) . '</nav>';
     cmsCacheSet($cacheKey, ['html' => $html], cmsMenuCacheTags($location, (int)$menu['id']));
     return $html;
 }

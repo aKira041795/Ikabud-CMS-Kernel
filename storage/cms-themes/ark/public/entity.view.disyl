@@ -96,10 +96,17 @@
                 {/if}
             {/if}
 
-            {# Navigation — back link #}
+            {# Navigation — back link.
+               Suppressed on the front page: the site root is served through this same
+               canonical entity-view template (cmsPublicHome()'s static-page branch
+               passes is_front_page=true and public_route_kind='front-page'), and a
+               history.back() affordance on the homepage is meaningless -- there is
+               nowhere sensible for it to return to. #}
+            {if public_route_kind != 'front-page'}
             <div style="margin-top:var(--spacing-lg);">
                 <a href="javascript:history.back()" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;">&larr; Back</a>
             </div>
+            {/if}
         </article>
 
         {else}

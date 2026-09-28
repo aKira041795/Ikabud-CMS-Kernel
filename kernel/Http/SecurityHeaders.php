@@ -26,6 +26,9 @@ final class SecurityHeaders
      * additional origins (e.g. an external CDN/media host).
      */
     private const IMG_SRC_ORIGINS = [
+        // The seeded CMS builder content uses Unsplash and external image URLs
+        // are a supported content feature. This permission is image-only.
+        'https://images.unsplash.com',
         'https://cdn.tailwindcss.com',
         'https://unpkg.com',
         'https://cdn.jsdelivr.net',

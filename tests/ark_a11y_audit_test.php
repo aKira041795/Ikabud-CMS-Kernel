@@ -58,10 +58,12 @@ audit('Touch targets enforce min-height 44px', $hasMinHeight44);
 $hasMobileToggle = str_contains($css, '.ark-header__mobile-toggle');
 audit('Mobile menu toggle defined', $hasMobileToggle);
 
-// Mobile navigation collapse
-$hasMobileNavCollapse = (bool) preg_match('/@media\s*\(max-width:\s*768px\).*\.ark-header__nav/s', $css);
-$hasMobileNav = str_contains($css, '.ark-header__nav') && $has768;
-audit('Mobile nav adapts at 768px breakpoint', $hasMobileNav, $hasMobileNavCollapse ? '' : 'nav collapse pattern may be implicit');
+// Mobile navigation collapse: the governed region nav is ARK's live header.
+$hasMobileNavCollapse = (bool) preg_match(
+    '/@media\s*\(max-width:\s*768px\)\s*\{\s*\.ark-region-header__nav\s*\{[^}]+\}/s',
+    $css
+);
+audit('Mobile nav adapts at 768px breakpoint', $hasMobileNavCollapse, 'live region nav needs an explicit mobile rule');
 
 // Grid collapses to single column on mobile
 $hasGridCollapse = (bool) preg_match('/grid-template-columns:\s*1fr/', $css);
@@ -196,8 +198,11 @@ audit('Forced-colors (high contrast) support present', $hasForcedColors);
 $hasBtnDisabled = str_contains($css, '.ark-btn:disabled');
 audit('Button disabled state defined', $hasBtnDisabled);
 
-// Current page indicator (aria-current)
-$hasAriaCurrent = str_contains($css, 'aria-current');
+// Current page indicator (aria-current) on the live governed-region link class.
+$hasAriaCurrent = (bool) preg_match(
+    '/\.ark-region-header__nav-links[^,{]*a\[aria-current=(?:"page"|\'page\')\]\s*\{[^}]+\}/s',
+    $css
+);
 audit('CSS respects aria-current for nav', $hasAriaCurrent);
 
 // ────────────────────────────────────────────

@@ -31,7 +31,7 @@
             <h2 class="en-view-title">Latest Articles</h2>
             <a href="{base_url}/blog" class="ark-btn ark-btn--ghost ark-btn--sm">View all &rarr;</a>
         </div>
-        {ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" /}
+        {ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" page="{pagination.current|default:1}" /}
     {/ikb_container}
 {/ikb_section}
 

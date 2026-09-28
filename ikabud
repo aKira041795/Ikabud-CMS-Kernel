@@ -1156,6 +1156,7 @@ switch ($command) {
         out('    ' . green('theme:current') . '             Show the currently active theme');
         out('    ' . green('theme:deactivate') . '           Reset to default theme');
         out('    ' . green('theme:build') . ' <slug>       Build theme: validate tokens, templates, assets, output summary');
+        out('    ' . green('theme:publish') . ' <slug>     Publish a theme\'s public assets from storage');
         out('    ' . green('entity:list') . '               List all entity sources with schema');
         out('    ' . green('entity:context') . ' <source>    Show resolved context for a source');
         out('    ' . green('entity:describe') . ' <source>   Full entity description with views, caps, callers');
@@ -3005,16 +3006,11 @@ switch ($command) {
             exit(1);
         }
 
-        $manifestPath = moduleManifestPathForId($moduleId);
-        $manifestValidation = is_string($manifestPath)
-            ? validateModuleManifest($manifestPath)
-            : ['ok' => false, 'error' => 'manifest not found'];
-        if (empty($manifestValidation['ok']) || !is_array($manifestValidation['manifest'] ?? null)) {
-            out(red("  ✗ Module '{$moduleId}' has an invalid manifest: " . (string)($manifestValidation['error'] ?? 'unknown error')));
+        $packManifest = loadModuleManifestForId($moduleId);
+        if ($packManifest === null) {
+            out(red("  ✗ Module '{$moduleId}' has an invalid manifest."));
             exit(1);
         }
-        $packManifest = $manifestValidation['manifest'];
-        $packManifest['_path'] = $modDir;
         $certification = validateModuleCertification($packManifest);
         if (empty($certification['ok'])) {
             out(red("  ✗ Refusing to pack uncertified module '{$moduleId}'."));
@@ -6725,14 +6721,9 @@ MD;
                 exit(1);
             }
         } else {
-            $manifestPath = moduleManifestPathForId($moduleId);
-            if ($manifestPath === null) {
-                out(red("  Module '{$moduleId}' not found."));
-                exit(1);
-            }
-            $manifest = json_decode((string)file_get_contents($manifestPath), true);
-            if (!is_array($manifest)) {
-                out(red("  Invalid module manifest for '{$moduleId}'."));
+            $manifest = loadModuleManifestForId($moduleId);
+            if ($manifest === null) {
+                out(red("  Module '{$moduleId}' not found or has an invalid manifest."));
                 exit(1);
             }
             $result = validateModuleCertification($manifest);
@@ -8084,8 +8075,12 @@ PHP;
             out('    ' . cyan($slug) . dim(' v' . $version) . '  ' . $label);
         }
         out('');
-        $active = function_exists('cmsActiveTheme') ? cmsActiveTheme() : '(not available — CMS module not loaded)';
-        out('  ' . bold('Active: ') . $active);
+        // Resolve this from module settings, as theme:current does. The CLI
+        // bootstrap does not load the public CMS helper that defines
+        // cmsActiveTheme(), even though CMS settings are available here.
+        $settings = function_exists('getModuleSettings') ? getModuleSettings('cms') : [];
+        $active = trim((string)($settings['active_theme'] ?? ''));
+        out('  ' . bold('Active: ') . ($active !== '' ? $active : '(none configured)'));
         break;
 
     // ── theme:current ──────────────────────────────────────────────
@@ -8147,6 +8142,42 @@ PHP;
         }
         saveModuleSettings('cms', ['active_theme' => 'native-default']);
         out(yellow('  ✓ Reset to native-default theme.'));
+        break;
+
+    // ── theme:publish ────────────────────────────────────────────
+    // An explicit, idempotent command is predictable on shared hosting and
+    // avoids a daemon/watcher while reusing the exact activate/upload copier.
+    case 'theme:publish':
+        banner();
+        $clean = paramsWithoutFlags($params);
+        $themeSlug = $clean[0] ?? '';
+        $themesPath = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes';
+        $themeDir = $themesPath . '/' . $themeSlug;
+        if ($themeSlug === '' || !preg_match('/^[a-z0-9][a-z0-9_-]*$/', $themeSlug)) {
+            out(red('  ✗ Valid theme slug required.'));
+            out('  Usage: php ikabud theme:publish <slug>');
+            exit(1);
+        }
+        if (!is_dir($themeDir)) {
+            out(red("  ✗ Theme '{$themeSlug}' not found at {$themeDir}"));
+            exit(1);
+        }
+        require_once __DIR__ . '/modules/cms/handlers/84-extensions.php';
+        _cmsSyncThemePublicAssets($themeSlug, $themeDir);
+        $publicDir = (defined('BASE_PATH') ? BASE_PATH : __DIR__) . '/public/assets/cms/themes/' . $themeSlug;
+        $mismatches = [];
+        foreach (['style.css', 'script.js'] as $asset) {
+            if (is_file($themeDir . '/' . $asset)
+                && (!is_file($publicDir . '/' . $asset)
+                    || hash_file('sha256', $themeDir . '/' . $asset) !== hash_file('sha256', $publicDir . '/' . $asset))) {
+                $mismatches[] = $asset;
+            }
+        }
+        if ($mismatches !== []) {
+            out(red('  ✗ Asset publish failed: ' . implode(', ', $mismatches)));
+            exit(1);
+        }
+        out(green("  ✓ Theme '{$themeSlug}' public assets published."));
         break;
 
     // ── theme:build ──────────────────────────────────────────────

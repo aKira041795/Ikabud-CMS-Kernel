@@ -13,6 +13,7 @@
                 "entity.content",
                 "colors_style",
                 "theme_layout_style",
+                "storefront_theme_css",
                 "custom_css",
                 "head_code",
                 "body_end_code",

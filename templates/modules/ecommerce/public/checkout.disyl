@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-4xl mx-auto">
@@ -105,7 +105,7 @@
                     {if shipping_quote.rates | count > 0}
                     {foreach shipping_quote.rates as rate}
                     <label class="flex items-center gap-3 cursor-pointer rounded-lg border border-gray-200 p-3 hover:border-orange-500 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
-                        <input type="radio" name="shipping_rate_id" value="{rate.id}" class="text-orange-600" {if shipping_quote.selected_rate_id == rate.id}checked{/if}>
+                        <input type="radio" name="shipping_rate_id" value="{rate.id}" class="ark-commerce-control" {if shipping_quote.selected_rate_id == rate.id}checked{/if}>
                         <span class="flex-1 text-sm font-medium text-gray-900">
                             {rate.name}
                             {if rate.carrier || rate.estimated_days}
@@ -126,7 +126,7 @@
             <div class="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 class="font-semibold text-gray-900 mb-3">Payment</h2>
                 <div class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 bg-gray-50">
-                    <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    <svg class="w-5 h-5 ark-commerce-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                     <span class="text-sm text-gray-700">{payment_label}</span>
                 </div>
                 <div class="mt-3">
@@ -145,7 +145,7 @@
                     <div class="flex justify-between">
                         <span class="text-gray-600 truncate mr-2">
                             {item.product_title} × {item.qty}
-                            {if item.selected_addons | count > 0}<span class="block text-xs text-gray-400">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</span>{/if}
+                            {if item.selected_addons | count > 0}<span class="block text-xs ark-commerce-muted">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</span>{/if}
                             {if item.booking.has_booking}<span class="block text-xs text-sky-700">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</span>{/if}
                         </span>
                         <span class="text-gray-900 font-medium shrink-0">{item.line_total_fmt}</span>
@@ -155,10 +155,10 @@
                 <div class="border-t border-gray-200 pt-3 space-y-1.5 text-sm">
                     <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{checkout_totals.subtotal_fmt}</span></div>
                     {if checkout_totals.non_loyalty_discount_amount > 0}
-                    <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{checkout_totals.non_loyalty_discount_amount_fmt}</span></div>
+                    <div class="flex justify-between ark-commerce-success"><span>Discount</span><span>−{checkout_totals.non_loyalty_discount_amount_fmt}</span></div>
                     {/if}
                     {if checkout_totals.loyalty_points_applied > 0}
-                    <div class="flex justify-between text-orange-600"><span>Loyalty ({checkout_totals.loyalty_points_applied} pts)</span><span>−{checkout_totals.loyalty_discount_amount_fmt}</span></div>
+                    <div class="flex justify-between ark-commerce-link"><span>Loyalty ({checkout_totals.loyalty_points_applied} pts)</span><span>−{checkout_totals.loyalty_discount_amount_fmt}</span></div>
                     {/if}
                     <div id="checkout-tax-row" class="flex justify-between text-gray-600{if checkout_totals.tax <= 0} hidden{/if}"><span id="checkout-tax-label">{checkout_totals.tax_label | default:'Tax'}</span><span id="checkout-tax-value">{checkout_totals.tax_fmt}</span></div>
                     {if requires_shipping}
@@ -170,7 +170,7 @@
                 </div>
                 <input type="hidden" name="_token" value="{csrf_token}">
                 <button type="button" onclick="submitCheckout()"
-                        class="mt-4 w-full py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 text-sm" id="place-order-btn">
+                        class="mt-4 w-full py-3 ark-commerce-action text-white font-medium rounded-lg hover:bg-orange-700 text-sm" id="place-order-btn">
                     Place Order
                 </button>
                 <div id="checkout-error" class="mt-2 text-xs text-red-600 hidden"></div>
@@ -289,7 +289,7 @@ function renderShippingRates(quote) {
         const checked = quote.selected_rate_id === rate.id ? ' checked' : '';
         const price = Number(rate.rate || 0) === 0 ? 'Free' : escapeHtml(rate.rate_fmt || '');
         return '<label class="flex items-center gap-3 cursor-pointer rounded-lg border border-gray-200 p-3 hover:border-orange-500 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">'
-            + '<input type="radio" name="shipping_rate_id" value="' + escapeHtml(rate.id) + '" class="text-orange-600"' + checked + '>'
+            + '<input type="radio" name="shipping_rate_id" value="' + escapeHtml(rate.id) + '" class="ark-commerce-control"' + checked + '>'
             + '<span class="flex-1 text-sm font-medium text-gray-900">' + escapeHtml(rate.name || rate.label || 'Shipping')
             + (note ? '<span class="mt-1 block text-xs font-normal text-gray-500">' + escapeHtml(note) + '</span>' : '')
             + '</span>'

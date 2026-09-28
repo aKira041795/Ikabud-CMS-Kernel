@@ -1968,16 +1968,6 @@ function cmsPublicEntityList(array $params = []): void
         }
     }
 
-    if ($search !== '' && is_array($activeCategory)) {
-        $listDescription = $resultLabel . ' in ' . (string)($activeCategory['name'] ?? $listTitle) . ' for "' . $search . '"';
-    } elseif ($search !== '') {
-        $listDescription = $resultLabel . ' for "' . $search . '"';
-    } elseif (is_array($activeCategory)) {
-        $listDescription = $resultLabel . ' in ' . (string)($activeCategory['name'] ?? $listTitle);
-    } else {
-        $listDescription = $resultLabel . ' in ' . $listTitle;
-    }
-
     // Fetch count first (MySQL 5.7-compatible, no window functions)
     $countStmt = $db->prepare(
         "SELECT COUNT(*)
@@ -2004,6 +1994,18 @@ function cmsPublicEntityList(array $params = []): void
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $resultLabel = cmsEntityListResultLabel($total);
+
+    // Built only once the count is known — reading $resultLabel before this
+    // point raised an undefined-variable warning on every declared-type listing.
+    if ($search !== '' && is_array($activeCategory)) {
+        $listDescription = $resultLabel . ' in ' . (string)($activeCategory['name'] ?? $listTitle) . ' for "' . $search . '"';
+    } elseif ($search !== '') {
+        $listDescription = $resultLabel . ' for "' . $search . '"';
+    } elseif (is_array($activeCategory)) {
+        $listDescription = $resultLabel . ' in ' . (string)($activeCategory['name'] ?? $listTitle);
+    } else {
+        $listDescription = $resultLabel . ' in ' . $listTitle;
+    }
 
     // Enrich each item with capabilities, capability_data, and url
     $items = [];
@@ -2922,6 +2924,14 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
             'pagination' => $pagination,
             'entity_list_context' => $listContext,
             'content_type' => $defaultType,
+            // Themes branch on the bare entity_type for declared-content-type
+            // routes (ARK {else if entity_type} -> {ikb_entity_list
+            // source="{entity_type}.{qualifier}"}). It carries the same value as
+            // content_type but names "the entity this route is about", which is
+            // what a theme needs to build a governed entity-list source. Without
+            // it ARK fell through to its discovery-dashboard branch and rendered
+            // sample blog posts for every declared type.
+            'entity_type' => $defaultType,
             'sidebar_template' => $sidebarTemplateKey,
             'public_render_origin' => $publicRenderOrigin,
             'public_route_kind' => $publicRouteKind,

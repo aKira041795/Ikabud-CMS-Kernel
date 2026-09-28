@@ -92,8 +92,14 @@ def delivery_receipts_path():
     return Path(raw).expanduser() if raw else config_path().parent / "delivery-receipts.jsonl"
 
 
-def _record_delivery_receipt(response: dict, request: dict) -> None:
-    """Durably record a successful bridge response without storing message bodies."""
+def _record_delivery_receipt(response: dict, request: dict, outcome=None) -> None:
+    """Durably record a successful bridge response without storing message bodies.
+
+    ``outcome`` is the caller's already-decided stage result (DONE/FAILED) when the
+    delivery is a job completion report. Persisting it alongside the idempotency
+    key lets crash/lost-ack recovery finalize the outcome that was actually
+    reported instead of re-deriving it from evidence that may have changed.
+    """
     if not response.get("ok") or response.get("suppressed") or response.get("dry_run"):
         return
     key = request.get("idempotency_key")
@@ -104,6 +110,9 @@ def _record_delivery_receipt(response: dict, request: dict) -> None:
         "conversation_id": int(request.get("conversation_id") or 0),
         "recorded_at": int(time.time()),
     }
+    normalized_outcome = str(outcome or "").strip().upper()
+    if normalized_outcome in ("DONE", "FAILED"):
+        record["outcome"] = normalized_outcome
     data = response.get("data")
     if isinstance(data, dict) and data.get("message_id") is not None:
         record["message_id"] = data.get("message_id")
@@ -120,6 +129,59 @@ def _record_delivery_receipt(response: dict, request: dict) -> None:
         # wake daemon's receipt cross-check independently refuses to mark the
         # reply delivered when the receipt is absent.
         print(f"harpp: delivery receipt not persisted: {exc}", flush=True)
+
+
+def delivery_receipt_for(idempotency_key, path=None):
+    """Return the durable delivery receipt for a stable idempotency key, if recorded.
+
+    A receipt is written only after the bridge accepted the request, so it is
+    durable proof that the request already landed even when the local process
+    died before recording the job's terminal state.
+    """
+    key = str(idempotency_key or "").strip()
+    if not key:
+        return None
+    target = Path(path) if path is not None else delivery_receipts_path()
+    try:
+        with target.open("r", encoding="utf-8") as stream:
+            for line in stream:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(record, dict) and str(record.get("idempotency_key") or "") == key:
+                    return record
+    except OSError:
+        return None
+    return None
+
+
+def is_prior_idempotent_acceptance(error, idempotency_key=""):
+    """True only when a HarppError proves this stable key was already accepted.
+
+    The bridge answers a reused stable key with HTTP 409 code
+    ``idempotency_conflict`` when the original delivery is already recorded and
+    the retried body differs. That is durable acceptance evidence and callers
+    may finalize instead of retrying forever. ``idempotency_in_progress`` and
+    every other 409/error stay retryable; this must not broadly swallow 409.
+    """
+    if not str(idempotency_key or "").strip():
+        return False
+    if not isinstance(error, HarppError) or int(getattr(error, "status", 0) or 0) != 409:
+        return False
+    payload = getattr(error, "payload", None)
+    if not isinstance(payload, dict):
+        return False
+    codes = [str(payload.get("code") or "")]
+    errors = payload.get("errors")
+    if isinstance(errors, list):
+        for item in errors:
+            if isinstance(item, dict):
+                codes.append(str(item.get("code") or ""))
+    return any(code == "idempotency_conflict" for code in codes)
 
 
 def governance_config(config=None):
@@ -448,7 +510,7 @@ def send_message(config=None, **kw):
     if message_type:
         body["message_type"] = message_type
     response = api("POST", "/api/v1/harpp/bridge/messages", body, config=config)
-    _record_delivery_receipt(response, body)
+    _record_delivery_receipt(response, body, outcome=kw.get("delivery_outcome"))
     return response
 
 
@@ -489,13 +551,14 @@ def _decision_lines(payload=None):
 
 
 def harpp_notify(*, conversation_id, message_type, body, title=None, harness_session_id=None,
-                 idempotency_key=None, decision=None, config=None):
+                 idempotency_key=None, decision=None, config=None, delivery_outcome=None):
     message_type = str(message_type or "INFO").strip().upper() or "INFO"
     response = send_message(config=config, conversation_id=conversation_id, title=title,
                              harness_session_id=harness_session_id,
                              idempotency_key=idempotency_key,
                              message_type=message_type,
-                            body=_prefix_message(message_type, body))
+                            body=_prefix_message(message_type, body),
+                            delivery_outcome=delivery_outcome)
     if message_type in ACTIONABLE_MESSAGE_TYPES:
         decision = dict(decision or {})
         if not decision.get("title"):

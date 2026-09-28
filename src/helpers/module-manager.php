@@ -108,6 +108,32 @@ function moduleManifestPathForId(string $moduleId): ?string
     return is_file($manifestPath) ? $manifestPath : null;
 }
 
+/**
+ * Load a discovered module manifest for certification or other validation.
+ *
+ * This is the canonical validation loader: callers always receive the real
+ * manifest directory in `_path`, including for modules nested in a suite.
+ * Missing and invalid manifests are refused rather than returned partially.
+ *
+ * @return array<string, mixed>|null
+ */
+function loadModuleManifestForId(string $moduleId): ?array
+{
+    $manifestPath = moduleManifestPathForId($moduleId);
+    if ($manifestPath === null) {
+        return null;
+    }
+
+    $validation = validateModuleManifest($manifestPath);
+    if (empty($validation['ok']) || !is_array($validation['manifest'] ?? null)) {
+        return null;
+    }
+
+    $manifest = $validation['manifest'];
+    $manifest['_path'] = dirname($manifestPath);
+    return $manifest;
+}
+
 // ─── Product Suite Graph Registry ────────────────────────────────────────
 // Physical folder nesting is cosmetic; this registry derives authoritative
 // product-suite relationships from module manifests. It is a read-only
@@ -2794,7 +2820,12 @@ function kernelAdminAccessGranted(array $user, string $moduleId): bool
 /**
  * @param array<string, string> $params
  */
-function executeModuleHandler(string $handler, array $params = []): void
+function executeModuleHandler(
+    string $handler,
+    array $params = [],
+    ?string $routePattern = null,
+    ?string $routeMethod = null
+): void
 {
     if (!str_contains($handler, ':')) {
         http_response_code(500);
@@ -2837,6 +2868,41 @@ function executeModuleHandler(string $handler, array $params = []): void
     }
     $role = $user ? (string)($user['role'] ?? '') : '';
     $source = $user ? (string)($user['source'] ?? 'kernel') : '';
+
+    // Dispatch-time authority boundary. AuthorityScopeResolver is deliberately
+    // invoked here, immediately before handler resolution/execution, rather
+    // than only while modules are loaded. Undeclared and incompletely configured
+    // routes remain compatible; an explicit role-policy mismatch is refused.
+    $authorityDecision = \Ikabud\Kernel\Http\AuthorityDispatchGuard::decide(
+        $moduleId,
+        $routeMethod ?? ($_SERVER['REQUEST_METHOD'] ?? 'GET'),
+        $routePattern,
+        $requestUri,
+        $modules[$moduleId],
+        is_array($user) ? $user : null,
+    );
+    if (!$authorityDecision['allowed']) {
+        if (!headers_sent()) {
+            http_response_code(403);
+        }
+        $isAuthorityApiRoute = \Ikabud\Kernel\Http\ContentNegotiator::isApiRoute();
+        if ($isAuthorityApiRoute) {
+            if (!headers_sent()) {
+                header('Content-Type: application/json');
+            }
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Forbidden',
+                'reason' => $authorityDecision['reason'],
+                'capability' => $authorityDecision['capability_id'],
+                'state' => 'route_authority_denied',
+            ]);
+        } else {
+            echo 'Forbidden';
+        }
+        return;
+    }
+
     if ($role === 'admin' && $source === 'kernel' && !$isModuleLoginRoute && is_array($user)) {
         if (!kernelAdminAccessGranted($user, $moduleId)) {
             $isApiRoute = \Ikabud\Kernel\Http\ContentNegotiator::isApiRoute();
@@ -3584,11 +3650,34 @@ function validateModuleCertification(array $manifest): array
     $checks[] = ['check' => 'C3: Capabilities', 'passed' => $ok, 'detail' => $ok ? ($count > 0 ? "{$count} capabilities exposed" : 'capabilities declared (none exposed)') : 'No capabilities declared'];
     if ($ok) $passed++;
 
-    // C3b: Every PHP capability declaration resolves to a runtime callable.
+    // C3b: Capability declarations resolve through the runtime appropriate to
+    // the module type: ServiceProxy binding for polyglot service-modules, PHP
+    // callables for in-process modules.
     $total++;
-    if ($isServiceModule || !is_array($capsExposes) || $capsExposes === []) {
-        $checks[] = ['check' => 'C3b: Capability handlers', 'passed' => true, 'detail' => $isServiceModule ? 'N/A for service-module' : 'No handlers required'];
+    if (!is_array($capsExposes) || $capsExposes === []) {
+        $checks[] = ['check' => 'C3b: Capability handlers', 'passed' => true, 'detail' => 'No handlers required'];
         $passed++;
+    } elseif ($isServiceModule) {
+        $endpoint = $manifest['service']['endpoint'] ?? null;
+        $protocol = $manifest['service']['protocol'] ?? null;
+        $endpointValid = is_string($endpoint) && trim($endpoint) !== '';
+        $protocolValid = is_string($protocol) && trim($protocol) !== '';
+        $ok = $endpointValid && $protocolValid;
+        $exposedIds = [];
+        foreach ($capsExposes as $expose) {
+            $id = is_string($expose) ? $expose : (is_array($expose) ? ($expose['id'] ?? null) : null);
+            if (is_string($id) && trim($id) !== '') {
+                $exposedIds[] = trim($id);
+            }
+        }
+        $checks[] = [
+            'check' => 'C3b: Capability handlers',
+            'passed' => $ok,
+            'detail' => $ok
+                ? 'Served via service endpoint ' . trim($endpoint)
+                : 'Service-module exposes ' . implode(', ', $exposedIds) . ' but must declare non-empty service.endpoint + service.protocol',
+        ];
+        if ($ok) $passed++;
     } else {
         loadModuleHelpers($manifest);
         $modulePrefix = preg_replace('/[^a-z0-9]+/i', '_', $moduleId);

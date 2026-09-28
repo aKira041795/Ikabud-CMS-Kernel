@@ -11,7 +11,7 @@
         style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; gap:18px; min-width:0; padding:28px; border-radius:24px; border:1px solid rgba(148, 163, 184, 0.22); box-shadow:0 20px 40px rgba(15, 23, 42, 0.08); background:{if store_banner.image_url}linear-gradient(135deg, rgba(15, 23, 42, 0.86), rgba(15, 23, 42, 0.58)), url('{store_banner.image_url | escape}') center/cover no-repeat{else}linear-gradient(135deg, var(--storefront-secondary-bg, #fff7ed), #ffffff){/if}; color:{if store_banner.image_url}#fffaf2{else}var(--color-text, #111827){/if};"
     >
         <div style="display:grid; gap:12px;">
-            <p style="margin:0; font-size:0.75rem; letter-spacing:0.18em; text-transform:uppercase; font-weight:700; color:{if store_banner.image_url}rgba(255, 250, 242, 0.78){else}var(--color-primary, #ea580c){/if};">
+            <p style="margin:0; font-size:0.75rem; letter-spacing:0.18em; text-transform:uppercase; font-weight:700; color:{if store_banner.image_url}rgba(255, 250, 242, 0.78){else}var(--color-primary-dark, #4f46e5){/if};">
                 {if active_store.name}{active_store.name | escape}{elseif store.name}{store.name | escape}{else}Storefront{/if}
             </p>
             <div style="display:grid; gap:10px; max-width:44rem;">
@@ -30,7 +30,7 @@
             {if store_banner.cta_text}
             <a
                 href="{store_banner.cta_url | escape}"
-                style="display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:0 16px; border-radius:999px; text-decoration:none; font-size:0.9rem; font-weight:700; background:var(--storefront-cta-bg, var(--color-primary, #ea580c)); color:#ffffff;"
+                style="display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:0 16px; border-radius:999px; text-decoration:none; font-size:0.9rem; font-weight:700; background:var(--color-primary-dark, #4f46e5); color:#ffffff;"
             >
                 {store_banner.cta_text | escape}
             </a>
@@ -56,7 +56,7 @@
     >
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:14px;">
             <div>
-                <p style="margin:0 0 8px; font-size:0.75rem; letter-spacing:0.18em; text-transform:uppercase; font-weight:700; color:var(--color-primary, #ea580c);">Store Hours</p>
+                <p style="margin:0 0 8px; font-size:0.75rem; letter-spacing:0.18em; text-transform:uppercase; font-weight:700; color:var(--color-primary-dark, #4f46e5);">Store Hours</p>
                 <h3 style="margin:0; font-size:1.35rem; line-height:1.1; color:var(--color-text, #111827);">{if store_is_open}Open now{else}Closed now{/if}</h3>
             </div>
             <span style="display:inline-flex; align-items:center; justify-content:center; min-height:32px; padding:0 12px; border-radius:999px; font-size:0.76rem; font-weight:700; background:{if store_is_open}var(--storefront-success-bg, #dcfce7){else}var(--storefront-danger-bg, #fee2e2){/if}; color:{if store_is_open}var(--storefront-success-text, #166534){else}var(--storefront-danger-text, #b91c1c){/if};">

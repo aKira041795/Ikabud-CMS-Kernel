@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-5xl mx-auto space-y-6">
@@ -23,7 +23,7 @@
     <div class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
         <div class="text-lg font-semibold text-gray-900">Your wishlist is empty</div>
         <p class="mt-2 text-sm text-gray-500">Save products from the shop or product pages to keep them here for later.</p>
-        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Browse Products</a>
+        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-flex items-center rounded-lg ark-commerce-action px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Browse Products</a>
     </div>
     {else}
     <div class="flex items-center justify-between rounded-2xl border border-rose-100 bg-gradient-to-r from-rose-50 via-white to-orange-50 px-5 py-4">
@@ -51,10 +51,10 @@
                     {if item.excerpt}<p class="mt-2 text-sm text-gray-500 line-clamp-2">{item.excerpt}</p>{/if}
                     <div class="mt-3 flex items-center gap-2">
                         <span class="text-lg font-bold text-gray-900">{item.pricing.formatted|default:'—'}</span>
-                        {if item.pricing.on_sale && item.pricing.regular_fmt}<span class="text-sm text-gray-400 line-through">{item.pricing.regular_fmt}</span>{/if}
+                        {if item.pricing.on_sale && item.pricing.regular_fmt}<span class="text-sm ark-commerce-muted line-through">{item.pricing.regular_fmt}</span>{/if}
                     </div>
                     {if item.inventory.badge.label}
-                    <div class="mt-2 text-xs font-medium {if item.inventory.badge.tone == 'danger'}text-red-500{elseif item.inventory.badge.tone == 'warning'}text-amber-600{elseif item.inventory.badge.tone == 'success'}text-emerald-600{else}text-gray-500{/if}">{item.inventory.badge.label}</div>
+                    <div class="mt-2 text-xs font-medium {if item.inventory.badge.tone == 'danger'}ark-commerce-danger{elseif item.inventory.badge.tone == 'warning'}ark-commerce-warning{elseif item.inventory.badge.tone == 'success'}ark-commerce-success{else}text-gray-500{/if}">{item.inventory.badge.label}</div>
                     {/if}
                 </div>
             </a>

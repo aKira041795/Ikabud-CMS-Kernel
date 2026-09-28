@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-4xl mx-auto space-y-6">
@@ -19,7 +19,7 @@
     <div class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
         <div class="text-lg font-semibold text-gray-900">No memberships yet</div>
         <p class="mt-2 text-sm text-gray-500">Membership products you purchase will appear here once payment is completed.</p>
-        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Browse Products</a>
+        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-flex items-center rounded-lg ark-commerce-action px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Browse Products</a>
     </div>
     {else}
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">

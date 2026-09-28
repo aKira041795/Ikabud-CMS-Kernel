@@ -33,7 +33,8 @@ function cmsFooterSettingsDefaults(): array
         'link_hover_color'        => '#ffffff',
         'title_color'             => '#f1f5f9',
         'bar_bg_color'            => '#0f172a',
-        'bar_text_color'          => '#64748b',
+        // Bottom-bar text must clear WCAG AA 4.5:1 against bar_bg_color; #94a3b8 is 6.96:1 on #0f172a.
+        'bar_text_color'          => '#94a3b8',
         'bar_link_color'          => '#94a3b8',
         'bar_link_hover_color'    => '#ffffff',
         'copyright_text'          => '© {current_year} {site_title}. All rights reserved.',
@@ -364,9 +365,411 @@ function cmsHeaderTransparencyEnabled(array $settings, array $publicCtx = []): b
     return false;
 }
 
-function cmsKnownCustomizerSections(): array
+/**
+ * Sections the CMS itself owns. These always exist, for every theme.
+ */
+function cmsCustomizerBaseSections(): array
 {
     return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'entity_presentation', 'theme'];
+}
+
+/**
+ * Load the active theme's declared customizer definition.
+ *
+ * A theme claims its own sections and controls through customizer.schema.json
+ * (declared in theme.manifest.json -> customizer.schema), parsed by the kernel's
+ * ThemeDefinitionLoader. Themes that declare nothing (native-default) return null
+ * and keep using the CMS's built-in sections.
+ */
+function cmsThemeCustomizerDefinition(): ?object
+{
+    // Keyed by slug, not a single flag: changing the active theme (or a test
+    // switching themes) must re-derive rather than serve a stale definition.
+    static $cache = [];
+
+    $slug = cmsActiveTheme();
+    if ($slug === null || $slug === '') {
+        return null;
+    }
+    if (array_key_exists($slug, $cache)) {
+        return $cache[$slug];
+    }
+
+    $cache[$slug] = null;
+
+    $themePath = cmsThemesPath() . '/' . $slug;
+    if (!is_dir($themePath) || !is_file($themePath . '/customizer.schema.json')) {
+        return null;
+    }
+
+    $loaderClass = 'Ikabud\\Kernel\\Services\\ThemeDefinitionLoader';
+    if (!class_exists($loaderClass)) {
+        return null;
+    }
+
+    try {
+        $cache[$slug] = $loaderClass::load($slug, $themePath);
+    } catch (Throwable $e) {
+        $cache[$slug] = null;
+    }
+
+    return $cache[$slug];
+}
+
+/**
+ * Sections the ACTIVE THEME declares that the CMS does not already own.
+ *
+ * This is the difference between an ARK-style theme and a WordPress-style one:
+ * ARK ships customizer.schema.json and therefore defines its own sections;
+ * native-default declares nothing and inherits the CMS's built-in set.
+ *
+ * @return array<string, object> section id => SectionDefinition
+ */
+function cmsThemeDeclaredSections(): array
+{
+    static $cache = [];
+
+    $slug = cmsActiveTheme();
+    if ($slug === null || $slug === '') {
+        return [];
+    }
+    if (array_key_exists($slug, $cache)) {
+        return $cache[$slug];
+    }
+    $cache[$slug] = [];
+
+    $definition = cmsThemeCustomizerDefinition();
+    if ($definition === null || !method_exists($definition, 'sectionNames')) {
+        return $cache[$slug];
+    }
+
+    $base = cmsCustomizerBaseSections();
+    foreach ((array)$definition->sectionNames() as $name) {
+        $name = trim((string)$name);
+        if ($name === '' || in_array($name, $base, true)) {
+            continue;
+        }
+        $section = method_exists($definition, 'section') ? $definition->section($name) : null;
+        if ($section !== null && isset($section->controls) && is_array($section->controls)) {
+            $cache[$slug][$name] = $section;
+        }
+    }
+
+    return $cache[$slug];
+}
+
+/**
+ * Whether a section comes from the active theme's schema rather than the CMS.
+ */
+function cmsIsThemeDeclaredSection(string $section): bool
+{
+    return array_key_exists($section, cmsThemeDeclaredSections());
+}
+
+/**
+ * The active theme's raw customizer.schema.json, cached by slug.
+ *
+ * The kernel's ControlDefinition carries id/label/type/default/options/
+ * constraints/description. A theme may ALSO declare a `group` (and optional
+ * `group_label`) per control so the CMS renders its section as several
+ * collapsible panels instead of one flat grid. Those two keys are read here
+ * from the raw schema, so no kernel contract change is required.
+ */
+function cmsThemeCustomizerRawSchema(): array
+{
+    static $cache = [];
+
+    $slug = cmsActiveTheme();
+    if ($slug === null || $slug === '') {
+        return [];
+    }
+    if (array_key_exists($slug, $cache)) {
+        return $cache[$slug];
+    }
+    $cache[$slug] = [];
+
+    $path = cmsThemesPath() . '/' . $slug . '/customizer.schema.json';
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $raw = function_exists('kernelReadJsonFile')
+        ? kernelReadJsonFile($path)
+        : json_decode((string)@file_get_contents($path), true);
+
+    $cache[$slug] = is_array($raw) ? $raw : [];
+    return $cache[$slug];
+}
+
+/**
+ * Group a theme section's controls into panels, in declaration order.
+ *
+ * Controls with no declared group fall into a single panel labelled with the
+ * section's own label, so a theme that declares no groups still renders.
+ *
+ * @return array<int, array{key: string, label: string, controls: array<int, array<string, mixed>>}>
+ */
+function cmsThemeSectionPanels(string $section): array
+{
+    $controls = cmsThemeSectionControlSchema($section);
+    if ($controls === []) {
+        return [];
+    }
+
+    $schema = cmsThemeCustomizerRawSchema();
+    $rawControls = (array)($schema['sections'][$section]['controls'] ?? []);
+    $sectionLabel = trim((string)($schema['sections'][$section]['label'] ?? '')) ?: $section;
+
+    $order = [];
+    $byGroup = [];
+    foreach ($controls as $control) {
+        $id = (string)($control['id'] ?? '');
+        if ($id === '') {
+            continue;
+        }
+
+        $raw = is_array($rawControls[$id] ?? null) ? $rawControls[$id] : [];
+        $groupKey = trim((string)($raw['group'] ?? ''));
+        $groupLabel = trim((string)($raw['group_label'] ?? ''));
+
+        // Audience comes from the raw schema, exactly like `group` does. A
+        // control with no audience is treated as owner-facing so a theme that
+        // declares none behaves as it always has.
+        $audience = trim((string)($raw['audience'] ?? ''));
+        $audience = $audience === 'developer' ? 'developer' : 'user';
+        $control['audience'] = $audience;
+
+        if ($groupKey === '') {
+            // Ungrouped controls split by audience so an owner never has to
+            // scan CSS-level internals to find the two things they came for.
+            // Themes that declare explicit groups keep full control of naming.
+            if ($audience === 'developer') {
+                $groupKey = '__advanced__';
+                $groupLabel = $sectionLabel . ' — Advanced';
+            } else {
+                $groupKey = '__section__';
+                $groupLabel = $sectionLabel;
+            }
+        } elseif ($groupLabel === '') {
+            $groupLabel = $groupKey;
+        }
+
+        if (!isset($byGroup[$groupKey])) {
+            $byGroup[$groupKey] = ['key' => $groupKey, 'label' => $groupLabel, 'controls' => []];
+            $order[] = $groupKey;
+        }
+        $byGroup[$groupKey]['controls'][] = $control;
+    }
+
+    $panels = [];
+    foreach ($order as $key) {
+        $panel = $byGroup[$key];
+        // A panel is developer-facing only when every control in it is, so a
+        // mixed group is never hidden from the owner.
+        $devs = 0;
+        foreach ($panel['controls'] as $c) {
+            if (($c['audience'] ?? 'user') === 'developer') {
+                $devs++;
+            }
+        }
+        $panel['audience'] = ($devs > 0 && $devs === count($panel['controls'])) ? 'developer' : 'user';
+        $panel['developer_count'] = $devs;
+        $panels[] = $panel;
+    }
+
+    return $panels;
+}
+
+function cmsKnownCustomizerSections(): array
+{
+    return array_values(array_unique(array_merge(
+        cmsCustomizerBaseSections(),
+        array_keys(cmsThemeDeclaredSections())
+    )));
+}
+
+/**
+ * Defaults for a theme-declared section, taken from its own control definitions.
+ */
+function cmsThemeSectionControlDefaults(string $section): array
+{
+    $declared = cmsThemeDeclaredSections();
+    if (!isset($declared[$section])) {
+        return [];
+    }
+
+    $defaults = [];
+    foreach ((array)$declared[$section]->controls as $controlId => $control) {
+        $id = is_object($control) && isset($control->id) ? (string)$control->id : (string)$controlId;
+        if ($id === '') {
+            continue;
+        }
+        $defaults[$id] = is_object($control) && property_exists($control, 'default') ? $control->default : null;
+    }
+
+    return $defaults;
+}
+
+/**
+ * UI payload for a theme-declared section: its controls, ready to render
+ * (combobox / toggle / text / color / number) without CMS-side hardcoding.
+ */
+function cmsThemeSectionControlSchema(string $section): array
+{
+    $declared = cmsThemeDeclaredSections();
+    if (!isset($declared[$section])) {
+        return [];
+    }
+
+    $controls = [];
+    foreach ((array)$declared[$section]->controls as $controlId => $control) {
+        if (!is_object($control)) {
+            continue;
+        }
+        $options = [];
+        foreach ((array)($control->options ?? []) as $key => $option) {
+            if (is_array($option)) {
+                $value = (string)($option['value'] ?? $key);
+                $options[] = ['value' => $value, 'label' => (string)($option['label'] ?? $value)];
+            } else {
+                $value = (string)$option;
+                $options[] = ['value' => $value, 'label' => $value];
+            }
+        }
+        $controls[] = [
+            'id' => (string)($control->id ?? $controlId),
+            'label' => (string)($control->label ?? $controlId),
+            'type' => (string)($control->type ?? 'text'),
+            'default' => $control->default ?? null,
+            'options' => $options,
+            'description' => isset($control->description) ? (string)$control->description : '',
+        ];
+    }
+
+    return $controls;
+}
+
+/**
+ * Coerce one submitted value to its declared control type.
+ * Unknown keys are dropped; invalid values fall back to the schema default.
+ */
+function cmsCoerceThemeControlValue(object $control, mixed $value): mixed
+{
+    $type = strtolower((string)($control->type ?? 'text'));
+    $default = $control->default ?? null;
+
+    switch ($type) {
+        case 'boolean':
+        case 'switch':
+        case 'toggle':
+            $parsed = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            return $parsed ?? (bool)$default;
+
+        case 'number':
+        case 'integer':
+            if (!is_numeric($value)) {
+                return $type === 'integer' ? (int)round((float)$default) : (float)$default;
+            }
+            $num = (float)$value;
+            // The theme declares its own bounds; enforce them so a control cannot
+            // be driven outside the range the theme designed for.
+            $constraints = (array)($control->constraints ?? []);
+            if (isset($constraints['min']) && is_numeric($constraints['min'])) {
+                $num = max((float)$constraints['min'], $num);
+            }
+            if (isset($constraints['max']) && is_numeric($constraints['max'])) {
+                $num = min((float)$constraints['max'], $num);
+            }
+            return $type === 'integer' ? (int)round($num) : $num;
+
+        case 'select':
+        case 'radio':
+            $allowed = [];
+            foreach ((array)($control->options ?? []) as $key => $option) {
+                $allowed[] = (string)(is_array($option) ? ($option['value'] ?? $key) : $option);
+            }
+            $candidate = is_scalar($value) ? (string)$value : '';
+            return ($allowed === [] || in_array($candidate, $allowed, true))
+                ? $candidate
+                : (string)$default;
+
+        case 'color':
+            $candidate = trim((string)$value);
+            // Allow hex, rgb()/hsl(), bare keywords and CSS custom property refs.
+            return preg_match('/^(#[0-9a-fA-F]{3,8}|(?:rgb|hsl)a?\([^)]*\)|[a-zA-Z_-]+|var\(--[a-zA-Z0-9_-]+\))$/', $candidate)
+                ? $candidate
+                : (string)$default;
+
+        default:
+            return is_scalar($value) ? (string)$value : (string)$default;
+    }
+}
+
+/**
+ * Template payload for theme-declared sections: label, control schema and the
+ * currently saved values, ready for a generic (schema-driven) renderer.
+ */
+function cmsThemeDeclaredSectionsPayload(?string $scope = null): array
+{
+    $declared = cmsThemeDeclaredSections();
+    if ($declared === []) {
+        return [];
+    }
+
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    $db = function_exists('cmsDb') ? cmsDb() : null;
+    $payload = [];
+
+    foreach ($declared as $id => $section) {
+        $defaults = cmsThemeSectionControlDefaults($id);
+        $saved = [];
+        if ($db !== null) {
+            try {
+                $data = cmsCustomizerGet($db, $id, $scope);
+                $saved = is_array($data['settings'] ?? null) ? $data['settings'] : [];
+            } catch (Throwable $e) {
+                $saved = [];
+            }
+        }
+        $payload[] = [
+            'id' => (string)$id,
+            'label' => (string)($section->label ?? $id),
+            'is_region' => (bool)($section->isRegion ?? false),
+            'controls' => cmsThemeSectionControlSchema($id),
+            // Collapsible panels, grouped by the theme's optional `group` key.
+            'panels' => cmsThemeSectionPanels($id),
+            'defaults' => $defaults,
+            'settings' => array_merge($defaults, $saved),
+        ];
+    }
+
+    return $payload;
+}
+
+/**
+ * Validate a theme-declared section against its own schema.
+ * Only keys the schema declares survive; types are coerced.
+ */
+function cmsValidateThemeSectionSettings(string $section, array $settings): array
+{
+    if (!cmsIsThemeDeclaredSection($section)) {
+        return [];
+    }
+
+    $declared = cmsThemeDeclaredSections()[$section];
+    $clean = [];
+    foreach ((array)$declared->controls as $controlId => $control) {
+        if (!is_object($control)) {
+            continue;
+        }
+        $id = (string)($control->id ?? $controlId);
+        if ($id === '' || !array_key_exists($id, $settings)) {
+            continue;
+        }
+        $clean[$id] = cmsCoerceThemeControlValue($control, $settings[$id]);
+    }
+
+    return $clean;
 }
 
 function cmsCustomizerSectionDefaults(string $section, ?string $scope = null): array
@@ -379,7 +782,7 @@ function cmsCustomizerSectionDefaults(string $section, ?string $scope = null): a
         'custom_code' => cmsCustomCodeSettingsDefaults(),
         'entity_presentation' => cmsEntityPresentationSectionDefaults(),
         'theme' => cmsThemeLayoutSettingsDefaults(),
-        default => [],
+        default => cmsThemeSectionControlDefaults($section),
     };
 }
 
@@ -393,7 +796,7 @@ function cmsValidateCustomizerSectionSettings(string $section, array $settings, 
         'custom_code' => cmsValidateCustomCodeSettings($settings),
         'entity_presentation' => cmsValidateEntityPresentationSettings($settings, cmsEntityPresentationSectionDefaults()),
         'theme' => cmsValidateThemeLayoutSettings($settings),
-        default => $settings,
+        default => cmsValidateThemeSectionSettings($section, $settings),
     };
 }
 
@@ -3066,7 +3469,8 @@ function cmsRenderCustomizedFooter(object $db, array $publicCtx = []): string
         $outerWidthStyle = cmsCustomizerShellOuterWidthStyle($settings);
         $innerWidthClass = cmsCustomizerShellWidthClasses($settings);
         $barBg    = htmlspecialchars($settings['bar_bg_color'] ?? '#0f172a');
-        $barText  = htmlspecialchars($settings['bar_text_color'] ?? '#64748b');
+        // Keep this fallback above 4.5:1 against bar_bg_color (#0f172a).
+        $barText  = htmlspecialchars($settings['bar_text_color'] ?? '#94a3b8');
         $barLink  = htmlspecialchars($settings['bar_link_color'] ?? '#94a3b8');
         $barLinkH = htmlspecialchars($settings['bar_link_hover_color'] ?? '#ffffff');
 
@@ -3088,12 +3492,14 @@ function cmsRenderCustomizedFooter(object $db, array $publicCtx = []): string
         $html .= '</div></div></div>';
     }
 
-    $themeWrapped = cmsRenderActiveThemeCustomizerPartial('footer', [
+    // See cmsRenderCustomizedHeader(): theme region partials expect the public
+    // shell context, otherwise footer_menu / social_links render empty.
+    $themeWrapped = cmsRenderActiveThemeCustomizerPartial('footer', array_merge($publicCtx, [
         'footer_html' => $html,
         'footer_settings' => $settings,
         'footer_widgets' => $widgets,
         'cms_settings' => $cmsSettings,
-    ]);
+    ]));
     if ($themeWrapped !== '') {
         $html = $themeWrapped;
     }
@@ -4065,12 +4471,16 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $html .= $transparentJs;
     }
 
-    $themeWrapped = cmsRenderActiveThemeCustomizerPartial('header', [
+    // Theme region partials are authored against the public shell context
+    // (primary_menu, footer_menu, site_title, social_links, ...), so pass it
+    // through alongside the region payload. Without it a theme partial that
+    // renders its own navigation gets an empty menu.
+    $themeWrapped = cmsRenderActiveThemeCustomizerPartial('header', array_merge($publicCtx, [
         'header_html' => $html,
         'header_settings' => $settings,
         'header_widgets' => $widgets,
         'cms_settings' => $cmsSettings,
-    ]);
+    ]));
     if ($themeWrapped !== '') {
         $html = $themeWrapped;
     }
@@ -4102,17 +4512,33 @@ function cmsRenderActiveThemeCustomizerPartial(string $partialName, array $conte
         return '';
     }
 
-    $relativePath = 'public/' . $partialName . '.disyl';
-    $templatePath = '_cms_active_theme/' . $relativePath;
-    if (!function_exists('cmsActiveThemeTemplateExists') || !cmsActiveThemeTemplateExists($templatePath)) {
+    if (!function_exists('cmsActiveThemeTemplateExists')) {
         return '';
     }
 
-    try {
-        return cmsRender($templatePath, $context);
-    } catch (Throwable $e) {
-        return '';
+    // Themes ship region partials at either public/<name>.disyl (legacy
+    // convention) or public/partials/<name>.disyl (ARK and newer themes).
+    // Both are supported; the first existing candidate wins, so themes using
+    // the legacy location keep rendering exactly as before.
+    $candidates = [
+        'public/' . $partialName . '.disyl',
+        'public/partials/' . $partialName . '.disyl',
+    ];
+
+    foreach ($candidates as $relativePath) {
+        $templatePath = '_cms_active_theme/' . $relativePath;
+        if (!cmsActiveThemeTemplateExists($templatePath)) {
+            continue;
+        }
+
+        try {
+            return cmsRender($templatePath, $context);
+        } catch (Throwable $e) {
+            return '';
+        }
     }
+
+    return '';
 }
 
 /**

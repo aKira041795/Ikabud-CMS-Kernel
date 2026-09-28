@@ -1,8 +1,10 @@
 {# ARK: Site Footer Partial (Phase 2)
-   Used by the public shell fallback when no customized footer HTML exists. #}
+   Inner-only, matching public/partials/header.disyl. The public shell layout
+already provides the footer element and injects this partial inside it
+through the footer region, so emitting another footer here nested a footer
+inside a footer and doubled the footer grid. #}
 
-<footer class="ark-footer" role="contentinfo">
-    <div class="ark-footer__inner" style="grid-template-columns: repeat({footer_columns|default:3}, minmax(0, 1fr));">
+<div class="ark-footer__inner" style="grid-template-columns: repeat({footer_columns|default:3}, minmax(0, 1fr));">
         {# Column 1: Branding #}
         <div class="ark-footer__col">
             <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
@@ -46,5 +48,3 @@
         {/if}
         {if footer_admin_link|default:false} &middot; <a href="{base_url}/cms/admin">Admin</a>{/if}
     </div>
-
-</footer>

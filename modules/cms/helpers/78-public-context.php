@@ -279,7 +279,7 @@ function cmsPublicContext(array $extra = []): array
     $primaryMenu = '';
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $primaryMenu = cmsRenderMenu('primary');
+        $primaryMenu = cmsRenderMenu('primary', ['aria_label' => 'Main menu']);
     } catch (Throwable $e) {
         // Menu may not exist yet
     }
@@ -291,7 +291,7 @@ function cmsPublicContext(array $extra = []): array
     $footerMenu = '';
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $footerMenu = cmsRenderMenu('footer');
+        $footerMenu = cmsRenderMenu('footer', ['aria_label' => 'Footer menu']);
     } catch (Throwable $e) {}
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('footer_menu', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);

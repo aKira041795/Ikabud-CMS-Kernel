@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 {include "modules/ecommerce/public/partials/storefront-chrome.disyl"}
@@ -15,7 +15,7 @@
             <p class="mt-1 text-sm text-gray-600">{store.description | escape}</p>
             {/if}
             <div class="mt-3 flex flex-wrap gap-3">
-                <a href="{shop_url}" class="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
+                <a href="{shop_url}" class="inline-flex items-center gap-1.5 px-4 py-2 ark-commerce-action text-white text-sm font-medium rounded-lg hover:bg-orange-700">
                     Browse All Products from this Store
                 </a>
                 <a href="{base_url}/ecommerce/stores" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50">
@@ -32,9 +32,9 @@
         </h2>
 
         {if products | count == 0}
-        <div class="text-center py-16 text-gray-400 bg-white rounded-xl border border-gray-200">
+        <div class="text-center py-16 ark-commerce-muted bg-white rounded-xl border border-gray-200">
             <p class="text-base">No products available in this store yet.</p>
-            <a href="{base_url}/ecommerce/shop" class="text-orange-600 text-sm mt-2 inline-block">Browse all products →</a>
+            <a href="{base_url}/ecommerce/shop" class="ark-commerce-link text-sm mt-2 inline-block">Browse all products →</a>
         </div>
         {else}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -48,19 +48,19 @@
                 </div>
                 <div class="p-4">
                     <h3 class="font-medium text-gray-900 truncate text-sm">{p.title | escape}</h3>
-                    {if p.excerpt}<p class="text-xs text-gray-400 mt-1 line-clamp-2">{p.excerpt | escape}</p>{/if}
+                    {if p.excerpt}<p class="text-xs ark-commerce-muted mt-1 line-clamp-2">{p.excerpt | escape}</p>{/if}
                     <div class="mt-2 flex items-center gap-2">
                         {if p.pricing.on_sale}
-                        <span class="font-bold text-orange-600">{p.pricing.formatted}</span>
-                        <span class="text-xs text-gray-400 line-through">{p.pricing.regular_fmt}</span>
+                        <span class="font-bold ark-commerce-accent">{p.pricing.formatted}</span>
+                        <span class="text-xs ark-commerce-muted line-through">{p.pricing.regular_fmt}</span>
                         {else}
                         <span class="font-bold text-gray-900">{p.pricing.formatted|default:'—'}</span>
                         {/if}
                     </div>
                     {if p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
-                    <div class="mt-1 text-xs text-red-500 font-medium">Out of stock</div>
+                    <div class="mt-1 text-xs ark-commerce-danger font-medium">Out of stock</div>
                     {elseif p.inventory.track_stock && p.inventory.low_stock}
-                    <div class="mt-1 text-xs text-amber-600 font-medium">Low stock</div>
+                    <div class="mt-1 text-xs ark-commerce-warning font-medium">Low stock</div>
                     {/if}
                 </div>
                 </a>
@@ -70,7 +70,7 @@
 
         {if total > products | count}
         <div class="mt-6 text-center">
-            <a href="{shop_url}" class="inline-flex items-center gap-2 px-6 py-2 border border-orange-600 text-orange-600 text-sm font-medium rounded-lg hover:bg-orange-50">
+            <a href="{shop_url}" class="inline-flex items-center gap-2 px-6 py-2 border border-orange-600 ark-commerce-link text-sm font-medium rounded-lg hover:bg-orange-50">
                 View All {total} Products from this Store →
             </a>
         </div>

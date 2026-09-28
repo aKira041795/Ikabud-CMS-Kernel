@@ -15,9 +15,16 @@
        Partials: public/partials/ (header, footer, navigation, breadcrumbs, pagination)
     #}
 
+    {# CMS structural base — builder node geometry, prose typography, lightbox
+       and UI primitives. This is a CMS-owned contract exposed as
+       cms_public_css_url; any theme that renders builder content must load it.
+       It is deliberately linked BEFORE theme_style_url so ARK's design
+       language still wins every conflict by source order. #}
+    <link rel="stylesheet" href="{cms_public_css_url|default:'/assets/cms/cms-public.css'}">
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
+    {if storefront_theme_css}{storefront_theme_css|raw}{/if}
     {if custom_css}{custom_css|raw}{/if}
     {if head_code}{head_code|raw}{/if}
 
@@ -48,13 +55,19 @@
     <a href="#main-content" class="ark-skip">Skip to content</a>
 
     {# ── Governed theme slots (Phase 1) ── #}
+    {# Regions are placed exactly ONCE, at their real positions:
+       header  -> the header block below
+       sidebar -> .ark-content-area
+       footer  -> .ark-footer at the end of the body
+       An ikb_region call renders the injected chrome, so calling one here as
+       well would emit the header and footer a second time above the main
+       element. Keep this area free of region calls. #}
     {ikb_slot name="site.before" /}
-    {ikb_region name="header"}{/ikb_region}
-    {ikb_region name="sidebar"}{/ikb_region}
-    {ikb_region name="footer"}{/ikb_region}
 
     {block header}
-    {# ARK is self-contained — always renders its own header #}
+    {# The governed ARK region is the sole header implementation. The semantic
+       wrapper stays outside ikb_region because an installed region template
+       replaces (rather than decorates) the region body. #}
     {# Top bar (above header, only when social_links have content) #}
     {if social_links}
     <div class="ark-topbar" aria-label="Site highlights">
@@ -73,23 +86,10 @@
     </div>
     {/if}
     {ikb_slot name="header.before" /}
-    {ikb_region name="header"}
-    {ikb_slot name="header.main" /}
     <header class="ark-header" role="banner">
-        <div class="ark-header__inner">
-            <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
-            <button type="button" class="ark-header__mobile-toggle" aria-label="Toggle navigation" aria-expanded="false">Menu</button>
-            <nav class="ark-header__nav" aria-label="Main navigation">
-                {if primary_menu}{primary_menu|raw}{/if}
-                {if cart_enabled}
-                <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
-                    Cart{if cart_count > 0} ({cart_count}){/if}
-                </a>
-                {/if}
-            </nav>
-        </div>
+        {ikb_slot name="header.main" /}
+        {ikb_region name="header"}{/ikb_region}
     </header>
-    {/ikb_region}
     {ikb_slot name="header.after" /}
     {/block}
 
@@ -106,43 +106,17 @@
             {ikb_slot name="content.after" /}
         </main>
         <aside class="ark-sidebar-region" aria-label="Sidebar">
-            {ikb_region name="sidebar"}
             {ikb_slot name="sidebar.primary" /}
+            {ikb_region name="sidebar"}{/ikb_region}
             {ikb_slot name="sidebar.secondary" /}
-            {/ikb_region}
         </aside>
     </div>
 
-    {# ARK is self-contained — always renders its own footer, no customizer override #}
+    {# The semantic wrapper contains the sole, customizer-driven footer region. #}
     <footer class="ark-footer" role="contentinfo">
         {ikb_slot name="footer.before" /}
-        {ikb_region name="footer"}
         {ikb_slot name="footer.main" /}
-        <div class="ark-footer__inner">
-            <div class="ark-footer__col">
-                <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
-                <p class="ark-footer__text">{site_tagline|default:'A governed application platform.'}</p>
-                {if social_links}
-                <div class="ark-footer__social">
-                    {for link in social_links}
-                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
-                    {/for}
-                </div>
-                {/if}
-            </div>
-            <div class="ark-footer__col">
-                <h4 class="ark-footer__heading">Navigate</h4>
-                {if footer_menu}{footer_menu|raw}{/if}
-            </div>
-            <div class="ark-footer__col">
-                <h4 class="ark-footer__heading">Info</h4>
-                <p class="ark-footer__text">&copy; {current_year|default:'2026'} {site_title|default:'ARK Theme'}</p>
-            </div>
-        </div>
-        <div class="ark-footer__bottom">
-            Built on Ikabud Kernel OS 6.1 + DiSyL 4.7
-        </div>
-        {/ikb_region}
+        {ikb_region name="footer"}{/ikb_region}
         {ikb_slot name="footer.after" /}
     </footer>
 

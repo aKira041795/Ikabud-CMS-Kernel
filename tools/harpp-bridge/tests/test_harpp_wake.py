@@ -22,6 +22,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import harpp_wake  # noqa: E402
 
+# Network isolation: the whole module runs with the HARPP bridge transport and
+# urllib replaced by a fail-on-call sentinel. Any unmocked outbound call is a
+# hard error instead of a live HTTPS request to the configured HARPP host.
+# Tests that exercise notification behavior stub harpp_client.send_message /
+# harpp_notify / submit_decision at the client boundary, so their behavior and
+# assertions stay real; there is no support here for bypassing the sentinel.
+_ORIGINAL_CLIENT_API = harpp_wake.harpp_client.api
+_ORIGINAL_URLOPEN = harpp_wake.urllib.request.urlopen
+
+
+def _network_sentinel(*args, **kwargs):
+    raise RuntimeError(
+        "test isolation sentinel: outbound network transport was called without a mock: "
+        f"args={args!r} kwargs={kwargs!r}"
+    )
+
+
+def setUpModule():
+    harpp_wake.harpp_client.api = _network_sentinel
+    harpp_wake.urllib.request.urlopen = _network_sentinel
+
+
+def tearDownModule():
+    harpp_wake.harpp_client.api = _ORIGINAL_CLIENT_API
+    harpp_wake.urllib.request.urlopen = _ORIGINAL_URLOPEN
+
 
 class HarppDesktopRunnerTest(unittest.TestCase):
     def setUp(self):
@@ -238,6 +264,8 @@ class HarppWakeTest(unittest.TestCase):
         harpp_wake.WORKFLOWS_FILE = base / "workflows.json"
         harpp_wake.DECISIONS_FILE = base / "decisions.json"
         harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
+        self._orig_delivery_receipts = os.environ.get("HARPP_DELIVERY_RECEIPTS")
+        os.environ["HARPP_DELIVERY_RECEIPTS"] = str(base / "delivery-receipts.jsonl")
         self.inbox = base / "inbox.jsonl"
         self.inbox.write_text(
             json.dumps({"kind": "message", "id": 1, "conversation_id": 2, "body": "hi"}) + "\n",
@@ -245,6 +273,10 @@ class HarppWakeTest(unittest.TestCase):
 
     def tearDown(self):
         harpp_wake._LAST_DAEMON_REPORT_TS = 0.0
+        if self._orig_delivery_receipts is None:
+            os.environ.pop("HARPP_DELIVERY_RECEIPTS", None)
+        else:
+            os.environ["HARPP_DELIVERY_RECEIPTS"] = self._orig_delivery_receipts
         self.tmp.cleanup()
 
     def _wake(self, **kw):
@@ -549,6 +581,451 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(job["status"], "running")
             self.assertNotIn(job["id"], harpp_wake.jobs_state()["reported"])
         finally:
+            harpp_wake.harpp_client.send_message = original
+
+    # --- report-delivery idempotency recovery ---
+
+    def _job_with_marker(self, marker="ALL CHECKS PASS"):
+        logp = str(Path(self.tmp.name) / "report.log")
+        Path(logp).write_text("work in progress\n", encoding="utf-8")
+        jid = harpp_wake.track_job(
+            pid=self._dead_pid(), model="model", task="report job",
+            conversation_id=12, log_path=logp, marker=marker)
+        # The marker must land after tracking so it counts as this job's output.
+        with Path(logp).open("a", encoding="utf-8") as stream:
+            stream.write(f"{marker}\n")
+        return jid
+
+    def _raise_bridge_error(self, code, status=409, sent=None):
+        def raiser(**kw):
+            if sent is not None:
+                sent.append(kw)
+            raise harpp_wake.harpp_client.HarppError(
+                f"HARPP bridge error {status}: conflict", status=status,
+                payload={"ok": False, "code": code})
+        return raiser
+
+    def test_monitor_finalizes_on_prior_idempotent_conflict(self):
+        # Crash window: the report was already accepted but the local ack was
+        # lost, so the retried body differs and the server answers 409
+        # idempotency_conflict for the stable job-report key. Finalize with the
+        # computed DONE outcome instead of retrying forever.
+        jid = self._job_with_marker()
+        sent = []
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._raise_bridge_error(
+            "idempotency_conflict", sent=sent)
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+            self.assertEqual(len(sent), 1)
+            state = harpp_wake.jobs_state()
+            job = state["jobs"][jid]
+            self.assertEqual(job["status"], "finished")
+            self.assertEqual(job["outcome"], "DONE")
+            self.assertIn(jid, state["reported"])
+            # repeated monitor passes send no additional report
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)
+            self.assertEqual(len(sent), 1)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+
+    def _running_stage_workflow(self, jid, wid):
+        """Seed a running workflow whose first stage owns `jid`, capturing launches."""
+        stages = [self._stage("implement", jid, "running"), self._stage("review")]
+        self._seed_workflow(wid, stages)
+        launched = []
+        original_launch = harpp_wake.launch_job
+        harpp_wake.launch_job = lambda **kw: (launched.append(kw) or ("job-next", None))
+        return launched, original_launch
+
+    def test_monitor_retries_without_acceptance_evidence_beyond_any_budget(self):
+        # Every delivery failure that lacks durable acceptance evidence must remain
+        # retryable indefinitely. After more passes than the old bounded budget, the
+        # stable job-report key is retried on each pass, the job is neither finished
+        # nor reported, no fresh fallback key is invented, and the governed workflow
+        # neither advances nor launches its next stage.
+        unstructured = {"ok": False, "error": "conflict with no structured code"}
+        cases = {
+            "network": lambda **kw: (_ for _ in ()).throw(
+                harpp_wake.harpp_client.HarppError("cannot reach HARPP bridge")),
+            "non_ok": lambda **kw: {"ok": False, "error": "rejected"},
+            "idempotency_in_progress": self._raise_bridge_error("idempotency_in_progress"),
+            "generic_500": self._raise_bridge_error("internal_error", status=500),
+            "unrelated_409": self._raise_bridge_error("run_in_progress"),
+            "unstructured_409": lambda **kw: (_ for _ in ()).throw(
+                harpp_wake.harpp_client.HarppError(
+                    "HARPP bridge error 409: conflict", status=409, payload=unstructured)),
+        }
+        passes = 7  # deliberately more than any bounded-attempt threshold
+        for label, fail in cases.items():
+            with self.subTest(label=label):
+                jid = self._job_with_marker()
+                wid = f"wf-retry-{label}"
+                launched, original_launch = self._running_stage_workflow(jid, wid)
+                sent = []
+
+                def sender(_fail=fail, _sent=sent, **kw):
+                    _sent.append(kw)
+                    return _fail(**kw)
+
+                original_send = harpp_wake.harpp_client.send_message
+                harpp_wake.harpp_client.send_message = sender
+                try:
+                    for _ in range(passes):
+                        self.assertEqual(harpp_wake.monitor_jobs(), 0)
+                    state = harpp_wake.jobs_state()
+                    job = state["jobs"][jid]
+                    self.assertEqual(job["status"], "running")
+                    self.assertEqual(job["state"], "RUNNING")
+                    self.assertNotIn(jid, state["reported"])
+                    self.assertNotIn("report_failures", job)
+                    stable = [c for c in sent
+                              if c.get("idempotency_key") == f"job-report-{jid}"]
+                    fallback = [c for c in sent if str(c.get("idempotency_key") or "")
+                                .startswith("job-report-fallback-")]
+                    self.assertEqual(len(stable), passes)
+                    self.assertEqual(fallback, [])
+                    self.assertEqual(harpp_wake.advance_workflows(), 0)
+                    self.assertEqual(launched, [])
+                    wf = harpp_wake.get_workflow(wid)
+                    self.assertEqual(wf["status"], "running")
+                    self.assertEqual(wf["stages"][0]["status"], "running")
+                finally:
+                    harpp_wake.launch_job = original_launch
+                    harpp_wake.harpp_client.send_message = original_send
+
+    def test_monitor_recovers_and_advances_after_retryable_failures(self):
+        # Retryable failures must not lose the ability to finalize later: once the
+        # crash/lost-ack window surfaces as a structured idempotency_conflict for the
+        # stable key, the job finalizes from its computed outcome, the workflow
+        # advances exactly once, and no duplicate report is sent afterwards.
+        jid = self._job_with_marker()
+        wid = "wf-eventual-recovery"
+        launched, original_launch = self._running_stage_workflow(jid, wid)
+        sent = []
+        original_send = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._raise_bridge_error(
+            "internal_error", status=500, sent=sent)
+        try:
+            for _ in range(6):
+                self.assertEqual(harpp_wake.monitor_jobs(), 0)
+            self.assertEqual(harpp_wake.advance_workflows(), 0)
+            self.assertEqual(launched, [])
+            harpp_wake.harpp_client.send_message = self._raise_bridge_error(
+                "idempotency_conflict", sent=sent)
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+            self.assertEqual(harpp_wake.jobs_state()["jobs"][jid]["status"], "finished")
+            self.assertEqual(harpp_wake.jobs_state()["jobs"][jid]["outcome"], "DONE")
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            self.assertEqual(len(launched), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["stages"][0]["status"], "done")
+            self.assertEqual(wf["current_index"], 1)
+            # No duplicate report on a later pass.
+            stable = [c for c in sent if c.get("idempotency_key") == f"job-report-{jid}"]
+            self.assertEqual(len(stable), 7)  # 6 retryable failures + 1 conflict
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)
+            self.assertEqual(len([c for c in sent
+                                  if c.get("idempotency_key") == f"job-report-{jid}"]), 7)
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.harpp_client.send_message = original_send
+
+    def test_monitor_preserves_failed_outcome_on_prior_conflict(self):
+        # A verified FAILED outcome must stay FAILED when a prior accepted report
+        # is recovered; recovery must not convert it to DONE to advance a workflow.
+        logp = str(Path(self.tmp.name) / "failed.log")
+        Path(logp).write_text("work in progress\n", encoding="utf-8")
+        jid = harpp_wake.track_job(
+            pid=self._dead_pid(), model="model", task="failed report job",
+            conversation_id=12, log_path=logp, marker="MUST APPEAR")
+        with Path(logp).open("a", encoding="utf-8") as stream:
+            stream.write("no success marker here\n")
+        wid = "wf-failed-conflict"
+        stages = [self._stage("implement", jid, "running")]
+        self._seed_workflow(wid, stages, max_repairs=0)
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._raise_bridge_error("idempotency_conflict")
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+            state = harpp_wake.jobs_state()
+            self.assertEqual(state["jobs"][jid]["status"], "finished")
+            self.assertEqual(state["jobs"][jid]["outcome"], "FAILED")
+            self.assertIn(jid, state["reported"])
+            # FAILED is consumed by advance_workflows as failure, never promoted.
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["status"], "failed")
+            self.assertEqual(wf["stages"][0]["status"], "failed")
+        finally:
+            harpp_wake.harpp_client.send_message = original
+
+    def _accept_then_crash(self):
+        """Fake send_message: the server accepted the report, then the monitor died.
+
+        Records the real delivery receipt (including the outcome threaded through
+        `delivery_outcome`) and raises a non-HarppError so the monitor treats the
+        pass as retryable, exactly like a crash after acceptance and before local
+        finalization.
+        """
+        def sender(**kw):
+            harpp_wake.harpp_client._record_delivery_receipt(
+                {"ok": True, "data": {"message_id": 1}},
+                {"idempotency_key": kw.get("idempotency_key"),
+                 "conversation_id": kw.get("conversation_id")},
+                outcome=kw.get("delivery_outcome"))
+            raise RuntimeError("simulated crash after the bridge accepted the report")
+        return sender
+
+    def _crash_window_failed_job(self, name):
+        logp = str(Path(self.tmp.name) / name)
+        Path(logp).write_text("work in progress\n", encoding="utf-8")
+        jid = harpp_wake.track_job(
+            pid=self._dead_pid(), model="model", task="crash window",
+            conversation_id=12, log_path=logp, marker="ALL CHECKS PASS")
+        wid = f"wf-{name}"
+        self._seed_workflow(wid, [self._stage("implement", jid, "running")], max_repairs=0)
+        return jid, wid, logp
+
+    def test_monitor_crash_window_preserves_reported_failed_outcome(self):
+        # The report is accepted (receipt recorded) but the monitor dies before local
+        # finalization. The success marker then arrives, so a naive recompute would
+        # promote the stage. Recovery must finalize the originally reported FAILED
+        # outcome, send no duplicate report, and fail the workflow instead of advancing.
+        jid, wid, logp = self._crash_window_failed_job("crash-failed.log")
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._accept_then_crash()
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)  # crash -> retryable locally
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        job = harpp_wake.jobs_state()["jobs"][jid]
+        self.assertEqual(job["status"], "running")
+        self.assertEqual(job["staged_outcome"], "FAILED")
+        self.assertIsInstance(job["staged_report"], dict)
+        # Evidence changes after the accepted report: the marker now appears.
+        with Path(logp).open("a", encoding="utf-8") as stream:
+            stream.write("ALL CHECKS PASS\n")
+        sent = []
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw) or {"ok": True}
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        state = harpp_wake.jobs_state()
+        self.assertEqual(state["jobs"][jid]["status"], "finished")
+        self.assertEqual(state["jobs"][jid]["outcome"], "FAILED")
+        self.assertIn(jid, state["reported"])
+        self.assertEqual(sent, [])  # receipt proves delivery: no duplicate report
+        # FAILED drives the workflow to failure; it is never promoted to DONE.
+        self.assertEqual(harpp_wake.advance_workflows(), 1)
+        wf = harpp_wake.get_workflow(wid)
+        self.assertEqual(wf["status"], "failed")
+        self.assertEqual(wf["stages"][0]["status"], "failed")
+
+    def test_monitor_crash_window_preserves_reported_done_outcome(self):
+        # Symmetric guarantee: an accepted DONE report stays DONE even if the success
+        # marker disappears before local finalization.
+        jid = self._job_with_marker()
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._accept_then_crash()
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        job = harpp_wake.jobs_state()["jobs"][jid]
+        self.assertEqual(job["staged_outcome"], "DONE")
+        # Evidence degrades after acceptance: the marker is gone.
+        Path(job["log_path"]).write_text("marker lost\n", encoding="utf-8")
+        sent = []
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw) or {"ok": True}
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        state = harpp_wake.jobs_state()
+        self.assertEqual(state["jobs"][jid]["status"], "finished")
+        self.assertEqual(state["jobs"][jid]["outcome"], "DONE")
+        self.assertIn(jid, state["reported"])
+        self.assertEqual(sent, [])
+
+    def test_monitor_crash_window_conflict_preserves_reported_failed_outcome(self):
+        # Same crash window without a recorded receipt: the retry surfaces a
+        # structured idempotency_conflict for the stable key. The staged FAILED
+        # outcome must win over the marker that appeared after acceptance.
+        jid, _wid, logp = self._crash_window_failed_job("crash-conflict.log")
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._raise_bridge_error("internal_error", status=500)
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        self.assertEqual(harpp_wake.jobs_state()["jobs"][jid]["staged_outcome"], "FAILED")
+        with Path(logp).open("a", encoding="utf-8") as stream:
+            stream.write("ALL CHECKS PASS\n")
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._raise_bridge_error("idempotency_conflict")
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        state = harpp_wake.jobs_state()
+        self.assertEqual(state["jobs"][jid]["status"], "finished")
+        self.assertEqual(state["jobs"][jid]["outcome"], "FAILED")
+        self.assertIn(jid, state["reported"])
+
+    def test_monitor_seeded_receipt_outcome_beats_changed_evidence(self):
+        # A delivery receipt can carry the accepted outcome. Even with no staged job
+        # state (the pre-fix crash window), recovery must honor the reported FAILED
+        # result rather than recomputing DONE from a success marker that arrived later.
+        jid = self._job_with_marker()  # marker present -> a recompute would say DONE
+        receipts = Path(harpp_wake.harpp_client.delivery_receipts_path())
+        receipts.parent.mkdir(parents=True, exist_ok=True)
+        receipts.write_text(json.dumps({
+            "idempotency_key": f"job-report-{jid}", "outcome": "FAILED"}) + "\n",
+            encoding="utf-8")
+        sent = []
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw) or {"ok": True}
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        state = harpp_wake.jobs_state()
+        self.assertEqual(state["jobs"][jid]["status"], "finished")
+        self.assertEqual(state["jobs"][jid]["outcome"], "FAILED")
+        self.assertIn(jid, state["reported"])
+        self.assertEqual(sent, [])
+
+    def test_stale_reporting_claim_reuses_staged_outcome(self):
+        # A crash can leave the job claimed ("reporting") with its outcome already
+        # staged. Stale-claim recovery must finalize that staged outcome, not
+        # recompute it from a success marker that arrived while the claim was dead.
+        jid, _wid, logp = self._crash_window_failed_job("stale-staged.log")
+        with Path(logp).open("a", encoding="utf-8") as stream:
+            stream.write("ALL CHECKS PASS\n")  # a recompute would now say DONE
+        state = harpp_wake.jobs_state()
+        state["jobs"][jid].update({
+            "status": "reporting", "reporter_pid": 999999,
+            "report_started_ts": harpp_wake._now(), "report_token": "dead-monitor",
+            "staged_outcome": "FAILED",
+            "staged_report": {"task": "crash window (model)", "state": "FAILED",
+                              "changed_files": None, "next": "remediation required",
+                              "details": "reported FAILED before the marker arrived"},
+        })
+        harpp_wake.save_jobs_state(state)
+        sent = []
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw) or {"ok": True}
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+        finally:
+            harpp_wake.harpp_client.send_message = original
+        final = harpp_wake.jobs_state()
+        self.assertEqual(final["jobs"][jid]["status"], "finished")
+        self.assertEqual(final["jobs"][jid]["outcome"], "FAILED")
+        self.assertIn(jid, final["reported"])
+        # No receipt was recorded, so the staged payload is re-sent once for
+        # confirmation and the result stays the originally reported FAILED.
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0]["idempotency_key"], f"job-report-{jid}")
+
+    def test_monitor_finalizes_on_idempotent_replay(self):
+        jid = self._job_with_marker()
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = lambda **kw: {
+            "ok": True, "data": {"idempotent_replay": True, "message_id": 5}}
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+            state = harpp_wake.jobs_state()
+            self.assertEqual(state["jobs"][jid]["status"], "finished")
+            self.assertEqual(state["jobs"][jid]["outcome"], "DONE")
+            self.assertIn(jid, state["reported"])
+        finally:
+            harpp_wake.harpp_client.send_message = original
+
+    def test_monitor_finalizes_from_durable_delivery_receipt(self):
+        # A recorded receipt is durable proof the report landed even when the
+        # local job state was never finalized; do not resend.
+        jid = self._job_with_marker()
+        receipts = Path(harpp_wake.harpp_client.delivery_receipts_path())
+        receipts.parent.mkdir(parents=True, exist_ok=True)
+        receipts.write_text(json.dumps({"idempotency_key": f"job-report-{jid}"}) + "\n",
+                            encoding="utf-8")
+        sent = []
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = lambda **kw: sent.append(kw) or {"ok": True}
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+            self.assertEqual(sent, [])
+            state = harpp_wake.jobs_state()
+            self.assertEqual(state["jobs"][jid]["status"], "finished")
+            self.assertEqual(state["jobs"][jid]["outcome"], "DONE")
+            self.assertIn(jid, state["reported"])
+        finally:
+            harpp_wake.harpp_client.send_message = original
+
+    def test_workflow_advances_after_report_conflict_recovery(self):
+        jid = self._job_with_marker()
+        wid = "wf-conflict-recovery"
+        stages = [self._stage("implement", jid, "running"), self._stage("review")]
+        self._seed_workflow(wid, stages)
+        launched = []
+        original_launch = harpp_wake.launch_job
+
+        def fake_launch(**kw):
+            launched.append(kw)
+            return "job-next", None
+
+        harpp_wake.launch_job = fake_launch
+        sent = []
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._raise_bridge_error(
+            "idempotency_conflict", sent=sent)
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 1)
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(harpp_wake.jobs_state()["jobs"][jid]["outcome"], "DONE")
+            # The finished stage drives the governed workflow to the next stage.
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            self.assertEqual(len(launched), 1)
+            wf = harpp_wake.get_workflow(wid)
+            self.assertEqual(wf["current_index"], 1)
+            self.assertEqual(wf["stages"][0]["status"], "done")
+            self.assertEqual(wf["stages"][1]["job_id"], "job-next")
+            # A repeated monitor pass must not relaunch or resend the finished stage.
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)
+            self.assertEqual(len(sent), 1)
+            # Second stage DONE finalizes the workflow.
+            self._write_jobs({
+                "job-next": {"id": "job-next", "status": "finished", "outcome": "DONE",
+                             "conversation_id": 7}})
+            harpp_wake.harpp_client.send_message = lambda **kw: {"ok": True}
+            self.assertEqual(harpp_wake.advance_workflows(), 1)
+            self.assertEqual(harpp_wake.get_workflow(wid)["status"], "done")
+        finally:
+            harpp_wake.launch_job = original_launch
+            harpp_wake.harpp_client.send_message = original
+
+    def test_workflow_holds_when_report_delivery_stays_retryable(self):
+        jid = self._job_with_marker()
+        wid = "wf-in-progress"
+        stages = [self._stage("implement", jid, "running"), self._stage("review")]
+        self._seed_workflow(wid, stages)
+        launched = []
+        original_launch = harpp_wake.launch_job
+        harpp_wake.launch_job = lambda **kw: (launched.append(kw) or ("job-next", None))
+        original = harpp_wake.harpp_client.send_message
+        harpp_wake.harpp_client.send_message = self._raise_bridge_error("idempotency_in_progress")
+        try:
+            self.assertEqual(harpp_wake.monitor_jobs(), 0)
+            self.assertEqual(harpp_wake.jobs_state()["jobs"][jid]["status"], "running")
+            self.assertEqual(harpp_wake.advance_workflows(), 0)
+            self.assertEqual(launched, [])
+        finally:
+            harpp_wake.launch_job = original_launch
             harpp_wake.harpp_client.send_message = original
 
     # --- job launch (one-step spawn + track) ---

@@ -213,6 +213,9 @@
                     <option value="custom_code">{if customizer_scope == 'ecommerce'}Store Code{else}Custom Code{/if}</option>
                     <option value="theme">{if customizer_scope == 'ecommerce'}Shell Layout{else}Theme Settings{/if}</option>
                     <option value="commerce">Entities</option>
+                    {foreach customizer_theme_sections as ts}
+                    <option value="{ts.id}">{ts.label}</option>
+                    {/foreach}
                 </select>
             </div>
             <div class="cz-studio-link">
@@ -257,6 +260,12 @@
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h18M6 12h12M8 17h8"/></svg>
                 Entities
             </button>
+            {foreach customizer_theme_sections as ts}
+            <button @click="activeTab = '{ts.id}'" class="cz-tab" :class="activeTab === '{ts.id}' ? 'cz-tab-active' : 'cz-tab-inactive'">
+                <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                {ts.label}
+            </button>
+            {/foreach}
         </nav>
     </div>
 
@@ -2709,6 +2718,88 @@
         </div>
     </div>
 
+    {# Theme-declared sections — rendered generically from the theme's own
+       customizer.schema.json controls. A theme (ARK) can therefore define its
+       own customizer sections with no CMS-side field hardcoding. Controls are
+       grouped into collapsible panels by the optional `group` key the theme
+       declares per control; without one they fall into a single panel. #}
+    {foreach customizer_theme_sections as ts}
+    <div x-show="activeTab === '{ts.id}'" class="grid grid-cols-1 xl:grid-cols-12 gap-6 cz-tab-grid">
+        <div class="xl:col-span-8 space-y-5">
+            {foreach ts.panels as panel}
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="tsPanels['{ts.id}:{panel.key}'] = !tsPanels['{ts.id}:{panel.key}']">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                        {panel.label}
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tsPanels['{ts.id}:{panel.key}'] ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="tsPanels['{ts.id}:{panel.key}']" x-collapse class="cz-panel-body">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {foreach panel.controls as c}
+                        <div>
+                            <label class="cz-label" for="cz-ts-{ts.id}-{c.id}">{c.label}</label>
+                            {if c.type == 'boolean' or c.type == 'switch' or c.type == 'toggle'}
+                            <label class="inline-flex items-center gap-2 text-xs text-gray-600">
+                                <input type="checkbox" id="cz-ts-{ts.id}-{c.id}"
+                                       class="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                                       x-model="themeSectionSettings['{ts.id}']['{c.id}']"
+                                       @change="dirtySections['{ts.id}'] = true">
+                                <span>Enabled</span>
+                            </label>
+                            {else if c.type == 'select' or c.type == 'radio'}
+                            <select class="cz-select" id="cz-ts-{ts.id}-{c.id}"
+                                    x-model="themeSectionSettings['{ts.id}']['{c.id}']"
+                                    @change="dirtySections['{ts.id}'] = true">
+                                {foreach c.options as opt}
+                                <option value="{opt.value}">{opt.label}</option>
+                                {/foreach}
+                            </select>
+                            {else if c.type == 'color'}
+                            <input type="color" id="cz-ts-{ts.id}-{c.id}" class="cz-input h-10 p-1"
+                                   x-model="themeSectionSettings['{ts.id}']['{c.id}']"
+                                   @input="dirtySections['{ts.id}'] = true">
+                            {else if c.type == 'number' or c.type == 'integer'}
+                            <input type="number" id="cz-ts-{ts.id}-{c.id}" class="cz-input"
+                                   x-model.number="themeSectionSettings['{ts.id}']['{c.id}']"
+                                   @input="dirtySections['{ts.id}'] = true">
+                            {else}
+                            <input type="text" id="cz-ts-{ts.id}-{c.id}" class="cz-input"
+                                   x-model="themeSectionSettings['{ts.id}']['{c.id}']"
+                                   @input="dirtySections['{ts.id}'] = true">
+                            {/if}
+                            {if c.description}
+                            <p class="text-[10px] text-gray-400 mt-1">{c.description}</p>
+                            {/if}
+                        </div>
+                        {/foreach}
+                    </div>
+                </div>
+            </div>
+            {/foreach}
+        </div>
+        <div class="xl:col-span-4 space-y-5">
+            <div class="cz-panel">
+                <div class="cz-panel-header">
+                    <h3>Theme-owned section</h3>
+                </div>
+                <div class="cz-panel-body space-y-4">
+                    <p class="text-xs text-gray-500">
+                        Declared by the active theme in its own <code class="text-[11px]">customizer.schema.json</code>.
+                        The CMS renders these controls from that schema and validates submitted
+                        values against the theme's declared types and constraints.
+                    </p>
+                    <button type="button" @click="resetThemeSection('{ts.id}')"
+                            class="cz-btn cz-btn-secondary w-full text-xs">
+                        Reset to theme defaults
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {/foreach}
+
     <div x-show="activeTab === 'commerce'" class="grid grid-cols-1 xl:grid-cols-12 gap-6 cz-tab-grid">
         <div class="xl:col-span-8 space-y-5">
             <div class="cz-panel">
@@ -3006,6 +3097,12 @@ function themeCustomizer() {
         dirty: false,
         studioViewport: 'desktop',
         dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, entity_presentation: false },
+        // Sections declared by the ACTIVE THEME's own customizer.schema.json.
+        // The CMS renders and validates these from the theme's schema.
+        themeSections: [],
+        themeSectionSettings: {},
+        // Collapse state for theme-declared panels, keyed '<section>:<group>'.
+        tsPanels: {},
         customizerScope: '{if customizer_scope}{customizer_scope}{else}native{/if}',
         customizerApiBase: '{if customizer_api_base}{customizer_api_base}{else}{base_url}/api/v1/cms/customizer{/if}',
         draggedWidgetId: null,
@@ -3847,6 +3944,10 @@ function themeCustomizer() {
             if (section === 'entity_presentation') {
                 return { settings: this.entityPresentationSettings };
             }
+            // Theme-declared section: settings come straight from its own state.
+            if (this.themeSectionSettings[section] !== undefined) {
+                return { settings: this.themeSectionSettings[section] };
+            }
             return { settings: this.themeLayoutSettings };
         },
 
@@ -3863,6 +3964,22 @@ function themeCustomizer() {
 
         init() {
             // Hydrate from server-rendered JSON
+            // Theme-declared sections hydrate generically from the theme schema.
+            try {
+                this.themeSections = JSON.parse(document.getElementById('cz-theme-sections').textContent);
+            } catch (e) {
+                this.themeSections = [];
+            }
+            this.themeSectionSettings = {};
+            this.themeSections.forEach(function (themeSection) {
+                this.themeSectionSettings[themeSection.id] = Object.assign({},
+                    themeSection.defaults || {}, themeSection.settings || {});
+                this.dirtySections[themeSection.id] = false;
+                // Panels start expanded, matching the CMS-owned sections.
+                (themeSection.panels || []).forEach(function (panel) {
+                    this.tsPanels[themeSection.id + ':' + panel.key] = true;
+                }, this);
+            }, this);
             try {
                 this.footerSettings = JSON.parse(document.getElementById('cz-footer-settings').textContent);
                 if (this.footerSettings.widget_container_width === undefined) this.footerSettings.widget_container_width = this.footerSettings.inner_width === 'full-width' ? 'full' : 'contained';
@@ -3873,7 +3990,8 @@ function themeCustomizer() {
                 this.footerSettings = {
                     columns: 3, widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
                     bg_color: '#1e293b', text_color: '#cbd5e1', link_color: '#94a3b8', link_hover_color: '#ffffff', title_color: '#f1f5f9',
-                    bar_bg_color: '#0f172a', bar_text_color: '#64748b', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',
+                    // bar_text_color must clear 4.5:1 against bar_bg_color; #94a3b8 is 6.96:1 on #0f172a.
+                    bar_bg_color: '#0f172a', bar_text_color: '#94a3b8', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',
                     copyright_text: '{literal}© {current_year} {site_title}. All rights reserved.{/literal}',
                     show_footer_bar: 1, show_admin_link: 1, padding_top: '40', padding_bottom: '40',
                 };
@@ -4216,6 +4334,16 @@ function themeCustomizer() {
             this.$watch('customCodeSettings', () => { this.markSectionDirty('custom_code'); }, { deep: true });
             this.$watch('themeLayoutSettings', () => { this.markSectionDirty('theme'); }, { deep: true });
             this.$watch('entityPresentationSettings', () => { this.markSectionDirty('entity_presentation'); }, { deep: true });
+
+            // Registering the deep watchers above fires them once off the initial
+            // hydration flush, which marked every CMS section dirty on page load.
+            // Nothing has been edited yet, so every save rewrote all seven
+            // unchanged sections (each ~1-2s, serialised on the session lock).
+            // Drop the flags after the watchers settle so only real edits save.
+            this.$nextTick(() => {
+                Object.keys(this.dirtySections).forEach((key) => { this.dirtySections[key] = false; });
+                this.dirty = false;
+            });
         },
 
         // Widget helpers
@@ -4559,6 +4687,23 @@ function themeCustomizer() {
             this.saving = false;
         },
 
+        /**
+         * Reset one theme-declared section to the values its own schema declares.
+         * The section is marked dirty so the existing Save path persists it.
+         */
+        resetThemeSection(sectionId) {
+            const section = this.themeSections.find(item => item.id === sectionId);
+            if (!section) {
+                return;
+            }
+            if (!confirm('Reset ' + (section.label || sectionId) + ' to the theme defaults? This cannot be undone.')) {
+                return;
+            }
+            this.themeSectionSettings[sectionId] = Object.assign({}, section.defaults || {});
+            this.dirtySections[sectionId] = true;
+            toast('Reset to theme defaults — press Save Changes to apply', 'success');
+        },
+
         resetDefaults() {
             if (this.activeTab === 'colors') {
                 if (!confirm('Reset all colors & typography to defaults? This cannot be undone.')) return;
@@ -4679,7 +4824,8 @@ function themeCustomizer() {
                 this.footerSettings = {
                     columns: 3, widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
                     bg_color: '#1e293b', text_color: '#cbd5e1', link_color: '#94a3b8', link_hover_color: '#ffffff', title_color: '#f1f5f9',
-                    bar_bg_color: '#0f172a', bar_text_color: '#64748b', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',
+                    // bar_text_color must clear 4.5:1 against bar_bg_color; #94a3b8 is 6.96:1 on #0f172a.
+                    bar_bg_color: '#0f172a', bar_text_color: '#94a3b8', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',
                     copyright_text: '{literal}© {current_year} {site_title}. All rights reserved.{/literal}',
                     show_footer_bar: 1, show_admin_link: 1, padding_top: '40', padding_bottom: '40',
                 };
@@ -4692,6 +4838,7 @@ function themeCustomizer() {
 </script>
 
 <!-- Server-rendered JSON hydration data -->
+<script type="application/json" id="cz-theme-sections">{customizer_theme_sections_json|raw}</script>
 <script type="application/json" id="cz-footer-settings">{footer_settings_json|raw}</script>
 <script type="application/json" id="cz-footer-widgets">{footer_widgets_json|raw}</script>
 <script type="application/json" id="cz-header-settings">{header_settings_json|raw}</script>

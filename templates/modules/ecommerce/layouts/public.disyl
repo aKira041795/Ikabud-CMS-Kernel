@@ -6,6 +6,10 @@
     <title>{if storefront.page.title}{storefront.page.title}{else}{page_title}{/if}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    {# CMS structural base — builder node geometry, prose typography, lightbox and
+       UI primitives. CMS-owned contract (cms_public_css_url); linked BEFORE the
+       theme stylesheet so the active theme still wins every conflict. #}
+    <link rel="stylesheet" href="{cms_public_css_url|default:'/assets/cms/cms-public.css'}">
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
@@ -15,16 +19,17 @@
     {block head}{/block}
 </head>
 <body class="{if active_theme_slug}{active_theme_slug}{/if} ecommerce-public bg-white text-gray-900 min-h-screen">
-<div class="{if active_theme_slug == 'entity-commerce-poc'}poc-shell{/if}">
-    {if active_theme_slug == 'entity-commerce-poc'}<div class="poc-shell__backdrop"></div>{/if}
 
 {set header_region_present = header_region.present|default:has_customized_header|default:false}
 {set footer_region_present = footer_region.present|default:has_customized_footer|default:false}
 
+{# The <header> landmark is ALWAYS emitted: a customized region replaces the
+   header's CONTENTS, not the header element itself. Without this the page loses
+   its banner landmark and any theme chrome that targets the header element. #}
+<header class="ecommerce-public__header{if !header_region_present} border-b border-gray-200 bg-white sticky top-0 z-10{/if}">
 {if header_region_present}
 {if header_region.html}{header_region.html|raw}{else}{customized_header|raw}{/if}
 {else}
-<header class="border-b border-gray-200 bg-white sticky top-0 z-10">
     <div class="cms-public-shell px-4 sm:px-6 py-4 flex items-center justify-between">
         <a href="{if storefront.navigation.shop_url}{storefront.navigation.shop_url}{else}{base_url}/ecommerce/shop{/if}" class="font-bold text-xl text-gray-900">Shop</a>
         <nav class="hidden md:flex items-center gap-6 text-sm">
@@ -54,21 +59,21 @@
             Compare
             <span class="ml-1 {if storefront.compare.count|default:compare_count|default:0 > 0}inline-flex{else}hidden{/if} items-center justify-center min-w-[1.25rem] h-5 px-1 bg-gray-900 text-white text-xs font-bold rounded-full">{storefront.compare.count|default:compare_count|default:0}</span>
         </a>
-        <a href="{base_url}/ecommerce/cart" class="relative inline-flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
+        <a href="{base_url}/ecommerce/cart" class="relative inline-flex items-center gap-1.5 px-4 py-2 ark-commerce-action text-white text-sm font-medium rounded-lg hover:bg-orange-700">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
             Cart
             {if storefront.page.kind}
-            <span id="cart-count-badge" class="ml-1 {if storefront.cart.count > 0}inline-flex{else}hidden{/if} items-center justify-center w-5 h-5 bg-white text-orange-600 text-xs font-bold rounded-full">{storefront.cart.count}</span>
+            <span id="cart-count-badge" class="ml-1 {if storefront.cart.count > 0}inline-flex{else}hidden{/if} items-center justify-center w-5 h-5 bg-white ark-commerce-link text-xs font-bold rounded-full">{storefront.cart.count}</span>
             {else}
-            <span id="cart-count-badge" class="ml-1 {if cart_count > 0}inline-flex{else}hidden{/if} items-center justify-center w-5 h-5 bg-white text-orange-600 text-xs font-bold rounded-full">{cart_count}</span>
+            <span id="cart-count-badge" class="ml-1 {if cart_count > 0}inline-flex{else}hidden{/if} items-center justify-center w-5 h-5 bg-white ark-commerce-link text-xs font-bold rounded-full">{cart_count}</span>
             {/if}
         </a>
         </div>
     </div>
-</header>
 {/if}
+</header>
 
-<main class="{if active_theme_slug == 'entity-commerce-poc'}poc-main{else}cms-public-main{/if}">
+<main class="cms-public-main">
     {if public_render_origin == 'ecommerce' && public_customer_is_logged_in}
     <section class="cms-public-shell px-4 sm:px-6 pt-6">
         <div class="rounded-2xl border border-orange-100 bg-gradient-to-r from-orange-50 via-white to-slate-50 px-4 py-4 shadow-sm sm:px-5 sm:py-5">
@@ -80,7 +85,7 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <a href="{if public_customer_wishlist_url}{public_customer_wishlist_url}{else}{base_url}/ecommerce/my-wishlist{/if}" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">Wishlist</a>
-                    <a href="{public_customer_orders_url}" class="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">My Orders</a>
+                    <a href="{public_customer_orders_url}" class="inline-flex items-center rounded-lg ark-commerce-action px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">My Orders</a>
                     {if public_customer_has_admin_access}
                     <a href="{public_customer_admin_url}" class="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">CMS Admin</a>
                     {/if}
@@ -90,22 +95,22 @@
         </div>
     </section>
     {/if}
-    {if active_theme_slug == 'entity-commerce-poc'}<div class="poc-main__inner"><div class="poc-content"><div class="px-6 py-8 sm:px-8 sm:py-10">{/if}
     {block content}{/block}
-    {if active_theme_slug == 'entity-commerce-poc'}</div></div></div>{/if}
 </main>
 
+{# Same landmark rule as the header: the region replaces the footer's CONTENTS,
+   never the <footer> element itself. #}
+<footer class="ecommerce-public__footer{if !footer_region_present} mt-16 border-t border-gray-200 py-8 text-center text-sm ark-commerce-muted{/if}">
 {if footer_region_present}
 {if footer_region.html}{footer_region.html|raw}{else}{customized_footer|raw}{/if}
 {else}
-<footer class="mt-16 border-t border-gray-200 py-8 text-center text-sm text-gray-400">
     <div class="cms-public-shell px-4 sm:px-6">
         {if social_links | count > 0}
         <div class="flex items-center justify-center gap-4 mb-4">
             {foreach social_links as sl}
             <a href="{sl.url | escape}" target="_blank" rel="noopener noreferrer"
                aria-label="{sl.label | escape}"
-               class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+               class="inline-flex items-center justify-center w-8 h-8 rounded-full ark-commerce-muted hover:text-gray-700 hover:bg-gray-100 transition-colors">
                 {if sl.key == 'facebook'}
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M22 12c0-5.522-4.477-10-10-10S2 6.478 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/></svg>
                 {elseif sl.key == 'instagram'}
@@ -123,8 +128,8 @@
         {/if}
         &copy; {year} Shop. Powered by Ikabud CMS.
     </div>
-</footer>
 {/if}
+</footer>
 
 {if theme_script_url}<script src="{theme_script_url}" defer></script>{/if}
 {if body_end_code}{body_end_code|raw}{/if}
@@ -143,6 +148,5 @@
     })();
 </script>
 {block scripts}{/block}
-</div>
 </body>
 </html>

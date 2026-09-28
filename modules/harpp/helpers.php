@@ -173,17 +173,34 @@ function harppAuthorize(string $capabilityId, array $user, array $scope = []): a
     return ['ok' => false, 'error' => 'Forbidden.', 'status' => 403, 'code' => 'forbidden'];
 }
 
-function harpp_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId = 'kernel.auth.authenticate@1', string $providerId = ''): array
+function harpp_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId = 'kernel.auth.authenticate@1', string $providerId = ''): ?array
 {
+    // Abstain (null) for anything outside the HARPP identity namespace. The
+    // kernel.auth.authenticate@1 pipeline stops on the first non-null provider,
+    // so returning a failure/skip array here would shadow every later module
+    // provider. null is the pipeline's "continue to the next provider" signal.
     if (!is_array($payload)) {
-        return ['ok' => false, 'authenticated' => false, 'source' => 'harpp', 'error' => 'Invalid authentication payload.'];
+        return null;
     }
-    $identity = trim((string)($payload['username'] ?? $payload['email'] ?? ''));
+    // Validate credential field types before casting. An object credential field
+    // throws on string cast, and an array field silently casts to "Array"; both
+    // would let a malformed payload invoke HARPP authentication and return a
+    // non-null result that shadows every later provider. Any non-string field
+    // (other than absent/null) is malformed, so abstain entirely.
+    $username = $payload['username'] ?? null;
+    $email = $payload['email'] ?? null;
+    $password = $payload['password'] ?? null;
+    if (($username !== null && !is_string($username))
+        || ($email !== null && !is_string($email))
+        || ($password !== null && !is_string($password))) {
+        return null;
+    }
+    $identity = trim($username ?? $email ?? '');
     $prefix = '@harpp:';
     if (!str_starts_with($identity, $prefix)) {
-        return ['ok' => false, 'authenticated' => false, 'source' => 'harpp', 'skipped' => true];
+        return null;
     }
-    $result = (new HarppAuthService())->authenticate(substr($identity, strlen($prefix)), (string)($payload['password'] ?? ''));
+    $result = (new HarppAuthService())->authenticate(substr($identity, strlen($prefix)), $password ?? '');
     if (empty($result['ok'])) {
         return $result->toArray() + ['authenticated' => false, 'source' => 'harpp'];
     }

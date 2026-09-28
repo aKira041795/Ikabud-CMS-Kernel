@@ -1613,11 +1613,8 @@ def _commit_job(job: dict) -> str:
         return f"commit attempt failed: {e}"
 
 
-def _report_job(job_id: str, job: dict) -> str:
-    """Build + deliver the completion report for a finished job. Returns the outcome."""
-    conv = job.get("conversation_id")
-    if not conv:
-        raise ValueError("job has no conversation_id")
+def _build_job_report(job: dict) -> tuple[str, dict]:
+    """Compute the DONE/FAILED outcome and report payload from current evidence."""
     tail = _log_tail(job.get("log_path"))
     marker = job.get("marker")
     verify_cmd = job.get("verify")
@@ -1649,8 +1646,6 @@ def _report_job(job_id: str, job: dict) -> str:
     commit = ""
     if ok and job.get("commit"):
         commit = _commit_job(job)
-    status = "DONE" if ok else "FAILED"
-    message_type = "PROGRESS" if ok else "FAILED"
     details = "; ".join(evidence)
     if commit:
         details = f"{details}; {commit}" if details else commit
@@ -1671,12 +1666,89 @@ def _report_job(job_id: str, job: dict) -> str:
                  else f"remediation required — see details; log: {job.get('log_path') or 'n/a'}"),
         "details": details,
     }
-    response = harpp_client.harpp_notify(
-        conversation_id=int(conv), message_type=message_type,
-        idempotency_key=f"job-report-{job_id}", body=summarize(report))
+    return ("DONE" if ok else "FAILED"), report
+
+
+def _stage_job_report(job_id: str, claim_token: str | None, outcome: str, report: dict) -> None:
+    """Durably persist the computed outcome + payload before any transport.
+
+    A crash or lost ack between here and local finalization must not cause the
+    outcome to be recomputed from evidence that could have changed since the
+    report was accepted. The staged values are the authoritative record of what
+    was reported.
+    """
+    with _jobs_lock():
+        state = _jobs_state_unlocked()
+        current = state["jobs"].get(job_id)
+        if not current:
+            raise RuntimeError(f"job {job_id} vanished before its report could be staged")
+        if claim_token is not None and current.get("report_token") != claim_token:
+            raise RuntimeError("job claim changed before report could be staged")
+        current["staged_outcome"] = outcome
+        current["staged_report"] = dict(report)
+        current["staged_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        _save_jobs_state_unlocked(state)
+
+
+def _report_job(job_id: str, job: dict, claim_token: str | None = None) -> str:
+    """Build + deliver the completion report for a finished job. Returns the outcome.
+
+    The DONE/FAILED outcome and exact report payload are durably staged in the
+    persisted job registry before transport. Retries and crash/lost-ack recovery
+    (a matching receipt, idempotent replay, or structured idempotency_conflict for
+    this stable key) finalize that staged outcome without recomputing marker or
+    verification evidence that may have changed in the interim.
+    """
+    conv = job.get("conversation_id")
+    if not conv:
+        raise ValueError("job has no conversation_id")
+    report_key = f"job-report-{job_id}"
+    staged_outcome = str(job.get("staged_outcome") or "").upper()
+    staged_report = job.get("staged_report")
+    staged = staged_outcome in ("DONE", "FAILED") and isinstance(staged_report, dict)
+
+    # Durable proof of prior acceptance: a receipt from an earlier accepted send
+    # means the report already landed, so finalize locally instead of resending.
+    receipt = harpp_client.delivery_receipt_for(report_key)
+    if receipt is not None:
+        if not staged:
+            receipt_outcome = str(receipt.get("outcome") or "").upper()
+            if receipt_outcome in ("DONE", "FAILED"):
+                staged_outcome = receipt_outcome
+            else:
+                # Legacy receipt without a recorded outcome: derive the outcome once
+                # and stage it so later evidence changes cannot alter it.
+                staged_outcome, staged_report = _build_job_report(job)
+                _stage_job_report(job_id, claim_token, staged_outcome, staged_report)
+        log(f"job {job_id} report receipt already recorded; finalizing without resend")
+        return staged_outcome
+
+    if not staged:
+        staged_outcome, staged_report = _build_job_report(job)
+        # Stage the outcome + exact payload before transport so a crash or lost ack
+        # can only ever finalize this already-reported result.
+        _stage_job_report(job_id, claim_token, staged_outcome, staged_report)
+
+    message_type = "PROGRESS" if staged_outcome == "DONE" else "FAILED"
+    try:
+        response = harpp_client.harpp_notify(
+            conversation_id=int(conv), message_type=message_type,
+            idempotency_key=report_key, body=summarize(staged_report),
+            delivery_outcome=staged_outcome)
+    except harpp_client.HarppError as exc:
+        # Crash/lost-ack window: the report was accepted but the local receipt or
+        # job state was never persisted. A structured idempotency_conflict for
+        # this stable key is durable proof of that; finalize the already computed
+        # outcome. Every other failure — network errors, generic/non-ok responses,
+        # idempotency_in_progress, and unrelated/unstructured 409s — carries no
+        # acceptance evidence and must stay retryable.
+        if harpp_client.is_prior_idempotent_acceptance(exc, report_key):
+            log(f"job {job_id} report was already accepted (idempotency conflict); finalizing without resend")
+            return staged_outcome
+        raise
     if not response.get("ok"):
         raise RuntimeError(f"job report bridge receipt was not ok: {response!r}")
-    return status
+    return staged_outcome
 
 
 def _humanize_job_failure(raw_detail: str, marker: str | None, log_path: str | None) -> str:
@@ -1804,7 +1876,7 @@ def monitor_jobs() -> int:
     reported_count = 0
     for jid, job in claimed:
         try:
-            outcome = _report_job(jid, job)
+            outcome = _report_job(jid, job, claim_token)
             with _jobs_lock():
                 state = _jobs_state_unlocked()
                 current = state["jobs"].get(jid)
@@ -1825,6 +1897,9 @@ def monitor_jobs() -> int:
             reported_count += 1
             log(f"job {jid} reported to conversation {job.get('conversation_id')} ({outcome})")
         except Exception as e:  # noqa: BLE001
+            # No durable acceptance evidence: leave the job retryable. Network errors,
+            # generic/non-ok responses, idempotency_in_progress and unrelated 409s must
+            # never finalize the job or advance its workflow, even across repeated passes.
             log(f"job {jid} report delivery failed: {e}; will retry next pass")
             try:
                 with _jobs_lock():

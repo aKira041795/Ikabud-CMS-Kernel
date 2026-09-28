@@ -101,6 +101,13 @@ function cmsBuilderWidgetRenderers(): array
 /**
  * Apply full-width breakout styles: expand to 100vw and bleed past the column.
  * Mirrors the React NodeRenderer wrapperStyle full-width override.
+ *
+ * The width/margin escape is theme-overridable: the builder declares intent
+ * ("this node wants full width") while the active theme expresses it in its
+ * own layout. Themes whose content region is already full width can set
+ * --ikb-fullbleed-width:100% and --ikb-fullbleed-margin-left:0 to collapse the
+ * default escape. The defaults preserve the legacy breakout for constrained
+ * themes.
  */
 function cmsBuilderApplyFullWidth(array &$style): void
 {
@@ -136,8 +143,8 @@ function cmsBuilderApplyFullWidth(array &$style): void
     }
 
     unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
-    $style['width']      = '100vw';
-    $style['marginLeft'] = 'calc(-50vw + 50%)';
+    $style['width']      = 'var(--ikb-fullbleed-width, 100vw)';
+    $style['marginLeft'] = 'var(--ikb-fullbleed-margin-left, calc(-50vw + 50%))';
     $style['alignSelf']  = 'flex-start';
     $style['overflow']   = 'hidden';
 

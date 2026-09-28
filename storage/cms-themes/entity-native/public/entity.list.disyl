@@ -52,7 +52,7 @@
             {/if}
 
             {# Governed entity list — kernel resolves data #}
-            {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="10" /}
+            {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="10" page="{pagination.current|default:1}" /}
 
             {# Pagination — from standardised handler context #}
             {if pagination and pagination.total > 1}
@@ -74,7 +74,7 @@
                 <p style="color:var(--color-text-secondary);">{entity_list_context.result_label}</p>
                 {/if}
             </div>
-            {ikb_entity_list source="cms_post.recent" view="card_grid" limit="10" filter="search={entity_list_context.search}" /}
+            {ikb_entity_list source="cms_post.recent" view="card_grid" limit="10" filter="search={entity_list_context.search}" page="{pagination.current|default:1}" /}
             {if pagination and pagination.total > 1}
             <nav class="en-list-pagination" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:var(--spacing-lg);">
                 {if pagination.prev_url}

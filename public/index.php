@@ -550,8 +550,17 @@ foreach ($routePatterns as $pattern) {
 }
 
 if ($handler === null) {
+    // Route-level 404. When the CMS module is loaded, cmsResolveTemplate()
+    // prefers the active theme's own public/404.disyl, which is authored
+    // against the theme layout and therefore needs the same public render
+    // context every other public page gets (theme stylesheet, chrome, menus).
+    // Without it the themed 404 renders unstyled. Routed through the CMS
+    // helper when available; the bare render keeps the kernel functional
+    // when the CMS module is absent or not yet installed.
     http_response_code(404);
-    echo app()->render('pages/404.disyl', ['page_title' => 'Not Found']);
+    echo function_exists('cmsPublicRenderNotFound')
+        ? cmsPublicRenderNotFound(['page_title' => 'Not Found'])
+        : app()->render('pages/404.disyl', ['page_title' => 'Not Found']);
     exit;
 }
 

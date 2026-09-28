@@ -124,6 +124,13 @@ function cmsAdminCustomizer(array $params = []): void
         'customizer_api_base' => $baseUrl . '/api/v1/cms/customizer/' . $scope,
         'customizer_workspaces' => $workspaces,
         'customizer_workspaces_json' => json_encode($workspaces, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        // Sections the ACTIVE THEME declares in its own customizer.schema.json.
+        // The CMS owns its built-in sections; a theme (ARK) may add its own and
+        // they are rendered generically from the schema controls.
+        // This is the ENRICHED payload (id/label/panels/controls/defaults/settings),
+        // not the raw SectionDefinition objects — the template iterates panels.
+        'customizer_theme_sections' => cmsThemeDeclaredSectionsPayload(),
+        'customizer_theme_sections_json' => json_encode(cmsThemeDeclaredSectionsPayload(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'footer_settings'     => $footer['settings'],
         'footer_widgets'      => $footer['widgets'],
         'footer_settings_json' => json_encode($footer['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),

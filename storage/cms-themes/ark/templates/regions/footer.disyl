@@ -19,17 +19,29 @@
         {if navigation.footer}
         <nav class="ark-region-footer__nav">{navigation.footer|raw}</nav>
         {/if}
+        {# The footer bar below already carries the copyright and the admin link,
+           so the body only repeats them when the bar is switched off. Emitting
+           both unconditionally printed each of them twice. #}
+        {if section_settings.show_footer_bar|default:'1' == '0'}
         <div class="ark-region-footer__copy" style="color:{footer_text};">
             &copy; {current_year|default:'2026'} {site.title|default:''}. All rights reserved.
         </div>
         {if section_settings.show_admin_link|default:'1'}
         <div class="ark-region-footer__admin"><a href="/cms/admin">Admin</a></div>
         {/if}
+        {/if}
     </div>
 </div>
 {if section_settings.show_footer_bar|default:'1'}
 {set bar_bg = section_settings.bar_bg_color|default:'#0f172a'}
-{set bar_text = section_settings.bar_text_color|default:'#64748b'}
+{# Default bar text must clear the contrast floor this theme declares in its own
+   manifest (accessibility.contrast_ratio = "4.5:1"). The previous default,
+   #64748b (secondary-500), measures only 3.75:1 on the #0f172a bar — the theme
+   was failing the contract it publishes. #94a3b8 (secondary-400, the same value
+   as the theme's text_muted token) measures 6.96:1. This fallback mirrors the
+   control default in customizer.schema.json; that declaration is what normally
+   supplies the value, so keep the two in step. #}
+{set bar_text = section_settings.bar_text_color|default:'#94a3b8'}
 {set bar_link = section_settings.bar_link_color|default:'#94a3b8'}
 {set bar_link_hover = section_settings.bar_link_hover_color|default:'#ffffff'}
 <div class="ark-customized-region ark-region-footer-bar"

@@ -1296,7 +1296,10 @@ function cmsResolveEntityList(string $contentType, mixed $payload): array
         return ['rows' => [], 'total' => 0];
     }
 
-    $limit = min((int)($payload['limit'] ?? 25), 100);
+    $limit = max(1, min((int)($payload['limit'] ?? 25), 100));
+    $offset = array_key_exists('offset', $payload)
+        ? max(0, (int)$payload['offset'])
+        : (isset($payload['page']) ? max(0, ((int)$payload['page'] - 1) * $limit) : 0);
     $sortField = (string)($payload['sort']['field'] ?? 'created_at');
     $sortDir = strtoupper((string)($payload['sort']['direction'] ?? 'DESC'));
     if (!in_array($sortDir, ['ASC', 'DESC'], true)) { $sortDir = 'DESC'; }
@@ -1305,37 +1308,91 @@ function cmsResolveEntityList(string $contentType, mixed $payload): array
     if (!in_array($sortField, $allowedSort, true)) { $sortField = 'created_at'; }
 
     $qualifier = (string)($payload['qualifier'] ?? '');
-    $statusFilter = '';
 
-    // Qualifier hints
-    if ($qualifier === 'recent' || $qualifier === 'latest') {
-        // No extra filter — sort by date descending handles this
-    } elseif ($qualifier === 'published') {
-        $statusFilter = " AND c.status = 'published'";
-    } elseif ($qualifier === 'featured') {
-        $statusFilter = " AND c.status = 'published'";
-        // If featured meta exists, could add join on cms_content_meta
+    // Public render context is signalled by the caller (threaded from the
+    // theme render context through EntityViewResolver). Only public surfaces
+    // apply public visibility; admin/authenticated listings keep every status.
+    $isPublicContext = trim((string)($payload['public_render_origin'] ?? '')) !== '';
+
+    $statusFilter = '';
+    if ($isPublicContext) {
+        // Match the public route truth exactly: published OR scheduled-due.
+        $statusFilter = ' AND ' . cmsPublicVisibilitySql('c');
+        // On a public surface, recent/latest means "most recently published"
+        // (the route orders by published_at DESC). Only replace the untouched
+        // default sort so an explicit caller sort still wins.
+        if (($qualifier === 'recent' || $qualifier === 'latest') && $sortField === 'created_at') {
+            $sortField = 'published_at';
+            $sortDir = 'DESC';
+        }
+    } else {
+        // Qualifier hints (admin / non-public — behaviour unchanged)
+        if ($qualifier === 'recent' || $qualifier === 'latest') {
+            // No extra filter — sort by date descending handles this
+        } elseif ($qualifier === 'published') {
+            $statusFilter = " AND c.status = 'published'";
+        } elseif ($qualifier === 'featured') {
+            $statusFilter = " AND c.status = 'published'";
+            // If featured meta exists, could add join on cms_content_meta
+        }
     }
 
     try {
         $db = $ctx->db();
-        $query = "SELECT c.id, c.title, c.slug, c.status, c.excerpt, c.body, c.created_at, c.updated_at, c.published_at,
-                         u.display_name as author_name
-                  FROM cms_content c
-                  LEFT JOIN cms_users u ON u.id = c.author_id
-                  WHERE c.type = :type AND c.deleted_at IS NULL{$statusFilter}
-                  ORDER BY c.{$sortField} {$sortDir}
-                  LIMIT {$limit}";
-        $stmt = $db->query($query, [':type' => $contentType]);
-        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $selectColumns = "c.id, c.title, c.slug, c.status, c.excerpt, c.body, c.created_at, c.updated_at, c.published_at,
+                         u.display_name as author_name";
+        $rows = [];
+        if ($isPublicContext) {
+            // On a public surface the ordering must match the route SQL exactly.
+            // MySQL's filesort tie order depends on the projection, so resolve the
+            // authoritative ordered ids with a minimal projection first, then
+            // hydrate those ids and restore their order. MySQL 5.7-safe (no window
+            // functions); the id query is the same shape as the route query.
+            $idStmt = $db->query(
+                "SELECT c.id FROM cms_content c
+                 WHERE c.type = :type AND c.deleted_at IS NULL{$statusFilter}
+                 ORDER BY c.{$sortField} {$sortDir}
+                 LIMIT {$limit} OFFSET {$offset}",
+                [':type' => $contentType]
+            );
+            $orderedIds = $idStmt ? array_map('intval', $idStmt->fetchAll(\PDO::FETCH_COLUMN)) : [];
+            if ($orderedIds !== []) {
+                $placeholders = implode(',', array_fill(0, count($orderedIds), '?'));
+                $hydrateStmt = $db->query(
+                    "SELECT {$selectColumns}
+                     FROM cms_content c
+                     LEFT JOIN cms_users u ON u.id = c.author_id
+                     WHERE c.id IN ({$placeholders}) AND c.deleted_at IS NULL{$statusFilter}",
+                    $orderedIds
+                );
+                $rowsById = [];
+                foreach ($hydrateStmt ? $hydrateStmt->fetchAll(\PDO::FETCH_ASSOC) : [] as $hydratedRow) {
+                    $rowsById[(int)$hydratedRow['id']] = $hydratedRow;
+                }
+                foreach ($orderedIds as $orderedId) {
+                    if (isset($rowsById[$orderedId])) {
+                        $rows[] = $rowsById[$orderedId];
+                    }
+                }
+            }
+        } else {
+            $query = "SELECT {$selectColumns}
+                      FROM cms_content c
+                      LEFT JOIN cms_users u ON u.id = c.author_id
+                      WHERE c.type = :type AND c.deleted_at IS NULL{$statusFilter}
+                      ORDER BY c.{$sortField} {$sortDir}
+                      LIMIT {$limit} OFFSET {$offset}";
+            $stmt = $db->query($query, [':type' => $contentType]);
+            $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        }
 
         // Auto-generate excerpts from body when excerpt is empty
         if (\function_exists('cmsProcessPostExcerpts')) {
             $rows = cmsProcessPostExcerpts($rows);
         }
 
-        // Count total
-        $countStmt = $db->query("SELECT COUNT(*) FROM cms_content WHERE type = :type AND deleted_at IS NULL{$statusFilter}", [':type' => $contentType]);
+        // Count total (alias 'c' so a statusFilter expressed against c.* stays valid)
+        $countStmt = $db->query("SELECT COUNT(*) FROM cms_content c WHERE c.type = :type AND c.deleted_at IS NULL{$statusFilter}", [':type' => $contentType]);
         $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
 
         // Hydrate image for card_grid views

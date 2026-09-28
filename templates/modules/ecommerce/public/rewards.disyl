@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/public.disyl"}
+{extends "_cms_active_theme/modules/ecommerce/layouts/public.disyl"}
 
 {block content}
 <div class="max-w-4xl mx-auto space-y-6">
@@ -16,7 +16,7 @@
     </div>
 
     <div class="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 p-6">
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Current Balance</div>
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] ark-commerce-accent">Current Balance</div>
         <div class="mt-2 text-3xl font-bold text-gray-900">{balance}</div>
         <div class="mt-1 text-sm text-gray-600">Approximate storefront value: {balance_discount_fmt}</div>
     </div>
