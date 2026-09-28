@@ -1779,6 +1779,21 @@ set_exception_handler(function (Throwable $e): void {
         error_log('Exception handler log failed: ' . $logEx->getMessage());
     }
 
+    // CLI: a fatal must never look like success.
+    //
+    // Without this branch a CLI death falls through to the HTML path below,
+    // which renders the 500 page and calls a bare `exit;` — exit code 0. Any
+    // shell caller then sees a pass: measured 2026-09-28, an undefined function
+    // produced a 26KB HTML page on stdout, nothing on stderr, and exit 0. That
+    // is how a test can silently false-pass, and how a broken CLI tool can look
+    // healthy in CI. Reporting to stderr and exiting 1 is the only honest outcome
+    // for a non-interactive process. Web behaviour is untouched (`cli` only).
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, 'Fatal: ' . get_class($e) . ': ' . $e->getMessage() . "\n");
+        fwrite(STDERR, '  at ' . $e->getFile() . ':' . $e->getLine() . "\n");
+        exit(1);
+    }
+
     $isApi = function_exists('kernel_is_api_request') && kernel_is_api_request();
 
     // Map typed exceptions to proper HTTP status codes
@@ -1852,6 +1867,14 @@ register_shutdown_function(function (): void {
     }
     if (!in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
         return;
+    }
+    // CLI counterpart to the exception-handler guard above: parse errors and
+    // other shutdown-level fatals must report to stderr and exit non-zero, or a
+    // dying script is indistinguishable from a passing one.
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, 'Fatal error: ' . $error['message'] . "\n");
+        fwrite(STDERR, '  at ' . $error['file'] . ':' . $error['line'] . "\n");
+        exit(1);
     }
     $isApi = function_exists('kernel_is_api_request') && kernel_is_api_request();
     if ($isApi && !headers_sent()) {
