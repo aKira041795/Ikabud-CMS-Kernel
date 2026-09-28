@@ -20,6 +20,7 @@ return [
         '/daily-ledger/admin/commissary'           => 'daily-ledger:handleAdminCommissary',
         '/daily-ledger/admin/sales'                => 'daily-ledger:handleAdminSales',
         '/daily-ledger/admin/variances'            => 'daily-ledger:handleAdminVariances',
+        '/daily-ledger/admin/reconciliation'       => 'daily-ledger:handleAdminReconciliation',
         '/daily-ledger/admin/reports'              => 'daily-ledger:handleAdminReports',
         '/daily-ledger/admin/reports/sales'        => 'daily-ledger:handleAdminReportSales',
         '/daily-ledger/admin/reports/sales/export' => 'daily-ledger:handleAdminReportSalesExport',
@@ -150,6 +151,9 @@ return [
 
         // Admin: variance status
         '/daily-ledger/api/v1/admin/variances/update'    => 'daily-ledger:apiUpdateVarianceStatus',
+
+        // Admin: shift reconciliation (paper sheet + cash remitted vs the ledger)
+        '/daily-ledger/api/v1/admin/reconciliation/save' => 'daily-ledger:apiSaveReconciliation',
         '/daily-ledger/api/v1/admin/settings/permissions' => 'daily-ledger:apiSaveRolePermissions',
         '/daily-ledger/api/v1/admin/settings/branding-asset' => 'daily-ledger:apiUploadBrandingAsset',
 

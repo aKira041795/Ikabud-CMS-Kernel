@@ -9,7 +9,7 @@
             Session Details
         </div>
         <button type="button"
-                onclick="if (typeof clearSessionDetailSelection === 'function') { clearSessionDetailSelection(); } else { document.getElementById('session-detail-panel').innerHTML = ''; document.getElementById('session-detail-panel').style.display = 'none'; }"
+                onclick="(window.clearSessionDetailSelection || window.gdHideSessionDetailPanel)()"
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-teal-500 hover:bg-teal-100 transition text-xs">
             <i class="fas fa-times"></i>
         </button>

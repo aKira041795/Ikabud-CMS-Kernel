@@ -1137,6 +1137,25 @@
         });
     </script>
 
+    <script>
+    // Shared helpers for guidance pages.
+    //
+    // Inline event handlers must stay BRACE-FREE. DiSyL parses {...} inside an HTML
+    // attribute as a template expression and eats it, so the previous bodies —
+    // onclick="if (x) { y(); }" and onClick="...forEach(function(e){ e.value=''; })" —
+    // rendered as truncated JavaScript and the controls silently did nothing. Call a
+    // function instead of opening a block.
+    window.gdHideSessionDetailPanel = function() {
+        var panel = document.getElementById('session-detail-panel');
+        if (!panel) return;
+        panel.innerHTML = '';
+        panel.style.display = 'none';
+    };
+    window.gdScrollToCaseDetail = function() {
+        var el = document.getElementById('case-detail-panel');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    </script>
     {block scripts}{/block}
 {/if}
 </body>

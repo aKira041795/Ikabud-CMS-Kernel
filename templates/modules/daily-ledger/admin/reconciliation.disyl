@@ -1,0 +1,310 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+<style>
+    .recon-input {
+        width: 8.5rem;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .recon-note { width: 100%; min-width: 14rem; }
+    .recon-var { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .recon-var--short { color: rgb(185 28 28); }
+    .recon-var--over { color: rgb(180 83 9); }
+    .recon-var--zero { color: rgb(22 101 52); }
+    .recon-state {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 9999px;
+        padding: .125rem .625rem;
+        font-size: .6875rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .recon-state--unchecked { background: rgb(241 245 249); color: rgb(71 85 105); }
+    .recon-state--matched { background: rgb(236 253 245); color: rgb(4 120 87); }
+    .recon-state--mismatch { background: rgb(254 242 242); color: rgb(185 28 28); }
+    .recon-row--mismatch { background: rgb(255 251 251); }
+</style>
+{/block}
+
+{block content}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div>
+        <h1 class="text-xl font-semibold text-gray-900">Cash &amp; Paper Check</h1>
+        <p class="text-sm text-gray-500">
+            Compare the digital ledger against the paper sheet and the cash actually remitted.
+        </p>
+    </div>
+    <div>
+        <a class="btn btn-outline" href="{base_url}/admin/variances?date_from={date_from}&date_to={date_to}">View Variances</a>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body text-sm text-gray-600">
+        Ledger sales is computed from the counts (beginning + additional &minus; withdrawals &minus; ending), so it can only
+        prove the arithmetic is self-consistent &mdash; it cannot prove the money was collected. Stock that leaves without a
+        recorded withdrawal reads as a sale, and a withdrawal is also how spoilage is recorded, so the two are
+        indistinguishable in the data. Only the paper sheet and the cash settle that.
+        <strong>Signed difference is (paper or cash) &minus; ledger.</strong>
+        A negative cash difference means less cash was remitted than the ledger says was sold.
+        A shift with nothing recorded is <em>not checked</em>, which is different from checked-and-matched.
+    </div>
+</div>
+
+<form class="card mb-4" method="GET" action="{base_url}/admin/reconciliation">
+    <div class="card-body flex flex-wrap items-end gap-3">
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1" for="recon-from">From</label>
+            <input id="recon-from" type="date" class="form-input" name="date_from" value="{date_from}">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1" for="recon-to">To</label>
+            <input id="recon-to" type="date" class="form-input" name="date_to" value="{date_to}">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1" for="recon-branch">Branch</label>
+            <select id="recon-branch" class="form-input" name="branch_id">
+                <option value="">All branches</option>
+                {foreach branches as br}
+                <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+                {/foreach}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1" for="recon-only">Show</label>
+            <select id="recon-only" class="form-input" name="only">
+                <option value="" {if only_filter == ''}selected{/if}>Everything</option>
+                <option value="attention" {if only_filter == 'attention'}selected{/if}>Needs attention</option>
+                <option value="unchecked" {if only_filter == 'unchecked'}selected{/if}>Not checked</option>
+                <option value="checked" {if only_filter == 'checked'}selected{/if}>Checked</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Apply</button>
+    </div>
+</form>
+
+<div class="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
+    <div class="card"><div class="card-body">
+        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Shifts</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">{stats.total}</div>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Checked</div>
+        <div class="mt-1 text-2xl font-semibold text-emerald-600">{stats.checked}</div>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Not checked</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-600">{stats.unchecked}</div>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Mismatched</div>
+        <div class="mt-1 text-2xl font-semibold text-red-600">{stats.mismatch}</div>
+    </div></div>
+</div>
+
+<div class="card">
+    <div class="card-header flex items-center justify-between">
+        <span>Shifts</span>
+        <span class="text-sm text-muted">{row_count} shown</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Shift</th>
+                    <th class="text-right">Ledger Sales</th>
+                    <th class="text-right">Paper Sheet</th>
+                    <th class="text-right">&Delta; Paper</th>
+                    <th class="text-right">Cash Remitted</th>
+                    <th class="text-right">&Delta; Cash</th>
+                    <th>State</th>
+                    <th>Note</th>
+                    {if can_manage}<th class="w-20"></th>{/if}
+                </tr>
+            </thead>
+            <tbody>
+                {if row_count == 0}
+                <tr><td colspan="10" class="px-4 py-10 text-center text-sm text-gray-500">No shifts in this range.</td></tr>
+                {/if}
+                {foreach rows as row}
+                <tr class="{if row.is_mismatch}recon-row--mismatch{/if}"
+                    data-recon
+                    data-branch="{row.branch_id}"
+                    data-date="{row.ledger_date}"
+                    data-shift="{row.shift}">
+                    <td class="text-sm whitespace-nowrap">
+                        {row.ledger_date}
+                        <div class="text-xs text-gray-400">{row.branch_name}</div>
+                    </td>
+                    <td class="text-sm font-medium">{row.shift}</td>
+                    <td class="text-right text-sm font-semibold">
+                        PHP {row.ledger_sales | number_format:2}
+                        {if row.has_pending_ending}
+                        <div class="text-xs font-normal text-amber-700" title="Some rows have no ending recorded; they are excluded from this total.">pending endings</div>
+                        {/if}
+                        {if row.is_provisional}
+                        <div class="text-xs font-normal text-sky-700" title="The PM shift is not finalized.">PM not finalized</div>
+                        {/if}
+                    </td>
+
+                    {if can_manage}
+                    <td class="text-right">
+                        <input type="number" step="0.01" min="0" inputmode="decimal"
+                               class="form-input recon-input"
+                               data-recon-field="paper_sales"
+                               aria-label="Paper sheet total for {row.ledger_date} {row.shift}"
+                               value="{row.paper_sales | default:''}">
+                    </td>
+                    {else}
+                    <td class="text-right text-sm">{if row.has_paper}PHP {row.paper_sales | number_format:2}{else}&mdash;{/if}</td>
+                    {/if}
+
+                    <td class="text-right text-sm">
+                        {if row.has_paper}
+                        <span class="recon-var {if row.paper_variance < 0}recon-var--short{/if}{if row.paper_variance > 0}recon-var--over{/if}{if row.paper_variance == 0}recon-var--zero{/if}">
+                            {if row.paper_variance > 0}+{/if}{row.paper_variance | number_format:2}
+                        </span>
+                        {else}&mdash;{/if}
+                    </td>
+
+                    {if can_manage}
+                    <td class="text-right">
+                        <input type="number" step="0.01" min="0" inputmode="decimal"
+                               class="form-input recon-input"
+                               data-recon-field="cash_remitted"
+                               aria-label="Cash remitted for {row.ledger_date} {row.shift}"
+                               value="{row.cash_remitted | default:''}">
+                    </td>
+                    {else}
+                    <td class="text-right text-sm">{if row.has_cash}PHP {row.cash_remitted | number_format:2}{else}&mdash;{/if}</td>
+                    {/if}
+
+                    <td class="text-right text-sm">
+                        {if row.has_cash}
+                        <span class="recon-var {if row.cash_variance < 0}recon-var--short{/if}{if row.cash_variance > 0}recon-var--over{/if}{if row.cash_variance == 0}recon-var--zero{/if}">
+                            {if row.cash_variance > 0}+{/if}{row.cash_variance | number_format:2}
+                        </span>
+                        {else}&mdash;{/if}
+                    </td>
+
+                    <td>
+                        <span class="recon-state recon-state--{row.state}">
+                            {if row.state == 'unchecked'}Not checked{/if}
+                            {if row.state == 'matched'}Matched{/if}
+                            {if row.state == 'mismatch'}Mismatch{/if}
+                        </span>
+                        {if row.recorded_at}
+                        <div class="text-xs text-gray-400 mt-1">{row.recorded_by_name} &middot; {row.recorded_at}</div>
+                        {/if}
+                    </td>
+
+                    <td>
+                        {if can_manage}
+                        <input type="text"
+                               class="form-input recon-note text-xs py-0.5 px-1.5"
+                               data-recon-field="review_note"
+                               maxlength="500"
+                               placeholder="What the check found&hellip;"
+                               aria-label="Check note for {row.ledger_date} {row.shift}"
+                               value="{row.review_note | esc_html | default:''}">
+                        {/if}
+                        {if can_manage == false}
+                        <span class="text-xs text-gray-600">{row.note_display | esc_html}</span>
+                        {/if}
+                    </td>
+                    {if can_manage}
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="saveRecon(this)">Save</button>
+                    </td>
+                    {/if}
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+
+    // Save the whole row in one request. All three fields are sent every time, so the
+    // present-vs-absent contract on the server is exercised as "present" for each: the
+    // row on screen is the complete state of the check for that shift.
+    function saveRecon(source) {
+        var row = source.closest ? source.closest('[data-recon]') : null;
+        if (!row) { return; }
+
+        var payload = {
+            branch_id: parseInt(row.dataset.branch),
+            ledger_date: row.dataset.date,
+            shift: row.dataset.shift,
+            paper_sales: null,
+            cash_remitted: null,
+            review_note: ''
+        };
+        var paperEl = row.querySelector('[data-recon-field="paper_sales"]');
+        var cashEl = row.querySelector('[data-recon-field="cash_remitted"]');
+        var noteEl = row.querySelector('[data-recon-field="review_note"]');
+
+        // An empty box means "not recorded" and must go up as null, not 0.
+        if (paperEl) { payload.paper_sales = paperEl.value.trim() === '' ? null : paperEl.value.trim(); }
+        if (cashEl) { payload.cash_remitted = cashEl.value.trim() === '' ? null : cashEl.value.trim(); }
+        if (noteEl) { payload.review_note = noteEl.value; }
+
+        var buttons = row.querySelectorAll('button');
+        for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = true; }
+
+        fetch(BASE + '/api/v1/admin/reconciliation/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = false; }
+            if (res.ok) {
+                showToast('Check saved', 'success');
+                // The variance and state columns are computed server-side, so reload the
+                // content rather than trying to mirror that maths here.
+                if (window.refreshMainContent) { window.refreshMainContent(); }
+                else { window.location.reload(); }
+            } else {
+                showToast(res.error || 'Save failed', 'error');
+            }
+        })
+        .catch(function() {
+            for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = false; }
+            showToast('Network error', 'error');
+        });
+    }
+
+    // Enter saves the note, the way a one-line field is expected to behave. This is a
+    // delegated listener rather than an inline onkeydown: DiSyL treats {...} inside an
+    // HTML attribute as a template expression, so an inline
+    // "if(...){...}" handler is silently eaten (it renders as "if(event.key==='Enter')",
+    // which is a syntax error). Keep braces out of inline handlers.
+    document.addEventListener('keydown', function(e) {
+        var el = e.target;
+        if (!el || !el.dataset || el.dataset.reconField !== 'review_note') { return; }
+        if (e.key !== 'Enter') { return; }
+        e.preventDefault();
+        el.blur();
+        saveRecon(el);
+    }, true);
+
+    // Blur and Enter both save, and an untouched field writes nothing because the row is
+    // only sent when a field actually changed.
+    document.addEventListener('blur', function(e) {
+        var el = e.target;
+        if (!el || !el.dataset || !el.dataset.reconField) { return; }
+        if (el.dataset.reconField === 'review_note') { return; } // notes save via Enter or Save
+        if (el.value === el.defaultValue) { return; }
+        saveRecon(el);
+    }, true);
+</script>
+{/block}

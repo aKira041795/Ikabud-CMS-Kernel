@@ -65,7 +65,8 @@
     "dl_pos_fallback_checkpoint_items",
     "dl_offline_device_enrollments",
     "dl_offline_sync_receipts",
-    "dl_ledger_shift_status"
+    "dl_ledger_shift_status",
+    "dl_shift_reconciliation"
   ],
   "co_owns_tables": [
     "audit_logs"
@@ -135,7 +136,9 @@
     "database/migrations/058_encoder_omission_reason.sql",
     "database/migrations/059_refresh_dedup_hash_with_shift.sql",
     "database/migrations/060_snapshot_liable_user_name.sql",
-    "database/migrations/061_recompute_stale_sales.sql"
+    "database/migrations/061_recompute_stale_sales.sql",
+    "database/migrations/062_backfill_missing_beginnings.sql",
+    "database/migrations/063_shift_reconciliation.sql"
   ],
   "capabilities": {
     "exposes": [

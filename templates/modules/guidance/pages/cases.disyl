@@ -128,7 +128,7 @@
                             hx-target="#cases-list"
                             hx-swap="innerHTML"
                             hx-include="#case-filters"
-                            onclick="document.querySelectorAll('#case-filters input, #case-filters select').forEach(function(e){ e.value=''; });"
+                            onclick="gdClearCaseFilters()"
                             class="text-xs bg-red-100 text-red-600 hover:bg-red-200 rounded-full px-3 py-1.5 flex-shrink-0 transition">
                         <i class="fas fa-times mr-1"></i>Clear
                     </button>
@@ -156,6 +156,13 @@
 
 {block scripts}
 <script>
+// Global (not inside the IIFE below) because it is called from an inline onclick.
+// See the brace-free note in the guidance layout.
+function gdClearCaseFilters() {
+    document.querySelectorAll('#case-filters input, #case-filters select').forEach(function (el) {
+        el.value = '';
+    });
+}
 (function() {
     var params = new URLSearchParams(window.location.search);
     if (params.has('entity') || params.has('react')) {

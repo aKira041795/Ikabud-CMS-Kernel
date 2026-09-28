@@ -72,6 +72,14 @@ class TestHarness
     private array $logBaseline = [];
 
     /**
+     * Substrings identifying log lines this suite legitimately produces. Empty by
+     * default, so no existing suite changes behaviour. See allowLogLines().
+     *
+     * @var array<int, string>
+     */
+    private array $allowedLogNeedles = [];
+
+    /**
      * @param string $suiteName Unique test suite identifier (used for filename)
      * @param string $mode MODE_PURE or MODE_INTEGRATION
      * @param string $host HTTP_HOST for tenant resolution (default: localhost)
@@ -292,7 +300,28 @@ class TestHarness
         ];
         echo "  ✅ {$label}\n";
     }
-
+    /**
+     * Declare log lines this suite legitimately produces, so expected growth is reported
+     * as a gap instead of failing the run.
+     *
+     * The no-log-growth rule is deliberately blunt — by its own admission it cannot tell
+     * this suite's output from the web server's. Rendering a DiSyL template ALWAYS writes
+     * a `disyl.compile.phases` timing line, so without this an otherwise clean suite fails
+     * on its own instrumentation. That is why the older suites only assert on source text
+     * and never render. Opt-in: a suite that does not call this keeps exactly the old
+     * behaviour.
+     *
+     * Growth is still scanned line by line, so a warning or error mixed in with allowed
+     * output still fails the run.
+     */
+    public function allowLogLines(string ...$needles): void
+    {
+        foreach ($needles as $needle) {
+            if ($needle !== '') {
+                $this->allowedLogNeedles[] = $needle;
+            }
+        }
+    }
     public function fail(string $label, string $detail = ''): void
     {
         $this->failed++;
@@ -519,9 +548,82 @@ class TestHarness
 
             $added = $size - $baseline;
             if ($added > 0) {
-                $this->fail("{$name} was written during the run", $added . ' byte(s) added');
+                // Judge the added LINES, not the byte count: a suite that renders a
+                // template legitimately writes compile-timing lines, while a warning or
+                // error mixed into that output must still fail.
+                $newLines = $this->readAddedLines($path, $baseline);
+                $offender = $this->firstUnallowedLine($newLines);
+                if ($offender === null) {
+                    $this->gap("{$name} grew by {$added} byte(s) of expected output only");
+                } else {
+                    $this->fail("{$name} was written during the run", $added . ' byte(s) added; unexpected line: ' . mb_substr($offender, 0, 160));
+                }
             }
         }
+    }
+
+    /**
+     * The lines appended since construction. A baseline can land mid-line when the web
+     * server appends concurrently, so a leading fragment is dropped rather than reported
+     * as a mystery entry.
+     *
+     * @return array<int, string>
+     */
+    private function readAddedLines(string $path, int $baseline): array
+    {
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return [];
+        }
+        try {
+            if (fseek($handle, $baseline) !== 0) {
+                return [];
+            }
+            $tail = stream_get_contents($handle);
+        } finally {
+            fclose($handle);
+        }
+        if (!is_string($tail) || $tail === '') {
+            return [];
+        }
+
+        $out = [];
+        foreach (preg_split('/\R/', $tail) ?: [] as $index => $line) {
+            $line = trim((string)$line);
+            if ($line === '') {
+                continue;
+            }
+            if ($index === 0 && !str_starts_with($line, '[')) {
+                continue; // partial first line from a concurrent append
+            }
+            $out[] = $line;
+        }
+
+        return $out;
+    }
+
+    /**
+     * The first added line that no allowLogLines() needle accounts for, or null when every
+     * added line is expected.
+     *
+     * @param array<int, string> $lines
+     */
+    private function firstUnallowedLine(array $lines): ?string
+    {
+        foreach ($lines as $line) {
+            $allowed = false;
+            foreach ($this->allowedLogNeedles as $needle) {
+                if (str_contains($line, $needle)) {
+                    $allowed = true;
+                    break;
+                }
+            }
+            if (!$allowed) {
+                return $line;
+            }
+        }
+
+        return null;
     }
 
     private function writeResults(float $elapsed): void

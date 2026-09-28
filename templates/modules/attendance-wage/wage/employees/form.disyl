@@ -1,5 +1,25 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
+<script>
+// Preview for the uploaded employee photo.
+//
+// Extracted from an inline onchange that was broken twice over: DiSyL parses {...} inside
+// an HTML attribute as a template expression and eats it (the body rendered as truncated
+// JavaScript), AND the attribute contained raw double quotes around the <img> attributes,
+// which terminated the attribute early. Both problems disappear once the code lives in a
+// script block, where braces and quotes are literal.
+function awPreviewPhoto(input) {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+        var target = document.getElementById('photo-preview');
+        if (!target) return;
+        target.outerHTML = '<img src="' + evt.target.result + '" class="w-32 h-32 rounded-lg object-cover border border-gray-200 shadow-sm" alt="Selected photo">';
+    };
+    reader.readAsDataURL(file);
+}
+</script>
 <div class="px-6 py-8">
     <div class="flex items-center justify-between mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">{if id}✏️ Edit Employee{else}👤 New Employee{/if}</h1>
@@ -79,7 +99,7 @@
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1.5">Upload Photo</label>
                         <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" capture="environment"
-                               onchange="const f=this.files[0];if(f){const r=new FileReader;r.onload=e=>document.getElementById('photo-preview').outerHTML='<img src="'+e.target.result+'" class="w-32 h-32 rounded-lg object-cover border border-gray-200 shadow-sm">';r.readAsDataURL(f)}"
+                               onchange="awPreviewPhoto(this)"
                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
                         <p class="text-xs text-gray-400 mt-1">JPEG, PNG, or WebP. Max 5 MB. On tablets, the back camera will be used.</p>
                     </div>

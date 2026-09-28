@@ -475,6 +475,15 @@
                                     <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
                                     <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
                                 </select>
+                                <input type="text"
+                                       class="form-input mt-1 w-full text-xs py-0.5 px-1.5"
+                                       data-note-id="{v.id}"
+                                       data-saved="{v.review_note | esc_html | default:''}"
+                                       value="{v.review_note | esc_html | default:''}"
+                                       maxlength="500"
+                                       placeholder="Note what happened…"
+                                       title="Short remark for this variance. Saves on blur. Enter also saves."
+                                       onblur="updateVarianceNote(this)">
                                 {else}
                                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
                                     {if v.resolution_status == 'unreviewed'}bg-amber-50 text-amber-700 ring-amber-200{/if}
@@ -484,6 +493,9 @@
                                     {if v.resolution_status == 'investigated'}Investigated{/if}
                                     {if v.resolution_status == 'corrected'}Corrected{/if}
                                 </span>
+                                {if v.review_note}
+                                <div class="mt-1 text-xs text-gray-600">{v.review_note | esc_html}</div>
+                                {/if}
                                 {/if}
                             </td>
                             <td class="text-xs text-gray-500">
@@ -567,6 +579,15 @@
                                     <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
                                     <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
                                 </select>
+                                <input type="text"
+                                       class="form-input mt-1 w-full text-xs py-0.5 px-1.5"
+                                       data-note-id="{v.id}"
+                                       data-saved="{v.review_note | esc_html | default:''}"
+                                       value="{v.review_note | esc_html | default:''}"
+                                       maxlength="500"
+                                       placeholder="Note what happened…"
+                                       title="Short remark for this variance. Saves on blur. Enter also saves."
+                                       onblur="updateVarianceNote(this)">
                                 {else}
                                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
                                     {if v.resolution_status == 'unreviewed'}bg-amber-50 text-amber-700 ring-amber-200{/if}
@@ -576,6 +597,9 @@
                                     {if v.resolution_status == 'investigated'}Investigated{/if}
                                     {if v.resolution_status == 'corrected'}Corrected{/if}
                                 </span>
+                                {if v.review_note}
+                                <div class="mt-1 text-xs text-gray-600">{v.review_note | esc_html}</div>
+                                {/if}
                                 {/if}
                             </td>
                             <td class="text-sm text-muted">{v.reviewer_name}</td>
@@ -727,6 +751,8 @@
         var originalStatus = select.getAttribute('data-original') || select.value;
         select.disabled = true;
 
+        // No review_note key: an absent note means "leave the stored note alone",
+        // so changing a status never wipes a note written on this row.
         fetch(BASE + '/api/v1/admin/variances/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -755,5 +781,58 @@
             select.value = originalStatus;
         });
     }
+
+    // Save the review note for one variance without touching its status. Reads the
+    // row's current status so there is a single write path, and no-ops when the
+    // value is unchanged so a stray blur (tabbing through) writes nothing.
+    function updateVarianceNote(input) {
+        var note = input.value;
+        var saved = input.getAttribute('data-saved') || '';
+        if (note === saved) { return; }
+
+        var cell = input.closest('td');
+        var select = cell ? cell.querySelector('select') : null;
+        var id = input.dataset.noteId;
+
+        input.disabled = true;
+        fetch(BASE + '/api/v1/admin/variances/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                variance_id: parseInt(id),
+                status: select ? select.value : 'unreviewed',
+                review_note: note
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            input.disabled = false;
+            if (res.ok) {
+                input.setAttribute('data-saved', note);
+                showToast(note === '' ? 'Note cleared' : 'Note saved', 'success');
+            } else {
+                showToast(res.error || 'Note save failed', 'error');
+                input.value = saved; // put the field back to the last saved value
+            }
+        })
+        .catch(function() {
+            input.disabled = false;
+            showToast('Network error', 'error');
+            input.value = saved;
+        });
+    }
+
+    // Enter saves the note. Delegated rather than an inline onkeydown because DiSyL
+    // parses {...} inside an HTML attribute as a template expression: an inline
+    // "if(...){...}" handler is silently eaten and renders as "if(event.key==='Enter')",
+    // which is a JavaScript syntax error. Keep braces out of inline handlers.
+    document.addEventListener('keydown', function(e) {
+        var el = e.target;
+        if (!el || !el.dataset || !el.dataset.noteId) { return; }
+        if (e.key !== 'Enter') { return; }
+        e.preventDefault();
+        el.blur();
+        updateVarianceNote(el);
+    }, true);
 </script>
 {/block}

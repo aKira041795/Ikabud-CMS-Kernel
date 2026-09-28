@@ -120,7 +120,7 @@
 
             {!-- Clear Filters --}
             <button type="button" id="sr-clear-btn"
-                    onclick="document.querySelectorAll('#sr-filters input, #sr-filters select').forEach(function(e){ e.value = ''; }); htmx.ajax('GET', '{base_url}/api/appointments?session_records=1', { target: '#session-records-list', swap: 'innerHTML' });"
+                    onclick="gdClearSessionRecordFilters()"
                     class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition shadow-sm">
                 <i class="fas fa-times text-xs"></i> Clear
             </button>
@@ -191,6 +191,14 @@
 
 {block scripts}
 <script>
+    // Called from an inline onclick, so it must be global and the handler brace-free.
+    function gdClearSessionRecordFilters() {
+        document.querySelectorAll('#sr-filters input, #sr-filters select').forEach(function (el) {
+            el.value = '';
+        });
+        htmx.ajax('GET', '{base_url}/api/appointments?session_records=1', { target: '#session-records-list', swap: 'innerHTML' });
+    }
+
     function clearSessionDetailSelection() {
         var panel = document.getElementById('session-detail-panel');
         var list = document.getElementById('session-records-list');

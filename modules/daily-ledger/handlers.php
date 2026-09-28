@@ -14,6 +14,22 @@ const DL_VARIANCE_PAGE_ROW_LIMIT = 400;
 // the grand totals are aggregated in SQL over every matching row.
 const DL_SALES_PAGE_ROW_LIMIT = 400;
 
+// A variance review note is a short operator remark ("cashier short 3 pcs",
+// "counted twice"), not a document. Capped so a paste cannot bloat the row or the
+// rendered page; the column itself is TEXT. `review_note` has existed since the
+// original schema and the variances report has always read it - nothing ever
+// wrote it, so this is the first writer.
+const DL_VARIANCE_NOTE_MAX = 500;
+
+// Same reasoning as DL_VARIANCE_NOTE_MAX, for the note on a shift reconciliation.
+const DL_RECON_NOTE_MAX = 500;
+
+// Float-safety only: the figures are decimal(12,2), so a genuine difference is always at
+// least a centavo. This is NOT a business tolerance - it exists so an exact match is not
+// reported as a mismatch by binary floating point, and it must never be widened to
+// "explain away" a real shortfall.
+const DL_RECON_MATCH_TOLERANCE = 0.005;
+
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/helpers/entity-views.php';
 require_once __DIR__ . '/helpers/reporting.php';
@@ -8223,6 +8239,201 @@ function dl_varianceDateRange(array $input): array
     return [$from, $to];
 }
 
+/**
+ * Classify one shift's reconciliation against the ledger's derived sales.
+ *
+ * Pure so the rule can be tested directly rather than through a rendered page: this is the
+ * business decision (checked vs not, matched vs mismatch) that an operator is expected to
+ * act on, and it must not be buried in a template.
+ *
+ * $hasReconRow distinguishes "nobody has looked at this shift" from "looked and matched".
+ * A shift with no reconciliation row is NOT a zero-variance shift, and it is not an error
+ * either - it is simply unchecked, and reporting it as matched would hide it.
+ *
+ * A variance is only computed against a figure that was actually entered; a NULL paper or
+ * cash yields a NULL variance rather than a difference from 0, because 0 is a real result
+ * (a shift that sold nothing) and must not be fabricated.
+ *
+ * @return array{paper_variance: ?float, cash_variance: ?float, is_checked: bool, is_mismatch: bool, state: string}
+ */
+function dl_reconciliationState(bool $hasReconRow, float $ledgerSales, ?float $paper, ?float $cash): array
+{
+    $paperVariance = $paper === null ? null : round($paper - $ledgerSales, 2);
+    $cashVariance = $cash === null ? null : round($cash - $ledgerSales, 2);
+
+    $isChecked = $hasReconRow && ($paper !== null || $cash !== null);
+    $isMismatch = false;
+    if ($isChecked) {
+        $isMismatch = ($paperVariance !== null && abs($paperVariance) > DL_RECON_MATCH_TOLERANCE)
+                   || ($cashVariance !== null && abs($cashVariance) > DL_RECON_MATCH_TOLERANCE);
+    }
+
+    return [
+        'paper_variance' => $paperVariance,
+        'cash_variance' => $cashVariance,
+        'is_checked' => $isChecked,
+        'is_mismatch' => $isMismatch,
+        'state' => !$isChecked ? 'unchecked' : ($isMismatch ? 'mismatch' : 'matched'),
+    ];
+}
+
+/**
+ * Shift reconciliation — the admin's external check on a shift.
+ *
+ * The ledger's sales is derived from counts, so it is only ever an INTERNAL check: it
+ * proves the arithmetic is self-consistent and nothing was double-counted, but it cannot
+ * say whether the money was collected. Stock that leaves the shelf without a recorded
+ * `withdraw` reads as a sale (ledger overstates, cash comes up short), and `withdraw` is
+ * also the catch-all for spoilage, so a legitimate write-off and a disappearance are
+ * indistinguishable in the data. Only the paper sheet and the cash handed over at
+ * remittance can settle that, and this page is where the admin records the comparison.
+ *
+ * Ledger sales is computed live from `dl_daily_ledger` and never read from a stored copy,
+ * so correcting a count on the day immediately changes what the paper and cash are
+ * compared against (the reason 061 exists).
+ */
+function handleAdminReconciliation(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor']);
+    $role = (string)($user['role'] ?? '');
+    $canManage = in_array($role, ['admin', 'supervisor'], true);
+
+    $input = $ctx->input();
+    $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
+    [$dateFrom, $dateTo] = dl_varianceDateRange($input);
+    if ($dateFrom === '') { $dateFrom = date('Y-m-d', strtotime('-13 days')); }
+    if ($dateTo === '') { $dateTo = dl_businessDate(); }
+    if ($dateFrom > $dateTo) { [$dateFrom, $dateTo] = [$dateTo, $dateFrom]; }
+
+    // "Only what needs attention" — unchecked shifts and any shift whose entered figures
+    // disagree with the ledger. A shift nothing was recorded for is NOT the same as a
+    // shift that was checked and matched, so the default view must not hide it.
+    $only = strtolower(trim((string)($input['only'] ?? '')));
+    $onlyFilter = in_array($only, ['attention', 'checked', 'unchecked'], true) ? $only : '';
+
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branchStmt = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branchStmt->execute($accessibleBranchIds);
+    $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if ($branchId !== null && !in_array($branchId, $accessibleBranchIds, true)) {
+        $branchId = null;
+    }
+
+    // One row per (branch, date, shift) that exists in the ledger. The reconciliation
+    // row is LEFT JOINed: its absence means "nobody has checked this shift yet".
+    $sql = 'SELECT dl.branch_id, b.name AS branch_name, b.code AS branch_code,
+                   dl.ledger_date, dl.shift,
+                   COUNT(*) AS row_count,
+                   SUM(dl.bal_end IS NULL) AS pending_rows,
+                   ROUND(SUM(CASE WHEN dl.bal_end IS NULL THEN 0 ELSE GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) * COALESCE(dl.price_snapshot,0) END), 2) AS ledger_sales,
+                   SUM(CASE WHEN dl.shift = \'PM\' AND COALESCE(ss.status, \'\') <> \'finalized\' THEN 1 ELSE 0 END) AS pm_unfinalized_rows,
+                   r.id AS recon_id, r.paper_sales, r.cash_remitted, r.review_note,
+                   r.recorded_at, COALESCE(u.full_name, \'\') AS recorded_by_name
+              FROM dl_daily_ledger dl
+              INNER JOIN dl_branches b ON b.id = dl.branch_id
+              LEFT JOIN dl_ledger_shift_status ss
+                     ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+                    AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+              LEFT JOIN dl_shift_reconciliation r
+                     ON r.branch_id = dl.branch_id AND r.ledger_date = dl.ledger_date
+                    AND r.shift = dl.shift COLLATE utf8mb4_unicode_ci
+              LEFT JOIN dl_users u ON u.id = r.recorded_by
+             WHERE dl.branch_id IN (' . $branchPlaceholders . ')
+               AND dl.ledger_date BETWEEN ? AND ?';
+    $bind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);
+    if ($branchId !== null) {
+        $sql .= ' AND dl.branch_id = ?';
+        $bind[] = $branchId;
+    }
+    $sql .= ' GROUP BY dl.branch_id, b.name, b.code, dl.ledger_date, dl.shift,
+                      r.id, r.paper_sales, r.cash_remitted, r.review_note, r.recorded_at, u.full_name
+              ORDER BY dl.ledger_date DESC, b.name, dl.shift';
+
+    $stmt = $ctx->db()->prepare($sql);
+    $stmt->execute($bind);
+    $rawRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $rows = [];
+    $stats = [
+        'total' => 0, 'checked' => 0, 'unchecked' => 0, 'matched' => 0, 'mismatch' => 0,
+        'cash_variance_total' => 0.0, 'paper_variance_total' => 0.0,
+    ];
+    foreach ($rawRows as $raw) {
+        $ledgerSales = (float)($raw['ledger_sales'] ?? 0);
+        $paper = $raw['paper_sales'] === null ? null : (float)$raw['paper_sales'];
+        $cash = $raw['cash_remitted'] === null ? null : (float)$raw['cash_remitted'];
+
+        $state = dl_reconciliationState($raw['recon_id'] !== null, $ledgerSales, $paper, $cash);
+        $checked = $state['is_checked'];
+        $mismatch = $state['is_mismatch'];
+
+        $stats['total']++;
+        if ($checked) { $stats['checked']++; } else { $stats['unchecked']++; }
+        if ($checked && $mismatch) { $stats['mismatch']++; }
+        if ($checked && !$mismatch) { $stats['matched']++; }
+        if ($checked) {
+            $stats['cash_variance_total'] += (float)($state['cash_variance'] ?? 0);
+            $stats['paper_variance_total'] += (float)($state['paper_variance'] ?? 0);
+        }
+
+        $raw['ledger_sales'] = $ledgerSales;
+        $raw['paper_sales'] = $paper;
+        $raw['cash_remitted'] = $cash;
+        $raw['paper_variance'] = $state['paper_variance'];
+        $raw['cash_variance'] = $state['cash_variance'];
+        // Explicit presence flags: the template must not test the amount itself, because
+        // a recorded 0.00 is a real result ("sold nothing") and is falsy.
+        $raw['has_paper'] = $paper !== null;
+        $raw['has_cash'] = $cash !== null;
+        $raw['has_note'] = trim((string)($raw['review_note'] ?? '')) !== '';
+        // Precomputed so the read-only cell needs no nested {if} and no filter chain: a
+        // plain string the template can print and escape once.
+        $raw['note_display'] = $raw['has_note'] ? (string)$raw['review_note'] : '—';
+        $raw['is_checked'] = $checked;
+        $raw['is_mismatch'] = $mismatch;
+        $raw['state'] = $state['state'];
+        $raw['has_pending_ending'] = ((int)($raw['pending_rows'] ?? 0)) > 0;
+        $raw['is_provisional'] = ((int)($raw['pm_unfinalized_rows'] ?? 0)) > 0;
+
+        if ($onlyFilter === 'attention' && $raw['state'] === 'matched') { continue; }
+        if ($onlyFilter === 'checked' && !$checked) { continue; }
+        if ($onlyFilter === 'unchecked' && $checked) { continue; }
+
+        $rows[] = $raw;
+    }
+
+    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    echo dlRender('modules/daily-ledger/admin/reconciliation.disyl', [
+        'page_title'   => 'Cash & Paper Check',
+        'user_name'    => $userName,
+        'user_role'    => $role,
+        'current_page' => 'reconciliation',
+        'base_url'     => dlGetBaseUrl(),
+        'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
+        'date_from'    => $dateFrom,
+        'date_to'      => $dateTo,
+        'branch_id'    => $branchId,
+        'branches'     => $branches,
+        'only_filter'  => $onlyFilter,
+        'rows'         => $rows,
+        'row_count'    => count($rows),
+        'stats'        => $stats,
+        'can_manage'   => $canManage,
+        'tolerance'    => DL_RECON_MATCH_TOLERANCE,
+        'business_date' => dl_businessDate(),
+    ]);
+}
+
 function handleAdminVariances(array $params = []): void
 {
     $ctx = module();
@@ -9589,6 +9800,16 @@ function apiUpdateVarianceStatus(array $params = []): void
         return;
     }
 
+    // Review note. A key that is present but empty clears the note; an ABSENT key
+    // leaves the stored note alone, so a status change from a surface with no note
+    // box cannot wipe a note written elsewhere. Same present/absent contract the
+    // ledger batch save uses for its optional columns.
+    $hasNote = is_array($input) && array_key_exists('review_note', $input);
+    $note = $hasNote ? trim((string)$input['review_note']) : '';
+    if ($hasNote && mb_strlen($note) > DL_VARIANCE_NOTE_MAX) {
+        $note = mb_substr($note, 0, DL_VARIANCE_NOTE_MAX);
+    }
+
     $reviewerId = 0;
     if (isset($user['id']) && is_numeric($user['id'])) {
         $reviewerId = (int)$user['id'];
@@ -9623,35 +9844,194 @@ function apiUpdateVarianceStatus(array $params = []): void
     }
 
     try {
+        // Existence is checked separately because UPDATE rowCount() reports CHANGED
+        // rows, not matched ones: re-submitting the same status inside the same
+        // second changed nothing, so the old rowCount() check answered "Variance not
+        // found" for a row that plainly exists. Saving a note twice hits this.
+        $existsStmt = $ctx->db()->prepare('SELECT id FROM dl_variance_flags WHERE id = :id LIMIT 1');
+        $existsStmt->execute([':id' => $varianceId]);
+        if ((int)($existsStmt->fetchColumn() ?: 0) <= 0) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Variance not found', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Variance not found'], 404);
+            return;
+        }
+
         $stmt = $ctx->db()->prepare(
             'UPDATE dl_variance_flags
              SET resolution_status = :st,
                  reviewed_by = :rb,
                  reviewed_at = CURRENT_TIMESTAMP,
-                 is_reviewed = CASE WHEN :st2 = \'unreviewed\' THEN 0 ELSE 1 END
+                 is_reviewed = CASE WHEN :st2 = \'unreviewed\' THEN 0 ELSE 1 END,
+                 review_note = IF(:has_note, :note, review_note)
              WHERE id = :id'
         );
         $stmt->execute([
             ':st' => $status,
             ':st2' => $status,
             ':rb' => $reviewedBy,
+            ':has_note' => $hasNote ? 1 : 0,
+            ':note' => $hasNote ? $note : null,
             ':id' => $varianceId,
         ]);
 
-        if ($stmt->rowCount() <= 0) {
-            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Variance not found', 'type' => 'error']]));
-            $ctx->json(['ok' => false, 'error' => 'Variance not found'], 404);
-            return;
-        }
-
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Variance updated', 'type' => 'success']]));
-        $ctx->json(['ok' => true]);
+        $ctx->json([
+            'ok' => true,
+            'resolution_status' => $status,
+            // null means "unchanged", so the caller can tell a save from a no-op.
+            'review_note' => $hasNote ? $note : null,
+        ]);
         return;
     } catch (\Throwable $e) {
         write_log('daily-ledger apiUpdateVarianceStatus failed', 'error', [
             'error' => $e->getMessage(),
             'variance_id' => $varianceId,
             'status' => $status,
+        ]);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Server error', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Server error'], 500);
+        return;
+    }
+}
+
+/**
+ * Save the external check for one shift: the paper sheet total, the cash actually
+ * remitted, and the reviewer's note.
+ *
+ * Present-vs-absent contract on every field, the same as the ledger batch save and the
+ * variance note: a key that is PRESENT sets the value (empty string = "not recorded"
+ * = NULL), an ABSENT key leaves the stored value alone. A caller that only has the cash
+ * to hand must not silently wipe a paper total someone else entered.
+ *
+ * An entered figure must be a non-negative number. A bad value is REJECTED rather than
+ * coerced to 0, because 0 is a meaningful result (a shift that genuinely sold nothing)
+ * and must never be invented from a typo.
+ */
+function apiSaveReconciliation(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor']);
+    $input = $ctx->input();
+
+    $authResult = dl_authorizeBranch($user, is_array($input) ? $input : []);
+    if (($authResult['branch_id'] ?? -1) < 0) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch not authorized', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)($authResult['branch_id'] ?? 0);
+    $date = trim((string)($input['ledger_date'] ?? ''));
+    $shift = strtoupper(trim((string)($input['shift'] ?? '')));
+
+    if ($branchId <= 0 || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1 || !in_array($shift, ['AM', 'PM'], true)) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid branch/date/shift', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Invalid branch, date or shift'], 422);
+        return;
+    }
+
+    $hasPaper = is_array($input) && array_key_exists('paper_sales', $input);
+    $hasCash = is_array($input) && array_key_exists('cash_remitted', $input);
+    $hasNote = is_array($input) && array_key_exists('review_note', $input);
+
+    // Normalise the two money fields. '' / null means "not recorded".
+    $paper = null;
+    $cash = null;
+    foreach (['paper_sales' => &$paper, 'cash_remitted' => &$cash] as $key => $target) {
+        $raw = $input[$key] ?? null;
+        if ($raw === null || (is_scalar($raw) && trim((string)$raw) === '')) {
+            $target = null;
+            continue;
+        }
+        if (!is_scalar($raw) || !is_numeric($raw)) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Amounts must be numbers', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => $key . ' must be a number'], 422);
+            return;
+        }
+        $value = round((float)$raw, 2);
+        // decimal(12,2) ceiling, and a negative remittance is not a thing.
+        if ($value < 0 || $value > 9999999999.99) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Amounts must be between 0 and 9,999,999,999.99', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => $key . ' is out of range'], 422);
+            return;
+        }
+        $target = $value;
+    }
+    unset($target);
+
+    $note = $hasNote ? trim((string)$input['review_note']) : '';
+    if ($hasNote && mb_strlen($note) > DL_RECON_NOTE_MAX) {
+        $note = mb_substr($note, 0, DL_RECON_NOTE_MAX);
+    }
+
+    // recorded_by follows the same storage policy as the variance reviewer: a
+    // daily-ledger id only when it is a real, non-deleted dl_users row; a kernel id when
+    // the actor is a kernel admin (which the module explicitly allows here).
+    $recordedBy = null;
+    $actorId = dl_getActorUserId(is_array($user) ? $user : []);
+    if ($actorId > 0) {
+        $source = (string)($user['source'] ?? '');
+        if ($source === 'daily-ledger') {
+            $chk = $ctx->db()->prepare('SELECT id FROM dl_users WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+            $chk->execute([':id' => $actorId]);
+            if ((int)($chk->fetchColumn() ?: 0) > 0) { $recordedBy = $actorId; }
+        } elseif ($source === 'kernel') {
+            $recordedBy = $actorId;
+        }
+    }
+
+    try {
+        $stmt = $ctx->db()->prepare(
+            'INSERT INTO dl_shift_reconciliation
+                (branch_id, ledger_date, shift, paper_sales, cash_remitted, review_note, recorded_by, recorded_at)
+             VALUES (:bid, :d, :shift, :paper, :cash, :note, :uid, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+                paper_sales   = IF(:has_paper, VALUES(paper_sales), paper_sales),
+                cash_remitted = IF(:has_cash,  VALUES(cash_remitted), cash_remitted),
+                review_note   = IF(:has_note,  VALUES(review_note), review_note),
+                recorded_by   = VALUES(recorded_by),
+                recorded_at   = VALUES(recorded_at)'
+        );
+        $stmt->execute([
+            ':bid' => $branchId,
+            ':d' => $date,
+            ':shift' => $shift,
+            ':paper' => $hasPaper ? $paper : null,
+            ':cash' => $hasCash ? $cash : null,
+            ':note' => $hasNote ? $note : null,
+            ':uid' => $recordedBy,
+            ':has_paper' => $hasPaper ? 1 : 0,
+            ':has_cash' => $hasCash ? 1 : 0,
+            ':has_note' => $hasNote ? 1 : 0,
+        ]);
+
+        dl_auditLog(
+            'reconciliation_saved',
+            $branchId,
+            'dl_shift_reconciliation',
+            "{$branchId}-{$date}-{$shift}",
+            null,
+            [
+                'paper_sales' => $hasPaper ? $paper : 'unchanged',
+                'cash_remitted' => $hasCash ? $cash : 'unchanged',
+                'note' => $hasNote ? ($note === '' ? '(cleared)' : 'set') : 'unchanged',
+            ]
+        );
+
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Check saved', 'type' => 'success']]));
+        $ctx->json(['ok' => true]);
+        return;
+    } catch (\Throwable $e) {
+        write_log('daily-ledger apiSaveReconciliation failed', 'error', [
+            'error' => $e->getMessage(),
+            'branch_id' => $branchId,
+            'ledger_date' => $date,
+            'shift' => $shift,
         ]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Server error', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Server error'], 500);

@@ -54,7 +54,7 @@
                         hx-get="{base_url}/api/cases/{case.id}/panel"
                         hx-target="#case-detail-panel"
                         hx-swap="innerHTML"
-                        onclick="setTimeout(function(){var el=document.getElementById('case-detail-panel');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},150)">
+                        onclick="setTimeout(window.gdScrollToCaseDetail, 150)">
                     View
                 </button>
             </td>

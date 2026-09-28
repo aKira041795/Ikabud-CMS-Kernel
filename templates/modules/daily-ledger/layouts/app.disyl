@@ -255,6 +255,17 @@
             if (box) box.classList.add('hidden');
             window.dlWriteFailureRetry = null;
         };
+        // The Retry button calls this instead of running its logic inline. DiSyL parses
+        // {...} inside an HTML attribute as a TEMPLATE EXPRESSION, so the previous
+        // onclick="if (x) { ...; }" was silently eaten and the button rendered dead
+        // (onclick="if (x) ", a JavaScript syntax error). Keep inline handlers brace-free:
+        // call a function, never open a block.
+        window.dlRetryWriteFailure = function() {
+            if (typeof window.dlWriteFailureRetry !== 'function') return;
+            var retry = window.dlWriteFailureRetry; // capture before clearing
+            window.dlClearWriteFailure();
+            retry();
+        };
 
         // ── Submit feedback ────────────────────────────────────────────────
         // A slow link makes the view refresh lag far behind the request, so the
@@ -451,7 +462,7 @@
                 <p id="dl-write-failure-text" class="mt-1 text-xs leading-5 text-red-800"></p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-                <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="if (window.dlWriteFailureRetry) { var f = window.dlWriteFailureRetry; window.dlClearWriteFailure(); f(); }">Retry — safe, will not duplicate</button>
+                <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="window.dlRetryWriteFailure()">Retry — safe, will not duplicate</button>
                 <button type="button" class="btn btn-outline btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
             </div>
         </div>
@@ -549,6 +560,13 @@
                    aria-label="Variances">
                     <i class="fas fa-triangle-exclamation w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Variances</span>
+                </a>
+
+                <a href="{base_url}/admin/reconciliation"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'reconciliation'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Cash and Paper Check">
+                    <i class="fas fa-money-bill-wave w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Cash &amp; Paper Check</span>
                 </a>
                 {/if}
 

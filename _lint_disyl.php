@@ -92,6 +92,19 @@ $warnings = [];
 $parser = new Parser();
 $fixCount = 0;
 
+/**
+ * Files that already contain a { } statement body inside an inline event handler
+ * (see Check 9). They warn instead of failing so a NEW instance is blocked by CI
+ * without red-lighting every branch on a legacy defect. Remove a path once fixed.
+ *
+ * EMPTY as of 2026-09-28: all seven known instances were fixed (daily-ledger layouts,
+ * guidance pages + partials, ticketing settings, attendance-wage employee form), so every
+ * file is now gated. Add a path here only with a reason, and remove it once fixed.
+ *
+ * @var array<int, string>
+ */
+$inlineHandlerLegacyAllowlist = [];
+
 foreach ($files as $filePath) {
     $relativePath = str_replace($projectRoot . '/', '', $filePath);
     $source = file_get_contents($filePath);
@@ -181,7 +194,54 @@ foreach ($files as $filePath) {
         $fileErrors[] = "Parse error near line {$line}: {$e->getMessage()}";
     }
 
-    // Check 9: Trailing whitespace (fixable)
+    // Check 9: no JavaScript statement body inside an inline event handler
+    //
+    // DiSyL parses `{...}` inside an HTML attribute as a template EXPRESSION, so an inline
+    // handler with a statement body is silently eaten:
+    //     onclick="if (x) { retry(); }"   renders as   onclick="if (x) "
+    // which is a JavaScript syntax error. It looks correct in the source and parses
+    // cleanly, so nothing else catches it; it only shows up when the page is rendered.
+    //
+    // The signature is `)` followed by `{` — `if (x) {`, `function () {`, `function (e) {`.
+    // That is deliberately narrow: `onclick="save({id})"` is a template substitution and
+    // `wmsPost(url, {a: b})` is an object literal, and neither is a statement body, so
+    // neither matches `){`. A first draft matched any `{...;...}` and wrongly flagged the
+    // object literal in wms/admin/account.disyl.
+    //
+    // Reported as an ERROR for any file not on the legacy list below, so CI (and branch
+    // protection, which runs this with --ci) blocks a NEW instance. The list already
+    // existing is warned about rather than failing the build, following the same
+    // --fail-on-new baseline idea the architecture gate uses. Remove a path once fixed.
+    //
+    // Real defects this was written for: daily-ledger admin/variances.disyl (two table
+    // variants) and admin/reconciliation.disyl, 2026-09-28. The fix is a delegated
+    // addEventListener in the {block scripts} block.
+    // Scan MARKUP only. The rule is about HTML attributes, and JS is full of `) {`
+    // (`function () {`, `if (x) {`) that is perfectly legal. Stripping <script> bodies and
+    // comments first also stops a comment that DOCUMENTS this pitfall — quoting the bad
+    // form as an example — from tripping the very rule it is warning about. (It did.)
+    $markupOnly = preg_replace('/<script\b.*?<\/script>/is', '', $source) ?? $source;
+    $markupOnly = preg_replace('/<!--.*?-->/s', '', $markupOnly) ?? $markupOnly;
+    $markupOnly = preg_replace('/\{!--.*?--\}/s', '', $markupOnly) ?? $markupOnly;
+
+    if (preg_match_all('/\bon[a-z]+\s*=\s*"([^"]*)"/i', $markupOnly, $handlerBodies)) {
+        foreach ($handlerBodies[1] as $handlerBody) {
+            if (!preg_match('/\)\s*\{/', $handlerBody)) {
+                continue;
+            }
+            $inlineHandlerMessage = 'Inline event handler has a { } statement body — '
+                . 'DiSyL parses it as a template expression and eats it, leaving invalid JS. '
+                . 'Move the behaviour into a delegated addEventListener instead.';
+            if (in_array($relativePath, $inlineHandlerLegacyAllowlist, true)) {
+                $warnings[] = [$relativePath, 0, $inlineHandlerMessage];
+            } else {
+                $fileErrors[] = $inlineHandlerMessage;
+            }
+            break;
+        }
+    }
+
+    // Check 10: Trailing whitespace (fixable)
     if ($fixMode) {
         $fixed = 0;
         $newLines = [];
