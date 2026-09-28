@@ -16,16 +16,35 @@ declare(strict_types=1);
 
 function routePatternSegments(string $pattern): array
 {
+    // Memoised: pure function of $pattern, called once per route PAIR by
+    // routePatternsMayConflict(). Without this the trim/explode/array_filter/
+    // array_values work was redone on every comparison - an Xdebug profile put
+    // 7479 ms self here plus 5978 ms in the array_filter closure it drives, from
+    // 7.3M call records across 1713 route lines.
+    static $cache = [];
+    if (isset($cache[$pattern])) {
+        return $cache[$pattern];
+    }
+
     $trimmed = trim($pattern, '/');
     if ($trimmed === '') {
-        return [];
+        return $cache[$pattern] = [];
     }
-    return array_values(array_filter(explode('/', $trimmed), static fn($seg) => $seg !== ''));
+    return $cache[$pattern] = array_values(array_filter(
+        explode('/', $trimmed),
+        static fn($seg) => $seg !== ''
+    ));
 }
 
 function routeSegmentIsDynamic(string $segment): bool
 {
-    return (bool) preg_match('/^\{[A-Za-z0-9_]+\}$/', $segment);
+    // Memoised: pure function of $segment. Same call pattern as above - one
+    // preg_match per segment per route pair.
+    static $cache = [];
+    if (isset($cache[$segment])) {
+        return $cache[$segment];
+    }
+    return $cache[$segment] = (bool) preg_match('/^\{[A-Za-z0-9_]+\}$/', $segment);
 }
 
 function routePatternsMayConflict(string $left, string $right): bool
