@@ -157,7 +157,6 @@
 {block scripts}
 <script>
 // Global (not inside the IIFE below) because it is called from an inline onclick.
-// See the brace-free note in the guidance layout.
 function gdClearCaseFilters() {
     document.querySelectorAll('#case-filters input, #case-filters select').forEach(function (el) {
         el.value = '';

@@ -168,9 +168,8 @@
 
 {block scripts}
 <script>
-    // Called from an inline onclick, which must stay BRACE-FREE: DiSyL parses {...} inside
-    // an HTML attribute as a template expression and eats it, so the previous inline body
-    // rendered as truncated JavaScript and the button silently did nothing.
+    // Called from an inline onclick. The body lives here rather than in the attribute so the
+    // clipboard call and the label update stay readable.
     function tkCopyPublicLink(btn) {
         navigator.clipboard.writeText(document.getElementById('publicLink').textContent.trim()).then(function () {
             btn.textContent = 'Copied!';

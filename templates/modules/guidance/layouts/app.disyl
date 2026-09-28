@@ -1138,13 +1138,13 @@
     </script>
 
     <script>
-    // Shared helpers for guidance pages.
+    // Shared helpers for guidance pages, extracted from the inline handlers that used to sit
+    // on the buttons, so the behaviour lives in one place instead of in the markup.
     //
-    // Inline event handlers must stay BRACE-FREE. DiSyL parses {...} inside an HTML
-    // attribute as a template expression and eats it, so the previous bodies —
-    // onclick="if (x) { y(); }" and onClick="...forEach(function(e){ e.value=''; })" —
-    // rendered as truncated JavaScript and the controls silently did nothing. Call a
-    // function instead of opening a block.
+    // Note: DiSyL does NOT eat braces inside quoted attributes. An earlier comment here said
+    // it did; that was disproved by rendering the originals through TemplateEngine (they come
+    // back unchanged — see tests/disyl_engine_test.php section 43). Extracting these helpers
+    // was a readability choice, not a bug fix.
     window.gdHideSessionDetailPanel = function() {
         var panel = document.getElementById('session-detail-panel');
         if (!panel) return;

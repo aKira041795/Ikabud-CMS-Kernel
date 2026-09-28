@@ -191,7 +191,7 @@
 
 {block scripts}
 <script>
-    // Called from an inline onclick, so it must be global and the handler brace-free.
+    // Called from an inline onclick, so it must be reachable on window.
     function gdClearSessionRecordFilters() {
         document.querySelectorAll('#sr-filters input, #sr-filters select').forEach(function (el) {
             el.value = '';

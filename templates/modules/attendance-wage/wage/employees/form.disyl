@@ -3,11 +3,12 @@
 <script>
 // Preview for the uploaded employee photo.
 //
-// Extracted from an inline onchange that was broken twice over: DiSyL parses {...} inside
-// an HTML attribute as a template expression and eats it (the body rendered as truncated
-// JavaScript), AND the attribute contained raw double quotes around the <img> attributes,
-// which terminated the attribute early. Both problems disappear once the code lives in a
-// script block, where braces and quotes are literal.
+// Extracted from an inline onchange. The real defect there was an unescaped double quote
+// inside a double-quoted attribute — onchange="...outerHTML='<img src="'+url+'"...'" — which
+// terminates the attribute in the HTML parser, so the handler was truncated and did nothing.
+// DiSyL was NOT the cause: it preserves `{...}` inside quoted attributes (see
+// tests/disyl_engine_test.php section 43). Keeping the code in a script block sidesteps the
+// quoting hazard entirely, because quotes and braces are literal here.
 function awPreviewPhoto(input) {
     var file = input.files && input.files[0];
     if (!file) return;

@@ -822,10 +822,8 @@
         });
     }
 
-    // Enter saves the note. Delegated rather than an inline onkeydown because DiSyL
-    // parses {...} inside an HTML attribute as a template expression: an inline
-    // "if(...){...}" handler is silently eaten and renders as "if(event.key==='Enter')",
-    // which is a JavaScript syntax error. Keep braces out of inline handlers.
+    // Enter saves the note. Delegated on document for the same reason: this table re-renders
+    // over htmx, so a per-row inline handler would need rebinding after every swap.
     document.addEventListener('keydown', function(e) {
         var el = e.target;
         if (!el || !el.dataset || !el.dataset.noteId) { return; }

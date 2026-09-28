@@ -255,11 +255,12 @@
             if (box) box.classList.add('hidden');
             window.dlWriteFailureRetry = null;
         };
-        // The Retry button calls this instead of running its logic inline. DiSyL parses
-        // {...} inside an HTML attribute as a TEMPLATE EXPRESSION, so the previous
-        // onclick="if (x) { ...; }" was silently eaten and the button rendered dead
-        // (onclick="if (x) ", a JavaScript syntax error). Keep inline handlers brace-free:
-        // call a function, never open a block.
+        // The Retry button calls this rather than running its logic inline, so the failure
+        // box keeps a single entry point that can be exercised on its own.
+        //
+        // An earlier comment here blamed DiSyL for eating the inline braces; that was wrong.
+        // DiSyL preserves `{...}` in quoted attributes, so the old inline handler worked.
+        // This extraction is a readability change, not a bug fix.
         window.dlRetryWriteFailure = function() {
             if (typeof window.dlWriteFailureRetry !== 'function') return;
             var retry = window.dlWriteFailureRetry; // capture before clearing

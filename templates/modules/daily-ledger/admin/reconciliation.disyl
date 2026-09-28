@@ -283,11 +283,9 @@
         });
     }
 
-    // Enter saves the note, the way a one-line field is expected to behave. This is a
-    // delegated listener rather than an inline onkeydown: DiSyL treats {...} inside an
-    // HTML attribute as a template expression, so an inline
-    // "if(...){...}" handler is silently eaten (it renders as "if(event.key==='Enter')",
-    // which is a syntax error). Keep braces out of inline handlers.
+    // Enter saves the note, the way a one-line field is expected to behave. Delegated on
+    // document rather than wired per-row inline, because this table re-renders over htmx and
+    // a delegated listener keeps working without rebinding after every swap.
     document.addEventListener('keydown', function(e) {
         var el = e.target;
         if (!el || !el.dataset || el.dataset.reconField !== 'review_note') { return; }
