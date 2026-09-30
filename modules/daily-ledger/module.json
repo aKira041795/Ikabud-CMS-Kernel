@@ -138,7 +138,10 @@
     "database/migrations/060_snapshot_liable_user_name.sql",
     "database/migrations/061_recompute_stale_sales.sql",
     "database/migrations/062_backfill_missing_beginnings.sql",
-    "database/migrations/063_shift_reconciliation.sql"
+    "database/migrations/063_shift_reconciliation.sql",
+    "database/migrations/064_add_production_sheet_balances.sql",
+    "database/migrations/065_add_branch_sort_order.sql",
+    "database/migrations/066_add_delivery_producer.sql"
   ],
   "capabilities": {
     "exposes": [

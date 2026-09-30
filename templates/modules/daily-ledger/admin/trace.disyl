@@ -1,0 +1,321 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Production Delivery Audit</h2>
+        <p class="text-base text-slate-700">One lookup across the dispatch, receiving, producer, variance, cashier and ledger sources — each labelled with what it is authoritative for.</p>
+    </div>
+    <span class="text-base font-medium text-slate-700">{trace.count} document{if trace.count == 1}{else}s{/if}</span>
+</div>
+
+<form class="card mb-6" action="{base_url}/admin/trace" method="GET"
+      onsubmit="return window.dlLoadForm(this)">
+    <div class="card-body">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
+    <div class="form-group">
+        <label class="form-label">DR #</label>
+        <input type="text" class="form-input" name="dr" value="{dr}" placeholder="DR as written on paper">
+    </div>
+    <div class="form-group">
+        <label class="form-label">From</label>
+        <input type="date" class="form-input" name="date_from" value="{date_from}">
+    </div>
+    <div class="form-group">
+        <label class="form-label">To</label>
+        <input type="date" class="form-input" name="date_to" value="{date_to}">
+    </div>
+    <div class="form-group">
+        <label class="form-label">Branch</label>
+        <select class="form-input" name="branch_id">
+            <option value="">All Branches</option>
+            {foreach branches as br}
+            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+            {/foreach}
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Product</label>
+        <select class="form-input" name="product_id">
+            <option value="">All Products</option>
+            {foreach products as pr}
+            <option value="{pr.id}" {if pr.id == product_id}selected{/if}>{pr.name}</option>
+            {/foreach}
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">User</label>
+        <input type="text" class="form-input" name="user" value="{user}" placeholder="Producer / encoder name">
+        {if trace.user_filter.no_match}
+        <p class="mt-1 text-sm font-semibold text-rose-700">{if trace.user_filter.query}No user matches “{trace.user_filter.query}”.{else}No user matches the supplied User ID.{/if}</p>
+        {elseif trace.user_filter.matches | count > 0}
+        <div class="mt-1 space-y-1 text-xs text-slate-600">
+            <div class="font-semibold text-slate-700">Matched user{if trace.user_filter.matches | count == 1}{else}s{/if}:</div>
+            {foreach trace.user_filter.matches as matched_user}
+            <div>{if matched_user.full_name}{matched_user.full_name}{else}(no full name){/if} · @{matched_user.username} · {matched_user.role}</div>
+            {/foreach}
+        </div>
+        {/if}
+    </div>
+    <div class="form-group">
+        <div class="h-5"></div>
+        <button type="submit" class="btn btn-primary w-full h-11">Trace</button>
+    </div>
+    </div>
+    </div>
+</form>
+
+{if trace.count == 0}
+<div class="card mb-6">
+    <div class="card-body px-4 py-10 text-center text-base text-slate-700">
+        No documents matched. Nothing is linked to this lookup.
+    </div>
+</div>
+{/if}
+
+{if trace.truncated}
+<div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    Showing the first matching documents only. Narrow the date range or branch to see the rest.
+</div>
+{/if}
+
+{if trace.mode == 'day' && trace.count > 0}
+<div class="card mb-6">
+    <div class="card-header"><span>Documents On This Day</span></div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">DR #</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Date</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Origin</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Destination</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Trace</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white">
+                    {foreach trace.documents as doc}
+                    <tr>
+                        <td class="px-4 py-3 font-mono font-semibold text-slate-900">{doc.dr_display}</td>
+                        <td class="px-4 py-3 text-slate-700">{doc.delivery_date}</td>
+                        <td class="px-4 py-3 text-slate-700">{doc.origin_label}</td>
+                        <td class="px-4 py-3 text-slate-700">{doc.destination_label}</td>
+                        <td class="px-4 py-3 text-slate-700">
+                            <div class="font-semibold">{doc.status_label}</div>
+                            {if doc.status_detail}<div class="mt-1 text-xs text-slate-500">{doc.status_detail}</div>{/if}
+                        </td>
+                        <td class="px-4 py-3"><a class="text-indigo-600 hover:underline" href="{doc.trace_link}">Open trace</a></td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{/if}
+
+{if trace.mode == 'dr'}
+{foreach trace.documents as doc}
+<div class="card mb-6">
+    <div class="card-header">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <span class="font-mono text-base font-semibold text-slate-900">{doc.dr_display}</span>
+                <span class="ml-2 text-sm text-slate-600">{doc.delivery_date} · {doc.origin_label} &rarr; {doc.destination_label}</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-800 ring-1 ring-inset ring-slate-300">Dispatch #{doc.id}</span>
+                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-800 ring-1 ring-inset ring-slate-300">{doc.status_label}</span>
+                {if doc.status_detail}<span class="text-slate-600">{doc.status_detail}</span>{/if}
+                {if doc.provenance_status_label}
+                <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-800 ring-1 ring-inset ring-indigo-200">Paper DR: {doc.provenance_status_label}</span>
+                {/if}
+            </div>
+        </div>
+        {if doc.provenance_review_note}
+        <p class="mt-2 text-xs text-slate-600">Paper DR note: {doc.provenance_review_note}</p>
+        {/if}
+    </div>
+    <div class="card-body space-y-5">
+
+        <!-- Production -->
+        <section class="rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-900">Production</h3>
+                <a class="text-xs text-indigo-600 hover:underline" href="{doc.production.link_url}">Open production sheet</a>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">{doc.production.authoritative}</p>
+            <dl class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                <div><dt class="text-xs uppercase tracking-wide text-slate-500">Producer</dt><dd class="text-slate-900">{if doc.production.producer_name}{doc.production.producer_name}{else}<span class="text-slate-500">not recorded</span>{/if}</dd></div>
+                <div><dt class="text-xs uppercase tracking-wide text-slate-500">Produced at</dt><dd class="text-slate-900">{if doc.production.produced_at}{doc.production.produced_at}{else}<span class="text-slate-500">not recorded</span>{/if}</dd></div>
+                <div><dt class="text-xs uppercase tracking-wide text-slate-500">Encoded by</dt><dd class="text-slate-900">{if doc.production.encoder_name}{doc.production.encoder_name}{else}<span class="text-slate-500">not recorded</span>{/if}</dd></div>
+            </dl>
+            <div class="mt-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Production runs (same date/product)</div>
+                {if doc.production.runs | count > 0}
+                <ul class="mt-1 space-y-1 text-sm text-slate-800">
+                    {foreach doc.production.runs as run}
+                    <li>{run.product} — baker: {if run.baker}{run.baker}{else}<span class="text-slate-500">not recorded</span>{/if} · yield {run.yield}{if run.dr_number} · DR {run.dr_number}{/if}</li>
+                    {/foreach}
+                </ul>
+                {else}
+                <p class="mt-1 text-sm text-slate-500">not recorded</p>
+                {/if}
+            </div>
+            <div class="mt-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Production movements (same DR)</div>
+                {if doc.production.movements | count > 0}
+                <ul class="mt-1 space-y-1 text-sm text-slate-800">
+                    {foreach doc.production.movements as mv}
+                    <li>{mv.movement_type} · {mv.product} · qty {mv.quantity} · {mv.ledger_date}</li>
+                    {/foreach}
+                </ul>
+                {else}
+                <p class="mt-1 text-sm text-slate-500">not recorded</p>
+                {/if}
+            </div>
+        </section>
+
+        <!-- Dispatch -->
+        <section class="rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-900">Dispatch (SENT)</h3>
+                <a class="text-xs text-indigo-600 hover:underline" href="{doc.dispatch.link_url}">Open transfer records</a>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">{doc.dispatch.authoritative}</p>
+            <p class="mt-2 text-xs text-slate-500">Posted by {if doc.dispatch.posted_by}{doc.dispatch.posted_by}{else}not recorded{/if}{if doc.dispatch.posted_at} at {doc.dispatch.posted_at}{/if}</p>
+            {if doc.dispatch.items | count > 0}
+            <table class="mt-2 w-full text-sm">
+                <thead class="text-xs uppercase tracking-wide text-slate-500">
+                    <tr><th class="py-1 text-left">Product</th><th class="py-1 text-right">Sent</th></tr>
+                </thead>
+                <tbody>
+                    {foreach doc.dispatch.items as item}
+                    <tr class="border-t border-slate-100"><td class="py-1 text-slate-800">{item.product}{if item.sku} <span class="text-slate-400">({item.sku})</span>{/if}</td><td class="py-1 text-right text-slate-900">{item.quantity} {item.unit}</td></tr>
+                    {/foreach}
+                </tbody>
+            </table>
+            {else}
+            <p class="mt-2 text-sm text-slate-500">not recorded</p>
+            {/if}
+        </section>
+
+        <!-- Receiving -->
+        <section class="rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-900">Receiving (RECEIVED)</h3>
+                <a class="text-xs text-indigo-600 hover:underline" href="{doc.receiving.link_url}">Open transfer records</a>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">{doc.receiving.authoritative}</p>
+            {if doc.receiving.recorded}
+                {foreach doc.receiving.rows as rcv}
+                <div class="mt-2 rounded border border-slate-100 bg-slate-50 p-2">
+                    <p class="text-xs text-slate-600">Received by {if rcv.received_by_label}{rcv.received_by_label}{else}not recorded{/if}{if rcv.received_at} at {rcv.received_at}{/if} · ledger date {rcv.received_ledger_date}</p>
+                    <table class="mt-1 w-full text-sm">
+                        <thead class="text-xs uppercase tracking-wide text-slate-500">
+                            <tr><th class="py-1 text-left">Product</th><th class="py-1 text-right">Received</th></tr>
+                        </thead>
+                        <tbody>
+                            {foreach rcv.items as ritem}
+                            <tr class="border-t border-slate-100"><td class="py-1 text-slate-800">{ritem.product}</td><td class="py-1 text-right text-slate-900">{ritem.quantity} {ritem.unit}{if !ritem.linked} <span class="text-xs text-amber-700">(not linked to a sent line)</span>{/if}</td></tr>
+                            {/foreach}
+                        </tbody>
+                    </table>
+                </div>
+                {/foreach}
+            {else}
+            <p class="mt-2 text-sm font-semibold text-rose-700">not recorded</p>
+            {/if}
+        </section>
+
+        <!-- Variance -->
+        <section class="rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-900">Variance (sent vs received)</h3>
+                <a class="text-xs text-indigo-600 hover:underline" href="{doc.variance.link_url}">Open variance dashboard</a>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">{doc.variance.authoritative}</p>
+            {if doc.variance.items | count > 0}
+            <table class="mt-2 w-full text-sm">
+                <thead class="text-xs uppercase tracking-wide text-slate-500">
+                    <tr><th class="py-1 text-left">Product</th><th class="py-1 text-right">Sent</th><th class="py-1 text-right">Received</th><th class="py-1 text-right">Δ</th></tr>
+                </thead>
+                <tbody>
+                    {foreach doc.variance.items as vi}
+                    <tr class="border-t border-slate-100">
+                        <td class="py-1 text-slate-800">{vi.product}</td>
+                        <td class="py-1 text-right text-slate-900">{vi.sent}</td>
+                        <td class="py-1 text-right {if vi.state == 'open'}font-semibold text-rose-700{else}text-slate-900{/if}">{vi.received_display}</td>
+                        <td class="py-1 text-right font-semibold {if vi.state == 'short'}text-rose-700{/if}{if vi.state == 'over'}text-amber-700{/if}{if vi.state == 'open'}text-rose-700{/if}">{vi.delta_display}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+            {else}
+            <p class="mt-2 text-sm text-slate-500">No sent/received difference for this document.</p>
+            {/if}
+        </section>
+
+        <!-- Cashier / corrections -->
+        <section class="rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-900">Cashier / corrections</h3>
+                <a class="text-xs text-indigo-600 hover:underline" href="{doc.cashier.link_url}">Open stock adjustments</a>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">{doc.cashier.authoritative}</p>
+            <div class="mt-2">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cashier rows for this DR</div>
+                {if doc.cashier.rows | count > 0}
+                <ul class="mt-1 space-y-1 text-sm text-slate-800">
+                    {foreach doc.cashier.rows as cw}
+                    <li>{cw.type_label} · {cw.product} · {cw.quantity} {cw.unit}{if cw.reason} · {cw.reason}{/if} · {cw.branch} · by {cw.encoded_by}</li>
+                    {/foreach}
+                </ul>
+                {else}
+                <p class="mt-1 text-sm text-slate-500">not recorded</p>
+                {/if}
+            </div>
+            <div class="mt-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ledger-cell corrections (same date/product)</div>
+                {if doc.cashier.corrections | count > 0}
+                <ul class="mt-1 space-y-1 text-sm text-slate-800">
+                    {foreach doc.cashier.corrections as corr}
+                    <li>{corr.when} · {corr.field} ({corr.shift}) from {if corr.from}{corr.from}{else}blank{/if} to {if corr.to}{corr.to}{else}blank{/if}{if corr.actor} · by {corr.actor}{/if}</li>
+                    {/foreach}
+                </ul>
+                {else}
+                <p class="mt-1 text-sm text-slate-500">not recorded</p>
+                {/if}
+            </div>
+        </section>
+
+        <!-- Ledger -->
+        <section class="rounded-lg border border-slate-200 p-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-900">Ledger / Daily Sheet</h3>
+                <a class="text-xs text-indigo-600 hover:underline" href="{doc.ledger.link_url}">Open Daily Sheet</a>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">{doc.ledger.authoritative}</p>
+            {if doc.ledger.rows | count > 0}
+            <table class="mt-2 w-full text-sm">
+                <thead class="text-xs uppercase tracking-wide text-slate-500">
+                    <tr><th class="py-1 text-left">Source</th><th class="py-1 text-left">Product</th><th class="py-1 text-left">Shift</th><th class="py-1 text-left">Figures</th></tr>
+                </thead>
+                <tbody>
+                    {foreach doc.ledger.rows as led}
+                    <tr class="border-t border-slate-100"><td class="py-1 text-slate-700">{led.source}</td><td class="py-1 text-slate-800">{led.product}</td><td class="py-1 text-slate-700">{led.shift}</td><td class="py-1 text-slate-700">{led.figures}</td></tr>
+                    {/foreach}
+                </tbody>
+            </table>
+            {else}
+            <p class="mt-2 text-sm text-slate-500">not recorded</p>
+            {/if}
+        </section>
+
+    </div>
+</div>
+{/foreach}
+{/if}
+{/block}

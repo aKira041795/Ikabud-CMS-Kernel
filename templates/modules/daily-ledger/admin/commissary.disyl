@@ -1,11 +1,138 @@
 {extends "modules/daily-ledger/layouts/app.disyl"}
 {block head}
+<style>
+    /* Reclaim the dead horizontal padding. Cells inherited 16px per side, which
+       produced a 32px gap between the product name and the BEG cell for no
+       benefit. Spending it on the branch entry cells instead makes them wider
+       without pushing the table further to the right. Branch cells below set
+       their own tighter padding and win on specificity. */
+    #tab-daily-sheet table th,
+    #tab-daily-sheet table td {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+    /* Column widths are capped by MEASUREMENT, not by guesswork. The product
+       column is sized by its long tail (longest label 246px, MEDIAN only 117px,
+       just 10 of 174 names exceed 200px), so it cannot be tightened to the
+       median without wrapping 76 names, growing every row and lengthening the
+       printed sheet. The real slack is in the numeric columns, which were sized
+       generously for small numbers. Capping those funds wider entry cells. */
+    #tab-daily-sheet thead th:nth-child(1),
+    #tab-daily-sheet tbody td:nth-child(1) {
+        width: 200px;
+        min-width: 200px;
+        max-width: 200px;
+    }
+    #tab-daily-sheet thead th:nth-child(2),   /* BEG    */
+    #tab-daily-sheet tbody td:nth-child(2) { width: 74px; min-width: 74px; max-width: 74px; }
+    #tab-daily-sheet thead th:nth-child(3),   /* ADDTL  */
+    #tab-daily-sheet tbody td:nth-child(3) { width: 84px; min-width: 84px; max-width: 84px; }
+    #tab-daily-sheet thead th:nth-child(14),  /* TOTAL  */
+    #tab-daily-sheet tbody td:nth-child(14) { width: 58px; min-width: 58px; max-width: 58px; }
+    #tab-daily-sheet thead th:nth-child(15),  /* ACTUAL BAL */
+    #tab-daily-sheet tbody td:nth-child(15) { width: 100px; min-width: 100px; max-width: 100px; }
+    #tab-daily-sheet thead th:nth-child(16),  /* VARIANCE */
+    #tab-daily-sheet tbody td:nth-child(16) { width: 76px; min-width: 76px; max-width: 76px; }
+    /* Branch columns must be sized EXPLICITLY, not by content. Under auto table
+       layout the old 28px minimum was the only respected constraint, so
+       shrinking the cell padding collapsed the column to its minimum and fed
+       back into a narrower entry target. 82px gives the 2/3-width trigger ~52px
+       of border box, comfortably fitting a five-digit figure at 13px bold. */
+    #tab-daily-sheet .daily-sheet-branch-column {
+        box-sizing: border-box;
+        width: 82px;
+        min-width: 82px;
+        max-width: 82px;
+        height: 118px;
+        padding: 4px 3px;
+        text-align: left;
+        vertical-align: bottom;
+        white-space: nowrap;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+    }
+    /* The branch cell is an entry target, so give it a real hit area.
+       Height matches the ADDTL trigger; width is ~2/3 of the column, and the
+       remainder acts as separation so adjacent columns still read apart.
+       The inherited 12px/16px cell padding used to crush this button to
+       ~19px wide inside a ~51px column, which is why it looked too small. */
+    #tab-daily-sheet .production-branch-cell {
+        padding: 3px 2px;
+    }
+    #tab-daily-sheet .production-branch-cell .production-branch-trigger {
+        box-sizing: border-box;
+        width: 66.667%;
+        min-width: 0;
+        height: 34px;
+        margin-left: auto;
+        gap: 2px;
+        padding: 0 3px;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1;
+        justify-content: center;
+        white-space: nowrap;
+    }
+    /* S12: received-vs-sent reconciliation inside the branch cell. Kept tiny so the
+       82px column still holds the sent trigger. The pending marker is a deliberate
+       third state; a delivery nobody received must never read as a zero difference. */
+    #tab-daily-sheet .production-branch-receipt,
+    #tab-daily-sheet .production-branch-diff,
+    #tab-daily-sheet .production-branch-dr {
+        margin-top: 2px;
+        font-size: 9px;
+        line-height: 1.2;
+        white-space: normal;
+    }
+    #tab-daily-sheet .production-branch-receipt { color: #6b7280; }
+    #tab-daily-sheet .production-branch-receipt-pending { color: #b45309; font-weight: 600; }
+    #tab-daily-sheet .production-branch-diff { font-weight: 700; }
+    #tab-daily-sheet .production-branch-diff-short { color: #b91c1c; }
+    #tab-daily-sheet .production-branch-diff-over { color: #1d4ed8; }
+    #tab-daily-sheet .production-branch-dr { color: #4338ca; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media print {
+        .print-hidden, form, .tab-panel:not(#tab-daily-sheet), .card.mt-6 { display: none !important; }
+        #tab-daily-sheet { display: block !important; }
+        #tab-daily-sheet .table-wrap { overflow: visible !important; }
+        #tab-daily-sheet table { font-size: 9px; }
+        #tab-daily-sheet th, #tab-daily-sheet td { padding: 3px 4px; }
+        #tab-daily-sheet .daily-sheet-branch-column {
+            width: 24px;
+            min-width: 24px;
+            max-width: 24px;
+            height: 112px;
+            padding: 3px 2px;
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+        }
+        /* Printing must stay compact: the screen hit area is deliberately large,
+           the paper form only needs the number. */
+        #tab-daily-sheet .production-branch-cell {
+            padding: 2px 1px;
+        }
+        #tab-daily-sheet .production-branch-cell .production-branch-trigger {
+            width: 100%;
+            height: auto;
+            padding: 0;
+            font-size: 9px;
+        }
+        #tab-daily-sheet .production-branch-cell .production-branch-trigger i {
+            display: none;
+        }
+        #tab-daily-sheet .production-branch-receipt,
+        #tab-daily-sheet .production-branch-diff,
+        #tab-daily-sheet .production-branch-dr {
+            margin-top: 1px;
+            font-size: 7px;
+        }
+    }
+</style>
 {/block}
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Commissary</h2>
-        <p class="text-sm text-gray-500">Inventory · Deliveries · Pullouts · Summary</p>
+        <p class="text-sm text-gray-500">Daily Sheet · Inventory · Deliveries · Pullouts · Summary</p>
     </div>
 </div>
 
@@ -38,7 +165,6 @@
             <div class="flex items-center gap-2">
                 <button type="submit" class="btn btn-primary">Apply</button>
                 <a class="btn btn-outline" href="{base_url}/admin/usage?date={date}">Open Usage</a>
-                <a class="btn btn-outline" href="{base_url}/admin/production-output">Production Output</a>
             </div>
         </div>
     </div>
@@ -88,19 +214,21 @@
 <!-- Tabs -->
 <div class="border-b border-gray-200 mb-4">
     <nav class="flex gap-0 -mb-px" role="tablist">
+        <button type="button" id="tab-btn-daily-sheet" onclick="switchCommissaryTab('daily-sheet')"
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">1. Daily Sheet</button>
         <button type="button" id="tab-btn-inventory" onclick="switchCommissaryTab('inventory')"
-            class="px-4 py-2.5 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">1. Inventory</button>
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">2. Inventory</button>
         <button type="button" id="tab-btn-deliveries" onclick="switchCommissaryTab('deliveries')"
-            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">2. Deliveries</button>
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">3. Deliveries</button>
         <button type="button" id="tab-btn-pullouts" onclick="switchCommissaryTab('pullouts')"
-            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">3. Pullouts</button>
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">4. Pullouts</button>
         <button type="button" id="tab-btn-summary" onclick="switchCommissaryTab('summary')"
-            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">4. Summary</button>
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">5. Summary</button>
     </nav>
 </div>
 
-<!-- Tab 1: Inventory Ledger -->
-<div id="tab-inventory" class="tab-panel">
+<!-- Tab 2: Inventory Ledger -->
+<div id="tab-inventory" class="tab-panel hidden">
     <!-- Cumulative stock overview -->
     {if cumulative_stock | count > 0}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
@@ -138,12 +266,14 @@
                         <th class="text-right">Dispatched Today</th>
                         <th class="text-right">Wastage Today</th>
                         <th class="text-right">On Hand (All)</th>
+                        <th class="text-right">Actual Balance</th>
+                        <th class="text-right">Variance</th>
                         <th>Last Updated</th>
                     </tr>
                 </thead>
                 <tbody>
                     {if inventory_rows | count == 0}
-                    <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No production recorded for this date. Go to Production Output to record.</td></tr>
+                    <tr><td colspan="10" class="px-4 py-10 text-center text-sm text-gray-500">No production recorded for this date. Use the Daily Sheet to record ADDTL.</td></tr>
                     {/if}
                     {foreach inventory_rows as row}
                     <tr>
@@ -156,6 +286,19 @@
                         <td class="text-right text-sm text-gray-600">
                             <span class="font-semibold">{row.cumulative_remaining}</span>
                         </td>
+                        <td class="text-right">
+                            <div class="inline-flex items-center gap-1">
+                                <input type="number" min="0" step="1" class="form-input w-24 text-right production-count-input"
+                                    data-commissary-id="{row.commissary_branch_id}"
+                                    data-product-id="{row.product_id}"
+                                    data-original="{if row.actual_end_qty !== null}{row.actual_end_qty}{/if}"
+                                    value="{if row.actual_end_qty !== null}{row.actual_end_qty}{else}{row.book_balance}{/if}"
+                                    title="Suggested book balance: {row.book_balance}">
+                                <button type="button" class="btn btn-outline btn-sm print-hidden" onclick="saveProductionCount(this)">Save</button>
+                            </div>
+                            <div class="text-xs text-gray-500">suggested {row.book_balance}; blank = not counted</div>
+                        </td>
+                        <td class="text-right production-variance" data-product-id="{row.product_id}">{if row.calc_variance !== null}{row.calc_variance}{else}—{/if}</td>
                         <td class="text-sm text-muted">{row.updated_at}</td>
                     </tr>
                     </tr>
@@ -166,7 +309,7 @@
     </div>
 </div>
 
-<!-- Tab 2: Deliveries -->
+<!-- Tab 3: Deliveries -->
 <div id="tab-deliveries" class="tab-panel hidden">
     {if branch_dispatch_summary | count > 0}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
@@ -232,7 +375,7 @@
     </div>
 </div>
 
-<!-- Tab 3: Pullouts / Returns -->
+<!-- Tab 4: Pullouts / Returns -->
 <div id="tab-pullouts" class="tab-panel hidden">
     <div class="card">
         <div class="card-header">
@@ -281,12 +424,12 @@
     </div>
 </div>
 
-<!-- Tab 4: Summary -->
+<!-- Tab 5: Summary -->
 <div id="tab-summary" class="tab-panel hidden">
     <div class="card mb-6">
         <div class="card-header">
             <span>Per-Product Summary — {date}</span>
-            <span class="text-sm text-muted">Produced − Dispatched + Returned = Net Available</span>
+            <span class="text-sm text-muted">BEG + Produced − Dispatched − Wastage = Book Balance</span>
         </div>
         <div class="table-wrap">
             <table>
@@ -294,6 +437,7 @@
                     <tr>
                         <th>Product</th>
                         <th>SKU</th>
+                        <th class="text-right">BEG</th>
                         <th class="text-right">Produced</th>
                         <th class="text-right">Dispatched</th>
                         <th class="text-right">Wastage</th>
@@ -303,12 +447,13 @@
                 </thead>
                 <tbody>
                     {if summary_rows | count == 0}
-                    <tr><td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">No activity to summarize for this date.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No activity to summarize for this date.</td></tr>
                     {/if}
                     {foreach summary_rows as row}
                     <tr>
                         <td class="font-medium">{row.product_name}</td>
                         <td class="font-mono text-sm text-muted">{row.sku}</td>
+                        <td class="text-right font-semibold text-gray-700">{row.beg_qty}</td>
                         <td class="text-right font-semibold text-emerald-700">{row.produced_qty}</td>
                         <td class="text-right text-blue-700">{row.dispatched_qty}</td>
                         <td class="text-right text-rose-700">{row.wastage_qty}</td>
@@ -321,6 +466,7 @@
                     <tr>
                         <td class="font-semibold">TOTAL</td>
                         <td></td>
+                        <td></td>
                         <td class="text-right font-semibold text-emerald-700">{totals.total_produced}</td>
                         <td class="text-right font-semibold text-blue-700">{totals.total_dispatched}</td>
                         <td class="text-right font-semibold text-rose-700">{totals.total_wastage}</td>
@@ -329,6 +475,305 @@
                     </tr>
                 </tfoot>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 1: Daily Sheet -->
+<div id="tab-daily-sheet" class="tab-panel">
+    <div class="card mb-6">
+        <div class="card-header">
+            <div>
+                <span>Daily Production Sheet — {date}</span>
+                <div class="text-xs text-gray-500">BEG + ADDTL − TOTAL − WASTAGE = ACTUAL BAL</div>
+            </div>
+            <div class="flex items-center gap-2 print-hidden">
+                <button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">Print Daily Sheet</button>
+            </div>
+        </div>
+        <div class="mx-4 mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Product-label seam pending owner ruling — unresolved: {unresolved_sheet_labels | join:', '}.
+            No mapping has been guessed.
+        </div>
+        <div class="table-wrap">
+            <table class="production-ledger-table" id="production-ledger-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        {* Right padding matches the cell content's right padding so the header
+                           text's right edge sits over the cell content it labels (S7c). *}
+                        <th class="text-right pr-1">BEG</th>
+                        <th class="text-right pr-2">ADDTL</th>
+                        {foreach sheet_branches as br}
+                        {if br.id != sheet_source_branch_id}
+                        <th class="text-right daily-sheet-branch-column" data-branch-id="{br.id}">{br.name}</th>
+                        {/if}
+                        {/foreach}
+                        <th class="text-right">TOTAL</th>
+                        <th class="text-right pr-1">ACTUAL BAL</th>
+                        <th class="text-right">VARIANCE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if daily_sheet_rows | count == 0}
+                    <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No cashier-assigned products are available for this production branch.</td></tr>
+                    {/if}
+                    {foreach daily_sheet_rows as row}
+                    <tr class="daily-sheet-product-row" data-product-id="{row.product_id}" data-produced="{row.addtl_qty}">
+                        <td class="font-medium">{row.sheet_label}</td>
+                        <td class="px-1 py-1 text-right">
+                            {* BEG is user-settable; the carry is the suggestion, never auto-persisted. *}
+                            <input type="number" step="1" class="form-input w-20 ml-auto text-right production-beg-input"
+                                id="production-beg-{row.product_id}"
+                                value="{row.beg_qty}"
+                                data-original="{row.beg_qty}"
+                                data-suggestion="{row.beg_suggestion}"
+                                data-recorded="{if row.beg_is_recorded}1{else}0{/if}"
+                                onchange="saveProductionBeg({row.product_id})"
+                                title="Suggested beginning: {row.beg_suggestion}">
+                        </td>
+                        {* ADDTL is a displayed value and a per-row entry point. The row trigger opens
+                           the Record Addition modal with that row's product preselected, mirroring the
+                           cashier ledger's dlAddStockDirect trigger; editing is the log below. *}
+                        <td class="text-right px-2 py-1 font-semibold">
+                            <button type="button"
+                                    class="ledger-trigger ledger-trigger-add addtl-trigger"
+                                    data-product="{row.product_id}"
+                                    onclick="openProductionAdditionModal({row.product_id})"
+                                    title="Record an addition for {row.sheet_label}">
+                                <span class="production-addtl-value" id="production-addtl-{row.product_id}" data-field="addtl" data-product="{row.product_id}">{row.addtl_qty}</span>
+                                <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
+                            </button>
+                        </td>
+                        {foreach row.branch_cells as cell}
+                        {if cell.branch_id != sheet_source_branch_id}
+                        <td class="text-right production-branch-cell" data-branch-id="{cell.branch_id}">
+                            {* S10: the cell is the entry point. The value stays the delivery SUM
+                               displayed by dl_fetchProductionSheetDispatchMatrix; the trigger opens
+                               the signed-entry modal with this product and branch preselected. *}
+                            <button type="button"
+                                    class="ledger-trigger ledger-trigger-add production-branch-trigger"
+                                    data-product="{row.product_id}"
+                                    data-branch="{cell.branch_id}"
+                                    data-branch-name="{cell.branch_name}"
+                                    data-exists="{if cell.has_entry}1{else}0{/if}"
+                                    onclick="openBranchCellModal({row.product_id}, {cell.branch_id})"
+                                    title="Record a delivery for {row.sheet_label} to {cell.branch_name}">
+                                <span class="production-branch-value" data-product="{row.product_id}" data-branch-id="{cell.branch_id}">{cell.quantity}</span>
+                                <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
+                            </button>
+                            {* S12: what the cashier actually received and the signed delivery
+                               difference, plus the DR. A sent item with no receiving row is
+                               pending and must never render as a zero difference. A cell
+                               with no delivery at all shows nothing. *}
+                            {if cell.has_delivery}
+                            {if cell.received_pending}
+                            <div class="production-branch-receipt production-branch-receipt-pending"
+                                 data-receipt-state="pending"
+                                 title="Cashier has not received this delivery yet">&middot; pending</div>
+                            {else}
+                            <div class="production-branch-receipt"
+                                 data-receipt-state="{if cell.delivery_diff_display != ''}variance{else}received{/if}"
+                                 title="Quantity the cashier received">rcv {cell.received_qty}</div>
+                            {if cell.delivery_diff_display != ''}
+                            <div class="production-branch-diff {if cell.delivery_short}production-branch-diff-short{else}production-branch-diff-over{/if}"
+                                 data-delivery-diff="{cell.delivery_diff}">{cell.delivery_diff_display}</div>
+                            {/if}
+                            {/if}
+                            {if cell.dr_display != ''}
+                            <div class="production-branch-dr" title="Delivery receipt number">DR {cell.dr_display}</div>
+                            {/if}
+                            {/if}
+                        </td>
+                        {/if}
+                        {/foreach}
+                        <td class="text-right font-semibold production-total">{row.total_qty}</td>
+                        <td class="px-1 py-1 text-right">
+                            <input type="number" step="1" class="form-input w-24 ml-auto text-right production-actual-input"
+                                id="production-actual-{row.product_id}"
+                                value="{row.actual_input_value}"
+                                data-original="{if row.actual_end_qty !== null}{row.actual_end_qty}{/if}"
+                                data-suggestion="{row.book_balance}"
+                                onchange="saveProductionActual({row.product_id})"
+                                title="Suggested book balance: {row.book_balance}; clear and save for not counted">
+                        </td>
+                        <td class="text-right production-variance">{if row.calc_variance !== null}{row.calc_variance}{else}<span class="text-muted">—</span>{/if}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- S7b: the bottom log. Every change accumulates here; a row is editable in place
+         and editing appends a new audit record rather than erasing the prior one. -->
+    <div class="card mb-6" id="production-ledger-log-card">
+        <div class="card-header">
+            <span>Production Ledger Log — {date}</span>
+            <span class="text-sm text-muted">Logged and editable; the prior record is kept.</span>
+        </div>
+        {* S15: the rule the paper flow implies, stated once next to the log. Not a
+           workflow — the send/receive rows below are the evidence it refers to. *}
+        <div class="px-4 py-2 text-sm text-muted border-b" id="production-ledger-log-rule">
+            DR = what was sent (production) · Received = what the branch counted ·
+            the difference is an open item until one side is corrected, and every correction is logged
+        </div>
+        <div class="table-wrap">
+            <table id="production-ledger-log-table">
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Who</th>
+                        <th>Product</th>
+                        <th>Branch</th>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th class="text-right">Before → After</th>
+                        <th>Reason</th>
+                        <th class="text-right print-hidden">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if production_log | count == 0}
+                    <tr><td colspan="9" class="px-4 py-8 text-center text-sm text-gray-500">No changes recorded for this date yet.</td></tr>
+                    {/if}
+                    {foreach production_log as entry}
+                    <tr class="production-log-row" data-field="{entry.field_key}" data-product-id="{entry.product_id}"
+                        data-branch-id="{if entry.branch_id}{entry.branch_id}{/if}"
+                        data-before="{entry.before}" data-after="{entry.after}">
+                        <td class="text-sm text-muted">{entry.when}</td>
+                        <td class="text-sm">{entry.who | default:'—'}</td>
+                        <td class="font-medium">{entry.product_name}</td>
+                        <td class="text-sm text-muted">{entry.branch_name | default:'—'}</td>
+                        <td>{entry.field}</td>
+                        <td class="text-sm text-muted">{entry.adjustment_type | default:'—'}</td>
+                        <td class="text-right production-log-change">{entry.before_display} → {entry.after_display}{if entry.signed_display} <span class="text-muted">({entry.signed_display})</span>{/if}</td>
+                        <td class="text-sm text-muted production-log-reason">{entry.reason | default:'—'}</td>
+                        <td class="text-right print-hidden">
+                            {* A branch-cell correction is append-only by design: its target is
+                               corrected from the branch cell trigger, never overwritten in place. *}
+                            {if production_can_override && entry.source != 'branch_entry' && entry.source != 'send' && entry.source != 'receiving'}
+                            <button type="button" class="btn btn-outline btn-sm" onclick="editProductionLogRow(this)">Edit</button>
+                            {/if}
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- S7b: one simple modal — product, quantity, optional reason. The batch/yield
+         machinery is deliberately not carried in; output_pieces_per_batch is NULL for
+         every product on this tenant, so the mechanism is inert. It can return if yield
+         profiles are ever configured. -->
+    <div id="production-addition-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="production-addition-title">
+        <div class="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div class="card-header"><span id="production-addition-title">Record Addition (ADDTL)</span></div>
+            <div class="card-body space-y-3">
+                <div class="form-group mb-0">
+                    <label class="form-label">Product</label>
+                    <select id="production-addition-product" class="form-input">
+                        <option value="">-- Select Product --</option>
+                        {foreach daily_sheet_rows as row}
+                        <option value="{row.product_id}">{row.sheet_label}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div class="form-group mb-0">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" min="1" step="1" id="production-addition-qty" class="form-input text-right" value="">
+                </div>
+                <div class="form-group mb-0">
+                    <label class="form-label">Reason <span class="text-gray-400">(optional)</span></label>
+                    <input type="text" id="production-addition-reason" class="form-input" maxlength="255" placeholder="e.g. morning bake">
+                </div>
+                <div id="production-addition-status" class="text-sm text-rose-600" aria-live="polite"></div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="btn btn-outline" onclick="closeProductionAdditionModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="production-addition-submit" onclick="submitProductionAddition()">Record Addition</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- S10: branch-cell entry. A first entry is a plain signed quantity. Editing an
+         already-recorded entry requires Type + Reason Code, copied verbatim from the
+         cashier withdrawal modal; each change is appended as its own delivery + log
+         row, so the original entry is never overwritten. -->
+    <div id="branch-cell-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="branch-cell-title">
+        <div class="w-full max-w-lg rounded-lg bg-white shadow-xl">
+            <div class="card-header"><span id="branch-cell-title">Record Branch Delivery</span></div>
+            <div class="card-body space-y-3">
+                <input type="hidden" id="branch-cell-branch-id" value="">
+                <div class="form-group mb-0">
+                    <label class="form-label">Product</label>
+                    <select id="branch-cell-product" class="form-input">
+                        <option value="">-- Select Product --</option>
+                        {foreach daily_sheet_rows as row}
+                        <option value="{row.product_id}">{row.sheet_label}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div class="form-group mb-0">
+                    <label class="form-label">Branch <span class="text-gray-400">(destination)</span></label>
+                    <input type="text" id="branch-cell-branch-name" class="form-input bg-gray-100" value="" readonly>
+                </div>
+                <div class="form-group mb-0">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" step="1" id="branch-cell-qty" class="form-input text-right" value="">
+                </div>
+                <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">
+                    A positive quantity <span class="font-semibold">adds</span> to the delivered quantity; to
+                    <span class="font-semibold">reduce</span> an amount recorded too high, put a minus sign first
+                    (e.g. <span class="font-mono font-semibold">-3</span>). Each adjustment is logged as its own row,
+                    so the trail reads: original entry → correction.
+                </div>
+                <div id="branch-cell-edit-fields" class="space-y-3 hidden">
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                        This cell already has a recorded delivery. A change needs a Type and a Reason Code and is appended, never overwritten.
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label">Type <span class="text-rose-500">*</span></label>
+                        <select id="branch-cell-type" class="form-input" onchange="syncBranchCellAdjustmentFields()">
+                            <option value="charge">Charge</option>
+                            <option value="pullout">Pullout</option>
+                            <option value="used">Used (for a product/order)</option>
+                            <option value="correction">Correction — wrong entry</option>
+                            <option value="adjustment_add">Add Stock (missed entry / variance)</option>
+                            <option value="correction_addtl">Correction — Additional (wrong entry)</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label">Reason Code <span class="text-rose-500">*</span></label>
+                        <select id="branch-cell-reason" class="form-input" onchange="syncBranchCellAdjustmentFields()">
+                            <option value="manual_adjustment">Manual adjustment</option>
+                            <option value="encoder_omission">Encoder omission (nothing lost)</option>
+                            <option value="spoilage">Spoilage</option>
+                            <option value="staff_meal">Staff meal</option>
+                            <option value="sampling">Sampling</option>
+                            <option value="testing">Testing</option>
+                            <option value="promo">Promo</option>
+                            <option value="donation">Donation</option>
+                            <option value="damage">Damage</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0 hidden" id="branch-cell-custom-reason-wrap">
+                        <label class="form-label">Custom Reason <span class="text-rose-500">*</span></label>
+                        <input type="text" id="branch-cell-custom-reason" class="form-input" maxlength="255" placeholder="Describe the reason for this adjustment">
+                    </div>
+                    <p id="branch-cell-omission-note" class="hidden rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
+                        Nothing was lost — this records stock that was simply not entered, so no one is charged and no liable person is recorded.
+                    </p>
+                </div>
+                <div id="branch-cell-status" class="text-sm text-rose-600" aria-live="polite"></div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="btn btn-outline" onclick="closeBranchCellModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="branch-cell-submit" onclick="submitBranchCellEntry()">Save Entry</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -412,7 +857,7 @@
 {block scripts}
 <script>
     function switchCommissaryTab(tab) {
-        var tabs = ['inventory', 'deliveries', 'pullouts', 'summary'];
+        var tabs = ['inventory', 'deliveries', 'pullouts', 'summary', 'daily-sheet'];
         tabs.forEach(function(t) {
             var panel = document.getElementById('tab-' + t);
             var btn = document.getElementById('tab-btn-' + t);
@@ -434,10 +879,351 @@
     (function() {
         var saved = '';
         try { saved = localStorage.getItem('commissary_tab') || ''; } catch(e) {}
-        if (saved && document.getElementById('tab-' + saved)) {
-            switchCommissaryTab(saved);
-        }
+        // Values persisted by the previous tab order are stale. Only the new
+        // first tab is safe to restore; everything else defaults to Daily Sheet.
+        switchCommissaryTab(saved === 'daily-sheet' ? saved : 'daily-sheet');
     })();
+
+    function productionRow(pid) {
+        return document.querySelector('.daily-sheet-product-row[data-product-id="' + pid + '"]');
+    }
+
+    // Identity is the submission, not the content (mirrors the cashier withdrawal
+    // helper). Every modal submit mints one; a retry reuses it and is deduped.
+    function dlNewSubmissionId() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+        return 'sub-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    // BEG is user-settable; the S7 carry is only the suggestion. Saving here is
+    // explicit — the page never writes the prefilled suggestion on its own.
+    function saveProductionBeg(pid) {
+        var input = document.getElementById('production-beg-' + pid);
+        if (!input) return;
+        var raw = input.value.trim();
+        var value = raw === '' ? 0 : parseInt(raw, 10);
+        if (isNaN(value)) { showToast('BEG must be a whole number', 'error'); return; }
+        input.disabled = true;
+        productionJson('{base_url}/api/v1/commissary/material', {
+            entity: 'product_beg',
+            date: '{date}',
+            commissary_branch_id: {sheet_source_branch_id},
+            product_id: pid,
+            beg_qty: value,
+            submission_id: dlNewSubmissionId()
+        }).then(function(res) {
+            var persisted = res.row.beg_qty === null ? '' : String(res.row.beg_qty);
+            input.value = persisted;
+            input.setAttribute('data-original', persisted);
+            input.setAttribute('data-recorded', '1');
+            var row = productionRow(pid);
+            if (row) {
+                var variance = row.querySelector('.production-variance');
+                if (variance) variance.textContent = res.row.calc_variance === null ? '—' : res.row.calc_variance;
+            }
+            showToast('Beginning saved', 'success');
+        }).catch(function(error) {
+            input.value = input.getAttribute('data-original');
+            showToast(error.message || 'Save failed', 'error');
+        }).finally(function() { input.disabled = false; });
+    }
+
+    // ACTUAL BAL is user-settable; blank means not counted (NULL, never 0).
+    function saveProductionActual(pid) {
+        var input = document.getElementById('production-actual-' + pid);
+        if (!input) return;
+        var raw = input.value.trim();
+        var value = raw === '' ? null : parseInt(raw, 10);
+        if (value !== null && isNaN(value)) { showToast('ACTUAL BAL must be a whole number', 'error'); return; }
+        input.disabled = true;
+        productionJson('{base_url}/api/v1/commissary/material', {
+            entity: 'product_count',
+            date: '{date}',
+            commissary_branch_id: {sheet_source_branch_id},
+            product_id: pid,
+            actual_end_qty: value,
+            submission_id: dlNewSubmissionId()
+        }).then(function(res) {
+            var persisted = res.row.actual_end_qty === null ? '' : String(res.row.actual_end_qty);
+            input.value = persisted;
+            input.setAttribute('data-original', persisted);
+            var row = productionRow(pid);
+            if (row) {
+                var variance = row.querySelector('.production-variance');
+                if (variance) variance.textContent = res.row.calc_variance === null ? '—' : res.row.calc_variance;
+            }
+            showToast(value === null ? 'Count cleared (not counted)' : 'Physical count saved', 'success');
+        }).catch(function(error) {
+            input.value = input.getAttribute('data-original');
+            showToast(error.message || 'Save failed', 'error');
+        }).finally(function() { input.disabled = false; });
+    }
+
+    // Optional productId: the toolbar opens with nothing preselected, a row trigger
+    // opens with that row's product selected (mirrors dlAddStockDirect).
+    function openProductionAdditionModal(productId) {
+        var modal = document.getElementById('production-addition-modal');
+        if (!modal) return;
+        var status = document.getElementById('production-addition-status');
+        if (status) status.textContent = '';
+        var qty = document.getElementById('production-addition-qty');
+        if (qty) qty.value = '';
+        var reason = document.getElementById('production-addition-reason');
+        if (reason) reason.value = '';
+        var product = document.getElementById('production-addition-product');
+        if (product) product.value = productId ? String(productId) : '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeProductionAdditionModal() {
+        var modal = document.getElementById('production-addition-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function submitProductionAddition() {
+        var productEl = document.getElementById('production-addition-product');
+        var qtyEl = document.getElementById('production-addition-qty');
+        var reasonEl = document.getElementById('production-addition-reason');
+        var status = document.getElementById('production-addition-status');
+        var btn = document.getElementById('production-addition-submit');
+        if (!productEl || !qtyEl || !btn) return;
+        var pid = parseInt(productEl.value || '0', 10) || 0;
+        var qty = parseInt(qtyEl.value || '0', 10);
+        if (!pid) { if (status) status.textContent = 'Select a product.'; return; }
+        if (isNaN(qty) || qty <= 0) { if (status) status.textContent = 'Quantity must be one or more.'; return; }
+        btn.disabled = true;
+        if (status) status.textContent = '';
+        productionJson('{base_url}/api/v1/commissary/run', {
+            entity: 'production_addition',
+            date: '{date}',
+            commissary_branch_id: {sheet_source_branch_id},
+            product_id: pid,
+            quantity: qty,
+            reason: reasonEl ? reasonEl.value.trim() : '',
+            submission_id: dlNewSubmissionId()
+        }).then(function(res) {
+            closeProductionAdditionModal();
+            showToast(res.duplicate ? 'Addition was already recorded' : 'Addition recorded', 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function(error) {
+            if (status) status.textContent = error.message || 'Save failed';
+            showToast(error.message || 'Save failed', 'error');
+        }).finally(function() { btn.disabled = false; });
+    }
+
+    // S10: the branch cell trigger. The cell itself stays a displayed delivery SUM; the
+    // modal records a NEW delivery (first entry) or a signed, reasoned, logged
+    // correction (existing entry). Nothing already recorded is overwritten.
+    function branchCellTrigger(productId, branchId) {
+        return document.querySelector('.production-branch-cell[data-branch-id="' + branchId + '"] button[data-product="' + productId + '"]');
+    }
+
+    function syncBranchCellAdjustmentFields() {
+        var reasonEl = document.getElementById('branch-cell-reason');
+        var typeEl = document.getElementById('branch-cell-type');
+        var customWrap = document.getElementById('branch-cell-custom-reason-wrap');
+        var omissionNote = document.getElementById('branch-cell-omission-note');
+        if (!reasonEl || !typeEl) return;
+        var reason = reasonEl.value;
+        var type = typeEl.value;
+        var isOmission = (type === 'adjustment_add' && reason === 'encoder_omission');
+        if (customWrap) customWrap.classList.toggle('hidden', reason !== 'other');
+        if (omissionNote) omissionNote.classList.toggle('hidden', !isOmission);
+    }
+
+    function openBranchCellModal(productId, branchId) {
+        var modal = document.getElementById('branch-cell-modal');
+        if (!modal) return;
+        var trigger = branchCellTrigger(productId, branchId);
+        var hasEntry = trigger && trigger.getAttribute('data-exists') === '1';
+        var productEl = document.getElementById('branch-cell-product');
+        if (productEl) productEl.value = String(productId);
+        document.getElementById('branch-cell-branch-id').value = String(branchId);
+        document.getElementById('branch-cell-branch-name').value = (trigger && trigger.getAttribute('data-branch-name')) || '';
+        document.getElementById('branch-cell-qty').value = '';
+        document.getElementById('branch-cell-status').textContent = '';
+        document.getElementById('branch-cell-edit-fields').classList.toggle('hidden', !hasEntry);
+        // Reset a fresh intent: the type/reason only mean something on an edit.
+        document.getElementById('branch-cell-type').value = 'correction';
+        document.getElementById('branch-cell-reason').value = 'encoder_omission';
+        document.getElementById('branch-cell-custom-reason').value = '';
+        syncBranchCellAdjustmentFields();
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeBranchCellModal() {
+        var modal = document.getElementById('branch-cell-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function submitBranchCellEntry() {
+        var productEl = document.getElementById('branch-cell-product');
+        var branchEl = document.getElementById('branch-cell-branch-id');
+        var qtyEl = document.getElementById('branch-cell-qty');
+        var status = document.getElementById('branch-cell-status');
+        var btn = document.getElementById('branch-cell-submit');
+        if (!productEl || !branchEl || !qtyEl || !btn) return;
+        var pid = parseInt(productEl.value || '0', 10) || 0;
+        var bid = parseInt(branchEl.value || '0', 10) || 0;
+        var qty = parseInt(qtyEl.value || '0', 10);
+        var isEdit = !document.getElementById('branch-cell-edit-fields').classList.contains('hidden');
+        if (!pid || !bid) { if (status) status.textContent = 'Select a product and branch.'; return; }
+        if (isNaN(qty) || qty === 0) { if (status) status.textContent = 'Quantity must be a non-zero whole number (use -3 to reduce).'; return; }
+
+        var payload = {
+            // A sheet entry is a real delivery without a paper DR. The server keeps
+            // the formal dispatch path intact for every caller that does not send this.
+            sheet_entry: true,
+            ledger_date: '{date}',
+            destination_branch_id: bid,
+            items: [{ commissary_branch_id: {sheet_source_branch_id}, product_id: pid, quantity: qty }],
+            submission_id: dlNewSubmissionId()
+        };
+        if (isEdit) {
+            var type = document.getElementById('branch-cell-type').value;
+            var reason = document.getElementById('branch-cell-reason').value;
+            var custom = (document.getElementById('branch-cell-custom-reason').value || '').trim();
+            if (!type) { if (status) status.textContent = 'Type is required to change a recorded entry.'; return; }
+            if (!reason) { if (status) status.textContent = 'Reason code is required to change a recorded entry.'; return; }
+            if (reason === 'other' && custom === '') { if (status) status.textContent = 'A custom reason is required when Reason is Other.'; return; }
+            payload.type = type;
+            payload.reason_code = reason;
+            payload.custom_reason = custom;
+        }
+
+        btn.disabled = true;
+        if (status) status.textContent = '';
+        productionJson('{base_url}/api/v1/commissary/dispatch', payload).then(function(res) {
+            closeBranchCellModal();
+            showToast(res.duplicate ? 'Entry was already recorded' : (isEdit ? 'Correction recorded' : 'Branch delivery recorded'), 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function(error) {
+            if (status) status.textContent = error.message || 'Save failed';
+            showToast(error.message || 'Save failed', 'error');
+        }).finally(function() { btn.disabled = false; });
+    }
+
+    function editProductionLogRow(button) {
+        var tr = button ? button.closest('tr') : null;
+        if (!tr || tr.getAttribute('data-editing') === '1') return;
+        tr.setAttribute('data-editing', '1');
+        var changeCell = tr.querySelector('.production-log-change');
+        var reasonCell = tr.querySelector('.production-log-reason');
+        var actionCell = tr.querySelector('td:last-child');
+        var after = tr.getAttribute('data-after');
+        if (changeCell) {
+            changeCell.innerHTML = '<input type="number" step="1" class="form-input w-24 text-right production-log-edit-value" value="' + (after === null || after === '' ? '' : after) + '">';
+        }
+        if (reasonCell) {
+            reasonCell.innerHTML = '<input type="text" class="form-input production-log-edit-reason" maxlength="255" placeholder="Reason (required)">';
+        }
+        if (actionCell) {
+            actionCell.innerHTML = '<button type="button" class="btn btn-primary btn-sm" onclick="saveProductionLogEdit(this)">Save</button> ' +
+                '<button type="button" class="btn btn-outline btn-sm" onclick="cancelProductionLogEdit(this)">Cancel</button>';
+        }
+    }
+
+    function saveProductionLogEdit(button) {
+        var tr = button ? button.closest('tr') : null;
+        if (!tr) return;
+        var field = tr.getAttribute('data-field');
+        var pid = parseInt(tr.getAttribute('data-product-id') || '0', 10) || 0;
+        var valueEl = tr.querySelector('.production-log-edit-value');
+        var reasonEl = tr.querySelector('.production-log-edit-reason');
+        var raw = valueEl ? valueEl.value.trim() : '';
+        var reason = reasonEl ? reasonEl.value.trim() : '';
+        if (reason === '') { showToast('A reason is required to edit a recorded entry', 'error'); return; }
+        var value = raw === '' ? null : parseInt(raw, 10);
+        if (value !== null && isNaN(value)) { showToast('Enter a whole number', 'error'); return; }
+        if (value === null && field !== 'actual_end_qty') { showToast('A value is required', 'error'); return; }
+        button.disabled = true;
+        productionJson('{base_url}/api/v1/commissary/material', {
+            entity: 'production_ledger_edit',
+            date: '{date}',
+            commissary_branch_id: {sheet_source_branch_id},
+            product_id: pid,
+            field: field,
+            value: value,
+            reason: reason,
+            submission_id: dlNewSubmissionId()
+        }).then(function() {
+            showToast('Change recorded', 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function(error) {
+            showToast(error.message || 'Save failed', 'error');
+            button.disabled = false;
+        });
+    }
+
+    function cancelProductionLogEdit(button) {
+        var tr = button ? button.closest('tr') : null;
+        if (!tr) return;
+        tr.removeAttribute('data-editing');
+        window.location.reload();
+    }
+
+    function productionJson(url, payload) {
+        if (!navigator.onLine) {
+            return Promise.reject(new Error('NOT saved — no connection. Reconnect and save again.'));
+        }
+        return window.dlWriteTimeout(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify(payload)
+        }, 'This production ledger save').then(function(response) {
+            return response.json().then(function(body) {
+                if (!response.ok || !body.ok) throw new Error(body.error || 'Save failed');
+                return body;
+            });
+        });
+    }
+
+    function saveProductionCount(button) {
+        var input = button && button.parentNode ? button.parentNode.querySelector('.production-count-input') : null;
+        if (!input) return;
+        var raw = input.value.trim();
+        var original = input.getAttribute('data-original') || '';
+        // The suggested value is display-only. Merely opening/focusing/blurring
+        // the input never reaches this explicit save path.
+        var payloadValue = raw === '' ? null : parseInt(raw, 10);
+        button.disabled = true;
+        fetch('{base_url}/api/v1/commissary/material', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                entity: 'product_count',
+                date: '{date}',
+                commissary_branch_id: parseInt(input.getAttribute('data-commissary-id') || '0', 10),
+                product_id: parseInt(input.getAttribute('data-product-id') || '0', 10),
+                actual_end_qty: payloadValue
+            })
+        }).then(function(r) { return r.json(); }).then(function(res) {
+            if (!res.ok) throw new Error(res.error || 'Save failed');
+            var persisted = res.row.actual_end_qty === null ? '' : String(res.row.actual_end_qty);
+            input.setAttribute('data-original', persisted);
+            var variance = input.closest('tr').querySelector('.production-variance');
+            if (variance) variance.textContent = res.row.calc_variance === null ? '—' : res.row.calc_variance;
+            showToast(raw === original ? 'Count confirmed' : 'Physical count saved', 'success');
+        }).catch(function(err) {
+            showToast(err.message || 'Save failed', 'error');
+        }).finally(function() { button.disabled = false; });
+    }
 
     function submitDispatch() {
         var btn = document.getElementById('submit-dispatch');

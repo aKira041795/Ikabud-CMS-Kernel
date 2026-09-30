@@ -89,12 +89,13 @@
                                         </template>
                                         <button type="button"
                                                 class="btn btn-primary"
-                                                x-bind:disabled="busyKey === g.group_key"
+                                                x-bind:disabled="busyKey === g.group_key || !allCountsEntered(g)"
                                                 @click="acceptGroup(g)">
                                             <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Receive Now'"></span>
                                         </button>
                                     </div>
                                 </div>
+                                <p x-show="!allCountsEntered(g)" class="mb-2 text-xs font-medium text-amber-700">Enter the physically counted Received value for every line (enter 0 if none arrived).</p>
                                 <table class="w-full text-sm">
                                     <thead class="text-xs uppercase text-gray-500">
                                         <tr>
@@ -114,6 +115,7 @@
                                                            :min="0"
                                                            :max="it.quantity"
                                                            :value="receivedQty(g, it)"
+                                                           placeholder="Count"
                                                            @input="setReceivedQty(g, it, $event.target.value)">
                                                 </td>
                                             </tr>
@@ -182,6 +184,21 @@
                                         <span class="font-semibold">No paper DR — auto-generate</span>
                                         <span class="block text-[11px] text-emerald-700">Goods from the commissary (production) arrived without a DR. The system creates one (dd/mm/yyyy-n) and logs it.</span>
                                     </label>
+                                </div>
+                                {* Delayed producer entry (066): filled from the paper sheet later, not
+                                   inferred from whoever is encoding. Optional; blank = not recorded. *}
+                                <div>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Produced by <span class="font-normal text-indigo-700">(optional — from the paper sheet)</span></label>
+                                    <select x-model="paperForm.produced_by" class="form-input mt-0 w-full">
+                                        <option value="">-- Not recorded --</option>
+                                        {foreach producer_options as pu}
+                                        <option value="{pu.id}">{pu.label}</option>
+                                        {/foreach}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Produced at <span class="font-normal text-indigo-700">(optional — from the paper sheet)</span></label>
+                                    <input type="datetime-local" x-model="paperForm.produced_at" class="form-input mt-0 w-full">
                                 </div>
                             </div>
 
@@ -262,6 +279,8 @@ function receiveModal() {
             receive_date: '',
             dr_number: '',
             auto_dr: false,
+            produced_by: '',
+            produced_at: '',
             items: [{ product_id: '', quantity: '' }]
         },
         // partialQtys: { group_key: { product_id: qty } }
@@ -297,6 +316,8 @@ function receiveModal() {
                 receive_date: LEDGER_DATE,
                 dr_number: '',
                 auto_dr: false,
+                produced_by: '',
+                produced_at: '',
                 items: [{ product_id: '', quantity: '' }]
             };
         },
@@ -372,6 +393,10 @@ function receiveModal() {
                 receive_date: this.paperForm.receive_date,
                 dr_number: this.paperForm.auto_dr ? '' : this.paperForm.dr_number,
                 auto_dr: this.paperForm.auto_dr ? 1 : 0,
+                // Delayed producer entry (066): optional, from the paper sheet.
+                // Empty means "not recorded" and the server leaves the columns NULL.
+                produced_by: this.paperForm.produced_by || null,
+                produced_at: this.paperForm.produced_at || null,
                 items: this.paperForm.items.filter(function(item) {
                     return item.product_id && parseInt(item.quantity, 10) > 0;
                 }).map(function(item) {
@@ -427,21 +452,37 @@ function receiveModal() {
 
         receivedQty(g, it) {
             var map = this.partialQtys[g.group_key];
-            return (map && map[it.product_id] !== undefined) ? map[it.product_id] : it.quantity;
+            return (map && map[it.id] !== undefined) ? map[it.id] : '';
         },
 
         setReceivedQty(g, it, val) {
             if (!this.partialQtys[g.group_key]) {
                 this.partialQtys[g.group_key] = {};
             }
-            this.partialQtys[g.group_key][it.product_id] = Math.max(0, Math.min(parseInt(val) || 0, it.quantity));
+            if (val === '') {
+                delete this.partialQtys[g.group_key][it.id];
+                return;
+            }
+            var parsed = parseInt(val, 10);
+            if (!Number.isFinite(parsed)) {
+                delete this.partialQtys[g.group_key][it.id];
+                return;
+            }
+            this.partialQtys[g.group_key][it.id] = Math.max(0, Math.min(parsed, it.quantity));
+        },
+
+        allCountsEntered(g) {
+            var map = this.partialQtys[g.group_key];
+            return !!map && g.items.every(function(it) {
+                return map[it.id] !== undefined;
+            });
         },
 
         isPartial(g) {
             var map = this.partialQtys[g.group_key];
             if (!map) return false;
             return g.items.some(function(it) {
-                return map[it.product_id] !== undefined && map[it.product_id] !== it.quantity;
+                return map[it.id] !== undefined && map[it.id] !== it.quantity;
             });
         },
 
@@ -469,21 +510,26 @@ function receiveModal() {
 
         acceptGroup(g) {
             if (this.busyKey) return;
+            if (!this.allCountsEntered(g)) {
+                this.errorMsg = 'Enter a counted Received value for every line before receiving.';
+                return;
+            }
             this.busyKey = g.group_key;
             this.errorMsg = '';
             var payload = { withdrawal_ids: g.ids };
             if (g.delivery_ids && g.delivery_ids.length) {
                 payload.delivery_ids = g.delivery_ids;
-                // Include partial quantities when any item was edited
-                var partialMap = this.partialQtys[g.group_key];
-                if (partialMap) {
-                    // Build { delivery_id: { product_id: qty } } for each delivery in group
-                    var byDelivery = {};
-                    g.delivery_ids.forEach(function(did) {
-                        byDelivery[did] = partialMap;
-                    });
-                    payload.partial_qtys = byDelivery;
-                }
+                // The API requires an explicit physical count for every product.
+                var lineCounts = this.partialQtys[g.group_key];
+                var productCounts = {};
+                g.items.forEach(function(it) {
+                    productCounts[it.product_id] = lineCounts[it.id];
+                });
+                var byDelivery = {};
+                g.delivery_ids.forEach(function(did) {
+                    byDelivery[did] = productCounts;
+                });
+                payload.partial_qtys = byDelivery;
             } else {
                 // Informal transfer: pass per-item received qty keyed by withdrawal record id
                 var self = this;

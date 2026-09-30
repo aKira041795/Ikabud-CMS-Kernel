@@ -16,7 +16,7 @@ return [
         '/daily-ledger/admin/dashboard'            => 'daily-ledger:handleAdminDashboard',
         '/daily-ledger/admin/overview'             => 'daily-ledger:handleAdminOverview',
         '/daily-ledger/admin/usage'                => 'daily-ledger:handleAdminUsage',
-        '/daily-ledger/admin/production-output'    => 'daily-ledger:handleAdminProductionOutput',
+        '/daily-ledger/admin/production-output'    => 'daily-ledger:handleAdminProductionOutputRedirect',
         '/daily-ledger/admin/commissary'           => 'daily-ledger:handleAdminCommissary',
         '/daily-ledger/admin/sales'                => 'daily-ledger:handleAdminSales',
         '/daily-ledger/admin/variances'            => 'daily-ledger:handleAdminVariances',
@@ -43,6 +43,7 @@ return [
 
         '/daily-ledger/admin/users'                => 'daily-ledger:handleAdminUsers',
         '/daily-ledger/admin/activity'             => 'daily-ledger:handleAdminActivity',
+        '/daily-ledger/admin/trace'                => 'daily-ledger:handleAdminTrace',
         '/daily-ledger/admin/withdrawals'          => 'daily-ledger:handleAdminWithdrawals',
         '/daily-ledger/admin/settings'             => 'daily-ledger:handleAdminSettings',
         '/daily-ledger/admin/settings/backup-download' => 'daily-ledger:handleAdminBackupDownload',

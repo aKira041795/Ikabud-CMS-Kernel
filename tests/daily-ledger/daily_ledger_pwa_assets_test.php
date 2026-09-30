@@ -132,7 +132,7 @@ $h->test('vault migrates legacy storage and quarantines mismatches', str_contain
 $h->section('Template wiring');
 $layout = (string) file_get_contents($layoutPath);
 $ledger = (string) file_get_contents($ledgerPath);
-$production = (string) file_get_contents($base . '/templates/modules/daily-ledger/admin/production-output.disyl');
+$commissary = (string) file_get_contents($base . '/templates/modules/daily-ledger/admin/commissary.disyl');
 $handlers = (string) file_get_contents($handlersPath);
 $withdrawalModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
 $receiveModal = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/receive_modal.disyl');
@@ -152,7 +152,7 @@ $h->test('ledger blocks required-online actions', str_contains($ledger, 'data-on
 $h->test('storage failure has red stop message', str_contains($ledger, 'Device storage unavailable — stop entering data'));
 $h->test('ledger cache includes server-rendered editable rows', str_contains($ledger, 'partials/ledger-rows.disyl') && str_contains($handlers, "'rows' => \$ledgerRows"));
 $h->test('queue completion cannot remove a newer entry', str_contains($ledger, 'removePendingIfUnchanged(payload)') && str_contains($ledger, 'saveFieldVersions[saveKey] !== saveVersion'));
-$h->test('production output has scoped offline queue and idempotency', str_contains($production, 'daily-ledger:pending-production-output') && str_contains($production, 'idempotency_key') && str_contains($production, "addEventListener('online', retryPendingOutputBatches)") && str_contains($handlers, "'tenant_scope' => \$tenantScope") && str_contains($handlers, "'dl_user_id' => \$actorId"));
+$h->test('production offline sync capability remains after its standalone view is removed', str_contains($routes, "'/daily-ledger/api/v1/production/sync-batch'") && str_contains($handlers, 'function apiProductionSyncBatch'));
 $h->test('cashier modals open offline (no online-action block on openers)', !str_contains($ledger, 'data-online-action="Receiving"') && !str_contains($ledger, 'data-online-action="Stock adjustment"') && !str_contains($ledger, 'data-online-action="Sending stock"') && !str_contains($ledger, 'data-online-action="Delivery correction"') && str_contains($ledger, 'data-online-action="POS"') && str_contains($ledger, 'data-online-action="Day close"'));
 $h->test('ledger has offline operation queue with idempotency keys', str_contains($ledger, 'daily-ledger:pending-ops') && str_contains($ledger, 'window.enqueueOperation') && str_contains($ledger, 'replayPendingOperations') && str_contains($ledger, 'window.generateOperationId'));
 $h->test('ledger exposes explicit enrollment + verified readiness', str_contains($ledger, 'dlOpenOfflineAccess') && str_contains($ledger, 'offline-ready-badge') && str_contains($ledger, '/api/v1/offline/enroll') && str_contains($ledger, 'Offline ready'));
@@ -167,7 +167,7 @@ $h->test('the write timeout is defined once in the shared layout', str_contains(
 // No buffer-insert primitive may exist here at all. The old assertion matched the
 // string "queueOutputBatch(batch)", which the function's own DEFINITION satisfies -
 // so it could not tell a dead definition from a live call site. The name is gone.
-$h->test('production output never buffers offline and reports failure', !str_contains($production, 'queueOutputBatch') && str_contains($production, 'NOT saved — no connection') && str_contains($production, 'dlWriteTimeout'));
+$h->test('relocated production editor never buffers offline and reports failure', !str_contains($commissary, 'queueOutputBatch') && str_contains($commissary, 'NOT saved — no connection') && str_contains($commissary, 'dlWriteTimeout'));
 $h->test('offline auth overlay is retired to a compatibility shim', str_contains($offlineAuth, 'RETIRED') && !str_contains($offlineAuth, 'id="offline-lock"') && str_contains($offlineAuth, 'dlMaybeLockOffline'));
 $h->test('offline reference is vault-backed with legacy fallback', str_contains($offlineReference, 'DLOfflineVault') && str_contains($offlineReference, 'getBootstrap') && str_contains($offlineReference, 'daily-ledger-reference') && str_contains($offlineReference, 'dlReadProductReference'));
 $h->test('cashier modals fall back to the (vault-backed) offline product reference', str_contains($withdrawalModal, 'dlReadProductReference') && str_contains($receiveModal, 'dlReadProductReference'));

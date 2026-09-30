@@ -10,6 +10,7 @@
         "routes": {
             "GET": [
                 "/daily-ledger/admin/activity",
+                "/daily-ledger/admin/trace",
                 "/daily-ledger/admin/branch-summary",
                 "/daily-ledger/admin/branches",
                 "/daily-ledger/admin/commissary",
@@ -220,6 +221,22 @@
                 "app-shell",
                 "page-header",
                 "activity-timeline"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-trace",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/trace",
+            "roles": [
+                "admin",
+                "supervisor",
+                "auditor",
+                "production_in_charge"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "responsive-table"
             ]
         },
         {

@@ -1022,6 +1022,12 @@
                 ? BASE + '/api/v1/cashier/ledger/withdrawals'
                 : BASE + '/api/v1/cashier/ledger/receive-paper-dr';
             var payload = JSON.parse(JSON.stringify(entry.payload || {}));
+            if (entry.op === 'receive_paper_dr') {
+                // Delayed producer entry (066): a drained paper DR must carry the
+                // producer the encoder recorded, not silently drop it on replay.
+                if (payload.produced_by === undefined) payload.produced_by = '';
+                if (payload.produced_at === undefined) payload.produced_at = '';
+            }
             payload.idempotency_key = entry.idempotency_key;
             return window.dlWriteTimeout(url, {
                 method: 'POST',

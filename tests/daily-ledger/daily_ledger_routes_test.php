@@ -136,7 +136,7 @@ $requiredHandlers = [
     'handleCashierRows',
     'handleAdminDashboard',
     'handleAdminSales',
-    'handleAdminProductionOutput',
+    'handleAdminProductionOutputRedirect',
     'handleAdminVariances',
     'handleAdminProducts',
     'handleAdminBranches',
