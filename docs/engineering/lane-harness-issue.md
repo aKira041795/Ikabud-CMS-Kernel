@@ -183,9 +183,13 @@ failed on every run after the first. They now measure from a per-run baseline.
      correct **either way** — which is why `run` exits deliberately at `--slice=90` rather than relying on
      either behaviour: a process that exits on purpose always produces a wake-up; a killed one produces
      nothing.
-   - **The toast can never be the only channel.** `notify-send` returns **0** with no `DISPLAY` and no
-     `DBUS`, so it silently does nothing and cannot report its own failure. The durable journal + cursor is
-     the reliable channel.
+   - **The toast CANNOT be the only channel — but it does work in practice.** `notify-send` returns **0**
+     with no `DISPLAY` and no `DBUS`, so it silently does nothing and cannot report its own failure; any
+     `|| true` around it is invisible. **Confirmed by the owner on 2026-10-02: the pop-ups do appear.** That
+     was the one link neither the code nor a self-test can check, and it settles the push path: the runner
+     calls `notify_landing` on every commit, detached, inheriting `DISPLAY`/`DBUS` — so a landing is pushed
+     to the owner even when no agent turn is live. Keep the journal as the reliable channel regardless: a
+     non-interactive dispatch (no `DISPLAY`) would toast nothing, and a toast is transient.
 
 ### The user-facing loop
 
@@ -198,6 +202,17 @@ bash tools/lane-watch.sh --timeout=90                  # re-arm; wakes you with 
 
 Never a "is it done yet?" prompt: every return either reports the landing, or says the lane is still going
 and what to re-arm.
+
+And if no turn is live at all, the **runner still toasts** on commit — the toast fires from `commit_landing`
+inside the detached runner, not from any monitor, which is why it survives the monitor being killed.
+
+### What remains unverified
+
+- The **async-terminal completion notification** path. Every command used in verification returned
+  synchronously, so it was never exercised. It is not load-bearing: the wake-up works because a `run`
+  invocation returns within its slice, not because of that notification.
+- Anything about a **non-interactive dispatch** (no `DISPLAY`/`DBUS`) — the toast would silently no-op
+  there. The journal covers it; nothing counts on the toast.
 
 ## What NOT to do again
 
