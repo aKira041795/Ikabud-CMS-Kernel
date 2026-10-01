@@ -11,6 +11,15 @@
 # It also sends a desktop notification, so the owner learns about a landing directly
 # rather than having to ask whether one happened.
 #
+# WHY IT READS A JOURNAL AND NOT THE MARKER FILES: it used to snapshot which
+# `.landed.json` files existed when it armed, and skip everything in that snapshot. That
+# treats "the file was already there" as "someone was already told" - a proxy for
+# acknowledgement - so every landing that happened while the watcher was disarmed was
+# swallowed permanently. Since the watcher exits on every landing AND on every heartbeat,
+# it is disarmed most of the time, which made the miss the normal path rather than an
+# edge case. It now reads an append-only journal through a cursor that records what was
+# actually reported, so a landing that occurs while disarmed is still reported next arm.
+#
 # Usage:
 #   tools/lane-watch.sh              # wait for the next landing, then exit
 #   tools/lane-watch.sh --timeout=N  # give up after N seconds (default 3600)
@@ -51,74 +60,86 @@ notify() {
   fi
 }
 
-# A marker's identity is its FILE IDENTITY (inode/nanosecond mtime/size, falling back
-# to content hash), not its filename. A lane name can be reused, which atomically
-# replaces the marker at the same path; keying on the filename alone made the watcher
-# ignore the replacement forever and miss the landing.
-marker_sig() {
-  stat -c '%i-%y-%s' "$1" 2>/dev/null || md5sum "$1" 2>/dev/null | cut -d' ' -f1
-}
+JOURNAL="$RUNS/landings.jsonl"
+CURSOR="$RUNS/.reported.cursor"
+[ -f "$JOURNAL" ] || : > "$JOURNAL"
 
-# Snapshot the markers already on disk, so we only react to a NEW landing.
-declare -A seen=()
-shopt -s nullglob
-for m in "$RUNS"/*.landed.json; do
-  seen["$(basename "$m")"]="$(marker_sig "$m")"
-done
-shopt -u nullglob
+journal_total() { [ -f "$JOURNAL" ] && wc -l < "$JOURNAL" 2>/dev/null || echo 0; }
 
-echo "lane-watch armed at $(iso) - waiting for the next landing (timeout ${timeoutSecs}s)"
-echo "   markers currently on disk: ${#seen[@]}"
+# Pull one field out of a compact journal line. The journal is written by the process
+# that held the lane's exit status, so this is the authoritative record - the watcher
+# must not re-derive a verdict of its own.
+jfield() { printf '%s' "$1" | grep -o "\"$2\":\"[^\"]*\"" | head -1 | cut -d'"' -f4; }
+
+# The cursor records WHICH LANDINGS HAVE BEEN REPORTED. Consumption is recorded, never
+# inferred from which files happen to be on disk.
+total=$(journal_total)
+if [ ! -f "$CURSOR" ]; then
+  # First ever run: adopt the existing history instead of replaying it, and say so
+  # rather than doing it silently.
+  printf '%s' "$total" > "$CURSOR"
+  echo "   cursor initialised at $total (existing history is not replayed)"
+fi
+cursor=$(cat "$CURSOR" 2>/dev/null || echo 0)
+case "$cursor" in ''|*[!0-9]*) cursor=0;; esac
+if [ "$cursor" -gt "$total" ]; then cursor=$total; fi
+
+echo "lane-watch armed at $(iso) - waiting for a landing (timeout ${timeoutSecs}s)"
+echo "   journal: $total entries, $((total - cursor)) not yet reported"
 
 waited=0
 while true; do
-  shopt -s nullglob
-  for m in "$RUNS"/*.landed.json; do
-    b="$(basename "$m")"
-    # Skip only if both the name is known AND the file identity is unchanged. A
-    # same-named replacement marker has a new identity and is therefore a landing.
-    [ -n "${seen[$b]:-}" ] && [ "${seen[$b]}" = "$(marker_sig "$m")" ] && continue
-
-    # new landing. Give the writer a moment to finish moving the marker into place.
-    sleep 1
-    name="${b%.landed.json}"
-    reason=$(grep -o '"reason": "[^"]*"' "$m" 2>/dev/null | cut -d'"' -f4)
-    status=$(grep -o '"status_line": "[^"]*"' "$m" 2>/dev/null | cut -d'"' -f4)
-    landed=$(grep -o '"landed_at": "[^"]*"' "$m" 2>/dev/null | cut -d'"' -f4)
-    changed=$(grep -o '"changed_files": [0-9]*' "$m" 2>/dev/null | cut -d' ' -f2)
-
-    urgency="normal"
-    case "$reason" in quota|fatal|empty) urgency="critical";; esac
-
+  total=$(journal_total)
+  if [ "$total" -gt "$cursor" ]; then
     echo
-    echo "== LANDING DETECTED =="
-    echo "   lane:          $name"
-    echo "   reason:        ${reason:-unknown}"
-    echo "   landed_at:     ${landed:-unknown}"
-    echo "   status:        ${status:-<none>}"
-    echo "   changed files: ${changed:-unknown}"
-    echo "   log:           $RUNS/$name.log"
+    echo "== LANDING(S) DETECTED: $((total - cursor)) =="
+    # Report EVERY unreported landing in one exit, so N landings cost one wake, not N.
+    while [ "$cursor" -lt "$total" ]; do
+      line=$(sed -n "$((cursor+1))p" "$JOURNAL")
+      cursor=$((cursor+1))
+      [ -n "$line" ] || continue
 
-    notify "lane $name: ${reason:-unknown}" "${status:-no status line}" "$urgency"
-    echo "   notified the desktop."
+      name=$(jfield "$line" name)
+      state=$(jfield "$line" state)
+      reason=$(jfield "$line" reason)
+      status=$(jfield "$line" status_line)
+      landed=$(jfield "$line" landed_at)
+      changed=$(printf '%s' "$line" | grep -o '"changed_files":[0-9]*' | cut -d: -f2)
+
+      urgency="normal"
+      [ "$state" = "unverified" ] && urgency="critical"
+      case "$reason" in quota|fatal|empty|crash|timeout) urgency="critical";; esac
+
+      echo
+      echo "   --- landing ---"
+      echo "   lane:          ${name:-unknown}"
+      echo "   state:         ${state:-unknown}"
+      echo "   reason:        ${reason:-unknown}"
+      echo "   landed_at:     ${landed:-unknown}"
+      echo "   status:        ${status:-<none>}"
+      echo "   changed files: ${changed:-unknown}"
+      echo "   log:           $RUNS/$name.log"
+      if [ "$state" = "unverified" ]; then
+        echo "   NOTE: not verified - the lane never recorded an exit status."
+      fi
+
+      notify "lane $name: ${reason:-unknown}" "${status:-no status line}" "$urgency"
+    done
+    # Advance ONLY now, having actually reported them. If anything above failed the
+    # cursor is untouched and the landings are reported again rather than lost: the
+    # failure direction must be over-reporting, never under-reporting.
+    printf '%s' "$cursor" > "$CURSOR"
     echo
     echo "watch exiting so the harness raises a completion notification - re-arm it."
     exit 0
-  done
-  shopt -u nullglob
+  fi
 
-  sleep 5
-  waited=$((waited+5))
+  sleep 3
+  waited=$((waited+3))
   if [ "$waited" -ge "$timeoutSecs" ]; then
     # A HEARTBEAT, not a failure. Its whole purpose is to finish so the agent is woken and
-    # can re-arm. Say so plainly, and say what is still running.
-    echo "lane-watch: no landing yet after ${timeoutSecs}s"
-    running=$(pgrep -af "bash /tmp/lane-.*\\.sh" 2>/dev/null | grep -cv lean-ctx || true)
-    echo "   lanes still running: ${running:-0}"
-    if [ "${running:-0}" = "0" ]; then
-      echo "   NOTE: no lane process is running - a landing may have been recorded without a"
-      echo "   marker (old-style dispatch). Check .ai/runs/*.log and git status."
-    fi
+    # can re-arm. Say plainly that nothing landed.
+    echo "lane-watch: no landing yet after ${timeoutSecs}s (journal at $total entries)"
     echo "   RE-ARM:  bash tools/lane-watch.sh      (or --forever to leave it detached)"
     exit 0
   fi

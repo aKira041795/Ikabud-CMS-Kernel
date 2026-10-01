@@ -56,64 +56,131 @@ from the recording process) or a **bounded, re-armable poll** whose completion i
    returned `0` for a 6729-byte file and I reported the corruption as fact. **Put scripts in files.**
 5. `notify-send` **is** available (DISPLAY=:0.0, DBUS set) — the owner-facing channel.
 
-## What works now (verified)
+## What works now (verified 2026-10-01, second session)
 
-- `tools/lane.sh run <name> <lane-script> [--timeout=N] [--require-clean]` — generates the self-recording
-  runner, dispatches detached, blocks. `record`, `status`, `list` subcommands.
-- `tools/lane-watch.sh --timeout=90` — one-shot bounded watcher. Exits on a landing **or** on heartbeat;
-  either way its completion wakes the agent, which then re-arms. Proven: heartbeat exited in 15s with an
-  explicit RE-ARM line; a landing was detected and exited in 11s.
-- Landing record: `.ai/runs/<name>.landed.json` (atomic, valid JSON) + one line in `.ai/runs/LANDINGS.log`
-  + a **desktop notification** to the owner.
+- `tools/lane.sh run <name> <lane-script> [--timeout=N] [--wait-grace=N] [--require-clean]` — generates
+  the self-recording runner, dispatches it, blocks until the runner **records itself**.
+- `tools/lane-watch.sh [--timeout=90] [--forever]` — one-shot bounded watcher. Exits on a landing **or** on
+  heartbeat; either way its completion wakes the agent, which then re-arms.
+- Subcommands: `run`, `status`, `list`, `pending`, `ack`, `record`, `selftest`.
+- **`tools/lane.sh selftest` — 8 cases, each with a must-allow and a must-refuse direction. Currently
+  8/8 green, exit 0, and repeatable (verified twice, plus once from an empty journal).**
 
-## Known blocking defects (adversarial review, fixes in flight)
+Two records, with different jobs:
 
-1. **`tools/sweep-daily-ledger.sh:92-114` — discards each suite's process exit status.** A suite that
-   prints a passing summary and then crashes, times out, or exits non-zero is classified **PASS**. The
-   script claims it exits non-zero only when everything passes; that is false. **False green.**
-2. **`tools/lane.sh:327-342` — the lane's exit status never reaches the verdict.** A lane printing
-   `status: PASS` then `exit 7` produced `reason: report_present`, **no recorded exit code**, normal
-   urgency, and the runner returned **0**. **False green** — a crash reported as success.
-3. **`tools/lane-watch.sh:44-60` — tracks marker FILENAMES only.** If a marker exists when armed and a
-   later run reuses that lane name, the replacement is ignored forever → **missed landing**.
-4. **`tools/lane.sh:109` — lane names inserted into the JSON marker unescaped** → invalid JSON on a quote.
-5. **Permissions were `0664`** despite documented direct invocation (`tools/lane.sh run` → permission
-   denied). Fixed to `0755`; confirm and ensure generated files are executable.
+| artefact | role |
+|---|---|
+| `.ai/runs/<name>.landed.json` | per-lane snapshot, atomic, valid JSON; carries `state` |
+| `.ai/runs/landings.jsonl` | **append-only journal — the queue the agent is notified from** |
+| `.ai/runs/.reported.cursor` | how many journal entries have been **actually reported** |
+| `.ai/runs/LANDINGS.log` | human-readable history, one line per landing |
 
-Non-blocking: `docs/daily-ledger/sweep-baseline.md` describes `--json` as machine-readable while the script
-emits human headers around it; `docs/daily-ledger/guard-register.md` claims a fails-loudly assertion that
-lives inside an **already-red** suite (`107/109`), so removing it cannot turn a green suite red.
+## THE ACTUAL ROOT CAUSE (reproduced, not theorised)
 
-## The meta-issue
+The record was durable. **Delivery was not.**
 
-**The harness has no test of its own failure modes.** Every one of the seven bugs was found by accident or
-by an external reviewer — never by the tool. A tool whose purpose is to detect failure must be able to
-demonstrate its own.
+`lane-watch.sh` decided what was new by snapshotting which `.landed.json` files existed when it armed, and
+skipping everything in that snapshot. That uses **file existence as a proxy for acknowledgement** — "the
+marker was already there" was treated as "someone was already told". Because the watcher exits on every
+landing *and* on every heartbeat, it is disarmed most of the time, so the miss was the **normal path**, not
+an edge case. Every landing in a disarmed window was swallowed permanently, with no second chance.
 
-The fix is a **self-test** (`lane.sh selftest`) covering, each with a must-allow AND a must-refuse case:
+This is the same class of error as all seven original bugs — inferring state from a side-effect instead of
+recording it — reintroduced by the fix that was supposed to end it.
 
-- a suite that prints a passing summary and exits non-zero → the sweep must FAIL
-- a lane that prints `status: PASS` and exits 7 → `reason` must not be `report_present`, and the return
-  must be non-zero
-- the same lane name landing twice → both detected
-- a lane name containing a quote → the marker still parses
-- no lane running + a stale marker → reported as not landed, not as success
+### Reproduced, before the fix
 
-## Opening questions for the new session
+| test | result |
+|---|---|
+| land a lane with **no watcher armed**, then arm | `no landing yet` — **swallowed** |
+| two lanes land in one window, one arm | only the first is reported; re-arming then swallows the second **forever** |
+| lane prints `status: PASS` then exits 7 | marker said `crash`, but `LANDINGS.log`/the desktop toast said `report_present` |
+| lane killed mid-work (`--timeout`), monitor gave up | certified `report_present`, `exit_code: null`, **returned 0** |
+| every landing | appeared **twice** in `LANDINGS.log` and produced two desktop toasts |
+| `notify-send` with no `DISPLAY`/`DBUS` | returns **0** — the owner-facing channel cannot report its own failure |
 
-1. Record ownership: the runner (current) or a supervising process? **Recommendation: the runner** — it is
-   the only thing that holds the exit status at the moment it exists.
-2. Should `lane.sh selftest` run **on every dispatch** (drift fails loudly) or on demand?
-3. Should this live in `tools/` at all? It is dev infrastructure, not the product — it currently ships with
-   the repo and is picked up by packaging because packaging walks the working tree.
-4. Given the 120s cap, is a 90s heartbeat loop the right wake-up model, or should the notification be
-   desktop-only with the agent polling on demand? The heartbeat works but wakes the agent ~13 times an hour.
+### The fix
+
+1. **The journal is the queue; a cursor records what was reported.** The watcher reports every journal entry
+   after the cursor and advances the cursor **only after actually printing them**. A landing that occurs
+   while disarmed is therefore reported on the next arm. The failure direction is over-reporting, never
+   under-reporting. First-ever run adopts existing history instead of replaying it, and says so.
+2. **One commit per landing.** `commit_landing` owns marker + journal + human log + toast, guarded by an
+   atomic `mkdir` lock, so nothing appears twice.
+3. **The monitor may not certify.** It waits only for the runner's own record (marker or exit sentinel). If
+   it gives up, it writes `state: unverified` / `reason: timeout` and returns non-zero — never
+   `report_present`. When a marker exists it reports the marker's values **verbatim**, so a report can no
+   longer contradict the record.
+4. **Process matching removed entirely.** `pgrep -f <lane-script>` matched the monitor's *own* command
+   line, because the lane-script path is one of its arguments — so "the lane is gone" was never true and
+   the pid written to `.pid` was frequently the monitor's. Detection is now the runner's record, only.
+5. **Batched reporting.** N landings cost one wake, not N.
+6. **All landings in one arm are reported before exiting**, and `run` now prints the arm command at dispatch
+   so the notify loop is self-documenting.
+
+## Original blocking defects — status
+
+1. **`sweep-daily-ledger.sh` discarded each suite's exit status** → fixed (commit `fcae47ce`).
+2. **The lane's exit status never reached the verdict** → fixed on the *runner* path in `fcae47ce`, but the
+   **monitor** path still certified a killed lane as a landing. Now fixed by (3) above; guarded by S4/S4b.
+3. **The watcher tracked marker filenames** → superseded entirely: it now tracks a recorded cursor.
+   Guarded by S1/S2.
+4. **Unescaped lane names in the marker** → fixed; guarded by S6.
+5. **Permissions `0664`** → `0755`, re-confirmed.
+
+Non-blocking (unchanged): `docs/daily-ledger/sweep-baseline.md` describes `--json` as machine-readable while
+the script emits human headers around it; `docs/daily-ledger/guard-register.md` claims a fails-loudly
+assertion that lives inside an **already-red** suite (`107/109`), so removing it cannot turn a green suite red.
+
+## The meta-issue — now addressed
+
+**The harness had no test of its own failure modes.** Every one of the seven original bugs was found by
+accident or by an external reviewer — never by the tool. That is what let this class of bug keep coming back.
+
+`tools/lane.sh selftest` now exists. Each case has a must-allow AND a must-refuse direction, because a guard
+that never refuses is unproven and a **wrong** guard is worse than none — it is trusted.
+
+| case | direction | asserts |
+|---|---|---|
+| S1 | must-allow | a landing during a **disarmed** window is reported on the next arm |
+| S2 | must-refuse | that same landing is **not** reported again (skipped, not passed, if S1 reported nothing — a vacuous green is not a green) |
+| S3 | must-refuse | `status: PASS` then `exit 7` → non-zero, reason ≠ `report_present` |
+| S4 | must-refuse | a lane killed mid-work → `unverified`, non-zero |
+| S4b | must-allow | the same guard does **not** refuse a lane that finished inside its budget |
+| S5/S5b | must-refuse | exactly one journal entry and one human log line per landing, measured **per run** |
+| S6 | must-refuse | a lane name containing a quote still yields valid JSON |
+
+**The self-test was falsified before it was trusted:** re-introducing the original defect (treat everything
+already on disk as already reported) makes **S1 fail** and the suite exit 1. A guard that has never been
+seen to fail is not evidence.
+
+That falsification also found a bug in the self-test itself: S5/S5b counted the **whole** journal, so they
+failed on every run after the first. They now measure from a per-run baseline.
+
+## Opening questions — answered
+
+1. **Record ownership:** the **runner**. Confirmed by construction — it is the only process holding the exit
+   status at the instant it exists. Proven end-to-end: the monitor was `kill -9`'d mid-flight and the landing
+   still reached the journal and was reported on the next arm.
+2. **Selftest on every dispatch?** No — **on demand**, and before a work session. It takes ~35s and fires
+   real desktop toasts (the toast *is* under test). Running it per dispatch would be noise and latency for a
+   regression that only a code change can introduce.
+3. **Does this belong in `tools/`?** It is dev infrastructure, not product. It ships because packaging walks
+   the working tree; that is a packaging concern, not a reason to leave the defect unfixed.
+4. **Wake-up model:** keep the bounded heartbeat. The desktop toast **cannot** be the only channel —
+   `notify-send` returns 0 with no `DISPLAY` and no `DBUS`, so it silently does nothing and cannot report
+   its own failure. The durable journal + cursor is the reliable channel; the toast is a courtesy.
 
 ## What NOT to do again
 
 - **Do not add another proxy.** Capture the exit status, or nothing.
 - **Do not put the record inside something that can be killed.** (#6)
 - **Do not write a result to a file nobody reads.** (#1, #7)
-- **Do not verify the harness by reading it.** All seven bugs were found by running it. `bash -n` is not a
-  test.
+- **Do not confuse existence with acknowledgement.** "It was already on disk" is not "someone was told".
+  This is the defect that survived seven rewrites; if a consumer needs to know whether something was
+  consumed, **record** that, do not infer it.
+- **Do not verify the harness by reading it.** All seven original bugs were found by running it — and the
+  replacement for their root cause was itself found by running it. `bash -n` is not a test.
 - **Do not trust a report that a tool works.** Ask what it does when the thing it watches fails.
+- **Falsify a guard before trusting it.** A must-refuse case that has never been seen to refuse is not a
+  guard, it is decoration.
