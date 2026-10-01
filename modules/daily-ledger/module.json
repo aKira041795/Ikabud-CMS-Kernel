@@ -146,7 +146,8 @@
     "database/migrations/065_add_branch_sort_order.sql",
     "database/migrations/066_add_delivery_producer.sql",
     "database/migrations/067_resolvable_delivery_integrity.sql",
-    "database/migrations/068_delivery_ledger_enforcement_notifications.sql"
+    "database/migrations/068_delivery_ledger_enforcement_notifications.sql",
+    "database/migrations/069_preserve_cashier_variance.sql"
   ],
   "capabilities": {
     "exposes": [

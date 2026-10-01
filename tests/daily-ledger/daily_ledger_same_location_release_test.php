@@ -74,6 +74,8 @@ $db->execute("DELETE FROM dl_delivery_items WHERE delivery_id IN (SELECT id FROM
 $db->execute("DELETE FROM dl_branch_receiving_items WHERE receiving_id IN (SELECT id FROM dl_branch_receivings WHERE branch_id IN ({$testBranchIdsSql}))");
 $db->execute("DELETE FROM dl_deliveries WHERE destination_id IN ({$testBranchIdsSql})");
 $db->execute("DELETE FROM dl_branch_receivings WHERE branch_id IN ({$testBranchIdsSql})");
+$db->execute("DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN ({$testBranchIdsSql}))");
+$db->execute("DELETE FROM dl_integrity_notifications WHERE branch_id IN ({$testBranchIdsSql})");
 $db->execute("DELETE FROM dl_branches WHERE id IN ({$testBranchIdsSql})");
 $db->execute("DELETE FROM dl_products WHERE id IN (99001,99002,99003)");
 $db->execute('DELETE FROM dl_users WHERE id = 999999');
@@ -162,6 +164,8 @@ function dl_t_cleanup(\Ikabud\Kernel\Contracts\DatabaseContract $db, array $bran
         $rPlaceholders = implode(',', array_fill(0, count($ruleIds), '?'));
         $db->prepare("DELETE FROM dl_branch_product_supply_rules WHERE id IN ({$rPlaceholders})")->execute($ruleIds);
     }
+    $db->prepare("DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN ({$bPlaceholders}))")->execute($branchIds);
+    $db->prepare("DELETE FROM dl_integrity_notifications WHERE branch_id IN ({$bPlaceholders})")->execute($branchIds);
     $db->prepare("DELETE FROM dl_branches WHERE id IN ({$bPlaceholders})")->execute($branchIds);
     $db->prepare("DELETE FROM dl_products WHERE id IN ({$pPlaceholders})")->execute($productIds);
     $db->execute('DELETE FROM dl_users WHERE id = 999999');

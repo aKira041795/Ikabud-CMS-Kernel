@@ -153,6 +153,8 @@ return [
 
         // Admin: variance status
         '/daily-ledger/api/v1/admin/variances/update'    => 'daily-ledger:apiUpdateVarianceStatus',
+        // Admin only: the explicit delivery sent-vs-received acceptance choice
+        '/daily-ledger/api/v1/admin/variances/decide-delivery' => 'daily-ledger:apiResolveDeliveryVariance',
         '/daily-ledger/api/v1/admin/deliveries/resolve-origin' => 'daily-ledger:apiResolveDeliveryOrigin',
         '/daily-ledger/api/v1/admin/receivings/resolve-count' => 'daily-ledger:apiResolveReceivingCount',
 

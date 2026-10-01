@@ -103,6 +103,7 @@
                 "/daily-ledger/api/v1/admin/settings/branding-asset",
                 "/daily-ledger/api/v1/admin/settings/permissions",
                 "/daily-ledger/api/v1/admin/variances/update",
+                "/daily-ledger/api/v1/admin/variances/decide-delivery",
                 "/daily-ledger/api/v1/auth/forgot-password",
                 "/daily-ledger/api/v1/auth/reset-password",
                 "/daily-ledger/api/v1/cashier/ledger/close-day",
@@ -1060,6 +1061,33 @@
         {
             "id": "action-daily-ledger-api-v1-admin-variances-update",
             "route": "/daily-ledger/api/v1/admin/variances/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-variances-decide-delivery",
+            "route": "/daily-ledger/api/v1/admin/variances/decide-delivery",
             "method": "POST",
             "requires": {
                 "authenticated": true,

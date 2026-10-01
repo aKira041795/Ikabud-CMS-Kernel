@@ -2018,11 +2018,20 @@ function dl_canEditDeliveryByDr(array $user): bool
 /**
  * Correct a paper-DR stock delivery (missed items, qty correction).
  *
- * Pure transactional service — no HTTP. Adjusts delivery items, the active
- * receiving's items, and the origin `withdraw` / destination `addtl` ledger
- * deltas together, then recomputes derived sales. Caller supplies the
- * authorization/date context; the service re-checks the domain rules
- * (posted delivery, open day, cashier same-day).
+ * The production side owns the SENT quantity, so this adjusts delivery items
+ * and the origin ledger (the commissary dispatched quantity, or the origin
+ * branch's withdraw column). It deliberately does NOT touch the cashier's
+ * dl_branch_receivings / dl_branch_receiving_items rows and does NOT move the
+ * destination branch's ledger: the branch holds what the cashier counted.
+ * Where the corrected SENT differs from the cashier's counted RECEIVED, it
+ * raises an unreviewed delivery variance for an admin to resolve.
+ *
+ * A delivery item is never deleted (its receiving FK is ON DELETE SET NULL,
+ * which would rewrite the cashier's evidence); a dropped line is zeroed.
+ *
+ * Pure transactional service — no HTTP. Caller supplies the authorization/date
+ * context; the service re-checks the domain rules (posted delivery, open day,
+ * cashier same-day).
  *
  * $args: branch_id, dr_number, reason, desired (pid => qty), role,
  *        actor_id, business_date, has_override.
@@ -2114,30 +2123,34 @@ function dl_correctDeliveryByDr($db, array $args): array
         $updItem = $db->prepare(
             'UPDATE dl_delivery_items SET quantity = :qty WHERE id = :id'
         );
-        $delItem = $db->prepare('DELETE FROM dl_delivery_items WHERE id = :id');
-
-        $rcvUpdItem = null;
-        $rcvDelItem = null;
-        $rcvInsItem = null;
-        if (is_array($activeReceiving)) {
-            $rcvUpdItem = $db->prepare(
-                'UPDATE dl_branch_receiving_items SET quantity_received = :qty WHERE id = :id'
-            );
-            $rcvDelItem = $db->prepare('DELETE FROM dl_branch_receiving_items WHERE id = :id');
-            $rcvInsItem = $db->prepare(
-                'INSERT INTO dl_branch_receiving_items
-                    (receiving_id, delivery_item_id, product_id, quantity_received, unit, unit_cost_snapshot, selling_price_snapshot, remarks)
-                 VALUES (:rid, :diid, :pid, :qty, "pcs", NULL, :price, :remarks)'
-            );
-        }
 
         $updated = [];
         $removed = [];
+        // The corrected sent quantity the production side owns, per product.
+        $correctedSent = [];
+
+        // Adjust the origin ledger for a sent-quantity change. The DESTINATION
+        // branch's ledger is deliberately NOT moved: the branch holds what the
+        // cashier counted. A commissary-origin delivery owns the commissary
+        // dispatched quantity; a branch-origin transfer owns the origin branch's
+        // daily-ledger withdraw column.
+        $applyOriginDelta = static function (int $pid, int $delta) use ($db, $delivery, $originBranchId, $deliveryDate, $actorId, $shift): void {
+            if ($delta === 0) {
+                return;
+            }
+            if ((string)$delivery['origin_type'] === 'commissary' && (int)$delivery['origin_id'] > 0) {
+                dl_applyCommissaryProductLedgerDelta($db, (int)$delivery['origin_id'], $pid, $deliveryDate, 0, $delta, $actorId, 0, true);
+            } elseif ($originBranchId > 0) {
+                dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw', $shift);
+            }
+        };
+
         foreach ($desired as $pid => $qty) {
             $pid = (int)$pid;
             $qty = max(0, (int)$qty);
             $oldQty = (int)($existingItems[$pid]['quantity'] ?? 0);
             $delta = $qty - $oldQty;
+            $deliveryItemId = 0;
 
             if ($qty > 0) {
                 if (isset($existingItems[$pid])) {
@@ -2151,32 +2164,21 @@ function dl_correctDeliveryByDr($db, array $args): array
                     ]);
                     $deliveryItemId = (int)$db->lastInsertId();
                 }
-                if (is_array($activeReceiving)) {
-                    if (isset($existingReceived[$pid])) {
-                        $rcvUpdItem->execute([':qty' => $qty, ':id' => (int)$existingReceived[$pid]['id']]);
-                    } else {
-                        $rcvInsItem->execute([
-                            ':rid' => (int)$activeReceiving['id'], ':diid' => $deliveryItemId, ':pid' => $pid,
-                            ':qty' => $qty, ':price' => dl_resolveProductPrice($pid, $priceGroupId, $receiveDate),
-                            ':remarks' => 'edited-by-dr',
-                        ]);
-                    }
-                }
             } else {
+                // Never DELETE a delivery item: the receiving item's FK is
+                // ON DELETE SET NULL, which would silently rewrite the cashier's
+                // evidence row. Zero the sent line instead so the item and the
+                // receiving link are preserved.
                 if (isset($existingItems[$pid])) {
-                    $delItem->execute([':id' => (int)$existingItems[$pid]['id']]);
-                }
-                if (isset($existingReceived[$pid])) {
-                    $rcvDelItem->execute([':id' => (int)$existingReceived[$pid]['id']]);
+                    $updItem->execute([':qty' => 0, ':id' => (int)$existingItems[$pid]['id']]);
                 }
             }
+            $correctedSent[$pid] = $qty;
 
             if ($delta !== 0) {
-                if ($originBranchId > 0) {
-                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw', $shift);
-                }
-                if (is_array($activeReceiving)) {
-                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, $delta, $actorId, 'addtl', $shift);
+                $applyOriginDelta($pid, $delta);
+                if ($deliveryItemId > 0) {
+                    dl_resyncDeliveryLedgerEffectOnCorrection($db, $deliveryItemId, $qty);
                 }
                 $updated[$pid] = ['old' => $oldQty, 'new' => $qty];
             }
@@ -2189,17 +2191,33 @@ function dl_correctDeliveryByDr($db, array $args): array
                 continue;
             }
             $oldQty = (int)$existingItems[$pid]['quantity'];
-            $delItem->execute([':id' => (int)$existingItems[$pid]['id']]);
-            if (isset($existingReceived[$pid])) {
-                $rcvDelItem->execute([':id' => (int)$existingReceived[$pid]['id']]);
-            }
+            $updItem->execute([':qty' => 0, ':id' => (int)$existingItems[$pid]['id']]);
             $removed[$pid] = $oldQty;
+            $correctedSent[$pid] = 0;
             if ($oldQty !== 0) {
-                if ($originBranchId > 0) {
-                    dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, -$oldQty, $actorId, 'withdraw', $shift);
-                }
-                if (is_array($activeReceiving)) {
-                    dl_applyLedgerDelta($branchId, $pid, $receiveDate, -$oldQty, $actorId, 'addtl', $shift);
+                $applyOriginDelta($pid, -$oldQty);
+            }
+        }
+
+        // The production correction is done and it has NOT touched the cashier's
+        // count. Where the corrected sent quantity differs from what the cashier
+        // physically counted, surface a variance for an admin to resolve. The
+        // cashier's receiving rows are read, never written, by this path.
+        if (is_array($activeReceiving)) {
+            foreach ($existingReceived as $pid => $receivedRow) {
+                $pid = (int)$pid;
+                $counted = (int)($receivedRow['quantity_received'] ?? 0);
+                $sentNow = (int)($correctedSent[$pid] ?? 0);
+                if ($counted !== $sentNow) {
+                    dl_raiseDeliveryVariance(
+                        $db,
+                        (int)$delivery['id'],
+                        (int)$activeReceiving['id'],
+                        $pid,
+                        $sentNow,
+                        $counted,
+                        $actorId
+                    );
                 }
             }
         }

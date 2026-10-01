@@ -331,6 +331,7 @@
             <option value="handoff" {if kind_filter == 'handoff'}selected{/if}>Handoff (PM)</option>
             <option value="ending" {if kind_filter == 'ending'}selected{/if}>Ending &gt; supply</option>
             <option value="sales" {if kind_filter == 'sales'}selected{/if}>Negative raw sales</option>
+            <option value="delivery" {if kind_filter == 'delivery'}selected{/if}>Delivery sent vs received</option>
         </select>
 
         <select class="form-input w-auto mt-0 text-xs py-1 px-2" name="shift"
@@ -482,6 +483,29 @@
                                 </span>
                             </td>
                             <td>
+                                {if v.is_delivery}
+                                <div class="text-xs" data-delivery-variance="{v.id}">
+                                    <div class="font-medium text-gray-700">Sent {v.sent_qty} · cashier counted {v.original_counted_qty}</div>
+                                    {if v.resolution_choice}
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.resolution_choice == 'accept_production'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if v.resolution_choice == 'keep_as_evidence'}bg-sky-50 text-sky-700 ring-sky-200{/if}">{v.choice_label}</span>
+                                    <div class="mt-1 text-gray-500">{v.reviewer_name}{if v.reviewed_at} · {v.reviewed_at}{/if}</div>
+                                    {if v.review_note}<div class="mt-1 text-gray-600">{v.review_note | esc_html}</div>{/if}
+                                    {/if}
+                                    {if can_decide_delivery}
+                                    <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-note-id="{v.id}" maxlength="500" placeholder="Note the decision…">
+                                    {if v.decision_ready}
+                                    <div class="mt-1 flex flex-wrap gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'accept_production')">Accept production ({v.original_counted_qty} → {v.sent_qty})</button>
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'keep_as_evidence')">Keep as evidence ({v.original_counted_qty})</button>
+                                    </div>
+                                    {else}
+                                    <div class="mt-1 text-gray-500">Investigate, or reopen a corrected finding, to change the decision.</div>
+                                    {/if}
+                                    {else}
+                                    <div class="mt-1 text-gray-500">Only an admin may make the acceptance decision.</div>
+                                    {/if}
+                                </div>
+                                {else}
                                 {if can_manage_variances}
                                 <select class="form-input mt-0 w-auto text-xs py-0.5 px-1.5"
                                         data-id="{v.id}"
@@ -511,6 +535,7 @@
                                 </span>
                                 {if v.review_note}
                                 <div class="mt-1 text-xs text-gray-600">{v.review_note | esc_html}</div>
+                                {/if}
                                 {/if}
                                 {/if}
                             </td>
@@ -587,6 +612,29 @@
                                 </span>
                             </td>
                             <td>
+                                {if v.is_delivery}
+                                <div class="text-xs" data-delivery-variance="{v.id}">
+                                    <div class="font-medium text-gray-700">Sent {v.sent_qty} · cashier counted {v.original_counted_qty}</div>
+                                    {if v.resolution_choice}
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.resolution_choice == 'accept_production'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if v.resolution_choice == 'keep_as_evidence'}bg-sky-50 text-sky-700 ring-sky-200{/if}">{v.choice_label}</span>
+                                    <div class="mt-1 text-gray-500">{v.reviewer_name}{if v.reviewed_at} · {v.reviewed_at}{/if}</div>
+                                    {if v.review_note}<div class="mt-1 text-gray-600">{v.review_note | esc_html}</div>{/if}
+                                    {/if}
+                                    {if can_decide_delivery}
+                                    <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-note-id="{v.id}" maxlength="500" placeholder="Note the decision…">
+                                    {if v.decision_ready}
+                                    <div class="mt-1 flex flex-wrap gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'accept_production')">Accept production ({v.original_counted_qty} → {v.sent_qty})</button>
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'keep_as_evidence')">Keep as evidence ({v.original_counted_qty})</button>
+                                    </div>
+                                    {else}
+                                    <div class="mt-1 text-gray-500">Investigate, or reopen a corrected finding, to change the decision.</div>
+                                    {/if}
+                                    {else}
+                                    <div class="mt-1 text-gray-500">Only an admin may make the acceptance decision.</div>
+                                    {/if}
+                                </div>
+                                {else}
                                 {if can_manage_variances}
                                 <select class="form-input mt-0 w-auto text-xs py-0.5 px-1.5"
                                         data-id="{v.id}"
@@ -616,6 +664,7 @@
                                 </span>
                                 {if v.review_note}
                                 <div class="mt-1 text-xs text-gray-600">{v.review_note | esc_html}</div>
+                                {/if}
                                 {/if}
                                 {/if}
                             </td>
@@ -760,6 +809,39 @@
                 });
             }
         };
+    }
+
+    // The admin-only acceptance decision. It is a choice, not a status flip:
+    // accept production (correct the cashier's count, original kept as evidence)
+    // or keep the count as evidence (no change). A note is required.
+    function decideDeliveryVariance(id, choice) {
+        var input = document.querySelector('[data-delivery-note-id="' + id + '"]');
+        var note = input ? input.value.trim() : '';
+        if (!note) {
+            showToast('Enter a note before deciding.', 'error');
+            if (input) input.focus();
+            return;
+        }
+        var label = choice === 'accept_production'
+            ? 'Accept production and correct the cashier\'s count?'
+            : 'Keep the cashier\'s count as evidence?';
+        if (!confirm(label)) { return; }
+
+        fetch(BASE + '/api/v1/admin/variances/decide-delivery', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variance_id: parseInt(id), choice: choice, review_note: note })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast(res.resolution_choice === 'accept_production' ? 'Count corrected to production' : 'Count kept as evidence', 'success');
+                setTimeout(function() { window.refreshMainContent(); }, 800);
+            } else {
+                showToast(res.error || 'Decision failed', 'error');
+            }
+        })
+        .catch(function() { showToast('Network error', 'error'); });
     }
 
     function updateVarianceStatus(select) {

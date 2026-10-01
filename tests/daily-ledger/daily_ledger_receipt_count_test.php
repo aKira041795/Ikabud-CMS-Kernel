@@ -58,6 +58,8 @@ $cleanup = static function () use ($db, $originId, $branchId, $productId, $short
     $db->prepare("DELETE FROM dl_branch_receivings WHERE delivery_id IN ($marks)")->execute($deliveryIds);
     $db->prepare("DELETE FROM dl_deliveries WHERE id IN ($marks)")->execute($deliveryIds);
     $db->prepare('DELETE FROM dl_daily_ledger WHERE branch_id = ? AND product_id = ?')->execute([$branchId, $productId]);
+    $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN (?, ?))')->execute([$originId, $branchId]);
+    $db->prepare('DELETE FROM dl_integrity_notifications WHERE branch_id IN (?, ?)')->execute([$originId, $branchId]);
     $db->prepare('DELETE FROM dl_branch_products WHERE branch_id IN (?, ?) AND product_id = ?')->execute([$originId, $branchId, $productId]);
     $db->prepare('DELETE FROM dl_branches WHERE id IN (?, ?)')->execute([$originId, $branchId]);
     $db->prepare('DELETE FROM dl_products WHERE id = ?')->execute([$productId]);

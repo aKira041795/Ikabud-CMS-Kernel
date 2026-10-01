@@ -2368,6 +2368,23 @@ function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actor
     return ['status' => 'applied', 'applied' => $applied];
 }
 
+/**
+ * Keep the durable per-item delivery effect in step with a quantity correction,
+ * so a later void reverses the corrected quantity rather than the original. A
+ * delivery item with no effect row (never posted through the effect path) is a
+ * no-op: the caller has already moved the commissary ledger by the delta.
+ */
+function dl_resyncDeliveryLedgerEffectOnCorrection($db, int $deliveryItemId, int $newQty): void
+{
+    if ($deliveryItemId <= 0) {
+        return;
+    }
+    $db->prepare(
+        'UPDATE dl_delivery_ledger_effects SET quantity = :qty
+          WHERE delivery_item_id = :id AND effect_status = "applied"'
+    )->execute([':qty' => $newQty, ':id' => $deliveryItemId]);
+}
+
 /** Reverse only durable applied effects; legacy rows without one are explicitly reported. */
 function dl_reversePostedDeliveryCommissaryLedger($db, int $deliveryId, int $actorId): array
 {
@@ -2852,6 +2869,12 @@ function dl_dailySheetCellQuantity($db, string $ledgerDate, int $commissaryBranc
  * ANOTHER delivery carrying the signed delta, requires Type + Reason Code copied
  * from the cashier modal, and is logged so the sheet's bottom log reads
  * original entry -> correction. Nothing already recorded is updated or deleted.
+ *
+ * A correction is stored with receipt_required = 0: it is not something a cashier
+ * receives, so it never appears in the receive surface and can never block the
+ * cashier on an unsatisfiable count range. Where it moves the cell's effective
+ * quantity away from what the cashier counted, it raises the same unreviewed
+ * delivery variance a paper-DR correction raises.
  */
 function dl_recordDailySheetBranchEntry(array $user, array $input): array
 {
@@ -3020,9 +3043,9 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         $delStmt = $db->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
-                 delivery_date, status, created_by, posted_by, posted_at, remarks)
+                 delivery_date, status, created_by, posted_by, posted_at, remarks, receipt_required)
              VALUES (:origin_type, :origin_id, :destination_type, :destination_id, :dr_number,
-                     :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks)'
+                     :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks, :receipt_required)'
         );
         $delStmt->execute([
             ':origin_type' => 'commissary',
@@ -3034,6 +3057,9 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
             ':created_by' => $actorId > 0 ? $actorId : null,
             ':posted_by' => $actorId > 0 ? $actorId : null,
             ':remarks' => $remarks,
+            // A correction never presents as awaiting receipt. A first (dispatch)
+            // entry is explicitly receivable. NULL stays historical/unknown.
+            ':receipt_required' => $hasEntry ? 0 : 1,
         ]);
         $deliveryId = (int)$db->lastInsertId();
 
@@ -3090,6 +3116,11 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
             ],
             $reasonDisplay
         );
+
+        // A correction is not something the cashier receives. Where it moves the
+        // cell's effective quantity away from what the cashier physically counted,
+        // raise the same sent-vs-received variance a paper-DR correction raises.
+        dl_raiseDailySheetCorrectionVariance($db, $commissaryBranchId, $branchId, $productId, $date, $actorId);
 
         $db->commit();
     } catch (\Throwable $e) {
@@ -4133,10 +4164,14 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
             }
         }
 
-        // Recompute owns the day: clear unreviewed flags, keep reviewed history.
+        // Recompute owns the derived day kinds only: clear their unreviewed
+        // flags, keep reviewed history. kind='delivery' is raised by a
+        // production correction and is owned by the admin decision, so a ledger
+        // recompute must never silently delete it.
         $db->prepare(
-            'DELETE FROM dl_variance_flags
-              WHERE branch_id = :bid AND ledger_date = :d AND resolution_status = \'unreviewed\''
+            "DELETE FROM dl_variance_flags
+              WHERE branch_id = :bid AND ledger_date = :d AND resolution_status = 'unreviewed'
+                AND kind <> 'delivery'"
         )->execute([':bid' => $branchId, ':d' => $date]);
 
         $byProduct = [];
@@ -4271,6 +4306,200 @@ function dl_upsertVarianceFlag($db, int $branchId, int $productId, string $date,
         dl_raiseIntegrityNotification($db, 'variance-' . $flagId, 'variance', $branchId, 'dl_variance_flags', $flagId,
             'Inventory variance surfaced', 'Variance flag #' . $flagId . ' requires investigation before correction.');
     }
+}
+
+/**
+ * Raise (or refresh) the sent-vs-received variance for one delivery line.
+ *
+ * A production correction must never edit the cashier's count. It raises this
+ * flag instead: kind='delivery', state 'unreviewed', so it enters the existing
+ * unreviewed -> investigated -> corrected resolve flow rather than a second
+ * lifecycle. The cashier's counted value is stored here as evidence and is not
+ * changed by this function. Only an explicit admin decision may correct it.
+ *
+ * @return int|null the variance flag id, or null when it could not be located
+ */
+function dl_raiseDeliveryVariance(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $deliveryId, int $receivingId, int $productId, int $sentQty, int $receivedQty, int $actorId = 0): ?int
+{
+    if ($deliveryId <= 0 || $productId <= 0) {
+        return null;
+    }
+
+    $branchId = 0;
+    $ledgerDate = '';
+    $countedBy = null;
+    if ($receivingId > 0) {
+        $head = $db->prepare('SELECT branch_id, received_ledger_date, received_by FROM dl_branch_receivings WHERE id = :id');
+        $head->execute([':id' => $receivingId]);
+        $row = $head->fetch(PDO::FETCH_ASSOC) ?: [];
+        $branchId = (int)($row['branch_id'] ?? 0);
+        $ledgerDate = (string)($row['received_ledger_date'] ?? '');
+        $countedBy = ($row['received_by'] ?? null) !== null ? (int)$row['received_by'] : null;
+    }
+    if ($branchId <= 0 || $ledgerDate === '') {
+        $head = $db->prepare('SELECT destination_id, delivery_date FROM dl_deliveries WHERE id = :id');
+        $head->execute([':id' => $deliveryId]);
+        $row = $head->fetch(PDO::FETCH_ASSOC) ?: [];
+        $branchId = (int)($row['destination_id'] ?? 0);
+        $ledgerDate = (string)($row['delivery_date'] ?? '');
+    }
+    if ($branchId <= 0 || $ledgerDate === '') {
+        return null;
+    }
+
+    $variance = $receivedQty - $sentQty;
+    $sel = $db->prepare("SELECT id, resolution_status, resolution_choice, original_counted_qty, counted_by
+                           FROM dl_variance_flags
+                          WHERE kind = 'delivery' AND delivery_id = :delivery AND product_id = :product
+                          LIMIT 1");
+    $sel->execute([':delivery' => $deliveryId, ':product' => $productId]);
+    $existing = $sel->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    if (is_array($existing)) {
+        $flagId = (int)$existing['id'];
+        $wasCorrected = (string)($existing['resolution_status'] ?? '') === 'corrected';
+        $db->prepare(
+            "UPDATE dl_variance_flags
+                SET branch_id = :bid, product_id = :pid, ledger_date = :d, shift = NULL,
+                    delivery_id = :delivery, receiving_id = :rcv, sent_qty = :sent, received_qty = :received,
+                    original_counted_qty = COALESCE(original_counted_qty, :orig),
+                    counted_by = COALESCE(counted_by, :cby),
+                    expected_end_bal = :sent2, recorded_end_bal = :received2, variance = :var,
+                    resolution_status = 'unreviewed', is_reviewed = 0,
+                    resolution_choice = NULL, reviewed_by = NULL, reviewed_at = NULL, review_note = NULL
+              WHERE id = :id"
+        )->execute([
+            ':bid' => $branchId, ':pid' => $productId, ':d' => $ledgerDate,
+            ':delivery' => $deliveryId, ':rcv' => $receivingId > 0 ? $receivingId : null,
+            ':sent' => $sentQty, ':received' => $receivedQty, ':orig' => $receivedQty, ':cby' => $countedBy,
+            ':sent2' => $sentQty, ':received2' => $receivedQty, ':var' => $variance,
+            ':id' => $flagId,
+        ]);
+        if ($wasCorrected) {
+            dl_auditLog('delivery_variance_reopened', $branchId, 'dl_variance_flags', (string)$flagId, [
+                'resolution_status' => 'corrected',
+                'resolution_choice' => $existing['resolution_choice'],
+                'original_counted_qty' => $existing['original_counted_qty'],
+            ], [
+                'resolution_status' => 'unreviewed',
+                'sent_qty' => $sentQty,
+                'received_qty' => $receivedQty,
+                'variance' => $variance,
+            ], 'a later production correction changed the sent quantity');
+        }
+    } else {
+        $db->prepare(
+            "INSERT INTO dl_variance_flags
+                (branch_id, product_id, ledger_date, kind, shift, delivery_id, receiving_id, sent_qty, received_qty,
+                 original_counted_qty, counted_by, expected_end_bal, recorded_end_bal, variance, resolution_status, is_reviewed)
+             VALUES (:bid, :pid, :d, 'delivery', NULL, :delivery, :rcv, :sent, :received,
+                     :orig, :cby, :sent2, :received2, :var, 'unreviewed', 0)"
+        )->execute([
+            ':bid' => $branchId, ':pid' => $productId, ':d' => $ledgerDate,
+            ':delivery' => $deliveryId, ':rcv' => $receivingId > 0 ? $receivingId : null,
+            ':sent' => $sentQty, ':received' => $receivedQty, ':orig' => $receivedQty, ':cby' => $countedBy,
+            ':sent2' => $sentQty, ':received2' => $receivedQty, ':var' => $variance,
+        ]);
+        $flagId = (int)$db->lastInsertId();
+    }
+
+    if ($flagId <= 0) {
+        return null;
+    }
+
+    dl_raiseIntegrityNotification(
+        $db,
+        'delivery-variance-' . $flagId,
+        'variance',
+        $branchId,
+        'dl_variance_flags',
+        $flagId,
+        'Delivery sent/received variance surfaced',
+        'Delivery #' . $deliveryId . ' product #' . $productId . ': cashier counted ' . $receivedQty
+            . ', production records sent ' . $sentQty
+            . '. An admin must decide whether to accept production or keep the count as evidence.'
+    );
+
+    return $flagId;
+}
+
+/**
+ * After an append-only Daily Sheet correction, compare the cell's effective
+ * (corrected) quantity against what the cashier(s) actually counted. Any
+ * difference is surfaced through the same delivery-variance flow a paper-DR
+ * correction uses, anchored on the cell's first delivery that carries a
+ * posted receiving. The cashier's count is read, never written.
+ */
+function dl_raiseDailySheetCorrectionVariance($db, int $commissaryBranchId, int $branchId, int $productId, string $ledgerDate, int $actorId = 0): ?int
+{
+    if ($commissaryBranchId <= 0 || $branchId <= 0 || $productId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate)) {
+        return null;
+    }
+
+    $cellStmt = $db->prepare(
+        "SELECT d.id AS delivery_id, COALESCE(SUM(di.quantity), 0) AS sent_qty
+           FROM dl_deliveries d
+           INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+          WHERE d.delivery_date = :d
+            AND d.origin_type = 'commissary'
+            AND d.destination_type = 'branch'
+            AND d.destination_id = :bid
+            AND d.origin_id = :cid
+            AND d.status <> 'voided'
+            AND di.product_id = :pid
+          GROUP BY d.id
+          ORDER BY d.id ASC"
+    );
+    $cellStmt->execute([':d' => $ledgerDate, ':bid' => $branchId, ':cid' => $commissaryBranchId, ':pid' => $productId]);
+    $cellRows = $cellStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($cellRows === []) {
+        return null;
+    }
+    $effective = 0;
+    foreach ($cellRows as $cellRow) {
+        $effective += (int)$cellRow['sent_qty'];
+    }
+
+    // The physical count: sum posted receivings for the cell's deliveries. The
+    // earliest receiving is the anchor the admin decision corrects.
+    $recvStmt = $db->prepare(
+        "SELECT br.id AS receiving_id, br.delivery_id, bri.quantity_received
+           FROM dl_branch_receivings br
+           INNER JOIN dl_branch_receiving_items bri ON bri.receiving_id = br.id
+           INNER JOIN dl_deliveries d ON d.id = br.delivery_id
+          WHERE d.delivery_date = :d
+            AND d.origin_type = 'commissary'
+            AND d.destination_type = 'branch'
+            AND d.destination_id = :bid
+            AND d.origin_id = :cid
+            AND d.status <> 'voided'
+            AND bri.product_id = :pid
+            AND br.status = 'posted'
+          ORDER BY br.id ASC"
+    );
+    $recvStmt->execute([':d' => $ledgerDate, ':bid' => $branchId, ':cid' => $commissaryBranchId, ':pid' => $productId]);
+    $recvRows = $recvStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($recvRows === []) {
+        return null;
+    }
+    $counted = 0;
+    foreach ($recvRows as $recvRow) {
+        $counted += (int)$recvRow['quantity_received'];
+    }
+    if ($counted === $effective) {
+        return null;
+    }
+
+    $anchor = $recvRows[0];
+    return dl_raiseDeliveryVariance(
+        $db,
+        (int)$anchor['delivery_id'],
+        (int)$anchor['receiving_id'],
+        $productId,
+        $effective,
+        $counted,
+        $actorId
+    );
 }
 
 /** Freeze the variance snapshot for a manual day close (explicit metadata). */
@@ -5223,6 +5452,7 @@ function handleCashierLedger(array $params = []): void
                  WHERE d.destination_type = 'branch'
                    AND d.destination_id = :bid
                    AND d.status = 'posted'
+                   AND COALESCE(d.receipt_required, 1) = 1
                    AND NOT EXISTS (
                        SELECT 1 FROM dl_branch_receivings br
                        WHERE br.delivery_id = d.id AND br.status <> 'voided'
@@ -6663,6 +6893,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                       WHERE d.destination_type = "branch"
                         AND d.destination_id = :bid
                         AND d.status = "posted"
+                        AND COALESCE(d.receipt_required, 1) = 1
                         AND NOT EXISTS (
                             SELECT 1 FROM dl_branch_receivings br
                             WHERE br.delivery_id = d.id AND br.status <> "voided"
@@ -10071,7 +10302,7 @@ function handleAdminVariances(array $params = []): void
     $statusFilter = (string)($input['status'] ?? '');
     $kindFilter = (string)($input['kind'] ?? '');
     $shiftFilter = strtoupper(trim((string)($input['shift'] ?? '')));
-    if (!in_array($kindFilter, ['overnight', 'handoff', 'ending', 'sales'], true)) { $kindFilter = ''; }
+    if (!in_array($kindFilter, ['overnight', 'handoff', 'ending', 'sales', 'delivery'], true)) { $kindFilter = ''; }
     if (!in_array($shiftFilter, ['AM', 'PM'], true)) { $shiftFilter = ''; }
     // Date range (From/To). A legacy single-day ?date= still works and scopes
     // both bounds, so bookmarks and the report deep-links keep behaving.
@@ -10206,6 +10437,21 @@ function handleAdminVariances(array $params = []): void
     $listStmt->execute($bindFiltered);
     $variances = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // Annotate the delivery sent-vs-received rows so the resolve surface can
+    // present the explicit two-way admin choice rather than a status flip.
+    $deliveryChoiceLabels = [
+        'accept_production' => 'Accepted production',
+        'keep_as_evidence' => 'Kept as evidence',
+    ];
+    foreach ($variances as &$varianceRow) {
+        $isDeliveryVariance = (string)($varianceRow['kind'] ?? '') === 'delivery';
+        $varianceRow['is_delivery'] = $isDeliveryVariance;
+        $varianceRow['choice_label'] = $deliveryChoiceLabels[(string)($varianceRow['resolution_choice'] ?? '')] ?? '';
+        $varianceRow['decision_ready'] = $isDeliveryVariance
+            && (string)($varianceRow['resolution_status'] ?? '') === 'investigated';
+    }
+    unset($varianceRow);
+
     // ── Aggregate stats ──────────────────────────────────────────────
     // Counted in SQL over every matching flag: the rendered list below is capped,
     // so counting it here would understate the dashboard.
@@ -10218,6 +10464,7 @@ function handleAdminVariances(array $params = []): void
         'handoff' => ['count' => 0, 'net' => 0],
         'ending' => ['count' => 0, 'net' => 0],
         'sales' => ['count' => 0, 'net' => 0],
+        'delivery' => ['count' => 0, 'net' => 0],
     ];
     foreach ($aggRows as $agg) {
         $aggCount = (int)($agg['flag_count'] ?? 0);
@@ -10355,6 +10602,7 @@ function handleAdminVariances(array $params = []): void
         'is_supervisor' => $isSupervisor,
         'supervisor_branch_ids' => $supervisorBranchIds,
         'can_manage_variances' => in_array($role, ['admin', 'supervisor'], true),
+        'can_decide_delivery' => $role === 'admin',
         'integrity_notifications' => $notificationRows,
         // Aggregate stats
         'stats_total'        => $statsTotal,
@@ -12540,13 +12788,26 @@ function apiUpdateVarianceStatus(array $params = []): void
             return;
         }
         $ctx->db()->beginTransaction();
-        $existsStmt = $ctx->db()->prepare('SELECT id, branch_id, resolution_status, review_note, reviewed_by, reviewed_at FROM dl_variance_flags WHERE id = :id LIMIT 1 FOR UPDATE');
+        $existsStmt = $ctx->db()->prepare('SELECT id, branch_id, kind, resolution_status, review_note, reviewed_by, reviewed_at FROM dl_variance_flags WHERE id = :id LIMIT 1 FOR UPDATE');
         $existsStmt->execute([':id' => $varianceId]);
         $before = $existsStmt->fetch(PDO::FETCH_ASSOC);
         if (!$before) {
             $ctx->db()->rollBack();
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Variance not found', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'Variance not found'], 404);
+            return;
+        }
+        // A delivery sent-vs-received variance is settled only by the explicit
+        // admin acceptance decision (accept production OR keep as evidence).
+        // This generic endpoint must not be a second door to that outcome, so a
+        // supervisor (or anyone) cannot mark it corrected from here.
+        if ((string)($before['kind'] ?? '') === 'delivery' && $status === 'corrected') {
+            $ctx->db()->rollBack();
+            $ctx->json([
+                'ok' => false,
+                'error' => 'A delivery sent/received variance is resolved only by an admin decision (accept production or keep as evidence).',
+                'status' => 409,
+            ], 409);
             return;
         }
         $oldStatus = (string)$before['resolution_status'];
@@ -12612,6 +12873,177 @@ function apiUpdateVarianceStatus(array $params = []): void
             'status' => $status,
         ]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Server error', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Server error'], 500);
+        return;
+    }
+}
+
+/**
+ * POST /daily-ledger/api/v1/admin/variances/decide-delivery
+ *
+ * The admin-only acceptance decision for a production correction that changed a
+ * dispatch after the cashier counted it. It is a CHOICE, not a status flip:
+ *
+ *   accept_production -> correct the cashier's counted quantity to the figure
+ *                        production recorded as sent. The original counted value
+ *                        and who counted it are preserved as evidence.
+ *   keep_as_evidence  -> leave the cashier's count exactly as it is and close
+ *                        the variance on that basis.
+ *
+ * Both record actor, timestamp and note. Both are editable afterwards: an admin
+ * reopens the flag through the generic endpoint (corrected -> investigated) and
+ * decides again. Every prior revision is retained in audit_logs.
+ *
+ * Authority: admin only. A supervisor cannot reach this outcome through the
+ * generic variance endpoint either (that route is closed for kind='delivery').
+ */
+function apiResolveDeliveryVariance(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+
+    $input = $ctx->input();
+    $varianceId = (int)($input['variance_id'] ?? 0);
+    $choice = trim((string)($input['choice'] ?? $input['decision'] ?? ''));
+    $note = is_array($input) ? trim((string)($input['review_note'] ?? '')) : '';
+
+    if ($varianceId <= 0 || !in_array($choice, ['accept_production', 'keep_as_evidence'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'A choice of accept_production or keep_as_evidence is required.'], 422);
+        return;
+    }
+    if ($note === '') {
+        $ctx->json(['ok' => false, 'error' => 'A resolution note is required for the acceptance decision.'], 422);
+        return;
+    }
+    if (mb_strlen($note) > DL_VARIANCE_NOTE_MAX) {
+        $note = mb_substr($note, 0, DL_VARIANCE_NOTE_MAX);
+    }
+
+    $reviewedBy = null;
+    $actorId = dl_getActorUserId($user);
+    if ($actorId > 0 && ($user['source'] ?? '') === 'daily-ledger') {
+        $st = $ctx->db()->prepare('SELECT id FROM dl_users WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $st->execute([':id' => $actorId]);
+        if ((int)($st->fetchColumn() ?: 0) > 0) {
+            $reviewedBy = $actorId;
+        }
+    } elseif ($actorId > 0) {
+        $reviewedBy = $actorId;
+    }
+
+    try {
+        $ctx->db()->beginTransaction();
+        $stmt = $ctx->db()->prepare('SELECT * FROM dl_variance_flags WHERE id = :id LIMIT 1 FOR UPDATE');
+        $stmt->execute([':id' => $varianceId]);
+        $flag = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$flag) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Variance not found'], 404);
+            return;
+        }
+        if ((string)($flag['kind'] ?? '') !== 'delivery') {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'This is not a delivery sent/received variance.'], 409);
+            return;
+        }
+        if ((string)($flag['resolution_status'] ?? '') === 'unreviewed') {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'The finding must be investigated before it can be resolved.', 'status' => 409], 409);
+            return;
+        }
+
+        $sentQty = (int)($flag['sent_qty'] ?? 0);
+        $originalCounted = (int)($flag['original_counted_qty'] ?? $flag['received_qty'] ?? 0);
+
+        // The choice IS the resolution. Apply the chosen outcome to the
+        // cashier's counted line: the production figure when accepted, or the
+        // preserved original count when kept as evidence. Re-deciding therefore
+        // moves the count both ways, and the original always survives on the
+        // flag and in the audit entry.
+        $targetCount = $choice === 'accept_production' ? $sentQty : $originalCounted;
+        $itemStmt = $ctx->db()->prepare(
+            'SELECT id, quantity_received FROM dl_branch_receiving_items
+              WHERE receiving_id = :r AND product_id = :p ORDER BY id ASC'
+        );
+        $itemStmt->execute([':r' => (int)($flag['receiving_id'] ?? 0), ':p' => (int)($flag['product_id'] ?? 0)]);
+        $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($items === []) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'The cashier\'s counted line no longer exists.'], 409);
+            return;
+        }
+        $countedBefore = 0;
+        foreach ($items as $item) {
+            $countedBefore += (int)$item['quantity_received'];
+        }
+        // The single positive line becomes the chosen total; any duplicate lines
+        // are zeroed so the total equals the decision. The original value is
+        // preserved on the flag and in the audit entry before it is changed.
+        $first = true;
+        foreach ($items as $item) {
+            $newValue = $first ? $targetCount : 0;
+            $oldValue = (int)$item['quantity_received'];
+            if ($oldValue !== $newValue) {
+                $ctx->db()->prepare('UPDATE dl_branch_receiving_items SET quantity_received = :q WHERE id = :id')
+                    ->execute([':q' => $newValue, ':id' => (int)$item['id']]);
+                dl_applyLedgerDelta((int)$flag['branch_id'], (int)$flag['product_id'], (string)$flag['ledger_date'], $newValue - $oldValue, $actorId, 'addtl');
+            }
+            $first = false;
+        }
+        $countedAfter = $targetCount;
+
+        $ctx->db()->prepare(
+            'UPDATE dl_variance_flags
+                SET resolution_status = \'corrected\',
+                    resolution_choice = :choice,
+                    original_counted_qty = COALESCE(original_counted_qty, :orig),
+                    is_reviewed = 1,
+                    reviewed_by = :rb,
+                    reviewed_at = CURRENT_TIMESTAMP,
+                    review_note = :note
+              WHERE id = :id'
+        )->execute([
+            ':choice' => $choice,
+            ':orig' => $countedBefore,
+            ':rb' => $reviewedBy,
+            ':note' => $note,
+            ':id' => $varianceId,
+        ]);
+
+        dl_auditLog('delivery_variance_resolution', (int)$flag['branch_id'], 'dl_variance_flags', (string)$varianceId, [
+            'resolution_status' => (string)$flag['resolution_status'],
+            'resolution_choice' => $flag['resolution_choice'],
+            'review_note' => $flag['review_note'],
+            'reviewed_by' => $flag['reviewed_by'],
+            'reviewed_at' => $flag['reviewed_at'],
+            'cashier_counted_qty' => $flag['original_counted_qty'],
+        ], [
+            'resolution_status' => 'corrected',
+            'resolution_choice' => $choice,
+            'review_note' => $note,
+            'reviewed_by' => $reviewedBy,
+            'reviewed_at' => date('Y-m-d H:i:s'),
+            'production_sent_qty' => $sentQty,
+            'cashier_counted_qty_before' => $countedBefore,
+            'cashier_counted_qty_after' => $countedAfter,
+        ], $choice);
+        $ctx->db()->commit();
+
+        $ctx->json([
+            'ok' => true,
+            'resolution_status' => 'corrected',
+            'resolution_choice' => $choice,
+            'cashier_counted_qty' => $countedAfter,
+        ]);
+        return;
+    } catch (\Throwable $e) {
+        if ($ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
+        write_log('daily-ledger apiResolveDeliveryVariance failed', 'error', [
+            'error' => $e->getMessage(),
+            'variance_id' => $varianceId,
+            'choice' => $choice,
+        ]);
         $ctx->json(['ok' => false, 'error' => 'Server error'], 500);
         return;
     }

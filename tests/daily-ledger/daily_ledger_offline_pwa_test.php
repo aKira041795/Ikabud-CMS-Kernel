@@ -88,6 +88,8 @@ $db->execute('DELETE FROM dl_delivery_items WHERE delivery_id IN (SELECT id FROM
 $db->execute('DELETE FROM dl_branch_receiving_items WHERE receiving_id IN (SELECT id FROM dl_branch_receivings WHERE branch_id = :b)', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_deliveries WHERE destination_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_receivings WHERE branch_id = :b', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b)', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_integrity_notifications WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $branchId]);
@@ -770,6 +772,8 @@ $db->execute('DELETE FROM dl_delivery_items WHERE delivery_id IN (SELECT id FROM
 $db->execute('DELETE FROM dl_branch_receiving_items WHERE receiving_id IN (SELECT id FROM dl_branch_receivings WHERE branch_id = :b)', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_deliveries WHERE destination_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_receivings WHERE branch_id = :b', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b)', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_integrity_notifications WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);
