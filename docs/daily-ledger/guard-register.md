@@ -49,7 +49,11 @@ can silently regress, as the auto-DR guard did.
   a revert-failing check, so the assertions cannot pass tautologically.
   The server backstop is asserted in
   `tests/daily-ledger/daily_ledger_offline_pwa_test.php`
-  ("offline replay rejects an auto-DR receive with the reason").
+  ("offline replay rejects an auto-DR receive with the reason"), but that suite is
+  **already red** (`107/109`; see `sweep-baseline.md`). The assertion is therefore
+  exercised without being able to turn a green suite red — removing it would not
+  change the suite's colour. It is evidence the behaviour exists, not a loud guard;
+  the client-side revert-failing suite above is the actual guard for the refusal.
 * **Before this lane:** UNGUARDED (string presence only).
 
 ## Behaviours with a real guard

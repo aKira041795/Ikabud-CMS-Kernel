@@ -8,12 +8,17 @@ numbers that were **measured**, across **all** daily-ledger suites, not the
 ## The instrument
 
     tools/sweep-daily-ledger.sh            # human summary
-    tools/sweep-daily-ledger.sh --json     # machine-readable lines
+    tools/sweep-daily-ledger.sh --json     # JSONL: one object per suite + a summary object
     tools/sweep-daily-ledger.sh --baseline=FILE
 
 It runs three trees, understands three output formats, and treats `FATAL` and
 `NO RESULT` as their own outcomes (never passes). It exits non-zero when any
-suite fails, fatals, or produces no result.
+suite fails, fatals, or produces no result. A suite must print a fully-passing
+summary **and** exit 0 to count as a pass; a non-zero exit after a passing
+summary is itself a failure. Under `--json`, the output is pure JSON Lines (no
+human headers or separators): one object per suite
+(`{"suite":...,"outcome":...,"got":...,"want":...,"exit":...}`) followed by
+one `{"summary":true,...}` object; the process exit status is unchanged.
 
 Trees (48 suites at the time of record):
 
