@@ -33,13 +33,20 @@
 # lane never looks dead, and every fallback exits early on a lane that is still running.
 #
 # Usage:
-#   tools/lane.sh run      <name> <lane-script> [--timeout=7200] [--wait-grace=120] [--require-clean]
+#   tools/lane.sh run      <name> <lane-script> [--timeout=7200] [--slice=90] [--wait-grace=120]
+#                          [--require-clean]
 #   tools/lane.sh status   <name>
 #   tools/lane.sh list
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
 #   tools/lane.sh ack                          # mark everything reported
 #   tools/lane.sh selftest                     # prove this harness detects its own failures
 #   tools/lane.sh record   <name> <log> <exit> [run-id]   # called by the generated runner
+#
+# Exit status of `run`:  0 = landed (clean) | <n> = landed with the lane's exit code <n>
+#                        3 = STILL RUNNING, re-arm the watcher | 1 = unverified / timeout
+#
+# Run it in an ASYNC terminal at dispatch. Every wake tells you what happened, or that the
+# lane is still going - so the "is it done yet?" round-trip never has to be asked.
 #
 # IMPORTANT: `run` blocks, and a terminal wrapper may cap a command at ~120s. For a lane
 # that runs longer than that, run `run` DETACHED (nohup ... &) - the generated runner
@@ -222,16 +229,22 @@ cmd_run() {
   local timeoutSecs=7200
   local requireClean=0
   local waitGrace=120
+  # How long ONE call is willing to block before handing the wait back to the caller.
+  # Deliberately below the ~120s terminal cap that has been observed on some invocation
+  # paths: a process killed at the cap produces NO signal, whereas a process that exits
+  # on purpose produces a wake-up and an instruction.
+  local sliceSecs=90
   for arg in "$@"; do
     case "$arg" in
       --timeout=*) timeoutSecs="${arg#*=}";;
       --require-clean) requireClean=1;;
       --wait-grace=*) waitGrace="${arg#*=}";;
+      --slice=*) sliceSecs="${arg#*=}";;
     esac
   done
 
   [ -n "$name" ] && [ -n "$laneScript" ] || {
-    echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--require-clean]" >&2
+    echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=N] [--require-clean]" >&2
     exit 2
   }
 
@@ -256,10 +269,9 @@ cmd_run() {
   # this monitor's own. Detection uses the runner's own record instead; see below.
 
   echo "== dispatching $name =="
-  echo "   NOTE: if this monitor is killed (a terminal caps a command at ~120s) the runner"
-  echo "         still records the landing. Arm the watcher to be woken by it:"
-  echo "             bash tools/lane-watch.sh --forever    # detached, or"
-  echo "             bash tools/lane-watch.sh --timeout=90 # one-shot, re-arm each wake"
+  echo "   This call waits up to ${sliceSecs}s, then hands the wait back instead of blocking"
+  echo "   past the terminal cap. If the lane is still running it returns 3 and says to"
+  echo "   re-arm. The runner records the landing itself, so nothing is lost either way."
   # A CONTENT SENTINEL, not process matching. v1 of this script used
   # pgrep -f "[l]ane-<name>.sh" and it matched the CALLER's own command line (which
   # contains the lane script path), so it always believed the lane was still running
@@ -308,15 +320,17 @@ cmd_run() {
   echo "   log=$log"
   echo "   run_id=$runId"
 
-  # BLOCK until the lane has RECORDED ITSELF. Only two signals count, and both come from
-  # the runner - the process that actually holds the exit status:
-  #   (a) the runner committed a landing marker, or
-  #   (b) the runner printed the exit sentinel into the log.
-  # Nothing else is a landing. In particular the monitor may GIVE UP, and when it does it
-  # must not decide the lane succeeded: a monitor that ran out of patience used to
-  # certify a lane killed mid-work as `report_present` with a null exit code and a zero
-  # return status. Giving up is now its own verdict, and it is not a green one.
-  local waited=0 saw=0
+  # WAIT in bounded slices. Two different endings that must never be confused:
+  #   - the lane RECORDED ITSELF          -> report it, below
+  #   - the lane is STILL RUNNING at the  -> wake the caller and ask to be re-armed
+  #     slice boundary
+  # A slice matters because a terminal wrapper may cap a command (~120s). Blocking for the
+  # whole lane either gets killed with no signal at all - the original complaint - or was
+  # treated as "gave up" and certified the lane. Exiting deliberately at the boundary turns
+  # "killed silently" into "woken on purpose, with an instruction".
+  # A monitor that observes neither signal has NOT seen a landing, and may never certify
+  # one it merely stopped watching.
+  local waited=0 saw=0 sliceExpired=0
   local monitorWait=$((timeoutSecs + waitGrace))   # let the runner record after timeout's TERM
   while true; do
     if [ -f "$RUNS/$name.landed.json" ] || grep -q "$sentinel" "$log" 2>/dev/null; then
@@ -329,7 +343,27 @@ cmd_run() {
       echo "   !! watchdog: no landing recorded after ${monitorWait}s - giving up"
       break
     fi
+    # Hand the wait back only while the lane is still inside its OWN budget. Past that
+    # the lane has been killed, so the correct ending is the unverified verdict, not a
+    # cheerful "still running".
+    if [ "$waited" -ge "$sliceSecs" ] && [ "$waited" -lt "$timeoutSecs" ]; then
+      sliceExpired=1
+      break
+    fi
   done
+
+  if [ "$sliceExpired" = "1" ] && [ "$saw" = "0" ]; then
+    # STILL RUNNING. Write NO verdict - there is nothing yet to have a verdict about.
+    # Returning here IS the wake-up; the instruction is what removes the "is it done?"
+    # round-trip. Exit 3, distinct from 0 (landed) and 1 (unverified).
+    echo
+    echo "== $name STILL RUNNING after ${sliceSecs}s =="
+    echo "   log:    $log ($(wc -c < "$log" 2>/dev/null || echo 0) bytes)"
+    echo "   runner: $runner"
+    echo "   Nothing is lost - the runner records the landing by itself."
+    echo "   RE-ARM to be woken by it:  bash tools/lane-watch.sh --timeout=90"
+    return 3
+  fi
 
   local bytes mtime reason status changed exitCode state marker
   marker="$RUNS/$name.landed.json"
@@ -590,6 +624,31 @@ cmd_selftest() {
   else
     bad "S4b a good lane was not certified (rc=$rc4b, state=$s4b)"
   fi
+
+  # S7 (must-refuse) - a lane STILL RUNNING at the slice boundary must not be certified,
+  # and must have NO verdict written for it. `run` hands the wait back (exit 3) instead of
+  # blocking past the terminal cap, where a killed process produces no signal at all.
+  mklane "$P/lane-st7.sh" 8 0
+  local rc7 m7
+  bash "$SELF" run st7 "$P/lane-st7.sh" --timeout=120 --slice=4 --wait-grace=2 > "$P/st7.mon.log" 2>&1
+  rc7=$?
+  m7="none"
+  [ -f "$RUNS/st7.landed.json" ] && m7=$(marker_field "$RUNS/st7.landed.json" state)
+  if [ "$rc7" -eq 3 ] && [ "$m7" = "none" ]; then
+    ok "S7 a lane still running at the slice boundary returns 3 and writes no verdict"
+  else
+    bad "S7 still-running lane mishandled (rc=$rc7, marker state=$m7)"
+  fi
+
+  # S7b (must-allow) - handing the wait back must not LOSE the lane: it still lands, is
+  # still recorded, and is still reported on the next arm.
+  local i7 w7
+  for i7 in $(seq 1 20); do [ -f "$RUNS/st7.landed.json" ] && break; sleep 1; done
+  w7=$(bash "$ROOT/tools/lane-watch.sh" --timeout=5 2>&1)
+  case "$w7" in
+    *st7*) ok "S7b a handed-back lane still lands, is recorded, and is reported";;
+    *)     bad "S7b a handed-back lane was LOST"; echo "$w7" | sed 's/^/         /';;
+  esac
 
   # S5 (must-refuse) - ONE commit per landing. Every landing previously appeared twice
   # in LANDINGS.log and produced two desktop notifications. Measured over THIS run only.

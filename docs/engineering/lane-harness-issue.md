@@ -58,13 +58,19 @@ from the recording process) or a **bounded, re-armable poll** whose completion i
 
 ## What works now (verified 2026-10-01, second session)
 
-- `tools/lane.sh run <name> <lane-script> [--timeout=N] [--wait-grace=N] [--require-clean]` — generates
-  the self-recording runner, dispatches it, blocks until the runner **records itself**.
+- `tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=90] [--wait-grace=N] [--require-clean]`
+  — generates the self-recording runner, dispatches it, and waits in **bounded slices**. If the lane is
+  still running at the slice boundary it returns **3** and prints the re-arm command, instead of blocking
+  past the terminal cap where a killed process produces no signal at all. The runner records the landing
+  itself, so handing the wait back never loses it.
 - `tools/lane-watch.sh [--timeout=90] [--forever]` — one-shot bounded watcher. Exits on a landing **or** on
   heartbeat; either way its completion wakes the agent, which then re-arms.
 - Subcommands: `run`, `status`, `list`, `pending`, `ack`, `record`, `selftest`.
-- **`tools/lane.sh selftest` — 8 cases, each with a must-allow and a must-refuse direction. Currently
-  8/8 green, exit 0, and repeatable (verified twice, plus once from an empty journal).**
+- **`tools/lane.sh selftest` — 10 cases, each with a must-allow and a must-refuse direction. Currently
+  10/10 green, exit 0, repeatable, and each new guard falsified by mutation before being trusted.**
+
+Exit status of `run`: `0` landed clean · `<n>` landed with the lane's exit code · `3` still running,
+re-arm · `1` unverified / timeout.
 
 Two records, with different jobs:
 
@@ -147,6 +153,8 @@ that never refuses is unproven and a **wrong** guard is worse than none — it i
 | S3 | must-refuse | `status: PASS` then `exit 7` → non-zero, reason ≠ `report_present` |
 | S4 | must-refuse | a lane killed mid-work → `unverified`, non-zero |
 | S4b | must-allow | the same guard does **not** refuse a lane that finished inside its budget |
+| S7 | must-refuse | a lane still running at the **slice** boundary returns 3 and writes **no verdict** |
+| S7b | must-allow | handing the wait back does **not** lose the lane — it still lands, is recorded, and is reported |
 | S5/S5b | must-refuse | exactly one journal entry and one human log line per landing, measured **per run** |
 | S6 | must-refuse | a lane name containing a quote still yields valid JSON |
 
@@ -167,9 +175,29 @@ failed on every run after the first. They now measure from a per-run baseline.
    regression that only a code change can introduce.
 3. **Does this belong in `tools/`?** It is dev infrastructure, not product. It ships because packaging walks
    the working tree; that is a packaging concern, not a reason to leave the defect unfixed.
-4. **Wake-up model:** keep the bounded heartbeat. The desktop toast **cannot** be the only channel —
-   `notify-send` returns 0 with no `DISPLAY` and no `DBUS`, so it silently does nothing and cannot report
-   its own failure. The durable journal + cursor is the reliable channel; the toast is a courtesy.
+4. **Wake-up model:** bounded slices, and the desktop toast is a courtesy. Two corrections to this
+   document's own earlier claims:
+   - **The ~120s cap does not always kill.** Measured 2026-10-01: a sync command ran **150s**
+     (14:54:45 → 14:57:15) and returned its output. The earlier "capped at ~120s" observation was real on
+     a different invocation path (through the `lean-ctx` wrapper). Both can be true, so the design must be
+     correct **either way** — which is why `run` exits deliberately at `--slice=90` rather than relying on
+     either behaviour: a process that exits on purpose always produces a wake-up; a killed one produces
+     nothing.
+   - **The toast can never be the only channel.** `notify-send` returns **0** with no `DISPLAY` and no
+     `DBUS`, so it silently does nothing and cannot report its own failure. The durable journal + cursor is
+     the reliable channel.
+
+### The user-facing loop
+
+```
+bash tools/lane.sh run <name> <script> --slice=90      # dispatch; wakes you at 90s or on landing
+   -> exit 3 + RE-ARM line       (still running — nothing lost)
+bash tools/lane-watch.sh --timeout=90                  # re-arm; wakes you with the result
+   -> LANDING(S) DETECTED: n + state/reason/status
+```
+
+Never a "is it done yet?" prompt: every return either reports the landing, or says the lane is still going
+and what to re-arm.
 
 ## What NOT to do again
 
