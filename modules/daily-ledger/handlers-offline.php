@@ -868,6 +868,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                         ]);
                     }
                     $returnReceivingId = dl_acceptFormalDelivery($ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null, $shift);
+                    dl_markReceivingCountBasis($ctx->db(), $returnReceivingId, 'copied');
                 }
 
                 // Credit commissary product ledger. THREE-WAY split (owner ruling):
@@ -1090,12 +1091,15 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
             )->execute([':u' => $actorId ?: null, ':id' => $deliveryId]);
         }
 
+        // Offline replay uses the same durable, item-keyed debit path as online paper capture.
+        $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $actorId);
         $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null, $shift);
+        dl_markReceivingCountBasis($ctx->db(), $receivingId, 'copied');
         if (!$inTx) {
             $ctx->db()->commit();
         }
 
-        return ['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId];
+        return ['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId, 'ledger_effect' => $ledgerEffect];
     } catch (\Throwable $e) {
         if (!$inTx && $ctx->db()->inTransaction()) {
             $ctx->db()->rollBack();

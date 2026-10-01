@@ -568,14 +568,26 @@
                                pending and must never render as a zero difference. A cell
                                with no delivery at all shows nothing. *}
                             {if cell.has_delivery}
+                            {if cell.origin_unresolved}
+                            <div class="production-branch-origin-unresolved font-semibold text-amber-700"
+                                 data-origin-state="unresolved">&middot; origin unresolved</div>
+                            {/if}
                             {if cell.received_pending}
                             <div class="production-branch-receipt production-branch-receipt-pending"
                                  data-receipt-state="pending"
                                  title="Cashier has not received this delivery yet">&middot; pending</div>
+                            {elseif cell.not_independently_counted}
+                            <div class="production-branch-receipt font-semibold text-amber-700"
+                                 data-receipt-state="not-independently-counted"
+                                 title="Sent quantity was copied; no independent physical count was entered">not independently counted</div>
+                            {elseif cell.count_basis_unresolved}
+                            <div class="production-branch-receipt font-semibold text-amber-700"
+                                 data-receipt-state="count-basis-unresolved"
+                                 title="Historical receipt does not establish whether this quantity was independently counted">count basis unresolved</div>
                             {else}
                             <div class="production-branch-receipt"
                                  data-receipt-state="{if cell.delivery_diff_display != ''}variance{else}received{/if}"
-                                 title="Quantity the cashier received">rcv {cell.received_qty}</div>
+                                 title="Quantity the cashier independently counted">rcv {cell.received_qty}</div>
                             {if cell.delivery_diff_display != ''}
                             <div class="production-branch-diff {if cell.delivery_short}production-branch-diff-short{else}production-branch-diff-over{/if}"
                                  data-delivery-diff="{cell.delivery_diff}">{cell.delivery_diff_display}</div>

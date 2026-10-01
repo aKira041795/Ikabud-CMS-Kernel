@@ -51,6 +51,8 @@ $user = ['id' => 1, 'sub' => 'admin:1', 'role' => 'admin', 'source' => 'daily-le
 $cleanup = static function () use ($db, $commissaryId, $branchA, $branchB, $productA, $productB): void {
     $branchIds = "{$commissaryId},{$branchA},{$branchB}";
     $productIds = "{$productA},{$productB}";
+    $db->execute("DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN ({$branchIds}))");
+    $db->execute("DELETE FROM dl_integrity_notifications WHERE branch_id IN ({$branchIds})");
     // Movements reference products and branches with RESTRICT, so they must go first.
     $db->execute("DELETE FROM dl_production_movements WHERE destination_branch_id IN ({$branchIds}) OR product_id IN ({$productIds})");
     $db->execute("DELETE FROM audit_logs WHERE branch_id IN ({$branchIds})");

@@ -72,6 +72,7 @@ return [
         '/daily-ledger/api/v1/deliveries'                    => 'daily-ledger:apiListDeliveries',
         '/daily-ledger/api/v1/deliveries/receiving-detail'   => 'daily-ledger:apiGetDeliveryReceivingDetail',
         '/daily-ledger/api/v1/receivings'                    => 'daily-ledger:apiListReceivings',
+        '/daily-ledger/api/v1/admin/deliveries/integrity-labels' => 'daily-ledger:apiDeliveryIntegrityLabels',
 
         // Phase D: price groups + prices
         '/daily-ledger/api/v1/price-groups'         => 'daily-ledger:apiPriceGroupList',
@@ -152,6 +153,8 @@ return [
 
         // Admin: variance status
         '/daily-ledger/api/v1/admin/variances/update'    => 'daily-ledger:apiUpdateVarianceStatus',
+        '/daily-ledger/api/v1/admin/deliveries/resolve-origin' => 'daily-ledger:apiResolveDeliveryOrigin',
+        '/daily-ledger/api/v1/admin/receivings/resolve-count' => 'daily-ledger:apiResolveReceivingCount',
 
         // Admin: shift reconciliation (paper sheet + cash remitted vs the ledger)
         '/daily-ledger/api/v1/admin/reconciliation/save' => 'daily-ledger:apiSaveReconciliation',

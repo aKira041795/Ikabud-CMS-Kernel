@@ -119,6 +119,8 @@ $cleanup = static function () use ($db, $commissaryId, $branchId, $productId, $p
     $b = "{$commissaryId},{$branchId}";
     $u = "{$producerId},{$inactiveProducerId},{$deletedProducerId},{$actorId}";
     $branchFilter = "(SELECT id FROM dl_deliveries WHERE origin_id IN ({$b}) OR destination_id IN ({$b}))";
+    $db->execute("DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN ({$b}))");
+    $db->execute("DELETE FROM dl_integrity_notifications WHERE branch_id IN ({$b})");
     $db->execute("DELETE FROM dl_delivery_variance_flags WHERE delivery_id IN {$branchFilter}");
     $db->execute("DELETE FROM dl_branch_receiving_items WHERE receiving_id IN (SELECT id FROM dl_branch_receivings WHERE branch_id IN ({$b}))");
     $db->execute("DELETE FROM dl_branch_receivings WHERE branch_id IN ({$b}) OR delivery_id IN {$branchFilter}");

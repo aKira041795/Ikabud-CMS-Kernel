@@ -73,6 +73,8 @@ $nextDate = '2030-02-11';
 
 $tenantScope = (string)(app()->tenant()->current() ?? '');
 foreach ([$branchId, 99062, 99063] as $bid) {
+    $db->execute('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b)', [':b' => $bid]);
+    $db->execute('DELETE FROM dl_integrity_notifications WHERE branch_id = :b', [':b' => $bid]);
     $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b', [':b' => $bid]);
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' => $bid]);
     $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $bid]);
@@ -777,6 +779,8 @@ $db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $pidHash]);
 // Cleanup — every seeded / created row
 // ══════════════════════════════════════════════════════════════════════
 foreach ([$branchId, 99062, 99063] as $bid) {
+    $db->execute('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b)', [':b' => $bid]);
+    $db->execute('DELETE FROM dl_integrity_notifications WHERE branch_id = :b', [':b' => $bid]);
     $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b', [':b' => $bid]);
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' => $bid]);
     $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $bid]);

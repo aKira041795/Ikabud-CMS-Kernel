@@ -702,17 +702,23 @@ function dl_unresolvedProductionSheetLabels(): array
 
 function dl_fetchProductionSheetDispatchMatrix($db, string $ledgerDate, int $commissaryBranchId = 0): array
 {
-    $sql = "SELECT d.destination_id AS branch_id, di.product_id, SUM(di.quantity) AS quantity
+    $sql = "SELECT d.destination_id AS branch_id, di.product_id, SUM(di.quantity) AS quantity,
+                   MAX(d.origin_id IS NULL AND d.resolved_origin_id IS NULL) AS origin_unresolved
               FROM dl_deliveries d
               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+              LEFT JOIN dl_branches sheet_dst ON sheet_dst.id = d.destination_id
              WHERE d.delivery_date = :sheet_date
                AND d.origin_type = 'commissary'
                AND d.destination_type = 'branch'
                AND d.status = 'posted'";
     $bind = [':sheet_date' => $ledgerDate];
     if ($commissaryBranchId > 0) {
-        $sql .= ' AND d.origin_id = :sheet_cid';
+        // Unresolved historical rows remain visible through the destination's
+        // assignment, but are explicitly labelled; it is not treated as origin.
+        $sql .= ' AND (COALESCE(d.resolved_origin_id, d.origin_id) = :sheet_cid'
+            . ' OR (d.origin_id IS NULL AND d.resolved_origin_id IS NULL AND sheet_dst.assigned_commissary_id = :sheet_unresolved_cid))';
         $bind[':sheet_cid'] = $commissaryBranchId;
+        $bind[':sheet_unresolved_cid'] = $commissaryBranchId;
     }
     $sql .= ' GROUP BY d.destination_id, di.product_id';
     $stmt = $db->prepare($sql);
@@ -738,14 +744,17 @@ function dl_fetchProductionSheetDispatchEntryFlags($db, string $ledgerDate, int 
     $sql = "SELECT d.destination_id AS branch_id, di.product_id, COUNT(*) AS entry_count
               FROM dl_deliveries d
               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+              LEFT JOIN dl_branches sheet_dst ON sheet_dst.id = d.destination_id
              WHERE d.delivery_date = :sheet_date
                AND d.origin_type = 'commissary'
                AND d.destination_type = 'branch'
                AND d.status = 'posted'";
     $bind = [':sheet_date' => $ledgerDate];
     if ($commissaryBranchId > 0) {
-        $sql .= ' AND d.origin_id = :sheet_cid';
+        $sql .= ' AND (COALESCE(d.resolved_origin_id, d.origin_id) = :sheet_cid'
+            . ' OR (d.origin_id IS NULL AND d.resolved_origin_id IS NULL AND sheet_dst.assigned_commissary_id = :sheet_unresolved_cid))';
         $bind[':sheet_cid'] = $commissaryBranchId;
+        $bind[':sheet_unresolved_cid'] = $commissaryBranchId;
     }
     $sql .= ' GROUP BY d.destination_id, di.product_id';
     $stmt = $db->prepare($sql);
@@ -769,7 +778,7 @@ function dl_fetchProductionSheetDispatchEntryFlags($db, string $ledgerDate, int 
  * It deliberately does NOT read dl_delivery_variance_flags: that table is an
  * exception list (dl_recordReceivingVariances skips zero variances), so a
  * normal full receipt has no row there and reading it would blank every good
- * line. It also must not use the COALESCE(quantity_received, di.quantity)
+ * line. It also must not substitute the sent quantity for a missing receipt
  * pattern (handlers-deliveries.php:1417): that assumes full receipt and would
  * render an unreceived delivery as a zero difference, a false all-clear.
  *
@@ -791,11 +800,17 @@ function dl_fetchProductionSheetReceivingMatrix($db, string $ledgerDate, int $co
                    di.product_id,
                    di.quantity AS sent,
                    rcv.quantity_received AS received,
+                   rcv.count_basis,
+                   (d.origin_id IS NULL AND d.resolved_origin_id IS NULL) AS origin_unresolved,
                    d.dr_number
               FROM dl_deliveries d
               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+              LEFT JOIN dl_branches sheet_dst ON sheet_dst.id = d.destination_id
               LEFT JOIN (
-                  SELECT bri.delivery_item_id, SUM(bri.quantity_received) AS quantity_received
+                  SELECT bri.delivery_item_id, SUM(bri.quantity_received) AS quantity_received,
+                         CASE WHEN MAX(br.count_basis = 'copied') = 1 THEN 'copied'
+                              WHEN MIN(br.count_basis = 'independently_counted') = 1 THEN 'independently_counted'
+                              ELSE NULL END AS count_basis
                     FROM dl_branch_receiving_items bri
                     INNER JOIN dl_branch_receivings br
                       ON br.id = bri.receiving_id AND br.status = 'posted'
@@ -807,8 +822,10 @@ function dl_fetchProductionSheetReceivingMatrix($db, string $ledgerDate, int $co
                AND d.status = 'posted'";
     $bind = [':sheet_date' => $ledgerDate];
     if ($commissaryBranchId > 0) {
-        $sql .= ' AND d.origin_id = :sheet_cid';
+        $sql .= ' AND (COALESCE(d.resolved_origin_id, d.origin_id) = :sheet_cid'
+            . ' OR (d.origin_id IS NULL AND d.resolved_origin_id IS NULL AND sheet_dst.assigned_commissary_id = :sheet_unresolved_cid))';
         $bind[':sheet_cid'] = $commissaryBranchId;
+        $bind[':sheet_unresolved_cid'] = $commissaryBranchId;
     }
     $stmt = $db->prepare($sql);
     $stmt->execute($bind);
@@ -823,9 +840,19 @@ function dl_fetchProductionSheetReceivingMatrix($db, string $ledgerDate, int $co
                 'received' => 0,
                 'pending' => false,
                 'dr_numbers' => [],
+                'not_independently_counted' => false,
+                'count_basis_unresolved' => false,
+                'origin_unresolved' => false,
             ];
         }
         $matrix[$productId][$branchId]['sent'] += (int)$row['sent'];
+        $matrix[$productId][$branchId]['origin_unresolved'] =
+            $matrix[$productId][$branchId]['origin_unresolved'] || !empty($row['origin_unresolved']);
+        if ((string)($row['count_basis'] ?? '') === 'copied') {
+            $matrix[$productId][$branchId]['not_independently_counted'] = true;
+        } elseif ($row['received'] !== null && ($row['count_basis'] ?? null) === null) {
+            $matrix[$productId][$branchId]['count_basis_unresolved'] = true;
+        }
         if ($row['received'] === null) {
             // No receiving row for this sent item: pending, NOT a zero difference.
             $matrix[$productId][$branchId]['pending'] = true;
@@ -2242,7 +2269,124 @@ function dl_applyCommissaryProductLedgerDelta(
         ':id' => (int)$row['id'],
     ]);
 
-    return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => $newProduced - $newDispatched - $newWastage, 'skipped' => false];
+    return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => (int)$row['beg_qty'] + $newProduced - $newDispatched - $newWastage, 'skipped' => false];
+}
+
+/** Record one integrity finding and address it to active admins/supervisors with authority over the branch. */
+function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $branchId, ?string $entityType, ?int $entityId, string $title, string $detail = '', bool $email = false): ?int
+{
+    $insert = $db->prepare(
+        'INSERT IGNORE INTO dl_integrity_notifications
+            (aggregate_key, finding_type, branch_id, entity_type, entity_id, title, detail)
+         VALUES (:k, :t, :b, :et, :eid, :title, :detail)'
+    );
+    $insert->execute([':k' => $key, ':t' => $type, ':b' => $branchId, ':et' => $entityType, ':eid' => $entityId, ':title' => $title, ':detail' => $detail !== '' ? $detail : null]);
+    $created = $insert->rowCount() === 1;
+    $idStmt = $db->prepare('SELECT id FROM dl_integrity_notifications WHERE aggregate_key = :k LIMIT 1');
+    $idStmt->execute([':k' => $key]);
+    $notificationId = (int)($idStmt->fetchColumn() ?: 0);
+    if ($notificationId <= 0) return null;
+
+    $recipientSql = "SELECT DISTINCT u.id, u.email
+                       FROM dl_users u
+                       LEFT JOIN dl_user_branches ub ON ub.user_id = u.id
+                      WHERE u.is_active = 1 AND u.deleted_at IS NULL
+                        AND (u.role = 'admin' OR (u.role = 'supervisor' AND ub.branch_id = :branch))";
+    $recipients = $db->prepare($recipientSql);
+    $recipients->execute([':branch' => $branchId ?? 0]);
+    $recipientRows = $recipients->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $address = $db->prepare('INSERT IGNORE INTO dl_integrity_notification_recipients (notification_id, user_id) VALUES (:n, :u)');
+    foreach ($recipientRows as $recipient) {
+        $address->execute([':n' => $notificationId, ':u' => (int)$recipient['id']]);
+        if ($created && $email && function_exists('sendEmail')) {
+            $to = trim((string)($recipient['email'] ?? ''));
+            if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL)) {
+                sendEmail($to, '[Daily Ledger] ' . $title, '<p>' . htmlspecialchars($detail !== '' ? $detail : $title, ENT_QUOTES, 'UTF-8') . '</p>');
+            }
+        }
+    }
+    return $notificationId;
+}
+
+function dl_commissaryLedgerSnapshot($db, int $branchId, int $productId, string $date): array
+{
+    $stmt = $db->prepare('SELECT dispatched_qty, remaining_qty, calc_variance FROM dl_commissary_product_ledger WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d LIMIT 1');
+    $stmt->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    return [
+        'dispatched_qty' => (int)($row['dispatched_qty'] ?? 0),
+        'remaining_qty' => (int)($row['remaining_qty'] ?? 0),
+        'calc_variance' => array_key_exists('calc_variance', $row) && $row['calc_variance'] !== null ? (int)$row['calc_variance'] : null,
+    ];
+}
+
+/**
+ * Apply the commissary debit represented by a posted delivery exactly once per item.
+ * The unique delivery_item_id is the retry/offline-replay idempotency boundary.
+ */
+function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actorId): array
+{
+    $headStmt = $db->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, delivery_date, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
+    $headStmt->execute([':id' => $deliveryId]);
+    $head = $headStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$head || (string)$head['status'] !== 'posted' || (string)$head['origin_type'] !== 'commissary' || (string)$head['destination_type'] !== 'branch') {
+        return ['status' => 'not_applicable', 'applied' => 0];
+    }
+    $originId = (int)($head['resolved_origin_id'] ?? $head['origin_id'] ?? 0);
+    if ($originId <= 0) {
+        dl_raiseIntegrityNotification($db, 'delivery-origin-' . $deliveryId, 'unresolved_origin', (int)$head['destination_id'], 'dl_deliveries', $deliveryId,
+            'Dispatch origin must be resolved', 'Delivery #' . $deliveryId . ' is posted but has no attributable commissary; no ledger debit was guessed.', true);
+        return ['status' => 'unresolved_origin', 'applied' => 0];
+    }
+
+    $items = $db->prepare('SELECT id, product_id, quantity FROM dl_delivery_items WHERE delivery_id = :id ORDER BY id FOR UPDATE');
+    $items->execute([':id' => $deliveryId]);
+    $insert = $db->prepare(
+        'INSERT INTO dl_delivery_ledger_effects
+            (delivery_id, delivery_item_id, commissary_branch_id, product_id, ledger_date, quantity, effect_status,
+             applied_by, applied_at, before_dispatched_qty, after_dispatched_qty, before_remaining_qty, after_remaining_qty)
+         VALUES (:d, :di, :b, :p, :dt, :q, "applied", :u, NOW(), :bd, :ad, :br, :ar)'
+    );
+    $applied = 0;
+    foreach ($items->fetchAll(PDO::FETCH_ASSOC) ?: [] as $item) {
+        $exists = $db->prepare('SELECT effect_status FROM dl_delivery_ledger_effects WHERE delivery_item_id = :id FOR UPDATE');
+        $exists->execute([':id' => (int)$item['id']]);
+        if ($exists->fetchColumn() !== false) continue;
+        $before = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
+        $state = dl_applyCommissaryProductLedgerDelta($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], 0, (int)$item['quantity'], $actorId);
+        if (!empty($state['skipped'])) throw new RuntimeException('Resolved origin is not an active commissary.');
+        $after = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
+        $insert->execute([
+            ':d' => $deliveryId, ':di' => (int)$item['id'], ':b' => $originId, ':p' => (int)$item['product_id'],
+            ':dt' => (string)$head['delivery_date'], ':q' => (int)$item['quantity'], ':u' => $actorId ?: null,
+            ':bd' => $before['dispatched_qty'], ':ad' => $after['dispatched_qty'], ':br' => $before['remaining_qty'], ':ar' => $after['remaining_qty'],
+        ]);
+        dl_auditLog('delivery_ledger_applied', $originId, 'dl_delivery_ledger_effects', (string)$db->lastInsertId(), $before,
+            $after + ['delivery_id' => $deliveryId, 'product_id' => (int)$item['product_id'], 'quantity' => (int)$item['quantity']]);
+        $applied++;
+    }
+    return ['status' => 'applied', 'applied' => $applied];
+}
+
+/** Reverse only durable applied effects; legacy rows without one are explicitly reported. */
+function dl_reversePostedDeliveryCommissaryLedger($db, int $deliveryId, int $actorId): array
+{
+    $effects = $db->prepare('SELECT * FROM dl_delivery_ledger_effects WHERE delivery_id = :id ORDER BY id FOR UPDATE');
+    $effects->execute([':id' => $deliveryId]);
+    $rows = $effects->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $reversed = 0;
+    foreach ($rows as $effect) {
+        if ((string)$effect['effect_status'] !== 'applied') continue;
+        $before = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date']);
+        dl_applyCommissaryProductLedgerDelta($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date'], 0, -((int)$effect['quantity']), $actorId, 0, true);
+        $after = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date']);
+        $db->prepare('UPDATE dl_delivery_ledger_effects SET effect_status = "reversed", reversed_by = :u, reversed_at = NOW(), reverse_before_dispatched_qty = :bd, reverse_after_dispatched_qty = :ad, reverse_before_remaining_qty = :br, reverse_after_remaining_qty = :ar WHERE id = :id AND effect_status = "applied"')
+            ->execute([':u' => $actorId ?: null, ':bd' => $before['dispatched_qty'], ':ad' => $after['dispatched_qty'], ':br' => $before['remaining_qty'], ':ar' => $after['remaining_qty'], ':id' => (int)$effect['id']]);
+        dl_auditLog('delivery_ledger_reversed', (int)$effect['commissary_branch_id'], 'dl_delivery_ledger_effects', (string)$effect['id'], $before,
+            $after + ['delivery_id' => $deliveryId, 'product_id' => (int)$effect['product_id'], 'quantity' => (int)$effect['quantity']]);
+        $reversed++;
+    }
+    return ['status' => $rows === [] ? 'legacy_no_effect' : 'reversed', 'reversed' => $reversed];
 }
 
 function dl_saveCommissaryBeginningQty(
@@ -3108,6 +3252,7 @@ function dl_fetchProductionLedgerLog($db, int $commissaryBranchId, string $ledge
         "SELECT d.id AS delivery_id, d.dr_number, d.destination_id AS branch_id,
                 COALESCE(b.name, '') AS branch_name,
                 d.created_by, d.posted_by, d.produced_by, d.produced_at, d.remarks,
+                d.origin_id, d.resolved_origin_id,
                 COALESCE(d.posted_at, d.created_at) AS sent_at,
                 COALESCE(u.full_name, u.username, '') AS actor_name,
                 COALESCE(pu.full_name, pu.username, '') AS producer_name,
@@ -3121,10 +3266,11 @@ function dl_fetchProductionLedgerLog($db, int $commissaryBranchId, string $ledge
             AND d.origin_type = 'commissary'
             AND d.destination_type = 'branch'
             AND d.status = 'posted'
-            AND (d.origin_id = :sent_cb OR d.origin_id IS NULL)
+            AND (COALESCE(d.resolved_origin_id, d.origin_id) = :sent_cb
+                 OR (d.origin_id IS NULL AND d.resolved_origin_id IS NULL))
           GROUP BY d.id, d.dr_number, d.destination_id, b.name,
                    d.created_by, d.posted_by, d.produced_by, d.produced_at, d.remarks,
-                   d.posted_at, d.created_at,
+                   d.origin_id, d.resolved_origin_id, d.posted_at, d.created_at,
                    u.full_name, u.username, pu.full_name, pu.username
           ORDER BY d.id ASC"
     );
@@ -3148,6 +3294,9 @@ function dl_fetchProductionLedgerLog($db, int $commissaryBranchId, string $ledge
         $sentWho = ($producedBy !== null && $producerName !== '') ? $producerName : $encoderName;
         $sentWhen = ($producedAt !== null && $producedAt !== '') ? $producedAt : $sentAt;
         $sentReason = $dr !== '' ? 'DR ' . $dr : '';
+        if ($sent['origin_id'] === null && $sent['resolved_origin_id'] === null) {
+            $sentReason = trim($sentReason . ($sentReason !== '' ? ' ' : '') . '· origin unresolved');
+        }
         if ($producedBy !== null && $encoderName !== '') {
             $sentReason = trim($sentReason . ($sentReason !== '' ? ' ' : '') . '· enc: ' . $encoderName);
         }
@@ -3188,6 +3337,7 @@ function dl_fetchProductionLedgerLog($db, int $commissaryBranchId, string $ledge
                 br.received_by, br.received_at,
                 COALESCE(u.full_name, u.username, '') AS actor_name,
                 rd.created_by AS delivery_created_by, rd.remarks AS delivery_remarks,
+                br.count_basis,
                 COALESCE(SUM(bri.quantity_received), 0) AS quantity
            FROM dl_branch_receivings br
            LEFT JOIN dl_branch_receiving_items bri ON bri.receiving_id = br.id
@@ -3209,7 +3359,7 @@ function dl_fetchProductionLedgerLog($db, int $commissaryBranchId, string $ledge
             )
           GROUP BY br.id, br.branch_id, b.name, br.dr_number,
                    br.received_by, br.received_at, u.full_name, u.username,
-                   rd.created_by, rd.remarks
+                   rd.created_by, rd.remarks, br.count_basis
           ORDER BY br.id ASC"
     );
     $receivedStmt->execute([
@@ -3224,6 +3374,11 @@ function dl_fetchProductionLedgerLog($db, int $commissaryBranchId, string $ledge
         $receivedQty = (int)$received['quantity'];
         $dr = trim((string)($received['dr_number'] ?? ''));
         $receivedReason = $dr !== '' ? 'DR ' . $dr : '';
+        if ((string)($received['count_basis'] ?? '') === 'copied') {
+            $receivedReason = trim($receivedReason . ($receivedReason !== '' ? ' ' : '') . '· not independently counted');
+        } elseif (($received['count_basis'] ?? null) === null) {
+            $receivedReason = trim($receivedReason . ($receivedReason !== '' ? ' ' : '') . '· count basis unresolved');
+        }
         $isSinglePaperCapture = str_contains((string)($received['delivery_remarks'] ?? ''), '[captured-from-paper-dr]')
             && (int)($received['delivery_created_by'] ?? 0) > 0
             && (int)($received['delivery_created_by'] ?? 0) === (int)($received['received_by'] ?? 0);
@@ -4109,6 +4264,13 @@ function dl_upsertVarianceFlag($db, int $branchId, int $productId, string $date,
         ':exp' => $expectedEnd,
         ':rec' => $recordedEnd,
     ]);
+    $flagStmt = $db->prepare('SELECT id FROM dl_variance_flags WHERE branch_id = :b AND product_id = :p AND ledger_date = :d AND kind = :k AND shift <=> :s LIMIT 1');
+    $flagStmt->execute([':b' => $branchId, ':p' => $productId, ':d' => $date, ':k' => $kind, ':s' => $shift]);
+    $flagId = (int)($flagStmt->fetchColumn() ?: 0);
+    if ($flagId > 0) {
+        dl_raiseIntegrityNotification($db, 'variance-' . $flagId, 'variance', $branchId, 'dl_variance_flags', $flagId,
+            'Inventory variance surfaced', 'Variance flag #' . $flagId . ' requires investigation before correction.');
+    }
 }
 
 /** Freeze the variance snapshot for a manual day close (explicit metadata). */
@@ -5848,6 +6010,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     $returnReceivingId = dl_acceptFormalDelivery(
                         $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null, $shift
                     );
+                    // Auto-receiving copies the sent quantity; no person counted it.
+                    dl_markReceivingCountBasis($ctx->db(), $returnReceivingId, 'copied');
                 }
 
                 // Credit commissary product ledger. THREE-WAY split (owner ruling):
@@ -6573,6 +6737,74 @@ function dl_requireReceiptCounts(array $sentByKey, mixed $provided): array
     return $counts;
 }
 
+function dl_markReceivingCountBasis($db, int $receivingId, string $basis): void
+{
+    if (!in_array($basis, ['copied', 'independently_counted'], true)) {
+        throw new \InvalidArgumentException('Invalid receipt count basis.');
+    }
+    $beforeStmt = $db->prepare('SELECT branch_id, count_basis FROM dl_branch_receivings WHERE id = :id');
+    $beforeStmt->execute([':id' => $receivingId]);
+    $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $db->prepare('UPDATE dl_branch_receivings SET count_basis = :basis WHERE id = :id')
+        ->execute([':basis' => $basis, ':id' => $receivingId]);
+    if (($before['count_basis'] ?? null) !== $basis) {
+        dl_auditLog('classify_receiving_count_basis', (int)($before['branch_id'] ?? 0) ?: null,
+            'dl_branch_receivings', (string)$receivingId,
+            ['count_basis' => $before['count_basis'] ?? null], ['count_basis' => $basis]);
+    }
+}
+
+/**
+ * Receive formal lines by delivery-item id. The shared legacy boundary accepts
+ * product-keyed counts, so duplicate product lines are corrected inside the same
+ * transaction and their ledger deltas are adjusted before commit.
+ *
+ * @param array<int,int> $countsByDeliveryItem
+ */
+function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int $userId, string $receiveDate, array $countsByDeliveryItem, string $shift): int
+{
+    $stmt = $db->prepare('SELECT id, product_id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery ORDER BY id');
+    $stmt->execute([':delivery' => $deliveryId]);
+    $lines = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $sentByItem = [];
+    foreach ($lines as $line) {
+        $sentByItem[(int)$line['id']] = (int)$line['quantity'];
+    }
+    $counts = dl_requireReceiptCounts($sentByItem, $countsByDeliveryItem);
+
+    // Seed values only exist until the item-linked corrections below. The
+    // minimum is valid for every duplicate line of the same product.
+    $seedByProduct = [];
+    foreach ($lines as $line) {
+        $pid = (int)$line['product_id'];
+        $itemId = (int)$line['id'];
+        $seedByProduct[$pid] = isset($seedByProduct[$pid])
+            ? min($seedByProduct[$pid], $counts[$itemId])
+            : $counts[$itemId];
+    }
+    $receivingId = dl_acceptFormalDelivery($db, $branchId, $deliveryId, $userId, $receiveDate, $seedByProduct, $shift);
+
+    $update = $db->prepare(
+        'UPDATE dl_branch_receiving_items SET quantity_received = :quantity
+          WHERE receiving_id = :receiving AND delivery_item_id = :item'
+    );
+    foreach ($lines as $line) {
+        $itemId = (int)$line['id'];
+        $pid = (int)$line['product_id'];
+        $wanted = $counts[$itemId];
+        $seed = $seedByProduct[$pid];
+        if ($wanted !== $seed) {
+            $update->execute([':quantity' => $wanted, ':receiving' => $receivingId, ':item' => $itemId]);
+            dl_applyLedgerDelta($branchId, $pid, $receiveDate, $wanted - $seed, $userId, 'addtl', $shift);
+        }
+    }
+    $db->prepare('DELETE FROM dl_delivery_variance_flags WHERE receiving_id = :receiving')
+        ->execute([':receiving' => $receivingId]);
+    dl_recordReceivingVariances($receivingId);
+    dl_markReceivingCountBasis($db, $receivingId, 'independently_counted');
+    return $receivingId;
+}
+
 function apiReceiveDelivery(array $params = []): void
 {
     $ctx = module();
@@ -6599,25 +6831,20 @@ function apiReceiveDelivery(array $params = []): void
     $receiveDate = dl_businessDate();
 
     if (count($deliveryIds) > 0) {
-        // Optional per-product partial quantities: { delivery_id => { product_id => qty } }
+        // Counts are keyed by delivery item, not product. Duplicate product
+        // lines are separate physical lines and must retain separate counts.
         $partialQtysMap = (array)($input['partial_qtys'] ?? []);
         $ctx->db()->beginTransaction();
         try {
             $receivedCount = 0;
             foreach ($deliveryIds as $deliveryId) {
-                $sentStmt = $ctx->db()->prepare(
-                    'SELECT product_id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery_id'
-                );
-                $sentStmt->execute([':delivery_id' => $deliveryId]);
-                $sentByProduct = [];
-                foreach ($sentStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $sentLine) {
-                    $sentByProduct[(int)$sentLine['product_id']] = (int)$sentLine['quantity'];
+                $providedCounts = $partialQtysMap[$deliveryId] ?? $partialQtysMap[(string)$deliveryId] ?? null;
+                if (!is_array($providedCounts)) {
+                    throw new \RuntimeException('A counted Received value is required for every line.');
                 }
-                $partialQtys = dl_requireReceiptCounts(
-                    $sentByProduct,
-                    $partialQtysMap[$deliveryId] ?? $partialQtysMap[(string)$deliveryId] ?? null
+                $rcvId = dl_acceptFormalDeliveryByItem(
+                    $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift
                 );
-                $rcvId = dl_acceptFormalDelivery($ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $partialQtys, $shift);
                 if ($rcvId > 0) {
                     $receivedCount++;
                 }
@@ -7080,9 +7307,13 @@ function apiReceivePaperDelivery(array $params = []): void
             }
         }
 
+        $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $actorId);
         $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null, $shift);
+        // Paper capture and auto-DR both copy SENT into RECEIVED. Preserve the
+        // quantity, but label its evidentiary basis honestly.
+        dl_markReceivingCountBasis($ctx->db(), $receivingId, 'copied');
         $ctx->db()->commit();
-        $response = ['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId];
+        $response = ['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId, 'ledger_effect' => $ledgerEffect];
         if ($idempotencyKey !== '') {
             dl_storeIdempotentResponse('receive_paper_dr', $idempotencyKey, $response, 86400);
         }
@@ -8346,7 +8577,7 @@ function handleAdminDashboard(array $params = []): void
     }
 
     // Unreviewed variance count
-    $varStmt = $ctx->db()->query('SELECT COUNT(*) FROM dl_variance_flags WHERE is_reviewed = 0');
+    $varStmt = $ctx->db()->query('SELECT COUNT(*) FROM dl_variance_flags WHERE resolution_status = "unreviewed"');
     $unreviewedVariances = (int)$varStmt->fetchColumn();
 
     // Recent encoder activity (last 20) — human-readable + branch-scoped for non-admins.
@@ -10069,6 +10300,25 @@ function handleAdminVariances(array $params = []): void
     $branchSummary = array_values($branchSummary);
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    $notificationRows = [];
+    $notificationUserId = dl_getActorUserId($user);
+    if ($notificationUserId > 0) {
+        $notificationStmt = $ctx->db()->prepare(
+            'SELECT n.id, n.title, n.detail, n.finding_count, n.raised_at, r.notified_at, r.seen_at
+               FROM dl_integrity_notification_recipients r
+               JOIN dl_integrity_notifications n ON n.id = r.notification_id
+              WHERE r.user_id = :u
+              ORDER BY n.raised_at DESC LIMIT 20'
+        );
+        $notificationStmt->execute([':u' => $notificationUserId]);
+        $notificationRows = $notificationStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $ctx->db()->prepare('UPDATE dl_integrity_notification_recipients SET seen_at = COALESCE(seen_at, NOW()) WHERE user_id = :u')
+            ->execute([':u' => $notificationUserId]);
+        foreach ($notificationRows as &$notificationRow) {
+            if ($notificationRow['seen_at'] === null) $notificationRow['seen_at'] = date('Y-m-d H:i:s');
+        }
+        unset($notificationRow);
+    }
     // Every filter that changes the result set, so the status pills, the stat
     // cards and the search form keep the date range and branch instead of
     // silently dropping them.
@@ -10105,6 +10355,7 @@ function handleAdminVariances(array $params = []): void
         'is_supervisor' => $isSupervisor,
         'supervisor_branch_ids' => $supervisorBranchIds,
         'can_manage_variances' => in_array($role, ['admin', 'supervisor'], true),
+        'integrity_notifications' => $notificationRows,
         // Aggregate stats
         'stats_total'        => $statsTotal,
         'stats_unreviewed'   => $statsUnreviewed,
@@ -10261,7 +10512,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
 
         $arms = [
             'd.destination_id IN (' . implode(',', $placeholders) . ')',
-            'd.origin_id IN (' . implode(',', $originPlaceholders) . ')',
+            'COALESCE(d.resolved_origin_id, d.origin_id) IN (' . implode(',', $originPlaceholders) . ')',
         ];
 
         // Historical paper captures can have no origin_id. Attribute those via
@@ -10273,7 +10524,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
             "SELECT id FROM dl_branches WHERE id IN ($accessibleIdsSql) AND is_commissary = 1"
         )->fetchAll(PDO::FETCH_COLUMN) ?: []);
         if ($commissaryIds !== []) {
-            $arms[] = "(d.origin_id IS NULL AND d.origin_type = 'commissary'"
+            $arms[] = "(d.origin_id IS NULL AND d.resolved_origin_id IS NULL AND d.origin_type = 'commissary'"
                 . ' AND dst.assigned_commissary_id IN (' . implode(',', $commissaryIds) . '))';
         }
 
@@ -10283,7 +10534,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
     }
 
     $limit = $hasDr ? 50 : 100;
-    $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.destination_type, d.destination_id,
+    $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.resolved_origin_id, d.destination_type, d.destination_id,
                    d.dr_number, d.delivery_date, d.status, d.created_by, d.posted_by, d.posted_at,
                    d.remarks, d.provenance_status, d.provenance_reviewed_at, d.provenance_review_note,
                    d.produced_by, d.produced_at, d.created_at,
@@ -10300,7 +10551,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
                    org.name AS origin_branch_name, org.code AS origin_branch_code,
                    dst.name AS destination_branch_name, dst.code AS destination_branch_code
               FROM dl_deliveries d
-              LEFT JOIN dl_branches org ON org.id = d.origin_id
+              LEFT JOIN dl_branches org ON org.id = COALESCE(d.resolved_origin_id, d.origin_id)
               LEFT JOIN dl_branches dst ON dst.id = d.destination_id
              WHERE ' . implode(' AND ', $where) . '
              ORDER BY d.delivery_date DESC, d.id DESC
@@ -10342,6 +10593,9 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
     };
 
     $originLabel = static function (array $row): string {
+        if ($row['origin_id'] === null && $row['resolved_origin_id'] === null) {
+            return 'origin unresolved';
+        }
         $name = trim((string)($row['origin_branch_name'] ?? ''));
         if ($name !== '') {
             $code = trim((string)($row['origin_branch_code'] ?? ''));
@@ -10366,7 +10620,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
         $drNumber = trim((string)($row['dr_number'] ?? ''));
         $deliveryDate = (string)($row['delivery_date'] ?? '');
         $destinationId = (int)($row['destination_id'] ?? 0);
-        $originId = (int)($row['origin_id'] ?? 0);
+        $originId = (int)($row['resolved_origin_id'] ?? $row['origin_id'] ?? 0);
         $originType = (string)($row['origin_type'] ?? '');
         $storedStatus = (string)($row['status'] ?? '');
         $hasReceipt = !empty($row['has_receipt']);
@@ -10405,6 +10659,9 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
                 ? trim(($receiptActor !== '' ? 'by ' . $receiptActor : '') . ($receiptTime !== '' ? ' at ' . $receiptTime : ''))
                 : '',
             'origin_label' => $originLabel($row),
+            'origin_unresolved' => $row['origin_id'] === null && $row['resolved_origin_id'] === null,
+            'origin_admin_resolved' => $row['origin_id'] === null && $row['resolved_origin_id'] !== null,
+            'origin_editable' => $row['origin_id'] === null,
             'destination_id' => $destinationId,
             'destination_label' => $destinationLabel($row),
             'provenance_status' => (string)($row['provenance_status'] ?? ''),
@@ -10440,6 +10697,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
         foreach ($items as $item) {
             $productIds[(int)$item['product_id']] = true;
             $dispatchItems[] = [
+                'id' => (int)$item['id'],
                 'product' => (string)($item['product_name'] ?? ('Product #' . (int)$item['product_id'])),
                 'sku' => (string)($item['sku'] ?? ''),
                 'quantity' => (int)($item['quantity'] ?? 0),
@@ -10451,7 +10709,8 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
         // ── Receivings (RECEIVED) ─────────────────────────────────────
         $rcvStmt = $db->prepare(
             'SELECT br.id, br.delivery_id, br.status, br.dr_number, br.received_by, br.received_at,
-                    br.received_ledger_date, br.posted_by, br.posted_at, br.remarks, br.created_at
+                    br.received_ledger_date, br.posted_by, br.posted_at, br.remarks, br.created_at,
+                    br.count_basis, br.count_resolved_by, br.count_resolved_at
                FROM dl_branch_receivings br
               WHERE br.delivery_id = :trace_delivery AND br.status = "posted"
               ORDER BY br.id DESC'
@@ -10477,8 +10736,16 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
             }
             $receiving['received_by_label'] = $resolveUserName((int)($receiving['received_by'] ?? 0));
             $receiving['posted_by_label'] = $resolveUserName((int)($receiving['posted_by'] ?? 0));
+            $receiving['count_basis_label'] = (string)($receiving['count_basis'] ?? '') === 'copied'
+                ? 'not independently counted'
+                : ((string)($receiving['count_basis'] ?? '') === 'independently_counted'
+                    ? 'independently counted'
+                    : 'count basis unresolved');
+            $receiving['count_resolved_by_label'] = $resolveUserName((int)($receiving['count_resolved_by'] ?? 0));
             $receiving['items'] = array_map(static function (array $receivingItem): array {
                 return [
+                    'id' => (int)($receivingItem['id'] ?? 0),
+                    'delivery_item_id' => (int)($receivingItem['delivery_item_id'] ?? 0),
                     'product' => (string)($receivingItem['product_name'] ?? ('Product #' . (int)$receivingItem['product_id'])),
                     'quantity' => (int)($receivingItem['quantity_received'] ?? 0),
                     'unit' => (string)($receivingItem['unit'] ?? 'pcs'),
@@ -10489,6 +10756,18 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
         unset($receiving);
 
         // ── Variance: literal sent vs literal received ────────────────
+        // NULL is deliberately historical/unknown, not silently counted.
+        $receiptCountBasis = '';
+        foreach ($receivings as $receiving) {
+            $basis = (string)($receiving['count_basis'] ?? '');
+            if ($basis === 'copied') {
+                $receiptCountBasis = 'copied';
+                break;
+            }
+            if ($basis === 'independently_counted') {
+                $receiptCountBasis = 'independently_counted';
+            }
+        }
         $varianceItems = [];
         foreach ($items as $item) {
             $itemId = (int)$item['id'];
@@ -10506,6 +10785,19 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
                 continue;
             }
             $received = (int)$receivedByItem[$itemId];
+            if ($receiptCountBasis !== 'independently_counted') {
+                $label = $receiptCountBasis === 'copied'
+                    ? 'not independently counted'
+                    : 'count basis unresolved';
+                $varianceItems[] = [
+                    'product' => $productName,
+                    'sent' => $sent,
+                    'received_display' => $label,
+                    'delta_display' => $label,
+                    'state' => 'uncounted',
+                ];
+                continue;
+            }
             if ($received !== $sent) {
                 $delta = $received - $sent;
                 $varianceItems[] = [
@@ -10866,7 +11158,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
                 'link_url' => $deliveriesLink,
             ],
             'variance' => [
-                'authoritative' => 'Derived difference between SENT and RECEIVED. An item with no receiving is OPEN — no receiving was recorded, it is not a match.',
+                'authoritative' => 'Derived difference between SENT and RECEIVED when independently counted. Missing, copied, or historically ambiguous counts are not matches.',
                 'items' => $varianceItems,
                 'link_url' => $varianceLink,
             ],
@@ -10929,6 +11221,7 @@ function handleAdminTrace(array $params = []): void
         'product_id' => (int)($input['product_id'] ?? 0),
         'user' => trim((string)($input['user'] ?? '')),
         'user_id' => (int)($input['user_id'] ?? 0),
+        'variance_id' => (int)($input['variance_id'] ?? 0),
     ];
 
     $accessibleBranchIds = dl_accessibleBranchIds($user);
@@ -10965,6 +11258,8 @@ function handleAdminTrace(array $params = []): void
 
     $products = $ctx->db()->query('SELECT id, sku, name FROM dl_products WHERE is_active = 1 ORDER BY name LIMIT 500')
         ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $commissaries = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name')
+        ->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
 
@@ -10981,10 +11276,146 @@ function handleAdminTrace(array $params = []): void
         'branch_id' => $filters['branch_id'],
         'product_id' => $filters['product_id'],
         'user' => $filters['user'],
+        'variance_id' => $filters['variance_id'],
         'branches' => $branches,
         'products' => $products,
+        'commissaries' => $commissaries,
+        'can_resolve_integrity' => $role === 'admin',
         'trace' => $trace,
     ]);
+}
+
+function apiDeliveryIntegrityLabels(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    dlCurrentUser(['admin', 'supervisor', 'auditor', 'production_in_charge']);
+    $rows = $ctx->db()->query(
+        'SELECT d.id, d.origin_id, d.resolved_origin_id, b.name AS resolved_origin_name, b.code AS resolved_origin_code
+           FROM dl_deliveries d
+           LEFT JOIN dl_branches b ON b.id = d.resolved_origin_id
+          WHERE d.origin_id IS NULL'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $ctx->json(['ok' => true, 'deliveries' => $rows]);
+}
+
+function apiResolveDeliveryOrigin(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $deliveryId = (int)($input['delivery_id'] ?? 0);
+    $originId = (int)($input['origin_id'] ?? 0);
+    $note = trim((string)($input['note'] ?? ''));
+    if ($deliveryId <= 0 || $originId <= 0 || $note === '') {
+        $ctx->json(['ok' => false, 'error' => 'Delivery, real origin, and evidence note are required.'], 422);
+        return;
+    }
+    $originStmt = $ctx->db()->prepare('SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1');
+    $originStmt->execute([':id' => $originId]);
+    if (!$originStmt->fetchColumn()) {
+        $ctx->json(['ok' => false, 'error' => 'Origin must be an active commissary.'], 422);
+        return;
+    }
+    $beforeStmt = $ctx->db()->prepare('SELECT origin_id, resolved_origin_id, provenance_status, provenance_review_note FROM dl_deliveries WHERE id = :id');
+    $beforeStmt->execute([':id' => $deliveryId]);
+    $before = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$before || $before['origin_id'] !== null) {
+        $ctx->json(['ok' => false, 'error' => 'Only a document with unresolved original origin can be resolved here.'], 422);
+        return;
+    }
+    $actorId = dl_getActorUserId($user);
+    $ctx->db()->beginTransaction();
+    $ctx->db()->prepare(
+        'UPDATE dl_deliveries
+            SET resolved_origin_id = :origin,
+                provenance_reviewed_by = :actor, provenance_reviewed_at = NOW(),
+                provenance_review_note = CONCAT_WS("\n", NULLIF(provenance_review_note, ""), CONCAT("Origin resolution: ", :note))
+          WHERE id = :id AND origin_id IS NULL'
+    )->execute([':origin' => $originId, ':actor' => $actorId ?: null, ':note' => $note, ':id' => $deliveryId]);
+    $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $actorId);
+    $ctx->db()->commit();
+    dl_auditLog('resolve_delivery_origin', null, 'dl_deliveries', (string)$deliveryId, [
+        'resolved_origin_id' => $before['resolved_origin_id'],
+        'provenance_status' => $before['provenance_status'],
+        'provenance_review_note' => $before['provenance_review_note'],
+    ], [
+        'resolved_origin_id' => $originId,
+        'provenance_status' => $before['provenance_status'],
+        'provenance_review_note' => 'Origin resolution: ' . $note,
+        'resolved_by' => $actorId,
+    ], $note);
+    $ctx->json(['ok' => true, 'delivery_id' => $deliveryId, 'resolved_origin_id' => $originId, 'ledger_effect' => $ledgerEffect]);
+}
+
+function apiResolveReceivingCount(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $receivingId = (int)($input['receiving_id'] ?? 0);
+    $note = trim((string)($input['note'] ?? ''));
+    $provided = $input['items'] ?? null;
+    if ($receivingId <= 0 || $note === '' || !is_array($provided)) {
+        $ctx->json(['ok' => false, 'error' => 'Receiving, all actual counts, and evidence note are required.'], 422);
+        return;
+    }
+    $counts = [];
+    foreach ($provided as $itemId => $raw) {
+        if ((!is_int($raw) && !(is_string($raw) && preg_match('/^\d+$/', $raw))) || (int)$raw < 0) {
+            $ctx->json(['ok' => false, 'error' => 'Actual counts must be non-negative whole numbers.'], 422);
+            return;
+        }
+        $counts[(int)$itemId] = (int)$raw;
+    }
+    $actorId = dl_getActorUserId($user);
+    $ctx->db()->beginTransaction();
+    try {
+        $headStmt = $ctx->db()->prepare('SELECT * FROM dl_branch_receivings WHERE id = :id AND status = "posted" FOR UPDATE');
+        $headStmt->execute([':id' => $receivingId]);
+        $head = $headStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$head) { throw new \RuntimeException('Posted receiving not found.'); }
+        $itemStmt = $ctx->db()->prepare('SELECT id, delivery_item_id, product_id, quantity_received FROM dl_branch_receiving_items WHERE receiving_id = :id ORDER BY id');
+        $itemStmt->execute([':id' => $receivingId]);
+        $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $oldCounts = [];
+        $newCounts = [];
+        $update = $ctx->db()->prepare('UPDATE dl_branch_receiving_items SET quantity_received = :quantity WHERE id = :id AND receiving_id = :receiving');
+        foreach ($items as $item) {
+            $deliveryItemId = (int)($item['delivery_item_id'] ?? 0);
+            if ($deliveryItemId <= 0 || !array_key_exists($deliveryItemId, $counts)) {
+                throw new \RuntimeException('An actual count is required for every delivery item.');
+            }
+            $old = (int)$item['quantity_received'];
+            $new = $counts[$deliveryItemId];
+            $oldCounts[$deliveryItemId] = $old;
+            $newCounts[$deliveryItemId] = $new;
+            if ($old !== $new) {
+                $update->execute([':quantity' => $new, ':id' => (int)$item['id'], ':receiving' => $receivingId]);
+                dl_applyLedgerDelta((int)$head['branch_id'], (int)$item['product_id'], (string)$head['received_ledger_date'], $new - $old, $actorId, 'addtl');
+            }
+        }
+        $ctx->db()->prepare(
+            'UPDATE dl_branch_receivings
+                SET count_basis = "independently_counted", count_resolved_by = :actor, count_resolved_at = NOW()
+              WHERE id = :id'
+        )->execute([':actor' => $actorId ?: null, ':id' => $receivingId]);
+        $ctx->db()->prepare('DELETE FROM dl_delivery_variance_flags WHERE receiving_id = :id')->execute([':id' => $receivingId]);
+        dl_recordReceivingVariances($receivingId);
+        $ctx->db()->commit();
+        dl_auditLog('resolve_receiving_count', (int)$head['branch_id'], 'dl_branch_receivings', (string)$receivingId, [
+            'count_basis' => $head['count_basis'], 'items' => $oldCounts,
+        ], [
+            'count_basis' => 'independently_counted', 'items' => $newCounts,
+            'resolved_by' => $actorId,
+        ], $note);
+        $ctx->json(['ok' => true, 'receiving_id' => $receivingId]);
+    } catch (\Throwable $e) {
+        if ($ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
+    }
 }
 
 function handleAdminActivity(array $params = []): void
@@ -12101,11 +12532,37 @@ function apiUpdateVarianceStatus(array $params = []): void
         // rows, not matched ones: re-submitting the same status inside the same
         // second changed nothing, so the old rowCount() check answered "Variance not
         // found" for a row that plainly exists. Saving a note twice hits this.
-        $existsStmt = $ctx->db()->prepare('SELECT id FROM dl_variance_flags WHERE id = :id LIMIT 1');
-        $existsStmt->execute([':id' => $varianceId]);
-        if ((int)($existsStmt->fetchColumn() ?: 0) <= 0) {
+        $existenceCheck = $ctx->db()->prepare('SELECT id FROM dl_variance_flags WHERE id = :id LIMIT 1');
+        $existenceCheck->execute([':id' => $varianceId]);
+        if ((int)($existenceCheck->fetchColumn() ?: 0) <= 0) {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Variance not found', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'Variance not found'], 404);
+            return;
+        }
+        $ctx->db()->beginTransaction();
+        $existsStmt = $ctx->db()->prepare('SELECT id, branch_id, resolution_status, review_note, reviewed_by, reviewed_at FROM dl_variance_flags WHERE id = :id LIMIT 1 FOR UPDATE');
+        $existsStmt->execute([':id' => $varianceId]);
+        $before = $existsStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$before) {
+            $ctx->db()->rollBack();
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Variance not found', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Variance not found'], 404);
+            return;
+        }
+        $oldStatus = (string)$before['resolution_status'];
+        $allowedTransition = $status === $oldStatus
+            || ($oldStatus === 'unreviewed' && $status === 'investigated')
+            || ($oldStatus === 'investigated' && $status === 'corrected')
+            || ($oldStatus === 'corrected' && $status === 'investigated');
+        if (!$allowedTransition) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'A surfaced finding must be investigated before it can be corrected.', 'status' => 409], 409);
+            return;
+        }
+        $effectiveNote = $hasNote ? $note : trim((string)($before['review_note'] ?? ''));
+        if ($status === 'corrected' && $effectiveNote === '') {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'A resolution note is required before correction.'], 422);
             return;
         }
 
@@ -12126,6 +12583,18 @@ function apiUpdateVarianceStatus(array $params = []): void
             ':note' => $hasNote ? $note : null,
             ':id' => $varianceId,
         ]);
+        dl_auditLog('variance_status', (int)$before['branch_id'], 'dl_variance_flags', (string)$varianceId, [
+            'resolution_status' => $oldStatus,
+            'review_note' => $before['review_note'],
+            'reviewed_by' => $before['reviewed_by'],
+            'reviewed_at' => $before['reviewed_at'],
+        ], [
+            'resolution_status' => $status,
+            'review_note' => $effectiveNote,
+            'reviewed_by' => $reviewedBy,
+            'reviewed_at' => date('Y-m-d H:i:s'),
+        ], $status === 'investigated' && $oldStatus === 'corrected' ? 'reopened' : null);
+        $ctx->db()->commit();
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Variance updated', 'type' => 'success']]));
         $ctx->json([
@@ -12136,6 +12605,7 @@ function apiUpdateVarianceStatus(array $params = []): void
         ]);
         return;
     } catch (\Throwable $e) {
+        if ($ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
         write_log('daily-ledger apiUpdateVarianceStatus failed', 'error', [
             'error' => $e->getMessage(),
             'variance_id' => $varianceId,
@@ -14380,7 +14850,11 @@ function handleAdminCommissary(): void
             $receiving = $sheetReceiving[$productId][$branchId] ?? null;
             $receivedQty = $receiving['received'] ?? null;
             $receivedPending = $receiving !== null && !empty($receiving['pending']);
-            $deliveryDiff = (!$receivedPending && $receivedQty !== null) ? ($receivedQty - $quantity) : null;
+            $notIndependentlyCounted = $receiving !== null && !empty($receiving['not_independently_counted']);
+            $countBasisUnresolved = $receiving !== null && !empty($receiving['count_basis_unresolved']);
+            $deliveryDiff = (!$receivedPending && $receivedQty !== null)
+                ? (($notIndependentlyCounted || $countBasisUnresolved) ? null : ($receivedQty - $quantity))
+                : null;
             $drNumbers = $receiving['dr_numbers'] ?? [];
             $branchCells[] = [
                 'branch_id' => $branchId,
@@ -14390,6 +14864,9 @@ function handleAdminCommissary(): void
                 'has_delivery' => $receiving !== null,
                 'received_qty' => $receivedQty,
                 'received_pending' => $receivedPending,
+                'not_independently_counted' => $notIndependentlyCounted,
+                'count_basis_unresolved' => $countBasisUnresolved,
+                'origin_unresolved' => $receiving !== null && !empty($receiving['origin_unresolved']),
                 'delivery_diff' => $deliveryDiff,
                 'delivery_diff_display' => $deliveryDiff === null || $deliveryDiff === 0
                     ? ''
@@ -15264,9 +15741,13 @@ function apiCommissaryDispatch(): void
             }
         }
 
-        // Create ONE delivery
-        $primaryCommissaryId = array_key_first($cleanItems);
-        $primaryCommissaryId = (int)explode(':', $primaryCommissaryId)[0];
+        // A delivery has one origin. Refuse mixed-commissary items rather than
+        // attributing some debits to a guessed primary origin.
+        $originIds = array_values(array_unique(array_map(static fn(array $item): int => (int)$item['commissary_branch_id'], $cleanItems)));
+        if (count($originIds) !== 1) {
+            throw new RuntimeException('Create a separate dispatch for each commissary origin.');
+        }
+        $primaryCommissaryId = $originIds[0];
         $delStmt = $db->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
@@ -15312,16 +15793,19 @@ function apiCommissaryDispatch(): void
                 ':remarks' => 'commissary_dispatch',
             ]);
 
-            // Debit commissary dispatched_qty
-            $stockState = dl_applyCommissaryProductLedgerDelta($db, $cid, $pid, $ledgerDate, 0, $qty, $actorId);
-
             $resultItems[] = [
                 'product_id' => $pid,
                 'quantity' => $qty,
                 'commissary_branch_id' => $cid,
-                'remaining_qty' => $stockState['remaining_qty'] ?? 0,
             ];
         }
+
+        $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
+        foreach ($resultItems as &$resultItem) {
+            $snapshot = dl_commissaryLedgerSnapshot($db, $primaryCommissaryId, (int)$resultItem['product_id'], $ledgerDate);
+            $resultItem['remaining_qty'] = $snapshot['remaining_qty'];
+        }
+        unset($resultItem);
 
         dl_auditLog('commissary_dispatch', $primaryCommissaryId, 'dl_deliveries', (string)$deliveryId, null, [
             'commissary_branch_id' => $primaryCommissaryId,

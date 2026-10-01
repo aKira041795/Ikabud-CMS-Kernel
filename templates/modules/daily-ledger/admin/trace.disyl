@@ -1,6 +1,12 @@
 {extends "modules/daily-ledger/layouts/app.disyl"}
 
 {block content}
+{if variance_id > 0}
+<div class="mb-4 rounded border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900" data-variance-investigation="{variance_id}">
+    Investigating variance flag #{variance_id}.
+    <a class="font-semibold underline" href="{base_url}/admin/variances">Back to variance findings</a>
+</div>
+{/if}
 <div class="flex items-center justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Production Delivery Audit</h2>
@@ -132,10 +138,22 @@
                 {if doc.provenance_status_label}
                 <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-800 ring-1 ring-inset ring-indigo-200">Paper DR: {doc.provenance_status_label}</span>
                 {/if}
+                {if doc.origin_admin_resolved}
+                <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-200">origin admin-resolved</span>
+                {/if}
             </div>
         </div>
         {if doc.provenance_review_note}
-        <p class="mt-2 text-xs text-slate-600">Paper DR note: {doc.provenance_review_note}</p>
+        <p class="mt-2 text-xs text-slate-600">Review evidence: {doc.provenance_review_note}</p>
+        {/if}
+        {if can_resolve_integrity}
+        {if doc.origin_editable}
+        <form class="mt-3 flex flex-wrap items-end gap-2 integrity-origin-form" data-delivery-id="{doc.id}" onsubmit="return resolveDeliveryOrigin(this)">
+            <div><label class="block text-xs font-semibold text-slate-600">Real origin (editable)</label><select class="form-input" name="origin_id" required><option value="">Select commissary</option>{foreach commissaries as comm}<option value="{comm.id}">{comm.name} ({comm.code})</option>{/foreach}</select></div>
+            <div class="min-w-64 flex-1"><label class="block text-xs font-semibold text-slate-600">Evidence / reason</label><input class="form-input" name="note" required placeholder="Source used to establish origin"></div>
+            <button class="btn btn-sm btn-primary" type="submit">Save origin resolution</button>
+        </form>
+        {/if}
         {/if}
     </div>
     <div class="card-body space-y-5">
@@ -213,6 +231,7 @@
                 {foreach doc.receiving.rows as rcv}
                 <div class="mt-2 rounded border border-slate-100 bg-slate-50 p-2">
                     <p class="text-xs text-slate-600">Received by {if rcv.received_by_label}{rcv.received_by_label}{else}not recorded{/if}{if rcv.received_at} at {rcv.received_at}{/if} · ledger date {rcv.received_ledger_date}</p>
+                    <p class="mt-1 text-xs font-semibold {if rcv.count_basis == 'independently_counted'}text-emerald-700{else}text-amber-700{/if}">{rcv.count_basis_label}{if rcv.count_resolved_at} · resolved {rcv.count_resolved_at}{if rcv.count_resolved_by_label} by {rcv.count_resolved_by_label}{/if}{/if}</p>
                     <table class="mt-1 w-full text-sm">
                         <thead class="text-xs uppercase tracking-wide text-slate-500">
                             <tr><th class="py-1 text-left">Product</th><th class="py-1 text-right">Received</th></tr>
@@ -223,6 +242,17 @@
                             {/foreach}
                         </tbody>
                     </table>
+                    {if can_resolve_integrity}
+                    <form class="mt-3 rounded border border-amber-200 bg-white p-2 integrity-count-form" data-receiving-id="{rcv.id}" onsubmit="return resolveReceivingCount(this)">
+                        <div class="text-xs font-semibold text-slate-700">Record / edit independently counted quantities</div>
+                        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                            {foreach rcv.items as ritem}
+                            <label class="text-xs text-slate-600">{ritem.product}<input type="number" min="0" step="1" required class="form-input count-resolution-item" data-delivery-item-id="{ritem.delivery_item_id}" value="{ritem.quantity}"></label>
+                            {/foreach}
+                        </div>
+                        <div class="mt-2 flex gap-2"><input class="form-input flex-1" name="note" required placeholder="Evidence / source for actual count"><button class="btn btn-sm btn-primary" type="submit">Save actual count</button></div>
+                    </form>
+                    {/if}
                 </div>
                 {/foreach}
             {else}
@@ -247,8 +277,8 @@
                     <tr class="border-t border-slate-100">
                         <td class="py-1 text-slate-800">{vi.product}</td>
                         <td class="py-1 text-right text-slate-900">{vi.sent}</td>
-                        <td class="py-1 text-right {if vi.state == 'open'}font-semibold text-rose-700{else}text-slate-900{/if}">{vi.received_display}</td>
-                        <td class="py-1 text-right font-semibold {if vi.state == 'short'}text-rose-700{/if}{if vi.state == 'over'}text-amber-700{/if}{if vi.state == 'open'}text-rose-700{/if}">{vi.delta_display}</td>
+                        <td class="py-1 text-right {if vi.state == 'open'}font-semibold text-rose-700{elseif vi.state == 'uncounted'}font-semibold text-amber-700{else}text-slate-900{/if}">{vi.received_display}</td>
+                        <td class="py-1 text-right font-semibold {if vi.state == 'short'}text-rose-700{/if}{if vi.state == 'over'}text-amber-700{/if}{if vi.state == 'open'}text-rose-700{/if}{if vi.state == 'uncounted'}text-amber-700{/if}">{vi.delta_display}</td>
                     </tr>
                     {/foreach}
                 </tbody>
@@ -318,4 +348,36 @@
 </div>
 {/foreach}
 {/if}
+{/block}
+
+{block scripts}
+<script>
+function integrityPost(url, payload) {
+    return fetch(url, {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window.DL_CSRF || ''), 'Authorization': (window.DL_TOKEN ? 'Bearer ' + window.DL_TOKEN : '')},
+        body: JSON.stringify(payload)
+    }).then(function (response) { return response.json(); });
+}
+function resolveDeliveryOrigin(form) {
+    var payload = {delivery_id: parseInt(form.getAttribute('data-delivery-id'), 10), origin_id: parseInt(form.elements.origin_id.value, 10), note: form.elements.note.value};
+    integrityPost('{base_url}/api/v1/admin/deliveries/resolve-origin', payload).then(function (result) {
+        if (!result.ok) throw new Error(result.error || 'Origin resolution failed');
+        showToast('Origin resolution saved and logged', 'success');
+        window.refreshMainContent();
+    }).catch(function (error) { showToast(error.message, 'error'); });
+    return false;
+}
+function resolveReceivingCount(form) {
+    var items = {};
+    form.querySelectorAll('.count-resolution-item').forEach(function (input) { items[input.getAttribute('data-delivery-item-id')] = input.value; });
+    var payload = {receiving_id: parseInt(form.getAttribute('data-receiving-id'), 10), items: items, note: form.elements.note.value};
+    integrityPost('{base_url}/api/v1/admin/receivings/resolve-count', payload).then(function (result) {
+        if (!result.ok) throw new Error(result.error || 'Count resolution failed');
+        showToast('Actual count saved and logged', 'success');
+        window.refreshMainContent();
+    }).catch(function (error) { showToast(error.message, 'error'); });
+    return false;
+}
+</script>
 {/block}

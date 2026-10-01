@@ -251,6 +251,21 @@
         <a class="btn btn-outline" href="{base_url}/admin/sales?date_from={sales_link_from}&date_to={sales_link_to}">Sales Summary</a>
     </div>
 
+    {if integrity_notifications | length > 0}
+    <div class="card mb-4" data-integrity-notifications="{integrity_notifications | length}">
+        <div class="card-header"><span>Integrity notifications</span><span class="text-xs text-gray-500">Recorded delivery and seen state</span></div>
+        <div class="card-body space-y-2">
+            {foreach integrity_notifications as notice}
+            <div class="text-sm" data-notification-id="{notice.id}">
+                <strong>{notice.title}</strong>{if notice.finding_count > 1} ({notice.finding_count} findings){/if}
+                <span class="text-xs text-gray-500">notified {notice.notified_at} · seen {notice.seen_at}</span>
+                {if notice.detail}<div class="text-xs text-gray-600">{notice.detail}</div>{/if}
+            </div>
+            {/foreach}
+        </div>
+    </div>
+    {/if}
+
     <!-- Stat cards -->
     <div class="variance-stat-grid">
         <a href="?view={view_mode}&status=unreviewed{filter_query}"
@@ -445,6 +460,7 @@
                             {if can_manage_variances}<td><input type="checkbox" value="{v.id}" x-model="selectedIds"></td>{/if}
                             <td class="text-sm">
                                 <div>{v.ledger_date}</div>
+                                <a class="text-xs text-indigo-600 hover:underline" href="{base_url}/admin/trace?branch_id={v.branch_id}&date_from={v.ledger_date}&date_to={v.ledger_date}&product_id={v.product_id}&variance_id={v.id}">Investigate evidence</a>
                             </td>
                             <td class="text-xs text-gray-500">Flag #{v.id}</td>
                             <td>
@@ -546,6 +562,7 @@
                             <td class="text-sm">
                                 <div>{v.ledger_date}</div>
                                 <div class="text-xs text-gray-400">Flag #{v.id}</div>
+                                <a class="text-xs text-indigo-600 hover:underline" href="{base_url}/admin/trace?branch_id={v.branch_id}&date_from={v.ledger_date}&date_to={v.ledger_date}&product_id={v.product_id}&variance_id={v.id}">Investigate evidence</a>
                             </td>
                             <td class="text-sm font-medium">
                                 <div>{v.branch_name}</div>

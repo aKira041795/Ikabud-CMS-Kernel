@@ -125,6 +125,8 @@ $cleanup = static function () use ($db, $commissaryId, $branchId, $otherCommissa
     $p = "{$productA},{$productB}";
     $u = "{$actorId},{$producerId},{$controlUserId}";
     $branchFilter = "(SELECT id FROM dl_deliveries WHERE origin_id IN ({$b}) OR destination_id IN ({$b}))";
+    $db->execute("DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN ({$b}))");
+    $db->execute("DELETE FROM dl_integrity_notifications WHERE branch_id IN ({$b})");
     $db->execute("DELETE FROM dl_delivery_variance_flags WHERE delivery_id IN {$branchFilter} OR product_id IN ({$p})");
     $db->execute("DELETE FROM dl_branch_receiving_items WHERE receiving_id IN (SELECT id FROM dl_branch_receivings WHERE branch_id IN ({$b}) OR delivery_id IN {$branchFilter})");
     $db->execute("DELETE FROM dl_branch_receivings WHERE branch_id IN ({$b}) OR delivery_id IN {$branchFilter}");
@@ -269,8 +271,8 @@ try {
     $fullItemB = $insertItem(996001, $productB, 4);
     $db->prepare(
         'INSERT INTO dl_branch_receivings
-            (id, branch_id, origin_type, origin_id, delivery_id, dr_number, received_by, received_at, received_ledger_date, status, posted_by, posted_at)
-         VALUES (996001, ?, "commissary", ?, 996001, ?, ?, ?, ?, "posted", ?, ?)'
+            (id, branch_id, origin_type, origin_id, delivery_id, dr_number, received_by, received_at, received_ledger_date, status, posted_by, posted_at, count_basis)
+         VALUES (996001, ?, "commissary", ?, 996001, ?, ?, ?, ?, "posted", ?, ?, "independently_counted")'
     )->execute([$branchId, $commissaryId, $fullDr, $actorId, '2021-07-01 09:00:00', '2021-07-01', $actorId, '2021-07-01 09:00:00']);
     $db->prepare('INSERT INTO dl_branch_receiving_items (receiving_id, delivery_item_id, product_id, quantity_received, unit) VALUES (996001, ?, ?, 10, "pcs")')
         ->execute([$fullItemA, $productA]);
@@ -282,8 +284,8 @@ try {
     $missingItemId = $insertItem(996002, $productA, 7);
     $db->prepare(
         'INSERT INTO dl_branch_receivings
-            (id, branch_id, origin_type, origin_id, delivery_id, dr_number, received_by, received_at, received_ledger_date, status)
-         VALUES (996002, ?, "commissary", ?, 996002, ?, ?, "2021-07-02 09:00:00", "2021-07-02", "draft")'
+            (id, branch_id, origin_type, origin_id, delivery_id, dr_number, received_by, received_at, received_ledger_date, status, count_basis)
+         VALUES (996002, ?, "commissary", ?, 996002, ?, ?, "2021-07-02 09:00:00", "2021-07-02", "draft", "independently_counted")'
     )->execute([$branchId, $commissaryId, $missingDr, $actorId]);
     $db->prepare('INSERT INTO dl_branch_receiving_items (receiving_id, delivery_item_id, product_id, quantity_received, unit) VALUES (996002, ?, ?, 7, "pcs")')
         ->execute([$missingItemId, $productA]);

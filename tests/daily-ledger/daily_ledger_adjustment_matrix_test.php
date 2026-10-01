@@ -52,6 +52,8 @@ $productId = 99061;
 $liableId = 999994;
 $date = '2030-02-21';
 
+$db->execute('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b)', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_integrity_notifications WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_cashier_withdrawals WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);
@@ -423,6 +425,8 @@ foreach ($chargeUsers as $uid) {
     $db->execute('DELETE FROM dl_user_branches WHERE user_id = :u', [':u' => $uid]);
     $db->execute('DELETE FROM dl_users WHERE id = :u', [':u' => $uid]);
 }
+$db->execute('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b)', [':b' => $branchId]);
+$db->execute('DELETE FROM dl_integrity_notifications WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_cashier_withdrawals WHERE branch_id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branchId]);

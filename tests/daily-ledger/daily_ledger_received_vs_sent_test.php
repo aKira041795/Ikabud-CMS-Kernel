@@ -103,8 +103,7 @@ $h->test(
 $h->test(
     'the reader does NOT reuse COALESCE(quantity_received, di.quantity)',
     $receivingFn !== ''
-    && stripos($receivingFn, 'COALESCE') === false
-    && !str_contains($receivingFn, 'COALESCE(ri.quantity_received, di.quantity)')
+    && !preg_match('/COALESCE\s*\(\s*(?:ri|rcv)\.quantity_received\s*,\s*di\.quantity/i', $receivingFn)
 );
 
 $h->test(
@@ -127,7 +126,8 @@ $h->section('Source: pending, full and variance stay distinct');
 $h->test(
     'AC3 the handler makes an unreceived delivery null (pending), not a zero difference',
     str_contains($handlers, '$receivedPending = $receiving !== null && !empty($receiving[\'pending\']);')
-    && str_contains($handlers, '$deliveryDiff = (!$receivedPending && $receivedQty !== null) ? ($receivedQty - $quantity) : null;')
+    && str_contains($handlers, '$deliveryDiff = (!$receivedPending && $receivedQty !== null)')
+    && str_contains($handlers, '? (($notIndependentlyCounted || $countBasisUnresolved) ? null : ($receivedQty - $quantity))')
 );
 
 $h->test(
@@ -272,8 +272,8 @@ try {
     // 2) A short receipt of 8 against 10: signed -2, visually distinct.
     $db->prepare(
         'INSERT INTO dl_branch_receivings
-            (branch_id, origin_type, origin_id, delivery_id, dr_number, received_ledger_date, status, posted_by, posted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+            (branch_id, origin_type, origin_id, delivery_id, dr_number, received_ledger_date, status, posted_by, posted_at, count_basis)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), "independently_counted")'
     )->execute([$branchId, 'commissary', $commissaryId, $deliveryId, 'DR-S12-0001', $date, 'posted', 1]);
     $receivingId = (int)$db->lastInsertId();
     $db->prepare('INSERT INTO dl_branch_receiving_items (receiving_id, delivery_item_id, product_id, quantity_received, unit) VALUES (?, ?, ?, ?, ?)')

@@ -272,7 +272,7 @@ function dl_deliveryRecordAuthorized(array $user, array $delivery): bool
     return dl_deliveryBranchAuthorized(
         $user,
         $originType,
-        isset($delivery['origin_id']) ? (int)$delivery['origin_id'] : null
+        isset($delivery['resolved_origin_id']) ? (int)$delivery['resolved_origin_id'] : (isset($delivery['origin_id']) ? (int)$delivery['origin_id'] : null)
     ) && dl_deliveryBranchAuthorized(
         $user,
         $destinationType,
@@ -478,6 +478,14 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
             if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
                 throw new RuntimeException('Cannot remove or reduce a delivery that already has a receiving. Void the receiving first.');
             }
+            $ledgerReversal = dl_reversePostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
+            if ($ledgerReversal['status'] === 'reversed') {
+                $oldItems = $db->prepare('SELECT product_id, quantity FROM dl_delivery_items WHERE delivery_id = :id');
+                $oldItems->execute([':id' => $deliveryId]);
+                foreach ($oldItems->fetchAll(PDO::FETCH_ASSOC) ?: [] as $oldItem) {
+                    dl_applyCommissaryProductLedgerDelta($db, (int)$existingAuto['origin_id'], (int)$oldItem['product_id'], $deliveryDate, -((int)$oldItem['quantity']), 0, $actorId, 0, true);
+                }
+            }
             $db->prepare(
                 'UPDATE dl_deliveries
                     SET status = "voided",
@@ -495,6 +503,7 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
                 'status' => 'voided',
                 'dr_number' => $drNumber,
                 'source' => 'auto_commissary_run',
+                'ledger_reversal' => $ledgerReversal,
             ]);
         }
         if ($existingPaper) {
@@ -514,35 +523,47 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
     $deliveryId = 0;
     if ($existingAuto) {
         $deliveryId = (int)$existingAuto['id'];
+        $itemsMatch = dl_deliveryItemsMatchDesired($db, $deliveryId, $desiredItems);
         if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
-            if (!dl_deliveryItemsMatchDesired($db, $deliveryId, $desiredItems)) {
+            if (!$itemsMatch) {
                 throw new RuntimeException('This delivery already has a receiving. Update the receiving workflow instead of changing the usage rows.');
             }
             return $deliveryId;
         }
+        if ($itemsMatch) {
+            // Managed deliveries already have effects and replay as an idempotent
+            // no-op. A pre-068 delivery has no effect row; applying one now would
+            // debit its historical direct ledger movement a second time.
+            $effectCount = $db->prepare('SELECT COUNT(*) FROM dl_delivery_ledger_effects WHERE delivery_id = :id');
+            $effectCount->execute([':id' => $deliveryId]);
+            if ((int)$effectCount->fetchColumn() > 0) {
+                dl_applyPostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
+            }
+            return $deliveryId;
+        }
 
-        $db->prepare(
-            'UPDATE dl_deliveries
-                SET status = "posted",
-                    posted_by = :actor,
-                    posted_at = NOW(),
-                    remarks = :remarks
-              WHERE id = :id'
-        )->execute([
-            ':actor' => $actorId > 0 ? $actorId : null,
-            ':remarks' => dl_autoCommissaryDeliveryRemark(),
-            ':id' => $deliveryId,
+        $ledgerReversal = dl_reversePostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
+        if ($ledgerReversal['status'] === 'legacy_no_effect') {
+            throw new RuntimeException('legacy_no_effect: reconcile this pre-enforcement auto delivery before changing its production runs.');
+        }
+        $oldItems = $db->prepare('SELECT product_id, quantity FROM dl_delivery_items WHERE delivery_id = :id');
+        $oldItems->execute([':id' => $deliveryId]);
+        foreach ($oldItems->fetchAll(PDO::FETCH_ASSOC) ?: [] as $oldItem) {
+            dl_applyCommissaryProductLedgerDelta($db, (int)$existingAuto['origin_id'], (int)$oldItem['product_id'], $deliveryDate, -((int)$oldItem['quantity']), 0, $actorId, 0, true);
+        }
+        $db->prepare('UPDATE dl_deliveries SET status = "voided", voided_by = :actor, voided_at = NOW() WHERE id = :id')
+            ->execute([':actor' => $actorId > 0 ? $actorId : null, ':id' => $deliveryId]);
+        dl_auditLog('update_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, [
+            'status' => $existingAuto['status'] ?? 'posted',
+        ], [
+            'status' => 'voided',
+            'source' => 'auto_commissary_run_replaced',
+            'ledger_reversal' => $ledgerReversal,
         ]);
-        $db->prepare('DELETE FROM dl_delivery_items WHERE delivery_id = :delivery_id')
-            ->execute([':delivery_id' => $deliveryId]);
+        $existingAuto = null;
+    }
 
-        dl_auditLog('update_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
-            'dr_number' => $drNumber,
-            'status' => 'posted',
-            'source' => 'auto_commissary_run',
-            'items' => count($desiredItems),
-        ]);
-    } else {
+    if (!$existingAuto) {
         // Resolve commissary for proper origin attribution
         $commissaryBranchId = null;
         foreach ($desiredItems as $item) {
@@ -573,15 +594,6 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
         ]);
         $deliveryId = (int)$db->lastInsertId();
 
-        // Credit commissary production and debit dispatch for each item
-        if ($commissaryBranchId !== null) {
-            foreach ($desiredItems as $item) {
-                $pid = (int)$item['product_id'];
-                $qty = (int)$item['quantity'];
-                dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $pid, $deliveryDate, $qty, $qty, $actorId);
-            }
-        }
-
         dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
             'dr_number' => $drNumber,
             'status' => 'posted',
@@ -608,6 +620,15 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
             ':remarks' => $item['remarks'],
         ]);
     }
+
+    // Production is credited separately; dispatch is always applied through the
+    // durable per-item effect path shared with apiPostDelivery().
+    if ($commissaryBranchId !== null) {
+        foreach ($desiredItems as $item) {
+            dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], 0, $actorId);
+        }
+    }
+    dl_applyPostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
 
     return $deliveryId;
 }
@@ -663,9 +684,9 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
     $rcvStmt = $db->prepare(
         'INSERT INTO dl_branch_receivings
             (branch_id, origin_type, origin_id, delivery_id, dr_number,
-             received_by, received_at, received_ledger_date, status, posted_by, posted_at, remarks)
+             received_by, received_at, received_ledger_date, status, posted_by, posted_at, remarks, count_basis)
          VALUES (:branch_id, :origin_type, :origin_id, :delivery_id, :dr_number,
-                 :received_by, NOW(), :receive_date, "posted", :posted_by, NOW(), :remarks)'
+                 :received_by, NOW(), :receive_date, "posted", :posted_by, NOW(), :remarks, :count_basis)'
     );
     $rcvStmt->execute([
         ':branch_id' => $branchId,
@@ -677,8 +698,14 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         ':receive_date' => $receiveDate,
         ':posted_by' => $userId > 0 ? $userId : null,
         ':remarks' => $head['remarks'],
+        ':count_basis' => $partialQtys === null ? 'copied' : 'independently_counted',
     ]);
     $receivingId = (int)$db->lastInsertId();
+    if ($partialQtys === null) {
+        dl_raiseIntegrityNotification($db, 'receiving-count-' . $receivingId, 'uncounted_receipt', $branchId,
+            'dl_branch_receivings', $receivingId, 'Receipt needs an independent count',
+            'Receiving #' . $receivingId . ' copied sent quantities and is explicitly labelled uncounted/single-witness.', true);
+    }
 
     $rcvItemStmt = $db->prepare(
         'INSERT INTO dl_branch_receiving_items
@@ -1055,10 +1082,11 @@ function apiPostDelivery(array $params = []): void
             throw new \RuntimeException('Delivery cannot be posted because it is no longer draft or already has an active receiving.');
         }
 
+        $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $userId);
         $ctx->db()->commit();
         dl_auditLog('delivery_posted', $row['origin_type'] === 'branch' ? (int)$row['origin_id'] : null,
             'dl_deliveries', (string)$deliveryId, ['status' => 'draft'], ['status' => 'posted']);
-        $ctx->json(['ok' => true]);
+        $ctx->json(['ok' => true, 'ledger_effect' => $ledgerEffect]);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
         $ctx->log('apiPostDelivery: ' . $e->getMessage(), 'error', [
@@ -1082,7 +1110,7 @@ function apiVoidDelivery(array $params = []): void
 
     $ctx->db()->beginTransaction();
     try {
-        $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, destination_type, destination_id, delivery_date, remarks, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
+        $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, delivery_date, remarks, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
         $stmt->execute([':id' => $deliveryId]);
         $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if (!$delivery) {
@@ -1127,14 +1155,15 @@ function apiVoidDelivery(array $params = []): void
             }
         }
 
+        $ledgerReversal = dl_reversePostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $userId);
         $ctx->db()->prepare(
             'UPDATE dl_deliveries SET status = "voided", voided_by = :u, voided_at = NOW() WHERE id = :id AND status <> "voided"'
         )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
 
         $ctx->db()->commit();
         dl_auditLog('delivery_voided', null, 'dl_deliveries', (string)$deliveryId,
-            ['status' => $status], ['status' => 'voided'], $reason ?: null);
-        $ctx->json(['ok' => true]);
+            ['status' => $status], ['status' => 'voided', 'ledger_reversal' => $ledgerReversal], $reason ?: null);
+        $ctx->json(['ok' => true, 'ledger_reversal' => $ledgerReversal]);
     } catch (\Throwable $e) {
         if ($ctx->db()->inTransaction()) {
             $ctx->db()->rollBack();
@@ -1463,6 +1492,7 @@ function apiCreateReceiving(array $params = []): void
     $rcvDate    = (string)($input['received_ledger_date'] ?? dl_businessDate());
     $remarks    = trim((string)($input['remarks'] ?? '')) ?: null;
     $items      = (array)($input['items'] ?? []);
+    $countBasis = 'independently_counted';
 
     if ($deliveryId) {
         $h = $ctx->db()->prepare('SELECT * FROM dl_deliveries WHERE id = :id');
@@ -1480,9 +1510,10 @@ function apiCreateReceiving(array $params = []): void
             return;
         }
         $originType = (string)$del['origin_type'];
-        $originId   = $del['origin_id'] !== null ? (int)$del['origin_id'] : null;
+        $originId   = ($del['resolved_origin_id'] ?? null) !== null ? (int)$del['resolved_origin_id'] : ($del['origin_id'] !== null ? (int)$del['origin_id'] : null);
         $drNumber   = $del['dr_number'] ?: $drNumber;
         if (count($items) === 0) {
+            $countBasis = 'copied';
             $diStmt = $ctx->db()->prepare('SELECT id, product_id, quantity, unit, price_snapshot FROM dl_delivery_items WHERE delivery_id = :d');
             $diStmt->execute([':d' => $deliveryId]);
             foreach ($diStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $di) {
@@ -1497,14 +1528,41 @@ function apiCreateReceiving(array $params = []): void
         }
     }
 
+    $sentByItem = [];
+    if ($deliveryId && $countBasis === 'independently_counted') {
+        $sentStmt = $ctx->db()->prepare('SELECT id, product_id, quantity FROM dl_delivery_items WHERE delivery_id = :id');
+        $sentStmt->execute([':id' => $deliveryId]);
+        foreach ($sentStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $sentItem) {
+            $sentByItem[(int)$sentItem['id']] = ['product_id' => (int)$sentItem['product_id'], 'quantity' => (int)$sentItem['quantity']];
+        }
+        if (count($items) !== count($sentByItem)) {
+            $ctx->json(['ok' => false, 'error' => 'An explicit count is required for every delivery item.'], 422);
+            return;
+        }
+    }
+
     $clean = [];
     foreach ($items as $i) {
         if (!is_array($i)) continue;
+        $deliveryItemId = isset($i['delivery_item_id']) ? (int)$i['delivery_item_id'] : null;
         $pid = (int)($i['product_id'] ?? 0);
-        $qty = (int)($i['quantity_received'] ?? $i['quantity'] ?? 0);
-        if ($pid <= 0 || $qty <= 0) continue;
+        $rawQty = $i['quantity_received'] ?? $i['quantity'] ?? null;
+        if ((!is_int($rawQty) && !(is_string($rawQty) && preg_match('/^\d+$/', $rawQty))) || (int)$rawQty < 0) {
+            $ctx->json(['ok' => false, 'error' => 'Received counts must be non-negative whole numbers.'], 422);
+            return;
+        }
+        $qty = (int)$rawQty;
+        if ($sentByItem !== []) {
+            if ($deliveryItemId === null || !isset($sentByItem[$deliveryItemId])
+                || $sentByItem[$deliveryItemId]['product_id'] !== $pid
+                || $qty > $sentByItem[$deliveryItemId]['quantity']) {
+                $ctx->json(['ok' => false, 'error' => 'Each count must identify a delivery item and be between zero and the sent quantity.'], 422);
+                return;
+            }
+        }
+        if ($pid <= 0) continue;
         $clean[] = [
-            'delivery_item_id' => isset($i['delivery_item_id']) ? (int)$i['delivery_item_id'] : null,
+            'delivery_item_id' => $deliveryItemId,
             'product_id' => $pid,
             'quantity_received' => $qty,
             'unit' => trim((string)($i['unit'] ?? 'pcs')) ?: 'pcs',
@@ -1520,15 +1578,20 @@ function apiCreateReceiving(array $params = []): void
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_branch_receivings
                 (branch_id, origin_type, origin_id, delivery_id, dr_number,
-                 received_by, received_at, received_ledger_date, status, remarks)
-             VALUES (:b, :ot, :oid, :did, :dr, :rb, NOW(), :rd, "draft", :rmk)'
+                 received_by, received_at, received_ledger_date, status, remarks, count_basis)
+             VALUES (:b, :ot, :oid, :did, :dr, :rb, NOW(), :rd, "draft", :rmk, :count_basis)'
         );
         $ins->execute([
             ':b' => $branchId, ':ot' => $originType, ':oid' => $originId,
             ':did' => $deliveryId, ':dr' => $drNumber,
-            ':rb' => $userId ?: null, ':rd' => $rcvDate, ':rmk' => $remarks,
+            ':rb' => $userId ?: null, ':rd' => $rcvDate, ':rmk' => $remarks, ':count_basis' => $countBasis,
         ]);
         $rcvId = (int)$ctx->db()->lastInsertId();
+        if ($countBasis === 'copied') {
+            dl_raiseIntegrityNotification($ctx->db(), 'receiving-count-' . $rcvId, 'uncounted_receipt', $branchId,
+                'dl_branch_receivings', $rcvId, 'Receipt needs an independent count',
+                'Receiving #' . $rcvId . ' copied sent quantities and is explicitly labelled uncounted/single-witness.', true);
+        }
 
         $insItem = $ctx->db()->prepare(
             'INSERT INTO dl_branch_receiving_items

@@ -132,7 +132,10 @@
                                 </template>
                             </td>
                             <td x-text="d.delivery_date"></td>
-                            <td x-text="d.origin_label"></td>
+                            <td>
+                                <span x-text="d.integrity_origin_label || (d.origin_id === null ? 'origin unresolved' : d.origin_label)"></span>
+                                <template x-if="d.origin_admin_resolved"><span class="ml-1 text-[10px] font-semibold text-emerald-700">admin-resolved</span></template>
+                            </td>
                             <td x-text="d.destination_label"></td>
                             <td>
                                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
@@ -463,15 +466,26 @@ function deliveriesPage() {
             if (this.filter.date_from) qs.set('date_from', this.filter.date_from);
             if (this.filter.date_to) qs.set('date_to', this.filter.date_to);
             this.loadError = '';
-            fetch('{base_url}/api/v1/deliveries?' + qs.toString(), {
-                credentials: 'same-origin',
-                headers: {
-                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
-                }
-            })
-                .then(r => r.json())
-                .then(j => {
-                    this.rows = (j && j.ok) ? j.deliveries : [];
+            const authHeaders = {'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')};
+            Promise.all([
+                fetch('{base_url}/api/v1/deliveries?' + qs.toString(), {credentials: 'same-origin', headers: authHeaders}).then(r => r.json()),
+                fetch('{base_url}/api/v1/admin/deliveries/integrity-labels', {credentials: 'same-origin', headers: authHeaders}).then(r => r.json())
+            ])
+                .then(results => {
+                    const j = results[0];
+                    const integrity = results[1];
+                    const byId = {};
+                    ((integrity && integrity.ok) ? integrity.deliveries : []).forEach(row => { byId[parseInt(row.id, 10)] = row; });
+                    this.rows = (j && j.ok) ? j.deliveries.map(row => {
+                        const fact = byId[parseInt(row.id, 10)];
+                        if (fact) {
+                            row.integrity_origin_label = fact.resolved_origin_id
+                                ? (fact.resolved_origin_name + (fact.resolved_origin_code ? ' (' + fact.resolved_origin_code + ')' : ''))
+                                : 'origin unresolved';
+                            row.origin_admin_resolved = !!fact.resolved_origin_id;
+                        }
+                        return row;
+                    }) : [];
                     if (!j || !j.ok) {
                         this.loadError = (j && j.error) ? j.error : 'Failed to load deliveries.';
                     }
