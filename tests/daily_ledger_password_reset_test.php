@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'applicationos.test';
+$_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'baronledger.test';
 $_SERVER['REQUEST_URI'] = $_SERVER['REQUEST_URI'] ?? '/daily-ledger/login';
 
 require __DIR__ . '/../bootstrap.php';
@@ -10,6 +10,12 @@ require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../src/http/core-routes.php';
 require_once __DIR__ . '/../modules/daily-ledger/helpers.php';
 require_once __DIR__ . '/../modules/daily-ledger/handlers.php';
+
+// The DiSyL engine defaults to compiled mode, and the CLI user cannot write
+// storage/cache/compiled (owned by the web user). Template compilation is not
+// what this suite guards, so run the interpreted pipeline instead of failing on
+// a cache write the test user was never meant to perform.
+app()->templates()->enableCompiledMode(false);
 
 ob_start();
 
@@ -66,14 +72,17 @@ function runDailyLedgerAuthJsonRequest(string $handlerName, string $requestUri, 
 
     $runner = <<<PHP
 <?php
+\$_SERVER['HTTP_HOST'] = 'baronledger.test';
+\$_SERVER['SERVER_NAME'] = 'baronledger.test';
+\$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 require {$bootstrap};
 require_once {$moduleManager};
 require_once {$coreRoutes};
 require_once {$helpers};
 require_once {$handlers};
 
-\$_SERVER['HTTP_HOST'] = 'applicationos.test';
-\$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+app()->templates()->enableCompiledMode(false);
+
 \$_SERVER['REQUEST_METHOD'] = 'POST';
 \$_SERVER['REQUEST_URI'] = {$requestUriExport};
 \$_SERVER['CONTENT_TYPE'] = 'application/json';
@@ -129,6 +138,16 @@ $db = app()->db();
 $runner = new \Ikabud\Kernel\Database\MigrationRunner($db);
 $runner->migrate('daily-ledger');
 loadModuleRoutes(kernelCoreRoutes());
+
+// This suite drives the real forgot/reset endpoints, whose anti-abuse limiter is
+// keyed by IP and identity (5 attempts / 5 min). Repeated local runs would
+// otherwise fail with 429 unrelated to the behaviour under test. The rate-limit
+// cache stores no URI inside the entry, so the pattern-clearing helper cannot
+// match it; clear the instance (file + APCu) at start and in teardown.
+$clearPasswordRateLimits = static function (): void {
+    app()->cache()->clear('security_rate_limits');
+};
+$clearPasswordRateLimits();
 
 $routes = require BASE_PATH . '/modules/daily-ledger/routes.php';
 
@@ -273,6 +292,7 @@ try {
 
     $cleanupResetStmt->execute([$username, $email]);
     $cleanupUserStmt->execute([$username, $email]);
+    $clearPasswordRateLimits();
 }
 
 echo "\n" . str_repeat('─', 50) . "\n";

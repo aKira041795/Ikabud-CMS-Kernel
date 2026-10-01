@@ -863,6 +863,25 @@ try {
         $pdo->prepare('DELETE FROM dl_selling_accounts WHERE id = :id')->execute([':id' => $aid]);
     }
 
+    // Remove integrity notifications raised for our test receivings. An
+    // uncounted receipt raises 'receiving-count-<id>'; without this each run
+    // leaks a notification and its recipients into the tenant.
+    if ($trackedReceivingIds !== [] || $trackedBranchIds !== []) {
+        $receivingIds = implode(',', array_map('intval', $trackedReceivingIds ?: [0]));
+        $branchIds = implode(',', array_map('intval', $trackedBranchIds ?: [0]));
+        $pdo->prepare(
+            "DELETE FROM dl_integrity_notification_recipients
+              WHERE notification_id IN (
+                  SELECT id FROM dl_integrity_notifications
+                   WHERE entity_id IN ($receivingIds) OR branch_id IN ($branchIds)
+              )"
+        )->execute();
+        $pdo->prepare(
+            "DELETE FROM dl_integrity_notifications
+              WHERE entity_id IN ($receivingIds) OR branch_id IN ($branchIds)"
+        )->execute();
+    }
+
     // Remove receivings
     foreach ($trackedReceivingIds as $rid) {
         $pdo->prepare('DELETE FROM dl_branch_receiving_items WHERE receiving_id = :id')->execute([':id' => $rid]);

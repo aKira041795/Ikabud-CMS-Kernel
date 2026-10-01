@@ -187,7 +187,11 @@ fp('withdrawal modal: edit mode routes to /withdrawals/edit', strpos($modalTpl, 
 
 $receiveTpl = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/cashier/receive_modal.disyl');
 fp('receive modal: auto-DR checkbox', strpos($receiveTpl, 'paperForm.auto_dr') !== false && strpos($receiveTpl, 'No paper DR') !== false);
-fp('receive modal: auto-DR online-only guard', strpos($receiveTpl, 'autoDrBlockedOffline') !== false);
+// The old check here was `strpos($receiveTpl, 'autoDrBlockedOffline') !== false`,
+// a string test that stayed green for months after the guard was deleted. The
+// behavioural proof now lives in tests/daily-ledger/daily_ledger_receive_offline_guard_test.php;
+// here we guard the write path against silently re-introducing a queue call.
+fp('receive modal: auto-DR receive write path never enqueues', strpos($receiveTpl, 'window.enqueueOperation(') === false);
 
 $rowsTpl = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/cashier/partials/ledger-rows.disyl');
 fp('ledger rows expose data-pack per product', strpos($rowsTpl, 'data-pack=') !== false);

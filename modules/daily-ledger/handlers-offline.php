@@ -953,6 +953,13 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
     }
 
     $input = is_array($op['payload'] ?? null) ? $op['payload'] : [];
+    // Auto-DR production receive cannot be replayed offline: the server mints the
+    // DR during the online write, so there is no explicit paper DR for the queue
+    // to honour. Reject it explicitly (rather than letting the generic empty-DR
+    // check below swallow it) so the real reason reaches the device.
+    if (!empty($input['auto_dr'])) {
+        throw new RuntimeException('Auto-DR production receive requires connectivity and cannot be replayed from the offline queue. Reconnect and retry, or enter the paper DR number.', 422);
+    }
     $authResult = dl_authorizeBranch($user, $input);
     if ($authResult['branch_id'] < 0) {
         throw new RuntimeException('Branch not authorized', 403);

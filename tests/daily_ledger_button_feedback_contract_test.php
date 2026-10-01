@@ -118,6 +118,19 @@ dlFeedbackTest(
 $rowsPartial = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/cashier/partials/ledger-rows.disyl');
 $helpers = (string)file_get_contents(__DIR__ . '/../modules/daily-ledger/helpers.php');
 
+// A finalized shift must lock each editable trigger, not a fixed number of them.
+// Counting the lock string pinned the total at 2 and failed the moment a third
+// trigger was legitimately gated (the previous-ending button), so it guarded
+// nothing while blocking correct work. Check the behaviour instead: each named
+// trigger must sit inside a block whose opening {if} carries the finalized lock,
+// with no {/if} in between.
+$triggerLockedWhenFinalized = static function (string $tpl, string $marker): bool {
+    return preg_match(
+        '/\{if[^}]*shift_status != \'finalized\'[^}]*\}(?:(?!\{\/if\}).)*?' . preg_quote($marker, '/') . '/s',
+        $tpl
+    ) === 1;
+};
+
 dlFeedbackTest(
     'finalized shift is a deterministic rejection rather than a retry',
     str_contains($classifierSource, "'finalized'") && str_contains($classifierSource, "'locked'")
@@ -127,8 +140,25 @@ dlFeedbackTest(
     substr_count($rowsPartial, "|| shift_status == 'finalized'}disabled") === 2
 );
 dlFeedbackTest(
-    'add-stock and withdraw triggers lock when the viewed shift is finalized',
-    substr_count($rowsPartial, "&& shift_status != 'finalized'") === 2
+    'every editable ledger trigger locks when the viewed shift is finalized',
+    $triggerLockedWhenFinalized($rowsPartial, 'addtl-trigger')
+        && $triggerLockedWhenFinalized($rowsPartial, 'withdraw-trigger')
+        && $triggerLockedWhenFinalized($rowsPartial, 'dlUsePreviousEnding')
+);
+// Falsify the guard: remove the add-stock trigger's lock and confirm the
+// predicate rejects it. A guard that cannot fail is not a guard.
+$rowsNoAddLock = preg_replace(
+    '/\{if day_status == \'open\' && !reference_only && shift_status != \'finalized\'\}(\s*<button type="button"\s*class="ledger-trigger ledger-trigger-add addtl-trigger")/',
+    '{if day_status == \'open\' && !reference_only}$1',
+    $rowsPartial,
+    1
+);
+dlFeedbackTest(
+    'the finalized lock guard fails when a trigger lock is removed',
+    $rowsNoAddLock !== null
+        && $rowsNoAddLock !== $rowsPartial
+        && $triggerLockedWhenFinalized($rowsNoAddLock, 'addtl-trigger') === false
+        && $triggerLockedWhenFinalized($rowsPartial, 'addtl-trigger') === true
 );
 dlFeedbackTest(
     'ledger cells snapshot the rendered server value on focus',

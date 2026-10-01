@@ -378,8 +378,25 @@ function receiveModal() {
             return true;
         },
 
+        // Auto-DR production receive mints the DR server-side, so it cannot be
+        // queued offline (the offline replay requires an explicit paper DR).
+        autoDrBlockedOffline() {
+            if (!this.paperForm.auto_dr) return false;
+            this.errorMsg = 'Auto-DR production receive requires connectivity. Reconnect and retry, or enter the paper DR number.';
+            return true;
+        },
+
         submitPaperDelivery() {
             if (!this.validatePaperDelivery()) return;
+            // Writes are online-only (nothing is buffered on the device since
+            // 2026-09-22). Auto-DR is a special case on top of that: the server
+            // mints the DR, so the offline replay has no explicit paper DR to
+            // honour. Refuse it here with the reason instead of attempting a
+            // write the queue could never sync.
+            if (!navigator.onLine && this.autoDrBlockedOffline()) {
+                this.paperSaving = false;
+                return;
+            }
             this.paperSaving = true;
 
             var payload = {
@@ -442,6 +459,11 @@ function receiveModal() {
             }.bind(this))
             .catch(function(err) {
                 this.paperSaving = false;
+                // Auto-DR has no paper DR to replay: if the connection dropped,
+                // say why instead of offering a generic retry.
+                if (!navigator.onLine && this.autoDrBlockedOffline()) {
+                    return;
+                }
                 // ONLINE-ONLY: never buffered. The modal stays open with the reason so
                 // the Save button is the retry.
                 this.errorMsg = (err && err.dlTimedOut)

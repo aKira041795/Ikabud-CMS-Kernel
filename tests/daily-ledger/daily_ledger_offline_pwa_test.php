@@ -463,6 +463,36 @@ if (is_array($insertedRow)) {
     }
     $h->test('offline ledger save rejects non-writable fields', is_array($badSave) && !empty($badSave['error']) && (int)($badSave['code'] ?? 0) === 422);
 
+    // Auto-DR cannot be replayed offline: the server mints the DR during the
+    // online write, so the queue has no explicit paper DR to honour. It must be
+    // rejected explicitly (422 + the reason), not swallowed by the generic
+    // empty-DR check. The client guard is proven in
+    // tests/daily-ledger/daily_ledger_receive_offline_guard_test.php; this is the
+    // server-side backstop for anything that still reaches the replay path.
+    $autoDrReplay = null;
+    try {
+        dl_offlineApplyReceivePaperDr($adminUser, [
+            'type' => 'receive_paper_dr',
+            'payload' => [
+                'branch_id' => $branchId,
+                'origin_type' => 'commissary',
+                'dr_number' => '',
+                'auto_dr' => 1,
+                'delivery_date' => $testDate,
+                'receive_date' => $testDate,
+                'items' => [['product_id' => $productId, 'quantity' => 1]],
+            ],
+        ]);
+    } catch (RuntimeException $e) {
+        $autoDrReplay = ['error' => $e->getMessage(), 'code' => $e->getCode()];
+    }
+    $h->test(
+        'offline replay rejects an auto-DR receive with the reason',
+        is_array($autoDrReplay)
+            && (int)($autoDrReplay['code'] ?? 0) === 422
+            && str_contains((string)($autoDrReplay['error'] ?? ''), 'requires connectivity')
+    );
+
     // Withdrawal (charge)
     $wdResult = null;
     try {
