@@ -258,26 +258,67 @@ function dl_deliveryBranchAuthorized(array $user, string $type, ?int $branchId):
     return in_array($branchId, dl_accessibleBranchIds($user), true);
 }
 
+/**
+ * Resolve the origin branch id a record is authorised against.
+ *
+ * COALESCE(resolved_origin_id, origin_id) semantics: prefer the explicitly
+ * resolved origin, fall back to the raw origin_id. Returns null when neither
+ * column yields a valid branch id — meaning the origin is *unresolved*, not
+ * that the caller is denied. dl_deliveryRecordAuthorized() treats an
+ * unresolved, branch-scoped side as no restriction and decides on the
+ * resolvable side(s).
+ */
+function dl_deliveryResolvedOriginId(array $delivery): ?int
+{
+    foreach (['resolved_origin_id', 'origin_id'] as $key) {
+        if (!array_key_exists($key, $delivery)) {
+            continue;
+        }
+        $value = $delivery[$key];
+        if ($value !== null && is_numeric($value) && (int)$value > 0) {
+            return (int)$value;
+        }
+    }
+    return null;
+}
+
 function dl_deliveryRecordAuthorized(array $user, array $delivery): bool
 {
     $originType = (string)($delivery['origin_type'] ?? '');
     $destinationType = (string)($delivery['destination_type'] ?? '');
-    $hasBranchScope = in_array($originType, ['branch', 'commissary'], true)
-        || $destinationType === 'branch';
+    $originScoped = in_array($originType, ['branch', 'commissary'], true);
+    $destinationScoped = $destinationType === 'branch';
 
-    if (!$hasBranchScope && (string)($user['role'] ?? '') !== 'admin') {
+    if (!$originScoped && !$destinationScoped && (string)($user['role'] ?? '') !== 'admin') {
         return false;
     }
 
-    return dl_deliveryBranchAuthorized(
-        $user,
-        $originType,
-        isset($delivery['resolved_origin_id']) ? (int)$delivery['resolved_origin_id'] : (isset($delivery['origin_id']) ? (int)$delivery['origin_id'] : null)
-    ) && dl_deliveryBranchAuthorized(
-        $user,
-        $destinationType,
-        isset($delivery['destination_id']) ? (int)$delivery['destination_id'] : null
-    );
+    $originId = $originScoped ? dl_deliveryResolvedOriginId($delivery) : null;
+    $destinationId = $destinationScoped
+        && isset($delivery['destination_id'])
+        && (int)$delivery['destination_id'] > 0
+            ? (int)$delivery['destination_id']
+            : null;
+
+    // An unresolved branch side is not a restriction: 112/118 historical
+    // deliveries carry origin_id NULL before the origin is resolved, and the
+    // old predicate denied every one of them for every role because it
+    // required BOTH sides. Decide on the resolvable side(s) instead. If a
+    // branch-scoped record has NEITHER side resolvable there is nothing to
+    // authorise against, so fail closed rather than turning the predicate
+    // into "anyone with the role".
+    if (($originScoped || $destinationScoped) && $originId === null && $destinationId === null) {
+        return false;
+    }
+
+    if ($originId !== null && !dl_deliveryBranchAuthorized($user, $originType, $originId)) {
+        return false;
+    }
+    if ($destinationId !== null && !dl_deliveryBranchAuthorized($user, $destinationType, $destinationId)) {
+        return false;
+    }
+
+    return true;
 }
 
 function dl_normalizeDeliveryItems(array $items): array
@@ -1411,7 +1452,7 @@ function apiGetDeliveryReceivingDetail(array $params = []): void
     if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
 
     $deliveryStmt = $ctx->db()->prepare(
-        'SELECT origin_type, origin_id, destination_type, destination_id
+        'SELECT origin_type, origin_id, resolved_origin_id, destination_type, destination_id
            FROM dl_deliveries
           WHERE id = :id
           LIMIT 1'
