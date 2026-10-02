@@ -183,6 +183,10 @@
                 {/if}
             </div>
             <div class="mt-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Production shift (paper DR)</div>
+                <p class="mt-1 text-sm font-semibold text-amber-800">{if doc.production.shift}{doc.production.shift} shift{else}not captured (historical){/if}</p>
+            </div>
+            <div class="mt-3">
                 <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Production movements (same DR)</div>
                 {if doc.production.movements | count > 0}
                 <ul class="mt-1 space-y-1 text-sm text-slate-800">
@@ -230,7 +234,7 @@
             {if doc.receiving.recorded}
                 {foreach doc.receiving.rows as rcv}
                 <div class="mt-2 rounded border border-slate-100 bg-slate-50 p-2">
-                    <p class="text-xs text-slate-600">Received by {if rcv.received_by_label}{rcv.received_by_label}{else}not recorded{/if}{if rcv.received_at} at {rcv.received_at}{/if} · ledger date {rcv.received_ledger_date}</p>
+                    <p class="text-xs text-slate-600">Received by {if rcv.received_by_label}{rcv.received_by_label}{else}not recorded{/if}{if rcv.received_at} at {rcv.received_at}{/if} · ledger date {rcv.received_ledger_date} · received into {if rcv.received_shift}<span class="font-semibold text-indigo-700">{rcv.received_shift} shift</span>{else}not captured (historical){/if}</p>
                     <p class="mt-1 text-xs font-semibold {if rcv.count_basis == 'independently_counted'}text-emerald-700{else}text-amber-700{/if}">{rcv.count_basis_label}{if rcv.count_resolved_at} · resolved {rcv.count_resolved_at}{if rcv.count_resolved_by_label} by {rcv.count_resolved_by_label}{/if}{/if}</p>
                     <table class="mt-1 w-full text-sm">
                         <thead class="text-xs uppercase tracking-wide text-slate-500">

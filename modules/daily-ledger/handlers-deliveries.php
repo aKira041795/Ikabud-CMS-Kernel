@@ -685,9 +685,9 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
     $rcvStmt = $db->prepare(
         'INSERT INTO dl_branch_receivings
             (branch_id, origin_type, origin_id, delivery_id, dr_number,
-             received_by, received_at, received_ledger_date, status, posted_by, posted_at, remarks, count_basis)
+             received_by, received_at, received_ledger_date, received_shift, status, posted_by, posted_at, remarks, count_basis)
          VALUES (:branch_id, :origin_type, :origin_id, :delivery_id, :dr_number,
-                 :received_by, NOW(), :receive_date, "posted", :posted_by, NOW(), :remarks, :count_basis)'
+                 :received_by, NOW(), :receive_date, :received_shift, "posted", :posted_by, NOW(), :remarks, :count_basis)'
     );
     $rcvStmt->execute([
         ':branch_id' => $branchId,
@@ -697,6 +697,7 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         ':dr_number' => $head['dr_number'],
         ':received_by' => $userId > 0 ? $userId : null,
         ':receive_date' => $receiveDate,
+        ':received_shift' => $shift,
         ':posted_by' => $userId > 0 ? $userId : null,
         ':remarks' => $head['remarks'],
         ':count_basis' => $partialQtys === null ? 'copied' : 'independently_counted',
@@ -741,6 +742,8 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         'status' => 'posted',
         'dr_number' => $head['dr_number'],
         'items' => count($items),
+        'received_shift' => $shift,
+        'production_shift' => $head['production_shift'] ?? null,
     ]);
 
     return $receivingId;
@@ -1358,7 +1361,7 @@ function apiListDeliveries(array $params = []): void
         $bind[':ps'] = $provenanceStatus;
     }
     $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.destination_type, d.destination_id, d.dr_number,
-                   d.delivery_date,
+                   d.delivery_date, d.production_shift,
                    CASE WHEN ' . $hasReceivingSql . ' THEN "received" ELSE d.status END AS status,
                    d.status AS delivery_status,
                    CASE WHEN ' . $hasReceivingSql . ' THEN 1 ELSE 0 END AS has_receiving,
@@ -1426,9 +1429,10 @@ function apiGetDeliveryReceivingDetail(array $params = []): void
 
     // Get the latest non-voided receiving for this delivery
     $rcvStmt = $ctx->db()->prepare(
-        'SELECT br.id, br.status, br.received_ledger_date, br.posted_at,
-                du.username AS received_by_name
+        'SELECT br.id, br.status, br.received_ledger_date, br.received_shift, br.posted_at,
+                d.production_shift, du.username AS received_by_name
          FROM dl_branch_receivings br
+         INNER JOIN dl_deliveries d ON d.id = br.delivery_id
          LEFT JOIN dl_users du ON du.id = br.posted_by
          WHERE br.delivery_id = :did AND br.status <> \'voided\'
          ORDER BY br.id DESC LIMIT 1'
@@ -1893,7 +1897,7 @@ function dl_moveDeliveryToBranch($db, array $args): array
             foreach ($rcvItemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $it) {
                 $qty = (int)$it['quantity_received'];
                 if ($qty > 0) {
-                    dl_applyLedgerDelta($wrongBranchId, (int)$it['product_id'], $receiveDate, -$qty, $actorId, 'addtl');
+                    dl_applyLedgerDelta($wrongBranchId, (int)$it['product_id'], $receiveDate, -$qty, $actorId, 'addtl', (string)($activeReceiving['received_shift'] ?? 'AM'));
                     dl_recomputeSales($wrongBranchId, (int)$it['product_id'], $receiveDate, max(0, $actorId));
                 }
             }
@@ -1912,7 +1916,10 @@ function dl_moveDeliveryToBranch($db, array $args): array
         // Create the receiving on the correct branch (applies addtl + variance flags).
         $newReceivingId = 0;
         if ($movedAddtl) {
-            $newReceivingId = dl_acceptFormalDelivery($db, $targetBranchId, $deliveryId, $actorId, $receiveDate, null);
+            $newReceivingId = dl_acceptFormalDelivery(
+                $db, $targetBranchId, $deliveryId, $actorId, $receiveDate, null,
+                (string)($activeReceiving['received_shift'] ?? 'AM')
+            );
         }
 
         dl_auditLog('delivery_destination_changed', $wrongBranchId, 'dl_deliveries', (string)$deliveryId, [

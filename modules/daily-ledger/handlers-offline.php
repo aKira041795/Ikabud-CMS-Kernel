@@ -967,6 +967,9 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
     $destinationBranchId = $authResult['branch_id'];
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
+    $productionShift = array_key_exists('production_shift', $input)
+        ? strtoupper(trim((string)$input['production_shift']))
+        : $shift;
     $originType = (string)($input['origin_type'] ?? 'commissary');
     $originId = !empty($input['origin_id']) ? (int)$input['origin_id'] : null;
     $drNumber = trim((string)($input['dr_number'] ?? ''));
@@ -977,6 +980,9 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
     $role = (string)($user['role'] ?? '');
     $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
 
+    if (!in_array($productionShift, ['AM', 'PM'], true)) {
+        throw new RuntimeException('Production shift from the paper DR is required.', 422);
+    }
     if ($destinationBranchId <= 0) {
         throw new RuntimeException('Missing destination branch.', 422);
     }
@@ -1046,8 +1052,8 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
             $ins = $ctx->db()->prepare(
                 'INSERT INTO dl_deliveries
                     (origin_type, origin_id, destination_type, destination_id, dr_number,
-                     delivery_date, status, created_by, posted_by, posted_at, remarks, provenance_status)
-                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status)'
+                     delivery_date, production_shift, status, created_by, posted_by, posted_at, remarks, provenance_status)
+                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status)'
             );
             $ins->execute([
                 ':ot' => $originType,
@@ -1056,6 +1062,7 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
                 ':did' => $destinationBranchId,
                 ':dr' => $drNumber,
                 ':dd' => $deliveryDate,
+                ':production_shift' => $productionShift,
                 ':created_by' => $actorId ?: null,
                 ':posted_by' => $actorId ?: null,
                 ':remarks' => dl_paperDrCaptureRemark(),
@@ -1080,7 +1087,7 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
                     ':remarks' => $item['remarks'],
                 ]);
                 if ($originType === 'branch' && $originId !== null) {
-                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $shift);
+                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $productionShift);
                 }
             }
 
@@ -1092,10 +1099,14 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
                 'status' => 'posted',
                 'source' => 'captured_from_paper_dr',
             ]);
-        } elseif ((string)$existing['status'] === 'draft') {
-            $ctx->db()->prepare(
-                'UPDATE dl_deliveries SET status = "posted", posted_by = :u, posted_at = NOW() WHERE id = :id'
-            )->execute([':u' => $actorId ?: null, ':id' => $deliveryId]);
+        } else {
+            $set = 'production_shift = :production_shift';
+            $params = [':production_shift' => $productionShift, ':id' => $deliveryId];
+            if ((string)$existing['status'] === 'draft') {
+                $set .= ', status = "posted", posted_by = :u, posted_at = NOW()';
+                $params[':u'] = $actorId ?: null;
+            }
+            $ctx->db()->prepare('UPDATE dl_deliveries SET ' . $set . ' WHERE id = :id')->execute($params);
         }
 
         // Offline replay uses the same durable, item-keyed debit path as online paper capture.
@@ -1106,7 +1117,14 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
             $ctx->db()->commit();
         }
 
-        return ['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId, 'ledger_effect' => $ledgerEffect];
+        return [
+            'ok' => true,
+            'delivery_id' => $deliveryId,
+            'receiving_id' => $receivingId,
+            'ledger_effect' => $ledgerEffect,
+            'production_shift' => $productionShift,
+            'received_shift' => $shift,
+        ];
     } catch (\Throwable $e) {
         if (!$inTx && $ctx->db()->inTransaction()) {
             $ctx->db()->rollBack();

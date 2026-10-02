@@ -6934,7 +6934,7 @@ function apiGetIncomingDeliveries(array $params = []): void
 
     $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
 
-    $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.quantity, cw.branch_id AS origin_branch_id,
+    $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.shift AS production_shift, cw.quantity, cw.branch_id AS origin_branch_id,
                    ob.name AS origin_branch_name, cw.product_id, p.name AS product_name
             FROM dl_cashier_withdrawals cw
             INNER JOIN dl_branches ob ON ob.id = cw.branch_id
@@ -6954,8 +6954,8 @@ function apiGetIncomingDeliveries(array $params = []): void
     $groups = [];
     foreach ($rows as $r) {
         $key = ($r['dr_number'] !== null && $r['dr_number'] !== '')
-            ? 'dr:' . $r['dr_number'] . ':' . $r['origin_branch_id']
-            : 'orig:' . $r['origin_branch_id'] . ':' . $r['ledger_date'];
+            ? 'dr:' . $r['dr_number'] . ':' . $r['origin_branch_id'] . ':' . ($r['production_shift'] ?? '')
+            : 'orig:' . $r['origin_branch_id'] . ':' . $r['ledger_date'] . ':' . ($r['production_shift'] ?? '');
         if (!isset($groups[$key])) {
             $groups[$key] = [
                 'group_key' => $key,
@@ -6963,6 +6963,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                 'origin_branch_id' => (int)$r['origin_branch_id'],
                 'origin_branch_name' => $r['origin_branch_name'],
                 'ledger_date' => $r['ledger_date'],
+                'production_shift' => in_array(($r['production_shift'] ?? null), ['AM', 'PM'], true) ? $r['production_shift'] : null,
                 'items' => [],
                 'ids' => [],
                 'delivery_ids' => [],
@@ -6978,7 +6979,7 @@ function apiGetIncomingDeliveries(array $params = []): void
     }
 
     if (dl_isFormalDeliveryEnabled()) {
-        $formalSql = 'SELECT d.id AS delivery_id, d.dr_number, d.delivery_date,
+        $formalSql = 'SELECT d.id AS delivery_id, d.dr_number, d.delivery_date, d.production_shift,
                              d.origin_id AS origin_branch_id,
                              COALESCE(ob.name, cb.name, d.origin_type) AS origin_branch_name,
                              di.id AS delivery_item_id,
@@ -7011,6 +7012,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                     'origin_branch_id' => $row['origin_branch_id'] !== null ? (int)$row['origin_branch_id'] : 0,
                     'origin_branch_name' => $row['origin_branch_name'],
                     'ledger_date' => $row['delivery_date'],
+                    'production_shift' => in_array(($row['production_shift'] ?? null), ['AM', 'PM'], true) ? $row['production_shift'] : null,
                     'items' => [],
                     'ids' => [],
                     'delivery_ids' => [(int)$row['delivery_id']],
@@ -7148,6 +7150,11 @@ function apiReceiveDelivery(array $params = []): void
     $branchId = $authResult['branch_id'];
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
+    $productionShift = strtoupper(trim((string)($input['production_shift'] ?? '')));
+    if ($productionShift !== '' && !in_array($productionShift, ['AM', 'PM'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Production shift must be AM or PM.'], 422);
+        return;
+    }
     $ids = array_values(array_filter(array_map('intval', (array)($input['withdrawal_ids'] ?? []))));
     $deliveryIds = array_values(array_filter(array_map('intval', (array)($input['delivery_ids'] ?? []))));
 
@@ -7173,6 +7180,12 @@ function apiReceiveDelivery(array $params = []): void
             }
             $receivedCount = 0;
             foreach ($deliveryIds as $deliveryId) {
+                // The paper DR is authoritative. A receiver may correct the shift
+                // prefilled from the dispatch before accepting the delivery.
+                if ($productionShift !== '') {
+                    $ctx->db()->prepare('UPDATE dl_deliveries SET production_shift = :shift WHERE id = :id')
+                        ->execute([':shift' => $productionShift, ':id' => $deliveryId]);
+                }
                 if ($hasCorrections) {
                     $providedCounts = $partialQtysMap[$deliveryId] ?? $partialQtysMap[(string)$deliveryId] ?? null;
                     if (!is_array($providedCounts)) {
@@ -7194,7 +7207,13 @@ function apiReceiveDelivery(array $params = []): void
                 }
             }
             $ctx->db()->commit();
-            $ctx->json(['ok' => true, 'received_count' => $receivedCount, 'receive_date' => $receiveDate]);
+            $ctx->json([
+                'ok' => true,
+                'received_count' => $receivedCount,
+                'receive_date' => $receiveDate,
+                'received_shift' => $shift,
+                'production_shift' => $productionShift !== '' ? $productionShift : null,
+            ]);
             return;
         } catch (\Throwable $e) {
             $ctx->db()->rollBack();
@@ -7252,7 +7271,7 @@ function apiReceiveDelivery(array $params = []): void
         // Mark each row received, storing the actual received_qty
         $markIndiv = $ctx->db()->prepare(
             "UPDATE dl_cashier_withdrawals
-             SET received_at = NOW(), received_by = ?, received_ledger_date = ?, received_qty = ?
+             SET received_at = NOW(), received_by = ?, received_ledger_date = ?, received_shift = ?, received_qty = ?
              WHERE id = ?"
         );
         $foundIds = [];
@@ -7260,7 +7279,7 @@ function apiReceiveDelivery(array $params = []): void
             $rid = (int)$r['id'];
             $sentQty = (int)$r['quantity'];
             $receivedQty = $rowReceivedQtys[$rid];
-            $markIndiv->execute([$userId, $receiveDate, $receivedQty, $rid]);
+            $markIndiv->execute([$userId, $receiveDate, $shift, $receivedQty, $rid]);
             $foundIds[] = $rid;
             if ($receivedQty !== $sentQty) {
                 dl_raiseIntegrityNotification(
@@ -7308,7 +7327,13 @@ function apiReceiveDelivery(array $params = []): void
         }
 
         $ctx->db()->commit();
-        $ctx->json(['ok' => true, 'received_count' => count($foundIds), 'receive_date' => $receiveDate]);
+        $ctx->json([
+            'ok' => true,
+            'received_count' => count($foundIds),
+            'receive_date' => $receiveDate,
+            'received_shift' => $shift,
+            'production_shift' => $productionShift !== '' ? $productionShift : null,
+        ]);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
         $ctx->log('apiReceiveDelivery error: ' . $e->getMessage(), 'error');
@@ -7403,6 +7428,12 @@ function apiReceivePaperDelivery(array $params = []): void
     $destinationBranchId = $authResult['branch_id'];
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
+    // New clients must send the paper-DR choice. For pre-071 queued/client
+    // payloads where the key does not exist at all, retain compatibility by
+    // recording the server-resolved shift rather than creating another NULL.
+    $productionShift = array_key_exists('production_shift', $input)
+        ? strtoupper(trim((string)$input['production_shift']))
+        : $shift;
     $originType = (string)($input['origin_type'] ?? 'commissary');
     $originId = isset($input['origin_id']) && $input['origin_id'] !== '' ? (int)$input['origin_id'] : null;
     $drNumber = trim((string)($input['dr_number'] ?? ''));
@@ -7418,6 +7449,10 @@ function apiReceivePaperDelivery(array $params = []): void
     $role = (string)($user['role'] ?? '');
     $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
 
+    if (!in_array($productionShift, ['AM', 'PM'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Production shift from the paper DR is required.'], 422);
+        return;
+    }
     if ($destinationBranchId <= 0) {
         $ctx->json(['ok' => false, 'error' => 'Missing destination branch.'], 422);
         return;
@@ -7539,7 +7574,7 @@ function apiReceivePaperDelivery(array $params = []): void
         // an evidence-integrity hazard. See dl_findPaperCapturedCommissaryDelivery
         // for the date+remark-scoped helper this mirrors (date scoping only here).
         $findStmt = $ctx->db()->prepare(
-            'SELECT id, status, produced_by, produced_at
+            'SELECT id, status, produced_by, produced_at, production_shift
                FROM dl_deliveries
               WHERE destination_type = :destination_type
                 AND destination_id = :destination_id
@@ -7581,9 +7616,9 @@ function apiReceivePaperDelivery(array $params = []): void
             $ins = $ctx->db()->prepare(
                 'INSERT INTO dl_deliveries
                     (origin_type, origin_id, destination_type, destination_id, dr_number,
-                     delivery_date, status, created_by, posted_by, posted_at, remarks, provenance_status,
+                     delivery_date, production_shift, status, created_by, posted_by, posted_at, remarks, provenance_status,
                      produced_by, produced_at)
-                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status,
+                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status,
                          :produced_by, :produced_at)'
             );
             $ins->execute([
@@ -7593,6 +7628,7 @@ function apiReceivePaperDelivery(array $params = []): void
                 ':did' => $destinationBranchId,
                 ':dr' => $drNumber,
                 ':dd' => $deliveryDate,
+                ':production_shift' => $productionShift,
                 ':created_by' => $actorId ?: null,
                 ':posted_by' => $actorId ?: null,
                 ':remarks' => $autoDr ? '[auto-dr-production]' : dl_paperDrCaptureRemark(),
@@ -7619,7 +7655,7 @@ function apiReceivePaperDelivery(array $params = []): void
                     ':remarks' => $item['remarks'],
                 ]);
                 if ($originType === 'branch' && $originId !== null) {
-                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $shift);
+                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $productionShift);
                 }
             }
 
@@ -7633,18 +7669,20 @@ function apiReceivePaperDelivery(array $params = []): void
                 'auto_dr' => $autoDr ? 1 : 0,
                 'produced_by' => $producedBy,
                 'produced_at' => $producedAt,
+                'production_shift' => $productionShift,
+                'received_shift' => $shift,
             ]);
         } else {
             // The capture already exists. Delayed producer entry (066): update a
             // supplied producer, but never null out one that was recorded earlier,
             // so a replay that omits the fields cannot erase the paper-sheet data.
-            $set = [];
-            $params = [':id' => $deliveryId];
+            $set = ['production_shift = :production_shift'];
+            $params = [':id' => $deliveryId, ':production_shift' => $productionShift];
             if ((string)$existing['status'] === 'draft') {
                 $set[] = 'status = "posted"';
                 $set[] = 'posted_by = :u';
                 $set[] = 'posted_at = NOW()';
-                $params[':u'] = $userId ?: null;
+                $params[':u'] = $actorId ?: null;
             }
             if ($producedBy !== null) {
                 $set[] = 'produced_by = :produced_by';
@@ -7681,7 +7719,14 @@ function apiReceivePaperDelivery(array $params = []): void
         // quantity, but label its evidentiary basis honestly.
         dl_markReceivingCountBasis($ctx->db(), $receivingId, 'copied');
         $ctx->db()->commit();
-        $response = ['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId, 'ledger_effect' => $ledgerEffect];
+        $response = [
+            'ok' => true,
+            'delivery_id' => $deliveryId,
+            'receiving_id' => $receivingId,
+            'ledger_effect' => $ledgerEffect,
+            'production_shift' => $productionShift,
+            'received_shift' => $shift,
+        ];
         if ($idempotencyKey !== '') {
             dl_storeIdempotentResponse('receive_paper_dr', $idempotencyKey, $response, 86400);
         }
@@ -10922,7 +10967,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
     $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.resolved_origin_id, d.destination_type, d.destination_id,
                    d.dr_number, d.delivery_date, d.status, d.created_by, d.posted_by, d.posted_at,
                    d.remarks, d.provenance_status, d.provenance_reviewed_at, d.provenance_review_note,
-                   d.produced_by, d.produced_at, d.created_at,
+                   d.produced_by, d.produced_at, d.production_shift, d.created_at,
                    EXISTS (
                        SELECT 1 FROM dl_branch_receivings br_status
                         WHERE br_status.delivery_id = d.id AND br_status.status = "posted"
@@ -11053,6 +11098,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
             'provenance_status_label' => (string)($provenanceMeta['label'] ?? ''),
             'provenance_review_note' => trim((string)($row['provenance_review_note'] ?? '')),
             'created_by_label' => $encoderName,
+            'production_shift' => (string)($row['production_shift'] ?? ''),
             'posted_by_label' => $resolveUserName((int)($row['posted_by'] ?? 0)),
             'posted_at' => (string)($row['posted_at'] ?? ''),
             'created_at' => (string)($row['created_at'] ?? ''),
@@ -11094,7 +11140,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
         // ── Receivings (RECEIVED) ─────────────────────────────────────
         $rcvStmt = $db->prepare(
             'SELECT br.id, br.delivery_id, br.status, br.dr_number, br.received_by, br.received_at,
-                    br.received_ledger_date, br.posted_by, br.posted_at, br.remarks, br.created_at,
+                    br.received_ledger_date, br.received_shift, br.posted_by, br.posted_at, br.remarks, br.created_at,
                     br.count_basis, br.count_resolved_by, br.count_resolved_at
                FROM dl_branch_receivings br
               WHERE br.delivery_id = :trace_delivery AND br.status = "posted"
@@ -11524,6 +11570,7 @@ function dl_buildAdminTraceData($db, array $filters = [], array $accessibleBranc
                 'recorded' => ($producedBy > 0 || $producedAt !== '' || $runs !== [] || $movements !== []),
                 'producer_name' => $producerName,
                 'produced_at' => $producedAt,
+                'shift' => (string)($row['production_shift'] ?? ''),
                 'encoder_name' => $encoderName,
                 'runs' => $runs,
                 'movements' => $movements,
@@ -11779,7 +11826,10 @@ function apiResolveReceivingCount(array $params = []): void
             $newCounts[$deliveryItemId] = $new;
             if ($old !== $new) {
                 $update->execute([':quantity' => $new, ':id' => (int)$item['id'], ':receiving' => $receivingId]);
-                dl_applyLedgerDelta((int)$head['branch_id'], (int)$item['product_id'], (string)$head['received_ledger_date'], $new - $old, $actorId, 'addtl');
+                dl_applyLedgerDelta(
+                    (int)$head['branch_id'], (int)$item['product_id'], (string)$head['received_ledger_date'],
+                    $new - $old, $actorId, 'addtl', (string)($head['received_shift'] ?? 'AM')
+                );
             }
         }
         $ctx->db()->prepare(

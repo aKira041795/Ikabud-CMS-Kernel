@@ -57,6 +57,32 @@
                         <div class="mb-3 rounded-md bg-rose-50 p-3 text-sm text-rose-700" x-text="errorMsg"></div>
                     </template>
 
+                    <div class="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+                        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Required receipt shifts</div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Received into (shift) *</label>
+                                <template x-if="window.SHIFT_LOCKED">
+                                    <div class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-300">
+                                        <i class="fas fa-lock mr-1.5 text-[10px]" aria-hidden="true"></i>
+                                        Locked to <span class="mx-1" x-text="receivingShift"></span> Shift
+                                    </div>
+                                </template>
+                                <template x-if="!window.SHIFT_LOCKED">
+                                    <select x-model="receivingShift" class="form-input mt-0 w-full">
+                                        <option value="">-- Select receiving shift --</option>
+                                        <option value="AM">AM</option>
+                                        <option value="PM">PM</option>
+                                    </select>
+                                </template>
+                                <p class="mt-1 text-[11px] text-gray-500">This is the ledger row that receives the stock.</p>
+                            </div>
+                            <div class="text-xs leading-5 text-slate-600">
+                                The <span class="font-semibold">production shift</span> is recorded separately from the paper DR on each transfer below.
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- DR# search: cashier types the number from the paper DR -->
                     <div class="mb-4 rounded-lg border border-slate-200 bg-white p-3">
                            <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Step 1: Receive an already encoded transfer</div>
@@ -90,10 +116,20 @@
                                         <button type="button"
                                                 class="btn btn-primary"
                                                 x-bind:disabled="busyKey === g.group_key || hasInvalidCorrection(g)"
+                                                x-effect="$el.disabled = busyKey === g.group_key || hasInvalidCorrection(g) || !canAcceptGroup(g)"
                                                 @click="acceptGroup(g)">
                                             <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Receive Now'"></span>
                                         </button>
                                     </div>
+                                </div>
+                                <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
+                                    <label class="block text-xs font-semibold text-amber-900 mb-1">Production shift (from paper DR) *</label>
+                                    <select x-model="g.production_shift" class="form-input mt-0 w-full sm:w-40">
+                                        <option value="">-- Select --</option>
+                                        <option value="AM">AM</option>
+                                        <option value="PM">PM</option>
+                                    </select>
+                                    <p class="mt-1 text-[11px] text-amber-800">Prefilled from the dispatch when known. Correct it if the paper DR differs.</p>
                                 </div>
                                 <p class="mb-2 text-xs font-medium text-slate-600">Confirm as sent, or correct the received qty if it differs.</p>
                                 <table class="w-full text-sm">
@@ -166,6 +202,14 @@
                                     </select>
                                 </div>
                                 <div>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Production shift (from paper DR) *</label>
+                                    <select x-model="paperForm.production_shift" class="form-input mt-0 w-full border-amber-300 bg-amber-50">
+                                        <option value="">-- Select shift --</option>
+                                        <option value="AM">AM</option>
+                                        <option value="PM">PM</option>
+                                    </select>
+                                </div>
+                                <div>
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Date sent</label>
                                     <input type="date" x-model="paperForm.delivery_date" class="form-input mt-0 w-full">
                                 </div>
@@ -235,7 +279,7 @@
                             </div>
 
                             <div class="flex justify-end">
-                                <button type="button" class="btn btn-primary inline-flex items-center justify-center" x-bind:disabled="paperSaving" @click="submitPaperDelivery()">
+                                <button type="button" class="btn btn-primary inline-flex items-center justify-center" x-bind:disabled="paperSaving || !canSubmitPaper()" @click="submitPaperDelivery()">
                                     <svg x-show="paperSaving" class="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -270,6 +314,7 @@ function receiveModal() {
         drFilter: '',
         paperOpen: false,
         paperSaving: false,
+        receivingShift: (window.SHIFT || ''),
         products: [],
         paperForm: {
             origin_type: 'commissary',
@@ -278,6 +323,7 @@ function receiveModal() {
             receive_date: '',
             dr_number: '',
             auto_dr: false,
+            production_shift: '',
             produced_by: '',
             produced_at: '',
             items: [{ product_id: '', quantity: '' }]
@@ -299,6 +345,9 @@ function receiveModal() {
             this.drFilter = '';
             this.paperOpen = false;
             this.paperSaving = false;
+            // Bound cashiers see this value locked; unbound users may deliberately
+            // choose another receiving ledger shift.
+            this.receivingShift = (window.SHIFT || '');
             this.resetPaperForm();
             this.loadProducts();
             this.isOpen = true;
@@ -315,6 +364,7 @@ function receiveModal() {
                 receive_date: LEDGER_DATE,
                 dr_number: '',
                 auto_dr: false,
+                production_shift: '',
                 produced_by: '',
                 produced_at: '',
                 items: [{ product_id: '', quantity: '' }]
@@ -348,8 +398,44 @@ function receiveModal() {
             this.paperForm.items.push({ product_id: '', quantity: '' });
         },
 
+        validShift(value) {
+            return value === 'AM' || value === 'PM';
+        },
+
+        productionShiftFor(g) {
+            // Incoming API groups always carry this key, including null for a
+            // historical unknown. The fallback only preserves compatibility for
+            // older callers that constructed a group before the field existed.
+            if (!Object.prototype.hasOwnProperty.call(g, 'production_shift')) {
+                return (window.SHIFT || '');
+            }
+            return g.production_shift || '';
+        },
+
+        canAcceptGroup(g) {
+            return this.validShift(this.receivingShift) && this.validShift(this.productionShiftFor(g));
+        },
+
+        paperProductionShift() {
+            // Pages rendered before the shift controls existed did not define
+            // SHIFT_LOCKED. Keep those already-open clients compatible while
+            // every current page requires the explicit paper-DR choice.
+            if (typeof window.SHIFT_LOCKED === 'undefined' && !this.paperForm.production_shift) {
+                return (window.SHIFT || '');
+            }
+            return this.paperForm.production_shift || '';
+        },
+
+        canSubmitPaper() {
+            return this.validShift(this.receivingShift) && this.validShift(this.paperProductionShift());
+        },
+
         validatePaperDelivery() {
             this.errorMsg = '';
+            if (!this.canSubmitPaper()) {
+                this.errorMsg = 'Choose both the production shift from the paper DR and the receiving shift.';
+                return false;
+            }
             if (this.paperForm.auto_dr) {
                 if (this.paperForm.origin_type !== 'commissary') {
                     this.errorMsg = 'Auto DR is only available when receiving from the commissary (production).';
@@ -401,8 +487,10 @@ function receiveModal() {
             var payload = {
                 branch_id: this.currentBranchId(),
                 // Shift being viewed — the server must credit this ledger row, not
-                // whichever shift its request clock happens to resolve.
-                shift: (window.SHIFT || ''),
+                // whichever shift its request clock happens to resolve. Before the
+                // receiving selector this was: shift: (window.SHIFT || '')
+                shift: this.receivingShift,
+                production_shift: this.paperProductionShift(),
                 origin_type: this.paperForm.origin_type,
                 origin_id: this.paperForm.origin_id || null,
                 delivery_date: this.paperForm.delivery_date,
@@ -543,13 +631,21 @@ function receiveModal() {
 
         acceptGroup(g) {
             if (this.busyKey) return;
+            if (!this.canAcceptGroup(g)) {
+                this.errorMsg = 'Choose both the production shift from the paper DR and the receiving shift.';
+                return;
+            }
             if (this.hasInvalidCorrection(g)) {
                 this.errorMsg = 'Corrected Received qty must be a whole number between 0 and the sent quantity.';
                 return;
             }
             this.busyKey = g.group_key;
             this.errorMsg = '';
-            var payload = { withdrawal_ids: g.ids };
+            var payload = {
+                withdrawal_ids: g.ids,
+                shift: this.receivingShift,
+                production_shift: this.productionShiftFor(g)
+            };
             var corrected = this.hasCorrections(g);
             if (g.delivery_ids && g.delivery_ids.length) {
                 payload.delivery_ids = g.delivery_ids;

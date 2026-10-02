@@ -127,6 +127,9 @@
                                 <template x-if="d.is_paper_dr_exception == 1">
                                     <div class="mt-1 inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Paper DR Exception</div>
                                 </template>
+                                <template x-if="d.production_shift">
+                                    <div class="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Produced: <span class="ml-1" x-text="d.production_shift"></span> shift</div>
+                                </template>
                                 <template x-if="d.provenance_reviewer_name">
                                     <div class="mt-1 text-[11px] text-gray-500">Verified by <span x-text="d.provenance_reviewer_name"></span></div>
                                 </template>
@@ -192,6 +195,8 @@
                                             <div class="flex items-center gap-3 mb-2">
                                                 <span class="text-xs font-semibold text-gray-700">Receipt Details</span>
                                                 <span class="text-xs text-gray-500">Date: <span x-text="receivingCache[d.id].receiving.received_ledger_date"></span></span>
+                                                <span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Received into: <span class="ml-1" x-text="receivingCache[d.id].receiving.received_shift || 'Not captured (historical)'"></span><span x-show="receivingCache[d.id].receiving.received_shift" class="ml-1">shift</span></span>
+                                                <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Produced: <span class="ml-1" x-text="receivingCache[d.id].receiving.production_shift || 'Not captured (historical)'"></span><span x-show="receivingCache[d.id].receiving.production_shift" class="ml-1">shift</span></span>
                                                 <span class="text-xs text-gray-500" x-show="receivingCache[d.id].receiving.received_by_name">By: <span x-text="receivingCache[d.id].receiving.received_by_name"></span></span>
                                             </div>
                                             <table class="w-full text-sm">
