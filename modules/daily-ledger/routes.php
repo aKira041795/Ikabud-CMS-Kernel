@@ -173,6 +173,7 @@ return [
         '/daily-ledger/api/v1/commissary/run'             => 'daily-ledger:apiSaveProductionRun',
         '/daily-ledger/api/v1/commissary/material'        => 'daily-ledger:apiSaveCommissaryMaterial',
         '/daily-ledger/api/v1/commissary/dispatch'        => 'daily-ledger:apiCommissaryDispatch',
+        '/daily-ledger/api/v1/commissary/finalize-pm'     => 'daily-ledger:apiFinalizeProductionPmShift',
 
         // Phase A: branch product supply rules
         '/daily-ledger/api/v1/admin/branch-supply-rules'  => 'daily-ledger:apiBranchProductSupplyRuleUpsert',

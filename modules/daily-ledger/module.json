@@ -147,7 +147,8 @@
     "database/migrations/066_add_delivery_producer.sql",
     "database/migrations/067_resolvable_delivery_integrity.sql",
     "database/migrations/068_delivery_ledger_enforcement_notifications.sql",
-    "database/migrations/069_preserve_cashier_variance.sql"
+    "database/migrations/069_preserve_cashier_variance.sql",
+    "database/migrations/070_production_daily_sheet_shift.sql"
   ],
   "capabilities": {
     "exposes": [
@@ -466,9 +467,8 @@
       "url": "/daily-ledger/admin/production-output",
       "icon": "layers",
       "roles": [
-        "admin",
         "supervisor",
-        "production_in_charge"
+        "admin"
       ]
     },
     {
@@ -486,9 +486,8 @@
       "url": "/daily-ledger/admin/deliveries",
       "icon": "truck",
       "roles": [
-        "admin",
         "supervisor",
-        "production_in_charge"
+        "admin"
       ]
     },
     {
@@ -496,9 +495,8 @@
       "url": "/daily-ledger/admin/usage",
       "icon": "package",
       "roles": [
-        "admin",
         "supervisor",
-        "production_in_charge"
+        "admin"
       ]
     },
     {

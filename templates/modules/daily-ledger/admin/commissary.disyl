@@ -131,18 +131,26 @@
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
-        <h2 class="text-lg font-semibold text-gray-900">Commissary</h2>
-        <p class="text-sm text-gray-500">Daily Sheet · Inventory · Deliveries · Pullouts · Summary</p>
+        <h2 class="text-lg font-semibold text-gray-900">{if can_view_production_management}Commissary{else}Daily Sheet{/if}</h2>
+        <p class="text-sm text-gray-500">{if can_view_production_management}Daily Sheet · Inventory · Deliveries · Pullouts · Summary{else}Production encoding{/if}</p>
     </div>
 </div>
 
 <form class="card mb-4" method="GET" action="{base_url}/admin/commissary"
       onsubmit="return window.dlLoadForm(this)">
     <div class="card-body">
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-4 items-end">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-5 items-end">
             <div class="form-group mb-0">
                 <label class="form-label">Date</label>
                 <input type="date" class="form-input" name="date" value="{date}">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Shift</label>
+                <select class="form-input" name="shift">
+                    <option value="" {if shift == ''}selected{/if}>All (includes pre-shift history)</option>
+                    <option value="AM" {if shift == 'AM'}selected{/if}>AM</option>
+                    <option value="PM" {if shift == 'PM'}selected{/if}>PM</option>
+                </select>
             </div>
             <div class="form-group mb-0">
                 <label class="form-label">Commissary</label>
@@ -164,12 +172,13 @@
             </div>
             <div class="flex items-center gap-2">
                 <button type="submit" class="btn btn-primary">Apply</button>
-                <a class="btn btn-outline" href="{base_url}/admin/usage?date={date}">Open Usage</a>
+                {if can_view_production_management}<a class="btn btn-outline" href="{base_url}/admin/usage?date={date}">Open Usage</a>{/if}
             </div>
         </div>
     </div>
 </form>
 
+{if can_view_production_management}
 <!-- Summary stat cards -->
 <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
     <div class="card">
@@ -479,23 +488,34 @@
     </div>
 </div>
 
+{/if}
 <!-- Tab 1: Daily Sheet -->
 <div id="tab-daily-sheet" class="tab-panel">
     <div class="card mb-6">
         <div class="card-header">
             <div>
-                <span>Daily Production Sheet — {date}</span>
+                <span>Daily Production Sheet — {date}{if shift} · {shift}{else} · All shifts{/if}</span>
                 <div class="text-xs text-gray-500">BEG + ADDTL − TOTAL − WASTAGE = ACTUAL BAL</div>
             </div>
             <div class="flex items-center gap-2 print-hidden">
-                <button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>
+                {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
+                {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-outline btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
+                {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-outline btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
                 <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">Print Daily Sheet</button>
             </div>
         </div>
+        {if shift_status == 'finalized'}
+        <div class="mx-4 mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">The {shift} shift is finalized and locked.</div>
+        {/if}
+        {if historical_unshifted_count > 0}
+        <div class="mx-4 mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">{historical_unshifted_count} pre-shift row(s) exist for this date. They remain unshifted historical data and are not included in AM or PM.</div>
+        {/if}
+        {if can_view_production_management}
         <div class="mx-4 mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             Product-label seam pending owner ruling — unresolved: {unresolved_sheet_labels | join:', '}.
             No mapping has been guessed.
         </div>
+        {/if}
         <div class="table-wrap">
             <table class="production-ledger-table" id="production-ledger-table">
                 <thead>
@@ -512,7 +532,7 @@
                         {/foreach}
                         <th class="text-right">TOTAL</th>
                         <th class="text-right pr-1">ACTUAL BAL</th>
-                        <th class="text-right">VARIANCE</th>
+                        {if can_view_production_variance}<th class="text-right">VARIANCE</th>{/if}
                     </tr>
                 </thead>
                 <tbody>
@@ -531,6 +551,7 @@
                                 data-suggestion="{row.beg_suggestion}"
                                 data-recorded="{if row.beg_is_recorded}1{else}0{/if}"
                                 onchange="saveProductionBeg({row.product_id})"
+                                {if shift_status == 'finalized'}disabled{/if}
                                 title="Suggested beginning: {row.beg_suggestion}">
                         </td>
                         {* ADDTL is a displayed value and a per-row entry point. The row trigger opens
@@ -540,6 +561,7 @@
                             <button type="button"
                                     class="ledger-trigger ledger-trigger-add addtl-trigger"
                                     data-product="{row.product_id}"
+                                    {if shift_status == 'finalized'}disabled{/if}
                                     onclick="openProductionAdditionModal({row.product_id})"
                                     title="Record an addition for {row.sheet_label}">
                                 <span class="production-addtl-value" id="production-addtl-{row.product_id}" data-field="addtl" data-product="{row.product_id}">{row.addtl_qty}</span>
@@ -558,6 +580,7 @@
                                     data-branch="{cell.branch_id}"
                                     data-branch-name="{cell.branch_name}"
                                     data-exists="{if cell.has_entry}1{else}0{/if}"
+                                    {if shift_status == 'finalized'}disabled{/if}
                                     onclick="openBranchCellModal({row.product_id}, {cell.branch_id})"
                                     title="Record a delivery for {row.sheet_label} to {cell.branch_name}">
                                 <span class="production-branch-value" data-product="{row.product_id}" data-branch-id="{cell.branch_id}">{cell.quantity}</span>
@@ -567,6 +590,7 @@
                                difference, plus the DR. A sent item with no receiving row is
                                pending and must never render as a zero difference. A cell
                                with no delivery at all shows nothing. *}
+                            {if can_view_production_variance}
                             {if cell.has_delivery}
                             {if cell.origin_unresolved}
                             <div class="production-branch-origin-unresolved font-semibold text-amber-700"
@@ -597,6 +621,7 @@
                             <div class="production-branch-dr" title="Delivery receipt number">DR {cell.dr_display}</div>
                             {/if}
                             {/if}
+                            {/if}
                         </td>
                         {/if}
                         {/foreach}
@@ -608,9 +633,10 @@
                                 data-original="{if row.actual_end_qty !== null}{row.actual_end_qty}{/if}"
                                 data-suggestion="{row.book_balance}"
                                 onchange="saveProductionActual({row.product_id})"
+                                {if shift_status == 'finalized'}disabled{/if}
                                 title="Suggested book balance: {row.book_balance}; clear and save for not counted">
                         </td>
-                        <td class="text-right production-variance">{if row.calc_variance !== null}{row.calc_variance}{else}<span class="text-muted">—</span>{/if}</td>
+                        {if can_view_production_variance}<td class="text-right production-variance">{if row.calc_variance !== null}{row.calc_variance}{else}<span class="text-muted">—</span>{/if}</td>{/if}
                     </tr>
                     {/foreach}
                 </tbody>
@@ -618,6 +644,7 @@
         </div>
     </div>
 
+    {if can_view_production_management}
     <!-- S7b: the bottom log. Every change accumulates here; a row is editable in place
          and editing appends a new audit record rather than erasing the prior one. -->
     <div class="card mb-6" id="production-ledger-log-card">
@@ -676,6 +703,7 @@
         </div>
     </div>
 
+    {/if}
     <!-- S7b: one simple modal — product, quantity, optional reason. The batch/yield
          machinery is deliberately not carried in; output_pieces_per_batch is NULL for
          every product on this tenant, so the mechanism is inert. It can return if yield
@@ -790,6 +818,7 @@
     </div>
 </div>
 
+{if can_view_production_management}
 <!-- Dispatch to Branch -->
 <div class="card mt-6">
     <div class="card-header">
@@ -865,6 +894,7 @@
         {/if}
     </div>
 </div>
+{/if}
 {/block}
 {block scripts}
 <script>
@@ -919,6 +949,7 @@
         productionJson('{base_url}/api/v1/commissary/material', {
             entity: 'product_beg',
             date: '{date}',
+            shift: '{shift}',
             commissary_branch_id: {sheet_source_branch_id},
             product_id: pid,
             beg_qty: value,
@@ -951,6 +982,7 @@
         productionJson('{base_url}/api/v1/commissary/material', {
             entity: 'product_count',
             date: '{date}',
+            shift: '{shift}',
             commissary_branch_id: {sheet_source_branch_id},
             product_id: pid,
             actual_end_qty: value,
@@ -1011,6 +1043,7 @@
         productionJson('{base_url}/api/v1/commissary/run', {
             entity: 'production_addition',
             date: '{date}',
+            shift: '{shift}',
             commissary_branch_id: {sheet_source_branch_id},
             product_id: pid,
             quantity: qty,
@@ -1093,6 +1126,7 @@
             // the formal dispatch path intact for every caller that does not send this.
             sheet_entry: true,
             ledger_date: '{date}',
+            shift: '{shift}',
             destination_branch_id: bid,
             items: [{ commissary_branch_id: {sheet_source_branch_id}, product_id: pid, quantity: qty }],
             submission_id: dlNewSubmissionId()
@@ -1178,6 +1212,30 @@
         if (!tr) return;
         tr.removeAttribute('data-editing');
         window.location.reload();
+    }
+
+    function finalizeProductionPm() {
+        var button = document.getElementById('finalize-production-pm');
+        if (button) button.disabled = true;
+        productionJson('{base_url}/api/v1/commissary/finalize-pm', {
+            date: '{date}',
+            commissary_branch_id: {sheet_source_branch_id}
+        }).then(function() {
+            showToast('PM shift finalized', 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 400);
+        }).catch(function(error) {
+            showToast(error.message || 'Failed to finalize PM shift', 'error');
+            if (button) button.disabled = false;
+        });
+    }
+
+    function reopenProductionShift() {
+        productionJson('{base_url}/api/v1/admin/reopen-day', {
+            date: '{date}', branch_id: {sheet_source_branch_id}
+        }).then(function() {
+            showToast('Shift reopened', 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 400);
+        }).catch(function(error) { showToast(error.message || 'Failed to reopen shift', 'error'); });
     }
 
     function productionJson(url, payload) {

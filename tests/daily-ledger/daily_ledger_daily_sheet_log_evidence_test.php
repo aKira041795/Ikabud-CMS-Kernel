@@ -144,15 +144,16 @@ $h->test(
 // ─── Runtime: crafted fixture ──────────────────────────────────────
 $h->section('Runtime: crafted send and receive rows');
 
-$tokens = dl_generateAuthTokens([
-    'sub' => 'production_in_charge:27',
+// Existing evidence-log render expectations belong to the admin fixture above.
+$adminTokens = dl_generateAuthTokens([
+    'sub' => 'admin:27',
     'id' => 27,
-    'username' => 'prod-rizal',
+    'username' => 'admin-fixture',
     'name' => 'Noah Omamalin',
-    'role' => 'production_in_charge',
+    'role' => 'admin',
     'source' => 'daily-ledger',
 ]);
-$_COOKIE[dlCookieName()] = $tokens['token'];
+$_COOKIE[dlCookieName()] = $adminTokens['token'];
 
 $renderSheet = static function (string $date, int $commissaryId): string {
     $_GET['date'] = $date;
@@ -290,6 +291,25 @@ try {
         && $movementAfter !== null
         && $movementBefore === $movementAfter
     );
+
+    // The evidence log is management detail. The production role's restricted
+    // Daily Sheet must not render it, while all admin expectations remain above.
+    $productionTokens = dl_generateAuthTokens([
+        'sub' => 'production_in_charge:27',
+        'id' => 27,
+        'username' => 'prod-rizal',
+        'name' => 'Production Fixture',
+        'role' => 'production_in_charge',
+        'source' => 'daily-ledger',
+    ]);
+    $_COOKIE[dlCookieName()] = $productionTokens['token'];
+    $productionHtml = $renderSheet($date, $commissaryId);
+    $h->test(
+        'production_in_charge does not receive the management evidence log (restricted surface requirement)',
+        !str_contains($productionHtml, 'id="production-ledger-log-table"')
+        && !str_contains($productionHtml, 'id="production-ledger-log-rule"')
+    );
+    $_COOKIE[dlCookieName()] = $adminTokens['token'];
 
     // AC3: the real paper-captured day, through the full handler render.
     $realHtml = $renderSheet('2026-09-28', 0);

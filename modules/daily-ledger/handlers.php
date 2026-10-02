@@ -375,6 +375,48 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
         }
     }
 
+    // production_in_charge is a deliberately narrow role: the Daily Sheet and
+    // only the three write shapes used by that sheet. This is an authorization
+    // boundary, not a navigation convenience; direct URLs and unrelated APIs
+    // are refused here even if an individual handler still lists the role.
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    if (in_array((string)($u['role'] ?? ''), ['supervisor', 'auditor'], true) && in_array($path, [
+        '/daily-ledger/admin/usage',
+        '/daily-ledger/admin/production-output',
+        '/daily-ledger/admin/deliveries',
+        '/daily-ledger/admin/trace',
+    ], true)) {
+        http_response_code(403);
+        echo 'Forbidden: admin-only production view';
+        exit;
+    }
+
+    if (($u['role'] ?? '') === 'production_in_charge' && str_starts_with($path, '/daily-ledger/')) {
+        $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        $allowed = $method === 'GET' && in_array($path, [
+            '/daily-ledger/admin/commissary',
+            '/daily-ledger/api/v1/me',
+        ], true);
+        if ($method === 'POST') {
+            $input = module() ? module()->input() : [];
+            $entity = (string)($input['entity'] ?? '');
+            $allowed = ($path === '/daily-ledger/api/v1/commissary/run' && $entity === 'production_addition')
+                || ($path === '/daily-ledger/api/v1/commissary/material' && in_array($entity, ['product_beg', 'product_count'], true))
+                || ($path === '/daily-ledger/api/v1/commissary/dispatch' && (!empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet'))
+                || $path === '/daily-ledger/api/v1/commissary/finalize-pm';
+        }
+        if (!$allowed) {
+            http_response_code(403);
+            if (str_starts_with($path, '/daily-ledger/api/')) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'Forbidden: Daily Sheet access only']);
+            } else {
+                echo 'Forbidden: Daily Sheet access only';
+            }
+            exit;
+        }
+    }
+
     return $u;
 }
 
@@ -670,20 +712,24 @@ function dl_fetchActiveProductsForProduction($db): array
  */
 function dl_fetchProductionSheetProducts($db, int $branchId): array
 {
-    if ($branchId <= 0) {
-        return [];
-    }
-
-    $stmt = $db->prepare(
-        'SELECT p.id, p.name, p.sku, p.sort_order,
+    $sql = 'SELECT DISTINCT p.id, p.name, p.sku, p.sort_order,
                 p.output_pieces_per_batch, p.output_unit_label
            FROM dl_products p
            INNER JOIN dl_branch_products bp
-             ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
-          WHERE p.is_active = 1
-          ORDER BY p.sort_order, p.name'
-    );
-    $stmt->execute([':bid' => $branchId]);
+             ON bp.product_id = p.id AND bp.is_active = 1';
+    $bind = [];
+    if ($branchId > 0) {
+        $sql .= ' AND bp.branch_id = :bid';
+        $bind[':bid'] = $branchId;
+    } else {
+        $sql .= ' INNER JOIN dl_branches source_branch
+                    ON source_branch.id = bp.branch_id
+                   AND source_branch.is_commissary = 1
+                   AND source_branch.is_active = 1';
+    }
+    $sql .= ' WHERE p.is_active = 1 ORDER BY p.sort_order, p.name';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
@@ -700,18 +746,20 @@ function dl_unresolvedProductionSheetLabels(): array
     return ['BDAY CAKE ORD', 'BDAY CAKE ORD HALF', 'UBE CAKE HALF', 'CUSTARD BIG'];
 }
 
-function dl_fetchProductionSheetDispatchMatrix($db, string $ledgerDate, int $commissaryBranchId = 0): array
+function dl_fetchProductionSheetDispatchMatrix($db, string $ledgerDate, int $commissaryBranchId = 0, ?string $shift = null): array
 {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $sql = "SELECT d.destination_id AS branch_id, di.product_id, SUM(di.quantity) AS quantity,
                    MAX(d.origin_id IS NULL AND d.resolved_origin_id IS NULL) AS origin_unresolved
               FROM dl_deliveries d
               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
               LEFT JOIN dl_branches sheet_dst ON sheet_dst.id = d.destination_id
              WHERE d.delivery_date = :sheet_date
+               AND (:sheet_shift IS NULL OR d.production_shift = :sheet_shift_value)
                AND d.origin_type = 'commissary'
                AND d.destination_type = 'branch'
                AND d.status = 'posted'";
-    $bind = [':sheet_date' => $ledgerDate];
+    $bind = [':sheet_date' => $ledgerDate, ':sheet_shift' => $shift, ':sheet_shift_value' => $shift];
     if ($commissaryBranchId > 0) {
         // Unresolved historical rows remain visible through the destination's
         // assignment, but are explicitly labelled; it is not treated as origin.
@@ -739,17 +787,19 @@ function dl_fetchProductionSheetDispatchMatrix($db, string $ledgerDate, int $com
  * separate from dl_fetchProductionSheetDispatchMatrix so the verified matrix
  * contract (int quantity keyed by product/branch) is untouched.
  */
-function dl_fetchProductionSheetDispatchEntryFlags($db, string $ledgerDate, int $commissaryBranchId = 0): array
+function dl_fetchProductionSheetDispatchEntryFlags($db, string $ledgerDate, int $commissaryBranchId = 0, ?string $shift = null): array
 {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $sql = "SELECT d.destination_id AS branch_id, di.product_id, COUNT(*) AS entry_count
               FROM dl_deliveries d
               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
               LEFT JOIN dl_branches sheet_dst ON sheet_dst.id = d.destination_id
              WHERE d.delivery_date = :sheet_date
+               AND (:sheet_shift IS NULL OR d.production_shift = :sheet_shift_value)
                AND d.origin_type = 'commissary'
                AND d.destination_type = 'branch'
                AND d.status = 'posted'";
-    $bind = [':sheet_date' => $ledgerDate];
+    $bind = [':sheet_date' => $ledgerDate, ':sheet_shift' => $shift, ':sheet_shift_value' => $shift];
     if ($commissaryBranchId > 0) {
         $sql .= ' AND (COALESCE(d.resolved_origin_id, d.origin_id) = :sheet_cid'
             . ' OR (d.origin_id IS NULL AND d.resolved_origin_id IS NULL AND sheet_dst.assigned_commissary_id = :sheet_unresolved_cid))';
@@ -794,8 +844,9 @@ function dl_fetchProductionSheetDispatchEntryFlags($db, string $ledgerDate, int 
  *   'dr_numbers' => string[] (dl_deliveries.dr_number for the cell),
  * ].
  */
-function dl_fetchProductionSheetReceivingMatrix($db, string $ledgerDate, int $commissaryBranchId = 0): array
+function dl_fetchProductionSheetReceivingMatrix($db, string $ledgerDate, int $commissaryBranchId = 0, ?string $shift = null): array
 {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $sql = "SELECT d.destination_id AS branch_id,
                    di.product_id,
                    di.quantity AS sent,
@@ -817,10 +868,11 @@ function dl_fetchProductionSheetReceivingMatrix($db, string $ledgerDate, int $co
                    GROUP BY bri.delivery_item_id
               ) rcv ON rcv.delivery_item_id = di.id
              WHERE d.delivery_date = :sheet_date
+               AND (:sheet_shift IS NULL OR d.production_shift = :sheet_shift_value)
                AND d.origin_type = 'commissary'
                AND d.destination_type = 'branch'
                AND d.status = 'posted'";
-    $bind = [':sheet_date' => $ledgerDate];
+    $bind = [':sheet_date' => $ledgerDate, ':sheet_shift' => $shift, ':sheet_shift_value' => $shift];
     if ($commissaryBranchId > 0) {
         $sql .= ' AND (COALESCE(d.resolved_origin_id, d.origin_id) = :sheet_cid'
             . ' OR (d.origin_id IS NULL AND d.resolved_origin_id IS NULL AND sheet_dst.assigned_commissary_id = :sheet_unresolved_cid))';
@@ -2178,18 +2230,21 @@ function dl_ensureCommissaryProductLedgerRow(
     int $commissaryBranchId,
     int $productId,
     string $ledgerDate,
-    int $actorId
+    int $actorId,
+    ?string $shift = null
 ): int {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $suggestedBeg = dl_suggestCommissaryBeginning($db, $commissaryBranchId, $productId, $ledgerDate);
     $stmt = $db->prepare(
         'INSERT IGNORE INTO dl_commissary_product_ledger
-            (commissary_branch_id, product_id, ledger_date, beg_qty, produced_qty, dispatched_qty, wastage_qty, updated_by)
-         VALUES (:cb, :pid, :d, :beg, 0, 0, 0, :uid)'
+            (commissary_branch_id, product_id, ledger_date, shift, beg_qty, produced_qty, dispatched_qty, wastage_qty, updated_by)
+         VALUES (:cb, :pid, :d, :shift, :beg, 0, 0, 0, :uid)'
     );
     $stmt->execute([
         ':cb' => $commissaryBranchId,
         ':pid' => $productId,
         ':d' => $ledgerDate,
+        ':shift' => $shift,
         ':beg' => $suggestedBeg,
         ':uid' => $actorId > 0 ? $actorId : null,
     ]);
@@ -2205,8 +2260,10 @@ function dl_applyCommissaryProductLedgerDelta(
     int $dispatchedDelta,
     int $actorId,
     int $wastageDelta = 0,
-    bool $rejectNegativeBalance = false
+    bool $rejectNegativeBalance = false,
+    ?string $shift = null
 ): array {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     if ($commissaryBranchId <= 0 || $productId <= 0 || $ledgerDate === '') {
         return ['produced_qty' => 0, 'dispatched_qty' => 0, 'remaining_qty' => 0, 'skipped' => true];
     }
@@ -2221,19 +2278,19 @@ function dl_applyCommissaryProductLedgerDelta(
     $select = $db->prepare(
         'SELECT id, beg_qty, produced_qty, dispatched_qty, wastage_qty, actual_end_qty, calc_variance
            FROM dl_commissary_product_ledger
-          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift
           LIMIT 1
           FOR UPDATE'
     );
-    $select->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    $select->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':shift' => $shift]);
     $row = $select->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if (!$row) {
         if ($producedDelta < 0 || $dispatchedDelta < 0 || $wastageDelta < 0) {
             throw new \RuntimeException('Cannot reverse commissary production before any output exists for this date.');
         }
-        dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $ledgerDate, $actorId);
-        $select->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+        dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $ledgerDate, $actorId, $shift);
+        $select->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':shift' => $shift]);
         $row = $select->fetch(PDO::FETCH_ASSOC) ?: null;
         if (!$row) {
             throw new \RuntimeException('Unable to create commissary product ledger row.');
@@ -2412,23 +2469,27 @@ function dl_saveCommissaryBeginningQty(
     int $productId,
     string $ledgerDate,
     int $begQty,
-    int $actorId
+    int $actorId,
+    ?string $shift = null
 ): array {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     if ($commissaryBranchId <= 0 || $productId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate)
         || $begQty < -999999999 || $begQty > 999999999) {
         throw new \RuntimeException('Invalid production beginning data.');
     }
-    dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $ledgerDate, $actorId);
+    if ($shift !== null) dl_assertShiftMutable($db, $commissaryBranchId, $ledgerDate, $shift);
+    dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $ledgerDate, $actorId, $shift);
     $stmt = $db->prepare(
         'UPDATE dl_commissary_product_ledger
             SET beg_qty = :beg, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
-          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d'
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift'
     );
     $stmt->bindValue(':beg', $begQty, PDO::PARAM_INT);
     $stmt->bindValue(':uid', $actorId > 0 ? $actorId : null, $actorId > 0 ? PDO::PARAM_INT : PDO::PARAM_NULL);
     $stmt->bindValue(':cb', $commissaryBranchId, PDO::PARAM_INT);
     $stmt->bindValue(':pid', $productId, PDO::PARAM_INT);
     $stmt->bindValue(':d', $ledgerDate);
+    $stmt->bindValue(':shift', $shift);
     $stmt->execute();
 
     $read = $db->prepare(
@@ -2436,9 +2497,9 @@ function dl_saveCommissaryBeginningQty(
                 actual_end_qty, calc_variance,
                 (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS book_balance
            FROM dl_commissary_product_ledger
-          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d LIMIT 1'
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift LIMIT 1'
     );
-    $read->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    $read->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':shift' => $shift]);
     return $read->fetch(PDO::FETCH_ASSOC) ?: [];
 }
 
@@ -2448,8 +2509,10 @@ function dl_saveCommissaryActualEndQty(
     int $productId,
     string $ledgerDate,
     ?int $actualEndQty,
-    int $actorId
+    int $actorId,
+    ?string $shift = null
 ): array {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     if ($commissaryBranchId <= 0 || $productId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate)) {
         throw new \RuntimeException('Invalid production count data.');
     }
@@ -2459,28 +2522,30 @@ function dl_saveCommissaryActualEndQty(
 
     // The full D6 sheet includes dead-stock products with no movement row yet.
     // Create the same carried row that movement writes create before storing the count.
-    dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $ledgerDate, $actorId);
+    if ($shift !== null) dl_assertShiftMutable($db, $commissaryBranchId, $ledgerDate, $shift);
+    dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $ledgerDate, $actorId, $shift);
 
     $stmt = $db->prepare(
         'UPDATE dl_commissary_product_ledger
             SET actual_end_qty = :actual, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
-          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d'
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift'
     );
     $stmt->bindValue(':actual', $actualEndQty, $actualEndQty === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
     $stmt->bindValue(':uid', $actorId > 0 ? $actorId : null, $actorId > 0 ? PDO::PARAM_INT : PDO::PARAM_NULL);
     $stmt->bindValue(':cb', $commissaryBranchId, PDO::PARAM_INT);
     $stmt->bindValue(':pid', $productId, PDO::PARAM_INT);
     $stmt->bindValue(':d', $ledgerDate);
+    $stmt->bindValue(':shift', $shift);
     $stmt->execute();
 
     $read = $db->prepare(
         'SELECT beg_qty, produced_qty, dispatched_qty, wastage_qty, remaining_qty,
                 actual_end_qty, calc_variance
            FROM dl_commissary_product_ledger
-          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift
           LIMIT 1'
     );
-    $read->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    $read->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':shift' => $shift]);
     $row = $read->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         throw new \RuntimeException('Production ledger row not found.');
@@ -2543,15 +2608,16 @@ function dl_auditProductionLedgerChange(
  * yield-profile capture while ADDTL entry moves to the S7b modal. Additive
  * additions raise the run's yield_qty to the resulting day total.
  */
-function dl_upsertProductionRunYield($db, string $ledgerDate, int $productId, int $commissaryBranchId, int $yieldQty, int $actorId): void
+function dl_upsertProductionRunYield($db, string $ledgerDate, int $productId, int $commissaryBranchId, int $yieldQty, int $actorId, ?string $shift = null): void
 {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $runStmt = $db->prepare(
         'SELECT id, baker_name, primary_input_qty
            FROM dl_production_runs
-          WHERE ledger_date = :d AND product_id = :pid AND destination_branch_id = :bid
+          WHERE ledger_date = :d AND product_id = :pid AND destination_branch_id = :bid AND shift <=> :shift
           ORDER BY id DESC LIMIT 1 FOR UPDATE'
     );
-    $runStmt->execute([':d' => $ledgerDate, ':pid' => $productId, ':bid' => $commissaryBranchId]);
+    $runStmt->execute([':d' => $ledgerDate, ':pid' => $productId, ':bid' => $commissaryBranchId, ':shift' => $shift]);
     $run = $runStmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if ($run) {
@@ -2570,11 +2636,12 @@ function dl_upsertProductionRunYield($db, string $ledgerDate, int $productId, in
     if ($yieldQty > 0) {
         $db->prepare(
             "INSERT INTO dl_production_runs
-                (ledger_date, product_id, baker_name, run_type, primary_input_qty,
+                (ledger_date, shift, product_id, baker_name, run_type, primary_input_qty,
                  primary_input_type, yield_qty, destination_branch_id, recorded_by)
-             VALUES (:d, :pid, '', 'regular', 0, 'kilo', :qty, :bid, :uid)"
+             VALUES (:d, :shift, :pid, '', 'regular', 0, 'kilo', :qty, :bid, :uid)"
         )->execute([
             ':d' => $ledgerDate,
+            ':shift' => $shift,
             ':pid' => $productId,
             ':qty' => $yieldQty,
             ':bid' => $commissaryBranchId,
@@ -2604,6 +2671,7 @@ function dl_recordProductionAddition(array $user, array $input): array
     $commissaryBranchId = (int)($input['commissary_branch_id'] ?? 0);
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (int)($input['quantity'] ?? -1);
+    $shift = isset($input['shift']) ? dl_normalizeShift((string)$input['shift']) : null;
     $reason = trim((string)($input['reason'] ?? ''));
     $submissionId = dl_withdrawalSubmissionId((string)($input['submission_id'] ?? ''));
     $actorId = dl_getActorUserId($user);
@@ -2634,12 +2702,18 @@ function dl_recordProductionAddition(array $user, array $input): array
 
     $db->beginTransaction();
     try {
-        dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $actorId);
+        if ($shift !== null) {
+            $shiftStatus = dl_lockShiftStatusRow($db, $commissaryBranchId, $date, $shift);
+            if ((string)$shiftStatus['status'] === 'finalized') {
+                throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
+            }
+        }
+        dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $actorId, $shift);
         $beforeStmt = $db->prepare(
             'SELECT produced_qty FROM dl_commissary_product_ledger
-              WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d LIMIT 1 FOR UPDATE'
+              WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1 FOR UPDATE'
         );
-        $beforeStmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $date]);
+        $beforeStmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
         $beforeProduced = (int)$beforeStmt->fetchColumn();
 
         $movement = dl_processProductionMovement($user, 'output', [
@@ -2647,6 +2721,7 @@ function dl_recordProductionAddition(array $user, array $input): array
             'product_id' => $productId,
             'quantity' => $quantity,
             'ledger_date' => $date,
+            'shift' => $shift,
             'flow_mode' => 'production',
             'client_op_id' => 'sheet-addtl-' . hash('sha256', $submissionId),
             'reason' => $reason !== '' ? $reason : 'Daily Sheet ADDTL addition',
@@ -2658,15 +2733,15 @@ function dl_recordProductionAddition(array $user, array $input): array
         if (!empty($movement['duplicate'])) {
             $db->commit();
             return [
-                'row' => dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date),
+                'row' => dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift),
                 'duplicate' => true,
                 'submission_id' => $submissionId,
                 'movement_id' => (int)($movement['movement_id'] ?? 0),
             ];
         }
 
-        dl_upsertProductionRunYield($db, $date, $productId, $commissaryBranchId, $beforeProduced + $quantity, $actorId);
-        $row = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date);
+        dl_upsertProductionRunYield($db, $date, $productId, $commissaryBranchId, $beforeProduced + $quantity, $actorId, $shift);
+        $row = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift);
         $db->commit();
         return [
             'row' => $row,
@@ -2816,16 +2891,18 @@ function dl_dailySheetAdjustmentReasons(): array
 }
 
 /** Whether a (commissary, product, branch, date) cell already carries a recorded delivery. */
-function dl_dailySheetCellHasEntry($db, string $ledgerDate, int $commissaryBranchId, int $productId, int $branchId): bool
+function dl_dailySheetCellHasEntry($db, string $ledgerDate, int $commissaryBranchId, int $productId, int $branchId, ?string $shift = null): bool
 {
     if ($commissaryBranchId <= 0 || $productId <= 0 || $branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate)) {
         return false;
     }
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $stmt = $db->prepare(
         "SELECT COUNT(*)
            FROM dl_deliveries d
            INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
           WHERE d.delivery_date = :d
+            AND (:shift_filter IS NULL OR d.production_shift = :shift)
             AND d.origin_type = 'commissary'
             AND d.destination_type = 'branch'
             AND d.destination_id = :bid
@@ -2833,21 +2910,23 @@ function dl_dailySheetCellHasEntry($db, string $ledgerDate, int $commissaryBranc
             AND d.status <> 'voided'
             AND di.product_id = :pid"
     );
-    $stmt->execute([':d' => $ledgerDate, ':bid' => $branchId, ':cid' => $commissaryBranchId, ':pid' => $productId]);
+    $stmt->execute([':d' => $ledgerDate, ':shift_filter' => $shift, ':shift' => $shift, ':bid' => $branchId, ':cid' => $commissaryBranchId, ':pid' => $productId]);
     return (int)$stmt->fetchColumn() > 0;
 }
 
 /** The delivery-backed quantity currently shown in one branch cell. */
-function dl_dailySheetCellQuantity($db, string $ledgerDate, int $commissaryBranchId, int $productId, int $branchId): int
+function dl_dailySheetCellQuantity($db, string $ledgerDate, int $commissaryBranchId, int $productId, int $branchId, ?string $shift = null): int
 {
     if ($commissaryBranchId <= 0 || $productId <= 0 || $branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate)) {
         return 0;
     }
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $stmt = $db->prepare(
         "SELECT COALESCE(SUM(di.quantity), 0)
            FROM dl_deliveries d
            INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
           WHERE d.delivery_date = :d
+            AND (:shift_filter IS NULL OR d.production_shift = :shift)
             AND d.origin_type = 'commissary'
             AND d.destination_type = 'branch'
             AND d.destination_id = :bid
@@ -2855,7 +2934,7 @@ function dl_dailySheetCellQuantity($db, string $ledgerDate, int $commissaryBranc
             AND d.status <> 'voided'
             AND di.product_id = :pid"
     );
-    $stmt->execute([':d' => $ledgerDate, ':bid' => $branchId, ':cid' => $commissaryBranchId, ':pid' => $productId]);
+    $stmt->execute([':d' => $ledgerDate, ':shift_filter' => $shift, ':shift' => $shift, ':bid' => $branchId, ':cid' => $commissaryBranchId, ':pid' => $productId]);
     return (int)$stmt->fetchColumn();
 }
 
@@ -2884,6 +2963,7 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
     }
     $db = $ctx->db();
     $date = (string)($input['date'] ?? $input['ledger_date'] ?? '');
+    $shift = isset($input['shift']) ? dl_normalizeShift((string)$input['shift']) : null;
 
     // The daily-sheet modal posts the dispatch shape (items[]), but accept a flat
     // shape too so the core is testable without wrapping it.
@@ -2948,7 +3028,7 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         throw new \RuntimeException('Product is not active for this commissary.');
     }
 
-    $hasEntry = dl_dailySheetCellHasEntry($db, $date, $commissaryBranchId, $productId, $branchId);
+    $hasEntry = dl_dailySheetCellHasEntry($db, $date, $commissaryBranchId, $productId, $branchId, $shift);
     $type = '';
     $reasonCode = '';
     $customReason = '';
@@ -3015,19 +3095,26 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
 
     $db->beginTransaction();
     try {
+        // Serialize shift-keyed writes with finalization, exactly as the cashier ledger does.
+        if ($shift !== null) {
+            $shiftStatus = dl_lockShiftStatusRow($db, $commissaryBranchId, $date, $shift);
+            if ((string)$shiftStatus['status'] === 'finalized') {
+                throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
+            }
+        }
         // Keep the commissary finished-goods position in step with the delivery, and
         // guarantee the ledger row exists before a negative correction is applied.
-        dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $actorId);
+        dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $actorId, $shift);
         // Read the already-recorded cell quantity under the transaction and the
         // ledger-row lock, then refuse a correction that would drive the cell
         // below zero. The old behaviour clamped the stored dispatched_qty while
         // the screen showed a negative figure, so the two never agreed.
         $db->prepare(
             'SELECT id FROM dl_commissary_product_ledger
-              WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d
+              WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift = :shift
               FOR UPDATE'
-        )->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $date]);
-        $before = dl_dailySheetCellQuantity($db, $date, $commissaryBranchId, $productId, $branchId);
+        )->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
+        $before = dl_dailySheetCellQuantity($db, $date, $commissaryBranchId, $productId, $branchId, $shift);
         if ($before + $quantity < 0) {
             throw new \RuntimeException(
                 'Cannot reduce the branch cell below zero: this product has ' . $before
@@ -3043,9 +3130,9 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         $delStmt = $db->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
-                 delivery_date, status, created_by, posted_by, posted_at, remarks, receipt_required)
+                 delivery_date, production_shift, status, created_by, posted_by, posted_at, remarks, receipt_required)
              VALUES (:origin_type, :origin_id, :destination_type, :destination_id, :dr_number,
-                     :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks, :receipt_required)'
+                     :delivery_date, :production_shift, "posted", :created_by, :posted_by, NOW(), :remarks, :receipt_required)'
         );
         $delStmt->execute([
             ':origin_type' => 'commissary',
@@ -3054,6 +3141,7 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
             ':destination_id' => $branchId,
             ':dr_number' => $drNumber !== '' ? $drNumber : null,
             ':delivery_date' => $date,
+            ':production_shift' => $shift,
             ':created_by' => $actorId > 0 ? $actorId : null,
             ':posted_by' => $actorId > 0 ? $actorId : null,
             ':remarks' => $remarks,
@@ -3081,7 +3169,7 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         $itemId = (int)$db->lastInsertId();
 
         // Debit (positive) or credit back (negative) the commissary dispatched qty.
-        dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $date, 0, $quantity, $actorId, 0, true);
+        dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $date, 0, $quantity, $actorId, 0, true, $shift);
 
         $reasonDisplay = $hasEntry
             ? ($reasonCode === 'other' ? $customReason : $reasonCode)
@@ -3142,17 +3230,18 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
 }
 
 /** Read the day's ledger row (with computed book balance) for a product. */
-function dl_readCommissaryProductLedgerRow($db, int $commissaryBranchId, int $productId, string $ledgerDate): array
+function dl_readCommissaryProductLedgerRow($db, int $commissaryBranchId, int $productId, string $ledgerDate, ?string $shift = null): array
 {
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
     $read = $db->prepare(
         'SELECT beg_qty, produced_qty, dispatched_qty, wastage_qty, remaining_qty,
                 actual_end_qty, calc_variance,
                 (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS book_balance
            FROM dl_commissary_product_ledger
-          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift
           LIMIT 1'
     );
-    $read->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    $read->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':shift' => $shift]);
     return $read->fetch(PDO::FETCH_ASSOC) ?: [];
 }
 
@@ -3492,6 +3581,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (int)($input['quantity'] ?? 0);
     $ledgerDate = (string)($input['ledger_date'] ?? dl_businessDate());
+    $productionShift = isset($input['shift']) ? dl_normalizeShift((string)$input['shift']) : null;
     $reason = trim((string)($input['reason'] ?? $input['override_reason'] ?? ''));
     $drNumber = trim((string)($input['dr_number'] ?? ''));
     if ($drNumber !== '') {
@@ -3592,7 +3682,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
 
         if ($refId > 0) {
             $refStmt = $ctx->db()->prepare(
-                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, flow_mode, movement_type, dr_number
+                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, shift, flow_mode, movement_type, dr_number
                  FROM dl_production_movements
                  WHERE id = :id AND movement_type IN ('withdrawal','output')
                  LIMIT 1"
@@ -3600,7 +3690,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
             $refStmt->execute([':id' => $refId]);
         } else {
             $refStmt = $ctx->db()->prepare(
-                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, flow_mode, movement_type, dr_number
+                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, shift, flow_mode, movement_type, dr_number
                  FROM dl_production_movements
                  WHERE movement_uuid = :uuid AND movement_type IN ('withdrawal','output')
                  LIMIT 1"
@@ -3618,6 +3708,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         $productId = (int)$ref['product_id'];
         $quantity = (int)$ref['quantity'];
         $ledgerDate = (string)$ref['ledger_date'];
+        $productionShift = $ref['shift'] !== null ? dl_normalizeShift((string)$ref['shift']) : null;
         $flowMode = (string)$ref['flow_mode'];
         if ($drNumber === '') {
             $drNumber = trim((string)($ref['dr_number'] ?? ''));
@@ -3689,7 +3780,10 @@ function dl_processProductionMovement(array $user, string $movementType, array $
                 $ledgerDate,
                 $delta,  // produced_qty += quantity
                 0,       // dispatched_qty tracked separately via delivery
-                $actorId
+                $actorId,
+                0,
+                false,
+                $productionShift
             );
 
             if (empty($commissaryLedgerState['skipped'])) {
@@ -3725,12 +3819,12 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_production_movements (
                 movement_uuid, client_op_id, movement_type, flow_mode,
-                     destination_branch_id, product_id, ledger_date, quantity, dr_number,
+                     destination_branch_id, product_id, ledger_date, shift, quantity, dr_number,
                 override_reason, reference_movement_id, source_payload,
                 created_by_id, created_by_role
              ) VALUES (
                 :uuid, :coid, :mtype, :fmode,
-                     :bid, :pid, :ldate, :qty, :dr,
+                     :bid, :pid, :ldate, :shift, :qty, :dr,
                 :reason, :refid, :payload,
                 :uid, :role
              )'
@@ -3743,6 +3837,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
             ':bid' => $destinationBranchId,
             ':pid' => $productId,
             ':ldate' => $ledgerDate,
+            ':shift' => $productionShift,
             ':qty' => $quantity,
             ':dr' => $drNumber !== '' ? $drNumber : null,
             ':reason' => $reason !== '' ? $reason : null,
@@ -14951,6 +15046,11 @@ function handleAdminCommissary(): void
     if ($rawDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
         $rawDate = date('Y-m-d');
     }
+    // An omitted shift is the all-day view. In particular, it must retain
+    // historical deliveries whose production_shift predates shift tracking.
+    $shift = isset($input['shift']) && (string)$input['shift'] !== ''
+        ? dl_normalizeShift((string)$input['shift'])
+        : null;
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
@@ -15197,11 +15297,14 @@ function handleAdminCommissary(): void
           ORDER BY (sort_order = 0) ASC, sort_order ASC, name ASC'
     );
     $sheetBranches = $sheetBranchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $sheetProducts = dl_fetchProductionSheetProducts($db, $sheetSourceBranchId);
+    $sheetProducts = dl_fetchProductionSheetProducts(
+        $db,
+        $selectedCommissaryId > 0 ? $sheetSourceBranchId : 0
+    );
 
-    $sheetDispatch = dl_fetchProductionSheetDispatchMatrix($db, $rawDate, $selectedCommissaryId);
-    $sheetDispatchEntries = dl_fetchProductionSheetDispatchEntryFlags($db, $rawDate, $selectedCommissaryId);
-    $sheetReceiving = dl_fetchProductionSheetReceivingMatrix($db, $rawDate, $selectedCommissaryId);
+    $sheetDispatch = dl_fetchProductionSheetDispatchMatrix($db, $rawDate, $selectedCommissaryId, $shift);
+    $sheetDispatchEntries = dl_fetchProductionSheetDispatchEntryFlags($db, $rawDate, $selectedCommissaryId, $shift);
+    $sheetReceiving = dl_fetchProductionSheetReceivingMatrix($db, $rawDate, $selectedCommissaryId, $shift);
 
     $sheetLedgerSql = "SELECT product_id,
                               COUNT(*) AS ledger_row_count,
@@ -15219,6 +15322,10 @@ function handleAdminCommissary(): void
                          FROM dl_commissary_product_ledger
                         WHERE ledger_date = :sheet_ledger_date";
     $sheetLedgerBind = [':sheet_ledger_date' => $rawDate];
+    if ($shift !== null) {
+        $sheetLedgerSql .= ' AND shift = :sheet_shift';
+        $sheetLedgerBind[':sheet_shift'] = $shift;
+    }
     if ($selectedCommissaryId > 0) {
         $sheetLedgerSql .= ' AND commissary_branch_id = :sheet_ledger_cid';
         $sheetLedgerBind[':sheet_ledger_cid'] = $selectedCommissaryId;
@@ -15238,26 +15345,32 @@ function handleAdminCommissary(): void
           WHERE module = "daily-ledger" AND action = "save_commissary_product_beg"
             AND entity_id LIKE :entity_pattern'
     );
-    $begAudit->execute([':entity_pattern' => $sheetSourceBranchId . '-%-' . $rawDate]);
+    $begEntitySuffix = $shift === null ? '%' : '-' . $shift;
+    $begAudit->execute([':entity_pattern' => $sheetSourceBranchId . '-%-' . $rawDate . $begEntitySuffix]);
     foreach ($begAudit->fetchAll(PDO::FETCH_COLUMN) ?: [] as $entityId) {
-        if (preg_match('/^' . preg_quote((string)$sheetSourceBranchId, '/') . '-(\d+)-' . preg_quote($rawDate, '/') . '$/', (string)$entityId, $match)) {
+        $shiftSuffixPattern = $shift === null ? '(?:-(?:AM|PM))?' : '-' . $shift;
+        if (preg_match('/^' . preg_quote((string)$sheetSourceBranchId, '/') . '-(\d+)-' . preg_quote($rawDate, '/') . $shiftSuffixPattern . '$/', (string)$entityId, $match)) {
             $recordedBegProducts[(int)$match[1]] = true;
         }
     }
 
     $activeAddtlMovements = [];
-    $movementStmt = $db->prepare(
-        'SELECT pm.id, pm.product_id
+    $movementSql = 'SELECT pm.id, pm.product_id
            FROM dl_production_movements pm
-          WHERE pm.destination_branch_id = :bid AND pm.ledger_date = :d
-            AND pm.movement_type = "output"
+          WHERE pm.destination_branch_id = :bid AND pm.ledger_date = :d';
+    $movementBind = [':bid' => $sheetSourceBranchId, ':d' => $rawDate];
+    if ($shift !== null) {
+        $movementSql .= ' AND pm.shift = :shift';
+        $movementBind[':shift'] = $shift;
+    }
+    $movementSql .= ' AND pm.movement_type = "output"
             AND NOT EXISTS (
                 SELECT 1 FROM dl_production_movements rev
                  WHERE rev.reference_movement_id = pm.id AND rev.movement_type = "reverse"
             )
-          ORDER BY pm.id DESC'
-    );
-    $movementStmt->execute([':bid' => $sheetSourceBranchId, ':d' => $rawDate]);
+          ORDER BY pm.id DESC';
+    $movementStmt = $db->prepare($movementSql);
+    $movementStmt->execute($movementBind);
     foreach ($movementStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $movement) {
         $pid = (int)$movement['product_id'];
         if (!isset($activeAddtlMovements[$pid])) {
@@ -15348,9 +15461,18 @@ function handleAdminCommissary(): void
         ];
     }
 
-    // S7b: the bottom log — the day's operations (movements) plus the field
-    // changes (audit), merged by time. Built from existing tables only.
-    $productionLog = dl_fetchProductionLedgerLog($db, $sheetSourceBranchId, $rawDate);
+    // Historical NULL-shift rows remain explicitly unshifted; they are never
+    // assigned to AM or PM. The selected shift only reads shift-keyed rows.
+    $legacySheetStmt = $db->prepare('SELECT COUNT(*) FROM dl_commissary_product_ledger WHERE commissary_branch_id = :cb AND ledger_date = :d AND shift IS NULL');
+    $legacySheetStmt->execute([':cb' => $sheetSourceBranchId, ':d' => $rawDate]);
+    $historicalUnshiftedCount = (int)$legacySheetStmt->fetchColumn();
+    $shiftRow = $shift === null ? null : dl_getShiftStatus($db, $sheetSourceBranchId, $rawDate, $shift);
+    $shiftStatus = $shift === null ? 'unshifted' : ($shiftRow ? (string)$shiftRow['status'] : 'open');
+
+    // The management log is intentionally not exposed to production_in_charge.
+    $productionLog = ($user['role'] ?? '') === 'admin'
+        ? dl_fetchProductionLedgerLog($db, $sheetSourceBranchId, $rawDate)
+        : [];
 
     // Aggregate totals
     $totals = [
@@ -15418,6 +15540,11 @@ function handleAdminCommissary(): void
         'user_name' => $user['full_name'] ?? $user['username'] ?? 'User',
         'user_role' => $user['role'] ?? 'unknown',
         'date' => $rawDate,
+        'shift' => $shift,
+        'shift_status' => $shiftStatus,
+        'historical_unshifted_count' => $historicalUnshiftedCount,
+        'can_view_production_management' => (string)($user['role'] ?? '') === 'admin',
+        'can_view_production_variance' => (string)($user['role'] ?? '') === 'admin',
         'branches' => $branches,
         'commissaries' => $commissaries,
         'branch_id' => $selectedBranchId,
@@ -15988,6 +16115,48 @@ function dl_saveProductionRun(array $user, array $input): array
     }
 }
 
+function apiFinalizeProductionPmShift(): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'production_in_charge']);
+    $input = $ctx->input();
+    $branchId = (int)($input['commissary_branch_id'] ?? 0);
+    $date = (string)($input['date'] ?? '');
+    if ($branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+        || !in_array($branchId, dl_accessibleBranchIds($user), true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid or unauthorized commissary/date.'], 422);
+        return;
+    }
+    $db = $ctx->db();
+    $db->beginTransaction();
+    try {
+        $status = dl_lockShiftStatusRow($db, $branchId, $date, 'PM');
+        if ((string)$status['status'] !== 'finalized') {
+            $missing = $db->prepare(
+                'SELECT p.name FROM dl_products p
+                 INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+                 LEFT JOIN dl_commissary_product_ledger cpl ON cpl.product_id = p.id AND cpl.commissary_branch_id = :bid2 AND cpl.ledger_date = :d AND cpl.shift = "PM"
+                 WHERE p.is_active = 1 AND (cpl.id IS NULL OR cpl.actual_end_qty IS NULL)
+                 ORDER BY p.sort_order, p.name LIMIT 20'
+            );
+            $missing->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
+            $names = $missing->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            if ($names !== []) {
+                throw new \RuntimeException('Record PM ACTUAL BAL for every product before closing: ' . implode(', ', $names), 422);
+            }
+            $db->prepare('UPDATE dl_ledger_shift_status SET status = "finalized", finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP WHERE branch_id = :bid AND ledger_date = :d AND shift = "PM"')
+                ->execute([':uid' => dl_getActorUserId($user) ?: null, ':bid' => $branchId, ':d' => $date]);
+            dl_auditLog('finalize_production_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", ['status' => 'open'], ['status' => 'finalized']);
+        }
+        $db->commit();
+        $ctx->json(['ok' => true, 'finalized' => true]);
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
+    }
+}
+
 function apiSaveProductionRun(): void
 {
     $ctx = module();
@@ -16004,7 +16173,7 @@ function apiSaveProductionRun(): void
             $result = dl_recordProductionAddition($user, $input);
             $ctx->json(['ok' => true] + $result);
         } catch (RuntimeException $e) {
-            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
         } catch (Throwable $e) {
             write_log('apiSaveProductionRun addition error: ' . $e->getMessage(), 'error');
             $ctx->json(['ok' => false, 'error' => 'Database error executing transaction'], 500);
@@ -16067,7 +16236,7 @@ function apiCommissaryDispatch(): void
             $ctx->json(['ok' => true] + $result);
         } catch (Throwable $e) {
             write_log('apiCommissaryDispatch sheet entry error: ' . $e->getMessage(), 'error');
-            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
         }
         return;
     }
@@ -16302,6 +16471,9 @@ function apiSaveCommissaryMaterial(): void
         $date = (string)($input['date'] ?? '');
         $commissaryBranchId = (int)($input['commissary_branch_id'] ?? 0);
         $productId = (int)($input['product_id'] ?? 0);
+        $shift = isset($input['shift']) && (string)$input['shift'] !== ''
+            ? dl_normalizeShift((string)$input['shift'])
+            : null;
         $begQty = filter_var($input['beg_qty'] ?? null, FILTER_VALIDATE_INT);
         $reason = trim((string)($input['reason'] ?? ''));
         try {
@@ -16311,7 +16483,7 @@ function apiSaveCommissaryMaterial(): void
             if (!in_array($commissaryBranchId, dl_accessibleBranchIds($user), true)) {
                 throw new \RuntimeException('Commissary is not allowed for this user.');
             }
-            $entityId = "{$commissaryBranchId}-{$productId}-{$date}";
+            $entityId = "{$commissaryBranchId}-{$productId}-{$date}-{$shift}";
             $recorded = $db->prepare(
                 'SELECT id FROM audit_logs WHERE module = "daily-ledger"
                   AND action = "save_commissary_product_beg" AND entity_id = :eid LIMIT 1'
@@ -16323,10 +16495,10 @@ function apiSaveCommissaryMaterial(): void
             if ($alreadyRecorded && !dl_roleHasPermission((string)($user['role'] ?? ''), 'production.override')) {
                 throw new \RuntimeException('production.override permission is required to change a recorded beginning.');
             }
-            $beforeRow = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date);
+            $beforeRow = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift);
             $beforeBeg = array_key_exists('beg_qty', $beforeRow) ? (int)$beforeRow['beg_qty'] : null;
             $row = dl_saveCommissaryBeginningQty(
-                $db, $commissaryBranchId, $productId, $date, (int)$begQty, dl_getActorUserId($user)
+                $db, $commissaryBranchId, $productId, $date, (int)$begQty, dl_getActorUserId($user), $shift
             );
             dl_auditLog('save_commissary_product_beg', $commissaryBranchId, 'dl_commissary_product_ledger', $entityId, null, [
                 'beg_qty' => (int)$begQty,
@@ -16348,6 +16520,9 @@ function apiSaveCommissaryMaterial(): void
         $date = (string)($input['date'] ?? '');
         $commissaryBranchId = (int)($input['commissary_branch_id'] ?? 0);
         $productId = (int)($input['product_id'] ?? 0);
+        $shift = isset($input['shift']) && (string)$input['shift'] !== ''
+            ? dl_normalizeShift((string)$input['shift'])
+            : null;
         $rawValue = $input['actual_end_qty'] ?? null;
         $actualEndQty = ($rawValue === null || $rawValue === '') ? null : (int)$rawValue;
         $reason = trim((string)($input['reason'] ?? ''));
@@ -16357,9 +16532,9 @@ function apiSaveCommissaryMaterial(): void
             }
             $existingStmt = $db->prepare(
                 'SELECT actual_end_qty FROM dl_commissary_product_ledger
-                  WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d LIMIT 1'
+                  WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift LIMIT 1'
             );
-            $existingStmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $date]);
+            $existingStmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
             $existing = $existingStmt->fetchColumn();
             $beforeCount = ($existing === false || $existing === null) ? null : (int)$existing;
             if ($beforeCount !== null && (int)$existing !== $actualEndQty
@@ -16372,9 +16547,10 @@ function apiSaveCommissaryMaterial(): void
                 $productId,
                 $date,
                 $actualEndQty,
-                dl_getActorUserId($user)
+                dl_getActorUserId($user),
+                $shift
             );
-            dl_auditLog('save_commissary_product_count', $commissaryBranchId, 'dl_commissary_product_ledger', "{$commissaryBranchId}-{$productId}-{$date}", null, [
+            dl_auditLog('save_commissary_product_count', $commissaryBranchId, 'dl_commissary_product_ledger', "{$commissaryBranchId}-{$productId}-{$date}-{$shift}", null, [
                 'actual_end_qty' => $actualEndQty,
             ]);
             dl_auditProductionLedgerChange(

@@ -190,15 +190,18 @@ $h->test(
 // ─── Runtime: craft an unreceived delivery, then a short one ──────
 $h->section('Runtime: crafted delivery fixtures');
 
-$tokens = dl_generateAuthTokens([
-    'sub' => 'production_in_charge:27',
+// Keep the existing reconciliation expectations under an admin fixture. The
+// production_in_charge role is checked separately below because receiving and
+// variance detail is now intentionally outside that role's Daily Sheet.
+$adminTokens = dl_generateAuthTokens([
+    'sub' => 'admin:27',
     'id' => 27,
-    'username' => 'prod-rizal',
-    'name' => 'Prod Rizal',
-    'role' => 'production_in_charge',
+    'username' => 'admin-fixture',
+    'name' => 'Admin Fixture',
+    'role' => 'admin',
     'source' => 'daily-ledger',
 ]);
-$_COOKIE[dlCookieName()] = $tokens['token'];
+$_COOKIE[dlCookieName()] = $adminTokens['token'];
 
 $renderSheet = static function (string $date, int $commissaryId): string {
     $_GET['date'] = $date;
@@ -268,6 +271,29 @@ try {
         $cellHtml !== '' && str_contains($cellHtml, 'DR-S12-0001'),
         $cellHtml
     );
+
+    // Production may still encode/view sent quantities, but the requirement
+    // hides receiving/variance evidence from that role.
+    $productionTokens = dl_generateAuthTokens([
+        'sub' => 'production_in_charge:27',
+        'id' => 27,
+        'username' => 'prod-rizal',
+        'name' => 'Prod Rizal',
+        'role' => 'production_in_charge',
+        'source' => 'daily-ledger',
+    ]);
+    $_COOKIE[dlCookieName()] = $productionTokens['token'];
+    $productionHtml = $renderSheet($date, $commissaryId);
+    $productionCellHtml = $fixtureCell($productionHtml, $branchId);
+    $h->test(
+        'production_in_charge sees sent quantity but not receiving or variance detail (restricted surface requirement)',
+        $productionCellHtml !== ''
+        && str_contains($productionCellHtml, '>10</span>')
+        && !str_contains($productionCellHtml, 'production-branch-receipt')
+        && !str_contains($productionHtml, 'class="text-right production-variance"'),
+        $productionCellHtml
+    );
+    $_COOKIE[dlCookieName()] = $adminTokens['token'];
 
     // 2) A short receipt of 8 against 10: signed -2, visually distinct.
     $db->prepare(

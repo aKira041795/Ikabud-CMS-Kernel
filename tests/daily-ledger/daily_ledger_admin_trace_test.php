@@ -747,13 +747,14 @@ try {
         str_contains($fullPage['body'], 'Single paper capture: dispatch and receiving were encoded by the same user; these are not independent witnesses.')
     );
 
-    // AC1 behaviour: production is admitted, while cashier remains excluded.
+    // production_in_charge is intentionally restricted to the Daily Sheet; the
+    // trace exposes receiving and variance evidence that this role must not see.
     $productionPage = $runHarness(['page', (string)$producerId, 'production_in_charge', 'dr=' . rawurlencode($fullDr)]);
     $h->test(
-        'AC1 the trace page renders for production_in_charge',
-        $productionPage['exit'] === 0
-        && str_contains($productionPage['body'], 'Production Delivery Audit')
-        && str_contains($productionPage['body'], $fullDr)
+        'production_in_charge is refused the management trace (Daily Sheet-only role)',
+        $productionPage['status'] === 403
+        && !str_contains($productionPage['body'], 'Production Delivery Audit')
+        && !str_contains($productionPage['body'], $fullDr)
     );
 
     $cashierPage = $runHarness(['page', (string)$actorId, 'cashier', 'dr=' . rawurlencode($missingDr)]);

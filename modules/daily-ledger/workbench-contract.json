@@ -117,6 +117,7 @@
                 "/daily-ledger/api/v1/cashier/ledger/withdrawals",
                 "/daily-ledger/api/v1/cashier/ledger/withdrawals/edit",
                 "/daily-ledger/api/v1/commissary/dispatch",
+                "/daily-ledger/api/v1/commissary/finalize-pm",
                 "/daily-ledger/api/v1/commissary/material",
                 "/daily-ledger/api/v1/commissary/run",
                 "/daily-ledger/api/v1/deliveries/create",

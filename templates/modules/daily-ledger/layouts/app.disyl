@@ -606,7 +606,7 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary</span>
                 </a>
 
-                     {if feature_formal_delivery}
+                     {if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor')}
                      <a href="{base_url}/admin/deliveries"
                          class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}"
                          aria-label="Deliveries">
@@ -615,6 +615,7 @@
                      </a>
                      {/if}
 
+                {if user_role == 'admin' || user_role == 'supervisor'}
                 <a href="{base_url}/admin/usage"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'usage'}bg-white/10 ring-1 ring-white/10{/if}"
                    aria-label="Commissary Usage">
@@ -622,8 +623,9 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary Usage</span>
                 </a>
                 {/if}
+                {/if}
 
-                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor' || user_role == 'production_in_charge'}
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor'}
                 <a href="{base_url}/admin/trace"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'trace'}bg-white/10 ring-1 ring-white/10{/if}"
                    aria-label="Production Delivery Audit">
