@@ -402,6 +402,7 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
             $entity = (string)($input['entity'] ?? '');
             $allowed = ($path === '/daily-ledger/api/v1/commissary/run' && $entity === 'production_addition')
                 || ($path === '/daily-ledger/api/v1/commissary/material' && in_array($entity, ['product_beg', 'product_count'], true))
+                || $path === '/daily-ledger/api/v1/commissary/carry-beginnings'
                 || ($path === '/daily-ledger/api/v1/commissary/dispatch' && (!empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet'))
                 || $path === '/daily-ledger/api/v1/commissary/finalize-pm';
         }
@@ -2197,32 +2198,140 @@ function dl_suggestCommissaryBeginning($db, int $commissaryBranchId, int $produc
     return ($count ? (int)$count['actual_end_qty'] : 0) + $movement;
 }
 
-/** Fetch every product suggestion in one ordered pass for the rendered sheet. */
-function dl_fetchCommissaryBeginningSuggestions($db, int $commissaryBranchId, string $ledgerDate): array
-{
+/**
+ * Fetch the exact preceding-shift ending used by the production carry control.
+ * PM has one source only: that product's AM count on the same date. AM uses the
+ * latest earlier date with a count, preferring that date's PM row over AM (and
+ * an historical unshifted row last). There is deliberately no fallback from a
+ * missing PM→AM handoff to an older day.
+ */
+function dl_fetchCommissaryBeginningSuggestions(
+    $db,
+    int $commissaryBranchId,
+    string $ledgerDate,
+    ?string $shift = 'AM'
+): array {
     if ($commissaryBranchId <= 0) {
         return [];
     }
-    $stmt = $db->prepare(
-        'SELECT product_id, produced_qty, dispatched_qty, wastage_qty, actual_end_qty
-           FROM dl_commissary_product_ledger
-          WHERE commissary_branch_id = :cb AND ledger_date < :d
-          ORDER BY product_id, ledger_date'
-    );
+    $shift = dl_normalizeShift((string)$shift);
+    if ($shift === 'PM') {
+        $stmt = $db->prepare(
+            'SELECT product_id, actual_end_qty
+               FROM dl_commissary_product_ledger
+              WHERE commissary_branch_id = :cb AND ledger_date = :d
+                AND shift = "AM" AND actual_end_qty IS NOT NULL
+              ORDER BY product_id, id DESC'
+        );
+    } else {
+        $stmt = $db->prepare(
+            'SELECT product_id, actual_end_qty
+               FROM dl_commissary_product_ledger
+              WHERE commissary_branch_id = :cb AND ledger_date < :d
+                AND actual_end_qty IS NOT NULL
+              ORDER BY product_id, ledger_date DESC,
+                       CASE shift WHEN "PM" THEN 2 WHEN "AM" THEN 1 ELSE 0 END DESC,
+                       id DESC'
+        );
+    }
     $stmt->execute([':cb' => $commissaryBranchId, ':d' => $ledgerDate]);
     $suggestions = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $productId = (int)$row['product_id'];
         if (!array_key_exists($productId, $suggestions)) {
-            $suggestions[$productId] = 0;
-        }
-        if ($row['actual_end_qty'] !== null) {
             $suggestions[$productId] = (int)$row['actual_end_qty'];
-            continue;
         }
-        $suggestions[$productId] += (int)$row['produced_qty'] - (int)$row['dispatched_qty'] - (int)$row['wastage_qty'];
     }
     return $suggestions;
+}
+
+/**
+ * Carry a sheet in one transaction. Every requested row must still be an
+ * unrecorded zero and must equal the server-selected positive preceding ending;
+ * one stale/invalid row aborts the entire batch.
+ */
+function dl_carryCommissaryBeginnings(array $user, array $input): array
+{
+    $ctx = module();
+    if (!$ctx) throw new \RuntimeException('Module context unavailable.');
+    $db = $ctx->db();
+    $date = (string)($input['date'] ?? '');
+    $branchId = (int)($input['commissary_branch_id'] ?? 0);
+    $shift = dl_normalizeShift((string)($input['shift'] ?? ''));
+    $rows = $input['rows'] ?? null;
+    $key = trim((string)($input['idempotency_key'] ?? ''));
+    $role = (string)($user['role'] ?? '');
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $branchId <= 0 || !is_array($rows) || $rows === []
+        || $key === '' || strlen($key) > 190) {
+        throw new \RuntimeException('Invalid production carry request.');
+    }
+    if (!in_array($branchId, dl_accessibleBranchIds($user), true)) {
+        throw new \RuntimeException('Commissary is not allowed for this user.', 403);
+    }
+    $day = $db->prepare('SELECT status FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d LIMIT 1');
+    $day->execute([':b' => $branchId, ':d' => $date]);
+    if ((string)$day->fetchColumn() === 'closed') {
+        throw new \RuntimeException('This day is closed. Reopen the day before carrying beginnings.', 403);
+    }
+    if (dl_shiftIsFinalized($db, $branchId, $date, $shift)) {
+        throw new \RuntimeException("The {$shift} shift is finalized. Reopen the shift before carrying beginnings.", 403);
+    }
+    if (!in_array($role, ['admin', 'supervisor', 'production_in_charge'], true)) {
+        throw new \RuntimeException('This date is read-only for your role, so beginnings cannot be carried forward.', 403);
+    }
+
+    $batchEntityId = "{$branchId}-{$date}-{$shift}-{$key}";
+    $duplicate = $db->prepare('SELECT 1 FROM audit_logs WHERE module = "daily-ledger" AND action = "carry_commissary_beginnings" AND entity_id = :eid LIMIT 1');
+    $duplicate->execute([':eid' => $batchEntityId]);
+    if ($duplicate->fetchColumn()) return ['carried' => 0, 'duplicate' => true];
+
+    $source = dl_fetchCommissaryBeginningSuggestions($db, $branchId, $date, $shift);
+    $normalized = [];
+    foreach ($rows as $row) {
+        $productId = (int)($row['product_id'] ?? 0);
+        $begQty = filter_var($row['beg_qty'] ?? null, FILTER_VALIDATE_INT);
+        if ($productId <= 0 || $begQty === false || (int)$begQty <= 0 || isset($normalized[$productId])
+            || !isset($source[$productId]) || (int)$source[$productId] !== (int)$begQty) {
+            throw new \RuntimeException('Carry rows no longer match the preceding positive endings; nothing was changed.');
+        }
+        $normalized[$productId] = (int)$begQty;
+    }
+
+    $actorId = dl_getActorUserId($user);
+    $db->beginTransaction();
+    try {
+        $lock = $db->prepare(
+            'SELECT beg_qty FROM dl_commissary_product_ledger
+              WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift = :shift
+              LIMIT 1 FOR UPDATE'
+        );
+        $recorded = $db->prepare(
+            'SELECT 1 FROM audit_logs WHERE module = "daily-ledger" AND action = "save_commissary_product_beg"
+              AND entity_id = :eid LIMIT 1 FOR UPDATE'
+        );
+        foreach ($normalized as $productId => $begQty) {
+            $lock->execute([':cb' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
+            $current = $lock->fetchColumn();
+            $entityId = "{$branchId}-{$productId}-{$date}-{$shift}";
+            $recorded->execute([':eid' => $entityId]);
+            if ($recorded->fetchColumn() || ($current !== false && (int)$current !== 0)) {
+                throw new \RuntimeException('A beginning was already recorded or is no longer zero; nothing was changed.');
+            }
+            dl_saveCommissaryBeginningQty($db, $branchId, $productId, $date, $begQty, $actorId, $shift);
+            dl_auditLog('save_commissary_product_beg', $branchId, 'dl_commissary_product_ledger', $entityId, null, [
+                'beg_qty' => $begQty, 'source' => 'carry_forward', 'idempotency_key' => $key,
+            ]);
+        }
+        dl_auditLog('carry_commissary_beginnings', $branchId, 'dl_commissary_product_ledger', $batchEntityId, null, [
+            'date' => $date, 'shift' => $shift, 'rows' => count($normalized), 'idempotency_key' => $key,
+        ]);
+        $db->commit();
+        return ['carried' => count($normalized), 'duplicate' => false];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
 }
 
 function dl_ensureCommissaryProductLedgerRow(
@@ -15438,7 +15547,9 @@ function handleAdminCommissary(): void
     foreach ($sheetLedgerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $ledgerRow) {
         $sheetLedger[(int)$ledgerRow['product_id']] = $ledgerRow;
     }
-    $sheetBegSuggestions = dl_fetchCommissaryBeginningSuggestions($db, $sheetSourceBranchId, $rawDate);
+    $sheetBegSuggestions = $shift === null
+        ? []
+        : dl_fetchCommissaryBeginningSuggestions($db, $sheetSourceBranchId, $rawDate, $shift);
 
     $recordedBegProducts = [];
     $begAudit = $db->prepare(
@@ -15525,7 +15636,9 @@ function handleAdminCommissary(): void
         }
         $begSuggestion = (int)($sheetBegSuggestions[$productId] ?? 0);
         $begIsRecorded = isset($recordedBegProducts[$productId]);
-        $begQty = $begIsRecorded ? (int)($ledgerRow['beg_qty'] ?? $begSuggestion) : $begSuggestion;
+        // An absent row is an unrecorded zero. Keep the preceding ending in its
+        // own data attribute; rendering must never apply or persist the carry.
+        $begQty = !empty($ledgerRow['ledger_row_count']) ? (int)($ledgerRow['beg_qty'] ?? 0) : 0;
         $addtlQty = (int)($ledgerRow['addtl_qty'] ?? 0);
         $wastageQty = (int)($ledgerRow['wastage_qty'] ?? 0);
         $actualEndQty = array_key_exists('actual_end_qty', $ledgerRow) && $ledgerRow['actual_end_qty'] !== null
@@ -15645,6 +15758,8 @@ function handleAdminCommissary(): void
         'shift_locked' => $shiftLocked,
         'close_of_day_time' => dl_operatingClockLabel()['close_of_day_time'],
         'shift_status' => $shiftStatus,
+        'day_status' => $sheetSourceBranchId > 0 ? dl_getDayStatus($sheetSourceBranchId, $rawDate) : 'open',
+        'production_reference_only' => !in_array($role, ['admin', 'supervisor', 'production_in_charge'], true) || $shift === null,
         'historical_unshifted_count' => $historicalUnshiftedCount,
         'can_view_production_management' => $canViewProductionManagement,
         'can_view_production_variance' => $role === 'admin',
@@ -16544,6 +16659,19 @@ function apiCommissaryDispatch(): void
         }
         write_log("apiCommissaryDispatch error: " . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+    }
+}
+
+function apiCarryCommissaryBeginnings(): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge', 'auditor']);
+    try {
+        $result = dl_carryCommissaryBeginnings($user, $ctx->input());
+        $ctx->json(['ok' => true] + $result);
+    } catch (\Throwable $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
     }
 }
 

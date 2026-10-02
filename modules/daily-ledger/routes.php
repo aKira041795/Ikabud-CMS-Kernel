@@ -172,6 +172,7 @@ return [
         // Commissary API
         '/daily-ledger/api/v1/commissary/run'             => 'daily-ledger:apiSaveProductionRun',
         '/daily-ledger/api/v1/commissary/material'        => 'daily-ledger:apiSaveCommissaryMaterial',
+        '/daily-ledger/api/v1/commissary/carry-beginnings' => 'daily-ledger:apiCarryCommissaryBeginnings',
         '/daily-ledger/api/v1/commissary/dispatch'        => 'daily-ledger:apiCommissaryDispatch',
         '/daily-ledger/api/v1/commissary/finalize-pm'     => 'daily-ledger:apiFinalizeProductionPmShift',
 

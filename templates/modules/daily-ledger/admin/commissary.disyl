@@ -526,6 +526,10 @@
         {if shift_status == 'finalized'}
         <div class="mx-4 mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">The {shift} shift is finalized and locked.</div>
         {/if}
+        <div class="mx-4 mt-4 flex items-center gap-3 print-hidden">
+            <button type="button" class="btn btn-outline btn-sm hidden" id="production-carry-beginnings-btn" onclick="carryProductionBeginnings()">Carry beginnings forward</button>
+            <span class="hidden text-xs text-amber-700" id="production-carry-beginnings-note"></span>
+        </div>
         {if historical_unshifted_count > 0}
         <div class="mx-4 mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">{historical_unshifted_count} pre-shift row(s) exist for this date. They remain unshifted historical data and are not included in AM or PM.</div>
         {/if}
@@ -569,9 +573,15 @@
                                 data-original="{row.beg_qty}"
                                 data-suggestion="{row.beg_suggestion}"
                                 data-recorded="{if row.beg_is_recorded}1{else}0{/if}"
+                                data-carry-source="{if shift == 'PM'}am-end{else}prev-end{/if}"
                                 onchange="saveProductionBeg({row.product_id})"
-                                {if shift_status == 'finalized'}disabled{/if}
+                                {if shift_status == 'finalized' || day_status == 'closed' || production_reference_only}disabled{/if}
                                 title="Suggested beginning: {row.beg_suggestion}">
+                            {if row.beg_suggestion > 0}
+                            <div class="mt-0.5 text-xs leading-tight text-indigo-600 production-carry-source">
+                                {if shift == 'PM'}AM end: {row.beg_suggestion}{else}Prev end: {row.beg_suggestion}{/if}
+                            </div>
+                            {/if}
                         </td>
                         {* ADDTL is a displayed value and a per-row entry point. The row trigger opens
                            the Record Addition modal with that row's product preselected, mirroring the
@@ -956,8 +966,81 @@
         return 'sub-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
     }
 
-    // BEG is user-settable; the S7 carry is only the suggestion. Saving here is
-    // explicit — the page never writes the prefilled suggestion on its own.
+    // The production carry mirrors the cashier candidate rule exactly: the
+    // server-recorded beginning and current cell must both still be zero, and
+    // the preceding ending must be positive. Disabled candidates are retained
+    // so the affordance can explain that a reopen is required.
+    function productionCarryCandidates() {
+        var out = [];
+        document.querySelectorAll('.production-beg-input').forEach(function(input) {
+            if (input.getAttribute('data-recorded') === '1') return;
+            if ((parseInt(input.value || '0', 10) || 0) !== 0) return;
+            var ending = parseInt(input.getAttribute('data-suggestion') || '0', 10) || 0;
+            var row = input.closest('.daily-sheet-product-row');
+            var productId = row ? (parseInt(row.getAttribute('data-product-id') || '0', 10) || 0) : 0;
+            if (!(ending > 0) || productId <= 0) return;
+            out.push({ product_id: productId, beg_qty: ending, disabled: input.disabled });
+        });
+        return out;
+    }
+
+    function refreshProductionCarryAffordance() {
+        var btn = document.getElementById('production-carry-beginnings-btn');
+        var note = document.getElementById('production-carry-beginnings-note');
+        if (!btn || !note) return;
+        var ready = 0;
+        var blocked = 0;
+        productionCarryCandidates().forEach(function(row) { row.disabled ? blocked++ : ready++; });
+        if (ready > 0) {
+            btn.textContent = 'Carry ' + ready + ' beginning' + (ready === 1 ? '' : 's') + ' forward';
+            btn.classList.remove('hidden');
+            note.classList.add('hidden');
+            return;
+        }
+        btn.classList.add('hidden');
+        if (!blocked) { note.classList.add('hidden'); return; }
+        var reason = '{day_status}' === 'closed'
+            ? 'this day is closed'
+            : ('{shift_status}' === 'finalized' ? 'the {shift} shift is finalized' : 'this date is read-only for your role');
+        note.textContent = blocked + ' beginning' + (blocked === 1 ? '' : 's') + ' waiting on a reopen - ' + reason + '.';
+        note.classList.remove('hidden');
+    }
+
+    function carryProductionBeginnings() {
+        if ('{day_status}' === 'closed') {
+            showToast('This day is closed. Reopen the day before carrying beginnings.', 'error'); return;
+        }
+        if ('{shift_status}' === 'finalized') {
+            showToast('The {shift} shift is finalized. Reopen the shift before carrying beginnings.', 'error'); return;
+        }
+        if ('{if production_reference_only}1{else}0{/if}' === '1') {
+            showToast('This date is read-only for your role, so beginnings cannot be carried forward.', 'error'); return;
+        }
+        var rows = productionCarryCandidates()
+            .filter(function(row) { return !row.disabled; })
+            .map(function(row) { return { product_id: row.product_id, beg_qty: row.beg_qty }; });
+        if (!rows.length) {
+            showToast('Nothing to carry - every beginning is recorded, non-zero, or has no positive preceding ending.', 'warning'); return;
+        }
+        var btn = document.getElementById('production-carry-beginnings-btn');
+        if (btn) btn.disabled = true;
+        // One request owns the complete transaction; never issue one save per product.
+        productionJson('{base_url}/api/v1/commissary/carry-beginnings', {
+            date: '{date}', shift: '{shift}', commissary_branch_id: {sheet_source_branch_id},
+            idempotency_key: 'carry-forward-{sheet_source_branch_id}-{date}-{shift}-' + Date.now(),
+            rows: rows
+        }).then(function(res) {
+            showToast('Carried ' + res.carried + ' beginning' + (res.carried === 1 ? '' : 's') + ' forward.', 'success');
+            window.refreshMainContent();
+        }).catch(function(error) {
+            showToast(error.message || 'Could not carry beginnings - nothing was changed.', 'error');
+        }).finally(function() { if (btn) btn.disabled = false; });
+    }
+
+    refreshProductionCarryAffordance();
+
+    // BEG remains user-settable. Carrying is a separate explicit action; this
+    // function never runs on load or on a plain re-read.
     function saveProductionBeg(pid) {
         var input = document.getElementById('production-beg-' + pid);
         if (!input) return;
@@ -978,6 +1061,7 @@
             input.value = persisted;
             input.setAttribute('data-original', persisted);
             input.setAttribute('data-recorded', '1');
+            refreshProductionCarryAffordance();
             var row = productionRow(pid);
             if (row) {
                 var variance = row.querySelector('.production-variance');

@@ -116,6 +116,7 @@
                 "/daily-ledger/api/v1/cashier/ledger/save-batch",
                 "/daily-ledger/api/v1/cashier/ledger/withdrawals",
                 "/daily-ledger/api/v1/cashier/ledger/withdrawals/edit",
+                "/daily-ledger/api/v1/commissary/carry-beginnings",
                 "/daily-ledger/api/v1/commissary/dispatch",
                 "/daily-ledger/api/v1/commissary/finalize-pm",
                 "/daily-ledger/api/v1/commissary/material",
@@ -1359,6 +1360,33 @@
         {
             "id": "action-daily-ledger-api-v1-commissary-dispatch",
             "route": "/daily-ledger/api/v1/commissary/dispatch",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-commissary-carry-beginnings",
+            "route": "/daily-ledger/api/v1/commissary/carry-beginnings",
             "method": "POST",
             "requires": {
                 "authenticated": true,
