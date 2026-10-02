@@ -269,7 +269,7 @@ test('production -> delivery -> receiving -> admin variance (baronledger.test, t
 
     // Admin reads the receipt with its line items (the 1f442aee path).
     await login(page, seed.admin, 'Journey Admin');
-    await page.goto(`/daily-ledger/admin/deliveries?branch_id=${seed.branch_one}`);
+    await page.goto(`/daily-ledger/admin/deliveries?branch_id=${seed.branch_one}&date_from=${seed.date}&date_to=${seed.date}`);
     const exactRow = page.locator('tbody', { hasText: exactDr });
     await expect(exactRow.getByRole('button', { name: 'View Receipt' })).toBeVisible();
     await exactRow.getByRole('button', { name: 'View Receipt' }).click();

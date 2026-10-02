@@ -1656,7 +1656,7 @@ function apiCreateReceiving(array $params = []): void
         $ctx->db()->commit();
         dl_auditLog('receiving_created', $branchId, 'dl_branch_receivings', (string)$rcvId, null,
             ['delivery_id' => $deliveryId, 'items' => count($clean)]);
-        $ctx->json(['ok' => true, 'receiving_id' => $rcvId, 'status' => 'draft']);
+        dl_respondThenFlushMail(['ok' => true, 'receiving_id' => $rcvId, 'status' => 'draft']);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
         $ctx->log('apiCreateReceiving: ' . $e->getMessage(), 'error');

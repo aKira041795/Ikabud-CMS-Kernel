@@ -2449,6 +2449,103 @@ function dl_applyCommissaryProductLedgerDelta(
     return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => (int)$row['beg_qty'] + $newProduced - $newDispatched - $newWastage, 'skipped' => false];
 }
 
+/**
+ * In-request buffer for integrity emails.
+ *
+ * A receipt write must never hold the cashier's HTTP connection open on SMTP:
+ * two admin round-trips can outlast the 15s client write abort, so the cashier
+ * is told the result is UNKNOWN while the server may already have committed.
+ * Mail is therefore queued while the request is being served and flushed only
+ * after the response has been finished. No new table, no new dependency, no
+ * durable-outbox worker (there is none).
+ */
+function dl_queueIntegrityEmail(string $to, string $subject, string $html): void
+{
+    // No client to release on the CLI: send synchronously so maintenance and
+    // scripted paths keep delivering mail.
+    if (PHP_SAPI === 'cli') {
+        if (function_exists('sendEmail')) {
+            sendEmail($to, $subject, $html);
+        }
+        return;
+    }
+
+    if (!isset($GLOBALS['dl_integrity_email_queue']) || !is_array($GLOBALS['dl_integrity_email_queue'])) {
+        $GLOBALS['dl_integrity_email_queue'] = [];
+    }
+    $GLOBALS['dl_integrity_email_queue'][] = ['to' => $to, 'subject' => $subject, 'html' => $html];
+
+    // Registration is lazy: only a request that actually raised an email pays
+    // for the backstop. It flushes every HTTP path that enqueued, even one that
+    // never got (or cannot have) an explicit flush, so a queued mail can never
+    // be silently dropped.
+    if (empty($GLOBALS['dl_integrity_email_flush_registered'])) {
+        $GLOBALS['dl_integrity_email_flush_registered'] = true;
+        register_shutdown_function('dl_flushDeferredIntegrityEmailsAfterResponse');
+    }
+}
+
+/** Send every queued integrity email. Safe to call more than once. */
+function dl_flushDeferredIntegrityEmails(): int
+{
+    $queue = $GLOBALS['dl_integrity_email_queue'] ?? [];
+    if (!is_array($queue) || $queue === []) {
+        return 0;
+    }
+    $GLOBALS['dl_integrity_email_queue'] = [];
+    $sent = 0;
+    foreach ($queue as $mail) {
+        if (!function_exists('sendEmail')) {
+            continue;
+        }
+        try {
+            if (sendEmail((string)$mail['to'], (string)$mail['subject'], (string)$mail['html'])) {
+                $sent++;
+            }
+        } catch (\Throwable $e) {
+            // A mail failure must never resurface as a write failure after the
+            // receipt has already committed.
+        }
+    }
+    return $sent;
+}
+
+/**
+ * Shutdown backstop for deferred integrity emails. The JSON response has already
+ * been echoed by the endpoint; this releases the session lock, finishes the HTTP
+ * response, and only then performs the SMTP work the UI must not wait on.
+ */
+function dl_flushDeferredIntegrityEmailsAfterResponse(): void
+{
+    if (empty($GLOBALS['dl_integrity_email_queue'])) {
+        return;
+    }
+    release_session_lock_if_active();
+    finish_response_if_possible();
+    dl_flushDeferredIntegrityEmails();
+}
+
+/**
+ * Emit a JSON response, release the session and client, then flush deferred
+ * mail. The proven finish-response shape, local to Daily Ledger so the shared
+ * bootstrap helper is untouched.
+ */
+function dl_respondThenFlushMail(array $payload, int $status = 200): void
+{
+    if (!headers_sent()) {
+        http_response_code($status);
+        header('Content-Type: application/json');
+        if (function_exists('request_id') && ($rid = request_id())) {
+            header('X-Request-Id: ' . $rid);
+        }
+    }
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    release_session_lock_if_active();
+    finish_response_if_possible();
+    dl_flushDeferredIntegrityEmails();
+    exit;
+}
+
 /** Record one integrity finding and address it to active admins/supervisors with authority over the branch. */
 function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $branchId, ?string $entityType, ?int $entityId, string $title, string $detail = '', bool $email = false): ?int
 {
@@ -2478,7 +2575,9 @@ function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $bra
         if ($created && $email && function_exists('sendEmail')) {
             $to = trim((string)($recipient['email'] ?? ''));
             if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL)) {
-                sendEmail($to, '[Daily Ledger] ' . $title, '<p>' . htmlspecialchars($detail !== '' ? $detail : $title, ENT_QUOTES, 'UTF-8') . '</p>');
+                // Deferred: queued here, sent after the HTTP response is finished
+                // (or inline under CLI) so the write never waits on SMTP.
+                dl_queueIntegrityEmail($to, '[Daily Ledger] ' . $title, '<p>' . htmlspecialchars($detail !== '' ? $detail : $title, ENT_QUOTES, 'UTF-8') . '</p>');
             }
         }
     }
@@ -7339,7 +7438,7 @@ function apiReceiveDelivery(array $params = []): void
                 }
             }
             $ctx->db()->commit();
-            $ctx->json([
+            dl_respondThenFlushMail([
                 'ok' => true,
                 'received_count' => $receivedCount,
                 'receive_date' => $receiveDate,
@@ -7459,7 +7558,7 @@ function apiReceiveDelivery(array $params = []): void
         }
 
         $ctx->db()->commit();
-        $ctx->json([
+        dl_respondThenFlushMail([
             'ok' => true,
             'received_count' => count($foundIds),
             'receive_date' => $receiveDate,
@@ -7862,7 +7961,7 @@ function apiReceivePaperDelivery(array $params = []): void
         if ($idempotencyKey !== '') {
             dl_storeIdempotentResponse('receive_paper_dr', $idempotencyKey, $response, 86400);
         }
-        $ctx->json($response);
+        dl_respondThenFlushMail($response);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
