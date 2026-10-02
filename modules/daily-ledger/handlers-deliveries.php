@@ -1669,11 +1669,12 @@ function dl_recordReceivingVariances(int $receivingId): void
     $ctx = module();
     if (!$ctx) return;
 
-    $r = $ctx->db()->prepare('SELECT delivery_id FROM dl_branch_receivings WHERE id = :id');
+    $r = $ctx->db()->prepare('SELECT delivery_id, received_by FROM dl_branch_receivings WHERE id = :id');
     $r->execute([':id' => $receivingId]);
-    $deliveryId = $r->fetchColumn();
-    if (!$deliveryId) return;
-    $deliveryId = (int)$deliveryId;
+    $head = $r->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$head || empty($head['delivery_id'])) return;
+    $deliveryId = (int)$head['delivery_id'];
+    $actorId = (int)($head['received_by'] ?? 0);
 
     $sql = 'SELECT di.product_id, COALESCE(di.quantity, 0) AS sent_qty,
                    COALESCE(SUM(ri.quantity_received), 0) AS received_qty
@@ -1703,6 +1704,19 @@ function dl_recordReceivingVariances(int $receivingId): void
             ':d' => $deliveryId, ':r' => $receivingId,
             ':p' => (int)$row['product_id'], ':s' => $sent, ':rcv' => $rcv, ':v' => $var,
         ]);
+
+        // The exception-list row above is deliberate evidence and is kept.
+        // It is not what the admin variance dashboard reads, though: that page
+        // is fed for deliveries only by dl_raiseDeliveryVariance(), which until
+        // now ran on the edit-by-DR / Daily-Sheet correction paths and never on
+        // a normal short receipt. Reuse the same admin-visible writer so the
+        // cashier's short count reaches the surface built to show it. It stores
+        // kind='delivery' with shift = NULL (a cross-shift event), which the
+        // landed shift filter surfaces under both AM and PM, and it upserts, so
+        // a repeat receive updates the one row instead of duplicating it.
+        dl_raiseDeliveryVariance(
+            $ctx->db(), $deliveryId, $receivingId, (int)$row['product_id'], $sent, $rcv, $actorId
+        );
     }
 }
 

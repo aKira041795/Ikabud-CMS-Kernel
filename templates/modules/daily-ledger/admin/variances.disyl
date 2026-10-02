@@ -402,7 +402,8 @@
 
     {if variances | length > 0}
     <!-- Grouped view -->
-    <div x-show="view === 'grouped'" x-cloak>
+    <template x-if="view === 'grouped'">
+    <div>
         {foreach branch_summary as bg}
         <div class="variance-branch-group" x-data="{ open: {if bg.unreviewed > 0}true{else}false{/if} }">
             <div class="variance-branch-group-header"
@@ -552,9 +553,11 @@
         </div>
         {/foreach}
     </div>
+    </template>
 
     <!-- List view -->
-    <div x-show="view === 'list'" x-cloak>
+    <template x-if="view === 'list'">
+    <div>
         <div class="card">
             <div class="card-header">
                 <span>Variance Records</span>
@@ -679,6 +682,7 @@
             </div>
         </div>
     </div>
+    </template>
     {/if}
 </div>
 {/block}

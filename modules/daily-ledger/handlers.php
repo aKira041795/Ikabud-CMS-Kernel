@@ -2281,7 +2281,18 @@ function dl_carryCommissaryBeginnings(array $user, array $input): array
         throw new \RuntimeException('This date is read-only for your role, so beginnings cannot be carried forward.', 403);
     }
 
-    $batchEntityId = "{$branchId}-{$date}-{$shift}-{$key}";
+    // The client's idempotency key is already shaped
+    // carry-forward-<branch>-<date>-<shift>-<epoch>, so it carries the same
+    // branch/date/shift identity the old "{$branchId}-{$date}-{$shift}-{$key}"
+    // prefixed onto it. Prefixing again pushed the value past
+    // audit_logs.entity_id varchar(50) and the carry's audit row was silently
+    // lost. Use the key itself. For an unexpectedly long key we fall back to a
+    // deterministic short digest of the whole key rather than truncating it:
+    // truncation would drop the epoch and let two carries in one shift collide.
+    $batchEntityId = $key;
+    if (strlen($batchEntityId) > 50) {
+        $batchEntityId = 'cf-' . sha1($key);
+    }
     $duplicate = $db->prepare('SELECT 1 FROM audit_logs WHERE module = "daily-ledger" AND action = "carry_commissary_beginnings" AND entity_id = :eid LIMIT 1');
     $duplicate->execute([':eid' => $batchEntityId]);
     if ($duplicate->fetchColumn()) return ['carried' => 0, 'duplicate' => true];
