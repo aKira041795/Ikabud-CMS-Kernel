@@ -73,6 +73,10 @@ restored.setReceivedQty(group, group.items[0], '8');
 restored.setReceivedQty(group, group.items[0], '10');
 restored.acceptGroup(group);
 
+const over = sandbox.receiveModal();
+over.setReceivedQty(group, group.items[0], '13');
+over.acceptGroup(group);
+
 setTimeout(function () {
     process.stdout.write(JSON.stringify({
         initialValues: initialValues,
@@ -80,5 +84,6 @@ setTimeout(function () {
         untouchedPayload: payloads[0] || null,
         correctedPayload: payloads[1] || null,
         restoredPayload: payloads[2] || null,
+        overPayload: payloads[3] || null,
     }) + '\n');
 }, 30);

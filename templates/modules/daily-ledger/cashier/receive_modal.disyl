@@ -113,7 +113,6 @@
                                                     <input type="number"
                                                            class="w-20 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
                                                            :min="0"
-                                                           :max="it.quantity"
                                                            :value="receivedQty(g, it)"
                                                            placeholder="Count"
                                                            @input="setReceivedQty(g, it, $event.target.value)">
@@ -488,7 +487,7 @@ function receiveModal() {
                 return;
             }
             var parsed = Number(val);
-            if (!Number.isInteger(parsed) || parsed < 0 || parsed > it.quantity) {
+            if (!Number.isInteger(parsed) || parsed < 0) {
                 this.partialQtys[g.group_key][it.id] = null;
                 return;
             }

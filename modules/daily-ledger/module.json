@@ -148,7 +148,8 @@
     "database/migrations/067_resolvable_delivery_integrity.sql",
     "database/migrations/068_delivery_ledger_enforcement_notifications.sql",
     "database/migrations/069_preserve_cashier_variance.sql",
-    "database/migrations/070_production_daily_sheet_shift.sql"
+    "database/migrations/070_production_daily_sheet_shift.sql",
+    "database/migrations/071_informal_receipt_mismatch_notification.sql"
   ],
   "capabilities": {
     "exposes": [

@@ -666,17 +666,18 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         throw new RuntimeException('Delivery has no items to receive.');
     }
 
-    // Validate partial quantities when provided.
+    // Corrections must count every product, but the paper DR may legitimately
+    // show either less or more than the electronically dispatched quantity.
     if ($partialQtys !== null) {
         foreach ($items as $item) {
             $pid = (int)$item['product_id'];
-            if (isset($partialQtys[$pid])) {
-                $given = (int)$partialQtys[$pid];
-                if ($given < 0 || $given > (int)$item['quantity']) {
-                    throw new RuntimeException(
-                        "Partial qty {$given} for product {$pid} exceeds delivery qty {$item['quantity']}."
-                    );
-                }
+            if (!array_key_exists($pid, $partialQtys)) {
+                throw new RuntimeException('A corrected Received quantity is required for every line.');
+            }
+            $raw = $partialQtys[$pid];
+            if ((!is_int($raw) && !(is_string($raw) && preg_match('/^\d+$/', $raw) === 1))
+                || (int)$raw < 0) {
+                throw new RuntimeException('Each Received value must be a non-negative whole number.');
             }
         }
     }

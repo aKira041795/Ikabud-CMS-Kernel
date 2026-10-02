@@ -7038,8 +7038,9 @@ function apiGetIncomingDeliveries(array $params = []): void
 }
 
 /**
- * Require a deliberate whole-number count for every receipt line. Explicit zero
- * is valid; an absent, empty, fractional, negative, or over-sent value is not.
+ * Require a deliberate non-negative whole-number count for every receipt line.
+ * Explicit zero and a count above the electronic dispatch are valid because the
+ * paper DR is authoritative; absent, empty, fractional, or negative values are not.
  *
  * @param array<int,int> $sentByKey
  * @return array<int,int>
@@ -7057,9 +7058,8 @@ function dl_requireReceiptCounts(array $sentByKey, mixed $provided): array
         }
         $raw = $provided[$key];
         if ((!is_int($raw) && !(is_string($raw) && preg_match('/^\d+$/', $raw) === 1))
-            || (int)$raw < 0
-            || (int)$raw > (int)$sent) {
-            throw new \RuntimeException('Each Received value must be a whole number between 0 and the sent quantity.');
+            || (int)$raw < 0) {
+            throw new \RuntimeException('Each Received value must be a non-negative whole number.');
         }
         $counts[(int)$key] = (int)$raw;
     }
@@ -7258,8 +7258,23 @@ function apiReceiveDelivery(array $params = []): void
         $foundIds = [];
         foreach ($rows as $r) {
             $rid = (int)$r['id'];
-            $markIndiv->execute([$userId, $receiveDate, $rowReceivedQtys[$rid], $rid]);
+            $sentQty = (int)$r['quantity'];
+            $receivedQty = $rowReceivedQtys[$rid];
+            $markIndiv->execute([$userId, $receiveDate, $receivedQty, $rid]);
             $foundIds[] = $rid;
+            if ($receivedQty !== $sentQty) {
+                dl_raiseIntegrityNotification(
+                    $ctx->db(),
+                    'informal-receipt-mismatch-' . $rid,
+                    'receipt_mismatch',
+                    $branchId,
+                    'dl_cashier_withdrawals',
+                    $rid,
+                    'Branch transfer receipt differs from dispatch',
+                    'Withdrawal #' . $rid . ' was sent as ' . $sentQty . ' and received as ' . $receivedQty . '.',
+                    false
+                );
+            }
         }
 
         // Apply to dl_daily_ledger.addtl for receive date (shift-scoped: each
