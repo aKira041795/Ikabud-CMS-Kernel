@@ -1,6 +1,22 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
+const { execFileSync } = require('child_process');
+const path = require('path');
+
+const fixture = path.join(__dirname, '..', 'daily-ledger', 'daily_ledger_reporting_browser_fixture.php');
+
+function runFixture(mode) {
+    execFileSync('php', [fixture, mode], { cwd: path.join(__dirname, '..', '..'), stdio: 'inherit' });
+}
+
+test.beforeEach(() => {
+    runFixture('setup');
+});
+
+test.afterEach(() => {
+    runFixture('cleanup');
+});
 
 test('authenticated Daily Ledger report filters and downloads PDF/CSV', async ({ page }) => {
     await page.goto('/daily-ledger/login');
