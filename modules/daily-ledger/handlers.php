@@ -4562,6 +4562,12 @@ function dl_raiseDeliveryVariance(\Ikabud\Kernel\Contracts\DatabaseContract $db,
     $sel->execute([':delivery' => $deliveryId, ':product' => $productId]);
     $existing = $sel->fetch(PDO::FETCH_ASSOC) ?: null;
 
+    // A delivery variance is a cross-shift event: the goods were produced in one
+    // shift and received into another, so there is no single shift it belongs to.
+    // Both writes below keep shift = NULL on purpose; the two known shifts are
+    // read from the delivery and the receiving when the admin view renders the
+    // row. Never re-attribute this flag to one shift: doing so hides it from the
+    // other shift's filter, which is exactly the visibility defect being fixed.
     if (is_array($existing)) {
         $flagId = (int)$existing['id'];
         $wasCorrected = (string)($existing['resolution_status'] ?? '') === 'corrected';
@@ -4595,6 +4601,12 @@ function dl_raiseDeliveryVariance(\Ikabud\Kernel\Contracts\DatabaseContract $db,
             ], 'a later production correction changed the sent quantity');
         }
     } else {
+        // HAZARD: dl_variance_flags.kind is NOT NULL with DEFAULT 'overnight'.
+        // This INSERT must always name kind = 'delivery' explicitly; drop that
+        // literal and the row silently becomes an overnight variance and pollutes
+        // a shift-scoped count. dl_upsertVarianceFlag() must NOT be used for
+        // delivery flags either: it coerces every unknown kind to 'overnight'.
+        // shift stays NULL because this is a cross-shift event (see above).
         $db->prepare(
             "INSERT INTO dl_variance_flags
                 (branch_id, product_id, ledger_date, kind, shift, delivery_id, receiving_id, sent_qty, received_qty,
@@ -10675,7 +10687,14 @@ function handleAdminVariances(array $params = []): void
         $bind[':kind'] = $kindFilter;
     }
     if ($shiftFilter !== '') {
-        $whereScope .= ' AND vf.shift = :shift';
+        // Cross-shift visibility: a delivery variance is stored with shift = NULL
+        // on purpose (the goods were produced in one shift and received in
+        // another). Matching only the requested shift would hide an unreviewed
+        // discrepancy from BOTH the AM and the PM view, so an explicit filter
+        // must also surface shift-agnostic rows. Shift-scoped kinds
+        // (overnight/handoff/ending/sales) still match only their own shift,
+        // because those rows never carry a NULL shift.
+        $whereScope .= ' AND (vf.shift = :shift OR vf.shift IS NULL)';
         $bind[':shift'] = $shiftFilter;
     }
     if ($search !== '') {
@@ -10694,10 +10713,20 @@ function handleAdminVariances(array $params = []): void
         $bindFiltered[':st'] = $statusFilter;
     }
 
+    // Base FROM shared by the aggregates and the rendered list. The two
+    // delivery-shift joins are keyed on primary keys (dl_deliveries.id,
+    // dl_branch_receivings.id) and are therefore strictly 1:1, so they cannot
+    // multiply a variance row or move an aggregate count. They let a delivery
+    // variance show which shift produced/dispatched the goods
+    // (d.production_shift) and which shift received them (r.received_shift)
+    // while the flag itself deliberately keeps shift = NULL (cross-shift event)
+    // and is never bucketed.
     $varianceFromSql = 'FROM dl_variance_flags vf
             INNER JOIN dl_products p ON p.id = vf.product_id
             INNER JOIN dl_branches b ON b.id = vf.branch_id
             LEFT JOIN dl_users reviewer ON reviewer.id = vf.reviewed_by
+            LEFT JOIN dl_deliveries d ON d.id = vf.delivery_id
+            LEFT JOIN dl_branch_receivings r ON r.id = vf.receiving_id
             WHERE ';
     $scopeFromSql = $varianceFromSql . $whereScope;
     $filteredFromSql = $varianceFromSql . $whereFiltered;
@@ -10722,7 +10751,9 @@ function handleAdminVariances(array $params = []): void
     // The rendered slice: status-filtered, capped, newest first.
     $listStmt = $ctx->db()->prepare(
         'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
-                COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name '
+                COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name,
+                d.production_shift AS delivery_production_shift,
+                r.received_shift AS delivery_received_shift '
         . $filteredFromSql . ' ORDER BY vf.ledger_date DESC, b.name, p.name LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT
     );
     $listStmt->execute($bindFiltered);
