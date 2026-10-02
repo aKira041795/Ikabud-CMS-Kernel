@@ -89,13 +89,13 @@
                                         </template>
                                         <button type="button"
                                                 class="btn btn-primary"
-                                                x-bind:disabled="busyKey === g.group_key || !allCountsEntered(g)"
+                                                x-bind:disabled="busyKey === g.group_key || hasInvalidCorrection(g)"
                                                 @click="acceptGroup(g)">
                                             <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Receive Now'"></span>
                                         </button>
                                     </div>
                                 </div>
-                                <p x-show="!allCountsEntered(g)" class="mb-2 text-xs font-medium text-amber-700">Enter the physically counted Received value for every line (enter 0 if none arrived).</p>
+                                <p class="mb-2 text-xs font-medium text-slate-600">Confirm as sent, or correct the received qty if it differs.</p>
                                 <table class="w-full text-sm">
                                     <thead class="text-xs uppercase text-gray-500">
                                         <tr>
@@ -474,7 +474,7 @@ function receiveModal() {
 
         receivedQty(g, it) {
             var map = this.partialQtys[g.group_key];
-            return (map && map[it.id] !== undefined) ? map[it.id] : '';
+            return (map && map[it.id] !== undefined) ? map[it.id] : it.quantity;
         },
 
         setReceivedQty(g, it, val) {
@@ -482,30 +482,42 @@ function receiveModal() {
                 this.partialQtys[g.group_key] = {};
             }
             if (val === '') {
+                // Preserve an explicitly cleared field as invalid. Treating it as
+                // untouched would silently restore the sent quantity on submit.
+                this.partialQtys[g.group_key][it.id] = null;
+                return;
+            }
+            var parsed = Number(val);
+            if (!Number.isInteger(parsed) || parsed < 0 || parsed > it.quantity) {
+                this.partialQtys[g.group_key][it.id] = null;
+                return;
+            }
+            if (parsed === it.quantity) {
+                // Returning to the dispatched value is no longer a correction.
                 delete this.partialQtys[g.group_key][it.id];
                 return;
             }
-            var parsed = parseInt(val, 10);
-            if (!Number.isFinite(parsed)) {
-                delete this.partialQtys[g.group_key][it.id];
-                return;
-            }
-            this.partialQtys[g.group_key][it.id] = Math.max(0, Math.min(parsed, it.quantity));
+            this.partialQtys[g.group_key][it.id] = parsed;
         },
 
-        allCountsEntered(g) {
+        hasInvalidCorrection(g) {
             var map = this.partialQtys[g.group_key];
-            return !!map && g.items.every(function(it) {
-                return map[it.id] !== undefined;
+            if (!map) return false;
+            return g.items.some(function(it) {
+                return map[it.id] === null;
+            });
+        },
+
+        hasCorrections(g) {
+            var map = this.partialQtys[g.group_key];
+            if (!map) return false;
+            return g.items.some(function(it) {
+                return Number.isInteger(map[it.id]) && map[it.id] !== it.quantity;
             });
         },
 
         isPartial(g) {
-            var map = this.partialQtys[g.group_key];
-            if (!map) return false;
-            return g.items.some(function(it) {
-                return map[it.id] !== undefined && map[it.id] !== it.quantity;
-            });
+            return this.hasCorrections(g);
         },
 
         load() {
@@ -532,28 +544,33 @@ function receiveModal() {
 
         acceptGroup(g) {
             if (this.busyKey) return;
-            if (!this.allCountsEntered(g)) {
-                this.errorMsg = 'Enter a counted Received value for every line before receiving.';
+            if (this.hasInvalidCorrection(g)) {
+                this.errorMsg = 'Corrected Received qty must be a whole number between 0 and the sent quantity.';
                 return;
             }
             this.busyKey = g.group_key;
             this.errorMsg = '';
             var payload = { withdrawal_ids: g.ids };
+            var corrected = this.hasCorrections(g);
             if (g.delivery_ids && g.delivery_ids.length) {
                 payload.delivery_ids = g.delivery_ids;
-                // The API requires an explicit physical count for every product.
-                var lineCounts = this.partialQtys[g.group_key];
-                var productCounts = {};
-                g.items.forEach(function(it) {
-                    productCounts[it.product_id] = lineCounts[it.id];
-                });
-                var byDelivery = {};
-                g.delivery_ids.forEach(function(did) {
-                    byDelivery[did] = productCounts;
-                });
-                payload.partial_qtys = byDelivery;
-            } else {
-                // Informal transfer: pass per-item received qty keyed by withdrawal record id
+                // No correction means no partial_qtys: the server honestly records
+                // a copied confirmation. A correction sends every line because the
+                // API validates the complete independently-counted document.
+                if (corrected) {
+                    var self = this;
+                    var lineCounts = {};
+                    g.items.forEach(function(it) {
+                        lineCounts[it.id] = self.receivedQty(g, it);
+                    });
+                    var byDelivery = {};
+                    g.delivery_ids.forEach(function(did) {
+                        byDelivery[did] = lineCounts;
+                    });
+                    payload.partial_qtys = byDelivery;
+                }
+            } else if (corrected) {
+                // Informal transfer corrections are keyed by withdrawal record id.
                 var self = this;
                 var informalMap = {};
                 g.items.forEach(function(it) {

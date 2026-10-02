@@ -7162,18 +7162,33 @@ function apiReceiveDelivery(array $params = []): void
     if (count($deliveryIds) > 0) {
         // Counts are keyed by delivery item, not product. Duplicate product
         // lines are separate physical lines and must retain separate counts.
-        $partialQtysMap = (array)($input['partial_qtys'] ?? []);
+        $hasCorrections = array_key_exists('partial_qtys', $input);
+        $partialQtysMap = $hasCorrections && is_array($input['partial_qtys'])
+            ? $input['partial_qtys']
+            : [];
         $ctx->db()->beginTransaction();
         try {
+            if ($hasCorrections && !is_array($input['partial_qtys'])) {
+                throw new \RuntimeException('Corrected Received quantities must be supplied for every line.');
+            }
             $receivedCount = 0;
             foreach ($deliveryIds as $deliveryId) {
-                $providedCounts = $partialQtysMap[$deliveryId] ?? $partialQtysMap[(string)$deliveryId] ?? null;
-                if (!is_array($providedCounts)) {
-                    throw new \RuntimeException('A counted Received value is required for every line.');
+                if ($hasCorrections) {
+                    $providedCounts = $partialQtysMap[$deliveryId] ?? $partialQtysMap[(string)$deliveryId] ?? null;
+                    if (!is_array($providedCounts)) {
+                        throw new \RuntimeException('A counted Received value is required for every line.');
+                    }
+                    $rcvId = dl_acceptFormalDeliveryByItem(
+                        $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift
+                    );
+                } else {
+                    // An untouched one-click confirmation deliberately copies the
+                    // dispatched quantities. dl_acceptFormalDelivery records the
+                    // honest `copied` basis and raises the uncounted notification.
+                    $rcvId = dl_acceptFormalDelivery(
+                        $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, null, $shift
+                    );
                 }
-                $rcvId = dl_acceptFormalDeliveryByItem(
-                    $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift
-                );
                 if ($rcvId > 0) {
                     $receivedCount++;
                 }
@@ -7188,8 +7203,12 @@ function apiReceiveDelivery(array $params = []): void
         }
     }
 
-    // Optional per-item received qty for informal transfers: { withdrawal_id => received_qty }
-    $informalPartialQtys = (array)($input['informal_partial_qtys'] ?? []);
+    // Optional per-item correction for informal transfers:
+    // { withdrawal_id => received_qty }. Omission confirms the sent quantities.
+    $hasInformalCorrections = array_key_exists('informal_partial_qtys', $input);
+    $informalPartialQtys = $hasInformalCorrections && is_array($input['informal_partial_qtys'])
+        ? $input['informal_partial_qtys']
+        : [];
 
     // Make sure all ids are deliveries targeting this branch and not yet received.
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -7210,7 +7229,12 @@ function apiReceiveDelivery(array $params = []): void
         $sentByWithdrawal[(int)$r['id']] = (int)$r['quantity'];
     }
     try {
-        $rowReceivedQtys = dl_requireReceiptCounts($sentByWithdrawal, $informalPartialQtys);
+        if ($hasInformalCorrections && !is_array($input['informal_partial_qtys'])) {
+            throw new \RuntimeException('Corrected Received quantities must be supplied for every line.');
+        }
+        $rowReceivedQtys = $hasInformalCorrections
+            ? dl_requireReceiptCounts($sentByWithdrawal, $informalPartialQtys)
+            : $sentByWithdrawal;
     } catch (\RuntimeException $e) {
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
         return;
