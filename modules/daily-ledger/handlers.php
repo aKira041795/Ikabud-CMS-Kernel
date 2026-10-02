@@ -2671,7 +2671,10 @@ function dl_recordProductionAddition(array $user, array $input): array
     $commissaryBranchId = (int)($input['commissary_branch_id'] ?? 0);
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (int)($input['quantity'] ?? -1);
-    $shift = isset($input['shift']) ? dl_normalizeShift((string)$input['shift']) : null;
+    $role = (string)($user['role'] ?? '');
+    $shift = $role === 'production_in_charge'
+        ? dl_resolveLedgerShift($user, $input)['shift']
+        : (isset($input['shift']) ? dl_normalizeShift((string)$input['shift']) : null);
     $reason = trim((string)($input['reason'] ?? ''));
     $submissionId = dl_withdrawalSubmissionId((string)($input['submission_id'] ?? ''));
     $actorId = dl_getActorUserId($user);
@@ -15050,13 +15053,13 @@ function handleAdminCommissary(): void
         $rawDate = date('Y-m-d');
     }
     // Production operators follow the same shift contract as cashiers: an
-    // assigned user is locked to that shift, while an unassigned user follows
-    // the operating clock. Request input can never move a production operator
-    // to another shift. Management retains its all-day/explicit-shift filter;
-    // in particular, all-day must include rows predating shift tracking.
-    $shiftLocked = $isProductionUser && dl_userShiftBound($user);
+    // assigned user is locked to that shift, while an unassigned user may
+    // select AM or PM and defaults to the operating clock. Management retains
+    // its all-day/explicit-shift filter, including pre-shift historical rows.
+    $productionShift = $isProductionUser ? dl_resolveLedgerShift($user, $input) : null;
+    $shiftLocked = (bool)($productionShift['bound'] ?? false);
     $shift = $isProductionUser
-        ? dl_userShift($user)
+        ? (string)$productionShift['shift']
         : (isset($input['shift']) && (string)$input['shift'] !== ''
             ? dl_normalizeShift((string)$input['shift'])
             : null);

@@ -30,6 +30,7 @@ $db = $ctx->db();
 
 $productId = 99870;
 $productionUserId = 99871;
+$unboundProductionUserId = 99872;
 $branchId = 18;
 $destinationBranchId = 17;
 $date = '2020-07-07';
@@ -40,7 +41,7 @@ $count = static function () use ($db, $countTables): array {
     foreach ($countTables as $table) $out[$table] = (int)$db->query("SELECT COUNT(*) FROM {$table}")->fetchColumn();
     return $out;
 };
-$cleanup = static function () use ($db, $productId, $productionUserId, $branchId, $date): void {
+$cleanup = static function () use ($db, $productId, $productionUserId, $unboundProductionUserId, $branchId, $date): void {
     $db->prepare('DELETE FROM dl_delivery_items WHERE product_id = :p')->execute([':p' => $productId]);
     $db->prepare('DELETE FROM dl_deliveries WHERE remarks = :marker')->execute([':marker' => '[shift-access-fixture]']);
     $db->prepare('DELETE FROM audit_logs WHERE branch_id = :b AND (entity_id LIKE :p OR new_data LIKE :j)')->execute([':b' => $branchId, ':p' => "%{$productId}%", ':j' => "%{$productId}%"]);
@@ -50,8 +51,8 @@ $cleanup = static function () use ($db, $productId, $productionUserId, $branchId
     $db->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d')->execute([':b' => $branchId, ':d' => $date]);
     $db->prepare('DELETE FROM dl_branch_products WHERE product_id = :p')->execute([':p' => $productId]);
     $db->prepare('DELETE FROM dl_products WHERE id = :p')->execute([':p' => $productId]);
-    $db->prepare('DELETE FROM dl_user_branches WHERE user_id = :id')->execute([':id' => $productionUserId]);
-    $db->prepare('DELETE FROM dl_users WHERE id = :id')->execute([':id' => $productionUserId]);
+    $db->prepare('DELETE FROM dl_user_branches WHERE user_id IN (:bound, :unbound)')->execute([':bound' => $productionUserId, ':unbound' => $unboundProductionUserId]);
+    $db->prepare('DELETE FROM dl_users WHERE id IN (:bound, :unbound)')->execute([':bound' => $productionUserId, ':unbound' => $unboundProductionUserId]);
 };
 
 $cleanup();
@@ -61,6 +62,10 @@ try {
         ->execute([':id' => $productionUserId, ':username' => 'fixture-production-pm', ':password' => 'not-a-login-hash', ':name' => 'Fixture PM Producer']);
     $db->prepare('INSERT INTO dl_user_branches (user_id, branch_id) VALUES (:user, :branch)')
         ->execute([':user' => $productionUserId, ':branch' => $branchId]);
+    $db->prepare('INSERT INTO dl_users (id, username, password_hash, full_name, role, shift, is_active) VALUES (:id, :username, :password, :name, "production_in_charge", NULL, 1)')
+        ->execute([':id' => $unboundProductionUserId, ':username' => 'fixture-production-unbound', ':password' => 'not-a-login-hash', ':name' => 'Fixture Unbound Producer']);
+    $db->prepare('INSERT INTO dl_user_branches (user_id, branch_id) VALUES (:user, :branch)')
+        ->execute([':user' => $unboundProductionUserId, ':branch' => $branchId]);
     $db->prepare('INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active) VALUES (:id, :sku, :name, 1, 99870, 1)')
         ->execute([':id' => $productId, ':sku' => 'FIX-SHIFT-99870', ':name' => 'Fixture Shift Product']);
     $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)')
@@ -96,14 +101,33 @@ try {
     ];
     dl_recordProductionAddition($boundProductionUser, [
         'date' => $date,
-        'shift' => 'PM',
+        'shift' => 'AM',
         'commissary_branch_id' => $branchId,
         'product_id' => $productId,
         'quantity' => 1,
         'submission_id' => 'fixture-bound-producer-99870',
     ]);
     $pm->execute([':p' => $productId]);
-    $h->test('a PM-bound production user still encodes PM additions', (int)$pm->fetchColumn() === 5);
+    $h->test('a PM-bound production user requesting AM still encodes PM additions', (int)$pm->fetchColumn() === 5);
+
+    $unboundProductionUser = [
+        'id' => $unboundProductionUserId,
+        'sub' => 'production_in_charge:' . $unboundProductionUserId,
+        'role' => 'production_in_charge',
+        'source' => 'daily-ledger',
+        'full_name' => 'Fixture Unbound Producer',
+    ];
+    dl_recordProductionAddition($unboundProductionUser, [
+        'date' => $date,
+        'shift' => 'AM',
+        'commissary_branch_id' => $branchId,
+        'product_id' => $productId,
+        'quantity' => 6,
+        'submission_id' => 'fixture-unbound-am-99870',
+    ]);
+    $unboundAm = $db->prepare('SELECT produced_qty FROM dl_commissary_product_ledger WHERE product_id = :p AND shift = "AM"');
+    $unboundAm->execute([':p' => $productId]);
+    $h->test('unbound production user may switch to AM and the switch is honoured by the write', (int)$unboundAm->fetchColumn() === 8);
 
     // One legacy delivery and two shift-keyed deliveries prove the render rule:
     // omitted shift includes every row, while AM and PM remain exact and never
@@ -173,9 +197,48 @@ try {
         str_contains($forcedPmHtml, "Daily Production Sheet — {$date} · PM")
             && str_contains($forcedPmHtml, 'PM Shift')
             && str_contains($forcedPmHtml, 'fa-lock')
+            && !str_contains($forcedPmHtml, 'role="group" aria-label="Shift"')
             && !str_contains($forcedPmHtml, 'name="shift"')
             && $forcedPmQuantity === 11,
         json_encode(['forced_pm_quantity' => $forcedPmQuantity])
+    );
+
+    $unboundTokens = dl_generateAuthTokens([
+        'sub' => 'production_in_charge:' . $unboundProductionUserId,
+        'id' => $unboundProductionUserId,
+        'username' => 'fixture-production-unbound',
+        'name' => 'Fixture Unbound Producer',
+        'role' => 'production_in_charge',
+        'source' => 'daily-ledger',
+    ]);
+    $_COOKIE[dlCookieName()] = $unboundTokens['token'];
+    $_GET = ['date' => $date, 'commissary_id' => (string)$branchId, 'branch_id' => (string)$destinationBranchId, 'shift' => 'AM'];
+    ob_start();
+    handleAdminCommissary();
+    $unboundAmHtml = (string)ob_get_clean();
+    $toggleContext = "date={$date}&commissary_id={$branchId}&branch_id={$destinationBranchId}&shift=";
+    $h->test(
+        'unbound production user may switch AM/PM and the switch is honoured',
+        str_contains($unboundAmHtml, "Daily Production Sheet — {$date} · AM")
+            && str_contains($unboundAmHtml, 'AM Shift')
+            && !str_contains($unboundAmHtml, 'fa-lock')
+            && substr_count($unboundAmHtml, 'role="group" aria-label="Shift"') === 1
+            && str_contains($unboundAmHtml, $toggleContext . 'AM')
+            && str_contains($unboundAmHtml, $toggleContext . 'PM')
+            && !str_contains($unboundAmHtml, 'name="shift"'),
+        json_encode([
+            'title' => str_contains($unboundAmHtml, "Daily Production Sheet — {$date} · AM"),
+            'badge' => str_contains($unboundAmHtml, 'AM Shift'),
+            'lock' => str_contains($unboundAmHtml, 'fa-lock'),
+            'toggle_count' => substr_count($unboundAmHtml, 'role="group" aria-label="Shift"'),
+            'am_context' => str_contains($unboundAmHtml, $toggleContext . 'AM'),
+            'pm_context' => str_contains($unboundAmHtml, $toggleContext . 'PM'),
+            'filter' => str_contains($unboundAmHtml, 'name="shift"'),
+            'shift_links' => (static function (string $html): array {
+                preg_match_all('/href="([^"]+shift=(?:AM|PM))"/', $html, $matches);
+                return $matches[1] ?? [];
+            })($unboundAmHtml),
+        ])
     );
 
     $h->test(

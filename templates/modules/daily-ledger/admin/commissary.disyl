@@ -507,7 +507,16 @@
                 <div class="text-xs text-gray-500">BEG + ADDTL − TOTAL − WASTAGE = ACTUAL BAL</div>
             </div>
             <div class="flex items-center gap-2 print-hidden">
-                {if shift_locked}<span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-300">Locked to {shift} Shift</span>{/if}
+                {if !can_view_production_management}
+                {if shift_locked}
+                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-300">Locked to {shift} Shift</span>
+                {else}
+                <div class="inline-flex items-center rounded-full bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-300" role="group" aria-label="Shift">
+                    <a href="{base_url}/admin/commissary?date={date}&commissary_id={commissary_id}&branch_id={branch_id}&shift=AM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'AM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">AM</a>
+                    <a href="{base_url}/admin/commissary?date={date}&commissary_id={commissary_id}&branch_id={branch_id}&shift=PM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'PM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">PM</a>
+                </div>
+                {/if}
+                {/if}
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
                 {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-outline btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
                 {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-outline btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
