@@ -20,6 +20,7 @@ const payloads = [];
 const windowStub = {
     BRANCH_ID: '99572',
     SHIFT: 'AM',
+    SHIFT_LOCKED: true,
     DL_CSRF: 'csrf',
     DL_TOKEN: 'token',
     dlWriteTimeout: function (_url, options) {
@@ -53,6 +54,7 @@ const group = {
     group_key: 'delivery:995701',
     ids: [],
     delivery_ids: [995701],
+    production_shift: '',
     items: [
         { id: 101, product_id: 501, quantity: 10 },
         { id: 102, product_id: 502, quantity: 4 },
@@ -61,8 +63,14 @@ const group = {
 
 const untouched = sandbox.receiveModal();
 const initialValues = group.items.map(function (item) { return untouched.receivedQty(group, item); });
-const initiallyEnabled = !untouched.hasInvalidCorrection(group) && !untouched.busyKey;
+const initiallyEnabled = untouched.canAcceptGroup(group) && !untouched.hasInvalidCorrection(group) && !untouched.busyKey;
+group.production_shift = 'PM';
+const enabledWithBoth = untouched.canAcceptGroup(group) && !untouched.hasInvalidCorrection(group);
 untouched.acceptGroup(group);
+
+const missingReceiving = sandbox.receiveModal();
+missingReceiving.receivingShift = '';
+const enabledWithoutReceiving = missingReceiving.canAcceptGroup(group);
 
 const corrected = sandbox.receiveModal();
 corrected.setReceivedQty(group, group.items[0], '8');
@@ -81,6 +89,12 @@ setTimeout(function () {
     process.stdout.write(JSON.stringify({
         initialValues: initialValues,
         initiallyEnabled: initiallyEnabled,
+        enabledWithoutReceiving: enabledWithoutReceiving,
+        enabledWithBoth: enabledWithBoth,
+        boundReceivingLocked: template.includes('<template x-if="window.SHIFT_LOCKED">')
+            && template.includes('Locked to <span class="mx-1" x-text="receivingShift"></span> Shift'),
+        editableReceivingOnlyWhenUnlocked: template.includes('<template x-if="!window.SHIFT_LOCKED">')
+            && template.includes('<select x-model="receivingShift"'),
         untouchedPayload: payloads[0] || null,
         correctedPayload: payloads[1] || null,
         restoredPayload: payloads[2] || null,

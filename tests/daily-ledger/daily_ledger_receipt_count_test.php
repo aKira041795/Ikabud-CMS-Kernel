@@ -117,11 +117,20 @@ try {
     $modal = json_decode($modalRaw, true) ?: [];
     echo "ACCEPTANCE_MODAL=" . $modalRaw . "\n";
     $h->test(
-        'incoming cashier modal pre-fills sent quantities and Receive is enabled without typing',
+        'incoming cashier modal pre-fills quantities but requires both receipt shifts before Receive',
         $modalExit === 0
         && ($modal['initialValues'] ?? null) === [10, 4]
-        && ($modal['initiallyEnabled'] ?? false) === true
-        && str_contains($template, 'x-bind:disabled="busyKey === g.group_key || hasInvalidCorrection(g)"'),
+        && ($modal['initiallyEnabled'] ?? true) === false
+        && ($modal['enabledWithoutReceiving'] ?? true) === false
+        && ($modal['enabledWithBoth'] ?? false) === true
+        && ($modal['boundReceivingLocked'] ?? false) === true
+        && ($modal['editableReceivingOnlyWhenUnlocked'] ?? false) === true,
+        $modalRaw
+    );
+    $h->test(
+        'receive payload carries receiving and production shifts',
+        (($modal['untouchedPayload']['shift'] ?? null) === 'AM')
+        && (($modal['untouchedPayload']['production_shift'] ?? null) === 'PM'),
         $modalRaw
     );
     $h->test(
