@@ -137,7 +137,10 @@ commit_landing() {
     >> "$JOURNAL" 2>/dev/null || true
 
   notify_landing "$name" "$reason" "$state" "${status:-no status line | exit=${exitCode:-?} | files=${changed:-?}}"
-  rmdir "$lock" 2>/dev/null || true
+  # The lock is deliberately NOT removed. It persists as proof that this dispatch already
+  # committed, so a late second caller - the monitor and the runner can both record now
+  # that the runner has an EXIT trap - cannot write a duplicate marker or journal line.
+  # `run` clears it at dispatch, so a re-run of the same name still works.
   return 0
 }
 
@@ -157,6 +160,11 @@ classify_log() {
   if grep -qiE "usage limit has been reached|quota|rate limit" "$log" 2>/dev/null; then
     echo "quota"; return
   fi
+  # 124 = timeout(1) itself, 137 = SIGKILL, 143 = SIGTERM. A lane killed by its own budget
+  # is a timeout rather than a generic crash, and naming it makes the report actionable.
+  case "$rc" in
+    124|137|143) echo "timeout"; return;;
+  esac
   # A non-zero process exit (including timeout's 124) is a crash, whatever the log says.
   if [ -n "$rc" ] && [ "$rc" != "0" ]; then
     echo "crash"; return
@@ -229,6 +237,7 @@ cmd_run() {
   local timeoutSecs=7200
   local requireClean=0
   local waitGrace=120
+  local deadlineGrace=90
   # How long ONE call is willing to block before handing the wait back to the caller.
   # Deliberately below the ~120s terminal cap that has been observed on some invocation
   # paths: a process killed at the cap produces NO signal, whereas a process that exits
@@ -239,6 +248,7 @@ cmd_run() {
       --timeout=*) timeoutSecs="${arg#*=}";;
       --require-clean) requireClean=1;;
       --wait-grace=*) waitGrace="${arg#*=}";;
+      --deadline-grace=*) deadlineGrace="${arg#*=}";;
       --slice=*) sliceSecs="${arg#*=}";;
     esac
   done
@@ -297,10 +307,22 @@ cmd_run() {
   {
     printf '#!/usr/bin/env bash\n'
     printf 'cd %q || exit 1\n' "$absRoot"
+    # RECORD ON THE WAY OUT, however we leave. Without an EXIT trap a lane killed by its
+    # own --timeout recorded NOTHING: the shell died at the lane call, before reaching the
+    # record line, so there was no marker, no journal line and no notification, and nobody
+    # could tell the lane had ever existed. A real 50-minute lane was lost exactly this way.
+    # The record is the entire point, so it must be written by whatever holds the outcome
+    # at the moment it ends - including a TERM. (SIGKILL still defeats this: nothing runs
+    # after SIGKILL, which is what --wait-grace exists to cover.)
+    printf 'lane_finish() {\n'
+    printf '  rc=$?\n'
+    printf '  bash %q record %q %q "$rc" %q\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId"
+    printf '  echo "%s=$rc"\n' "$sentinel"
+    printf '}\n'
+    # EXIT alone is not enough: bash runs an EXIT trap on a signal only if that signal is
+    # trapped, and `script` kills the session when `timeout` fires. Trap them explicitly.
+    printf 'trap lane_finish EXIT HUP INT TERM\n'
     printf 'bash %q\n' "$laneScript"
-    printf 'rc=$?\n'
-    printf 'bash %q record %q %q "$rc" %q\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId"
-    printf 'echo "%s=$rc"\n' "$sentinel"
   } > "$runner"
   chmod +x "$runner"
 
@@ -316,7 +338,19 @@ cmd_run() {
   local wrapperPid=$!
   disown 2>/dev/null || true
 
+  # A DEADLINE RECORDER, living outside the process tree that `timeout` kills. The runner
+  # cannot always record its own end: `timeout` signals `script`, and `script` terminates the
+  # session with a signal bash never gets to handle, so a lane killed by its own --timeout
+  # wrote no marker, no journal line and no notification. A real 50-minute lane was lost that
+  # way. This process is detached, so it survives, and it commits `unverified` only if
+  # nothing else has recorded by the time the lane's budget is certainly over.
+  local deadlineSecs=$((timeoutSecs + deadlineGrace))
+  setsid bash "$ROOT/tools/lane.sh" watchdog "$name" "$deadlineSecs" \
+    </dev/null >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+
   echo "   wrapper=$wrapperPid"
+  echo "   deadline recorder: ${deadlineSecs}s (commits 'unverified' if the lane dies silent)"
   echo "   log=$log"
   echo "   run_id=$runId"
 
@@ -421,6 +455,7 @@ cmd_run() {
     case "$reason" in
       report_present) echo "   VERDICT: landed with a report - verify it, do not trust it";;
       quota)          echo "   VERDICT: CRASHED on quota - partial edits may exist, check the tree";;
+      timeout)        echo "   VERDICT: KILLED by its own timeout - partial edits may exist, check the tree";;
       crash)          echo "   VERDICT: CRASHED (non-zero exit) - partial edits may exist, check the tree";;
       fatal)          echo "   VERDICT: CRASHED - partial edits may exist, check the tree";;
       empty)          echo "   VERDICT: CRASHED with no output - nothing landed";;
@@ -442,6 +477,36 @@ cmd_run() {
     return "$exitCode"
   fi
   return 1
+}
+
+# A deadline recorder, spawned detached at dispatch. It exists because the record must not
+# depend on anything inside the tree `timeout` kills.
+cmd_watchdog() {
+  local name="${1:-}" secs="${2:-}"
+  [ -n "$name" ] && [ -n "$secs" ] || exit 2
+
+  sleep "$secs"
+
+  # Whatever committed first owns the record; this only fills a silence.
+  if [ -f "$RUNS/$name.landed.json" ]; then
+    exit 0
+  fi
+
+  local log="$RUNS/$name.log"
+  local bytes mtime status changed exitCode
+  bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
+  mtime=$(date -r "$log" -Iseconds 2>/dev/null || echo "")
+  status=$(status_line "$log")
+  changed=$(git status --porcelain 2>/dev/null | wc -l)
+  exitCode=""
+  # A lane still inside its budget is NOT a timeout - do not invent one.
+  if pgrep -f "$name.runner.sh" > /dev/null 2>&1; then
+    echo "[lane watchdog] $name: still running at ${secs}s - leaving it alone" >&2
+    exit 0
+  fi
+
+  commit_landing "$name" "unverified" "timeout" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "deadline" >&2
+  echo "[lane watchdog] $name: nothing recorded within ${secs}s - committed unverified/timeout" >&2
 }
 
 cmd_status() {
@@ -650,6 +715,26 @@ cmd_selftest() {
     *)     bad "S7b a handed-back lane was LOST"; echo "$w7" | sed 's/^/         /';;
   esac
 
+  # S8 (must-allow) - a lane killed by its OWN --timeout, with the monitor already gone,
+  # must still be RECORDED. It used to write nothing at all - no marker, no journal line, no
+  # notification - so a real 50-minute lane simply vanished and could only be discovered by
+  # asking. The runner cannot catch this: `timeout` signals `script`, and `script` kills the
+  # session with a signal bash never handles. Hence the detached deadline recorder.
+  mklane "$P/lane-st8.sh" 30 0
+  rm -f "$RUNS/st8.landed.json" "$RUNS/st8.log"
+  local rc8 r8 c8
+  bash "$SELF" run st8 "$P/lane-st8.sh" --timeout=4 --slice=2 --wait-grace=2 --deadline-grace=2 > "$P/st8.mon.log" 2>&1
+  rc8=$?
+  local i8
+  for i8 in $(seq 1 25); do [ -f "$RUNS/st8.landed.json" ] && break; sleep 1; done
+  r8=$(marker_field "$RUNS/st8.landed.json" reason)
+  c8=$(tail -n +$((jbase + 1)) "$JOURNAL" 2>/dev/null | grep -c '"name":"st8"'); c8=${c8:-0}
+  if [ "$rc8" -eq 3 ] && [ "$r8" = "timeout" ] && [ "$c8" = "1" ]; then
+    ok "S8 a silent timeout kill is still recorded, exactly once (reason=$r8)"
+  else
+    bad "S8 a lane killed by its own timeout was LOST (rc=$rc8 reason=$r8 journal=$c8)"
+  fi
+
   # S5 (must-refuse) - ONE commit per landing. Every landing previously appeared twice
   # in LANDINGS.log and produced two desktop notifications. Measured over THIS run only.
   local n5 n5b
@@ -680,6 +765,7 @@ case "${1:-}" in
   status)  shift; cmd_status "$@";;
   list)    shift; cmd_list "$@";;
   record)  shift; cmd_record "$@";;
+  watchdog) shift; cmd_watchdog "$@";;
   pending) shift; cmd_pending "$@";;
   ack)     shift; cmd_ack "$@";;
   selftest) shift; cmd_selftest "$@";;

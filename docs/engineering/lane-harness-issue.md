@@ -214,6 +214,25 @@ inside the detached runner, not from any monitor, which is why it survives the m
 - Anything about a **non-interactive dispatch** (no `DISPLAY`/`DBUS`) — the toast would silently no-op
   there. The journal covers it; nothing counts on the toast.
 
+### Residual gap found in the field and closed (2026-10-02)
+
+A real 50-minute lane (`closefind`) was killed by its own `--timeout` and **recorded nothing at all** —
+no marker, no journal line, no notification. The only way to learn it had ended was to ask. That is the
+original complaint, one layer further out than the fixes above.
+
+Why the runner cannot solve it: `timeout` signals `script`, and `script` terminates the session with a
+signal bash never gets to handle. An `EXIT HUP INT TERM` trap in the generated runner **does** fire on a
+direct `TERM` (verified: `state=landed reason=timeout exit=143`) but is useless in the real chain.
+
+The fix is that **the record must not live inside the tree that gets killed**: `run` now spawns a
+**detached deadline recorder** (`lane.sh watchdog <name> <secs>`), which outlives the kill and commits
+`unverified` / `reason: timeout` if nothing else recorded by `timeout + --deadline-grace` (default 90s).
+It refuses to invent a verdict while the lane is still running. Guarded by **S8**.
+
+Related: `commit_landing`'s lock is now left in place after committing, so a late second caller cannot
+write a duplicate — the monitor and the runner can both record, and `run` clears the lock at dispatch.
+
+
 ## What NOT to do again
 
 - **Do not add another proxy.** Capture the exit status, or nothing.
