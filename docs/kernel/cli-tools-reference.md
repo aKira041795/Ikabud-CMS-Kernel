@@ -557,8 +557,13 @@ Checks fleet-wide certification rate.
 php tools/module-certification-gate.php
 ```
 
-Current delivered target: **69/69 modules certified (100%)**.
-The gate enforces a **≥90% floor** and `fail=0`.
+Current delivered state: **the whole fleet certifies (100%)**.
+The gate requires that **every module that exists on disk reports, and none fails** - there is
+deliberately no numeric floor. A floor below the fleet size can only excuse a module that was
+silently absent, because the pass-rate is a fraction of the fleet, not of the modules that
+happened to print a line. Confirmed by `tools/lane.sh`-style falsification in
+`tests/module_certification_rate_test.php`: a report missing one module is refused, and the
+former 60-module result is refused.
 
 ### `php tools/poc6-shadow-build.php`
 
