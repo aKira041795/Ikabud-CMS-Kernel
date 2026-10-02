@@ -128,6 +128,13 @@
     }
 </style>
 {/block}
+
+{block header_shift}
+{if !can_view_production_management}
+{include "modules/daily-ledger/cashier/partials/shift-badge.disyl"}
+{/if}
+{/block}
+
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
@@ -136,6 +143,7 @@
     </div>
 </div>
 
+{if can_view_production_management}
 <form class="card mb-4" method="GET" action="{base_url}/admin/commissary"
       onsubmit="return window.dlLoadForm(this)">
     <div class="card-body">
@@ -177,6 +185,7 @@
         </div>
     </div>
 </form>
+{/if}
 
 {if can_view_production_management}
 <!-- Summary stat cards -->
@@ -498,6 +507,7 @@
                 <div class="text-xs text-gray-500">BEG + ADDTL − TOTAL − WASTAGE = ACTUAL BAL</div>
             </div>
             <div class="flex items-center gap-2 print-hidden">
+                {if shift_locked}<span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-300">Locked to {shift} Shift</span>{/if}
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
                 {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-outline btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
                 {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-outline btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}

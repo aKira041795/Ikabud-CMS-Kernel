@@ -29,6 +29,7 @@ $ctx = modulePushContext('daily-ledger');
 $db = $ctx->db();
 
 $productId = 99870;
+$productionUserId = 99871;
 $branchId = 18;
 $destinationBranchId = 17;
 $date = '2020-07-07';
@@ -39,7 +40,7 @@ $count = static function () use ($db, $countTables): array {
     foreach ($countTables as $table) $out[$table] = (int)$db->query("SELECT COUNT(*) FROM {$table}")->fetchColumn();
     return $out;
 };
-$cleanup = static function () use ($db, $productId, $branchId, $date): void {
+$cleanup = static function () use ($db, $productId, $productionUserId, $branchId, $date): void {
     $db->prepare('DELETE FROM dl_delivery_items WHERE product_id = :p')->execute([':p' => $productId]);
     $db->prepare('DELETE FROM dl_deliveries WHERE remarks = :marker')->execute([':marker' => '[shift-access-fixture]']);
     $db->prepare('DELETE FROM audit_logs WHERE branch_id = :b AND (entity_id LIKE :p OR new_data LIKE :j)')->execute([':b' => $branchId, ':p' => "%{$productId}%", ':j' => "%{$productId}%"]);
@@ -49,11 +50,17 @@ $cleanup = static function () use ($db, $productId, $branchId, $date): void {
     $db->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d')->execute([':b' => $branchId, ':d' => $date]);
     $db->prepare('DELETE FROM dl_branch_products WHERE product_id = :p')->execute([':p' => $productId]);
     $db->prepare('DELETE FROM dl_products WHERE id = :p')->execute([':p' => $productId]);
+    $db->prepare('DELETE FROM dl_user_branches WHERE user_id = :id')->execute([':id' => $productionUserId]);
+    $db->prepare('DELETE FROM dl_users WHERE id = :id')->execute([':id' => $productionUserId]);
 };
 
 $cleanup();
 $before = $count();
 try {
+    $db->prepare('INSERT INTO dl_users (id, username, password_hash, full_name, role, shift, is_active) VALUES (:id, :username, :password, :name, "production_in_charge", "PM", 1)')
+        ->execute([':id' => $productionUserId, ':username' => 'fixture-production-pm', ':password' => 'not-a-login-hash', ':name' => 'Fixture PM Producer']);
+    $db->prepare('INSERT INTO dl_user_branches (user_id, branch_id) VALUES (:user, :branch)')
+        ->execute([':user' => $productionUserId, ':branch' => $branchId]);
     $db->prepare('INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active) VALUES (:id, :sku, :name, 1, 99870, 1)')
         ->execute([':id' => $productId, ':sku' => 'FIX-SHIFT-99870', ':name' => 'Fixture Shift Product']);
     $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)')
@@ -79,6 +86,24 @@ try {
     $pm = $db->prepare('SELECT produced_qty FROM dl_commissary_product_ledger WHERE product_id = :p AND shift = "PM"');
     $pm->execute([':p' => $productId]);
     $h->test('reopened PM accepts the write and totals 4 (revert leaves shift permanently locked)', (int)$pm->fetchColumn() === 4);
+
+    $boundProductionUser = [
+        'id' => $productionUserId,
+        'sub' => 'production_in_charge:' . $productionUserId,
+        'role' => 'production_in_charge',
+        'source' => 'daily-ledger',
+        'full_name' => 'Fixture PM Producer',
+    ];
+    dl_recordProductionAddition($boundProductionUser, [
+        'date' => $date,
+        'shift' => 'PM',
+        'commissary_branch_id' => $branchId,
+        'product_id' => $productId,
+        'quantity' => 1,
+        'submission_id' => 'fixture-bound-producer-99870',
+    ]);
+    $pm->execute([':p' => $productId]);
+    $h->test('a PM-bound production user still encodes PM additions', (int)$pm->fetchColumn() === 5);
 
     // One legacy delivery and two shift-keyed deliveries prove the render rule:
     // omitted shift includes every row, while AM and PM remain exact and never
@@ -123,6 +148,36 @@ try {
     $unshiftedQuantity = $renderQuantity(null);
     $amQuantity = $renderQuantity('AM');
     $pmQuantity = $renderQuantity('PM');
+
+    $productionTokens = dl_generateAuthTokens([
+        'sub' => 'production_in_charge:' . $productionUserId,
+        'id' => $productionUserId,
+        'username' => 'fixture-production-pm',
+        'name' => 'Fixture PM Producer',
+        'role' => 'production_in_charge',
+        'source' => 'daily-ledger',
+    ]);
+    $_COOKIE[dlCookieName()] = $productionTokens['token'];
+    $_GET = ['date' => $date, 'commissary_id' => (string)$branchId, 'shift' => 'AM'];
+    ob_start();
+    handleAdminCommissary();
+    $forcedPmHtml = (string)ob_get_clean();
+    $forcedPmQuantity = preg_match(
+        '/class="production-branch-value" data-product="' . $productId
+            . '" data-branch-id="' . $destinationBranchId . '">(\d+)<\/span>/',
+        $forcedPmHtml,
+        $forcedPmMatch
+    ) ? (int)$forcedPmMatch[1] : null;
+    $h->test(
+        'a PM-bound production user requesting ?shift=AM remains on PM',
+        str_contains($forcedPmHtml, "Daily Production Sheet — {$date} · PM")
+            && str_contains($forcedPmHtml, 'PM Shift')
+            && str_contains($forcedPmHtml, 'fa-lock')
+            && !str_contains($forcedPmHtml, 'name="shift"')
+            && $forcedPmQuantity === 11,
+        json_encode(['forced_pm_quantity' => $forcedPmQuantity])
+    );
+
     $h->test(
         'a NULL-shift delivery is visible in the unshifted admin render',
         $unshiftedQuantity === 23,

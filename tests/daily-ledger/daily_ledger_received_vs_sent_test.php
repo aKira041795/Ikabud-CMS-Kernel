@@ -232,12 +232,14 @@ try {
     $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')
         ->execute([$commissaryId, $productId]);
 
-    // A posted commissary -> branch delivery of 10 with NO receiving row.
+    // A posted commissary -> branch delivery of 10 with NO receiving row. It
+    // belongs to the operating-clock shift so the unbound production fixture
+    // sees the same row through its now-mandatory cashier-style shift scope.
     $db->prepare(
         'INSERT INTO dl_deliveries
-            (delivery_date, origin_type, origin_id, destination_type, destination_id, dr_number, status, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    )->execute([$date, 'commissary', $commissaryId, 'branch', $branchId, 'DR-S12-0001', 'posted', 1]);
+            (delivery_date, production_shift, origin_type, origin_id, destination_type, destination_id, dr_number, status, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([$date, dl_currentShift(), 'commissary', $commissaryId, 'branch', $branchId, 'DR-S12-0001', 'posted', 1]);
     $deliveryId = (int)$db->lastInsertId();
     $db->prepare('INSERT INTO dl_delivery_items (delivery_id, product_id, quantity, unit, price_snapshot) VALUES (?, ?, ?, ?, 0)')
         ->execute([$deliveryId, $productId, 10, 'pcs']);

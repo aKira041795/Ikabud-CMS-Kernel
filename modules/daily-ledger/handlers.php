@@ -15040,17 +15040,26 @@ function handleAdminCommissary(): void
     }
 
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $role = (string)($user['role'] ?? '');
+    $isProductionUser = $role === 'production_in_charge';
+    $canViewProductionManagement = in_array($role, ['admin', 'supervisor'], true);
     $db = $ctx->db();
     $input = $ctx->input();
     $rawDate = (string)($input['date'] ?? '');
     if ($rawDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
         $rawDate = date('Y-m-d');
     }
-    // An omitted shift is the all-day view. In particular, it must retain
-    // historical deliveries whose production_shift predates shift tracking.
-    $shift = isset($input['shift']) && (string)$input['shift'] !== ''
-        ? dl_normalizeShift((string)$input['shift'])
-        : null;
+    // Production operators follow the same shift contract as cashiers: an
+    // assigned user is locked to that shift, while an unassigned user follows
+    // the operating clock. Request input can never move a production operator
+    // to another shift. Management retains its all-day/explicit-shift filter;
+    // in particular, all-day must include rows predating shift tracking.
+    $shiftLocked = $isProductionUser && dl_userShiftBound($user);
+    $shift = $isProductionUser
+        ? dl_userShift($user)
+        : (isset($input['shift']) && (string)$input['shift'] !== ''
+            ? dl_normalizeShift((string)$input['shift'])
+            : null);
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
@@ -15541,10 +15550,12 @@ function handleAdminCommissary(): void
         'user_role' => $user['role'] ?? 'unknown',
         'date' => $rawDate,
         'shift' => $shift,
+        'shift_locked' => $shiftLocked,
+        'close_of_day_time' => dl_operatingClockLabel()['close_of_day_time'],
         'shift_status' => $shiftStatus,
         'historical_unshifted_count' => $historicalUnshiftedCount,
-        'can_view_production_management' => (string)($user['role'] ?? '') === 'admin',
-        'can_view_production_variance' => (string)($user['role'] ?? '') === 'admin',
+        'can_view_production_management' => $canViewProductionManagement,
+        'can_view_production_variance' => $role === 'admin',
         'branches' => $branches,
         'commissaries' => $commissaries,
         'branch_id' => $selectedBranchId,
