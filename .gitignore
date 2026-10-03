@@ -116,4 +116,12 @@ release-manifest.json
 harpp-deploy-*.zip
 
 # AI workbench scratch (regenerated each session)
-.ai/
+.ai/*
+# The chair ledger is the ONE file under .ai/ that must survive. Everything else here is
+# operational churn (runs, logs, jobs, inbox) and stays ignored, but the ledger IS the
+# chair's durable judgement: what is proven, what is only suspected, what is blocked, and
+# the owner's verbatim direction. Losing it on a clone or a `git clean` would lose the
+# presence it exists to provide - the point is that a resuming agent inherits the chair's
+# reasoning instead of re-deriving it, and re-deriving it worse.
+!.ai/chair/
+!.ai/chair/ledger.md
