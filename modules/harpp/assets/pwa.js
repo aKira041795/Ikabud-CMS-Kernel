@@ -24,8 +24,23 @@
       throw error;
     } finally { clearTimeout(timeout); }
   }
+  const INSECURE_ORIGIN_MESSAGE = 'Push cannot work on this page because it is served over plain HTTP. Use HTTPS, or open HARPP on localhost/127.0.0.1, then reload.';
+  const BLOCKED_MESSAGE = 'Notifications are blocked in your browser. Open the site settings for HARPP and set Notifications to Allow, then reload.';
+  const UNSUPPORTED_MESSAGE = 'Push cannot work in this browser because the required notification, service worker, or Push API is unavailable. Use a browser that supports Web Push over HTTPS, then reload.';
+
+  function pushCapability() {
+    if (!window.isSecureContext && location.protocol === 'http:') return { available: false, reason: 'insecure-origin', message: INSECURE_ORIGIN_MESSAGE };
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return { available: false, reason: 'unsupported-browser', message: UNSUPPORTED_MESSAGE };
+    if (Notification.permission === 'denied') return { available: false, reason: 'permission-denied', message: BLOCKED_MESSAGE };
+    return { available: true, reason: Notification.permission === 'granted' ? 'ready' : 'permission-required', message: '' };
+  }
+  function reportPushAbandoned(where, stateOrError) {
+    const message = stateOrError && stateOrError.message ? stateOrError.message : String(stateOrError || 'Unknown reason');
+    console.warn(`[HARPP push] ${where}: ${message}`);
+  }
   async function registration() {
-    if (!('serviceWorker' in navigator)) throw new Error('Service workers are unavailable.');
+    if (!window.isSecureContext && location.protocol === 'http:') throw new Error(INSECURE_ORIGIN_MESSAGE);
+    if (!('serviceWorker' in navigator)) throw new Error(UNSUPPORTED_MESSAGE);
     return navigator.serviceWorker.register('/harpp/sw.js', { scope: '/harpp/' });
   }
   function applicationServerKey(value) {
@@ -34,9 +49,9 @@
     return Uint8Array.from(bytes, c => c.charCodeAt(0));
   }
   async function subscribe() {
-    if (!('PushManager' in window)) throw new Error('Web Push is unavailable on this browser.');
+    const capability = pushCapability();
+    if (!capability.available) throw new Error(capability.message);
     let permission = Notification.permission;
-    if (permission === 'denied') throw new Error('Notifications are blocked in your browser. Open the site settings for HARPP and set Notifications to Allow, then reload and tap Enable again.');
     if (permission !== 'granted') permission = await Notification.requestPermission();
     if (permission !== 'granted') throw new Error('Notification permission was not granted.');
     const reg = await registration();
@@ -72,14 +87,25 @@
   async function unsubscribe() {
     const reg = await registration();
     const subscription = await reg.pushManager.getSubscription();
-    if (!subscription) return false;
+    if (!subscription) {
+      reportPushAbandoned('unsubscribe skipped', 'This device has no push subscription.');
+      return false;
+    }
     await api('/api/v1/harpp/push/unsubscribe', { method: 'POST', body: { endpoint: subscription.endpoint } });
     return subscription.unsubscribe();
   }
   async function subscribed() { const reg = await registration(); return !!(await reg.pushManager.getSubscription()); }
   async function syncPush() {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    try { await subscribe(); } catch (_) { /* Retry on the next authenticated HARPP page load. */ }
+    const capability = pushCapability();
+    if (!capability.available) {
+      reportPushAbandoned('automatic sync skipped', capability);
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      reportPushAbandoned('automatic sync skipped', 'Notification permission has not been requested yet; use an Enable push control to request it.');
+      return;
+    }
+    try { await subscribe(); } catch (error) { reportPushAbandoned('automatic sync failed; it will retry on the next authenticated page load', error); }
   }
   async function pollUnread() {
     const badge = document.getElementById('harpp-unread');
@@ -87,41 +113,72 @@
     try { const count = (await api('/api/v1/harpp/notifications/unread-count')).data.unread || 0; badge.textContent = String(count); badge.style.display = count ? 'block' : 'none'; } catch (_) { }
   }
   async function maybePromptPush() {
-    // Option A: one-time onboarding banner — show only when push is possible,
-    // this device is not yet subscribed, and the owner has not dismissed it.
     const banner = document.getElementById('push-banner');
-    if (!banner) return;
+    if (!banner) {
+      reportPushAbandoned('banner not shown', 'This page has no push banner.');
+      return;
+    }
+    const message = document.getElementById('push-banner-message');
+    const enable = document.getElementById('push-banner-enable');
+    const bannerStatus = document.getElementById('push-banner-status');
+    const dismiss = document.getElementById('push-banner-dismiss');
+    const capability = pushCapability();
     banner.hidden = true;
-    if (!('PushManager' in window) || !('Notification' in window) || Notification.permission === 'denied' || localStorage.getItem('harpp-push-dismissed') === '1') return;
-    try {
-      const reg = await registration();
-      if (await reg.pushManager.getSubscription()) return;
+
+    if (!capability.available) {
+      if (message) message.textContent = capability.message;
+      if (bannerStatus) bannerStatus.textContent = '';
+      if (enable) { enable.hidden = true; enable.style.display = 'none'; }
+      if (dismiss) dismiss.textContent = 'Dismiss';
       banner.hidden = false;
-      const enable = document.getElementById('push-banner-enable');
-      const bannerStatus = document.getElementById('push-banner-status');
-      enable.onclick = async () => {
-        enable.disabled = true;
-        if (bannerStatus) bannerStatus.textContent = '';
-        try {
-          await subscribe();
-          banner.hidden = true;
-          pollUnread();
-        } catch (err) {
-          if (bannerStatus) bannerStatus.textContent = err && err.message ? err.message : 'Could not enable push.';
-        } finally {
-          enable.disabled = false;
+      reportPushAbandoned('enable prompt replaced with an explanation', capability);
+    } else {
+      let dismissed = false;
+      try { dismissed = localStorage.getItem('harpp-push-dismissed') === '1'; } catch (error) { reportPushAbandoned('could not read banner preference', error); }
+      if (dismissed) {
+        reportPushAbandoned('enable prompt skipped', 'The owner previously dismissed it.');
+        return;
+      }
+      try {
+        const reg = await registration();
+        if (await reg.pushManager.getSubscription()) {
+          reportPushAbandoned('enable prompt skipped', 'This device is already subscribed.');
+          return;
         }
-      };
-      const dismiss = document.getElementById('push-banner-dismiss');
-      if (dismiss) dismiss.onclick = () => {
-        localStorage.setItem('harpp-push-dismissed', '1');
-        banner.hidden = true;
-      };
-    } catch (_) { }
+        if (message) message.textContent = 'Enable push so HARPP can alert you on your phone?';
+        if (enable) {
+          enable.hidden = false;
+          enable.style.display = '';
+          enable.onclick = async () => {
+            enable.disabled = true;
+            if (bannerStatus) bannerStatus.textContent = '';
+            try {
+              await subscribe();
+              banner.hidden = true;
+              pollUnread();
+            } catch (error) {
+              const text = error && error.message ? error.message : 'Could not enable push.';
+              if (bannerStatus) bannerStatus.textContent = text;
+              reportPushAbandoned('banner enable failed', text);
+            } finally { enable.disabled = false; }
+          };
+        }
+        banner.hidden = false;
+      } catch (error) {
+        if (message) message.textContent = error && error.message ? error.message : 'Push setup could not be checked.';
+        if (enable) { enable.hidden = true; enable.style.display = 'none'; }
+        banner.hidden = false;
+        reportPushAbandoned('banner capability check failed', error);
+      }
+    }
+    if (dismiss) dismiss.onclick = () => {
+      try { localStorage.setItem('harpp-push-dismissed', '1'); } catch (error) { reportPushAbandoned('could not save banner preference', error); }
+      banner.hidden = true;
+    };
   }
-  window.Harpp = { fetch: api, register: registration, subscribe, unsubscribe, subscribed, pollUnread };
+  window.Harpp = { fetch: api, register: registration, subscribe, unsubscribe, subscribed, pushCapability, pollUnread };
   document.addEventListener('DOMContentLoaded', () => {
-    registration().catch(() => { });
+    registration().catch(error => reportPushAbandoned('service worker registration failed', error));
     syncPush();
     maybePromptPush();
     pollUnread();
