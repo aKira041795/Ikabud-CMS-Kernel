@@ -3662,6 +3662,36 @@ def conversation_context_block(conversation_id, config=None, max_chars=4000):
     return block
 
 
+CHAIR_LEDGER_MAX_CHARS = 6000
+
+
+def chair_ledger_block(workspace: str | None) -> str:
+    """Load the chair ledger so a resuming agent inherits the chair's JUDGEMENT.
+
+    Presence is not the same task list, it is the same reasoning. A wake agent that
+    reads only the task contract re-derives decisions that were already settled, and
+    re-derives them worse: measured 2026-10-03, two lanes reported PASS while carrying a
+    real defect their own tests missed, and a helper rejected correct work. None of those
+    were caught by a task description - only by a chair holding the earlier evidence.
+
+    Deliberately never raises. A missing or unreadable ledger must not break the wake
+    loop; it degrades to no ledger, which is exactly today's behaviour.
+    """
+    try:
+        base = Path(workspace) if workspace else Path.cwd()
+        path = base / ".ai" / "chair" / "ledger.md"
+        if not path.is_file():
+            return ""
+        text = path.read_text(encoding="utf-8", errors="replace").strip()
+        if not text:
+            return ""
+        if len(text) > CHAIR_LEDGER_MAX_CHARS:
+            text = text[:CHAIR_LEDGER_MAX_CHARS] + "\n…(truncated)"
+        return text
+    except Exception:  # noqa: BLE001 - a context miss must never break the wake loop
+        return ""
+
+
 def task_prompt(inbox: str, items: list, template: str | None = None, workspace: str | None = None) -> str:
     """Build the single-pass agent prompt from the task-contract template + staged items."""
     default = Path(__file__).resolve().parent / "wake" / "task-contract.md"
@@ -3681,6 +3711,17 @@ def task_prompt(inbox: str, items: list, template: str | None = None, workspace:
                  .replace("{{DECISIONS}}", recent_decisions_text(conversation_id=conversation_id))
                  .replace("{{WORKSPACE}}", workspace or "(no workspace configured)")
                  .replace("{{CONTEXT}}", context_block or "no context block available"))
+    # The ledger goes BEFORE the conversation context: it carries state and settled
+    # judgement, which the request should be read against rather than the reverse.
+    ledger = chair_ledger_block(workspace)
+    if ledger:
+        prompt = prompt + (
+            "\n\n# Chair ledger - read before acting\n"
+            "This is the chair's durable state and judgement from earlier sessions, "
+            "including what is proven, what is only suspected, and the reporting and "
+            "flagging contract. Treat `suspected` entries as unproven: run the named "
+            "probe before relying on them.\n\n" + ledger
+        )
     if context_block:
         prompt = prompt + "\n\n# Conversation context\n" + context_block
     return prompt

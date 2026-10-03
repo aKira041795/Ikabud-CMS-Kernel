@@ -3782,5 +3782,100 @@ class HarppAdvisorPageTest(unittest.TestCase):
         self.assertIn(34, harpp_wake.read_state()["messages"])
 
 
+class ChairLedgerTest(unittest.TestCase):
+    """The chair ledger carries the chair's JUDGEMENT into a resumed session.
+
+    Presence is not the same task list - it is the same reasoning. A wake agent that
+    reads only the task contract re-derives settled decisions and re-derives them worse,
+    so the ledger is injected into the wake prompt ahead of the request.
+
+    Both directions are asserted: the ledger must reach the prompt when it exists, and
+    must degrade silently when it does not. A missing ledger breaking the wake loop would
+    be worse than no ledger at all.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ws = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_ledger(self, text):
+        path = self.ws / ".ai" / "chair" / "ledger.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_ledger_reaches_the_prompt_when_present(self):
+        self._write_ledger("owner_direction: keep the guard off by default")
+        prompt = harpp_wake.task_prompt(
+            "inbox.jsonl", [{"id": 1, "body": "status?"}],
+            template="T: {{ITEMS}}", workspace=str(self.ws),
+        )
+        self.assertIn("keep the guard off by default", prompt)
+        self.assertIn("# Chair ledger", prompt)
+
+    def test_missing_ledger_is_failsafe(self):
+        # MUST-REFUSE: no ledger must not raise, and must not fabricate a section.
+        prompt = harpp_wake.task_prompt(
+            "inbox.jsonl", [{"id": 1, "body": "status?"}],
+            template="T: {{ITEMS}}", workspace=str(self.ws),
+        )
+        self.assertIn("status?", prompt)
+        self.assertNotIn("# Chair ledger", prompt)
+        self.assertEqual(harpp_wake.chair_ledger_block(str(self.ws)), "")
+
+    def test_unreadable_ledger_is_failsafe(self):
+        # A directory where the file should be: read_text raises, the loop must not break.
+        (self.ws / ".ai" / "chair" / "ledger.md").mkdir(parents=True)
+        self.assertEqual(harpp_wake.chair_ledger_block(str(self.ws)), "")
+        prompt = harpp_wake.task_prompt(
+            "inbox.jsonl", [{"id": 1, "body": "still works"}],
+            template="T: {{ITEMS}}", workspace=str(self.ws),
+        )
+        self.assertIn("still works", prompt)
+
+    def test_blank_ledger_is_ignored(self):
+        self._write_ledger("   \n\n  ")
+        self.assertEqual(harpp_wake.chair_ledger_block(str(self.ws)), "")
+        prompt = harpp_wake.task_prompt(
+            "inbox.jsonl", [{"id": 1, "body": "x"}],
+            template="T: {{ITEMS}}", workspace=str(self.ws),
+        )
+        self.assertNotIn("# Chair ledger", prompt)
+
+    def test_oversized_ledger_is_bounded(self):
+        # An unbounded ledger would crowd out the request it is meant to inform.
+        self._write_ledger("A" * (harpp_wake.CHAIR_LEDGER_MAX_CHARS + 5000))
+        block = harpp_wake.chair_ledger_block(str(self.ws))
+        self.assertLessEqual(len(block), harpp_wake.CHAIR_LEDGER_MAX_CHARS + 32)
+        self.assertTrue(block.endswith("(truncated)"))
+
+    def test_ledger_precedes_conversation_context(self):
+        # The ledger is state; the request is read against it, not the reverse.
+        #
+        # Compare the SECTION HEADERS, not the first occurrence of the marker text: the
+        # template substitutes {{CONTEXT}} inline, so the marker legitimately appears
+        # twice and `index()` on the raw marker measured the inline copy instead of the
+        # appended block. (First written that way, and it failed for that reason.)
+        self._write_ledger("LEDGER-MARKER")
+        original = harpp_wake.conversation_context_block
+        harpp_wake.conversation_context_block = lambda cid, **k: "CONTEXT-MARKER"
+        try:
+            prompt = harpp_wake.task_prompt(
+                "inbox.jsonl", [{"id": 1, "conversation_id": 2, "body": "go"}],
+                template="T: {{ITEMS}} {{CONTEXT}}", workspace=str(self.ws),
+            )
+        finally:
+            harpp_wake.conversation_context_block = original
+        self.assertIn("LEDGER-MARKER", prompt)
+        self.assertIn("CONTEXT-MARKER", prompt)
+        self.assertLess(
+            prompt.index("# Chair ledger"),
+            prompt.index("# Conversation context"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
