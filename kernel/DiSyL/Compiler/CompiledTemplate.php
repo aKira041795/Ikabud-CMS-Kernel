@@ -254,9 +254,11 @@ abstract class CompiledTemplate
                 }
 
                 $ctx->pushScope($variables);
+                $ctx->pushInheritanceScope();
                 try {
                     return $loaded->executeWithInheritance($ctx);
                 } finally {
+                    $ctx->popInheritanceScope();
                     $ctx->popScope();
                 }
             }

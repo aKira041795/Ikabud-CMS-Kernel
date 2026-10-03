@@ -11,6 +11,8 @@ final class RenderContext
     /** @var array<string, mixed> Slots */
     private array $slots = [];
     private ?string $parentTemplate = null;
+    /** @var array<int, array{blocks: array<string, mixed>, parentTemplate: ?string}> */
+    private array $inheritanceScopes = [];
 
     public function __construct(array $variables = [])
     {
@@ -112,6 +114,34 @@ final class RenderContext
     public function setSlot(string $name, mixed $content): void
     {
         $this->slots[$name] = $content;
+    }
+
+    /**
+     * Start an isolated inheritance boundary while retaining variable scopes.
+     *
+     * Includes render with the host context so they can read host variables,
+     * but their parent and block definitions belong only to the included
+     * template's inheritance chain.
+     */
+    public function pushInheritanceScope(): void
+    {
+        $this->inheritanceScopes[] = [
+            'blocks' => $this->blocks,
+            'parentTemplate' => $this->parentTemplate,
+        ];
+        $this->blocks = [];
+        $this->parentTemplate = null;
+    }
+
+    public function popInheritanceScope(): void
+    {
+        $scope = array_pop($this->inheritanceScopes);
+        if ($scope === null) {
+            return;
+        }
+
+        $this->blocks = $scope['blocks'];
+        $this->parentTemplate = $scope['parentTemplate'];
     }
 
     public function setParentTemplate(?string $template): void

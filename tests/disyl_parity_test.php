@@ -923,7 +923,49 @@ parity('extends inside included file', $engine, $cache,
     $includeSource, [], [
         'extends_included_child' => $includedChild,
         'extends_include_layout' => $includeLayout,
-    ]);
+    ], true);
+
+// An include is an inheritance boundary: it must neither consume its host's
+// pending parent nor leak its own parent/blocks back into the host.
+$hostIncludeLayout = "LAYOUT-START\n{block \"body\"}default body{/block}\nLAYOUT-END";
+$hostPlainInclude = 'PARTIAL[{x}]';
+$hostWithPlainInclude = "{extends \"layouts/base\"}\n{block \"body\"}before-include:[{include \"partial\"}]:after-include{/block}";
+writeParityTemplates([
+    'layouts/base' => $hostIncludeLayout,
+    'partial' => $hostPlainInclude,
+]);
+check('extends reference: host parent is not consumed by plain include',
+    "LAYOUT-START\nbefore-include:[PARTIAL[X]]:after-include\nLAYOUT-END",
+    interpreted($engine, $hostWithPlainInclude, ['x' => 'X']));
+parity('extends host with plain include has isolated inheritance', $engine, $cache,
+    $hostWithPlainInclude, ['x' => 'X'], [
+        'layouts/base' => $hostIncludeLayout,
+        'partial' => $hostPlainInclude,
+    ], true);
+
+$independentHostLayout = 'HOST[{block "body"}host default{/block}]';
+$independentIncludeLayout = 'INCLUDE[{block "body"}include default{/block}]';
+$independentInclude = '{extends "extends_independent_include_layout"}{block "body"}include override{/block}';
+$independentHost = '{extends "extends_independent_host_layout"}{block "body"}host-before:{include "extends_independent_include"}:host-after{/block}';
+parity('host and include resolve different inheritance independently', $engine, $cache,
+    $independentHost, [], [
+        'extends_independent_host_layout' => $independentHostLayout,
+        'extends_independent_include_layout' => $independentIncludeLayout,
+        'extends_independent_include' => $independentInclude,
+    ], true);
+
+$nestedHostLayout = 'NESTED-HOST[{block "body"}host default{/block}]';
+$nestedIncludeLayout = 'NESTED-INNER[{block "body"}inner default{/block}]';
+$nestedInner = '{extends "extends_nested_include_layout"}{block "body"}inner override{/block}';
+$nestedOuter = 'outer-before:{include "extends_nested_inner"}:outer-after';
+$nestedHost = '{extends "extends_nested_host_layout"}{block "body"}host-before:{include "extends_nested_outer"}:host-after{/block}';
+parity('nested includes keep every inheritance boundary isolated', $engine, $cache,
+    $nestedHost, [], [
+        'extends_nested_host_layout' => $nestedHostLayout,
+        'extends_nested_include_layout' => $nestedIncludeLayout,
+        'extends_nested_inner' => $nestedInner,
+        'extends_nested_outer' => $nestedOuter,
+    ], true);
 
 // ─────────────────────────────────────────────────────────
 // Summary
