@@ -57,16 +57,45 @@ const STAMP = 'chair-probe-' + Date.now();
   await page.goto(BASE + '/harpp?disyl_nocache=1', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
 
-  // Create a conversation using the UI's own control.
+  // Create a conversation using the UI's own control. The correct flow may be EITHER a native
+  // prompt (the defect) or an in-page dialog (the fix), so drive whichever appears and let the
+  // native-dialog assertion below decide. An earlier version of this probe clicked once and then
+  // demanded a conversation exist, which is impossible for a conforming implementation that
+  // requires the user to press Create - the lane correctly reported BLOCKED against that spec.
   const hadNew = await page.locator('#new-conversation').count();
   console.log('2. #new-conversation present: ' + hadNew);
   if (hadNew) {
     await page.click('#new-conversation');
+    await page.waitForTimeout(1200);
+    // Complete the IN-PAGE dialog if the app renders one (#new-conversation-dialog contract).
+    if (await page.locator('#new-conversation-dialog').count()) {
+      console.log('   in-page dialog appeared - filling it');
+      await page.fill('#new-conversation-title', 'chair probe ' + Date.now()).catch(() => {});
+      await page.fill('#new-conversation-session', 'chair-probe-' + Date.now()).catch(() => {});
+      await page.click('#new-conversation-create');
+    }
     await page.waitForTimeout(2500);
   }
   console.log('   url now ' + page.url());
   const created = /conversation=\d+/.test(page.url());
   console.log('   conversation created: ' + created);
+
+  // Cancel must NEVER be silent. This is the other half of the requirement: dismissing the flow
+  // has to leave a visible status message so the user knows the click registered.
+  let cancelSpoke = null;
+  if (hadNew && await page.locator('#new-conversation-dialog').count() === 0) {
+    await page.click('#new-conversation');
+    await page.waitForTimeout(900);
+    if (await page.locator('#new-conversation-cancel').count()) {
+      await page.click('#new-conversation-cancel');
+      await page.waitForTimeout(700);
+      const s = (await page.locator('#messenger-status').innerText().catch(() => '')).trim();
+      cancelSpoke = s.length > 0;
+      console.log('   cancel said: ' + JSON.stringify(s.slice(0, 60)));
+    }
+  } else {
+    console.log('   cancel test: SKIPPED (no in-page dialog to cancel)');
+  }
 
   // Send one message through the compose form.
   const compose = page.locator('#compose');
@@ -102,6 +131,9 @@ const STAMP = 'chair-probe-' + Date.now();
   if (!created) failures.push('no conversation was created (the create step did not reach the API)');
   if (dialogs.length > 0) failures.push(dialogs.length + ' native dialog(s) appeared; the UI must not use prompt()/confirm()');
   if (sent && statusText && /select a conversation/i.test(statusText)) failures.push('compose reported "' + statusText + '" instead of confirming the send');
+  if (cancelSpoke === false) failures.push('CANCEL WAS SILENT - dismissing the flow left no status message');
+  if (errors.length > 0) failures.push(errors.length + ' console error(s)');
+  console.log('8. cancel not silent: ' + cancelSpoke);
 
   console.log('');
   if (failures.length === 0) {
