@@ -93,16 +93,21 @@ Report the substance, skip the ceremony.
 
 ## in_flight
 
-- **DiSyL `{extends}` root fix** — stages 1/2/2b landed and pushed (`814c88d6`, `8fb6e358`,
-  `bead7377`). Flag `DISYL_EXTENDS_COMPILED` ships **OFF by default**; the guard was NOT
-  flipped. Reason: the flip is global (364 templates) and only daily-ledger has browser
-  coverage. Do not flip it as a tidy-up.
-- **HARPP UI redesign** — DONE, committed `2035bec5`. Palette (Slate & Signal), 3px radius
-  ceiling, the flow fixes and three proven-only removals, all verified in a real browser.
-  Commands are in `proven` below.
-- **HARPP presence work** — the ledger exists; the completion push is still unproven end-to-end
-  (see `suspected`). HARPP now runs locally against tenant 1232 on `harpp.test`, so that probe is
-  finally possible.
+- **DiSyL `{extends}` compiled flag — DECIDED: do NOT flip.** A differential corpus of **368**
+  templates (frozen under /tmp, deterministic fixture SHA-256, no normalisation) found **95
+divergent** templates and 11/32 divergences in the extends+include subset. Cache-path was PROVEN
+  distinct: compiled artifacts **0** with the flag off vs **349** with it on, and repeat runs showed
+  0 differences, so the comparison was real and not a stale-cache artifact.
+  **Qualification (mine, after reviewing the probe):** the divergences are about
+  UNDEFINED-VARIABLE comparison semantics, not broken templates. The probe's own diagnostics showed
+  undefined optional fixture variables in 277 interpreted / 40 compiled renders, and the one case I
+  traced by hand (`daily-ledger/cashier/ledger.disyl`, an `{if incoming_count > 0}` guard) cannot
+  occur in production because `incoming_count` is always set (`handlers.php:5986`,
+  `helpers.php:1285`). So "95 broken templates" would be an over-claim and "it's fine" would be an
+  under-claim. The flag stays OFF; the real open question is the undefined-variable semantic gap.
+- **HARPP UI redesign** — DONE, committed `2035bec5`. See `proven`.
+- **HARPP presence work** — see `proven`: the server side is fixed and tested; delivery is
+  blocked by the origin, not by HARPP. Flagged as a product constraint below.
 
 ## proven
 
@@ -134,6 +139,21 @@ Each line names the command that proves it. Re-run rather than re-read.
   scarcity is what makes the accent readable as "interactive").
 - `login.disyl` is standalone and must NOT use `var()`: `grep -c 'var(--' templates/modules/harpp/login.disyl`
   Expect 0. It carries the palette as literals because no token is defined on that page.
+- **Completion notifications are correct server-side.** `IMPORTANT_MESSAGE_TYPES` includes
+  `COMPLETED`, `isImportant()` returns true for it, `dispatch()` calls `dispatchToUser()`.
+  `python3 -m unittest discover -s tools/harpp-bridge/tests` -> **310 tests OK**, and
+  `test_harpp_wake.py` covers COMPLETED with a must-refuse half ("a failure must never be announced
+  as COMPLETED"). So the earlier `PROGRESS`-vs-`COMPLETED` defect is closed.
+- **Web Push is STRUCTURALLY IMPOSSIBLE on `http://harpp.test`**: `node tools/harpp-push-capability-probe.js`
+  reports `isSecureContext=false`, `serviceWorker` undefined, `swRegistration=null`, 0 console
+  errors. A push subscription needs a service worker; a service worker needs a secure context.
+  HTTPS (or a localhost origin) is required - this is why "I have to check the workstation".
+- **tenant:provision auth-column mapping fixed**: `php tests/tenant_provision_auth_mapping_test.php`
+  -> PASS 5, FAIL 0 (email-only seeding, default mapping unchanged, unresolved identity fails loudly).
+- **`php ikabud migrate` masking fixed**: `php tests/cli_tenant_migrate_sync_test.php` ->
+  **PASS 23, FAIL 0, SKIP 0**, including "explicit CLI migrate truthfully explains the no-entry skip".
+  The fix deletes the `cliModuleTenantTargets()` wrapper that implemented treat-base-failure-as-
+  tenant-only and inlines `tenantSeparateDatabaseMigrationTargets()` at the call site.
 
 ## suspected
 
@@ -143,7 +163,21 @@ Each line names the command that proves it. Re-run rather than re-read.
   3x with a clean process table (`pkill -f 'lane.sh watchdog'` first) and 3x without; a
   single run proves nothing here — a dirty table already fooled me once into blaming a lane.
   Known cause: after its wait the watchdog does `pgrep -f "$name.runner.sh"` and declines to
-  commit if `timeout(1)` left an orphaned inner bash alive.
+  commit if `timeout(1)` left an orphaned inner bash alive. **STILL OPEN** — first attempt could
+  not run at all (every model unavailable, reported honestly with rc=1); re-dispatched.
+- *CONFIRMED (was suspected):* `~/.config/harpp/config.json` duplicates concepts the control plane
+  owns — it holds `cms.model`, `harpp_authority`, `tenant_id`, `advisor.backend`. Worse, it points
+  at `tenant_id: 212` + `base_url: https://harpp.ikabudkernel.com` while the local test tenant is
+  **1232** on `harpp.test`, so desktop and app genuinely can disagree. Probe (not yet run): change a
+  value app-side and confirm the desktop adopts it without a local edit.
+  SECURITY: that file holds a live bridge key, CMS token and Groq API key. Checked 2026-10-03 —
+  none of the real values are in the working tree or in git history; the only `harpp_br_`/`gsk_`
+  hits are the validator in `harpp_client.py` and untracked logs. Keep it that way.
+- *Suspected:* interpreted and compiled DiSyL disagree on comparison of an UNDEFINED variable
+  (`{if incoming_count > 0}` renders in one mode and not the other when the var is absent).
+  *Probe:* render one template both ways with the variable deliberately absent, then present, and
+  compare. This is the real finding behind the 95 divergences and is far narrower than "95 broken
+  templates".
 - *Suspected:* flipping `DISYL_EXTENDS_COMPILED` is safe for modules **other than**
   daily-ledger. *Probe:* render their real pages both ways and byte-compare. Parity covers
   constructs, not pages; the include leak survived 170/170 for exactly this reason.
@@ -162,8 +196,17 @@ Each line names the command that proves it. Re-run rather than re-read.
 ## blocked
 
 - Does HARPP keep its own wake/session plumbing, or does the workstation become an AHP
-  agent host with HARPP shrinking to governance + memory? Recommended: the latter. This is
-  product direction, so it needs the owner.
+  agent host with HARPP shrinking to governance + memory? **RESOLVED — VS Code shipped the agent
+  host.** 1.140 (2026-09-30) adds the Copilot harness on a dedicated **Agent Host Protocol (AHP)**
+  process reachable from multiple windows, remote delegation (`list_agent_hosts`,
+  `create_remote_session`, `get_remote_session`, `send_remote_message`), HydraFusion multi-model
+  orchestration (draft/critique/revise/escalate) and multi-folder session isolation. Do NOT rebuild
+  a scheduler VS Code now ships; HARPP's value is governance + evidence + presence. See
+  `memories/repo/vscode-140-agent-tooling-2026-10-03.md`.
+- **PRODUCT CONSTRAINT (needs the owner):** the push half of "presence" cannot work on an `http://`
+  origin at all (no secure context -> no service worker -> no push subscription). Deciding whether
+  HARPP is always served over HTTPS is a product/hosting decision. Until then the owner must open
+  the workstation, which is the exact gap presence is meant to remove.
 - Bluehost deploy steps remain the owner's: back up the DB (migration `062` rewrites ~186
   rows), `php scripts/generate-release-manifest.php`, deploy + `db/tenant-upgrade.sql`
   (applies `062`-`073`), **then** `modules/daily-ledger/database/repair_login_names_20260918.sql`.
