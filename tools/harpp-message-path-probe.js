@@ -49,7 +49,7 @@ const STAMP = 'chair-probe-' + Date.now();
   await page.goto(BASE + '/harpp/login?disyl_nocache=1', { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="email"]', USER);
   await page.fill('input[name="password"]', PASS);
-  await page.click('button[type="submit"]').catch(() => {});
+  await page.click('button[type="submit"]').catch(() => { });
   await page.waitForTimeout(2500);
   console.log('1. logged in, at ' + page.url());
 
@@ -70,8 +70,8 @@ const STAMP = 'chair-probe-' + Date.now();
     // Complete the IN-PAGE dialog if the app renders one (#new-conversation-dialog contract).
     if (await page.locator('#new-conversation-dialog').count()) {
       console.log('   in-page dialog appeared - filling it');
-      await page.fill('#new-conversation-title', 'chair probe ' + Date.now()).catch(() => {});
-      await page.fill('#new-conversation-session', 'chair-probe-' + Date.now()).catch(() => {});
+      await page.fill('#new-conversation-title', 'chair probe ' + Date.now()).catch(() => { });
+      await page.fill('#new-conversation-session', 'chair-probe-' + Date.now()).catch(() => { });
       await page.click('#new-conversation-create');
     }
     await page.waitForTimeout(2500);
@@ -106,7 +106,7 @@ const STAMP = 'chair-probe-' + Date.now();
     const field = page.locator('#compose textarea, #compose input[name="body"]').first();
     if (await field.count()) {
       await field.fill(STAMP);
-      await page.locator('#compose button[type="submit"], #compose button').first().click().catch(() => {});
+      await page.locator('#compose button[type="submit"], #compose button').first().click().catch(() => { });
       await page.waitForTimeout(2500);
       sent = true;
     }

@@ -1,6 +1,8 @@
 # The lane harness — the actual issue
 
-Handover document, 2026-10-01. Read this first in a new session.
+Handover document, 2026-10-01. Updated 2026-10-03 — the root-issue analysis above still stands; the
+state of play at the end of the 2026-10-03 session is in "STATE OF PLAY" below. Read this first in a
+new session.
 
 ## What the harness is for
 
@@ -246,3 +248,111 @@ write a duplicate — the monitor and the runner can both record, and `run` clea
 - **Do not trust a report that a tool works.** Ask what it does when the thing it watches fails.
 - **Falsify a guard before trusting it.** A must-refuse case that has never been seen to refuse is not a
   guard, it is decoration.
+
+---
+
+# STATE OF PLAY — 2026-10-03 (for the review session)
+
+Two systems, and they are in very different health. Read this before planning anything.
+
+## 1. Lane harness — improved, and the remaining weakness is the CHAIR, not the tool
+
+**Shipped this session** (each with the check that proves it):
+
+| fix | commit | the check |
+|---|---|---|
+| ONE status recogniser; `status_line()` and `classify_log()` had drifted, so a lane reporting `## Status: Complete` was announced as having no status line while its own marker held it | `a3de6ccf` | 5 status formats classify correctly; a log with no verdict and one with `Status:` mid-sentence stay `unknown`; selftest 11/11 |
+| The verdict no longer asserts "every model was unavailable" when every attempt actually CRASHED | `ea9a34a2` | `LANE_MODEL_CMD=false` -> "NOT a quota result"; a rate-limit stub -> "unavailable" |
+| `lane_model_run` fails loudly on bad arguments instead of `$3: unbound variable` | `01a4cf9d` | arg-count cases |
+| Single-source model invocation + single-source unavailability signatures | `b8b53035`, `5f7086c6` | `tools/lane-model-selftest.sh` 14/14 |
+| Watchdog process leak (was spawning one per selftest run) | `5f7086c6` | watchdog count 0 before/after/leaked across 12 selftest runs |
+
+**Measured reliability, honestly.** Of **458** landings today, **433 are the harness's own selftest
+artifacts** (named throwaway lanes that deliberately crash/timeout so the selftest can assert they are
+recorded). Counting those as failures is wrong and I made that mistake first. Excluding them:
+
+    25 real dispatches -> 9 landed with a report, 9 landed with an unclassifiable verdict
+                          (the drift bug above, now fixed), 5 crash, 2 quota/timeout
+
+**Roughly 4 of those 5 crashes were caused by ME, not the tool:** `harppui-a` (I omitted an argument),
+`harppui-b` (my quoting error), `harnessflaky` twice (my brief told the lane to
+`pkill -f 'lane.sh watchdog'`, which matched the lane's OWN supervisor and SIGTERM'd it — `exit=143`,
+`log=0b`). The harness executed my instructions faithfully, including the bad ones.
+
+**Still open:**
+- **No third model fallback.** When Sol and DeepSeek were both unavailable the work simply stopped.
+  `lane_model_run` takes a model list; a third lane (e.g. `gpt-5.6-terra`, which does not spend Sol's
+  cap) would have kept going.
+- **No pre-dispatch gate on acceptance criteria.** This is the highest-value thing to build; see §3.
+
+## 2. HARPP — works, except the one thing it exists for
+
+**Proven** (commands, not claims):
+- 11/11 nav destinations in a real browser: `node tools/harpp-ui-verify.js` -> 200 on every page,
+  0 console errors, 0 contrast pairs under 4.5, only radius above 3px is the unread badge.
+- **It has now carried a real message** (first time): `node tools/harpp-message-path-probe.js` ->
+  conversation created, message persisted, notification row created. Before this the install had
+  **0 conversations / 0 messages / 0 notifications** while 310 unit tests passed — unit tests proved
+  the pieces, nothing proved a message travels.
+- UI: "Slate & Signal" palette, 3px radius ceiling, Deploy moved to Admin, Settings rebuilt as one
+  concern-grouped column, three provably-dead things removed.
+- Messenger wart fixed (`9efbfac0`): two native `prompt()` dialogs replaced by one styled in-page
+  dialog, Cancel now says "New conversation cancelled." instead of returning silently, and an invalid
+  session id is caught inline with the reason rather than producing an unexplained 422.
+
+**THE STRUCTURAL BLOCKER — not a bug, a property of the origin.**
+`node tools/harpp-push-capability-probe.js` on `http://harpp.test`:
+
+    isSecureContext : false        serviceWorker : undefined      PushManager : true (useless)
+    swRegistration  : null         console errors: 0
+
+A push subscription needs a service worker; a service worker needs a **secure context**. So on this
+origin push is impossible, `harpp_push_subscriptions = 0`, and the notification sits at
+`status=pending` forever. HARPP's whole purpose is notifying the owner **away from the workstation**,
+and that has **never once worked**. This cannot be coded around.
+
+**Decisions only the owner can make:**
+1. **HTTPS for HARPP.** Until then "check the workstation" is unavoidable. This is the single item
+   blocking the presence goal.
+2. **Desktop vs app settings ownership.** `~/.config/harpp/config.json` legitimately holds secrets and
+   machine paths, but it ALSO holds `harpp_authority` and `cms.model`, which are control-plane policy —
+   so the desktop can silently disagree with the app. It also points at `tenant_id: 212` /
+   `harpp.ikabudkernel.com` while local is `1232` / `harpp.test`. Recommend: app owns policy, desktop
+   reads it down.
+3. **Bluehost deploy** — back up the DB (migration `062` rewrites ~186 rows),
+   `php scripts/generate-release-manifest.php`, deploy + `db/tenant-upgrade.sql` (applies `062`-`073`),
+   **then** `modules/daily-ledger/database/repair_login_names_20260918.sql`.
+
+## 3. The one thing to fix next (and why it is a HARNESS problem, not a discipline problem)
+
+Four of my false reds this session had **one** cause: **I wrote the acceptance criterion before the
+change, then trusted the criterion.**
+- A probe asserted a BUTTON WAS CLICKED rather than that a row persisted.
+- A probe answered both `prompt()` dialogs with the same string containing spaces, which the
+  `harness_session_id` validator correctly rejects — I nearly reported a product defect for my own
+  invalid input.
+- A probe demanded no dialog interaction while my own design REQUIRED pressing Create. The lane
+  reported **BLOCKED** and was right; my spec was the defect.
+- A "95 divergent templates" verdict that could not occur in production (`incoming_count` is always set).
+
+Restating this as a lesson has a measured record today of **three restatements, zero prevented**. So do
+not add another rule. Build the check:
+
+> **A pre-dispatch gate that refuses to dispatch unless (a) the acceptance command has been run against
+> `HEAD` and shown to FAIL, and (b) the brief states what PASS looks like on the target.**
+
+(a) alone is insufficient — that was exactly the gap: the criterion DID fail on HEAD and still could not
+pass on the new code, because it encoded the old interaction model. Assert OUTCOMES (a row exists, a
+message persists), never MECHANISMS (one click suffices), whenever the design changes the mechanism.
+
+**A lane that reports BLOCKED with a precise reason is doing its job.** Three times this session the
+BLOCKED lane was right and the spec was wrong.
+
+## 4. Instruments you can run right now
+
+    node tools/harpp-ui-verify.js             # 11 pages: status, console, radius, contrast
+    node tools/harpp-message-path-probe.js    # does a message really travel? (asserts the outcome)
+    node tools/harpp-push-capability-probe.js # is push even possible on this origin?
+    python3 tools/harpp-selector-audit.py harpp   # 95 checked, 0 missing
+    bash tools/lane.sh selftest               # 11/11
+    bash tools/lane-model-selftest.sh         # 14/14
