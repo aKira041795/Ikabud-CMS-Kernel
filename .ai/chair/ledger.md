@@ -154,6 +154,16 @@ Each line names the command that proves it. Re-run rather than re-read.
   **PASS 23, FAIL 0, SKIP 0**, including "explicit CLI migrate truthfully explains the no-entry skip".
   The fix deletes the `cliModuleTenantTargets()` wrapper that implemented treat-base-failure-as-
   tenant-only and inlines `tenantSeparateDatabaseMigrationTargets()` at the call site.
+- **The local HARPP has now carried a real message** (the first time): `node tools/harpp-message-path-probe.js`
+  -> conversation created, message persisted, and a notification row created (channel=push,
+  status=pending). The probe asserts the OUTCOME, not that a button was clicked - an earlier version
+  asserted the click and proved nothing while the database stayed empty.
+- **Messenger prompt wart fixed** (`9efbfac0`): two native `prompt()` dialogs replaced by one styled
+  in-page dialog; Cancel now says "New conversation cancelled." instead of returning silently, and an
+  invalid session id is rejected inline with the reason rather than producing an unexplained 422.
+  Verified by me: `native dialogs: 0`, `cancel not silent: true`, radius 2px/3px, selector audit
+  missing=0. KNOWN REMAINING: a native `confirm()` still guards the destructive delete action, and the
+  probe's "native dialogs: 0" covers only the create/send paths it exercises.
 
 ## suspected
 
