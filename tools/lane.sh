@@ -42,6 +42,16 @@
 #   tools/lane.sh selftest                     # prove this harness detects its own failures
 #   tools/lane.sh record   <name> <log> <exit> [run-id]   # called by the generated runner
 #
+# Writing the lane script itself? Source tools/lane-model.sh for model invocation with
+# automatic fallback, instead of hand-rolling a try/retry block per lane:
+#
+#   source tools/lane-model.sh
+#   lane_model_run "openai-codex/gpt-5.6-sol,deepseek-v4-flash" "$PROMPT" /tmp/mylane
+#
+# It carries the unavailability signatures (rate limit / 429 / quota / usage limit /
+# model is not supported), treats an exit-0 log that proves unavailability as a failure,
+# and names the model that completed. Verified by tools/lane-model-selftest.sh.
+#
 # Exit status of `run`:  0 = landed (clean) | <n> = landed with the lane's exit code <n>
 #                        3 = STILL RUNNING, re-arm the watcher | 1 = unverified / timeout
 #
