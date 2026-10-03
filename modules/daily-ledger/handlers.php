@@ -15957,6 +15957,8 @@ function handleAdminCommissary(): void
             'actual_input_value' => $actualEndQty !== null ? $actualEndQty : ($begQty + $addtlQty - $total - $wastageQty),
             'calc_variance' => $actualEndQty === null || !array_key_exists('calc_variance', $ledgerRow)
                 ? null : (int)$ledgerRow['calc_variance'],
+            // Explicit flag keeps interpreted and compiled DiSyL null checks identical.
+            'calc_variance_present' => $actualEndQty !== null && array_key_exists('calc_variance', $ledgerRow),
         ];
     }
 

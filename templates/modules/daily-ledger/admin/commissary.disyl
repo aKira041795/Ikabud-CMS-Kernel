@@ -1,5 +1,455 @@
-{extends "modules/daily-ledger/layouts/app.disyl"}
-{block head}
+{# COUPLING: this shell is a copy of templates/modules/daily-ledger/layouts/app.disyl — change that layout and this file together; daily_ledger_shell_drift_guard_test.php enforces it. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title | default:'Daily Ledger'}</title>
+    <link rel="icon" href="{resolved_favicon_url}">
+    <link rel="manifest" href="/daily-ledger/manifest.webmanifest">
+    <meta name="theme-color" content="#4f46e5">
+
+    <script src="/daily-ledger/assets/tailwindcss.js"></script>
+    <link rel="stylesheet" href="/daily-ledger/assets/fontawesome/all.min.css">
+    <script src="/daily-ledger/assets/htmx-1.9.10.min.js"></script>
+    <script defer src="/daily-ledger/assets/alpine-3.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border-radius: 3px; padding: .5rem .75rem; font-size: .875rem; font-weight: 600; transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 3px rgba(99,102,241,.25); }
+        .btn-sm { padding: .25rem .5rem; font-size: .75rem; }
+        .btn-primary { background: rgb(79 70 229); color: #fff; }
+        .btn-primary:hover { background: rgb(67 56 202); }
+        .btn-outline { background: #fff; color: rgb(15 23 42); border: 1px solid rgb(203 213 225); }
+        .btn-outline:hover { background: rgb(249 250 251); }
+        .btn-danger { background: rgb(225 29 72); color: #fff; }
+        .btn-danger:hover { background: rgb(190 18 60); }
+
+        button,
+        input:not([type='checkbox']):not([type='radio']):not([type='range']),
+        select,
+        textarea {
+            border-radius: 3px !important;
+        }
+
+        .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(31 41 55); }
+        .form-input { margin-top: .25rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .form-input:focus { outline: none; border-color: rgb(99 102 241); box-shadow: 0 0 0 3px rgba(99,102,241,.22); }
+        .form-input::placeholder { color: rgb(100 116 139); }
+        .form-group { margin-bottom: 1rem; }
+
+        .card { border-radius: 3px; border: 1px solid rgb(226 232 240); background: #fff; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(226 232 240); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(15 23 42); }
+        .card-body { padding: 1rem; color: rgb(15 23 42); }
+
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { white-space: nowrap; border-bottom: 1px solid rgb(226 232 240); background: rgb(248 250 252); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(51 65 85); }
+        tbody td { border-bottom: 1px solid rgb(241 245 249); padding: .75rem 1rem; font-size: .875rem; color: rgb(15 23 42); }
+        tbody tr:hover { background: rgb(249 250 251); }
+
+        .text-left { text-align: left; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+
+        .text-muted { color: rgb(71 85 105); }
+
+        .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
+        .modal-overlay.show { display: flex; }
+        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #fff; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
+        .modal h3 { margin-bottom: 1rem; font-size: 1rem; font-weight: 600; color: rgb(15 23 42); }
+        .modal-actions { margin-top: 1.5rem; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
+
+        .card .text-gray-500,
+        .card .text-gray-600,
+        .card .text-gray-400,
+        .modal .text-gray-500,
+        .modal .text-gray-600,
+        .modal .text-gray-400,
+        .bg-white .text-gray-500,
+        .bg-white .text-gray-600,
+        .bg-white .text-gray-400 {
+            color: rgb(71 85 105);
+        }
+
+        .card .text-gray-700,
+        .modal .text-gray-700,
+        .bg-white .text-gray-700,
+        .card .text-gray-800,
+        .modal .text-gray-800,
+        .bg-white .text-gray-800,
+        .card .text-gray-900,
+        .modal .text-gray-900,
+        .bg-white .text-gray-900 {
+            color: rgb(15 23 42);
+        }
+
+        /* Daily Ledger ledger-row cells. These mirror the Tailwind utilities they
+           replace so the grid renders identically, while removing ~1.1KB of repeated
+           class text from each of 174 rows (class attributes were 41% of the rows
+           payload, which is re-sent on every ledger view). */
+        .ledger-cell { display: block; margin: 0 0 0 auto; min-height: 2.75rem; width: 5rem; border: 1px solid rgb(209 213 219); background: #fff; padding: .5rem; text-align: right; font-size: .875rem; line-height: 1.25rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+        .ledger-cell:focus { outline: none; border-color: rgb(99 102 241); box-shadow: inset 0 0 0 3px rgba(99,102,241,.22); }
+        .ledger-chip { margin-left: auto; display: inline-flex; width: 5rem; justify-content: flex-end; border-radius: .5rem; padding: .375rem .5rem; font-size: .875rem; line-height: 1.25rem; font-weight: 600; color: rgb(15 23 42); background: rgb(249 250 251); box-shadow: inset 0 0 0 1px rgb(229 231 235); }
+        .ledger-chip-pending { color: rgb(180 83 9); background: rgb(255 251 235); box-shadow: inset 0 0 0 1px rgb(253 230 138); }
+        .ledger-trigger { margin-left: auto; display: inline-flex; width: 5rem; align-items: center; justify-content: flex-end; gap: .25rem; border-style: solid; border-width: 1px; border-radius: 3px; padding: .375rem .5rem; font-size: .875rem; line-height: 1.25rem; font-weight: 600; }
+        .ledger-trigger-add { border-color: rgb(110 231 183); background: rgb(236 253 245); color: rgb(6 95 70); box-shadow: inset 0 0 0 1px rgb(167 243 208), 0 1px 2px rgba(0,0,0,.05); }
+        .ledger-trigger-add:hover { background: rgb(209 250 229); }
+        .ledger-trigger-out { border-color: rgb(252 211 77); background: rgb(255 251 235); color: rgb(146 64 14); box-shadow: inset 0 0 0 1px rgb(253 230 138), 0 1px 2px rgba(0,0,0,.05); }
+        .ledger-trigger-out:hover { background: rgb(254 243 199); }
+        .ledger-num { width: 3.5rem; white-space: nowrap; text-align: center; vertical-align: middle; font-size: .875rem; color: rgb(71 85 105); }
+        .ledger-name { white-space: nowrap; vertical-align: middle; font-weight: 500; font-size: .875rem; color: rgb(15 23 42); }
+    </style>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/daily-ledger/sw.js')
+                .then(function(reg) {
+                    // Ensure the newest worker takes control on first launch so
+                    // the offline shell is reachable without a manual reload.
+                    if (reg.waiting && navigator.serviceWorker.controller) {
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                    return navigator.serviceWorker.ready;
+                })
+                .then(function() {
+                    if (navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({ type: 'DL_CONTROLLED' });
+                    }
+                })
+                .catch(function(error) {
+                    console.warn('Daily Ledger service worker registration failed', error);
+                });
+            });
+
+            // Launch messaging: the online ledger tells a concurrently open
+            // offline shell to re-lock after enrollment or logout. The shell
+            // (offline-app.js) listens for these on navigator.serviceWorker.
+            window.dlNotifyOfflineActivated = function() {
+                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'dl-offline-activated' });
+                }
+            };
+            window.dlNotifyOfflineLocked = function() {
+                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'dl-offline-locked' });
+                }
+            };
+        } else {
+            window.dlNotifyOfflineActivated = function() {};
+            window.dlNotifyOfflineLocked = function() {};
+        }
+
+        window.DL_BASE = '/daily-ledger';
+        window.DL_CSRF = '{csrf_token}';
+        window.DL_TOKEN = '{dl_token}';
+        window.DL_OFFLINE_SHELL = false;
+        window.DL_USER_ID = '{dl_user_id | default:''}';
+        window.DL_TENANT_SCOPE = '{tenant_scope | default:''}';
+        window.showToast = function(message, type) {
+            try {
+                var cont = document.getElementById('toast-container');
+                if (!cont) return;
+
+                var el = document.createElement('div');
+                // Colour carries the outcome, so a cashier can read the result at a
+                // glance without waiting for the (slow) view refresh:
+                //   green  = the SERVER accepted it
+                //   amber  = queued on this device, NOT yet on the server
+                //   red    = the server refused it or the request failed
+                //   slate  = purely informational
+                // 'queued' must never be green: it is the one outcome the operator
+                // cannot otherwise tell apart from a real save, and mistaking it for
+                // one is how a lost adjustment gets reported as "it won't add".
+                var cls = (type === 'error')
+                    ? 'bg-red-600 text-white'
+                    : (type === 'success'
+                        ? 'bg-emerald-600 text-white'
+                        : (type === 'warning' ? 'bg-amber-500 text-white' : 'bg-slate-900 text-white'));
+                el.className = 'mb-2 px-4 py-3 rounded-xl shadow text-sm ' + cls;
+                el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+                el.textContent = String(message || 'OK');
+                cont.appendChild(el);
+
+                // A queued entry needs reading time - it is the only notice that the
+                // work is not on the server yet.
+                setTimeout(function() {
+                    if (el && el.parentNode) el.parentNode.removeChild(el);
+                }, (type === 'error' || type === 'warning') ? 6000 : 2800);
+            } catch (e) {
+            }
+        };
+        window.addEventListener('showToast', function(evt) {
+            var d = evt && evt.detail ? evt.detail : null;
+            if (!d) return;
+            window.showToast(d.message || 'OK', d.type || 'success');
+        });
+
+        // ── Bounded writes: a slow transaction FAILS, it is not held ─────────
+        // A ledger write is something the operator has to be able to trust. If the
+        // server has not answered inside this window we declare it NOT SAVED and say
+        // so. Holding it on the device is worse than losing it: an entry the cashier
+        // believes is recorded is discovered at close-of-day with no way to tell what
+        // happened, whereas a refused one is retried in seconds. Retrying is safe -
+        // every write carries an idempotency key (response cached 24h) and
+        // dl_cashier_withdrawals has a UNIQUE dedup_hash index, so Retry cannot
+        // produce a duplicate.
+        window.DL_WRITE_TIMEOUT_MS = 15000;
+        window.dlWriteTimeout = function(url, options, label) {
+            if (typeof AbortController === 'undefined') return fetch(url, options);
+            var controller = new AbortController();
+            var opts = {};
+            for (var k in options) {
+                if (Object.prototype.hasOwnProperty.call(options, k)) opts[k] = options[k];
+            }
+            opts.signal = controller.signal;
+            var timer = setTimeout(function() { controller.abort(); }, window.DL_WRITE_TIMEOUT_MS);
+            return fetch(url, opts).then(function(res) {
+                clearTimeout(timer);
+                return res;
+            }, function(err) {
+                clearTimeout(timer);
+                if (controller.signal.aborted) {
+                    var e = new Error('WRITE_TIMEOUT');
+                    e.dlTimedOut = true;
+                    e.dlLabel = label || 'The change';
+                    return Promise.reject(e);
+                }
+                return Promise.reject(err);
+            });
+        };
+        // Wording matters more than it looks. Aborting the request cancels the
+        // CLIENT wait - it does not cancel the work the server already started, so
+        // after a timeout we genuinely do not know whether the row landed. Saying
+        // "was NOT recorded" asserted something we cannot know, and an operator who
+        // believes it will key the same entry again: that repetition is how
+        // duplicates get created. So state the uncertainty, and say plainly that
+        // Retry is safe, which is what actually stops the hand-re-keying.
+        window.dlWriteTimeoutMessage = function(label) {
+            return 'No reply in '
+                + Math.round(window.DL_WRITE_TIMEOUT_MS / 1000) + 's — it is NOT yet known whether '
+                + (label || 'the change') + ' was recorded. Press Retry: it is safe to repeat and '
+                + 'will not create a second entry. Do not key it in again.';
+        };
+
+        // ── Persistent write-failure notice ──────────────────────────────────
+        // A failed ledger write must not be reported only by a toast that vanishes
+        // after a few seconds. The operator needs the REASON and a Retry in front of
+        // them: without it they either assume it went in, or re-key it by hand - which
+        // is exactly how duplicate entries balloon the data.
+        window.dlWriteFailureRetry = null;
+        window.dlReportWriteFailure = function(reason, retry) {
+            var box = document.getElementById('dl-write-failure');
+            var text = document.getElementById('dl-write-failure-text');
+            var btn = document.getElementById('dl-write-failure-retry');
+            if (!box || !text) return;
+            window.dlWriteFailureRetry = (typeof retry === 'function') ? retry : null;
+            text.textContent = reason || 'The change did not reach the server.';
+            if (btn) btn.classList.toggle('hidden', !window.dlWriteFailureRetry);
+            box.classList.remove('hidden');
+        };
+        window.dlClearWriteFailure = function() {
+            var box = document.getElementById('dl-write-failure');
+            if (box) box.classList.add('hidden');
+            window.dlWriteFailureRetry = null;
+        };
+        // The Retry button calls this rather than running its logic inline, so the failure
+        // box keeps a single entry point that can be exercised on its own.
+        //
+        // An earlier comment here blamed DiSyL for eating the inline braces; that was wrong.
+        // DiSyL preserves `{...}` in quoted attributes, so the old inline handler worked.
+        // This extraction is a readability change, not a bug fix.
+        window.dlRetryWriteFailure = function() {
+            if (typeof window.dlWriteFailureRetry !== 'function') return;
+            var retry = window.dlWriteFailureRetry; // capture before clearing
+            window.dlClearWriteFailure();
+            retry();
+        };
+
+        // ── Submit feedback ────────────────────────────────────────────────
+        // A slow link makes the view refresh lag far behind the request, so the
+        // operator cannot tell a saved edit from a failed or merely queued one.
+        // These helpers report the outcome as soon as the server answers, which
+        // is independent of how long the re-render takes.
+        window.dlBusyDepth = 0;
+        window.dlBusyWatchdog = null;
+        window.dlSetBusy = function(show, label) {
+            var box = document.getElementById('dl-busy');
+            if (!box) return;
+            var text = document.getElementById('dl-busy-label');
+            if (show) {
+                // Depth counter: rapid, overlapping cell edits keep the indicator
+                // visible until the LAST one settles instead of the first
+                // completion hiding it while earlier requests are still open.
+                window.dlBusyDepth = (window.dlBusyDepth || 0) + 1;
+                if (text && label) text.textContent = label;
+                box.classList.remove('hidden');
+                // Safety net: a permanently stuck indicator would be worse than no
+                // indicator at all, so it can never outlive a request that failed
+                // to settle. 60s sits just above the server's 50s lock-wait so a
+                // legitimately slow save is not cleared early.
+                if (window.dlBusyWatchdog !== null) clearTimeout(window.dlBusyWatchdog);
+                window.dlBusyWatchdog = setTimeout(function() {
+                    window.dlBusyDepth = 0;
+                    window.dlBusyWatchdog = null;
+                    box.classList.add('hidden');
+                }, 60000);
+            } else {
+                window.dlBusyDepth = Math.max(0, (window.dlBusyDepth || 0) - 1);
+                if (window.dlBusyDepth === 0) {
+                    box.classList.add('hidden');
+                    if (window.dlBusyWatchdog !== null) {
+                        clearTimeout(window.dlBusyWatchdog);
+                        window.dlBusyWatchdog = null;
+                    }
+                }
+            }
+        };
+        // Coalesced success notice: tabbing across many cells would otherwise
+        // stack one toast per field and bury the screen.
+        window.dlToastSaved = function(message) {
+            var now = Date.now();
+            if (window.dlLastSavedToast && (now - window.dlLastSavedToast) < 1500) return;
+            window.dlLastSavedToast = now;
+            window.showToast(message || 'Saved', 'success');
+        };
+        document.addEventListener('htmx:afterSettle', function(evt) {
+            var scripts = evt.detail.elt.querySelectorAll('script:not([src])');
+            scripts.forEach(function(s) {
+                var ns = document.createElement('script');
+                ns.textContent = s.textContent;
+                s.parentNode.replaceChild(ns, s);
+            });
+        });
+        document.addEventListener('htmx:configRequest', function(evt) {
+            var verb = (evt.detail.verb || '').toUpperCase();
+            if (verb === 'POST' || verb === 'PUT' || verb === 'PATCH' || verb === 'DELETE') {
+                evt.detail.headers['X-CSRF-Token'] = DL_CSRF;
+            }
+        });
+        document.addEventListener('htmx:beforeRequest', function(evt) {
+            var path = String((evt.detail && evt.detail.pathInfo && evt.detail.pathInfo.requestPath) || '');
+            if (!navigator.onLine && path.indexOf('/daily-ledger/ledger/rows') === 0) {
+                evt.preventDefault();
+            }
+        });
+        function maybeShowToastFromHeader(xhr) {
+            if (!xhr || typeof xhr.getResponseHeader !== 'function') return;
+            var trig = xhr.getResponseHeader('HX-Trigger');
+            if (!trig) return;
+            try {
+                var data = JSON.parse(trig);
+                if (data && data.showToast) {
+                    window.showToast(data.showToast.message || 'OK', data.showToast.type || 'error');
+                }
+            } catch (e) {}
+        }
+        document.addEventListener('htmx:responseError', function(evt) {
+            var xhr = evt.detail ? evt.detail.xhr : null;
+            maybeShowToastFromHeader(xhr);
+            if (xhr && xhr.status) {
+                window.showToast('Request failed (' + xhr.status + ')', 'error');
+                return;
+            }
+            window.showToast('Request failed', 'error');
+        });
+        document.addEventListener('htmx:sendError', function() {
+            window.showToast('Network error', 'error');
+        });
+
+        /**
+         * Deterministic in-place page load: fetch a URL (full page), extract
+         * #main-content via DOMParser, and swap it into the live #main-content.
+         * Re-runs inline scripts and rebinds htmx. On failure (login redirect,
+         * server error, or empty response) it navigates to the URL so the view
+         * always recovers.
+         *
+         * This is the single mechanism for in-place GET navigation. It replaces
+         * both htmx.ajax({select}) and hx-select for full-page responses: the
+         * bundled htmx version silently produces a BLANK region when hx-select
+         * is applied to a full HTML document, even when #main-content exists.
+         *
+         * Uses the same Bearer auth as the save API calls so authentication
+         * cannot differ between a POST that saved and the GET that refreshes.
+         */
+        window.dlLoadUrl = function(url, usePush) {
+            // The ledger owns page-level state and timers outside #main-content.
+            // Replacing only its markup leaves the old date/branch and callbacks live.
+            var nextPath = new URL(url, window.location.href).pathname;
+            if (/\/daily-ledger\/ledger\/?$/.test(nextPath)
+                || /\/daily-ledger\/ledger\/?$/.test(window.location.pathname)) {
+                window.location.assign(url);
+                return;
+            }
+            var headers = {
+                'Accept': 'text/html',
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+            var token = window.DL_TOKEN || '';
+            if (token) {
+                headers['Authorization'] = 'Bearer ' + token;
+            }
+
+            fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: headers
+            })
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.text();
+            })
+            .then(function(html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var fresh = doc.getElementById('main-content');
+                var target = document.getElementById('main-content');
+                if (!fresh || !target || !fresh.innerHTML.trim()) {
+                    throw new Error('empty content');
+                }
+                target.innerHTML = fresh.innerHTML;
+                // Re-run inline scripts that were swapped in
+                target.querySelectorAll('script:not([src])').forEach(function(s) {
+                    var ns = document.createElement('script');
+                    ns.textContent = s.textContent;
+                    s.parentNode.replaceChild(ns, s);
+                });
+                // Re-bind hx-* attributes in the new content
+                if (typeof htmx !== 'undefined') {
+                    htmx.process(target);
+                }
+                // Keep the URL in sync (back/forward + shareable filters)
+                if (window.history) {
+                    if (usePush && window.history.pushState) {
+                        window.history.pushState({}, '', url);
+                    } else if (window.history.replaceState) {
+                        window.history.replaceState({}, '', url);
+                    }
+                }
+            })
+            .catch(function() {
+                // In-place load could not complete — navigate so the view recovers.
+                window.location.href = url;
+            });
+        };
+
+        // Serialize a GET filter form and load it in place (no full reload).
+        window.dlLoadForm = function(form) {
+            var params = new URLSearchParams(new FormData(form)).toString();
+            var url = form.action;
+            url += (url.indexOf('?') >= 0 ? '&' : '?') + params;
+            window.dlLoadUrl(url, true);
+            return false;
+        };
+
+        // Unified refresh: re-fetch the current page and swap #main-content.
+        window.refreshMainContent = function() {
+            window.dlLoadUrl(window.location.href, false);
+        };
+    </script>
+
 <style>
     /* Reclaim the dead horizontal padding. Cells inherited 16px per side, which
        produced a 32px gap between the product name and the BEG cell for no
@@ -127,15 +577,273 @@
         }
     }
 </style>
-{/block}
 
-{block header_shift}
+</head>
+<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }" data-wb-component="app-shell">
+
+    <div id="toast-container" class="fixed top-4 right-4 z-50" role="status" aria-live="polite"></div>
+
+    <!-- Persistent write-failure notice. See window.dlReportWriteFailure. -->
+    <div id="dl-write-failure" class="hidden fixed bottom-4 left-1/2 z-[60] w-[min(46rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-red-300 bg-red-50 px-4 py-3 shadow-2xl" role="alert" aria-live="assertive">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-triangle-exclamation mt-1 text-red-600" aria-hidden="true"></i>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-red-900">Not saved</p>
+                <p id="dl-write-failure-text" class="mt-1 text-xs leading-5 text-red-800"></p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+                <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="window.dlRetryWriteFailure()">Retry — safe, will not duplicate</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- In-flight indicator. Deliberately non-blocking (pointer-events-none): on a
+         slow link a modal overlay would freeze the cashier for the whole request,
+         which is worse than the ambiguity it removes. It is visually
+         unmistakable, so a send is never silent. -->
+    <div id="dl-busy" class="hidden fixed inset-0 z-40 flex items-center justify-center pointer-events-none" aria-hidden="true">
+        <div class="absolute inset-0 bg-slate-900/30"></div>
+        <div class="relative flex items-center gap-3 rounded-xl bg-slate-900/95 px-5 py-4 text-sm font-semibold text-white shadow-2xl">
+            <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <span id="dl-busy-label">Saving…</span>
+        </div>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        <aside id="wb-sidebar" class="relative flex flex-col bg-gradient-to-b from-indigo-700 to-indigo-900 text-white transition-all duration-300" :class="sidebarOpen ? 'w-64' : 'w-20'" role="navigation" aria-label="Sidebar navigation">
+            <div class="flex h-16 items-center gap-3 px-4 border-b border-white/10 flex-shrink-0">
+                <div class="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center ring-1 ring-white/10">
+                    {if logo_url}
+                    <img src="{logo_url}" alt="{app_name} logo" class="h-8 w-8 rounded-lg object-contain">
+                    {/if}
+                    {if !logo_url}
+                    <i class="fas fa-receipt text-lg" aria-hidden="true"></i>
+                    {/if}
+                </div>
+                <span class="font-semibold text-base tracking-tight" x-show="sidebarOpen" x-cloak>{app_name}</span>
+		<button type="button" class="ml-auto p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+			@click="sidebarOpen = !sidebarOpen"
+			:aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+			:aria-expanded="sidebarOpen ? 'true' : 'false'">
+		    <i class="fas fa-bars" aria-hidden="true"></i>
+		</button>
+            </div>
+
+            <nav class="mt-4 px-2 flex-1 overflow-y-auto">
+                {if user_role == 'cashier' || user_role == 'supervisor' || user_role == 'admin'}
+                <a href="{base_url}/ledger"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'ledger'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Ledger">
+                    <i class="fas fa-clipboard-list w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Ledger</span>
+                </a>
+                {/if}
+
+                {if feature_pos && (user_role == 'cashier' || user_role == 'supervisor' || user_role == 'admin')}
+                <a href="{base_url}/pos"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'pos'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Point of Sale">
+                    <i class="fas fa-cash-register w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>POS</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor' || user_role == 'viewer'}
+                <a href="{base_url}/admin/overview"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'overview'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Business Overview">
+                    <i class="fas fa-chart-pie w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Overview</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor'}
+                <a href="{base_url}/admin/dashboard"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'dashboard'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Dashboard">
+                    <i class="fas fa-chart-line w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Dashboard</span>
+                </a>
+
+                <a href="{base_url}/admin/sales"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'sales'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Sales">
+                    <i class="fas fa-chart-bar w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
+                </a>
+
+                {if feature_pos}
+                <a href="{base_url}/admin/pos-sales"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'pos_sales'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="POS Sales">
+                    <i class="fas fa-receipt w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>POS Sales</span>
+                </a>
+                {/if}
+
+                <a href="{base_url}/admin/variances"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'variances'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Variances">
+                    <i class="fas fa-triangle-exclamation w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Variances</span>
+                </a>
+
+                <a href="{base_url}/admin/reconciliation"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'reconciliation'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Cash and Paper Check">
+                    <i class="fas fa-money-bill-wave w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Cash &amp; Paper Check</span>
+                </a>
+                {/if}
+
+                <!-- Reports are read-only PDF/CSV exports, so the business owner
+                     (viewer) sees them alongside the operations roles. -->
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor' || user_role == 'viewer'}
+                <a href="{base_url}/admin/reports"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'reports'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Reports">
+                    <i class="fas fa-file-pdf w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Reports</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor'}
+                <a href="{base_url}/admin/forecast"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'forecast'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Production Forecast">
+                    <i class="fas fa-chart-line w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Forecast</span>
+                </a>
+
+                <a href="{base_url}/admin/activity"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'activity'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Activity">
+                    <i class="fas fa-clock-rotate-left w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Activity</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge'}
+                <a href="{base_url}/admin/commissary"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'commissary'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Commissary">
+                    <i class="fas fa-wheat w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary</span>
+                </a>
+
+                     {if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor')}
+                     <a href="{base_url}/admin/deliveries"
+                         class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}"
+                         aria-label="Deliveries">
+                          <i class="fas fa-truck w-6" aria-hidden="true"></i>
+                         <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Deliveries</span>
+                     </a>
+                     {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor'}
+                <a href="{base_url}/admin/usage"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'usage'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Commissary Usage">
+                    <i class="fas fa-package w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary Usage</span>
+                </a>
+                {/if}
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor'}
+                <a href="{base_url}/admin/trace"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'trace'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Production Delivery Audit">
+                    <i class="fas fa-clipboard-check w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Production Delivery Audit</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor'}
+                <a href="{base_url}/admin/withdrawals"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'stock-adjustments'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Stock Adjustments">
+                    <i class="fas fa-arrow-right-from-bracket w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Stock Adjustments</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin'}
+                <a href="{base_url}/admin/products"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'products'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Products">
+                    <i class="fas fa-cubes w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Products</span>
+                </a>
+
+                <a href="{base_url}/admin/branches"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branches'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Branches">
+                    <i class="fas fa-code-branch w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branches</span>
+                </a>
+
+                <a href="{base_url}/admin/users"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'users'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Users">
+                    <i class="fas fa-users w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Users</span>
+                </a>
+
+                {if feature_price_groups}
+                <a href="{base_url}/admin/price-groups"
+                         class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'price-groups'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Price Groups">
+                    <i class="fas fa-tag w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Price Groups</span>
+                </a>
+                {/if}
+
+                <a href="{base_url}/admin/settings"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'settings'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Settings">
+                    <i class="fas fa-user-shield w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Settings</span>
+                </a>
+                {/if}
+            </nav>
+        </aside>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white/80 backdrop-blur border-b border-gray-200 h-16 flex items-center justify-between px-6">
+                <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        @click="sidebarOpen = !sidebarOpen"
+                        :aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+                        :aria-expanded="sidebarOpen ? 'true' : 'false'">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
+                </button>
+                <div class="flex items-center gap-4">
+
 {if !can_view_production_management}
-{include "modules/daily-ledger/cashier/partials/shift-badge.disyl"}
+{if shift}
+<div class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wide ring-1 ring-inset shadow-sm {if shift == 'PM'}bg-indigo-600 text-white ring-indigo-700{else}bg-emerald-600 text-white ring-emerald-700{/if}"
+     title="{if shift_locked}Locked to your assigned shift: the AM cashier stays on AM and the PM cashier stays on PM.{else}Active shift follows the operating clock. AM cutoff {close_of_day_time}; PM is active for the rest of the day.{/if}">
+    <span class="inline-flex h-2 w-2 rounded-full bg-white/90"></span>
+    {shift} Shift
+    {if shift_locked}<i class="fas fa-lock ml-1 text-[10px]" aria-hidden="true"></i>{/if}
+</div>
 {/if}
-{/block}
+{/if}
 
-{block content}
+                    <div class="text-right">
+                        <div class="text-sm font-semibold text-gray-900">{user_full_name | default:user_name}</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-wide">{if user_username}{user_username} · {/if}{user_role}</div>
+                    </div>
+                    <a href="/daily-ledger/logout" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Logout</a>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-auto p-6" id="main-content">
+
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">{if can_view_production_management}Commissary{else}Daily Sheet{/if}</h2>
@@ -155,7 +863,7 @@
             <div class="form-group mb-0">
                 <label class="form-label">Shift</label>
                 <select class="form-input" name="shift">
-                    <option value="" {if shift == ''}selected{/if}>All (includes pre-shift history)</option>
+                    <option value="" {if shift === ''}selected{/if}>All (includes pre-shift history)</option>
                     <option value="AM" {if shift == 'AM'}selected{/if}>AM</option>
                     <option value="PM" {if shift == 'PM'}selected{/if}>PM</option>
                 </select>
@@ -665,7 +1373,7 @@
                                 {if shift_status == 'finalized'}disabled{/if}
                                 title="Suggested book balance: {row.book_balance}; clear and save for not counted">
                         </td>
-                        {if can_view_production_variance}<td class="text-right production-variance">{if row.calc_variance !== null}{row.calc_variance}{else}<span class="text-muted">—</span>{/if}</td>{/if}
+                        {if can_view_production_variance}<td class="text-right production-variance">{if row.calc_variance_present}{row.calc_variance}{/if}</td>{/if}
                     </tr>
                     {/foreach}
                 </tbody>
@@ -924,8 +1632,12 @@
     </div>
 </div>
 {/if}
-{/block}
-{block scripts}
+
+            </main>
+        </div>
+    </div>
+
+
 <script>
     function switchCommissaryTab(tab) {
         var tabs = ['inventory', 'deliveries', 'pullouts', 'summary', 'daily-sheet'];
@@ -1486,4 +2198,6 @@
         });
     }
 </script>
-{/block}
+
+</body>
+</html>
