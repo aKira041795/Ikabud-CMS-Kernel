@@ -79,6 +79,7 @@ lane_model_run() {
   IFS="$oldifs"
 
   local model safe log rc attempt=0 total="${#list[@]}"
+  local saw_unavailable=0
   for model in "${list[@]}"; do
     # trim surrounding whitespace
     model="$(printf '%s' "$model" | tr -d '[:space:]')"
@@ -117,6 +118,7 @@ lane_model_run() {
 
     # The run failed. Report WHY, so the next attempt is an informed choice.
     if lane_model_unavailable "$log"; then
+      saw_unavailable=1
       echo "    unavailable signature:"
       lane_model_unavailable_line "$log" | head -3
     else
@@ -124,6 +126,16 @@ lane_model_run() {
     fi
   done
 
-  echo "=== MODEL THAT COMPLETED: none — every model in '${models}' was unavailable ==="
+  # Distinguish the two very different outcomes. This line used to assert "was unavailable"
+  # unconditionally, even when every attempt above had printed "treating as a crash". A reader
+  # duly reported a quota story to the owner while the log contradicted it, and the real cause
+  # (a SIGTERM, exit=143, zero-byte logs) was nearly missed. A verdict that contradicts its own
+  # evidence is worse than no verdict.
+  if [ "$saw_unavailable" -eq 1 ]; then
+    echo "=== MODEL THAT COMPLETED: none — every model in '${models}' was unavailable ==="
+  else
+    echo "=== MODEL THAT COMPLETED: none — NO unavailability signature seen. Every attempt ==="
+    echo "=== CRASHED or was KILLED. This is NOT a quota result — read the exit codes above. ==="
+  fi
   return 1
 }
