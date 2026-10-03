@@ -490,6 +490,12 @@ class HarppWakeTest(unittest.TestCase):
             self.assertIn("VERIFIED", sent[0]["body"])
             self.assertIn("ALL HARPP CHECKS PASS", sent[0]["body"])
             self.assertEqual(sent[0]["conversation_id"], 9)
+            # Assert the TYPE, not only the body. This assertion was missing, and its
+            # absence is why completion shipped as PROGRESS: the server's push gate
+            # treats PROGRESS as conversational chatter, so the one event the owner most
+            # wants pushed was the one event that could not reach them. A body-only
+            # assertion cannot catch a misclassified type.
+            self.assertEqual(sent[0]["message_type"], "COMPLETED")
             # idempotent: second pass does not re-report
             self.assertEqual(harpp_wake.monitor_jobs(), 0)
             self.assertEqual(len(sent), 1)
@@ -510,6 +516,8 @@ class HarppWakeTest(unittest.TestCase):
             self.assertIn("FAILED", sent[0]["body"])
             self.assertIn("did not include its required completion marker", sent[0]["body"])
             self.assertIn("Details:", sent[0]["body"])
+            # must-refuse half: a failure must never be announced as COMPLETED.
+            self.assertEqual(sent[0]["message_type"], "FAILED")
         finally:
             harpp_wake.harpp_client.send_message = original
 

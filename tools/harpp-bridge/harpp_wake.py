@@ -1729,7 +1729,13 @@ def _report_job(job_id: str, job: dict, claim_token: str | None = None) -> str:
         # can only ever finalize this already-reported result.
         _stage_job_report(job_id, claim_token, staged_outcome, staged_report)
 
-    message_type = "PROGRESS" if staged_outcome == "DONE" else "FAILED"
+    # A finished job is COMPLETED, not PROGRESS. These used to be the same value, and
+    # the owner-facing push gate (IMPORTANT_MESSAGE_TYPES) excludes PROGRESS as chatter
+    # - so completing work was the one event that could not reach the owner, who had to
+    # open the workstation to discover it. That is precisely the "presence" gap the
+    # owner reported. Completion now has its own type and is pushed regardless of the
+    # "important messages only" setting, which exists to suppress chatter, not results.
+    message_type = "COMPLETED" if staged_outcome == "DONE" else "FAILED"
     try:
         response = harpp_client.harpp_notify(
             conversation_id=int(conv), message_type=message_type,

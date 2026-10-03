@@ -64,8 +64,14 @@ final class HarppNotificationService
     /**
      * Non-actionable message types never warrant an OS-level push when the
      * "important only" toggle is on. Decisions are always actionable.
+     *
+     * COMPLETED belongs here even though it is non-actionable: it is the event the owner
+     * most wants pushed. Excluding it meant finishing work could not reach the owner at
+     * all when "important only" was on, so they had to open the workstation to find out a
+     * task was done - the exact gap "presence" is meant to remove. The setting exists to
+     * suppress conversational chatter, not to hide results.
      */
-    private const IMPORTANT_MESSAGE_TYPES = ['WARNING', 'DECISION_REQUIRED', 'BLOCKED', 'RELEASE_READY', 'FAILED'];
+    private const IMPORTANT_MESSAGE_TYPES = ['WARNING', 'DECISION_REQUIRED', 'BLOCKED', 'RELEASE_READY', 'FAILED', 'COMPLETED'];
 
     private function isImportant(array $notice, array $payload): bool
     {

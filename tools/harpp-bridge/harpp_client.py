@@ -39,6 +39,11 @@ DEFAULT_AUTHORITY_POLICY = {
 }
 OWNER_MESSAGE_TYPES = {
     "INFO", "PROGRESS", "WARNING", "DECISION_REQUIRED", "BLOCKED", "RELEASE_READY", "FAILED",
+    # Completion is its own type rather than PROGRESS. PROGRESS is deliberately treated
+    # as chatter by the server's push gate, so reporting a finished task as PROGRESS made
+    # completion the one event the owner could not be notified about. Deliberately NOT in
+    # ACTIONABLE_MESSAGE_TYPES: finishing work needs no decision, only an announcement.
+    "COMPLETED",
 }
 
 
