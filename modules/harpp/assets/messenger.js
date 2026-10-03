@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const archiveBtn = document.getElementById('archive-conversation');
 
   const escText = (el, text) => { el.textContent = text ?? ''; };
+  const errorMessage = (error, fallback) => error && error.message ? error.message : fallback;
 
   async function conversations() {
     try {
@@ -51,7 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
           del.textContent = 'Delete';
           del.onclick = async (e) => {
             e.stopPropagation();
-            if (!window.confirm('Delete this archived conversation? Its messages, decisions, and history are retained but hidden.')) return;
+            if (!window.confirm('Delete this archived conversation? Its messages, decisions, and history are retained but hidden.')) {
+              escText(status, 'Conversation deletion cancelled.');
+              return;
+            }
             del.disabled = true;
             try {
               await Harpp.fetch(`/api/v1/harpp/conversations/${row.id}`, { method: 'DELETE' });
@@ -65,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
               await conversations();
               escText(status, 'Conversation deleted.');
             } catch (x) {
-              escText(status, x.message);
+              escText(status, errorMessage(x, 'Unable to delete the conversation.'));
               del.disabled = false;
             }
           };
@@ -75,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (archiveToggle) archiveToggle.textContent = showArchived ? 'Show active' : 'Show archived';
       if (!active && rows.length) { active = Number(rows[0].id); load(false); }
-    } catch (e) { escText(status, e.message); }
+    } catch (e) { escText(status, errorMessage(e, 'Unable to load conversations.')); }
   }
 
   async function load(incremental = true) {
@@ -107,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messages.scrollTop = messages.scrollHeight;
       }
       return true;
-    } catch (e) { escText(status, e.message); return false; }
+    } catch (e) { escText(status, errorMessage(e, 'Unable to load the conversation.')); return false; }
   }
 
   const requireActive = () => {
@@ -123,12 +127,13 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await Harpp.fetch(`/api/v1/harpp/conversations/${active}/messages`, { method: 'POST', body: { body } });
       form.reset();
-      try { await load(); } catch (_) { }
-      escText(status, 'Sent.');
-    } catch (x) { escText(status, x.message); }
+      const loaded = await load();
+      if (loaded) escText(status, 'Sent.');
+    } catch (x) { escText(status, errorMessage(x, 'Unable to send the message.')); }
   };
 
   document.getElementById('refresh-thread').onclick = async () => {
+    if (!requireActive()) return;
     last = 0;
     const loaded = await load(false);
     await conversations();
@@ -141,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await Harpp.fetch(`/api/v1/harpp/conversations/${active}/close`, { method: 'POST' });
       escText(status, 'Conversation marked done.');
       await conversations();
-    } catch (e) { escText(status, e.message); }
+    } catch (e) { escText(status, errorMessage(e, 'Unable to close the conversation.')); }
   };
 
   if (archiveBtn) archiveBtn.onclick = async () => {
@@ -156,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
       title.textContent = 'Select a conversation';
       history.replaceState(null, '', '/harpp');
       await conversations();
-    } catch (e) { escText(status, e.message); }
+    } catch (e) { escText(status, errorMessage(e, 'Unable to archive the conversation.')); }
   };
 
   if (archiveToggle) archiveToggle.onclick = async () => {
@@ -169,20 +174,105 @@ document.addEventListener('DOMContentLoaded', () => {
     await conversations();
   };
 
-  const createConversation = async () => {
-    const conversationTitle = prompt('Conversation title');
-    if (!conversationTitle) return;
-    const session = prompt('Harness session ID', `operator-${Date.now()}`);
-    if (!session) return;
-    try {
-      const activeWorkspace = Number(window.localStorage.getItem('HARPP_ACTIVE_WORKSPACE') || 0);
-      const scope = activeWorkspace > 0 ? { workspace_id: activeWorkspace } : {};
-      active = Number((await Harpp.fetch('/api/v1/harpp/conversations', { method: 'POST', body: { title: conversationTitle, harness_session_id: session, ...scope } })).data.conversation_id);
-      last = 0;
-      history.replaceState(null, '', `/harpp?conversation=${active}`);
-      await conversations();
-      await load(false);
-    } catch (e) { escText(status, e.message); }
+  const createConversation = () => {
+    const existing = document.getElementById('new-conversation-dialog');
+    if (existing) {
+      existing.querySelector('#new-conversation-title').focus();
+      escText(status, 'New conversation dialog is already open.');
+      return;
+    }
+
+    const previousFocus = document.activeElement;
+    const overlay = document.createElement('div');
+    overlay.id = 'new-conversation-dialog';
+    overlay.className = 'messenger-dialog-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'new-conversation-heading');
+    overlay.innerHTML = `
+      <form class="messenger-dialog">
+        <header class="messenger-dialog-header"><h3 id="new-conversation-heading">New conversation</h3></header>
+        <div class="messenger-dialog-body">
+          <div class="messenger-dialog-field">
+            <label for="new-conversation-title">Title</label>
+            <input id="new-conversation-title" name="title" value="New conversation" required>
+          </div>
+          <div class="messenger-dialog-field">
+            <label for="new-conversation-session">Harness session</label>
+            <input id="new-conversation-session" name="session" value="operator-${Date.now()}" aria-describedby="new-conversation-session-help new-conversation-error" required>
+            <p id="new-conversation-session-help" class="messenger-dialog-help">Use letters, numbers, dots, underscores, colons, or hyphens.</p>
+            <p id="new-conversation-error" class="messenger-dialog-error" aria-live="polite"></p>
+          </div>
+        </div>
+        <footer class="messenger-dialog-actions">
+          <button id="new-conversation-cancel" class="button" type="button">Cancel</button>
+          <button id="new-conversation-create" class="button" type="submit">Create</button>
+        </footer>
+      </form>`;
+    document.body.append(overlay);
+
+    const form = overlay.querySelector('form');
+    const titleInput = overlay.querySelector('#new-conversation-title');
+    const sessionInput = overlay.querySelector('#new-conversation-session');
+    const createBtn = overlay.querySelector('#new-conversation-create');
+    const cancelBtn = overlay.querySelector('#new-conversation-cancel');
+    const dialogError = overlay.querySelector('#new-conversation-error');
+    const validSession = /^[A-Za-z0-9._:-]+$/;
+
+    const validate = () => {
+      let reason = '';
+      if (!sessionInput.value) reason = 'Harness session is required.';
+      else if (!validSession.test(sessionInput.value)) reason = 'Use only letters, numbers, dots, underscores, colons, or hyphens; spaces are not allowed.';
+      else if (!titleInput.value.trim()) reason = 'Title is required.';
+      escText(dialogError, reason);
+      createBtn.disabled = Boolean(reason);
+      return !reason;
+    };
+    const closeDialog = () => {
+      document.removeEventListener('keydown', onKeydown);
+      overlay.remove();
+      if (previousFocus && typeof previousFocus.focus === 'function') previousFocus.focus();
+    };
+    const cancel = () => {
+      closeDialog();
+      escText(status, 'New conversation cancelled.');
+    };
+    const onKeydown = event => {
+      if (event.key === 'Escape') cancel();
+    };
+
+    titleInput.addEventListener('input', validate);
+    sessionInput.addEventListener('input', validate);
+    cancelBtn.addEventListener('click', cancel);
+    overlay.addEventListener('click', event => { if (event.target === overlay) cancel(); });
+    document.addEventListener('keydown', onKeydown);
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!validate()) {
+        sessionInput.focus();
+        return;
+      }
+      createBtn.disabled = true;
+      escText(dialogError, 'Creating…');
+      try {
+        const activeWorkspace = Number(window.localStorage.getItem('HARPP_ACTIVE_WORKSPACE') || 0);
+        const scope = activeWorkspace > 0 ? { workspace_id: activeWorkspace } : {};
+        active = Number((await Harpp.fetch('/api/v1/harpp/conversations', { method: 'POST', body: { title: titleInput.value.trim(), harness_session_id: sessionInput.value, ...scope } })).data.conversation_id);
+        last = 0;
+        closeDialog();
+        history.replaceState(null, '', `/harpp?conversation=${active}`);
+        await conversations();
+        await load(false);
+      } catch (error) {
+        const message = errorMessage(error, 'Unable to create the conversation.');
+        escText(dialogError, message);
+        escText(status, message);
+        createBtn.disabled = false;
+      }
+    });
+
+    validate();
+    titleInput.select();
   };
 
   document.getElementById('new-conversation').onclick = createConversation;
