@@ -139,8 +139,8 @@ $h->test('login logs a refused overwrite with both values and the id',
 // .ai/shared-account-latest-holder-contract.md and updates on every login.
 $h->test('the login applies the explicit shared-role helper, not an inline role literal',
     str_contains($handlersSource, 'in_array($role, dl_sharedBranchAccountRoles(), true)'));
-$h->test('the shared list is cashier only and excludes production_in_charge',
-    dl_sharedBranchAccountRoles() === ['cashier'],
+$h->test('the shared list is exactly cashier + production_in_charge',
+    dl_sharedBranchAccountRoles() === ['cashier', 'production_in_charge'],
     json_encode(dl_sharedBranchAccountRoles()));
 $h->test('the shared-name update is logged as information with both values',
     str_contains($handlersSource, 'daily-ledger auth full_name updated for shared account')

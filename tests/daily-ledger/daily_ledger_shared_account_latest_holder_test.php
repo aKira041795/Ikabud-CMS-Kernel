@@ -5,15 +5,19 @@ declare(strict_types=1);
 /**
  * Daily Ledger — a shared branch account tracks its CURRENT holder (owner Option B).
  *
- * Locks in the contract .ai/shared-account-latest-holder-contract.md:
+ * Locks in the contract .ai/shared-account-latest-holder-contract.md, extended by
+ * .ai/production-shared-account-contract.md (owner-confirmed 2026-10-03: the
+ * production-in-charge branch account is shared like the cashier accounts):
  *   AC1  a shared branch account (cashier) lets the typed name update the profile on
  *        every login, so it reflects the latest person who used it (real HTTP logins)
  *   AC2  a personal account (admin) keeps the empty-only guard: a different name typed
  *        at login leaves the stored name unchanged, with the refusal warning
  *   AC3  the per-event {actor_name, actor_username} stamp is frozen: renaming the
  *        shared profile does NOT rewrite an earlier audit row
- *   AC4  the role rule is an explicit, commented list; production_in_charge is NOT in
- *        it (unconfirmed), and the empty-capture rule still exists for personal accounts
+ *   AC4  the role rule is an explicit, commented list; cashier and production_in_charge
+ *        are shared (production-in-charge owner-confirmed 2026-10-03), and the
+ *        empty-capture rule still exists for every other role
+ *   AC5  a seeded production_in_charge account tracks its latest holder over real HTTP
  *
  * Tenant 207 (baronledger). Every probe account is high-id and removed in finally.
  * The suite never touches the live accounts shiela_baina / admin_view.
@@ -50,18 +54,21 @@ $sharedRoles = dl_sharedBranchAccountRoles();
 
 echo 'ACCEPTANCE_SHARED_ROLES=' . json_encode($sharedRoles, JSON_UNESCAPED_SLASHES) . "\n";
 
-$h->test('dl_sharedBranchAccountRoles() exists and returns exactly cashier',
-    $sharedRoles === ['cashier'],
+$h->test('dl_sharedBranchAccountRoles() returns exactly cashier + production_in_charge',
+    $sharedRoles === ['cashier', 'production_in_charge'],
     json_encode($sharedRoles, JSON_UNESCAPED_SLASHES));
 $h->test('admin is NOT treated as a shared account',
     !in_array('admin', $sharedRoles, true));
 $h->test('viewer is NOT treated as a shared account',
     !in_array('viewer', $sharedRoles, true));
-$h->test('production_in_charge is NOT treated as a shared account (unconfirmed, ask)',
-    !in_array('production_in_charge', $sharedRoles, true));
-$h->test('the role rule is commented as unconfirmed for production_in_charge',
+$h->test('supervisor is NOT treated as a shared account (only the confirmed roles)',
+    !in_array('supervisor', $sharedRoles, true));
+$h->test('production_in_charge IS treated as a shared account (owner-confirmed)',
+    in_array('production_in_charge', $sharedRoles, true));
+$h->test('the role rule records the owner confirmation, not a stale ask-first note',
     str_contains($roleSource, 'production_in_charge')
-    && str_contains($roleSource, 'not been confirmed'));
+    && str_contains($roleSource, 'owner confirmed on 2026-10-03')
+    && !str_contains($roleSource, 'ASK the owner'));
 
 app()->tenant()->setTenantId(207);
 $ctx = modulePushContext('daily-ledger');
@@ -73,26 +80,30 @@ $db = $ctx->db();
 
 $sharedId = 997801;
 $personalId = 997802;
+$productionId = 997803;
 $sharedUsername = 'Cashier-ProbeSharedAM-' . $sharedId;
 $personalUsername = 'probe-shared-admin-' . $personalId;
+$productionUsername = 'Prod-ProbeIncharge-' . $productionId;
 $password = 'Probe!Shared2031';
 $personalStored = 'Admin Probe Stored';
 
-$cleanup = static function () use ($db, $sharedId, $personalId, $sharedUsername, $personalUsername): void {
-    $db->prepare('DELETE FROM dl_user_branches WHERE user_id IN (?, ?)')->execute([$sharedId, $personalId]);
-    $db->prepare('DELETE FROM dl_users WHERE id IN (?, ?) OR username IN (?, ?)')
-        ->execute([$sharedId, $personalId, $sharedUsername, $personalUsername]);
-    $db->prepare('DELETE FROM audit_logs WHERE actor_module_user_id IN (?, ?)')->execute([$sharedId, $personalId]);
+$cleanup = static function () use ($db, $sharedId, $personalId, $productionId, $sharedUsername, $personalUsername, $productionUsername): void {
+    $db->prepare('DELETE FROM dl_user_branches WHERE user_id IN (?, ?, ?)')->execute([$sharedId, $personalId, $productionId]);
+    $db->prepare('DELETE FROM dl_users WHERE id IN (?, ?, ?) OR username IN (?, ?, ?)')
+        ->execute([$sharedId, $personalId, $productionId, $sharedUsername, $personalUsername, $productionUsername]);
+    $db->prepare('DELETE FROM audit_logs WHERE actor_module_user_id IN (?, ?, ?)')->execute([$sharedId, $personalId, $productionId]);
     $db->prepare("DELETE FROM audit_logs WHERE entity_id IN ('EVT-SHARED-1')")->execute();
 };
 $cleanup();
 
-// Seed: the shared cashier starts with an EMPTY name (a brand-new branch account);
-// the personal admin already has an established name that must be protected.
+// Seed: the shared cashier and production-in-charge start with an EMPTY name (brand-new
+// branch accounts); the personal admin already has an established name to protect.
 $db->prepare('INSERT INTO dl_users (id, username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, "cashier", 1)')
     ->execute([$sharedId, $sharedUsername, password_hash($password, PASSWORD_BCRYPT), '']);
 $db->prepare('INSERT INTO dl_users (id, username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, "admin", 1)')
     ->execute([$personalId, $personalUsername, password_hash($password, PASSWORD_BCRYPT), $personalStored]);
+$db->prepare('INSERT INTO dl_users (id, username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, "production_in_charge", 1)')
+    ->execute([$productionId, $productionUsername, password_hash($password, PASSWORD_BCRYPT), '']);
 
 $storedSharedName = static function () use ($db, $sharedId): string {
     $stmt = $db->prepare('SELECT full_name FROM dl_users WHERE id = ? LIMIT 1');
@@ -102,6 +113,11 @@ $storedSharedName = static function () use ($db, $sharedId): string {
 $storedPersonalName = static function () use ($db, $personalId): string {
     $stmt = $db->prepare('SELECT full_name FROM dl_users WHERE id = ? LIMIT 1');
     $stmt->execute([$personalId]);
+    return (string)$stmt->fetchColumn();
+};
+$storedProductionName = static function () use ($db, $productionId): string {
+    $stmt = $db->prepare('SELECT full_name FROM dl_users WHERE id = ? LIMIT 1');
+    $stmt->execute([$productionId]);
     return (string)$stmt->fetchColumn();
 };
 $logLines = static function (string $needle) use ($base): array {
@@ -201,6 +217,53 @@ if (($reachable['status'] ?? 0) === 0) {
         );
     }
 
+    // ─── AC5: shared production_in_charge account tracks its latest holder ─
+    $h->section('AC5: shared production_in_charge account tracks the latest holder (real HTTP)');
+
+    $productionLogins = [
+        ['Maria Santos', 'Maria Santos', 'capture'],
+        ['Jose Reyes', 'Jose Reyes', 'latest wins'],
+    ];
+    foreach ($productionLogins as $index => [$entered, $expectedStored, $why]) {
+        $response = $httpLogin($loginUrl, $productionUsername, $entered, $password);
+        usleep(150000); // let the web process flush the appended log line
+        $body = json_decode($response['body'], true);
+        $stored = $storedProductionName();
+        $prodInfoLines = array_values(array_filter(
+            $logLines('daily-ledger auth full_name updated for shared account'),
+            static fn (string $line): bool => str_contains($line, $productionUsername)
+        ));
+        $lastProdInfo = $prodInfoLines !== [] ? $prodInfoLines[count($prodInfoLines) - 1] : '';
+        $previousExpected = $index === 0 ? '' : 'Maria Santos';
+        echo 'ACCEPTANCE_PROD_LOGIN_' . ($index + 1) . '=' . json_encode([
+            'status' => $response['status'],
+            'ok' => is_array($body) ? ($body['ok'] ?? null) : null,
+            'entered' => $entered,
+            'stored' => $stored,
+            'expected' => $expectedStored,
+            'why' => $why,
+        ], JSON_UNESCAPED_SLASHES) . "\n";
+        echo 'ACCEPTANCE_PROD_LOGIN_' . ($index + 1) . '_LOG=' . $lastProdInfo . "\n";
+        $h->test(
+            sprintf('production_in_charge login %d ("%s") returns HTTP 200 ok=true', $index + 1, $entered),
+            $response['status'] === 200 && is_array($body) && ($body['ok'] ?? false) === true,
+            json_encode(['status' => $response['status'], 'body' => $response['body']], JSON_UNESCAPED_SLASHES)
+        );
+        $h->test(
+            sprintf('stored name after production_in_charge login %d is "%s" (%s)', $index + 1, $expectedStored, $why),
+            $stored === $expectedStored,
+            json_encode(['stored' => $stored, 'expected' => $expectedStored], JSON_UNESCAPED_SLASHES)
+        );
+        $h->test(
+            sprintf('production_in_charge login %d logs an info line with previous and new name', $index + 1),
+            $lastProdInfo !== ''
+            && str_contains($lastProdInfo, '"role":"production_in_charge"')
+            && str_contains($lastProdInfo, '"previous_full_name":"' . $previousExpected . '"')
+            && str_contains($lastProdInfo, '"new_full_name":"' . $expectedStored . '"'),
+            $lastProdInfo
+        );
+    }
+
     // ─── AC2: personal account is still protected ───────────────────────
     $h->section('AC2: personal admin account refuses a different name (real HTTP)');
 
@@ -277,7 +340,7 @@ $cleanup();
 
 // Prove the probes are gone (the suite never touches shiela_baina / admin_view).
 $h->section('Fixtures cleaned up');
-$remaining = (int)$db->query('SELECT COUNT(*) FROM dl_users WHERE id IN (' . $sharedId . ', ' . $personalId . ')')->fetchColumn();
+$remaining = (int)$db->query('SELECT COUNT(*) FROM dl_users WHERE id IN (' . $sharedId . ', ' . $personalId . ', ' . $productionId . ')')->fetchColumn();
 $h->test('probe accounts are removed', $remaining === 0, (string)$remaining);
 
 $h->done();

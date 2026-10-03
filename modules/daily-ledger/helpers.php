@@ -605,18 +605,29 @@ function dlProductionFlowModeLabel(string $flowMode): string
  * (owner-approved Option B).
  *
  * A shared branch account is recognisable by its branch/shift-label username
- * (e.g. "Cashier-KatipunanAM", "cashier-miputakAM"): several people sign in through
- * the same credentials, and the name typed at login identifies who is on duty now.
+ * (e.g. "Cashier-KatipunanAM", "prod-rizal"): several people sign in through the
+ * same credentials, and the name typed at login identifies who is on duty now.
  * For these roles the login may OVERWRITE the stored name on every sign-in.
  *
- * `cashier` is the only role confirmed as a shared branch account today.
- * `production_in_charge` is deliberately NOT in this list: it has not been confirmed
- * as shared, so we must not assume it. ASK the owner before adding it (or any other
- * role) here.
+ * `cashier` and `production_in_charge` are both shared branch accounts, for the
+ * same reason: each branch has its OWN username, and every rotation of personnel
+ * reuses that same branch account, so the person is identified by the name they
+ * type. The account belongs to the BRANCH; the latest typed name must win.
  *
- * Every role NOT in this list keeps the empty-only capture guard: an admin's (or
- * viewer's) own name must never be rewritable by whoever logs in as them. That was
- * the original defect and must not be reopened.
+ *   * Cashier — raised in tenant 207 as the shift-labelled branch logins
+ *     "Cashier-KatipunanAM"/"PM" (DPL-KATIPUNAN), "Cashier-ObayPM" (DPL-OBAY)
+ *     and "Cashier_RizalGawasAM"/"PM" (DPL-RIZAL).
+ *   * Production-in-charge — the owner confirmed on 2026-10-03 that these behave
+ *     like the cashiers ("every branch has a different username for production in
+ *     charge but every rotation of personnel uses same branch account").
+ *     Chair-verified in tenant 207: `prod-rizal` (RIZAL-COMMIS) sits alongside the
+ *     cashier accounts above. Rotating production personnel reuse that same
+ *     branch account, so the name typed at login is the CURRENT operator.
+ *
+ * Every role NOT in this list — admin, viewer, auditor, supervisor, and any later
+ * role — keeps the empty-only capture guard: an admin's (or viewer's) own name must
+ * never be rewritable by whoever logs in as them. That was the original defect and
+ * must not be reopened.
  *
  * This is the single obvious place to change the role rule — do not inline the list
  * at the call site.
@@ -625,7 +636,7 @@ function dlProductionFlowModeLabel(string $flowMode): string
  */
 function dl_sharedBranchAccountRoles(): array
 {
-    return ['cashier'];
+    return ['cashier', 'production_in_charge'];
 }
 
 function dlLoginPageContext(array $overrides = []): array

@@ -5285,8 +5285,8 @@ function dailyLedgerAuthLogin(): void
             //     A different name updates the profile on every login — the
             //     owner-approved Option B. History stays safe because each audit
             //     row carries its own per-event {actor_name, actor_username} stamp.
-            //   * PERSONAL account (admin, viewer, production_in_charge, anything
-            //     else): never overwrite an established name. The typed name may
+            //   * PERSONAL account (anything NOT in the shared list, e.g. admin,
+            //     viewer, auditor, supervisor): never overwrite an established name. The typed name may
             //     only CAPTURE an empty profile; a refused overwrite is logged with
             //     both values. This is the original defect and must not be reopened.
             $sharedAccount = in_array($role, dl_sharedBranchAccountRoles(), true);
