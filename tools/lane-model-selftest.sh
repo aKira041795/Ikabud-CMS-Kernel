@@ -65,6 +65,38 @@ lane_model_run "ok" "p" /tmp/lm-f >/dev/null 2>&1; rc=$?
 chk "single model works" "ok" 0 "$LANE_MODEL_USED" "$rc"
 
 echo
+echo "=== argument validation: a missing prefix must fail loudly and USEFULLY ==="
+# This case was missing when the tool was first written. A lane that omitted the third
+# argument died as "$3: unbound variable" under set -u, which names the shell's problem
+# instead of the caller's, and the lane author gets a crash with no hint of the fix.
+#
+# NOTE: the message check and the variable check must be SEPARATE calls. Capturing output
+# with $( ) runs the function in a subshell, so its globals cannot reach the parent - an
+# earlier version of this test asserted the variable through $( ) and failed for that
+# reason rather than because the helper was wrong.
+msg=$(lane_model_run "ok" "p" 2>&1); rc=$?
+chk "missing prefix -> rc=2" "" 2 "" "$rc"
+case "$msg" in
+  *"usage: lane_model_run"*) echo "  PASS  error message names the correct usage"; pass=$((pass+1));;
+  *) echo "  FAIL  error message is not actionable: $msg"; fail=$((fail+1));;
+esac
+case "$msg" in
+  *"unbound variable"*) echo "  FAIL  leaked a raw shell error to the caller"; fail=$((fail+1));;
+  *) echo "  PASS  no raw 'unbound variable' leaked"; pass=$((pass+1));;
+esac
+
+# No command substitution here, so the reset of LANE_MODEL_USED IS observable.
+LANE_MODEL_USED="sentinel"
+lane_model_run "ok" "p" >/dev/null 2>&1; rc=$?
+chk "missing prefix clears LANE_MODEL_USED (no stale model reported)" "" 2 "$LANE_MODEL_USED" "$rc"
+
+echo
+echo "=== empty model list must not silently 'succeed' ==="
+LANE_MODEL_USED="sentinel"
+lane_model_run "" "p" /tmp/lm-g >/dev/null 2>&1; rc=$?
+chk "empty models -> rc=2" "" 2 "$LANE_MODEL_USED" "$rc"
+
+echo
 echo "-------------------------------------------"
 echo "selftest: ${pass} passed, ${fail} failed"
 [ "$fail" -eq 0 ] || exit 1

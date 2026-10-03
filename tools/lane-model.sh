@@ -48,6 +48,18 @@ lane_model_unavailable() {
 
 # lane_model_run <comma-separated-models> <prompt> <log-prefix>
 lane_model_run() {
+  # Validate loudly. Omitted arguments used to die as "$3: unbound variable" under
+  # `set -u`, which names the shell's problem rather than the caller's mistake - and a
+  # lane author sees a crash with no hint that the fix is a missing prefix argument.
+  if [ "$#" -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
+    echo "lane_model_run: need 3 arguments, got $#." >&2
+    echo "  usage: lane_model_run <models-csv> <prompt> <log-prefix>" >&2
+    echo "  e.g.   lane_model_run \"openai-codex/gpt-5.6-sol,deepseek-v4-flash\" \"\$PROMPT\" /tmp/mylane" >&2
+    LANE_MODEL_USED=""
+    LANE_MODEL_LOG=""
+    return 2
+  fi
+
   local models="$1" prompt="$2" prefix="$3"
 
   LANE_MODEL_USED=""
