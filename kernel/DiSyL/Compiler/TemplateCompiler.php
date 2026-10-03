@@ -40,7 +40,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 15;
+    public const COMPILER_VERSION = 16;
 
     /**
      * Maximum iterations for unbounded loops ({while} and C-style {for}).
@@ -741,8 +741,12 @@ PHP;
             if ($node->getBody()) {
                 $code .= $this->compileDocument($node->getBody());
             }
-            $code .= $this->line("\$ctx->setBlock({$name}, \$output);");
-            $code .= $this->line("\$output = \$__prev;");
+            $code .= $this->line("\$__blockOutput = \$output;");
+            $code .= $this->line("\$ctx->setBlockIfAbsent({$name}, \$__blockOutput);");
+            // Retain the stripped block body in this template's own output. It
+            // is discarded when a parent resolves successfully, but is needed
+            // when a missing/cyclic/depth-limited parent makes this the root.
+            $code .= $this->line("\$output = \$__prev . \$__blockOutput;");
             $this->indentLevel--;
             $code .= $this->line("}");
             return $code;

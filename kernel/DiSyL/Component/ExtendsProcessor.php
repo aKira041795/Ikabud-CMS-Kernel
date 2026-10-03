@@ -20,6 +20,12 @@ final class ExtendsProcessor
     /** @var int Upper bound on {extends} chain depth (guards runaway inheritance) */
     private const EXTENDS_CHAIN_MAX = 20;
 
+    /** Expose the interpreted chain limit to the compiled inheritance resolver. */
+    public static function extendsChainMax(): int
+    {
+        return self::EXTENDS_CHAIN_MAX;
+    }
+
     /** @var int Max block-override merge passes over the root ancestor */
     private const MAX_BLOCK_MERGE_PASSES = 10;
 

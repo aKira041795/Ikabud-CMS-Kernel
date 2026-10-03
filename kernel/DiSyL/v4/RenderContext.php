@@ -80,9 +80,23 @@ final class RenderContext
         return $this->blocks[$name] ?? null;
     }
 
+    /**
+     * Register or replace a block definition.
+     *
+     * Inheritance capture should normally use setBlockIfAbsent() so the
+     * nearest (first-rendered) child definition wins across the chain.
+     */
     public function setBlock(string $name, mixed $content): void
     {
         $this->blocks[$name] = $content;
+    }
+
+    /** Register a block only when no nearer child has already defined it. */
+    public function setBlockIfAbsent(string $name, mixed $content): void
+    {
+        if (!isset($this->blocks[$name])) {
+            $this->blocks[$name] = $content;
+        }
     }
 
     public function hasSlot(string $name): bool

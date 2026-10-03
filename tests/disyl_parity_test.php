@@ -118,18 +118,9 @@ function compiled(
         $errors[] = $error;
     });
 
-    // Mirror TemplateEngine's currently guarded compiled inheritance handoff.
+    // Exercise the same compiled inheritance resolver used by TemplateEngine.
     $renderContext = new RenderContext($ctx);
-    $result = $template->executeRaw($renderContext);
-    $maxExtendsDepth = 10;
-    while ($renderContext->getParentTemplate() !== null && $maxExtendsDepth-- > 0) {
-        $parentName = $renderContext->getParentTemplate();
-        $renderContext->setParentTemplate(null);
-        $parent = $loader($parentName);
-        $result = $parent->executeRaw($renderContext);
-    }
-
-    return $result;
+    return $template->executeWithInheritance($renderContext);
 }
 
 /**

@@ -422,7 +422,8 @@ class TemplateEngine
             try {
                 $compiled = $this->compiledCache->get($templatePath);
                 
-                $loader = function(string $tmpl) use (&$loader) {
+                $inheritanceLoader = null;
+                $loader = function(string $tmpl) use (&$loader, &$inheritanceLoader) {
                     $path = $this->resolveTemplatePath($tmpl);
                     // Guard against empty/invalid resolved paths from blank includes
                     if ($path === '' || !file_exists($path)) {
@@ -435,8 +436,25 @@ class TemplateEngine
                     }
                     $c = $this->compiledCache->get($path);
                     $c->setTemplateLoader($loader);
+                    $c->setInheritanceLoader($inheritanceLoader);
                     $c->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                     // Provide consistent filter state to loaded includes
+                    $registry = new \Ikabud\Kernel\DiSyL\v4\FilterRegistry();
+                    foreach ($this->filters as $name => $f) {
+                        $registry->register($name, $f);
+                    }
+                    $c->setFilters($registry);
+                    return $c;
+                };
+                $inheritanceLoader = function(string $tmpl) use (&$loader, &$inheritanceLoader) {
+                    $path = $this->resolveTemplatePath($tmpl);
+                    if ($path === '' || !is_file($path)) {
+                        return null;
+                    }
+                    $c = $this->compiledCache->get($path);
+                    $c->setTemplateLoader($loader);
+                    $c->setInheritanceLoader($inheritanceLoader);
+                    $c->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                     $registry = new \Ikabud\Kernel\DiSyL\v4\FilterRegistry();
                     foreach ($this->filters as $name => $f) {
                         $registry->register($name, $f);
@@ -450,23 +468,12 @@ class TemplateEngine
                     $registry->register($name, $f);
                 }
                 $compiled->setTemplateLoader($loader);
+                $compiled->setInheritanceLoader($inheritanceLoader);
                 $compiled->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                 $compiled->setFilters($registry);
                 
                 $ctx_obj = new RenderContext($context + ['__disyl_strict_types' => $this->strictTypes]);
-                $result = $compiled->executeRaw($ctx_obj);
-                // Handle {extends} chain: child registers blocks, parent reads them
-                $maxExtendsDepth = 10;
-                while ($ctx_obj->getParentTemplate() !== null && $maxExtendsDepth-- > 0) {
-                    $parentName = $ctx_obj->getParentTemplate();
-                    $ctx_obj->setParentTemplate(null); // prevent infinite loop
-                    $parentPath = $this->resolveTemplatePath($parentName);
-                    $parentCompiled = $this->compiledCache->get($parentPath);
-                    $parentCompiled->setTemplateLoader($loader);
-                    $parentCompiled->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
-                    $parentCompiled->setFilters($registry);
-                    $result = $parentCompiled->executeRaw($ctx_obj);
-                }
+                $result = $compiled->executeWithInheritance($ctx_obj);
                 if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                     $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
                     throw new \Ikabud\Kernel\DiSyL\Exceptions\TemplateOutputTooLargeException("Template output exceeds maximum allowed size");
@@ -4039,8 +4046,9 @@ class TemplateEngine
             return false;
         }
 
-        if (array_key_exists($templatePath, $this->compiledEligibilityCache)) {
-            return $this->compiledEligibilityCache[$templatePath];
+        $eligibilityKey = $templatePath . '|extends=' . ($this->compiledExtendsEnabled() ? '1' : '0');
+        if (array_key_exists($eligibilityKey, $this->compiledEligibilityCache)) {
+            return $this->compiledEligibilityCache[$eligibilityKey];
         }
 
         // Persistent file-based eligibility cache: avoid re-scanning template
@@ -4049,14 +4057,14 @@ class TemplateEngine
         if ($eligibilityCacheFile !== null && is_file($eligibilityCacheFile)) {
             $cached = @json_decode((string)@file_get_contents($eligibilityCacheFile), true);
             if (is_array($cached) && isset($cached['eligible'])) {
-                $this->compiledEligibilityCache[$templatePath] = (bool)$cached['eligible'];
+                $this->compiledEligibilityCache[$eligibilityKey] = (bool)$cached['eligible'];
                 return (bool)$cached['eligible'];
             }
         }
 
         $visited = [];
         $eligible = !$this->templateGraphUsesComponentTags($templatePath, $visited);
-        $this->compiledEligibilityCache[$templatePath] = $eligible;
+        $this->compiledEligibilityCache[$eligibilityKey] = $eligible;
 
         // Persist the result for future requests
         if ($eligibilityCacheFile !== null) {
@@ -4079,7 +4087,10 @@ class TemplateEngine
             return null;
         }
         $mtime = @filemtime($templatePath);
-        $hash = md5($templatePath . '|' . ($mtime ?: 0) . '|v' . self::COMPILED_ELIGIBILITY_CACHE_VERSION);
+        $hash = md5(
+            $templatePath . '|' . ($mtime ?: 0) . '|v' . self::COMPILED_ELIGIBILITY_CACHE_VERSION
+            . '|extends=' . ($this->compiledExtendsEnabled() ? '1' : '0')
+        );
         return $this->extendsCacheDir . '/elig_' . $hash . '.json';
     }
 
@@ -4111,7 +4122,7 @@ class TemplateEngine
         // ancestor block preservation) currently lives in processExtends().
         // Keep inherited templates on that enforcing path until the compiler
         // provides the same rejection and diagnostics contract.
-        if (str_contains($source, '{extends ')) {
+        if (str_contains($source, '{extends ') && !$this->compiledExtendsEnabled()) {
             return true;
         }
 
@@ -4137,6 +4148,16 @@ class TemplateEngine
         }
 
         return false;
+    }
+
+    /** The compiled inheritance path is opt-in until the guard is retired. */
+    private function compiledExtendsEnabled(): bool
+    {
+        $value = getenv('DISYL_EXTENDS_COMPILED');
+        if ($value === false) {
+            $value = $_ENV['DISYL_EXTENDS_COMPILED'] ?? $_SERVER['DISYL_EXTENDS_COMPILED'] ?? '';
+        }
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 
     /**

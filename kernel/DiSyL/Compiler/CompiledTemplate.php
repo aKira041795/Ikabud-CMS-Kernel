@@ -16,6 +16,7 @@ use Ikabud\Kernel\DiSyL\v4\FunctionRegistry;
 use Ikabud\Kernel\DiSyL\v4\AST\DocumentNode;
 use Ikabud\Kernel\DiSyL\CMS\CMSAdapterInterface;
 use Ikabud\Kernel\DiSyL\CMS\NullAdapter;
+use Ikabud\Kernel\DiSyL\Component\ExtendsProcessor;
 
 /**
  * Base class for compiled templates
@@ -26,6 +27,8 @@ abstract class CompiledTemplate
     protected FilterRegistry $filters;
     /** @var callable|null */
     protected $templateLoader = null;
+    /** @var callable|null A non-logging loader that returns null for a missing parent. */
+    protected $inheritanceLoader = null;
     /** @var callable|null */
     protected $errorHandler = null;
     /** @var array<string, true> Active compiled include names for cycle detection. */
@@ -64,6 +67,11 @@ abstract class CompiledTemplate
         $this->templateLoader = $loader;
     }
 
+    public function setInheritanceLoader(callable $loader): void
+    {
+        $this->inheritanceLoader = $loader;
+    }
+
     public function setErrorHandler(callable $handler): void
     {
         $this->errorHandler = $handler;
@@ -89,6 +97,66 @@ abstract class CompiledTemplate
     public function executeRaw(RenderContext $ctx): string
     {
         return $this->render($ctx);
+    }
+
+    /**
+     * Render this template and resolve its complete inheritance chain.
+     *
+     * Each successful parent replaces the current template output, matching
+     * interpreted inheritance. Includes call this method at their own boundary,
+     * preventing an included template's {extends} from escaping into its host.
+     */
+    public function executeWithInheritance(RenderContext $ctx): string
+    {
+        $result = $this->render($ctx);
+        $seen = [];
+        $depth = 0;
+        $loader = $this->inheritanceLoader ?? $this->templateLoader;
+        $maxDepth = ExtendsProcessor::extendsChainMax();
+
+        while (($parentName = $ctx->getParentTemplate()) !== null) {
+            if ($depth >= $maxDepth) {
+                $this->reportError('Extends chain depth exceeded maximum (' . $maxDepth . ')');
+                $ctx->setParentTemplate(null);
+                break;
+            }
+
+            $key = trim($parentName);
+            if (isset($seen[$key])) {
+                $this->reportError("Circular {extends} detected: \"{$parentName}\"");
+                $ctx->setParentTemplate(null);
+                break;
+            }
+
+            // Resolve the parent before rendering it (and therefore before it
+            // captures any blocks). A missing parent degrades to the current
+            // template as root, just as the interpreted processor does.
+            $ctx->setParentTemplate(null);
+            if ($loader === null) {
+                break;
+            }
+            try {
+                $parent = $loader($parentName);
+            } catch (\RuntimeException) {
+                break;
+            }
+            if (!$parent instanceof self) {
+                break;
+            }
+
+            $seen[$key] = true;
+            $result = $parent->render($ctx);
+            $depth++;
+        }
+
+        return $result;
+    }
+
+    private function reportError(string $message): void
+    {
+        if ($this->errorHandler !== null) {
+            ($this->errorHandler)($message);
+        }
     }
     
     /**
@@ -187,7 +255,7 @@ abstract class CompiledTemplate
 
                 $ctx->pushScope($variables);
                 try {
-                    return $loaded->render($ctx);
+                    return $loaded->executeWithInheritance($ctx);
                 } finally {
                     $ctx->popScope();
                 }
