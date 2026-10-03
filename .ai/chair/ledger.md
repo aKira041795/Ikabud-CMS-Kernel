@@ -159,12 +159,15 @@ Each line names the command that proves it. Re-run rather than re-read.
 
 **Do not act on these. Run the probe first.**
 
-- *Suspected:* S8 in `lane.sh selftest` is still ~1-in-3 flaky. *Probe:* run the selftest
-  3x with a clean process table (`pkill -f 'lane.sh watchdog'` first) and 3x without; a
-  single run proves nothing here — a dirty table already fooled me once into blaming a lane.
-  Known cause: after its wait the watchdog does `pgrep -f "$name.runner.sh"` and declines to
-  commit if `timeout(1)` left an orphaned inner bash alive. **STILL OPEN** — first attempt could
-  not run at all (every model unavailable, reported honestly with rc=1); re-dispatched.
+- **S8 flakiness — DISPROVEN (the suspicion was stale).** `bash tools/lane.sh selftest` run 8 times
+  directly: **8/8 clean, S8=PASS every time, 11 passed / 0 failed each** (~48s per run). The
+  suspicion described the state BEFORE the watchdog-poll leak fix (`5f7086c6`) landed the same day —
+  and it named that exact mechanism ("a leftover watchdog committed a second landing, S8 saw
+  journal=2"). Lesson recorded: delegate the FIX, not a measurement that is only repetition, and
+  check whether an earlier fix already addressed the mechanism a suspicion names.
+  The two dispatches cost ~30 min and were killed by MY OWN brief: I told the lane to run
+  `pkill -f 'lane.sh watchdog'`, and the lane's own process tree contains a `lane.sh` watchdog, so it
+  SIGTERM'd its own supervisor (`exit=143 log=0b`). Never put a self-matching `pkill` in a brief.
 - *CONFIRMED (was suspected):* `~/.config/harpp/config.json` duplicates concepts the control plane
   owns — it holds `cms.model`, `harpp_authority`, `tenant_id`, `advisor.backend`. Worse, it points
   at `tenant_id: 212` + `base_url: https://harpp.ikabudkernel.com` while the local test tenant is
