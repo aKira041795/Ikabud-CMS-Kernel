@@ -5277,31 +5277,21 @@ function dailyLedgerAuthLogin(): void
         $payload['name'] = $enteredFullName;
         $payload['full_name'] = $enteredFullName;
         if ($payloadId > 0) {
-            // The name typed at login may only CAPTURE a name that is not yet set.
-            // It must never overwrite an established profile name: anyone who can
-            // log in as a user could otherwise permanently rewrite that user's
-            // name, and every historical audit row resolved from it. Cashier
-            // usernames are shift labels (e.g. Cashier-KatipunanAM), so the first
-            // non-empty login still fills an empty profile.
+            // Two rules, selected by the explicit role list in
+            // dl_sharedBranchAccountRoles() (helpers.php):
+            //
+            //   * SHARED branch account (cashier): the account belongs to the
+            //     branch, so the name typed at login tracks its CURRENT holder.
+            //     A different name updates the profile on every login — the
+            //     owner-approved Option B. History stays safe because each audit
+            //     row carries its own per-event {actor_name, actor_username} stamp.
+            //   * PERSONAL account (admin, viewer, production_in_charge, anything
+            //     else): never overwrite an established name. The typed name may
+            //     only CAPTURE an empty profile; a refused overwrite is logged with
+            //     both values. This is the original defect and must not be reopened.
+            $sharedAccount = in_array($role, dl_sharedBranchAccountRoles(), true);
             try {
-                $persist = dlCtx()->db()->prepare(
-                    'UPDATE dl_users SET full_name = :fn
-                      WHERE id = :id AND deleted_at IS NULL
-                        AND (full_name IS NULL OR full_name = \'\')'
-                );
-                $persist->execute([
-                    ':fn' => mb_substr($enteredFullName, 0, 100),
-                    ':id' => $payloadId,
-                ]);
-                if ($persist->rowCount() > 0) {
-                    write_log('daily-ledger auth full_name persisted', 'info', [
-                        'user_id' => $payloadId,
-                        'username' => $username,
-                        'role' => $role,
-                    ]);
-                } else {
-                    // The profile already carried a name. Do not mutate it; make
-                    // the attempted overwrite visible with both values and the id.
+                if ($sharedAccount) {
                     $storedStmt = dlCtx()->db()->prepare(
                         'SELECT full_name FROM dl_users WHERE id = :id AND deleted_at IS NULL LIMIT 1'
                     );
@@ -5311,15 +5301,79 @@ function dailyLedgerAuthLogin(): void
                         write_log('daily-ledger auth full_name not persisted (user row missing)', 'warning', [
                             'user_id' => $payloadId,
                             'username' => $username,
+                            'role' => $role,
                             'entered_full_name' => $enteredFullName,
                         ]);
-                    } elseif (trim((string)$storedName) !== $enteredFullName) {
-                        write_log('daily-ledger auth full_name overwrite refused', 'warning', [
+                    } else {
+                        $previousFullName = trim((string)$storedName);
+                        $newFullName = mb_substr($enteredFullName, 0, 100);
+                        if ($previousFullName !== $newFullName) {
+                            $persist = dlCtx()->db()->prepare(
+                                'UPDATE dl_users SET full_name = :fn
+                                  WHERE id = :id AND deleted_at IS NULL'
+                            );
+                            $persist->execute([
+                                ':fn' => $newFullName,
+                                ':id' => $payloadId,
+                            ]);
+                            if ($persist->rowCount() > 0) {
+                                // Information, not noise: a shared branch account is
+                                // expected to change hands, so record the account and
+                                // the previous/next holder. This is a normal event.
+                                write_log('daily-ledger auth full_name updated for shared account', 'info', [
+                                    'user_id' => $payloadId,
+                                    'username' => $username,
+                                    'role' => $role,
+                                    'previous_full_name' => $previousFullName,
+                                    'new_full_name' => $newFullName,
+                                ]);
+                            }
+                        }
+                    }
+                } else {
+                    // The name typed at login may only CAPTURE a name that is not yet set.
+                    // It must never overwrite an established profile name: anyone who can
+                    // log in as a user could otherwise permanently rewrite that user's
+                    // name, and every historical audit row resolved from it. Cashier
+                    // usernames are shift labels (e.g. Cashier-KatipunanAM), so the first
+                    // non-empty login still fills an empty profile.
+                    $persist = dlCtx()->db()->prepare(
+                        'UPDATE dl_users SET full_name = :fn
+                          WHERE id = :id AND deleted_at IS NULL
+                            AND (full_name IS NULL OR full_name = \'\')'
+                    );
+                    $persist->execute([
+                        ':fn' => mb_substr($enteredFullName, 0, 100),
+                        ':id' => $payloadId,
+                    ]);
+                    if ($persist->rowCount() > 0) {
+                        write_log('daily-ledger auth full_name persisted', 'info', [
                             'user_id' => $payloadId,
                             'username' => $username,
-                            'stored_full_name' => (string)$storedName,
-                            'entered_full_name' => $enteredFullName,
+                            'role' => $role,
                         ]);
+                    } else {
+                        // The profile already carried a name. Do not mutate it; make
+                        // the attempted overwrite visible with both values and the id.
+                        $storedStmt = dlCtx()->db()->prepare(
+                            'SELECT full_name FROM dl_users WHERE id = :id AND deleted_at IS NULL LIMIT 1'
+                        );
+                        $storedStmt->execute([':id' => $payloadId]);
+                        $storedName = $storedStmt->fetchColumn();
+                        if ($storedName === false) {
+                            write_log('daily-ledger auth full_name not persisted (user row missing)', 'warning', [
+                                'user_id' => $payloadId,
+                                'username' => $username,
+                                'entered_full_name' => $enteredFullName,
+                            ]);
+                        } elseif (trim((string)$storedName) !== $enteredFullName) {
+                            write_log('daily-ledger auth full_name overwrite refused', 'warning', [
+                                'user_id' => $payloadId,
+                                'username' => $username,
+                                'stored_full_name' => (string)$storedName,
+                                'entered_full_name' => $enteredFullName,
+                            ]);
+                        }
                     }
                 }
             } catch (Throwable $e) {

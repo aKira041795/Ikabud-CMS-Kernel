@@ -126,7 +126,7 @@ $h->test('repair is conditional so a second run is a no-op',
 $h->test('repair writes an audit_logs record', str_contains($repairSql, 'INSERT INTO audit_logs'));
 
 // ─── AC4: login capture semantics ───────────────────────────────────
-$h->section('AC4: login only captures an empty profile');
+$h->section('AC4: personal accounts capture an empty profile only; shared accounts track the latest');
 
 $h->test('login persist is guarded on an empty stored name',
     str_contains($handlersSource, '(full_name IS NULL OR full_name ='));
@@ -134,6 +134,18 @@ $h->test('login logs a refused overwrite with both values and the id',
     str_contains($handlersSource, 'daily-ledger auth full_name overwrite refused')
     && str_contains($handlersSource, "'stored_full_name'")
     && str_contains($handlersSource, "'entered_full_name'"));
+// The empty-only guard above is the PERSONAL-account rule. A shared branch
+// account (cashier) instead reads its roles from the explicit helper added for
+// .ai/shared-account-latest-holder-contract.md and updates on every login.
+$h->test('the login applies the explicit shared-role helper, not an inline role literal',
+    str_contains($handlersSource, 'in_array($role, dl_sharedBranchAccountRoles(), true)'));
+$h->test('the shared list is cashier only and excludes production_in_charge',
+    dl_sharedBranchAccountRoles() === ['cashier'],
+    json_encode(dl_sharedBranchAccountRoles()));
+$h->test('the shared-name update is logged as information with both values',
+    str_contains($handlersSource, 'daily-ledger auth full_name updated for shared account')
+    && str_contains($handlersSource, "'previous_full_name'")
+    && str_contains($handlersSource, "'new_full_name'"));
 
 // Exercise the exact guarded UPDATE: an established name must not change; an
 // empty one must be captured exactly once.
