@@ -97,7 +97,12 @@ Report the substance, skip the ceremony.
   `bead7377`). Flag `DISYL_EXTENDS_COMPILED` ships **OFF by default**; the guard was NOT
   flipped. Reason: the flip is global (364 templates) and only daily-ledger has browser
   coverage. Do not flip it as a tidy-up.
-- **HARPP presence work** — design agreed this session; nothing built yet beyond this file.
+- **HARPP UI redesign** — DONE, committed `2035bec5`. Palette (Slate & Signal), 3px radius
+  ceiling, the flow fixes and three proven-only removals, all verified in a real browser.
+  Commands are in `proven` below.
+- **HARPP presence work** — the ledger exists; the completion push is still unproven end-to-end
+  (see `suspected`). HARPP now runs locally against tenant 1232 on `harpp.test`, so that probe is
+  finally possible.
 
 ## proven
 
@@ -117,6 +122,18 @@ Each line names the command that proves it. Re-run rather than re-read.
   `python3 -m unittest discover -s tools/harpp-bridge/tests`
 - One signature source, zero literal duplicates:
   `grep -cE 'rate\.\?limit|too many requests|model is not supported' tools/lane.sh tools/lane-model.sh tools/harpp-bridge/harpp_wake.py`
+- HARPP UI acceptance, 11/11 pages in a real browser: `node tools/harpp-ui-verify.js`
+  Expect 200 on every page, 0 console errors, 0 contrast pairs under 4.5, and the ONLY
+  border-radius above 3px is `span#harpp-unread.badge` (a deliberate shape, allowed).
+  It resolves playwright from the repo root, so it runs from any cwd without `NODE_PATH`.
+- No JS selector was broken by the UI rewrite:
+  `python3 tools/harpp-selector-audit.py harpp` — expect `missing=0`, rc=0 (88 checked).
+  `js_created=1` is `.save-user`, a class the JS builds itself — correct, not a finding.
+- The palette is on screen, measured in PIXELS not prose: dominant pixels are `#0d1014` /
+  `#15191f`, the old navy+cyan appear ZERO times, and `#7aa2f7` is 0.08% of pixels (that
+  scarcity is what makes the accent readable as "interactive").
+- `login.disyl` is standalone and must NOT use `var()`: `grep -c 'var(--' templates/modules/harpp/login.disyl`
+  Expect 0. It carries the palette as literals because no token is defined on that page.
 
 ## suspected
 
@@ -130,9 +147,17 @@ Each line names the command that proves it. Re-run rather than re-read.
 - *Suspected:* flipping `DISYL_EXTENDS_COMPILED` is safe for modules **other than**
   daily-ledger. *Probe:* render their real pages both ways and byte-compare. Parity covers
   constructs, not pages; the include leak survived 170/170 for exactly this reason.
-- *Suspected:* `~/.config/harpp/config.json` duplicates concepts the control plane owns
-  (`model`, `harpp_authority`, `tenant_id`), so the desktop can drift from the app.
-  *Probe:* change a value app-side, confirm the desktop picks it up without a local edit.
+- *Suspected:* the completion push reaches the owner end-to-end. *Probe:* run the bridge against
+  tenant 1232 on `harpp.test`, complete one bounded task, and confirm a COMPLETED notification
+  arrives without opening the workstation. `COMPLETED` was added to `OWNER_MESSAGE_TYPES` and
+  `IMPORTANT_MESSAGE_TYPES`, but "the type is routed" is not "the push arrives".
+- *Suspected:* `php ikabud migrate` masks failures. It reported a "stale migration history" skip
+  while `MigrationRunner::migrate("harpp")` succeeded (19 migrations). *Probe:* run the runner
+  directly and compare with what the CLI claimed. A `! skip` is not evidence.
+- *Suspected:* `tenant:provision` cannot seed an admin for an email-only auth module — the generic
+  insert hardcodes `username`/`full_name` while the block already loads `$authSpec` and ignores
+  `email_column`. *Probe:* provision a throwaway tenant whose auth module is email-only; expect a
+  loud failure, not silent mis-seeding. This is a kernel defect, not a HARPP one.
 
 ## blocked
 
@@ -162,3 +187,13 @@ Mistakes that already cost this project real time. Not advice — rules.
 7. **Measure the real object, not a proxy.** Timing a `COUNT(*)` instead of the page query,
    and grepping a limit that a later `LIMIT` clause made irrelevant, both produced wrong
    conclusions.
+8. **Do not measure while the thing is being written.** Auditing the UI while a lane was editing
+   made one page fail with `ERR_ABORTED`; it was clean on a quiet tree. I nearly reported a real
+   regression that did not exist. Wait for the writers to stop or the result is about timing.
+9. **A clever pre-filter can create the false negative it was meant to prevent.** Asking "is this
+   class built dynamically?" with a pattern for `'status-' +` missed a class literal sitting inside
+   a ternary, and nearly had me delete a LIVE class. The plain repo-wide token count I ran second
+   was already correct. When a direct search answers the question, do not pre-filter it.
+10. **Two patterns for one concept will drift.** `status_line()` and `classify_log()` each carried
+   their own status regex; the stricter one announced a lane as having no status line while its own
+   landing marker contained one. The fix was one calling the other, so they cannot diverge again.
