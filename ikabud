@@ -225,125 +225,12 @@ function cliModuleManifest(string $moduleId): ?array
     return is_array($manifest) ? $manifest : null;
 }
 
-function cliModuleTenantTargets(?string $moduleId = null): array
+function cliRunBaseModuleMigration(MigrationRunner $runner, string $moduleId): array
 {
-    if (!function_exists('tenantSeparateDatabaseMigrationTargets')) {
-        return [];
-    }
-
-    $targets = tenantSeparateDatabaseMigrationTargets();
-    $moduleId = trim((string)$moduleId);
-    if ($moduleId === '') {
-        return $targets;
-    }
-
-    $filtered = [];
-    foreach ($targets as $target) {
-        if (!is_array($target)) {
-            continue;
-        }
-
-        $entryModuleId = trim((string)($target['entry_module_id'] ?? ''));
-        $plan = function_exists('tenantProvisionModulePlan')
-            ? tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null)
-            : [];
-        if (in_array($moduleId, $plan, true)) {
-            $filtered[] = $target;
-        }
-    }
-
-    return $filtered;
-}
-
-function cliDbHasAnyOwnedModuleTable(PDO $db, ?array $manifest): bool
-{
-    if (!is_array($manifest)) {
-        return false;
-    }
-
-    $tables = $manifest['owns_tables'] ?? [];
-    if (!is_array($tables) || $tables === []) {
-        return false;
-    }
-
-    foreach ($tables as $table) {
-        $table = trim((string)$table);
-        if ($table === '') {
-            continue;
-        }
-
-        try {
-            $exists = $db->query('SHOW TABLES LIKE ' . $db->quote($table))->fetchColumn();
-            if ($exists !== false) {
-                return true;
-            }
-        } catch (Throwable $e) {
-            return false;
-        }
-    }
-
-    return false;
-}
-
-function cliModuleHasMigrationHistory(PDO $db, string $moduleId): bool
-{
-    try {
-        $stmt = $db->prepare('SELECT 1 FROM `_migrations` WHERE module = :module LIMIT 1');
-        $stmt->execute([':module' => $moduleId]);
-        return $stmt->fetchColumn() !== false;
-    } catch (Throwable $e) {
-        return false;
-    }
-}
-
-function cliShouldTreatBaseMigrationFailureAsTenantOnly(PDO $db, string $moduleId, ?array $manifest, array $tenantTargets, Throwable $e): bool
-{
-    if ($tenantTargets === []) {
-        return false;
-    }
-
-    $message = $e->getMessage();
-    if (!str_contains($message, 'SQLSTATE[42S02]') && !str_contains($message, 'Base table or view not found')) {
-        return false;
-    }
-
-    if (cliDbHasAnyOwnedModuleTable($db, $manifest)) {
-        return false;
-    }
-
-    return cliModuleHasMigrationHistory($db, $moduleId);
-}
-
-function cliRunBaseModuleMigration(MigrationRunner $runner, PDO $baseDb, string $moduleId): array
-{
-    if ($moduleId === '_kernel' || $moduleId === '_control') {
-        return [
-            'executed' => $runner->migrate($moduleId),
-            'skipped' => false,
-            'warning' => '',
-        ];
-    }
-
-    $manifest = cliModuleManifest($moduleId);
-    $tenantTargets = cliModuleTenantTargets($moduleId);
-
-    try {
-        return [
-            'executed' => $runner->migrate($moduleId),
-            'skipped' => false,
-            'warning' => '',
-        ];
-    } catch (Throwable $e) {
-        if (!cliShouldTreatBaseMigrationFailureAsTenantOnly($baseDb, $moduleId, $manifest, $tenantTargets, $e)) {
-            throw $e;
-        }
-
-        return [
-            'executed' => [],
-            'skipped' => true,
-            'warning' => $e->getMessage(),
-        ];
-    }
+    // A runner exception is a migration failure, never evidence that a module
+    // is "tenant-only". Let the migrate command's outer handler report it and
+    // exit non-zero so pending work cannot masquerade as a clean skip.
+    return ['executed' => $runner->migrate($moduleId)];
 }
 
 function cliResolveEntryAuthAlias(string $moduleId): string
@@ -2019,14 +1906,24 @@ switch ($command) {
                 $tableCheck = $tableStmt->fetchColumn();
                 $tableStmt->closeCursor();
                 if ($tableCheck !== false) {
-                    $existStmt = $tenantPdo->prepare("SELECT id FROM `{$usersTable}` WHERE username = :u LIMIT 1");
-                    $existStmt->execute([':u' => $adminUser]);
+                    $hash = password_hash($adminPass, PASSWORD_BCRYPT);
+                    $authSeedPlan = null;
+                    if (is_array($authSpec) && $usersTable !== 'cms_users' && $usersTable !== 'bakeshop_users') {
+                        if (!function_exists('kernelBuildAuthOwnedAdminSeedPlan')) {
+                            throw new RuntimeException("Cannot seed admin for module {$entryModule}: auth-owned SQL planner is unavailable");
+                        }
+                        $authSeedPlan = kernelBuildAuthOwnedAdminSeedPlan($authSpec, $adminUser, $hash, $adminName, $tenantId);
+                        $existStmt = $tenantPdo->prepare((string)$authSeedPlan['lookup_sql']);
+                        $existStmt->execute((array)$authSeedPlan['lookup_params']);
+                    } else {
+                        $existStmt = $tenantPdo->prepare("SELECT id FROM `{$usersTable}` WHERE username = :u LIMIT 1");
+                        $existStmt->execute([':u' => $adminUser]);
+                    }
                     $existingUser = $existStmt->fetch();
                     $existStmt->closeCursor();
                     if ($existingUser) {
                         out('  ' . yellow('!') . " User '{$adminUser}' already exists in {$usersTable}");
                     } else {
-                        $hash = password_hash($adminPass, PASSWORD_BCRYPT);
                         if ($usersTable === 'cms_users') {
                             // CMS users table uses password_hash, display_name, email, and ENUM roles
                             $insertStmt = $tenantPdo->prepare(
@@ -2050,8 +1947,11 @@ switch ($command) {
                                 ':p' => $hash,
                                 ':n' => $adminName,
                             ]);
+                        } elseif (is_array($authSeedPlan)) {
+                            $insertStmt = $tenantPdo->prepare((string)$authSeedPlan['insert_sql']);
+                            $insertStmt->execute((array)$authSeedPlan['insert_params']);
                         } else {
-                            // Kernel / auth-owned users table (password_hash / is_active columns)
+                            // Legacy kernel users table for modules without auth_owned.
                             $insertStmt = $tenantPdo->prepare(
                                 "INSERT INTO `{$usersTable}` (username, email, password_hash, full_name, role, is_active) "
                                 . "VALUES (:u, :e, :p, :n, :r, 1)"
@@ -4457,8 +4357,11 @@ MD;
     case 'migrate':
         banner();
         try {
-            $runner = new MigrationRunner(app()->db());
+            // CLI module migrations always target the configured primary DB.
+            // The synthetic CLI host must not resolve app()->db() to a tenant DB.
+            app()->tenant()->setTenantId(null);
             $baseDb = app()->db();
+            $runner = new MigrationRunner($baseDb);
             $requestedModuleId = !empty($params[0]) ? trim((string)$params[0]) : null;
             $tenantTargets = function_exists('tenantSeparateDatabaseMigrationTargets')
                 ? tenantSeparateDatabaseMigrationTargets()
@@ -4468,7 +4371,7 @@ MD;
                 // Single module
                 $moduleId = $requestedModuleId;
                 out('  Running migrations for: ' . bold($moduleId));
-                $baseResult = cliRunBaseModuleMigration($runner, $baseDb, $moduleId);
+                $baseResult = cliRunBaseModuleMigration($runner, $moduleId);
                 $executed = is_array($baseResult['executed'] ?? null) ? $baseResult['executed'] : [];
                 if (empty($executed)) {
                     out('  ' . dim('Nothing to migrate.'));
@@ -4478,18 +4381,12 @@ MD;
                     }
                     out('  ' . green('✓') . bold(' ' . count($executed) . ' migration(s) executed.'));
                 }
-
-                if (!empty($baseResult['skipped'])) {
-                    out('  ' . yellow('!') . ' Base DB migration skipped: stale migration history exists in ' . (string)app()->config('database.database', 'app') . ' but the module tables are absent there.');
-                    out('  ' . dim('Continuing with separate tenant database sync for this module.'));
-                }
             } else {
                 // All modules
                 out('  Running all pending migrations...');
                 out('');
                 $results = [];
                 $totalCount = 0;
-                $skippedBaseModules = [];
 
                 $kernelResult = $runner->migrate('_kernel');
                 if ($kernelResult !== []) {
@@ -4502,13 +4399,10 @@ MD;
                         continue;
                     }
 
-                    $baseResult = cliRunBaseModuleMigration($runner, $baseDb, $moduleId);
+                    $baseResult = cliRunBaseModuleMigration($runner, $moduleId);
                     $moduleExecuted = is_array($baseResult['executed'] ?? null) ? $baseResult['executed'] : [];
                     if ($moduleExecuted !== []) {
                         $results[$moduleId] = $moduleExecuted;
-                    }
-                    if (!empty($baseResult['skipped'])) {
-                        $skippedBaseModules[$moduleId] = (string)($baseResult['warning'] ?? '');
                     }
                 }
 
@@ -4524,14 +4418,6 @@ MD;
                     }
                     out('');
                     out('  ' . green('✓') . bold(" {$totalCount} migration(s) executed across " . count($results) . ' module(s).'));
-                }
-
-                if (!empty($skippedBaseModules)) {
-                    out('');
-                    foreach ($skippedBaseModules as $moduleId => $warning) {
-                        out('  ' . yellow('!') . ' Skipped base DB migration for ' . bold((string)$moduleId) . ' because the primary DB only has stale migration history for that module.');
-                    }
-                    out('  ' . dim('Separate tenant database sync will apply those modules where they actually belong.'));
                 }
 
                 // Late Bluehost username case-sensitivity hardening. This ALTERs
@@ -4638,8 +4524,8 @@ MD;
 
                 if (!empty($tenantFailures)) {
                     out('');
-                    out('  ' . yellow('!') . ' ' . count($tenantFailures) . ' separate tenant database(s) could not be synchronized.');
-                    out('  ' . dim('See storage/logs/app.log for tenant connection details.'));
+                    out('  ' . red('✗') . ' ' . count($tenantFailures) . ' separate tenant database(s) could not be synchronized.');
+                    throw new RuntimeException('Tenant migration sync failed: ' . implode('; ', $tenantFailures));
                 }
             }
         } catch (\Throwable $e) {

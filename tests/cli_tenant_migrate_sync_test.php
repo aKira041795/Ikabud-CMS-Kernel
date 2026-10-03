@@ -213,24 +213,36 @@ try {
     $result = shellWithExitCode($command);
     $output = trim((string)($result['output'] ?? ''));
 
-    t('CLI migrate succeeds when base DB has stale module migration history', (int)($result['exit_code'] ?? 1) === 0, $output);
-    t('CLI output warns that the base DB module migration was skipped', str_contains($output, 'Base DB migration skipped'), $output);
-    t('CLI output still mentions separate tenant sync after stale base history', str_contains($output, 'Syncing separate tenant databases'), $output);
+    t('CLI migrate fails when a pending base migration cannot run', (int)($result['exit_code'] ?? 0) !== 0, $output);
+    t('CLI reports the actual pending migration failure', str_contains($output, 'Migration failed:') && str_contains($output, $tableName), $output);
+    t('CLI never labels a pending migration failure as a skip', !str_contains($output, 'Base DB migration skipped'), $output);
 
     $baseTableExists = $baseDb->query("SHOW TABLES LIKE '{$tableName}'")->fetchColumn() !== false;
     $tenantDb = app()->reconnectDbForTenant($tenantId) ?? $tenantDb;
     $tenantColumnExists = $tenantDb->query("SHOW COLUMNS FROM `{$tableName}` LIKE '{$noteColumn}'")->fetchColumn() !== false;
 
-    t('stale base DB table remains absent after migrate fallback', !$baseTableExists);
-    t('second migration still runs on the separate tenant DB', $tenantColumnExists);
+    t('failed base migration leaves the missing base table absent', !$baseTableExists);
+    t('failed base migration does not continue to tenant sync', !$tenantColumnExists);
 
     $baseSecondRow = $baseDb->prepare('SELECT migration FROM `_migrations` WHERE module = :module AND migration = :migration LIMIT 1');
     $baseSecondRow->execute([':module' => $moduleId, ':migration' => '002_add_cli_tenant_sync_note.sql']);
     $tenantSecondRow = $tenantDb->prepare('SELECT migration FROM `_migrations` WHERE module = :module AND migration = :migration LIMIT 1');
     $tenantSecondRow->execute([':module' => $moduleId, ':migration' => '002_add_cli_tenant_sync_note.sql']);
 
-    t('primary DB does not record the stale fallback migration', $baseSecondRow->fetchColumn() === false);
-    t('tenant DB records the second migration after fallback', (string)$tenantSecondRow->fetchColumn() === '002_add_cli_tenant_sync_note.sql');
+    t('primary DB does not record the failed pending migration', $baseSecondRow->fetchColumn() === false);
+    t('tenant DB does not record work after the base failure', $tenantSecondRow->fetchColumn() === false);
+
+    // Repair the stale base schema and prove the same pending migration then
+    // runs normally on both targets rather than being classified as a skip.
+    $baseDb->exec("CREATE TABLE `{$tableName}` (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $result = shellWithExitCode($command);
+    $output = trim((string)($result['output'] ?? ''));
+    $tenantDb = app()->reconnectDbForTenant($tenantId) ?? $tenantDb;
+    $baseColumnExists = $baseDb->query("SHOW COLUMNS FROM `{$tableName}` LIKE '{$noteColumn}'")->fetchColumn() !== false;
+    $tenantColumnExists = $tenantDb->query("SHOW COLUMNS FROM `{$tableName}` LIKE '{$noteColumn}'")->fetchColumn() !== false;
+    t('CLI migrate succeeds after the base schema is repaired', (int)($result['exit_code'] ?? 1) === 0, $output);
+    t('repaired pending migration runs on the primary DB', $baseColumnExists, $output);
+    t('repaired pending migration runs on the tenant DB', $tenantColumnExists, $output);
 
     $insertTenant = $controlDb->prepare(
         'INSERT INTO kernel_tenants (tenant_key, status, entry_module_id) VALUES (:tenant_key, :status, NULL)'
@@ -257,13 +269,13 @@ try {
         ':db_charset' => 'utf8mb4',
     ]);
 
-    $command = 'php ' . escapeshellarg(BASE_PATH . '/ikabud') . ' migrate 2>&1';
+    $command = 'php ' . escapeshellarg(BASE_PATH . '/ikabud') . ' migrate ' . escapeshellarg($moduleId) . ' 2>&1';
     $result = shellWithExitCode($command);
     $output = trim((string)($result['output'] ?? ''));
 
-    t('generic CLI migrate exits successfully with a no-entry separate tenant present', (int)($result['exit_code'] ?? 1) === 0, $output);
-    t('generic CLI migrate lists the no-entry tenant', str_contains($output, '#' . $tempNoEntryTenantId . ' ' . $tempNoEntryTenantKey), $output);
-    t('generic CLI migrate skips no-entry tenants without connection warnings', str_contains($output, 'No entry module; skipping tenant DB sync.'), $output);
+    t('explicit CLI migrate succeeds with a no-entry separate tenant present', (int)($result['exit_code'] ?? 1) === 0, $output);
+    t('explicit CLI migrate lists the no-entry tenant', str_contains($output, '#' . $tempNoEntryTenantId . ' ' . $tempNoEntryTenantKey), $output);
+    t('explicit CLI migrate truthfully explains the no-entry skip', str_contains($output, 'No entry module; skipping tenant DB sync.'), $output);
 
     $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
     $errorLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';

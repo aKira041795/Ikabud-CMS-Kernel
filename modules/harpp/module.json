@@ -476,6 +476,7 @@
     "auth_cookie": "harpp_token",
     "auth_owned": {
         "users_table": "harpp_users",
+        "username_column": null,
         "email_column": "email",
         "password_column": "password_hash",
         "name_column": "full_name",

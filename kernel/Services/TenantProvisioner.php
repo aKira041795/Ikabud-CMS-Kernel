@@ -479,8 +479,12 @@ class TenantProvisioner
             }
 
             $idCol       = trim((string)($spec['id_column'] ?? 'id'));
-            $usernameCol = (string)$spec['username_column'];
-            $emailCol    = (string)$spec['email_column'];
+            $usernameCol = trim((string)($spec['username_column'] ?? ''));
+            $emailCol    = trim((string)($spec['email_column'] ?? ''));
+            $identityCol = $usernameCol !== '' ? $usernameCol : $emailCol;
+            if ($identityCol === '') {
+                return ['ok' => false, 'error' => "Cannot seed admin for module {$spec['module_id']}: required auth_owned identity fields username_column and email_column are unresolved"];
+            }
             $pwdCol      = (string)$spec['password_column'];
             $nameCol     = (string)$spec['name_column'];
             $activeCol   = (string)$spec['active_column'];
@@ -493,8 +497,8 @@ class TenantProvisioner
 
             // Idempotency lookup uses the declared id_column and tenant_id
             // column (when tenant-scoped) — same columns as the insert.
-            $lookupCols = [$usernameCol];
-            $lookupWhere = "`{$usernameCol}` = :u";
+            $lookupCols = [$identityCol];
+            $lookupWhere = "`{$identityCol}` = :u";
             $lookupParams = [':u' => $user];
             $tenantIdColumn = trim((string)($spec['tenant_id_column'] ?? ''));
             if ($tenantIdColumn !== '') {
@@ -517,7 +521,7 @@ class TenantProvisioner
             $hash = password_hash($pass, PASSWORD_BCRYPT);
 
             // Build the insert column list.
-            $cols = ['`' . $usernameCol . '`'];
+            $cols = ['`' . $identityCol . '`'];
             $vals = [':u'];
             $params = [':u' => $user];
 
@@ -528,7 +532,7 @@ class TenantProvisioner
                 $params[':tid'] = $provisionedTenantId;
             }
 
-            if ($emailCol !== '' && $emailCol !== $usernameCol) {
+            if ($emailCol !== '' && $emailCol !== $identityCol) {
                 $cols[] = '`' . $emailCol . '`';
                 $vals[] = ':e';
                 $params[':e'] = $user . '@localhost';

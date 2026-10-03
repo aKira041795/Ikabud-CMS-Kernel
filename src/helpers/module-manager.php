@@ -1984,7 +1984,7 @@ function validateAuthOwnedSpec(mixed $raw, bool $strictReservedRoles = false): a
         return ['ok' => false, 'error' => 'module.json field auth_owned.users_table must be a valid identifier'];
     }
 
-    foreach (['username_column', 'email_column', 'password_column', 'name_column', 'active_column', 'deleted_column', 'tenant_id_column'] as $colField) {
+    foreach (['id_column', 'username_column', 'email_column', 'password_column', 'name_column', 'active_column', 'deleted_column', 'tenant_id_column', 'role_column'] as $colField) {
         if (!array_key_exists($colField, $raw) || $raw[$colField] === null) {
             continue;
         }
@@ -2065,18 +2065,106 @@ function kernelNormalizeAuthOwnedSpec(string $moduleId, array $raw): array
     return [
         'module_id'                          => $moduleId,
         'users_table'                        => (string)$raw['users_table'],
-        'username_column'                    => (string)($raw['username_column'] ?? 'username'),
-        'email_column'                       => (string)($raw['email_column'] ?? 'email'),
-        'password_column'                    => (string)($raw['password_column'] ?? 'password_hash'),
-        'name_column'                        => (string)($raw['name_column'] ?? 'full_name'),
-        'active_column'                      => isset($raw['active_column']) && $raw['active_column'] !== null ? (string)$raw['active_column'] : 'is_active',
+        'id_column'                          => array_key_exists('id_column', $raw) && $raw['id_column'] !== null ? (string)$raw['id_column'] : 'id',
+        'username_column'                    => array_key_exists('username_column', $raw) && $raw['username_column'] === null ? null : (string)($raw['username_column'] ?? 'username'),
+        'email_column'                       => array_key_exists('email_column', $raw) && $raw['email_column'] === null ? null : (string)($raw['email_column'] ?? 'email'),
+        'password_column'                    => array_key_exists('password_column', $raw) && $raw['password_column'] === null ? null : (string)($raw['password_column'] ?? 'password_hash'),
+        'name_column'                        => array_key_exists('name_column', $raw) && $raw['name_column'] === null ? null : (string)($raw['name_column'] ?? 'full_name'),
+        'active_column'                      => array_key_exists('active_column', $raw) && $raw['active_column'] === null ? null : (string)($raw['active_column'] ?? 'is_active'),
         'deleted_column'                     => isset($raw['deleted_column']) && $raw['deleted_column'] !== null ? (string)$raw['deleted_column'] : null,
         'tenant_id_column'                   => isset($raw['tenant_id_column']) && $raw['tenant_id_column'] !== null ? (string)$raw['tenant_id_column'] : null,
+        'role_column'                        => array_key_exists('role_column', $raw) && $raw['role_column'] === null ? null : (string)($raw['role_column'] ?? 'role'),
         'admin_roles'                        => $adminRoles,
         'default_admin_role'                 => $defaultRole,
         'requires_named_admin_on_provision'  => !empty($raw['requires_named_admin_on_provision']),
         'blocked_password_hashes'            => $blocked,
         'touch_updated_at'                   => array_key_exists('touch_updated_at', $raw) ? (bool)$raw['touch_updated_at'] : true,
+    ];
+}
+
+/**
+ * Build the idempotency lookup and insert for a manifest-owned admin account.
+ * Column identifiers come only from a validated, normalized auth_owned spec.
+ *
+ * @return array{lookup_sql: string, lookup_params: array<string, mixed>, insert_sql: string, insert_params: array<string, mixed>}
+ */
+function kernelBuildAuthOwnedAdminSeedPlan(array $spec, string $user, string $passwordHash, string $name, int $tenantId): array
+{
+    $moduleId = trim((string)($spec['module_id'] ?? ''));
+    $moduleLabel = $moduleId !== '' ? $moduleId : '(unknown module)';
+    $table = trim((string)($spec['users_table'] ?? ''));
+    if ($table === '') {
+        throw new RuntimeException("Cannot seed admin for module {$moduleLabel}: required auth_owned field users_table is unresolved");
+    }
+
+    $usernameCol = trim((string)($spec['username_column'] ?? ''));
+    $emailCol = trim((string)($spec['email_column'] ?? ''));
+    $identityCol = $usernameCol !== '' ? $usernameCol : $emailCol;
+    if ($identityCol === '') {
+        throw new RuntimeException("Cannot seed admin for module {$moduleLabel}: required auth_owned identity fields username_column and email_column are unresolved");
+    }
+
+    $passwordCol = trim((string)($spec['password_column'] ?? ''));
+    $roleCol = trim((string)($spec['role_column'] ?? ''));
+    foreach (['password_column' => $passwordCol, 'role_column' => $roleCol] as $field => $column) {
+        if ($column === '') {
+            throw new RuntimeException("Cannot seed admin for module {$moduleLabel}: required auth_owned field {$field} is unresolved");
+        }
+    }
+
+    $tenantIdCol = trim((string)($spec['tenant_id_column'] ?? ''));
+    if ($tenantIdCol !== '' && $tenantId <= 0) {
+        throw new RuntimeException("Cannot seed admin for module {$moduleLabel}: tenant_id_column is configured but the tenant id is unavailable");
+    }
+
+    $lookupWhere = "`{$identityCol}` = :identity";
+    $lookupParams = [':identity' => $user];
+    if ($tenantIdCol !== '') {
+        $lookupWhere .= " AND `{$tenantIdCol}` = :tenant_id";
+        $lookupParams[':tenant_id'] = $tenantId;
+    }
+
+    $columns = ["`{$identityCol}`"];
+    $values = [':identity'];
+    $params = [':identity' => $user];
+
+    if ($tenantIdCol !== '') {
+        $columns[] = "`{$tenantIdCol}`";
+        $values[] = ':tenant_id';
+        $params[':tenant_id'] = $tenantId;
+    }
+    if ($emailCol !== '' && $emailCol !== $identityCol) {
+        $columns[] = "`{$emailCol}`";
+        $values[] = ':email';
+        $params[':email'] = $user . '@localhost';
+    }
+
+    $columns[] = "`{$passwordCol}`";
+    $values[] = ':password';
+    $params[':password'] = $passwordHash;
+
+    $nameCol = trim((string)($spec['name_column'] ?? ''));
+    if ($nameCol !== '') {
+        $columns[] = "`{$nameCol}`";
+        $values[] = ':name';
+        $params[':name'] = $name;
+    }
+
+    $columns[] = "`{$roleCol}`";
+    $values[] = ':role';
+    $params[':role'] = (string)($spec['default_admin_role'] ?? 'admin');
+
+    $activeCol = trim((string)($spec['active_column'] ?? ''));
+    if ($activeCol !== '') {
+        $columns[] = "`{$activeCol}`";
+        $values[] = '1';
+    }
+
+    return [
+        'lookup_sql' => "SELECT 1 FROM `{$table}` WHERE {$lookupWhere} LIMIT 1",
+        'lookup_params' => $lookupParams,
+        'insert_sql' => "INSERT INTO `{$table}` (" . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ')',
+        'insert_params' => $params,
     ];
 }
 
