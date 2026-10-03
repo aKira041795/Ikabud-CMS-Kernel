@@ -65,6 +65,8 @@ const STAMP = 'chair-probe-' + Date.now();
     await page.waitForTimeout(2500);
   }
   console.log('   url now ' + page.url());
+  const created = /conversation=\d+/.test(page.url());
+  console.log('   conversation created: ' + created);
 
   // Send one message through the compose form.
   const compose = page.locator('#compose');
@@ -83,9 +85,32 @@ const STAMP = 'chair-probe-' + Date.now();
   console.log('4. message sent through UI: ' + sent + '  (body=' + STAMP + ')');
   // Assert the OUTCOME, not the click. A clicked button proves nothing.
   const status = await page.locator('#messenger-status').innerText().catch(() => '');
-  console.log('5. #messenger-status says: ' + JSON.stringify(status.trim().slice(0, 80)));
-  console.log('6. dialogs handled: ' + dialogs.length + (dialogs.length ? ' -> ' + dialogs.join(' | ') : ''));
+  const statusText = status.trim().slice(0, 80);
+  console.log('5. #messenger-status says: ' + JSON.stringify(statusText));
+  console.log('6. native dialogs: ' + dialogs.length + (dialogs.length ? ' -> ' + dialogs.join(' | ') : ''));
   console.log('7. console errors: ' + errors.length + (errors.length ? ' -> ' + errors.join(' | ') : ''));
   console.log('STAMP=' + STAMP);
+
+  // ---- ACCEPTANCE ----
+  // The requirement is that creating a conversation uses NO native browser dialogs and never
+  // fails silently. The handler above still answers dialogs so this probe can complete against
+  // the unfixed build, but their PRESENCE is the defect: a native prompt() cannot be styled, is
+  // suppressed in some contexts, and returns null when dismissed - at which point
+  // createConversation returns with no feedback at all. Two failures, reported separately so a
+  // red is never ambiguous.
+  const failures = [];
+  if (!created) failures.push('no conversation was created (the create step did not reach the API)');
+  if (dialogs.length > 0) failures.push(dialogs.length + ' native dialog(s) appeared; the UI must not use prompt()/confirm()');
+  if (sent && statusText && /select a conversation/i.test(statusText)) failures.push('compose reported "' + statusText + '" instead of confirming the send');
+
+  console.log('');
+  if (failures.length === 0) {
+    console.log('=== RESULT: PASS - conversation created and message sent with no native dialogs ===');
+    await browser.close();
+    return;
+  }
+  for (const f of failures) console.log('  FAIL: ' + f);
+  console.log('=== RESULT: FAIL ===');
   await browser.close();
+  process.exit(1);
 })().catch((e) => { console.error('FATAL: ' + e.message); process.exit(1); });
