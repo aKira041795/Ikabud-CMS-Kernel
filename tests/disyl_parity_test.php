@@ -15,6 +15,7 @@ require_once __DIR__ . '/../bootstrap.php';
 
 use Ikabud\Kernel\DiSyL\TemplateEngine;
 use Ikabud\Kernel\DiSyL\Compiler\TemplateCache;
+use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
 // ── Test infrastructure ─────────────────────────────────
 
@@ -88,25 +89,122 @@ function interpreted(TemplateEngine $engine, string $source, array $ctx): string
 /**
  * Render a template source through the compiled pipeline.
  */
-function compiled(TemplateCache $cache, string $source, array $ctx, string $name = 'parity'): string
-{
+function compiled(
+    TemplateCache $cache,
+    string $source,
+    array $ctx,
+    string $name = 'parity',
+    ?array &$errors = null
+): string {
+    global $parityTemplateDir;
+
+    $errors = [];
+    $loader = null;
+    $loader = static function (string $templateName) use ($cache, &$loader, &$errors, $parityTemplateDir) {
+        $path = $parityTemplateDir . '/' . (str_ends_with($templateName, '.disyl')
+            ? $templateName
+            : $templateName . '.disyl');
+        $loaded = $cache->get($path);
+        $loaded->setTemplateLoader($loader);
+        $loaded->setErrorHandler(static function (string $error) use (&$errors): void {
+            $errors[] = $error;
+        });
+        return $loaded;
+    };
+
     $template = $cache->compileSource($source, $name);
-    return $template->execute($ctx);
+    $template->setTemplateLoader($loader);
+    $template->setErrorHandler(static function (string $error) use (&$errors): void {
+        $errors[] = $error;
+    });
+
+    // Mirror TemplateEngine's currently guarded compiled inheritance handoff.
+    $renderContext = new RenderContext($ctx);
+    $result = $template->executeRaw($renderContext);
+    $maxExtendsDepth = 10;
+    while ($renderContext->getParentTemplate() !== null && $maxExtendsDepth-- > 0) {
+        $parentName = $renderContext->getParentTemplate();
+        $renderContext->setParentTemplate(null);
+        $parent = $loader($parentName);
+        $result = $parent->executeRaw($renderContext);
+    }
+
+    return $result;
 }
 
 /**
  * Assert that both paths produce the same output for a given template + context.
  */
+function writeParityTemplates(array $templates): void
+{
+    global $parityTemplateDir;
+    foreach ($templates as $name => $source) {
+        $path = $parityTemplateDir . '/' . (str_ends_with($name, '.disyl') ? $name : $name . '.disyl');
+        @mkdir(dirname($path), 0755, true);
+        file_put_contents($path, $source);
+    }
+}
+
 function parity(
     string $desc,
     TemplateEngine $engine,
     TemplateCache $cache,
     string $source,
-    array $ctx
+    array $ctx,
+    array $dependencies = [],
+    bool $compareDiagnostics = false
 ): void {
-    $interpretedResult = interpreted($engine, $source, $ctx);
-    $compiledResult    = compiled($cache, $source, $ctx, $desc);
+    global $parityTemplateDir;
+
+    writeParityTemplates($dependencies);
+
+    $interpretedException = null;
+    try {
+        $interpretedResult = interpreted($engine, $source, $ctx);
+    } catch (Throwable $e) {
+        $interpretedException = get_class($e) . ': ' . $e->getMessage();
+        $interpretedResult = '[exception] ' . $interpretedException;
+    }
+    $interpretedErrors = $engine->getErrors();
+
+    $compiledErrors = [];
+    $compiledException = null;
+    try {
+        $compiledResult = compiled($cache, $source, $ctx, $desc, $compiledErrors);
+    } catch (Throwable $e) {
+        $compiledException = get_class($e) . ': ' . $e->getMessage();
+        $compiledResult = '[exception] ' . $compiledException;
+    }
+
+    $outputMatches = trim($interpretedResult) === trim($compiledResult);
     check($desc, $interpretedResult, $compiledResult);
+
+    $diagnosticsMatch = true;
+    if ($compareDiagnostics) {
+        $interpretedDiagnostics = json_encode([
+            'exception' => $interpretedException,
+            'errors' => $interpretedErrors,
+        ], JSON_UNESCAPED_SLASHES);
+        $compiledDiagnostics = json_encode([
+            'exception' => $compiledException,
+            'errors' => $compiledErrors,
+        ], JSON_UNESCAPED_SLASHES);
+        $diagnosticsMatch = $interpretedDiagnostics === $compiledDiagnostics;
+        check($desc . ' diagnostics', $interpretedDiagnostics, $compiledDiagnostics);
+    }
+
+    if (!$outputMatches || !$diagnosticsMatch) {
+        echo '    Minimal source: ' . json_encode(
+            ['inline' => $source] + $dependencies,
+            JSON_UNESCAPED_SLASHES
+        ) . "\n";
+        echo '    Interpreted output: ' . json_encode($interpretedResult) . "\n";
+        echo '    Compiled output:    ' . json_encode($compiledResult) . "\n";
+        if ($compareDiagnostics) {
+            echo '    Interpreted diagnostics: ' . $interpretedDiagnostics . "\n";
+            echo '    Compiled diagnostics:    ' . $compiledDiagnostics . "\n";
+        }
+    }
 }
 
 // ── Bootstrap engines ───────────────────────────────────
@@ -115,7 +213,8 @@ $tmpDir = sys_get_temp_dir() . '/disyl_parity_test_' . getmypid();
 @mkdir($tmpDir . '/templates', 0755, true);
 @mkdir($tmpDir . '/cache/compiled', 0755, true);
 
-$engine = new TemplateEngine($tmpDir . '/templates', $tmpDir . '/cache');
+$parityTemplateDir = $tmpDir . '/templates';
+$engine = new TemplateEngine($parityTemplateDir, $tmpDir . '/cache');
 $cache  = new TemplateCache($tmpDir . '/cache/compiled', true);
 
 echo "DiSyL Interpreted ↔ Compiled Parity Test Suite\n";
@@ -737,6 +836,105 @@ check('current-version source cache remains usable after cleanup',
     $cleanupCacheAfter->compileSource($cleanupSource, 'cleanup_probe')->execute(['value' => 'A&B']));
 
 // ─────────────────────────────────────────────────────────
+// 15. Synthetic {extends} inheritance parity
+// ─────────────────────────────────────────────────────────
+section('15. Synthetic {extends} inheritance parity');
+
+$singleLayout = 'L[{block "body"}layout default{/block}]';
+$singleChild = '{extends "extends_single_layout"}{block "body"}child{/block}';
+writeParityTemplates(['extends_single_layout' => $singleLayout]);
+check('extends reference: single override wins', 'L[child]',
+    interpreted($engine, $singleChild, []));
+parity('extends single-level one overridden block', $engine, $cache,
+    $singleChild, [], ['extends_single_layout' => $singleLayout]);
+
+$severalLayout = 'H:{block "head"}head default{/block}|B:{block "body"}body default{/block}|F:{block "foot"}foot default{/block}';
+$severalChild = '{extends "extends_several_layout"}{block "head"}child head{/block}{block "foot"}child foot{/block}';
+writeParityTemplates(['extends_several_layout' => $severalLayout]);
+check('extends reference: overridden and default blocks',
+    'H:child head|B:body default|F:child foot',
+    interpreted($engine, $severalChild, []));
+parity('extends several blocks preserve unoverridden default', $engine, $cache,
+    $severalChild, [], ['extends_several_layout' => $severalLayout]);
+
+$multiRoot = 'H:{block "head"}root head{/block}|B:{block "body"}root body{/block}|F:{block "foot"}root foot{/block}';
+$multiMiddle = '{extends "extends_multi_root"}{block "body"}middle body{/block}{block "foot"}middle foot{/block}';
+$multiChild = '{extends "extends_multi_middle"}{block "body"}child body{/block}';
+writeParityTemplates([
+    'extends_multi_middle' => $multiMiddle,
+    'extends_multi_root' => $multiRoot,
+]);
+check('extends reference: nearest definitions win across levels',
+    'H:root head|B:child body|F:middle foot',
+    interpreted($engine, $multiChild, []));
+parity('extends multi-level nearest-safe-ancestor preservation', $engine, $cache,
+    $multiChild, [], [
+        'extends_multi_middle' => $multiMiddle,
+        'extends_multi_root' => $multiRoot,
+    ]);
+
+$logicLayout = 'Result:{block "body"}none{/block}';
+$logicChild = '{extends "extends_logic_layout"}{block "body"}{if show}{name|upper}:{for item in items}{item|upper},{/for}{else}hidden{/if}{/block}';
+writeParityTemplates(['extends_logic_layout' => $logicLayout]);
+check('extends reference: override evaluates control flow variables and filters',
+    'Result:ADA:A,B,',
+    interpreted($engine, $logicChild, ['show' => true, 'name' => 'ada', 'items' => ['a', 'b']]));
+parity('extends override with control flow variables and filters', $engine, $cache,
+    $logicChild, ['show' => true, 'name' => 'ada', 'items' => ['a', 'b']],
+    ['extends_logic_layout' => $logicLayout]);
+
+$defaultLayout = 'A:{block "a"}layout A{/block}|B:{block "b"}layout B{/block}';
+$defaultChild = '{extends "extends_default_layout"}{block "a"}child A{/block}';
+writeParityTemplates(['extends_default_layout' => $defaultLayout]);
+check('extends reference: never-overridden layout block renders',
+    'A:child A|B:layout B', interpreted($engine, $defaultChild, []));
+parity('extends layout block never overridden', $engine, $cache,
+    $defaultChild, [], ['extends_default_layout' => $defaultLayout]);
+
+$cycleA = '{extends "extends_cycle_b"}A';
+$cycleB = '{extends "extends_cycle_a"}B';
+parity('extends cycle A to B to A', $engine, $cache,
+    $cycleA, [], [
+        'extends_cycle_a' => $cycleA,
+        'extends_cycle_b' => $cycleB,
+    ], true);
+
+$selfExtends = '{extends "extends_self"}SELF';
+parity('extends self-cycle', $engine, $cache,
+    $selfExtends, [], ['extends_self' => $selfExtends], true);
+
+$deepDependencies = [];
+for ($i = 1; $i <= 21; $i++) {
+    $name = sprintf('extends_depth_%02d', $i);
+    $deepDependencies[$name] = $i === 21
+        ? 'DEPTH-21'
+        : '{extends "' . sprintf('extends_depth_%02d', $i + 1) . '"}DEPTH-' . $i;
+}
+$deepChild = '{extends "extends_depth_01"}DEPTH-00';
+parity('extends chain exercises depth limit', $engine, $cache,
+    $deepChild, [], $deepDependencies, true);
+
+$missingChild = '{extends "extends_parent_missing"}{block "body"}orphan body{/block}';
+parity('extends missing parent', $engine, $cache,
+    $missingChild, [], [], true);
+
+$includeLayout = '<layout>{block "body"}layout default{/block}</layout>';
+$includedChild = '{extends "extends_include_layout"}{block "body"}included child{/block}';
+$includeSource = 'before:{include "extends_included_child"}:after';
+writeParityTemplates([
+    'extends_included_child' => $includedChild,
+    'extends_include_layout' => $includeLayout,
+]);
+check('extends reference: inheritance inside included file is allowed',
+    'before:<layout>included child</layout>:after',
+    interpreted($engine, $includeSource, []));
+parity('extends inside included file', $engine, $cache,
+    $includeSource, [], [
+        'extends_included_child' => $includedChild,
+        'extends_include_layout' => $includeLayout,
+    ]);
+
+// ─────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────
 
@@ -786,5 +984,21 @@ foreach ($cleanE2eElig ?: [] as $f) { @unlink($f); }
 $cleanCleanupCache = glob($cleanupDir . '/*.php');
 foreach ($cleanCleanupCache ?: [] as $f) { @unlink($f); }
 @rmdir($cleanupDir);
+
+// Remove any inheritance fixtures and lock/cache files left under the suite's
+// process-specific temp root.
+$removeTree = static function (string $path) use (&$removeTree): void {
+    if (!is_dir($path)) {
+        @unlink($path);
+        return;
+    }
+    foreach (scandir($path) ?: [] as $entry) {
+        if ($entry !== '.' && $entry !== '..') {
+            $removeTree($path . '/' . $entry);
+        }
+    }
+    @rmdir($path);
+};
+$removeTree($tmpDir);
 
 exit($fail > 0 ? 1 : 0);  // known divergences don't fail the suite
