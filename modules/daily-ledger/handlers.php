@@ -5277,20 +5277,51 @@ function dailyLedgerAuthLogin(): void
         $payload['name'] = $enteredFullName;
         $payload['full_name'] = $enteredFullName;
         if ($payloadId > 0) {
+            // The name typed at login may only CAPTURE a name that is not yet set.
+            // It must never overwrite an established profile name: anyone who can
+            // log in as a user could otherwise permanently rewrite that user's
+            // name, and every historical audit row resolved from it. Cashier
+            // usernames are shift labels (e.g. Cashier-KatipunanAM), so the first
+            // non-empty login still fills an empty profile.
             try {
                 $persist = dlCtx()->db()->prepare(
                     'UPDATE dl_users SET full_name = :fn
-                      WHERE id = :id AND deleted_at IS NULL'
+                      WHERE id = :id AND deleted_at IS NULL
+                        AND (full_name IS NULL OR full_name = \'\')'
                 );
                 $persist->execute([
                     ':fn' => mb_substr($enteredFullName, 0, 100),
                     ':id' => $payloadId,
                 ]);
-                write_log('daily-ledger auth full_name persisted', 'info', [
-                    'user_id' => $payloadId,
-                    'username' => $username,
-                    'role' => $role,
-                ]);
+                if ($persist->rowCount() > 0) {
+                    write_log('daily-ledger auth full_name persisted', 'info', [
+                        'user_id' => $payloadId,
+                        'username' => $username,
+                        'role' => $role,
+                    ]);
+                } else {
+                    // The profile already carried a name. Do not mutate it; make
+                    // the attempted overwrite visible with both values and the id.
+                    $storedStmt = dlCtx()->db()->prepare(
+                        'SELECT full_name FROM dl_users WHERE id = :id AND deleted_at IS NULL LIMIT 1'
+                    );
+                    $storedStmt->execute([':id' => $payloadId]);
+                    $storedName = $storedStmt->fetchColumn();
+                    if ($storedName === false) {
+                        write_log('daily-ledger auth full_name not persisted (user row missing)', 'warning', [
+                            'user_id' => $payloadId,
+                            'username' => $username,
+                            'entered_full_name' => $enteredFullName,
+                        ]);
+                    } elseif (trim((string)$storedName) !== $enteredFullName) {
+                        write_log('daily-ledger auth full_name overwrite refused', 'warning', [
+                            'user_id' => $payloadId,
+                            'username' => $username,
+                            'stored_full_name' => (string)$storedName,
+                            'entered_full_name' => $enteredFullName,
+                        ]);
+                    }
+                }
             } catch (Throwable $e) {
                 write_log('daily-ledger auth full_name persist failed', 'warning', [
                     'user_id' => $payloadId,
@@ -5304,6 +5335,40 @@ function dailyLedgerAuthLogin(): void
 
     $tokens = dl_generateAuthTokens($payload);
     dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
+
+    // D4: record each successful login as its own audit event. There is no session
+    // for this request yet, so install the just-authenticated payload before
+    // auditing: ModuleContext::audit() stamps actor_name/actor_username from the
+    // session user it sees. The branch is best-effort context for shared logins.
+    $loginBranchId = null;
+    try {
+        $loginBranchStmt = dlCtx()->db()->prepare(
+            'SELECT branch_id FROM dl_user_branches WHERE user_id = :uid ORDER BY branch_id LIMIT 1'
+        );
+        $loginBranchStmt->execute([':uid' => $payloadId]);
+        $loginBranch = $loginBranchStmt->fetchColumn();
+        if ($loginBranch !== false && $loginBranch !== null && (int)$loginBranch > 0) {
+            $loginBranchId = (int)$loginBranch;
+        }
+    } catch (Throwable $e) {
+        // Branch is optional context; never block a login on it.
+    }
+    $loginCtx = module('daily-ledger');
+    if ($loginCtx) {
+        try {
+            app()->setUser($payload);
+            $loginCtx->audit('login', $loginBranchId, 'dl_users', (string)$payloadId, null, [
+                'username' => $payload['username'],
+                'full_name' => $payload['full_name'],
+                'role' => $role,
+            ], 'login');
+        } catch (Throwable $e) {
+            write_log('daily-ledger auth login audit failed', 'warning', [
+                'user_id' => $payloadId,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
 
     // Credentials are verified, so refund the login budget this request spent.
     // The limiter counts every attempt including successful ones, and a branch
@@ -9227,6 +9292,7 @@ function handleAdminDashboard(array $params = []): void
     // Recent encoder activity (last 20) — human-readable + branch-scoped for non-admins.
     $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
     $hasActorSource = dlAuditLogHasColumn('actor_source');
+    $hasMetadataColumn = dlAuditLogHasColumn('metadata_json');
     $hasUsersTable = dl_tableExists($ctx->db(), 'users');
     $activitySql = 'SELECT a.action, a.created_at, a.branch_id,
                            b.name AS branch_name,
@@ -9234,7 +9300,8 @@ function handleAdminDashboard(array $params = []): void
                            a.actor_user_id,
                            ' . ($hasActorModuleUserId ? 'a.actor_module_user_id' : 'NULL') . ' AS actor_module_user_id,
                            ' . ($hasUsersTable ? 'ku.full_name AS kernel_actor_name' : 'NULL AS kernel_actor_name') . ',
-                           ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name
+                           ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name,
+                           ' . ($hasMetadataColumn ? 'a.metadata_json' : 'NULL') . ' AS metadata_json
                     FROM audit_logs a
                     LEFT JOIN dl_branches b ON b.id = a.branch_id
                     ' . ($hasUsersTable ? 'LEFT JOIN users ku ON ku.id = a.actor_user_id' : '') . '
@@ -9268,6 +9335,9 @@ function handleAdminDashboard(array $params = []): void
         'restore_user' => 'Restored user',
         'production_output' => 'Recorded production output',
         'production_withdrawal' => 'Recorded production withdrawal',
+        'withdrawal' => 'Recorded withdrawal',
+        'withdrawal_updated' => 'Updated withdrawal',
+        'login' => 'Signed in',
         'create_delivery' => 'Created delivery',
         'delivery_posted' => 'Posted delivery',
         'delivery_voided' => 'Voided delivery',
@@ -9282,7 +9352,19 @@ function handleAdminDashboard(array $params = []): void
         'save_commissary_material' => 'Saved material count',
     ];
     foreach ($recentActivity as &$activityRow) {
-        $actorName = trim((string)($activityRow['module_actor_name'] ?? ''));
+        // Prefer the per-event name stamped at write time; the profile join is the
+        // fallback for rows written before the stamp existed.
+        $eventMetadata = [];
+        if (isset($activityRow['metadata_json']) && is_string($activityRow['metadata_json']) && trim($activityRow['metadata_json']) !== '') {
+            $decodedMetadata = json_decode($activityRow['metadata_json'], true);
+            if (is_array($decodedMetadata)) {
+                $eventMetadata = $decodedMetadata;
+            }
+        }
+        $actorName = trim((string)($eventMetadata['actor_name'] ?? ''));
+        if ($actorName === '') {
+            $actorName = trim((string)($activityRow['module_actor_name'] ?? ''));
+        }
         if ($actorName === '') {
             $actorName = trim((string)($activityRow['kernel_actor_name'] ?? ''));
         }
@@ -9806,7 +9888,10 @@ function handleAdminSales(array $params = []): void
 
     $actionFilterMap = [
         'output' => ['production_output'],
-        'withdrawal' => ['production_withdrawal'],
+        // The withdrawal audit action actually written is 'withdrawal'
+        // (handlers-offline.php and apiCreateWithdrawal), plus 'withdrawal_updated'
+        // for edits. 'production_withdrawal' is retained last for any legacy rows.
+        'withdrawal' => ['withdrawal', 'withdrawal_updated', 'production_withdrawal'],
         'delivery' => [
             'create_delivery',
             'delivery_created',
@@ -12134,7 +12219,10 @@ function handleAdminActivity(array $params = []): void
 
     $actionFilterMap = [
         'output' => ['production_output'],
-        'withdrawal' => ['production_withdrawal'],
+        // The withdrawal audit action actually written is 'withdrawal'
+        // (handlers-offline.php and apiCreateWithdrawal), plus 'withdrawal_updated'
+        // for edits. 'production_withdrawal' is retained last for any legacy rows.
+        'withdrawal' => ['withdrawal', 'withdrawal_updated', 'production_withdrawal'],
         'product' => ['create_product', 'update_product'],
         'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
         'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
@@ -12309,6 +12397,7 @@ function handleAdminActivity(array $params = []): void
 
     $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
     $hasActorSource = dlAuditLogHasColumn('actor_source');
+    $hasMetadataColumn = dlAuditLogHasColumn('metadata_json');
     $hasUsersTable = dl_tableExists($ctx->db(), 'users');
 
     $sql = 'SELECT a.action, a.created_at, a.old_data, a.new_data,
@@ -12318,7 +12407,8 @@ function handleAdminActivity(array $params = []): void
         . ($hasActorModuleUserId ? 'a.actor_module_user_id' : 'NULL') . ' AS actor_module_user_id,
                    b.name AS branch_name,
                    ' . ($hasUsersTable ? 'ku.full_name AS kernel_actor_name' : 'NULL AS kernel_actor_name') . ',
-                   ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name
+                   ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name,
+                   ' . ($hasMetadataColumn ? 'a.metadata_json' : 'NULL') . ' AS metadata_json
             FROM audit_logs a
             LEFT JOIN dl_branches b ON b.id = a.branch_id
             ' . ($hasUsersTable ? 'LEFT JOIN users ku ON ku.id = a.actor_user_id' : '') . '
@@ -12652,6 +12742,21 @@ function handleAdminActivity(array $params = []): void
                 $badgeLabel = 'Withdrawal';
                 $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
                 break;
+            case 'withdrawal':
+                $summary = 'Recorded withdrawal';
+                $badgeLabel = 'Withdrawal';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'withdrawal_updated':
+                $summary = 'Updated withdrawal';
+                $badgeLabel = 'Withdrawal';
+                $badgeClasses = 'bg-amber-50 text-amber-800 ring-amber-200';
+                break;
+            case 'login':
+                $summary = 'Signed in';
+                $badgeLabel = 'Login';
+                $badgeClasses = 'bg-purple-50 text-purple-800 ring-purple-200';
+                break;
             case 'field_update':
                 $summary = 'Updated ledger field';
                 $badgeLabel = 'Field';
@@ -12844,9 +12949,21 @@ function handleAdminActivity(array $params = []): void
         } elseif ($actorKernelUserId > 0) {
             $actorIdentity = $resolveUserById($actorKernelUserId, $actorSource !== '' ? $actorSource : 'kernel');
         }
-        $actorUsername = $resolveActorUsername($actorModuleUserId, $actorKernelUserId, $actorSource);
 
-        $actorName = trim((string)($row['module_actor_name'] ?? ''));
+        // The name recorded with the event (metadata_json) wins: it is the identity
+        // actually used at write time. Fall back to the profile join only for
+        // pre-existing rows that carry no per-event name.
+        $eventMetadata = [];
+        if (isset($row['metadata_json']) && is_string($row['metadata_json']) && trim($row['metadata_json']) !== '') {
+            $decodedMetadata = json_decode($row['metadata_json'], true);
+            if (is_array($decodedMetadata)) {
+                $eventMetadata = $decodedMetadata;
+            }
+        }
+        $actorName = trim((string)($eventMetadata['actor_name'] ?? ''));
+        if ($actorName === '') {
+            $actorName = trim((string)($row['module_actor_name'] ?? ''));
+        }
         if ($actorName === '') {
             $actorName = trim((string)($row['kernel_actor_name'] ?? ''));
         }
@@ -12861,6 +12978,10 @@ function handleAdminActivity(array $params = []): void
             } else {
                 $actorName = 'System';
             }
+        }
+        $actorUsername = trim((string)($eventMetadata['actor_username'] ?? ''));
+        if ($actorUsername === '') {
+            $actorUsername = $resolveActorUsername($actorModuleUserId, $actorKernelUserId, $actorSource);
         }
 
         $detailSource = $newPayload !== [] ? $newPayload : $oldPayload;

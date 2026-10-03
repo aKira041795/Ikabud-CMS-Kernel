@@ -155,43 +155,39 @@ final class ModuleContext implements AuthContract, LogContract
             $actorModuleUserId = null;
         }
         $actorSource = $source !== '' ? $source : null;
+        $metadataJson = $this->buildAuditMetadataJson($user);
 
         try {
             KernelPDO::kernelEscalationEnter();
             $db = $connection ?? $this->app->db();
             $supportsActorColumns = $this->auditLogSupportsActorColumns($db);
-            if ($supportsActorColumns) {
-                $stmt = $db->prepare(
-                    'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
-                    . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
-                );
-                $stmt->execute([
-                    ':module'     => $this->moduleId,
-                    ':actor'      => $actorId,
-                    ':actor_mod'  => $actorModuleUserId,
-                    ':actor_src'  => $actorSource,
-                    ':branch'     => $branchId,
-                    ':action'     => $action,
-                    ':etype'      => $entityType,
-                    ':eid'        => $entityId,
-                    ':old'        => $oldData !== null ? json_encode($oldData) : null,
-                    ':new'        => $newData !== null ? json_encode($newData) : null,
-                ]);
-            } else {
-                $stmt = $db->prepare(
-                    'INSERT INTO audit_logs (module, actor_user_id, branch_id, action, entity_type, entity_id, old_data, new_data) '
-                    . 'VALUES (:module, :actor, :branch, :action, :etype, :eid, :old, :new)'
-                );
-                $stmt->execute([
-                    ':module' => $this->moduleId,
-                    ':actor' => $actorId,
-                    ':branch' => $branchId,
-                    ':action' => $action,
-                    ':etype' => $entityType,
-                    ':eid' => $entityId,
-                    ':old' => $oldData !== null ? json_encode($oldData) : null,
-                    ':new' => $newData !== null ? json_encode($newData) : null,
-                ]);
+            $includeMetadata = $metadataJson !== null && $this->auditLogSupportsMetadataColumn($db);
+
+            $rowData = [
+                'module' => $this->moduleId,
+                'actor' => $actorId,
+                'actor_mod' => $actorModuleUserId,
+                'actor_src' => $actorSource,
+                'branch' => $branchId,
+                'action' => $action,
+                'etype' => $entityType,
+                'eid' => $entityId,
+                'old' => $oldData !== null ? json_encode($oldData) : null,
+                'new' => $newData !== null ? json_encode($newData) : null,
+            ];
+
+            try {
+                $this->insertAuditRow($db, $rowData, $supportsActorColumns, $includeMetadata ? $metadataJson : null);
+            } catch (\Throwable $insertError) {
+                if ($includeMetadata) {
+                    // Fail-safe: if the metadata is what failed, the audit row is
+                    // still written exactly as it was written before this change.
+                    // Never lose an audit record for the sake of the name.
+                    $this->log('Audit metadata write failed; row written without it: ' . $insertError->getMessage(), 'warning');
+                    $this->insertAuditRow($db, $rowData, $supportsActorColumns, null);
+                } else {
+                    throw $insertError;
+                }
             }
 
             // A specific row exists, so the kernel's mutation fallback stands down.
@@ -204,6 +200,50 @@ final class ModuleContext implements AuthContract, LogContract
         }
     }
 
+    /**
+     * @param array<string, mixed> $row Pre-encoded audit column values.
+     */
+    private function insertAuditRow(\PDO $db, array $row, bool $supportsActorColumns, ?string $metadataJson): void
+    {
+        if ($supportsActorColumns) {
+            $columns = 'module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data';
+            $values = ':module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new';
+            $params = [
+                ':module' => $row['module'],
+                ':actor' => $row['actor'],
+                ':actor_mod' => $row['actor_mod'],
+                ':actor_src' => $row['actor_src'],
+                ':branch' => $row['branch'],
+                ':action' => $row['action'],
+                ':etype' => $row['etype'],
+                ':eid' => $row['eid'],
+                ':old' => $row['old'],
+                ':new' => $row['new'],
+            ];
+        } else {
+            $columns = 'module, actor_user_id, branch_id, action, entity_type, entity_id, old_data, new_data';
+            $values = ':module, :actor, :branch, :action, :etype, :eid, :old, :new';
+            $params = [
+                ':module' => $row['module'],
+                ':actor' => $row['actor'],
+                ':branch' => $row['branch'],
+                ':action' => $row['action'],
+                ':etype' => $row['etype'],
+                ':eid' => $row['eid'],
+                ':old' => $row['old'],
+                ':new' => $row['new'],
+            ];
+        }
+        if ($metadataJson !== null) {
+            $columns .= ', metadata_json';
+            $values .= ', :metadata';
+            $params[':metadata'] = $metadataJson;
+        }
+
+        $stmt = $db->prepare("INSERT INTO audit_logs ({$columns}) VALUES ({$values})");
+        $stmt->execute($params);
+    }
+
     private function auditLogSupportsActorColumns(\PDO $db): bool
     {
         try {
@@ -212,6 +252,51 @@ final class ModuleContext implements AuthContract, LogContract
             $sourceStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'actor_source'");
             $hasActorSource = $sourceStmt && $sourceStmt->fetchColumn() !== false;
             return $hasModuleUserId && $hasActorSource;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Build the per-event identity metadata for daily-ledger audit rows.
+     *
+     * Scoped to daily-ledger on purpose: other modules must keep the exact audit
+     * shape they have today. The name is the value present in the session at write
+     * time, so a later profile rename cannot retroactively relabel history.
+     */
+    private function buildAuditMetadataJson(?array $user): ?string
+    {
+        if ($this->moduleId !== 'daily-ledger' || $user === null) {
+            return null;
+        }
+
+        $metadata = [];
+        $actorName = '';
+        if (isset($user['full_name']) && trim((string)$user['full_name']) !== '') {
+            $actorName = trim((string)$user['full_name']);
+        } elseif (isset($user['name']) && trim((string)$user['name']) !== '') {
+            $actorName = trim((string)$user['name']);
+        }
+        $actorUsername = trim((string)($user['username'] ?? ''));
+        if ($actorName !== '') {
+            $metadata['actor_name'] = $actorName;
+        }
+        if ($actorUsername !== '') {
+            $metadata['actor_username'] = $actorUsername;
+        }
+        if ($metadata === []) {
+            return null;
+        }
+
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return is_string($encoded) && $encoded !== '' ? $encoded : null;
+    }
+
+    private function auditLogSupportsMetadataColumn(\PDO $db): bool
+    {
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'metadata_json'");
+            return $stmt && $stmt->fetchColumn() !== false;
         } catch (\Throwable) {
             return false;
         }
