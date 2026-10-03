@@ -186,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   document.getElementById('new-conversation').onclick = createConversation;
-  document.getElementById('new-conversation-plus').onclick = createConversation;
   conversations();
   // New messages also arrive via Web Push, so polling is a fallback rather than
   // the primary delivery path — refresh at a pace that does not interrupt
