@@ -2596,15 +2596,26 @@ def _remediation_from(stage: dict, job: dict | None = None) -> str:
     return text[-WORKFLOW_REMEDIATION_MAX_CHARS:]
 
 
-_MODEL_EXHAUSTION_PATTERNS = (
-    re.compile(r"(token|usage).{0,40}(exhaust|exceed|limit|quota|deplet|insufficient|ceiling)"),
-    re.compile(r"(exhaust|exceed|limit|quota|deplet|insufficient).{0,40}(token|usage)"),
-    re.compile(r"(quota|rate\s*limit).{0,40}(exceed|reached|hit|limit)"),
-    re.compile(r"(insufficient|low|empty|exhausted|out of|zero).{0,20}balance"),
-    re.compile(r"balance.{0,20}(insufficient|low|empty|exhausted|zero)"),
-    re.compile(r"rate\s*limit|too\s+many\s+requests|\b429\b|\b402\b"),
-    re.compile(r"context\s+length\s+exceeded"),
+_MODEL_UNAVAILABLE_PATTERNS_FILE = (
+    Path(__file__).resolve().parents[1] / "model-unavailable.patterns"
 )
+
+
+def _load_model_unavailable_pattern() -> re.Pattern[str]:
+    """Load the shared grep/Python ERE used by every model fallback consumer."""
+    lines = [
+        line.strip()
+        for line in _MODEL_UNAVAILABLE_PATTERNS_FILE.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not lines:
+        raise RuntimeError(f"no model-unavailable patterns in {_MODEL_UNAVAILABLE_PATTERNS_FILE}")
+    # POSIX character classes are portable grep ERE; spell this one in Python syntax.
+    expression = "|".join(f"(?:{line})" for line in lines).replace("[[:space:]]", r"\s")
+    return re.compile(expression, re.IGNORECASE)
+
+
+_MODEL_UNAVAILABLE_PATTERN = _load_model_unavailable_pattern()
 
 
 def _job_log_text(job: dict, limit: int = 20000) -> str:
@@ -2631,7 +2642,7 @@ def _model_exhausted(job: dict) -> bool:
     ]).lower()
     if not text:
         return False
-    return any(p.search(text) for p in _MODEL_EXHAUSTION_PATTERNS)
+    return _MODEL_UNAVAILABLE_PATTERN.search(text) is not None
 
 
 def _delegate_stage_model(stage: dict) -> str | None:

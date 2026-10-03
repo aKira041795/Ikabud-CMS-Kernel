@@ -45,9 +45,23 @@ for sig in ratelimited quota unsupported; do
 done
 
 echo
-echo "=== exit 0 BUT the log proves unavailability -> must still fall back ==="
+echo "=== exit 0 wins over log content (this case used to assert the opposite) ==="
+# An earlier version FAILED an exit-0 run whose log merely mentioned an unavailability
+# word, and asserted that here as "no false green". It caused a real false red on first
+# production use: a lane implementing the unavailability detector writes about "quota"
+# by definition, so its own correct output matched, the work was rejected, a second
+# model was spent, and the run reported "none completed".
+#
+# Success is decided by the exit status. Content classifies a FAILURE; it never overrules
+# a success. Note `sneaky` exits 0 while printing a quota phrase - the healthy follow-on
+# model must therefore NOT be reached.
 lane_model_run "sneaky,ok" "p" /tmp/lm-c >/dev/null 2>&1; rc=$?
-chk "exit-0-with-quota-text falls back (no false green)" "ok" 0 "$LANE_MODEL_USED" "$rc"
+chk "exit-0 run mentioning quota is a SUCCESS (no false red)" "sneaky" 0 "$LANE_MODEL_USED" "$rc"
+
+echo
+echo "=== but a FAILED run whose log shows unavailability still falls back ==="
+lane_model_run "ratelimited,ok" "p" /tmp/lm-h >/dev/null 2>&1; rc=$?
+chk "non-zero exit + signature -> fall back" "ok" 0 "$LANE_MODEL_USED" "$rc"
 
 echo
 echo "=== all models unavailable -> must report failure, not a silent success ==="

@@ -1,0 +1,11 @@
+(token|usage).{0,40}(exhaust|exceed|limit|quota|deplet|insufficient|ceiling)
+(exhaust|exceed|limit|quota|deplet|insufficient).{0,40}(token|usage)
+(quota|rate[[:space:]]*limit).{0,40}(exceed|reached|hit|limit)
+(insufficient|low|empty|exhausted|out of|zero).{0,20}balance
+balance.{0,20}(insufficient|low|empty|exhausted|zero)
+rate[^A-Za-z0-9]*limit
+too[[:space:]]+many[[:space:]]+requests
+(^|[^A-Za-z0-9_])429([^A-Za-z0-9_]|$)
+(^|[^A-Za-z0-9_])402([^A-Za-z0-9_]|$)
+model[[:space:]]+is[[:space:]]+not[[:space:]]+supported
+context[[:space:]]+length[[:space:]]+exceeded

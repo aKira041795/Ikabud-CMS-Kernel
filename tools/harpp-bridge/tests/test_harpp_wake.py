@@ -2345,6 +2345,46 @@ class HarppWakeTest(unittest.TestCase):
         logp.write_text("the implementation logic is wrong\n", encoding="utf-8")
         self.assertFalse(harpp_wake._model_exhausted({"log_path": str(logp)}))
 
+    def test_model_unavailable_shared_fixture_agrees_across_all_consumers(self):
+        cases = [
+            (True, "rate limit reached"),
+            (True, "rate-limited"),
+            (True, "HTTP 429"),
+            (True, "quota exceeded"),
+            (True, "usage limit has been reached"),
+            (True, "insufficient balance"),
+            (True, "HTTP 402"),
+            (True, "model is not supported"),
+            (True, "your token limit has been exhausted"),
+            (True, "context length exceeded"),
+            (False, "status: PASS\nThe implementation completed successfully."),
+            (False, "This source template contains the word 'limit' in ordinary prose."),
+            (False, "This source template contains the word 'quota' in ordinary prose."),
+            (False, ""),
+        ]
+        root = Path(__file__).resolve().parents[3]
+        logp = Path(self.tmp.name) / "shared-model-unavailable.log"
+        for expected, text in cases:
+            with self.subTest(expected=expected, text=text):
+                logp.write_text(text, encoding="utf-8")
+                lane = subprocess.run(
+                    ["bash", str(root / "tools/lane.sh"), "classify-log", str(logp), "1"],
+                    cwd=root, text=True, capture_output=True, check=True,
+                )
+                lane_verdict = lane.stdout.strip() == "quota"
+                lane_model = subprocess.run(
+                    ["bash", "-c", 'source "$1"; lane_model_unavailable "$2"', "--",
+                     str(root / "tools/lane-model.sh"), str(logp)],
+                    cwd=root, text=True, capture_output=True, check=False,
+                )
+                self.assertIn(lane_model.returncode, (0, 1), lane_model.stderr)
+                verdicts = (
+                    lane_verdict,
+                    lane_model.returncode == 0,
+                    harpp_wake._model_exhausted({"log_path": str(logp)}),
+                )
+                self.assertEqual(verdicts, (expected, expected, expected))
+
     def test_delegate_stage_model_walks_fallback_order(self):
         stage = {"name": "implement", "model": "deepseek/deepseek-v4-flash"}
         self.assertEqual(harpp_wake._delegate_stage_model(stage), "groq/qwen/qwen3.8-27b")

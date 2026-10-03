@@ -4,17 +4,13 @@
 #
 # Why this exists: every lane script used to hand-roll its own "try model A, and if it
 # is rate-limited try model B" block. Three lanes written on 2026-10-03 carried the same
-# ~40 lines, including the same rate-limit regex - so a bug in that regex had to be
+# ~40 lines, including the same unavailability check - so a bug in that check had to be
 # fixed in three places, and a lane written without it would simply stall when its
-# primary model hit a quota.
+# primary model became unavailable.
 #
-# The regex is the part that matters and the part that is easy to get subtly wrong:
-#   - "rate limit" and "429" are the obvious forms
-#   - "quota" and "usage limit" are how Codex actually reports exhaustion
-#   - "model is not supported" is NOT a rate limit but has the same remedy (the account
-#     cannot use that model at all), and leaving it out means a lane retries a model
-#     that can never succeed. Observed 2026-09-18: gpt-5.6-astra is not available to a
-#     ChatGPT-account Codex, and the failure text is exactly this.
+# The signature is the part that matters and the part that is easy to get subtly wrong.
+# It is therefore loaded from the same data file as lane.sh and HARPP rather than being
+# repeated here. Unsupported models use the same fallback path as temporary exhaustion.
 #
 # Usage, from a lane script:
 #
@@ -26,13 +22,15 @@
 # Sets, on return:
 #   LANE_MODEL_USED   the model that completed (empty if none did)
 #   LANE_MODEL_LOG    path to that model's log
-# Returns: 0 if a model completed, 1 if every model was rate-limited/unavailable.
+# Returns: 0 if a model completed, 1 if every model was unavailable.
 #
 # Testing: set LANE_MODEL_CMD to a stub to exercise the fallback without spending tokens.
 # The default is `pi --print --approve`; the model is appended as `--model <name>`, then
 # the prompt. A stub therefore receives: <stub> --model <name> <prompt>.
 
 LANE_MODEL_CMD="${LANE_MODEL_CMD:-pi --print --approve}"
+_LANE_MODEL_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODEL_UNAVAILABLE_PATTERNS="$_LANE_MODEL_TOOLS_DIR/model-unavailable.patterns"
 
 # One second per unit; kept deliberately below common dispatcher timeouts so a stalled
 # model returns control to the caller rather than dying at the caller's own cap.
@@ -43,7 +41,17 @@ LANE_MODEL_TIMEOUT="${LANE_MODEL_TIMEOUT:-4500}"
 lane_model_unavailable() {
   local log="$1"
   [ -f "$log" ] || return 0
-  grep -qiE 'rate.?limit|429|quota|usage limit|too many requests|model is not supported' "$log" 2>/dev/null
+  [ -r "$MODEL_UNAVAILABLE_PATTERNS" ] || return 0
+  grep -qiE -f "$MODEL_UNAVAILABLE_PATTERNS" "$log" 2>/dev/null
+}
+
+# Print the matching lines, so a caller can say WHY a run was called unavailable.
+# Exists because a bare "unavailable" gives the lane author nothing to act on.
+lane_model_unavailable_line() {
+  local log="$1"
+  [ -f "$log" ] || return 1
+  [ -r "$MODEL_UNAVAILABLE_PATTERNS" ] || return 1
+  grep -aiE -f "$MODEL_UNAVAILABLE_PATTERNS" "$log" 2>/dev/null
 }
 
 # lane_model_run <comma-separated-models> <prompt> <log-prefix>
@@ -88,7 +96,18 @@ lane_model_run() {
     rc=$?
     echo "    exit=${rc} log=$(wc -c < "$log" 2>/dev/null || echo 0)b"
 
-    if [ "$rc" -eq 0 ] && ! lane_model_unavailable "$log"; then
+    if [ "$rc" -eq 0 ]; then
+      # SUCCESS IS DECIDED BY THE EXIT STATUS ALONE.
+      #
+      # An earlier version also failed an exit-0 run whose log merely CONTAINED an
+      # unavailability word. That produced a real false red on the very first
+      # production use: a lane implementing the unavailability detector writes about
+      # "quota" and "rate limit" by definition, so its own successful output matched
+      # the signature, its correct work was rejected, a second model was spent for
+      # nothing, and the run reported "none completed".
+      #
+      # A wrong guard is worse than none because it is trusted. Content is used here
+      # to CLASSIFY a failure, never to overrule a success.
       LANE_MODEL_USED="$model"
       LANE_MODEL_LOG="$log"
       echo "=== MODEL THAT COMPLETED: ${model} ==="
@@ -96,12 +115,13 @@ lane_model_run() {
       return 0
     fi
 
-    if [ "$rc" -eq 0 ]; then
-      echo "    (exit 0 but the log shows the model was unavailable - treating as failure)"
+    # The run failed. Report WHY, so the next attempt is an informed choice.
+    if lane_model_unavailable "$log"; then
+      echo "    unavailable signature:"
+      lane_model_unavailable_line "$log" | head -3
+    else
+      echo "    (failed without an unavailability signature - treating as a crash)"
     fi
-    lane_model_unavailable "$log" && \
-      echo "    unavailable signature:" && \
-      grep -iE 'rate.?limit|429|quota|usage limit|too many requests|model is not supported' "$log" | head -3
   done
 
   echo "=== MODEL THAT COMPLETED: none — every model in '${models}' was unavailable ==="

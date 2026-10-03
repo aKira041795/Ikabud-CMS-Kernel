@@ -48,9 +48,9 @@
 #   source tools/lane-model.sh
 #   lane_model_run "openai-codex/gpt-5.6-sol,deepseek-v4-flash" "$PROMPT" /tmp/mylane
 #
-# It carries the unavailability signatures (rate limit / 429 / quota / usage limit /
-# model is not supported), treats an exit-0 log that proves unavailability as a failure,
-# and names the model that completed. Verified by tools/lane-model-selftest.sh.
+# It carries the shared model-unavailability signatures, treats an exit-0 log that
+# proves unavailability as a failure, and names the model that completed. Verified by
+# tools/lane-model-selftest.sh.
 #
 # Exit status of `run`:  0 = landed (clean) | <n> = landed with the lane's exit code <n>
 #                        3 = STILL RUNNING, re-arm the watcher | 1 = unverified / timeout
@@ -69,6 +69,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 
 RUNS="$ROOT/.ai/runs"
+MODEL_UNAVAILABLE_PATTERNS="$ROOT/tools/model-unavailable.patterns"
 mkdir -p "$RUNS"
 
 # ── the landing JOURNAL is the queue the agent is notified from ────────────────
@@ -167,7 +168,7 @@ classify_log() {
   local bytes
   bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
   if [ "$bytes" -eq 0 ]; then echo "empty"; return; fi
-  if grep -qiE "usage limit has been reached|quota|rate limit" "$log" 2>/dev/null; then
+  if grep -qiE -f "$MODEL_UNAVAILABLE_PATTERNS" "$log" 2>/dev/null; then
     echo "quota"; return
   fi
   # 124 = timeout(1) itself, 137 = SIGKILL, 143 = SIGTERM. A lane killed by its own budget
@@ -495,7 +496,29 @@ cmd_watchdog() {
   local name="${1:-}" secs="${2:-}"
   [ -n "$name" ] && [ -n "$secs" ] || exit 2
 
-  sleep "$secs"
+  # POLL, do not sleep the whole deadline in one call.
+  #
+  # `sleep "$secs"` followed by a single existence check meant every dispatch leaked a
+  # process for its entire deadline - up to timeout+grace (3690s live, 7290s in the
+  # selftest). Measured 2026-10-03: 34 such processes alive at once, ~4 leaked per
+  # selftest run.
+  #
+  # The leak was not merely untidy, it made the selftest FLAKY. Selftest lanes reuse
+  # names (st1, st3, st8...), so a watchdog left over from an earlier run would wake
+  # during a LATER run and commit a second landing for the same name. S8 asserts
+  # "exactly one journal entry" and saw journal=2, so it failed intermittently - three
+  # runs with a dirty process table gave 10/11, 11/11, 9/11, while three runs with a
+  # clean table gave 11/11 three times. A flaky selftest discredits every other result
+  # it reports, and it very nearly caused correct work to be rejected.
+  #
+  # Exiting within one poll of a landing is also simply more correct: once a marker
+  # exists there is nothing left for this process to fill.
+  local waited=0
+  while [ "$waited" -lt "$secs" ]; do
+    [ -f "$RUNS/$name.landed.json" ] && exit 0
+    sleep 5
+    waited=$((waited + 5))
+  done
 
   # Whatever committed first owns the record; this only fills a silence.
   if [ -f "$RUNS/$name.landed.json" ]; then
@@ -779,6 +802,7 @@ case "${1:-}" in
   pending) shift; cmd_pending "$@";;
   ack)     shift; cmd_ack "$@";;
   selftest) shift; cmd_selftest "$@";;
+  classify-log) shift; classify_log "$@";;
   # Print the header comment block as usage. Derived, not a hard-coded line range, so
   # editing the header can never silently truncate or overrun the help text.
   *)       awk 'NR>1 && /^[^#]/ {exit} NR>1 {sub(/^# ?/,""); print}' "${BASH_SOURCE[0]}"; exit 2;;
