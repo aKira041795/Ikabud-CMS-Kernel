@@ -12201,10 +12201,15 @@ function handleAdminActivity(array $params = []): void
 
     $input = $ctx->input();
     $today = dl_businessDate();
-    $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : $today;
+    // Default to the last 7 days (today inclusive) instead of a single day.
+    // Defaulting to one day made every action filter look broken when that action
+    // simply did not occur today. The active range is echoed in the view so an
+    // operator can see exactly what is being filtered and widen it when needed.
+    $defaultFrom = (new \DateTimeImmutable($today))->modify('-6 days')->format('Y-m-d');
+    $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : $defaultFrom;
     $dateTo   = !empty($input['date_to']) ? (string)$input['date_to'] : $today;
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
-        $dateFrom = $today;
+        $dateFrom = $defaultFrom;
     }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
         $dateTo = $today;
@@ -12400,7 +12405,7 @@ function handleAdminActivity(array $params = []): void
     $hasMetadataColumn = dlAuditLogHasColumn('metadata_json');
     $hasUsersTable = dl_tableExists($ctx->db(), 'users');
 
-    $sql = 'SELECT a.action, a.created_at, a.old_data, a.new_data,
+    $selectFrom = 'SELECT a.action, a.created_at, a.old_data, a.new_data,
                    a.entity_type, a.entity_id, '
         . ($hasActorSource ? 'a.actor_source' : 'NULL') . ' AS actor_source,
                    a.actor_user_id, '
@@ -12412,13 +12417,13 @@ function handleAdminActivity(array $params = []): void
             FROM audit_logs a
             LEFT JOIN dl_branches b ON b.id = a.branch_id
             ' . ($hasUsersTable ? 'LEFT JOIN users ku ON ku.id = a.actor_user_id' : '') . '
-            ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0') . '
-            WHERE a.module = \'daily-ledger\'
-              AND DATE(a.created_at) BETWEEN :df AND :dt';
+            ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0');
+    $where = "a.module = 'daily-ledger'
+              AND DATE(a.created_at) BETWEEN :df AND :dt";
     $bind = [':df' => $dateFrom, ':dt' => $dateTo];
 
     if ($branchId) {
-        $sql .= ' AND a.branch_id = :bid';
+        $where .= ' AND a.branch_id = :bid';
         $bind[':bid'] = $branchId;
     }
     $filterActions = [];
@@ -12434,23 +12439,38 @@ function handleAdminActivity(array $params = []): void
             $placeholders[] = $placeholder;
             $bind[$placeholder] = $filterAction;
         }
-        $sql .= ' AND a.action IN (' . implode(', ', $placeholders) . ')';
+        $where .= ' AND a.action IN (' . implode(', ', $placeholders) . ')';
     }
     if ($search !== '') {
-        $sql .= ' AND (a.action LIKE :q OR b.name LIKE :q2)';
+        $where .= ' AND (a.action LIKE :q OR b.name LIKE :q2)';
         $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
     }
     if ($drNumber !== '') {
-        $sql .= ' AND (a.new_data LIKE :drq OR a.old_data LIKE :drq2)';
+        $where .= ' AND (a.new_data LIKE :drq OR a.old_data LIKE :drq2)';
         $bind[':drq'] = "%{$drNumber}%";
         $bind[':drq2'] = "%{$drNumber}%";
     }
 
-    $sql .= ' ORDER BY a.created_at DESC LIMIT 500';
+    // Page the activity table. The previous LIMIT 500 rendered ~3.1 KB of markup
+    // per row (~1.25 MB document). 200 rows is scannable and still honest: the
+    // whole matching set is counted with the same predicate so the view can state
+    // exactly how many older events were omitted. The composite (module,
+    // created_at) index from migration 073 serves both this predicate and the
+    // ORDER BY ... LIMIT ordering (no filesort).
+    $activityLimit = 200;
+    // The count only needs the branch join when the free-text search matches on the
+    // branch name; otherwise a PK join over every matching row is pure overhead.
+    $countBranchJoin = ($search !== '') ? ' LEFT JOIN dl_branches b ON b.id = a.branch_id' : '';
+    $countStmt = $ctx->db()->prepare('SELECT COUNT(*) FROM audit_logs a' . $countBranchJoin . ' WHERE ' . $where);
+    $countStmt->execute($bind);
+    $totalMatching = (int)$countStmt->fetchColumn();
+
+    $sql = $selectFrom . ' WHERE ' . $where . ' ORDER BY a.created_at DESC LIMIT ' . $activityLimit;
 
     $stmt = $ctx->db()->prepare($sql);
     $stmt->execute($bind);
     $activityRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $omitted = max(0, $totalMatching - count($activityRows));
 
     $fieldLabels = [
         'full_name' => 'Full Name',
@@ -13208,6 +13228,9 @@ function handleAdminActivity(array $params = []): void
         'activities' => $activities,
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
+        'activity_limit' => $activityLimit,
+        'total_matching' => $totalMatching,
+        'omitted' => $omitted,
         'branch_id' => $branchId,
         'action_filter' => $actionFilter,
         'action_filter_options' => $actionFilterOptions,

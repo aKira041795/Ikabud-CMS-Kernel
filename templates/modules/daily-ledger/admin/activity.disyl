@@ -8,6 +8,7 @@
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Encoder Activity</h2>
         <p class="text-base text-slate-700">Audit trail across encoders and branches.</p>
+        <p class="mt-1 text-sm text-slate-600">Showing events from <span class="font-semibold text-slate-900">{date_from}</span> to <span class="font-semibold text-slate-900">{date_to}</span> (inclusive).</p>
     </div>
     <span class="text-base font-medium text-slate-700">{activities | count} entries</span>
 </div>
@@ -62,6 +63,13 @@
         <span>Activity Log</span>
     </div>
     <div class="card-body p-0">
+        {if omitted > 0}
+        <div class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Showing the most recent {activities | count} entries (up to {activity_limit} audit events).
+            <span class="font-semibold">{omitted} older matching event(s) are not shown.</span>
+            Narrow the date range or add a filter to reach them.
+        </div>
+        {/if}
         {if activities | count == 0}
         <div class="px-4 py-10 text-center text-base text-slate-700">No activity found for selected date range</div>
         {/if}
