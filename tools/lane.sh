@@ -180,7 +180,11 @@ classify_log() {
   if [ -n "$rc" ] && [ "$rc" != "0" ]; then
     echo "crash"; return
   fi
-  if grep -qE "^status:|^\*\*Status:|\*\*Status:" "$log" 2>/dev/null; then
+  # Reuse status_line() so the two can never drift apart again. They DID drift: this used a
+  # stricter pattern than status_line(), so a lane reporting "## Status: Complete" was announced
+  # to the owner as "ended without a recognisable status line" while its marker held the status.
+  # A guard that cries wolf is worse than none, because it teaches the reader to ignore it.
+  if [ -n "$(status_line "$log")" ]; then
     echo "report_present"; return
   fi
   if printf '%s' "$(head -3 "$log" 2>/dev/null)" | grep -qiE "error|fatal"; then
@@ -196,7 +200,10 @@ classify_log() {
 # character, not just CR.
 status_line() {
   local log="$1"
-  grep -m1 -E "^status:|Status:" "$log" 2>/dev/null \
+  # Anchored to line start, tolerating markdown decoration the lanes actually emit:
+  #   status: PASS   /   Status: PASS   /   ## Status: Complete   /   **Status:** PASS
+  # Deliberately NOT a bare "Status:" anywhere - that matched incidental prose.
+  grep -m1 -E "^[[:space:]]*(#+[[:space:]]+)?\**[Ss]tatus:" "$log" 2>/dev/null \
     | head -1 \
     | tr -d '\r' \
     | tr -d '\000-\010\013-\037\177' \
