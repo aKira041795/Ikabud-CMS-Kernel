@@ -1369,7 +1369,7 @@
         <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
             <span class="font-semibold">PM ending pending for {prior_pending_day.date}.</span>
             <span class="ml-1 text-amber-800">That business date is still open because its PM shift was not finalized. Enter the late counts, then close the PM shift.</span>
-            <a class="ml-2 font-semibold text-amber-900 underline" href="{base_url}/daily-ledger/admin/commissary?date={prior_pending_day.date}&commissary_id={sheet_source_branch_id}&shift=PM">Open prior PM ledger</a>
+            <a class="ml-2 font-semibold text-amber-900 underline" href="{base_url}/admin/commissary?date={prior_pending_day.date}&commissary_id={sheet_source_branch_id}&shift=PM">Open prior PM ledger</a>
         </div>
         {/if}
         {if pm_flag}
