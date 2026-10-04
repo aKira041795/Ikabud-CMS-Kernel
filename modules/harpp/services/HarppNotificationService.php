@@ -249,7 +249,7 @@ final class HarppNotificationService
             'conversation_id' => $conversationId ?: null,
             'decision_id' => $decisionId ?: null,
             'message_id' => (int)($notice['message_id'] ?? 0) ?: null,
-            'url' => $decisionId > 0 ? '/harpp/decisions/' . $decisionId : ($conversationId > 0 ? '/harpp?conversation=' . $conversationId : '/harpp/notifications'),
+            'url' => $conversationId > 0 ? '/harpp?conversation=' . $conversationId : '/harpp/notifications',
             'tag' => $conversationId > 0 ? 'harpp-conversation-' . $conversationId : ($decisionId > 0 ? 'harpp-decision-' . $decisionId : 'harpp-notification-' . (int)$notice['id']),
             'urgency' => $type === 'decision' ? 'high' : 'normal',
             'ttl' => $type === 'decision' ? 86400 : 14400,

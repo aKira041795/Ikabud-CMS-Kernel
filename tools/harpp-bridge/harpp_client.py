@@ -41,18 +41,17 @@ OWNER_MESSAGE_TYPES = {
     "INFO", "PROGRESS", "WARNING", "DECISION_REQUIRED", "BLOCKED", "RELEASE_READY", "FAILED",
     # Completion is its own type rather than PROGRESS. PROGRESS is deliberately treated
     # as chatter by the server's push gate, so reporting a finished task as PROGRESS made
-    # completion the one event the owner could not be notified about. Deliberately NOT in
-    # ACTIONABLE_MESSAGE_TYPES: finishing work needs no decision, only an announcement.
+    # completion the one event the owner could not be notified about. Completion remains
+    # distinct so the server's push gate can notify the owner.
     "COMPLETED",
 }
 
 
 def _notify_enabled():
-    """Owner-facing bridge notifications (messages + decisions) are on by default.
+    """Owner-facing bridge chat notifications are on by default.
 
-    In testing/quiet mode they are suppressed so test runs never pollute the
-    live HARPP with real messages/decisions (the wf-* escalation tests previously
-    created live "Escalation required" decisions on the host). Disable via env
+    In testing/quiet mode they are suppressed so test runs never pollute live
+    HARPP chat with workflow notifications. Disable via env
     HARPP_NOTIFY=0 / HARPP_TESTING_MODE=1 or config keys harpp_notify:false /
     harpp_testing_mode:true. Suppressed calls return {"ok": True, "suppressed": True}.
     """
@@ -75,7 +74,6 @@ def _notify_enabled():
     if str(cfg.get("harpp_testing_mode", "")).strip().lower() in ("1", "true", "yes"):
         return False
     return True
-ACTIONABLE_MESSAGE_TYPES = {"DECISION_REQUIRED", "BLOCKED", "RELEASE_READY"}
 
 
 class HarppError(RuntimeError):
@@ -533,28 +531,6 @@ def _prefix_message(message_type, body):
     return text if stripped.startswith(prefix) else (prefix if not text else f"{prefix} {text}")
 
 
-def _decision_lines(payload=None):
-    payload = payload or {}
-    options = payload.get("options") or []
-    if isinstance(options, str):
-        options = [options]
-    lines = [
-        f"what: {_nl(str(payload.get('what') or ''))}".rstrip(),
-        f"why: {_nl(str(payload.get('why') or ''))}".rstrip(),
-        "options:",
-    ]
-    if options:
-        for opt in options:
-            lines.append(f"- {_nl(str(opt))}".rstrip())
-    else:
-        lines.append("- owner direction required")
-    lines.extend([
-        f"recommendation: {_nl(str(payload.get('recommendation') or ''))}".rstrip(),
-        f"risk: {_nl(str(payload.get('risk') or ''))}".rstrip(),
-    ])
-    return "\n".join(lines)
-
-
 def harpp_notify(*, conversation_id, message_type, body, title=None, harness_session_id=None,
                  idempotency_key=None, decision=None, config=None, delivery_outcome=None):
     message_type = str(message_type or "INFO").strip().upper() or "INFO"
@@ -564,22 +540,9 @@ def harpp_notify(*, conversation_id, message_type, body, title=None, harness_ses
                              message_type=message_type,
                             body=_prefix_message(message_type, body),
                             delivery_outcome=delivery_outcome)
-    if message_type in ACTIONABLE_MESSAGE_TYPES:
-        decision = dict(decision or {})
-        if not decision.get("title"):
-            raise ValueError(f"{message_type} notifications require decision metadata.title")
-        decision_body = _decision_lines(decision)
-        submit_decision(
-            config=config,
-            title=decision["title"],
-            body=decision_body,
-            context=_nl(decision.get("context", "")),
-            requested_decision=_nl(decision.get("requested_decision", "")),
-            priority=decision.get("priority", "high" if message_type != "RELEASE_READY" else "normal"),
-            source=decision.get("source", "harness"),
-            workbench_state=decision.get("workbench_state", message_type),
-            decision_key=decision.get("decision_key", ""),
-        )
+    # `decision` remains a tolerated compatibility kwarg for wake/workflow callers.
+    # Escalation detail already lives in the chat body; do not duplicate it into
+    # the backend decision ledger or require metadata for actionable messages.
     return response
 
 

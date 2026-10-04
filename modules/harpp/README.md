@@ -141,8 +141,9 @@ Capability handlers live in `modules/harpp/helpers.php` (`harpp_capability_handl
 
 ```
 /harpp/login               /harpp/forgot-password      /harpp/reset-password
-/harpp                     (messenger)                 /harpp/decisions
-/harpp/decisions/{id}      /harpp/settings             /harpp/notifications
+/harpp                     (messenger)                 /harpp/overview
+/harpp/status              /harpp/runners              /harpp/notifications
+/harpp/workspaces          /harpp/settings             /harpp/deploy
 /harpp/sw.js               /harpp/manifest.webmanifest /harpp/icon.svg
 ```
 

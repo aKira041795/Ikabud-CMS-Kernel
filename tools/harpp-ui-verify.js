@@ -26,7 +26,6 @@ const PAGES = [
     ['Today', '/harpp/overview'],
     ['Messenger', '/harpp'],
     ['Advisor', '/harpp/advisor'],
-    ['Decisions', '/harpp/decisions'],
     ['Status', '/harpp/status'],
     ['Runners', '/harpp/runners'],
     ['Notifications', '/harpp/notifications'],

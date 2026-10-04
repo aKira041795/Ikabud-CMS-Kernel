@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
           del.textContent = 'Delete';
           del.onclick = async (e) => {
             e.stopPropagation();
-            if (!window.confirm('Delete this archived conversation? Its messages, decisions, and history are retained but hidden.')) {
+            if (!window.confirm('Delete this archived conversation? Its messages and linked history are retained but hidden.')) {
               escText(status, 'Conversation deletion cancelled.');
               return;
             }

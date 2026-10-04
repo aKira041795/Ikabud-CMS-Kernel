@@ -8,36 +8,6 @@ require_once __DIR__.'/../services/HarppDecisionService.php';
 use Harpp\Services\HarppCollaborationPolicy;
 use Harpp\Services\HarppDecisionService;
 
-function harppParseClientTransitionMatrix(string $detailJs): array
-{
-	// Robustness: strip JS comments and tolerate trailing commas so the parser
-	// does not false-fail on cosmetic formatting in the client matrix.
-	$detailJs = (string)preg_replace('#/\*.*?\*/#s', '', $detailJs);
-	$detailJs = (string)preg_replace('#//[^\n]*#', '', $detailJs);
-	if (!preg_match('/const\s+transitions\s*=\s*(\{.*?\})\s*;/s', $detailJs, $matches)) {
-		throw new RuntimeException('Client transitions object not found.');
-	}
-
-	$json = preg_replace('/(\s*)([A-Z][A-Z0-9_]*)(\s*):/', '$1"$2"$3:', $matches[1]);
-	$json = str_replace("'", '"', (string)$json);
-	$json = (string)preg_replace('/,\s*([}\]])/', '$1', $json); // tolerate trailing commas
-	$matrix = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-	if (!is_array($matrix)) {
-		throw new RuntimeException('Client transitions object is not a JSON-like object.');
-	}
-
-	$normalized = [];
-	foreach ($matrix as $from => $targets) {
-		$normalized[strtoupper((string)$from)] = array_map(
-			static fn($target): string => strtoupper((string)$target),
-			is_array($targets) ? $targets : []
-		);
-	}
-
-	ksort($normalized);
-	return $normalized;
-}
-
 $checks=0;
 $assert=function(bool $condition,string $message)use(&$checks):void{$checks++;if(!$condition)throw new RuntimeException("Contract failure: $message");};
 $manifest=json_decode((string)file_get_contents(__DIR__.'/../module.json'),true,512,JSON_THROW_ON_ERROR);
@@ -45,10 +15,6 @@ $migration=(string)file_get_contents(__DIR__.'/../database/migrations/007_harpp_
 $decision=(string)file_get_contents(__DIR__.'/../services/HarppDecisionService.php');
 $helpers=(string)file_get_contents(__DIR__.'/../helpers.php');
 $handlers=(string)file_get_contents(__DIR__.'/../handlers.php');
-$detailJs=(string)file_get_contents(__DIR__.'/../assets/decision-detail.js');
-$inboxJs=(string)file_get_contents(__DIR__.'/../assets/decisions.js');
-$detailTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/decision-detail.disyl');
-$inboxTemplate=(string)file_get_contents(dirname(__DIR__,3).'/templates/modules/harpp/decisions.disyl');
 
 $assert($manifest['version']==='2.5.0','manifest semver');
 // Owned-table inventory is contract-validated against the actual migration files so the
@@ -67,8 +33,6 @@ foreach(['harpp_workspaces','harpp_workspace_memberships','harpp_projects','harp
 foreach(['harpp_lifecycle_v2','harpp_immutable_retention','harpp_outbox','harpp_strict_validation','harpp_workspace_enforcement','harpp_participant_visibility','harpp_per_user_receipts','harpp_approval_policies','harpp_notification_fanout'] as $flag){$assert(array_key_exists($flag,$manifest['settings_defaults']),"flag $flag");}
 
 $transitionMatrix=['CREATED'=>['PENDING','DECIDED','CANCELLED'],'PENDING'=>['NOTIFIED','VIEWED','DECIDED','CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],'NOTIFIED'=>['VIEWED','DECIDED','CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],'VIEWED'=>['DECIDED','CLOSED','EXPIRED','SUPERSEDED','CANCELLED'],'DECIDED'=>['ACKNOWLEDGED','CLOSED','SUPERSEDED','CANCELLED'],'ACKNOWLEDGED'=>['APPLIED','CLOSED','SUPERSEDED','CANCELLED'],'APPLIED'=>['CLOSED'],'CLOSED'=>[],'EXPIRED'=>[],'SUPERSEDED'=>[],'CANCELLED'=>[]];foreach(array_keys($transitionMatrix)as$from)foreach(array_keys($transitionMatrix)as$to)$assert(HarppDecisionService::isTransitionAllowed($from,$to)===in_array($to,$transitionMatrix[$from],true),"transition matrix $from -> $to");
-$serverMatrix=[];foreach(HarppDecisionService::TRANSITIONS as $from=>$targets){$serverMatrix[strtoupper((string)$from)]=array_map(static fn(string $target): string=>strtoupper($target),$targets);}ksort($serverMatrix);
-$assert(harppParseClientTransitionMatrix($detailJs)===$serverMatrix,'client transitions match HarppDecisionService::TRANSITIONS');
 $assert(!HarppDecisionService::isTransitionAllowed('VIEWED','APPLIED'),'no lifecycle bypass');
 $assert(!preg_match('/DELETE\s+FROM\s+harpp_(decisions|adrs)/i',$decision),'ordinary service cannot erase decision or ADR');
 $assert(!str_contains($helpers,'FROM harpp_conversations ORDER BY updated_at'),'entity conversation discovery uses scoped messaging service');
@@ -78,9 +42,6 @@ $assert(str_contains($decision,'recordAutomaticAdr'),'DECIDED path creates ADR')
 $assert(str_contains($decision,'mintDecisionAdr')&&str_contains($decision,'approvalSatisfied('),'unified ADR-minting routine enforces the approval gate');
 $assert(str_contains($decision,"'close_fallback'"),'close fallback ADR provenance is threaded');
 $applyHandlerStart=strpos($handlers,'function harppDecisionApplyClose');$applyHandlerEnd=strpos($handlers,"\nfunction ",$applyHandlerStart+1);$applyHandler=substr($handlers,$applyHandlerStart,$applyHandlerEnd-$applyHandlerStart);$assert(strpos($applyHandler,'harppRequireCsrf()')<strpos($applyHandler,'harppAuthenticated('),'apply endpoint checks CSRF before auth and mutation');
-$assert(str_contains($detailJs,"const applyReady = ['ACKNOWLEDGED', 'APPLIED']"),'apply-and-close UI restricted to ACKNOWLEDGED/APPLIED');$assert(!str_contains($detailJs,'decision-decide-close')&&!str_contains($detailJs,'decision-close-plain'),'pre-decision decide/close shortcuts no longer submit apply-and-close');
-$assert(!str_contains($detailJs,'Permanently delete')&&!str_contains($inboxJs,'Permanently delete')&&!str_contains($detailTemplate,'Permanently removes'),'decision UI does not claim permanent deletion');
-$assert(str_contains($inboxTemplate,'name="include_archived"')&&str_contains($inboxTemplate,'Archive all terminal'),'archived decisions have explicit retrieval and archive semantics');
 $assert(str_contains($helpers,"foreach (['user', 'actor', 'actor_user_id', 'tenant_id', 'store_id', '_tenant_id']")&&str_contains($helpers,"SELECT id,role FROM harpp_users WHERE id=:id AND is_active=1")&&str_contains($helpers,"app()->cap()->call('kernel.auth.user@1'"),'new capabilities reject caller authority and bind/revalidate infrastructure actor');
 $assert(str_contains($helpers,'function harppCapabilityResult')&&str_contains($helpers,"str_ends_with(\$key, '_id')")&&substr_count($helpers,'return harppCapabilityResult(')>=15,'new capability IDs are opaque decimal strings');
 $assert(substr_count($migration,"column_name='harpp_conversations'")===0||substr_count($migration,"table_name='harpp_conversations' AND column_name=")>=4,'conversation ALTER steps are independently resumable');

@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let includeRead = false;
 
   function target(n) {
-    return n.decision_id ? `/harpp/decisions/${n.decision_id}` : (n.conversation_id ? `/harpp?conversation=${n.conversation_id}` : '/harpp/notifications');
+    return n.conversation_id ? `/harpp?conversation=${n.conversation_id}` : '/harpp/notifications';
   }
 
   async function load() {

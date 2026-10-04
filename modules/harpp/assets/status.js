@@ -136,17 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return row;
     }
 
-    function decisionRow(decision) {
-        const row = document.createElement('div');
-        row.className = 'status-row';
-        const title = document.createElement('span');
-        title.textContent = decision.title || `decision #${decision.id}`;
-        row.append(title, chip(decision.lifecycle_state || 'unknown'));
-        return row;
-    }
-
     function showError(message) {
-        for (const id of ['daemon-health', 'runner-fleet', 'run-queue', 'recent-runs', 'recent-decisions']) {
+        for (const id of ['daemon-health', 'runner-fleet', 'run-queue', 'recent-runs']) {
             const root = document.getElementById(id);
             if (!root) continue;
             root.className = 'empty-state';
@@ -161,7 +152,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderRunners(Array.isArray(data.runners) ? data.runners : []);
             renderQueue(data.run_queue || {});
             renderRows('recent-runs', Array.isArray(data.recent_runs) ? data.recent_runs : [], runRow);
-            renderRows('recent-decisions', Array.isArray(data.recent_decisions) ? data.recent_decisions : [], decisionRow);
         } catch (error) {
             showError(error.message || 'Unable to load HARPP status.');
         }

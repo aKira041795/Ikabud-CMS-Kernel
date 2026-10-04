@@ -34,10 +34,6 @@ foreach ([
     'modules/harpp/handlers.php',
     'modules/harpp/routes.php',
     'modules/harpp/services/HarppDecisionService.php',
-    'modules/harpp/assets/decisions.js',
-    'modules/harpp/assets/decision-detail.js',
-    'templates/modules/harpp/decisions.disyl',
-    'templates/modules/harpp/decision-detail.disyl',
 ] as $file) {
     $h->fingerprint($file); // @phpstan-ignore-line
 }
@@ -90,22 +86,7 @@ $advanceToAcknowledged = static function (int $decisionId) use ($service, $owner
 };
 
 try {
-    $h->section('Default inbox filter wiring'); // @phpstan-ignore-line
-
-    $_COOKIE['harpp_token'] = (new HarppAuthService($db))->issueToken($owner);
-    ob_start(); harppPageDecisions(); $renderedInbox = (string)ob_get_clean();
-    $renderedSelectStart = strpos($renderedInbox, '<select name="state">');
-    $renderedSelectEnd = strpos($renderedInbox, '</select>', $renderedSelectStart);
-    $renderedStateOptions = substr($renderedInbox, $renderedSelectStart, $renderedSelectEnd - $renderedSelectStart);
-    $renderedPendingPos = strpos($renderedStateOptions, '<option value="PENDING">');
-    $renderedAllPos = strpos($renderedStateOptions, '<option value="">');
-    $renderedClosedPos = strpos($renderedStateOptions, '<option>CLOSED</option>');
-    $assert('rendered inbox select starts at PENDING', $renderedPendingPos !== false && $renderedAllPos !== false && $renderedPendingPos < $renderedAllPos);
-    $assert('rendered inbox keeps explicit CLOSED filter', $renderedClosedPos !== false);
-
-    ob_start(); harppPageDecisionDetail(['id' => 0]); $renderedDetail = (string)ob_get_clean();
-    $assert('decision detail renders the Apply and close form', strpos($renderedDetail, 'id="decision-apply-close"') !== false && strpos($renderedDetail, 'Apply and close') !== false);
-    $assert('decision detail no longer renders pre-decision decide/close shortcuts', strpos($renderedDetail, 'decision-decide-close') === false && strpos($renderedDetail, 'decision-close-plain') === false);
+    $h->section('Decision backend route and service wiring'); // @phpstan-ignore-line
 
     $h->section('Route and handler CSRF ordering'); // @phpstan-ignore-line
     $routes = require dirname(__DIR__) . '/routes.php';

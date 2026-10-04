@@ -40,7 +40,6 @@ $owner['source'] = 'harpp';
 $_COOKIE['harpp_token'] = (new Harpp\Services\HarppAuthService())->issueToken($owner);
 $pages = [
     'messenger' => static fn() => harppPageMessenger(),
-    'decisions' => static fn() => harppPageDecisions(),
     'settings' => static fn() => harppPageSettings(),
     'users' => static fn() => harppPageUsers(),
     'notifications' => static fn() => harppPageNotifications(),
@@ -50,8 +49,6 @@ foreach ($pages as $name => $handler) {
     [$status, $html] = $capture($handler);
     $assert($name . ' shell authenticated HTTP 200', $status === 200 && str_contains($html, 'HARPP'), 'status=' . $status);
 }
-[$status, $html] = $capture(static fn() => harppPageDecisionDetail(['id' => 1]));
-$assert('decision detail shell authenticated HTTP 200', $status === 200 && str_contains($html, 'decision-detail'));
 $member = harppDb()->query("SELECT id,email,full_name,role FROM harpp_users WHERE role='member' AND is_active=1 ORDER BY id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 if (!is_array($member)) throw new RuntimeException('HARPP member missing.');
 $member['source'] = 'harpp';
@@ -78,9 +75,10 @@ $publicKey = (string)($keyResponse['data']['public_key'] ?? '');
 $assert('VAPID public key endpoint returns key', $status === 200 && !empty($keyResponse['ok']) && preg_match('/^[A-Za-z0-9_-]{32,}$/', $publicKey) === 1);
 
 $routes = require dirname(__DIR__) . '/routes.php';
-foreach (['/harpp/login', '/harpp', '/harpp/decisions', '/harpp/settings', '/harpp/users', '/harpp/notifications', '/harpp/sw.js', '/harpp/manifest.webmanifest', '/harpp/icon.svg'] as $route) {
+foreach (['/harpp/login', '/harpp', '/harpp/settings', '/harpp/users', '/harpp/notifications', '/harpp/sw.js', '/harpp/manifest.webmanifest', '/harpp/icon.svg'] as $route) {
     $assert('route map ' . $route, isset($routes['GET'][$route]));
 }
+$assert('decision pages are absent', !isset($routes['GET']['/harpp/decisions']) && !isset($routes['GET']['/harpp/decisions/{id}']));
 
 $errorLog = is_file($logs[1]) ? trim((string)file_get_contents($logs[1])) : '';
 $appLog = is_file($logs[0]) ? (string)file_get_contents($logs[0]) : '';

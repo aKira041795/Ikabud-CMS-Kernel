@@ -10,8 +10,6 @@ return [
         '/harpp' => 'harpp:harppPageMessenger',
         '/harpp/' => 'harpp:harppPageMessenger',
         '/harpp/overview' => 'harpp:harppPageOverview',
-        '/harpp/decisions' => 'harpp:harppPageDecisions',
-        '/harpp/decisions/{id}' => 'harpp:harppPageDecisionDetail',
         '/harpp/runners' => 'harpp:harppRunnersPage',
         '/harpp/status' => 'harpp:harppPageStatus',
         '/harpp/advisor' => 'harpp:harppPageAdvisor',

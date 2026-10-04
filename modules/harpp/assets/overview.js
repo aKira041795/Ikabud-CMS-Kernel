@@ -86,15 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function loadDecisions() {
-        try {
-            const data = (await Harpp.fetch('/api/v1/harpp/decisions?state=PENDING')).data || {};
-            setText('overview-decisions', Array.isArray(data.decisions) ? data.decisions.length : 0);
-        } catch (error) {
-            setText('overview-decisions', '—');
-        }
-    }
-
     async function loadNotifications() {
         try {
             const data = (await Harpp.fetch('/api/v1/harpp/notifications/unread-count')).data || {};
@@ -119,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function load() {
         if (statusEl) statusEl.textContent = '';
-        await Promise.all([loadStatus(), loadDecisions(), loadNotifications(), loadDeploys()]);
+        await Promise.all([loadStatus(), loadNotifications(), loadDeploys()]);
     }
 
     load();

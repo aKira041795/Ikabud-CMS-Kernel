@@ -107,7 +107,7 @@ function harppLoginPageContext(array $overrides = []): array
         'login_button_text' => 'Open HARPP',
         'login_loading_text' => 'Signing in...',
         'login_brand_html' => 'HARPP',
-        'login_subtitle' => 'Harness decision center and messenger',
+        'login_subtitle' => 'Harness chat and workstation operations',
         'login_forgot_url' => '/harpp/forgot-password',
         'login_forgot_text' => 'Forgot password?',
     ], $overrides);
@@ -143,11 +143,9 @@ function harppRenderShell(string $template, string $page, array $context = []): 
 
 function harppPageMessenger(array $params = []): void { harppRenderShell('messenger', 'messenger'); }
 function harppPageOverview(array $params = []): void { harppRenderShell('overview', 'overview'); }
-function harppPageDecisions(array $params = []): void { harppRenderShell('decisions', 'decisions'); }
 function harppRunnersPage(array $params = []): void { harppRenderShell('runners', 'runners'); }
 function harppPageStatus(array $params = []): void { harppRenderShell('status', 'status'); }
 function harppPageAdvisor(array $params = []): void { harppRenderShell('advisor', 'advisor'); }
-function harppPageDecisionDetail(array $params = []): void { harppRenderShell('decision-detail', 'decisions', ['decision_id' => max(0, (int)($params['id'] ?? 0))]); }
 function harppPageSettings(array $params = []): void { harppRenderShell('settings', 'settings'); }
 function harppPageUsers(array $params = []): void
 {

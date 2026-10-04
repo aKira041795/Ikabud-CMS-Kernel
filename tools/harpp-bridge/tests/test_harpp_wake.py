@@ -2466,7 +2466,7 @@ class HarppWakeTest(unittest.TestCase):
         harpp_wake.launch_job = fake_launch
         try:
             wid = harpp_wake.start_workflow(title="implement feature", conversation_id=7,
-                                            stages=[self._stage("implement")])
+                                            stages=[self._stage("implement")], authority_level="L2")
             wf = harpp_wake.get_workflow(wid)
             self.assertRegex(wf["run_id"], r"^HARPP-\d{8}-\d{5}$")
             self.assertEqual(wf["task_id"], "implement_feature")
@@ -2562,12 +2562,12 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["stages"][0]["status"], "escalated")
             self.assertEqual(len(sent), 1)
             self.assertTrue(sent[0]["body"].startswith("[DECISION_REQUIRED]"))
-            self.assertEqual(len(decisions), 1)
-            self.assertIn("what:", decisions[0]["body"])
-            self.assertIn("why:", decisions[0]["body"])
-            self.assertIn("options:", decisions[0]["body"])
-            self.assertIn("recommendation:", decisions[0]["body"])
-            self.assertIn("risk:", decisions[0]["body"])
+            self.assertEqual(decisions, [])
+            self.assertIn("what:", sent[0]["body"])
+            self.assertIn("why:", sent[0]["body"])
+            self.assertIn("options:", sent[0]["body"])
+            self.assertIn("recommendation:", sent[0]["body"])
+            self.assertIn("risk:", sent[0]["body"])
         finally:
             harpp_wake.harpp_client.send_message = original_send
             harpp_wake.harpp_client.submit_decision = original_submit
@@ -2587,7 +2587,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["repair_count"], 0)
             self.assertEqual(wf["stages"][0]["status"], "escalated")
             self.assertTrue(any("DECISION_REQUIRED" in s["body"] for s in sent))
-            self.assertEqual(len(decisions), 1)  # decision captured, never sent live
+            self.assertEqual(decisions, [])  # escalation is delivered only in chat
         finally:
             harpp_wake.harpp_client.send_message = original_send
             harpp_wake.harpp_client.submit_decision = original_submit
@@ -2607,15 +2607,15 @@ class HarppWakeTest(unittest.TestCase):
                     self.assertEqual(wf["stages"][0]["attempt_count"], 0)
                     self.assertEqual(wf["stages"][0]["status"], "escalated")
                     self.assertIn("DECISION_REQUIRED", sent[0]["body"])
-                    self.assertEqual(len(decisions), 1)  # decision captured, never sent live
+                    self.assertEqual(decisions, [])  # escalation is delivered only in chat
                 finally:
                     harpp_wake.harpp_client.send_message = original_send
                     harpp_wake.harpp_client.submit_decision = original_submit
 
     def test_escalation_notifications_suppressed_in_testing_mode(self):
         # In testing mode (HARPP_TESTING_MODE=1) the workflow still escalates
-        # locally, but no live message or decision is sent — so test workflows
-        # cannot pollute live HARPP with "Escalation required" decisions.
+        # locally, but no live chat message is sent — so test workflows cannot
+        # pollute the owner's HARPP conversation with test escalations.
         sent, decisions, original_send, original_submit = self._patch_notify()
         old = os.environ.get("HARPP_TESTING_MODE")
         os.environ["HARPP_TESTING_MODE"] = "1"
@@ -2647,12 +2647,12 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(wf["status"], "escalated")
             self.assertIn("requires human approval by policy", wf["escalation_reason"])
             self.assertIn("configured=L4 required=L4", sent[0]["body"])
-            self.assertEqual(decisions[0]["workbench_state"], "DECISION_REQUIRED")
+            self.assertEqual(decisions, [])
         finally:
             harpp_wake.harpp_client.send_message = original_send
             harpp_wake.harpp_client.submit_decision = original_submit
 
-    def test_harpp_notify_prefixes_and_only_actionable_create_decisions(self):
+    def test_harpp_notify_prefixes_and_never_duplicates_into_decisions(self):
         sent, decisions, original_send, original_submit = self._patch_notify()
         try:
             harpp_wake.harpp_client.harpp_notify(conversation_id=7, message_type="INFO", body="hello")
@@ -2663,8 +2663,7 @@ class HarppWakeTest(unittest.TestCase):
                           "recommendation": "A", "risk": "r"})
             self.assertEqual([m["body"] for m in sent[:2]], ["[HARPP] hello", "[PROGRESS] working"])
             self.assertEqual(sent[2]["body"], "[BLOCKED] stop")
-            self.assertEqual(len(decisions), 1)
-            self.assertEqual(decisions[0]["title"], "Blocked")
+            self.assertEqual(decisions, [])
         finally:
             harpp_wake.harpp_client.send_message = original_send
             harpp_wake.harpp_client.submit_decision = original_submit
@@ -2679,7 +2678,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertEqual(harpp_wake.advance_workflows(), 1)
             self.assertEqual(harpp_wake.get_workflow(wid)["status"], "done")
             self.assertTrue(sent[0]["body"].startswith("[RELEASE_READY]"))
-            self.assertEqual(decisions[0]["workbench_state"], "RELEASE_READY")
+            self.assertEqual(decisions, [])
         finally:
             harpp_wake.harpp_client.send_message = original_send
             harpp_wake.harpp_client.submit_decision = original_submit
@@ -2693,8 +2692,7 @@ class HarppWakeTest(unittest.TestCase):
             harpp_wake._notify_workflow(wf, "FAILED", wf["stages"][0], reason="boom")
             self.assertTrue(sent[0]["body"].startswith("[BLOCKED]"))
             self.assertTrue(sent[1]["body"].startswith("[FAILED]"))
-            self.assertEqual(len(decisions), 1)
-            self.assertEqual(decisions[0]["workbench_state"], "BLOCKED")
+            self.assertEqual(decisions, [])
         finally:
             harpp_wake.harpp_client.send_message = original_send
             harpp_wake.harpp_client.submit_decision = original_submit
@@ -2798,7 +2796,7 @@ class HarppWakeTest(unittest.TestCase):
             self.assertIn("Next: auto-repair round 1/2 in progress", sent[1]["body"])
             self.assertIn("summary wf / review — BLOCKED", sent[2]["body"])
             self.assertIn("what: unblock workflow", sent[2]["body"])
-            self.assertEqual(decisions[0]["workbench_state"], "BLOCKED")
+            self.assertEqual(decisions, [])
         finally:
             harpp_wake.harpp_client.send_message = original_send
             harpp_wake.harpp_client.submit_decision = original_submit

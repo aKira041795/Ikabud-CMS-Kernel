@@ -6,7 +6,6 @@
     {field name="workbench_state" type="string" renderer="text"}
     {field name="created_at" type="string" renderer="date"}
     {field name="id" type="number" visible="false"}
-    {action name="view" url="/harpp/decisions/{id}" method="GET" label="View"}
 {/ikb_entity_view}
 
 {ikb_entity_view name="harpp_decision" view="detailed"}
