@@ -592,13 +592,12 @@ would have got wrong:
 
 ### S8 flaked once during this session — recorded, not papered over
 
-The suite was run three times on 2026-10-04: **16/16**, **16/16**, and one earlier run failing as
-`S8 … rc=3 reason=<empty> journal=0`. That is the pre-existing race already documented above — the runner
-correctly returns 3, but the watchdog has not yet committed its `timeout` record when the assertion reads
-the journal. It is **not** from the advisory change: `mcp_advice` runs before dispatch and touches nothing
-on the landing path, and zero stray watchdogs or runners were present. `rc=3` with no journal entry is
-exactly the signature the earlier note predicted, so this is one more sample of a known defect rather than
-a new one.
+The suite flaked once on 2026-10-04 — at 16 cases, before the notification gate was added — failing as
+`S8 … rc=3 reason=<empty> journal=0`. That is the pre-existing race documented above: the runner correctly
+returns 3, but the watchdog has not yet committed its `timeout` record when the assertion reads the journal.
+It is **not** caused by any change made that day: the tooling advisory runs *before* dispatch and touches
+nothing on the landing path, and zero stray watchdogs or runners were present. The suite then passed
+**16/16** on both following runs, and passes **18/18** with the notification gate in place.
 
 ### Desktop pop-ups — off by default, because they were flooding the owner's screen
 
