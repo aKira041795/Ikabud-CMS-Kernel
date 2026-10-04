@@ -242,23 +242,39 @@ $h->test(
     $pmError !== '' ? $pmError : json_encode($pmApplied)
 );
 
-$pmRepeatRejected = false;
+// a971e41c (2026-09-22) keyed the duplicate guard on the SUBMISSION, not on the
+// content: an absent idempotency key means "a new submission" and is minted fresh,
+// never silently folded back onto the content hash. A real client retry always
+// reuses the modal's stable key (modal_patch.disyl: "ONE operation id per opened
+// modal, reused for every retry"), so this keyless call is a NEW submission, not a
+// replay, and it MUST be recorded. The 0889ac93 expectation (a keyless replay of
+// the identical PM line is rejected) was the superseded content-identity contract.
+$pmRepeatApplied = null;
+$pmRepeatError = '';
 try {
-    $applyAdd('PM');
+    $pmRepeatApplied = $applyAdd('PM');
 } catch (Throwable $e) {
-    $pmRepeatRejected = true;
+    $pmRepeatError = $e->getMessage();
 }
-$h->test('replaying the identical PM line is still rejected', $pmRepeatRejected);
+$h->test(
+    'a keyless replay of the identical PM line is a NEW submission and is recorded',
+    is_array($pmRepeatApplied) && !empty($pmRepeatApplied['ok']),
+    $pmRepeatError !== '' ? $pmRepeatError : json_encode($pmRepeatApplied)
+);
 
 $rows = [];
 foreach ($db->query("SELECT shift, addtl FROM dl_daily_ledger WHERE branch_id = {$dedupBranchId} AND product_id = {$dedupProductId} ORDER BY shift") as $r) {
     $rows[$r['shift']] = (int)$r['addtl'];
 }
-$h->test('both shifts carry the adjustment', ($rows['AM'] ?? 0) === 1 && ($rows['PM'] ?? 0) === 1, json_encode($rows));
+// Each of the three submissions (AM, PM, PM) is its own row, so PM carries 2 and
+// AM carries 1. The old {AM:1,PM:1} expectation was the content-identity shape.
+$h->test('both shifts carry the adjustment, with the new PM submission added on top', ($rows['AM'] ?? 0) === 1 && ($rows['PM'] ?? 0) === 2, json_encode($rows));
 
 $countStmt = $db->prepare('SELECT COUNT(*) FROM dl_cashier_withdrawals WHERE branch_id = :b AND product_id = :p');
 $countStmt->execute([':b' => $dedupBranchId, ':p' => $dedupProductId]);
-$h->test('exactly two withdrawal rows exist (AM + PM)', (int)$countStmt->fetchColumn() === 2);
+// One row for the AM submission plus two for the two distinct PM submissions.
+$withdrawalRowCount = (int)$countStmt->fetchColumn();
+$h->test('three withdrawal rows exist: AM plus the two PM submissions', $withdrawalRowCount === 3, 'rows=' . $withdrawalRowCount);
 
 $h->test(
     'migration 059 is registered in module.json',
