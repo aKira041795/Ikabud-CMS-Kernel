@@ -4535,6 +4535,27 @@ function dl_shiftMissingEndings($db, int $branchId, string $date, string $shift)
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/**
+ * The immediately previous business date when it is still open with an unfinalized PM
+ * shift, else null. Ported from the cashier gate (handlers.php:6007-6015) so the
+ * production user is told a prior PM day is still pending instead of silently finding a
+ * date that refuses to close.
+ */
+function dl_priorPendingPmDay($db, int $branchId, string $today, string $viewedDate): ?string
+{
+    $prevDate = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+    if ($prevDate === $viewedDate) {
+        return null;
+    }
+    if (dl_getDayStatus($branchId, $prevDate) !== 'open') {
+        return null;
+    }
+    if (dl_shiftIsFinalized($db, $branchId, $prevDate, 'PM')) {
+        return null;
+    }
+    return $prevDate;
+}
+
 /** Fully manual day: no decided POS/fallback mode governs the day. */
 function dl_isFullyManualDay($db, int $branchId, string $date): bool
 {
@@ -16211,6 +16232,16 @@ function handleAdminCommissary(): void
     $shiftRow = $shift === null ? null : dl_getShiftStatus($db, $sheetSourceBranchId, $rawDate, $shift);
     $shiftStatus = $shift === null ? 'unshifted' : ($shiftRow ? (string)$shiftRow['status'] : 'open');
 
+    // A prior pending PM day the sheet's own operators can still recover. Gated on
+    // the sheet's roles, not the cashier's $role === 'cashier'.
+    $priorPendingDay = null;
+    if (in_array($role, ['admin', 'supervisor', 'production_in_charge'], true) && $sheetSourceBranchId > 0) {
+        $priorDate = dl_priorPendingPmDay($db, (int)$sheetSourceBranchId, $today, $rawDate);
+        if ($priorDate !== null) {
+            $priorPendingDay = ['date' => $priorDate];
+        }
+    }
+
     // The management log is intentionally not exposed to production_in_charge.
     $productionLog = ($user['role'] ?? '') === 'admin'
         ? dl_fetchProductionLedgerLog($db, $sheetSourceBranchId, $rawDate)
@@ -16287,6 +16318,7 @@ function handleAdminCommissary(): void
         'shift_locked' => $shiftLocked,
         'close_of_day_time' => dl_operatingClockLabel()['close_of_day_time'],
         'shift_status' => $shiftStatus,
+        'prior_pending_day' => $priorPendingDay,
         'day_status' => $sheetSourceBranchId > 0 ? dl_getDayStatus($sheetSourceBranchId, $rawDate) : 'open',
         'production_reference_only' => !in_array($role, ['admin', 'supervisor', 'production_in_charge'], true) || $shift === null,
         'historical_unshifted_count' => $historicalUnshiftedCount,
@@ -16884,16 +16916,25 @@ function apiFinalizeProductionPmShift(): void
         $status = dl_lockShiftStatusRow($db, $branchId, $date, 'PM');
         if ((string)$status['status'] !== 'finalized') {
             $missing = $db->prepare(
-                'SELECT p.name FROM dl_products p
+                'SELECT p.id AS product_id, p.name, p.sku FROM dl_products p
                  INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
                  LEFT JOIN dl_commissary_product_ledger cpl ON cpl.product_id = p.id AND cpl.commissary_branch_id = :bid2 AND cpl.ledger_date = :d AND cpl.shift = "PM"
                  WHERE p.is_active = 1 AND (cpl.id IS NULL OR cpl.actual_end_qty IS NULL)
-                 ORDER BY p.sort_order, p.name LIMIT 20'
+                 ORDER BY p.sort_order, p.name'
             );
             $missing->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
-            $names = $missing->fetchAll(PDO::FETCH_COLUMN) ?: [];
-            if ($names !== []) {
-                throw new \RuntimeException('Record PM ACTUAL BAL for every product before closing: ' . implode(', ', $names), 422);
+            $missingProducts = $missing->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            if ($missingProducts !== []) {
+                $db->rollBack();
+                $ctx->json([
+                    'ok' => false,
+                    'code' => 'PM_ENDING_MISSING',
+                    'error' => count($missingProducts) . ' active product(s) are missing a PM ending count.',
+                    'missing_products' => array_map(static function (array $m): array {
+                        return ['product_id' => (int)$m['product_id'], 'name' => (string)$m['name'], 'sku' => (string)($m['sku'] ?? '')];
+                    }, $missingProducts),
+                ], 422);
+                return;
             }
             $db->prepare('UPDATE dl_ledger_shift_status SET status = "finalized", finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP WHERE branch_id = :bid AND ledger_date = :d AND shift = "PM"')
                 ->execute([':uid' => dl_getActorUserId($user) ?: null, ':bid' => $branchId, ':d' => $date]);

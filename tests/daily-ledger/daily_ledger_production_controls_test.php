@@ -442,6 +442,118 @@ try {
             'allowed=' . var_export($unlocks('AM'), true)
         );
     }
+
+    // ─── PM-close failure guidance (cashier-ledger parity) ────────────────────────────────
+    // The cashier ledger answers a failed PM close with a PERSISTENT panel naming the blocking
+    // products, and warns when the previous business day is still open on an unfinalized PM.
+    // The production sheet had neither: only a toast, and the names jammed into the message
+    // string by the handler (/tmp 20 at that). The prior-pending rule is date-driven, so its
+    // decision is asserted through the predicate the contract requires (R5) - which also keeps
+    // the test off the real business dates.
+    $h->section('PM-close failure guidance');
+
+    $priorSeam = 'dl_priorPendingPmDay';
+    $priorOk = function_exists($priorSeam);
+    $h->test(
+        'the prior-pending-PM rule is a testable predicate (' . $priorSeam . ')',
+        $priorOk,
+        $priorOk ? 'present' : 'MISSING - the rule is date-driven, so it cannot be asserted off real dates'
+    );
+
+    if ($priorOk) {
+        // A throwaway pair: "today" is the day AFTER the throwaway ledger date, so the prior
+        // date the rule inspects is the fixture date the cleanup already owns.
+        $today = '2019-03-04';
+        $setPriorDay = static function (?string $status) use ($db, $branchId, $date, $adminUserId): void {
+            if ($status === null) {
+                $db->prepare('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d')
+                    ->execute([':b' => $branchId, ':d' => $date]);
+                return;
+            }
+            $db->prepare(
+                'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_by, closed_at)
+                 VALUES (:b, :d, :s, :u, CURRENT_TIMESTAMP)
+                 ON DUPLICATE KEY UPDATE status = VALUES(status)'
+            )->execute([':b' => $branchId, ':d' => $date, ':s' => $status, ':u' => $adminUserId]);
+        };
+        $setPriorShift = static function (string $status) use ($db, $branchId, $date): void {
+            $db->prepare(
+                'INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status)
+                 VALUES (:b, :d, "PM", :s)
+                 ON DUPLICATE KEY UPDATE status = VALUES(status)'
+            )->execute([':b' => $branchId, ':d' => $date, ':s' => $status]);
+        };
+        $prior = static fn(string $viewed): ?string => $priorSeam($db, $branchId, $today, $viewed);
+
+        // The state the banner exists for: yesterday still open, its PM never finalized.
+        $setPriorDay('open');
+        $setPriorShift('open');
+        $h->test(
+            'a prior business day left open on an unfinalized PM is reported (the banner case)',
+            $prior($today) === $date,
+            'got=' . var_export($prior($today), true) . ' expected=' . $date
+        );
+
+        // Viewing that very date is not "prior" - no self-reference.
+        $h->test(
+            'the viewed date itself is never reported as a prior pending day',
+            $prior($date) === null,
+            'got=' . var_export($prior($date), true)
+        );
+
+        // A finalized prior PM is not pending.
+        $setPriorShift('finalized');
+        $h->test(
+            'a finalized prior PM is not reported (revert nags about a signed-off shift)',
+            $prior($today) === null,
+            'got=' . var_export($prior($today), true)
+        );
+
+        // A closed prior day is not pending either - the day lock is what matters.
+        $setPriorShift('open');
+        $setPriorDay('closed');
+        $h->test(
+            'a CLOSED prior day is not reported even with an unfinalized PM shift',
+            $prior($today) === null,
+            'got=' . var_export($prior($today), true)
+        );
+
+        // No day row at all reads 'open' from dl_getDayStatus; it must still be treated as
+        // pending, because that is exactly the never-started day the operator must recover.
+        $setPriorDay(null);
+        $h->test(
+            'a prior day with no day-status row is still reported as pending',
+            $prior($today) === $date,
+            'got=' . var_export($prior($today), true)
+        );
+    }
+
+    // The rendered sheet, on the REAL business date, must agree with the predicate - so this
+    // asserts the template honours the rule without depending on what the live state happens
+    // to be, and without writing to any real date.
+    $bizDate = dl_businessDate();
+    $expectedPrior = $priorOk ? $priorSeam($db, $branchId, $bizDate, $bizDate) : null;
+    $guidanceHtml = $render($adminTokens['token'], [
+        'date' => $bizDate,
+        'commissary_id' => (string)$branchId,
+        'branch_id' => '',
+        'shift' => 'PM',
+    ]);
+    $bannerShown = str_contains($guidanceHtml, 'PM ending pending for ');
+    $h->test(
+        'the prior-pending banner renders exactly when the rule reports a pending prior PM day',
+        $bannerShown === ($expectedPrior !== null),
+        json_encode(['banner_shown' => $bannerShown, 'expected_prior' => $expectedPrior, 'business_date' => $bizDate])
+    );
+
+    // The persistent panel is the whole point of the port: a failed close must land somewhere
+    // that stays on screen, not only in a transient toast.
+    $h->test(
+        'the production sheet renders the persistent PM-close failure panel (role=alert)',
+        str_contains($guidanceHtml, 'id="finalize-pm-result"')
+            && (bool)preg_match('/id="finalize-pm-result"[^>]*role="alert"/s', $guidanceHtml),
+        'finalize-pm-result=' . (str_contains($guidanceHtml, 'id="finalize-pm-result"') ? 'present' : 'MISSING')
+    );
 } finally {
     $cleanup();
 }

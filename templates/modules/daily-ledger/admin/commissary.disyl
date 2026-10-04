@@ -1339,6 +1339,14 @@
                 <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">Print Daily Sheet</button>
             </div>
         </div>
+        {if prior_pending_day}
+        <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+            <span class="font-semibold">PM ending pending for {prior_pending_day.date}.</span>
+            <span class="ml-1 text-amber-800">That business date is still open because its PM shift was not finalized. Enter the late counts, then close the PM shift.</span>
+            <a class="ml-2 font-semibold text-amber-900 underline" href="{base_url}/daily-ledger/admin/commissary?date={prior_pending_day.date}&commissary_id={sheet_source_branch_id}&shift=PM">Open prior PM ledger</a>
+        </div>
+        {/if}
+        <div id="finalize-pm-result" class="hidden mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div>
         {if shift_status == 'finalized'}
         <div class="mx-4 mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">The {shift} shift is finalized and locked.</div>
         {/if}
@@ -2147,6 +2155,8 @@
     function finalizeProductionPm() {
         var button = document.getElementById('finalize-production-pm');
         if (button) button.disabled = true;
+        var box = document.getElementById('finalize-pm-result');
+        if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
         productionJson('{base_url}/api/v1/commissary/finalize-pm', {
             date: '{date}',
             commissary_branch_id: {sheet_source_branch_id}
@@ -2154,7 +2164,23 @@
             showToast('PM shift finalized', 'success');
             setTimeout(function() { window.refreshMainContent(); }, 400);
         }).catch(function(error) {
-            showToast(error.message || 'Failed to finalize PM shift', 'error');
+            var msg = (error && error.message) || 'Failed to finalize PM shift';
+            if (box) {
+                var html = '<div class="font-semibold">' + String(msg) + '</div>';
+                var body = error && error.body ? error.body : null;
+                var missing = body && Array.isArray(body.missing_products) ? body.missing_products.slice(0, 50) : [];
+                if (missing.length) {
+                    html += '<ul class="mt-2 list-disc pl-5 text-xs">';
+                    missing.forEach(function(m) {
+                        html += '<li>' + String((m && m.name) || ('Product #' + (m && m.product_id))) + '</li>';
+                    });
+                    html += '</ul>';
+                }
+                box.innerHTML = html;
+                box.classList.remove('hidden');
+            }
+            showToast(msg, 'error');
+        }).finally(function() {
             if (button) button.disabled = false;
         });
     }
@@ -2226,7 +2252,12 @@
             body: JSON.stringify(payload)
         }, 'This production ledger save').then(function(response) {
             return response.json().then(function(body) {
-                if (!response.ok || !body.ok) throw new Error(body.error || 'Save failed');
+                if (!response.ok || !body.ok) {
+                    var err = new Error(body.error || 'Save failed');
+                    err.body = body;
+                    err.status = response.status;
+                    throw err;
+                }
                 return body;
             });
         });
