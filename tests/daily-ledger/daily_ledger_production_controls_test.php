@@ -340,6 +340,108 @@ try {
             json_encode(['result' => $afterReopen, 'row' => $rowAfterReopen])
         );
     }
+
+    // ─── recorded-entry edit on a reopened day ────────────────────────────────────────────
+    // Owner requirement: a closed day reopened by an admin must be editable by the branch's
+    // production user, as in the cashier ledger. S7b 3 (an edit of a recorded entry needs
+    // production.override) must survive for a day that was NOT deliberately reopened.
+    //
+    // The refusal is inline in apiSaveCommissaryMaterial(), which ends in $ctx->json(), so the
+    // policy is asserted through the predicate the contract requires (R7). This is also the
+    // assertion that CATCHES THE HOLE: Close Day never clears reopened_at and never finalizes
+    // AM, so "closed day + stale reopened_at + open AM shift" is reachable - measured on
+    // tenant 207, branch 18, 2026-10-01 and 2026-10-02.
+    $h->section('recorded-entry edit on a reopened day');
+
+    $seam = 'dl_deliberateReopenUnlocksEntryEdit';
+    $seamOk = function_exists($seam);
+    $h->test(
+        'the deliberate-reopen exemption is a testable predicate (' . $seam . ')',
+        $seamOk,
+        $seamOk ? 'present' : 'MISSING - the exemption is inline, so its policy cannot be asserted'
+    );
+
+    if ($seamOk) {
+        $setDay = static function (string $status, bool $reopened) use ($db, $branchId, $date, $adminUserId): void {
+            $db->prepare(
+                'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_by, reopened_at)
+                 VALUES (:b, :d, :s, :u, ' . ($reopened ? 'CURRENT_TIMESTAMP' : 'NULL') . ')
+                 ON DUPLICATE KEY UPDATE status = VALUES(status), reopened_by = VALUES(reopened_by),
+                     reopened_at = ' . ($reopened ? 'CURRENT_TIMESTAMP' : 'NULL')
+            )->execute([':b' => $branchId, ':d' => $date, ':s' => $status, ':u' => $adminUserId]);
+        };
+        $setShift = static function (string $shift, string $status) use ($db, $branchId, $date): void {
+            $db->prepare(
+                'INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status)
+                 VALUES (:b, :d, :sh, :s)
+                 ON DUPLICATE KEY UPDATE status = VALUES(status)'
+            )->execute([':b' => $branchId, ':d' => $date, ':sh' => $shift, ':s' => $status]);
+        };
+        $unlocks = static fn(?string $shift): bool => (bool)$seam($db, $branchId, $date, $shift);
+
+        $setShift('AM', 'open');
+        $setShift('PM', 'open');
+
+        // THE HOLE. A closed day that still carries a stale reopened_at must stay protected:
+        // Close Day does not clear that column, and AM is never finalized by Close Day.
+        $setDay('closed', true);
+        $h->test(
+            'a CLOSED day stays protected despite a stale reopened_at and an unfinalized AM shift',
+            $unlocks('AM') === false,
+            'allowed=' . var_export($unlocks('AM'), true)
+                . ' (a true here lets a producer write to a closed day)'
+        );
+
+        // The owner's requirement: the deliberate reopen IS the authorisation, as in the
+        // cashier ledger, where reopening lifts the lock.
+        $setDay('open', true);
+        $h->test(
+            'a deliberately reopened OPEN day unlocks the entry for the branch producer (AM)',
+            $unlocks('AM') === true,
+            'allowed=' . var_export($unlocks('AM'), true)
+        );
+        $h->test(
+            'a deliberately reopened OPEN day unlocks the entry for the branch producer (PM)',
+            $unlocks('PM') === true,
+            'allowed=' . var_export($unlocks('PM'), true)
+        );
+
+        // S7b 3 preserved: an ordinary open day is not an authorisation.
+        $setDay('open', false);
+        $h->test(
+            'an ordinary OPEN day does NOT unlock a recorded entry (S7b 3 preserved)',
+            $unlocks('AM') === false,
+            'allowed=' . var_export($unlocks('AM'), true)
+        );
+
+        // A finalized shift stays immutable even on a reopened day.
+        $setDay('open', true);
+        $setShift('PM', 'finalized');
+        $h->test(
+            'a FINALIZED shift stays immutable even on a deliberately reopened day',
+            $unlocks('PM') === false,
+            'allowed=' . var_export($unlocks('PM'), true)
+        );
+        $setShift('PM', 'open');
+
+        // An unresolved shift cannot be judged, so it must refuse (the sheet is
+        // reference-only in that state: production_reference_only when $shift === null).
+        $h->test(
+            'an unresolved shift (null) is never unlocked',
+            $unlocks(null) === false,
+            'allowed=' . var_export($unlocks(null), true)
+        );
+
+        // A brand-new day with no day row at all reads 'open' but was never reopened, so it
+        // must not unlock either - otherwise every untouched day would become editable.
+        $db->prepare('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d')
+            ->execute([':b' => $branchId, ':d' => $date]);
+        $h->test(
+            'a day with no day-status row is not treated as reopened',
+            $unlocks('AM') === false,
+            'allowed=' . var_export($unlocks('AM'), true)
+        );
+    }
 } finally {
     $cleanup();
 }

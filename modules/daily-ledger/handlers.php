@@ -4464,6 +4464,32 @@ function dl_shiftIsFinalized($db, int $branchId, string $date, string $shift): b
     return $row !== null && (string)$row['status'] === 'finalized';
 }
 
+/**
+ * True when an admin's DELIBERATE reopen authorises a non-override actor to correct an
+ * already-recorded production entry (S7b 3).
+ *
+ * The reopen is the authorisation, exactly as reopening lifts the lock in the cashier
+ * ledger. It holds only while the day is still OPEN and the shift is not FINALIZED, so a
+ * day that was reopened and then closed again (Close Day never clears reopened_at) stays
+ * protected, and a finalized shift stays immutable.
+ */
+function dl_deliberateReopenUnlocksEntryEdit($db, int $branchId, string $date, ?string $shift): bool
+{
+    if ($shift === null) {
+        return false;
+    }
+    if (dl_getDayStatus($branchId, $date) !== 'open') {
+        return false;
+    }
+    $stmt = $db->prepare('SELECT reopened_at FROM dl_ledger_day_status WHERE branch_id = :bid AND ledger_date = :d LIMIT 1');
+    $stmt->execute([':bid' => $branchId, ':d' => $date]);
+    $reopenedAt = $stmt->fetchColumn();
+    if ($reopenedAt === false || $reopenedAt === null || (string)$reopenedAt === '') {
+        return false;
+    }
+    return !dl_shiftIsFinalized($db, $branchId, $date, $shift);
+}
+
 /** Lock (and create-if-absent) the shift-status row inside the caller's txn. */
 function dl_lockShiftStatusRow($db, int $branchId, string $date, string $shift): array
 {
@@ -17229,7 +17255,8 @@ function apiSaveCommissaryMaterial(): void
             $alreadyRecorded = (bool)$recorded->fetchColumn();
             // S7b: a recorded beginning is editable by user or admin, but it is an
             // edit of an entry, so production.override is required (S7b §3).
-            if ($alreadyRecorded && !dl_roleHasPermission((string)($user['role'] ?? ''), 'production.override')) {
+            if ($alreadyRecorded && !dl_roleHasPermission((string)($user['role'] ?? ''), 'production.override')
+                && !dl_deliberateReopenUnlocksEntryEdit($db, $commissaryBranchId, $date, $shift)) {
                 throw new \RuntimeException('production.override permission is required to change a recorded beginning.');
             }
             $beforeRow = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift);
@@ -17275,7 +17302,8 @@ function apiSaveCommissaryMaterial(): void
             $existing = $existingStmt->fetchColumn();
             $beforeCount = ($existing === false || $existing === null) ? null : (int)$existing;
             if ($beforeCount !== null && (int)$existing !== $actualEndQty
-                && !dl_roleHasPermission((string)($user['role'] ?? ''), 'production.override')) {
+                && !dl_roleHasPermission((string)($user['role'] ?? ''), 'production.override')
+                && !dl_deliberateReopenUnlocksEntryEdit($db, $commissaryBranchId, $date, $shift)) {
                 throw new \RuntimeException('production.override permission is required to change a recorded count.');
             }
             $row = dl_saveCommissaryActualEndQty(
