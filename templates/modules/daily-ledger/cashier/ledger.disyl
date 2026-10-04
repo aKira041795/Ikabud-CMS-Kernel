@@ -58,6 +58,34 @@
         </button>
     </div>
 </div>
+
+{* Settled-ending lifecycle. The three data-* counts are read by the acceptance specs, so
+   they must equal settled_summary exactly. The panel only renders when there is something
+   to say; verify/revert are ADMIN ONLY and absent (never disabled) for everyone else. *}
+{if settled_summary.pending > 0 || settled_summary.unverified > 0 || settled_summary.verified > 0}
+<div id="settled-panel" data-pending="{settled_summary.pending}" data-unverified="{settled_summary.unverified}" data-verified="{settled_summary.verified}"
+     class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 print:hidden"
+     role="status">
+    <span class="font-semibold text-slate-900">Endings</span>
+    <span id="settled-pending-count">{settled_summary.pending} pending</span>
+    <span id="settled-unverified-count">{settled_summary.unverified} settled ending(s) awaiting verification</span>
+    <span id="settled-verified-count">{settled_summary.verified} verified</span>
+    {if settled_summary.can_settle && settled_summary.pending > 0}
+    <button type="button" class="btn btn-outline btn-sm ml-auto" id="settle-pending-endings"
+            onclick="window.dlSettlePendingEndings()"
+            title="Settle every pending ending in this shift as a derived, unverified ending. An admin can revert it.">Settle pending endings</button>
+    {/if}
+    {if settled_summary.can_verify && settled_summary.unverified > 0}
+    <button type="button" class="btn btn-primary btn-sm" id="verify-settled-endings"
+            onclick="window.dlVerifySettledEndings()"
+            title="Admin only: certify the settled endings as counted numbers. This is audited.">Verify for finality</button>
+    <button type="button" class="btn btn-outline btn-sm" id="revert-settled-endings"
+            onclick="window.dlRevertSettledEndings()"
+            title="Admin only: return the settled endings to pending, discarding the derived numbers.">Revert to pending</button>
+    {/if}
+</div>
+{/if}
+
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Sales Report</h2>
@@ -2173,6 +2201,50 @@
         })
         .finally(function() {
             if (btn) { btn.disabled = false; btn.textContent = 'Close PM Shift'; }
+        });
+    };
+
+    // Settle / verify / revert of derived endings. These are EXPLICIT clicked actions (R5) -
+    // nothing here runs on render. Each action re-reads the sheet afterwards so the panel
+    // counts and the offered controls reflect the server's new state.
+    function dlEndingLifecycleAction(path, label, successText) {
+        return window.dlWriteTimeout(BASE + path, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID, shift: SHIFT, production: false })
+        }, label)
+        .then(dlResponseJson)
+        .then(function(res) {
+            if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
+            if (res.ok) {
+                showToast(successText(res), 'success');
+                setTimeout(function() { window.refreshMainContent(); }, 600);
+                return;
+            }
+            showToast(res.error || 'Failed to update settled endings', 'error');
+        })
+        .catch(function(err) {
+            showToast((err && err.message) || 'Failed to update settled endings', 'error');
+        });
+    }
+    window.dlSettlePendingEndings = function() {
+        dlEndingLifecycleAction('/api/v1/commissary/settle-endings', 'Settling pending endings', function(res) {
+            return (res.settled || 0) + ' ending(s) settled; awaiting verification';
+        });
+    };
+    window.dlVerifySettledEndings = function() {
+        dlEndingLifecycleAction('/api/v1/commissary/verify-endings', 'Verifying settled endings', function(res) {
+            return (res.verified || 0) + ' ending(s) verified for finality';
+        });
+    };
+    window.dlRevertSettledEndings = function() {
+        dlEndingLifecycleAction('/api/v1/commissary/revert-endings', 'Reverting settled endings', function(res) {
+            return (res.reverted || 0) + ' ending(s) reverted to pending';
         });
     };
 

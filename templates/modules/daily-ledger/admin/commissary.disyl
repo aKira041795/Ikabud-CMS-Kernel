@@ -1339,6 +1339,32 @@
                 <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">Print Daily Sheet</button>
             </div>
         </div>
+        {* Settled-ending lifecycle (R1/R2). The three data-* counts are read by the acceptance
+           specs and must equal settled_summary exactly. Verify/revert are ADMIN ONLY and are
+           ABSENT (never disabled) for everyone else. *}
+        {if settled_summary.pending > 0 || settled_summary.unverified > 0 || settled_summary.verified > 0}
+        <div id="settled-panel" data-pending="{settled_summary.pending}" data-unverified="{settled_summary.unverified}" data-verified="{settled_summary.verified}"
+             class="mx-4 mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 print-hidden"
+             role="status">
+            <span class="font-semibold text-slate-900">Endings</span>
+            <span id="settled-pending-count">{settled_summary.pending} pending</span>
+            <span id="settled-unverified-count">{settled_summary.unverified} settled ending(s) awaiting verification</span>
+            <span id="settled-verified-count">{settled_summary.verified} verified</span>
+            {if settled_summary.can_settle && settled_summary.pending > 0}
+            <button type="button" class="btn btn-outline btn-sm ml-auto" id="settle-pending-endings"
+                    onclick="window.dlSettlePendingEndings()"
+                    title="Settle every pending ending in this shift as a derived, unverified ending. An admin can revert it.">Settle pending endings</button>
+            {/if}
+            {if settled_summary.can_verify && settled_summary.unverified > 0}
+            <button type="button" class="btn btn-primary btn-sm" id="verify-settled-endings"
+                    onclick="window.dlVerifySettledEndings()"
+                    title="Admin only: certify the settled endings as counted numbers. This is audited.">Verify for finality</button>
+            <button type="button" class="btn btn-outline btn-sm" id="revert-settled-endings"
+                    onclick="window.dlRevertSettledEndings()"
+                    title="Admin only: return the settled endings to pending, discarding the derived numbers.">Revert to pending</button>
+            {/if}
+        </div>
+        {/if}
         {if prior_pending_day}
         <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
             <span class="font-semibold">PM ending pending for {prior_pending_day.date}.</span>
@@ -2191,6 +2217,38 @@
             if (button) button.disabled = false;
         });
     }
+
+    // Settle / verify / revert of derived endings. Explicit clicked actions (R5): no render,
+    // cron or auto-close ever settles anything. The server re-authorizes every call, and the
+    // refresh re-reads the counts so the panel tracks the real state.
+    function productionEndingAction(url, label, successText) {
+        return productionJson(url, {
+            date: '{date}',
+            shift: '{shift}',
+            commissary_branch_id: {sheet_source_branch_id},
+            production: true
+        }).then(function(res) {
+            showToast(successText(res), 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function(error) {
+            showToast((error && error.message) || (label + ' failed'), 'error');
+        });
+    }
+    window.dlSettlePendingEndings = function() {
+        productionEndingAction('{base_url}/api/v1/commissary/settle-endings', 'Settling pending endings', function(res) {
+            return (res.settled || 0) + ' ending(s) settled; awaiting verification';
+        });
+    };
+    window.dlVerifySettledEndings = function() {
+        productionEndingAction('{base_url}/api/v1/commissary/verify-endings', 'Verifying settled endings', function(res) {
+            return (res.verified || 0) + ' ending(s) verified for finality';
+        });
+    };
+    window.dlRevertSettledEndings = function() {
+        productionEndingAction('{base_url}/api/v1/commissary/revert-endings', 'Reverting settled endings', function(res) {
+            return (res.reverted || 0) + ' ending(s) reverted to pending';
+        });
+    };
 
     function reopenProductionShift() {
         productionJson('{base_url}/api/v1/admin/reopen-day', {

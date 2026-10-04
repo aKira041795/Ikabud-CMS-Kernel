@@ -991,6 +991,98 @@ try {
             json_encode(['result' => $revertVerified, 'row' => $afterRevertVerified])
         );
     }
+
+    // ─── the admin finality control must be VISIBLE, and admin-only ───────────────────────
+    // An admin cannot certify what they cannot see, so the counts are asserted exactly through the
+    // panel's data attributes. And the verify/revert controls must be ABSENT (not merely disabled)
+    // for a non-admin: otherwise the person who benefits from an assumption is offered the button
+    // that certifies it.
+    $h->section('the settle/verify control surface');
+
+    // One derived, unverified ending on the fixture shift.
+    $db->prepare('INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status)
+                  VALUES (:b, :d, "PM", "open") ON DUPLICATE KEY UPDATE status = "open"')
+        ->execute([':b' => $branchId, ':d' => $date]);
+    $db->prepare('UPDATE dl_commissary_product_ledger
+                     SET actual_end_qty = 10, end_source = "derived-from-movements",
+                         end_settled_at = NOW(), end_verified_by = NULL
+                   WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"')
+        ->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+
+    $panelFor = static fn(string $token): string => $render($token, [
+        'date' => $date,
+        'commissary_id' => (string)$branchId,
+        'branch_id' => '',
+        'shift' => 'PM',
+    ]);
+    $panelCounts = static function (string $html): array {
+        if (!preg_match('/id="settled-panel"[^>]*data-pending="(\d+)"[^>]*data-unverified="(\d+)"[^>]*data-verified="(\d+)"/s', $html, $m)
+            && !preg_match('/id="settled-panel"[^>]*data-verified="(\d+)"[^>]*data-unverified="(\d+)"[^>]*data-pending="(\d+)"/s', $html, $m)) {
+            return [];
+        }
+        return ['pending' => (int)$m[1], 'unverified' => (int)$m[2], 'verified' => (int)$m[3]];
+    };
+
+    $adminPanel = $panelFor($adminTokens['token']);
+    $adminCounts = $panelCounts($adminPanel);
+    $h->test(
+        'the sheet renders the settled-endings panel with the pending/unverified/verified counts',
+        str_contains($adminPanel, 'id="settled-panel"')
+            && ($adminCounts['unverified'] ?? -1) === 1
+            && array_key_exists('pending', $adminCounts),
+        json_encode($adminCounts)
+    );
+
+    $h->test(
+        'an ADMIN is offered the verify-for-finality control while endings await verification',
+        ($adminCounts['unverified'] ?? 0) > 0
+            && str_contains($adminPanel, 'id="verify-settled-endings"')
+            && str_contains($adminPanel, 'id="revert-settled-endings"'),
+        'verify=' . (str_contains($adminPanel, 'id="verify-settled-endings"') ? 'present' : 'MISSING')
+            . ' unverified=' . ($adminCounts['unverified'] ?? 'null')
+    );
+
+    $producerPanel = $panelFor($producerTokens['token']);
+    $h->test(
+        'a NON-ADMIN is never offered the verify or revert control (absent, not disabled)',
+        !str_contains($producerPanel, 'id="verify-settled-endings"')
+            && !str_contains($producerPanel, 'id="revert-settled-endings"'),
+        'verify_present_for_producer=' . (str_contains($producerPanel, 'id="verify-settled-endings"') ? 'YES (leak)' : 'no')
+    );
+
+    // With nothing awaiting verification the control is not offered either - so its presence really
+    // does track the unverified count rather than the role alone.
+    $db->prepare('UPDATE dl_commissary_product_ledger
+                     SET end_source = NULL, end_verified_by = :u, end_verified_at = NOW()
+                   WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"')
+        ->execute([':u' => $adminUserId, ':b' => $branchId, ':p' => $productId, ':d' => $date]);
+    $verifiedPanel = $panelFor($adminTokens['token']);
+    $verifiedCounts = $panelCounts($verifiedPanel);
+    $h->test(
+        'nothing awaiting verification means no verify control, and the verified count reflects it',
+        ($verifiedCounts['unverified'] ?? -1) === 0
+            && ($verifiedCounts['verified'] ?? 0) >= 1
+            && !str_contains($verifiedPanel, 'id="verify-settled-endings"'),
+        json_encode($verifiedCounts)
+    );
+
+    // ─── the lifecycle is scoped to the actor's OWN branches ─────────────────────────────
+    // Measured: the production user is assigned to branch 18 ONLY (accessible=1), while the admin
+    // reaches 11 branches including 8. Every other write path in this module checks
+    // dl_accessibleBranchIds before writing; a settle that did not would let a supervisor or
+    // production user craft a POST and write derived endings into a branch they are not assigned
+    // to. The branch arrives from the client, so this must be checked server-side.
+    $foreignRefused = false;
+    try {
+        dl_settlePendingEndingsForShift($db, 8, $date, 'PM', ['id' => $producerUserId, 'role' => 'production_in_charge'], true);
+    } catch (\Throwable $e) {
+        $foreignRefused = true;
+    }
+    $h->test(
+        'settle is refused for a branch the actor cannot access (the branch comes from the client)',
+        $foreignRefused,
+        'refused=' . var_export($foreignRefused, true) . ' - branch 8 is outside the producer\'s accessible set'
+    );
 } finally {
     $cleanup();
 }

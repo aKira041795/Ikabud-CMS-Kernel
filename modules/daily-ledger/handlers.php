@@ -2297,6 +2297,50 @@ function dl_endingProvenanceTable(bool $production): array
 }
 
 /**
+ * Read-only counts for the settle / verify / revert control surface on ONE viewed shift.
+ *
+ * This is presentation only (NO writes, NO settling - R5). Each sheet counts its OWN
+ * table, so the cashier sheet and the production sheet can never disagree about which
+ * lifecycle rows they are describing.
+ *
+ * @param ?string $shift AM, PM, or null when no single shift is being viewed
+ * @return array{pending:int,unverified:int,verified:int,can_settle:bool,can_verify:bool,date:string,shift:?string,branch_id:int}
+ */
+function dl_settledEndingSummary($db, int $branchId, string $date, ?string $shift, string $role, bool $production): array
+{
+    $pending = 0;
+    $unverified = 0;
+    $verified = 0;
+    if ($branchId > 0 && $shift !== null && $shift !== '') {
+        $config = dl_endingProvenanceTable($production);
+        $stmt = $db->prepare(
+            "SELECT
+                COALESCE(SUM(CASE WHEN {$config['end_col']} IS NULL THEN 1 ELSE 0 END), 0) AS pending,
+                COALESCE(SUM(CASE WHEN end_source IN ('derived-from-movements','zero-forced') THEN 1 ELSE 0 END), 0) AS unverified,
+                COALESCE(SUM(CASE WHEN end_verified_by IS NOT NULL THEN 1 ELSE 0 END), 0) AS verified
+               FROM {$config['table']}
+              WHERE {$config['branch_col']} = :bid AND ledger_date = :d AND shift = :shift"
+        );
+        $stmt->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $pending = (int)($row['pending'] ?? 0);
+        $unverified = (int)($row['unverified'] ?? 0);
+        $verified = (int)($row['verified'] ?? 0);
+    }
+
+    return [
+        'pending' => $pending,
+        'unverified' => $unverified,
+        'verified' => $verified,
+        'can_settle' => in_array($role, ['admin', 'supervisor', 'production_in_charge'], true),
+        'can_verify' => $role === 'admin',
+        'date' => $date,
+        'shift' => $shift,
+        'branch_id' => $branchId,
+    ];
+}
+
+/**
  * Settle every NULL ending of one shift as a TAGGED, unverified proposal (R3).
  *
  * This SUPERSEDES R2 of the smart-settlement contract ("never write a derived ending
@@ -2315,6 +2359,9 @@ function dl_settlePendingEndingsForShift($db, int $branchId, string $date, strin
     $role = (string)($actor['role'] ?? '');
     if (!in_array($role, ['admin', 'supervisor', 'production_in_charge'], true)) {
         throw new \RuntimeException('Only an admin, supervisor or production-in-charge may settle pending endings.', 403);
+    }
+    if (!in_array($branchId, dl_accessibleBranchIds($actor), true)) {
+        throw new \RuntimeException('Commissary is not allowed for this user.', 403);
     }
 
     $shift = dl_normalizeShift($shift);
@@ -2440,6 +2487,9 @@ function dl_verifySettledEndingsForShift($db, int $branchId, string $date, strin
     if ((string)($actor['role'] ?? '') !== 'admin') {
         throw new \RuntimeException('Only an admin may verify settled endings.', 403);
     }
+    if (!in_array($branchId, dl_accessibleBranchIds($actor), true)) {
+        throw new \RuntimeException('Commissary is not allowed for this user.', 403);
+    }
 
     $shift = dl_normalizeShift($shift);
     $actorId = dl_getActorUserId($actor);
@@ -2503,6 +2553,9 @@ function dl_revertSettledEndingsForShift($db, int $branchId, string $date, strin
 {
     if ((string)($actor['role'] ?? '') !== 'admin') {
         throw new \RuntimeException('Only an admin may revert settled endings.', 403);
+    }
+    if (!in_array($branchId, dl_accessibleBranchIds($actor), true)) {
+        throw new \RuntimeException('Commissary is not allowed for this user.', 403);
     }
 
     $shift = dl_normalizeShift($shift);
@@ -6470,6 +6523,7 @@ function handleCashierLedger(array $params = []): void
     }
 
     $ledgerRows = $branchId ? dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift) : [];
+    $settledSummary = dl_settledEndingSummary($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift, $role, false);
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -6519,6 +6573,7 @@ function handleCashierLedger(array $params = []): void
         'producer_options' => dl_productionProducerOptions($ctx->db()),
         'liable_persons_json' => json_encode($liablePersons, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
         'rows' => $ledgerRows,
+        'settled_summary' => $settledSummary,
         'shift_status' => $shiftStatus,
         'pm_pending' => ($shift === 'PM' && $shiftStatus !== 'finalized'),
         'prior_pending_day' => $priorPendingDay,
@@ -16686,6 +16741,7 @@ function handleAdminCommissary(): void
         'date' => $rawDate,
         'today' => $today,
         'shift' => $shift,
+        'settled_summary' => dl_settledEndingSummary($db, (int)$sheetSourceBranchId, (string)$rawDate, $shift, $role, true),
         'shift_locked' => $shiftLocked,
         'close_of_day_time' => dl_operatingClockLabel()['close_of_day_time'],
         'shift_status' => $shiftStatus,
