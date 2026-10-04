@@ -622,3 +622,68 @@ removes noise and no information. S11 asserts **exactly one** notification per l
 counted both programs and read 2 — my assertion was wrong, and the defect behind it was real), and S11b
 asserts silence via `env -u LANE_NOTIFY`, i.e. it tests the **default** as a default rather than an explicit
 zero.
+
+---
+
+# STATE OF PLAY — 2026-10-05
+
+## HARPP is chat + deploy + workspaces. The decisions surface is gone.
+Owner direction: *"let's discard the decisions lane. harpp becomes better without it. as an away tool,
+linked to my workstation, all i want is a chat lane, aside from the deploy and workspaces"* — and
+*"no email, it will flood my inbox. we stay in chat"*.
+
+`36cfcfda` made escalations chat-only. They never needed a decision row: `harpp_notify()` **already sent
+the chat message first** (`harpp_client.py:561-566`) and only then additionally called `submit_decision()`
+for an actionable type (`:567-582`) — so the row was a duplicate on top of a message sent anyway, and
+dropping it cannot silence the channel. The decision pages, nav and JS are removed. The decision API,
+services, ADR registry, MCP/Pi tools and **all tables and rows are deliberately kept frozen**: they are
+invisible to the owner, consumed by the wake/pi/workflow subsystems, anchored by
+`harpp_adrs.decision_ref`, and irreversible to delete. Removing them is a separate owner decision.
+
+A first lane correctly reported **BLOCKED** here — deleting the decisions API would have broken the wake
+workflow (`harpp_wake.py` :2132 RELEASE_READY, :2177 BLOCKED, :2211 DECISION_REQUIRED). Its script
+(`tools/lane-harpp-chat-first.sh`) is kept as the evidence that produced the narrower contract.
+
+## Landing reports go into a HARPP conversation
+Owner: *"on progress, it would be better if i get a report when the process delegated to a model or you
+lands."* `tools/lane-notify-harpp.sh` (`bd6c2be4`) is notify-send compatible and posts the landing through
+the hook that already existed — no harness change:
+
+    LANE_NOTIFY=1 LANE_NOTIFY_CMD="$PWD/tools/lane-notify-harpp.sh" \
+      bash tools/lane.sh run <name> <script> --acceptance=... --pass-looks-like=...
+
+Target: `$LANE_NOTIFY_HARPP_CONVERSATION`, else the conversation titled `$LANE_NOTIFY_HARPP_TITLE`
+(default **"Lane landings"**, created 2026-10-05 = conversation 185). If nothing resolves it SKIPS and
+names the titles it checked — it never invents a target. Always exits 0, 30s timeout, refuses selftest
+fixture names. **The harness cannot create a conversation**: `POST /api/v1/harpp/conversations` is
+owner-authenticated and the bridge exposes only list + archive.
+
+## File attachments: phone -> workspace
+`a1876f7b`. The owner picks a file in the messenger; the harness pulls it into the workspace:
+
+    tools/harpp-bridge/harpp attachment list --conversation-id <id>
+    tools/harpp-bridge/harpp attachment pull <attachment-id>
+
+Guards, because an upload endpoint is the most dangerous thing here: opaque storage names (the client
+filename is metadata only), extension allowlist plus byte-derived MIME that must agree with it, a 10 MiB
+cap enforced *before* the destination write, storage outside `public/`, downloads only through an
+authenticated route that re-resolves under the storage root, and uploader + tenant enforced in SQL.
+29 checks, each with a mutation that turns it red.
+
+## Two traps worth not re-discovering
+1. **`bridge/messages` returns OWNER messages only** (`pollMessages` -> `listOwnerMessagesForHarness`).
+   It is *always* `[]` immediately after the harness posts, and that is not a failure. Verify a harness
+   post from the `send_message()` response or the conversation's `unread` — never from `poll_messages`.
+   This cost one false red on 2026-10-05, where a landing report that HAD arrived (`message_id 1941`,
+   conversation 185 `unread=1`) looked like a silent failure.
+2. **`bash modules/harpp/tests/run-all.sh` passes in its DEFAULT (non-mutating) mode only.** With
+   `HARPP_ALLOW_MUTATING_TESTS=1` it REFUSES at the isolated-tenant guard — *"database 'harpp_tenant' is
+   not explicitly isolated"*. That is the guard working as designed, but it means a green run-all does
+   **not** cover the mutating half; those tests must be run explicitly against a genuinely isolated DB.
+
+## Falsifying the criterion before dispatch kept paying
+The attachments criterion is deliberately **name-tolerant**: it asserts the two *outcomes* — an owner POST
+route and a bridge GET route containing "attachment" — not the route strings, because a criterion that
+dictates the path is the false-red class this repo has already paid for repeatedly. Measured both ways
+before dispatch: `attachment` -> exit 1 (0 owner / 0 bridge routes), `message` -> exit 0 (both sides
+found). Migration `020` was checked free (019 was highest) before it was named in the contract.
