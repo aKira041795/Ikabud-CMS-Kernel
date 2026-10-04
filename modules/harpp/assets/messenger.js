@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (const row of data.messages || []) {
         const box = document.createElement('div');
         box.className = `message ${row.sender_type}`;
+        box.dataset.messageId = String(row.id);
         box.textContent = row.body;
         if (row.created_at) {
           const time = document.createElement('time');
@@ -104,6 +105,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         messages.append(box);
         last = Math.max(last, Number(row.id));
+      }
+      document.querySelectorAll('.message-attachment').forEach(el => el.remove());
+      const attachmentData = (await Harpp.fetch(`/api/v1/harpp/conversations/${active}/attachments`)).data;
+      for (const attachment of attachmentData.attachments || []) {
+        const link = document.createElement('a');
+        link.className = 'message-attachment';
+        link.href = `/api/v1/harpp/attachments/${attachment.id}/download`;
+        link.textContent = `📎 ${attachment.client_filename} (${Math.ceil(Number(attachment.file_size || 0) / 1024)} KB)`;
+        link.setAttribute('download', attachment.client_filename);
+        const parent = messages.querySelector(`[data-message-id="${Number(attachment.message_id || 0)}"]`);
+        (parent || messages).append(link);
       }
       await Harpp.fetch(`/api/v1/harpp/conversations/${active}/read`, { method: 'POST', body: { through_id: last } });
       title.textContent = `Conversation #${active}`;
@@ -124,11 +136,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!requireActive()) return;
     const form = e.currentTarget;
     const body = form.body.value;
+    const file = form.attachment.files[0];
     try {
-      await Harpp.fetch(`/api/v1/harpp/conversations/${active}/messages`, { method: 'POST', body: { body } });
+      const sent = await Harpp.fetch(`/api/v1/harpp/conversations/${active}/messages`, { method: 'POST', body: { body } });
+      if (file) {
+        const upload = new FormData();
+        upload.append('attachment', file, file.name);
+        upload.append('message_id', String(sent.data.message_id));
+        await Harpp.fetch(`/api/v1/harpp/conversations/${active}/attachments`, { method: 'POST', body: upload });
+      }
       form.reset();
       const loaded = await load();
-      if (loaded) escText(status, 'Sent.');
+      if (loaded) escText(status, file ? 'Message and attachment sent.' : 'Sent.');
     } catch (x) { escText(status, errorMessage(x, 'Unable to send the message.')); }
   };
 

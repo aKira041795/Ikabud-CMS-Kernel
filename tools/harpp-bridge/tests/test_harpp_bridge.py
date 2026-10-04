@@ -12,6 +12,8 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+from email.message import Message
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -37,6 +39,44 @@ class HarppClientTest(unittest.TestCase):
             else:
                 os.environ[k] = v
         self.tmp.cleanup()
+
+    def test_attachment_download_saves_bytes_inside_workspace_with_safe_name(self):
+        workspace = Path(self.tmp.name) / "workspace"
+        workspace.mkdir()
+        config = json.loads(self.cfg_path.read_text())
+        config["workspace"] = str(workspace)
+        self.cfg_path.write_text(json.dumps(config))
+        os.environ.pop("HARPP_DRY_RUN", None)
+
+        class Response:
+            def __init__(self):
+                self.headers = Message()
+                self.headers["Content-Disposition"] = "attachment; filename*=UTF-8''..%2F..%2Fetc%2Fpasswd.txt"
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self): return b"owner attachment bytes\n"
+
+        with mock.patch("urllib.request.urlopen", return_value=Response()):
+            result = harpp_client.download_attachment(42)
+        target = Path(result["path"])
+        self.assertEqual(target.read_bytes(), b"owner attachment bytes\n")
+        self.assertIn(workspace.resolve(), target.resolve().parents)
+        self.assertNotIn("..", target.name)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+
+        with self.assertRaisesRegex(harpp_client.HarppError, "inside the configured workspace"):
+            with mock.patch("urllib.request.urlopen", return_value=Response()):
+                harpp_client.download_attachment(42, destination="../escaped.txt")
+
+    def test_attachment_list_uses_bridge_conversation_route(self):
+        calls = []
+        original = harpp_client.api
+        harpp_client.api = lambda method, path, **kw: calls.append((method, path)) or {"ok": True}
+        try:
+            harpp_client.list_attachments(9)
+        finally:
+            harpp_client.api = original
+        self.assertEqual(calls, [("GET", "/api/v1/harpp/bridge/conversations/9/attachments")])
 
     def test_autoprocess_routes_owner_input(self):
         calls = []

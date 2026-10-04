@@ -20,6 +20,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import unquote
 
 DEFAULT_CONFIG_PATH = Path("~/.config/harpp/config.json").expanduser()
 DEFAULT_WORKFLOW_BUDGETS = {
@@ -544,6 +545,79 @@ def harpp_notify(*, conversation_id, message_type, body, title=None, harness_ses
     # Escalation detail already lives in the chat body; do not duplicate it into
     # the backend decision ledger or require metadata for actionable messages.
     return response
+
+
+def list_attachments(conversation_id, config=None):
+    """List attachment metadata for one bridge-visible conversation."""
+    return api("GET", f"/api/v1/harpp/bridge/conversations/{int(conversation_id)}/attachments", config=config)
+
+
+def download_attachment(attachment_id, destination=None, config=None):
+    """Download an attachment and atomically save it inside the configured workspace.
+
+    Server-provided filenames are metadata only. The local name is prefixed with the
+    numeric attachment id, reduced to a basename, and the resolved destination is
+    required to remain beneath the workspace.
+    """
+    config = config or load_config()
+    workspace = Path(workspace_path(config) or os.getcwd()).expanduser().resolve()
+    workspace.mkdir(parents=True, exist_ok=True)
+    path = f"/api/v1/harpp/bridge/attachments/{int(attachment_id)}/download"
+    url = config["base_url"] + path + f"?_hb={int(time.time() * 1000)}"
+    headers = {
+        "X-HARPP-BRIDGE-KEY": config["bridge_key"],
+        "X-HARPP-TENANT-ID": config["tenant_id"],
+        "Accept": "application/octet-stream",
+        "User-Agent": "harpp-bridge-client/1.0",
+        "Cache-Control": "no-store",
+    }
+    request = urllib.request.Request(url, headers=headers, method="GET")
+    ctx = ssl.create_default_context()
+    if os.environ.get("HARPP_INSECURE") == "1":
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    try:
+        with urllib.request.urlopen(request, timeout=30, context=ctx) as response:
+            content = response.read()
+            disposition = response.headers.get("Content-Disposition", "")
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", "replace") if exc.fp else ""
+        try:
+            payload = json.loads(raw) if raw else None
+        except (TypeError, ValueError):
+            payload = raw
+        raise HarppError(f"HARPP bridge error {exc.code}: {exc.reason}", status=exc.code, payload=payload) from exc
+    except urllib.error.URLError as exc:
+        raise HarppError(f"cannot reach HARPP bridge: {exc.reason}") from exc
+    if not content:
+        raise HarppError("HARPP returned an empty attachment")
+    match = re.search(r"filename\*=UTF-8''([^;]+)", disposition, re.IGNORECASE)
+    remote_name = unquote(match.group(1)) if match else "attachment"
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(remote_name).name).lstrip(".") or "attachment"
+    if destination:
+        target = Path(destination).expanduser()
+        if not target.is_absolute():
+            target = workspace / target
+    else:
+        target = workspace / "harpp-attachments" / f"attachment-{int(attachment_id)}-{safe_name}"
+    target = target.resolve(strict=False)
+    if target == workspace or workspace not in target.parents:
+        raise HarppError("attachment destination must be inside the configured workspace")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, target)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    return {"ok": True, "attachment_id": int(attachment_id), "path": str(target), "bytes": len(content)}
 
 
 def poll_messages(config=None, **kw):

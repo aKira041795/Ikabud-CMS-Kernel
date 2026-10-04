@@ -14,6 +14,8 @@ Commands:
   harpp decision apply <id> [--rationale R]
   harpp msg send --body B [--conversation-id N --title T --harness-session-id S --idempotency-key K]
   harpp msg poll [--conversation-id N --after A --limit N]
+  harpp attachment list --conversation-id N
+  harpp attachment pull <id> [--output workspace/relative/path]
   harpp status --message M [--status S --workbench-state W --harness-session-id S]
   harpp job track --pid N --model M --task T --conversation C [verification options]
   harpp job list
@@ -888,6 +890,14 @@ def main():
     mp.add_argument("--after", type=int, default=0)
     mp.add_argument("--limit", type=int, default=25)
 
+    att = sub.add_parser("attachment", help="list or pull owner-uploaded conversation files")
+    attsub = att.add_subparsers(dest="attcmd", required=True)
+    attl = attsub.add_parser("list")
+    attl.add_argument("--conversation-id", type=int, required=True)
+    attp = attsub.add_parser("pull", help="download by id into the configured workspace")
+    attp.add_argument("id", type=int)
+    attp.add_argument("--output", default=None, help="workspace-relative destination")
+
     st = sub.add_parser("status")
     st.add_argument("--message", required=True)
     st.add_argument("--status", default="")
@@ -1107,6 +1117,12 @@ def main():
         else:
             print(json.dumps(harpp_client.poll_messages(
                 conversation_id=args.conversation_id, after=args.after, limit=args.limit), indent=2))
+    elif args.cmd == "attachment":
+        if args.attcmd == "list":
+            print(json.dumps(harpp_client.list_attachments(args.conversation_id), indent=2))
+        else:
+            result = harpp_client.download_attachment(args.id, destination=args.output)
+            print(json.dumps(result, indent=2))
     elif args.cmd == "status":
         print(json.dumps(harpp_client.post_status(
             message=args.message, status=args.status, workbench_state=args.workbench_state,

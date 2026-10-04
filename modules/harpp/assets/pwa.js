@@ -9,7 +9,7 @@
       if (csrf) init.headers['X-CSRF-TOKEN'] = csrf;
     }
     try {
-      if (init.body && typeof init.body !== 'string') {
+      if (init.body && typeof init.body !== 'string' && !(init.body instanceof FormData)) {
         init.headers['Content-Type'] = 'application/json';
         init.body = JSON.stringify(init.body);
       }

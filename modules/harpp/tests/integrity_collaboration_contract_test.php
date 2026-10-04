@@ -16,7 +16,7 @@ $decision=(string)file_get_contents(__DIR__.'/../services/HarppDecisionService.p
 $helpers=(string)file_get_contents(__DIR__.'/../helpers.php');
 $handlers=(string)file_get_contents(__DIR__.'/../handlers.php');
 
-$assert($manifest['version']==='2.5.0','manifest semver');
+$assert($manifest['version']==='2.6.0','manifest semver');
 // Owned-table inventory is contract-validated against the actual migration files so the
 // count cannot silently drift (was previously a hard-coded magic number).
 $migrationGlob=(array)glob(__DIR__.'/../database/migrations/*.sql');
