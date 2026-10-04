@@ -554,6 +554,126 @@ try {
             && (bool)preg_match('/id="finalize-pm-result"[^>]*role="alert"/s', $guidanceHtml),
         'finalize-pm-result=' . (str_contains($guidanceHtml, 'id="finalize-pm-result"') ? 'present' : 'MISSING')
     );
+
+    // ─── flagging a day closed without finalizing it ──────────────────────────────────────
+    // Owner principle: data entry is not hampered, it is FLAGGED AND NOTIFIED to admin and user.
+    // The flag itself (dl_ledger_shift_status.pending_notified_at) is written by the PM
+    // auto-close and reset on reopen, but - measured - read by nothing: the admin management log
+    // filters its audit rows to action='production_ledger_change', so an unclosed day was
+    // visible on no screen at all. A DAY LEFT UNCLOSED MUST BE VISIBLE, for any date (not only
+    // yesterday, which the prior-pending banner already covers) and to BOTH actors.
+    //
+    // FIXTURE HAZARD, and why the freeze below is load-bearing: handleAdminCommissary runs
+    // dl_maybeAutoFinalizeCommissaryPmShift() ON RENDER. With a COMPLETE PM ledger on a past
+    // date that evaluator FINALIZES the shift, so the admin's render silently changed the state
+    // the following assertions were about to read - which made "flagged + open" and "finalized
+    // + stale flag" unsatisfiable together for any stateless predicate. The evaluator's own
+    // documented exemption is used to pin the state instead: a day with reopened_at set is
+    // "left exactly as the admin left it", so nothing this section seeds is mutated by a render.
+    $h->section('a day closed without finalizing is FLAGGED, not silent');
+
+    $flagDate = $date; // the throwaway fixture date - deliberately NOT yesterday
+    $setPmShift = static function (string $status) use ($db, $branchId, $flagDate): void {
+        $db->prepare(
+            'INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status)
+             VALUES (:b, :d, "PM", :s)
+             ON DUPLICATE KEY UPDATE status = VALUES(status)'
+        )->execute([':b' => $branchId, ':d' => $flagDate, ':s' => $status]);
+    };
+    $setPmFlag = static function (bool $flag) use ($db, $branchId, $flagDate): void {
+        $db->prepare(
+            'UPDATE dl_ledger_shift_status SET pending_notified_at = '
+            . ($flag ? 'CURRENT_TIMESTAMP' : 'NULL')
+            . ' WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"'
+        )->execute([':b' => $branchId, ':d' => $flagDate]);
+    };
+    $flagOnRow = static function () use ($db, $branchId, $flagDate): bool {
+        $q = $db->prepare(
+            'SELECT pending_notified_at FROM dl_ledger_shift_status
+              WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"'
+        );
+        $q->execute([':b' => $branchId, ':d' => $flagDate]);
+        $v = $q->fetchColumn();
+        return $v !== false && $v !== null && (string)$v !== '';
+    };
+    $freezeAutoClose = static function (bool $frozen) use ($db, $branchId, $flagDate, $adminUserId): void {
+        $db->prepare(
+            'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_by, reopened_at)
+             VALUES (:b, :d, "open", :u, ' . ($frozen ? 'CURRENT_TIMESTAMP' : 'NULL') . ')
+             ON DUPLICATE KEY UPDATE status = "open", reopened_by = :u2,
+                 reopened_at = ' . ($frozen ? 'CURRENT_TIMESTAMP' : 'NULL')
+        )->execute([':b' => $branchId, ':d' => $flagDate, ':u' => $adminUserId, ':u2' => $adminUserId]);
+    };
+    $sheetFor = static fn(string $token): string => $render($token, [
+        'date' => $flagDate,
+        'commissary_id' => (string)$branchId,
+        'branch_id' => '',
+        'shift' => 'PM',
+    ]);
+    $flagMarker = 'id="production-pm-flag"';
+
+    // An INCOMPLETE PM ledger is the state the flagged path exists for; it also keeps the
+    // evaluator on its flag branch rather than its finalize branch.
+    $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id = :b AND ledger_date = :d AND shift = "PM"')
+        ->execute([':b' => $branchId, ':d' => $flagDate]);
+    $freezeAutoClose(true);
+
+    // Flagged while still unfinalized: the state the auto-close creates. The banner must name the
+    // day and the reason.
+    $setPmShift('open');
+    $setPmFlag(true);
+    $flaggedHtml = $sheetFor($adminTokens['token']);
+    $h->test(
+        'a flagged day left without finalization is VISIBLE on the sheet, naming the date and the reason',
+        str_contains($flaggedHtml, $flagMarker)
+            && str_contains($flaggedHtml, $flagDate)
+            && stripos($flaggedHtml, 'closed without finalizing') !== false,
+        json_encode([
+            'marker' => str_contains($flaggedHtml, $flagMarker),
+            'date_shown' => str_contains($flaggedHtml, $flagDate),
+            'reason_shown' => stripos($flaggedHtml, 'closed without finalizing') !== false,
+        ])
+    );
+
+    // The admin is not the only one who must be told - the operator sees the same sheet.
+    $producerFlaggedHtml = $sheetFor($producerTokens['token']);
+    $h->test(
+        'the operator is flagged too, not only the admin (the sheet is shared)',
+        str_contains($producerFlaggedHtml, $flagMarker),
+        'producer_marker=' . (str_contains($producerFlaggedHtml, $flagMarker) ? 'present' : 'MISSING')
+    );
+
+    // No flag on the row and a frozen evaluator => nothing to report; the prior-pending rule
+    // owns the "still open yesterday" case, this banner must not duplicate it.
+    $setPmFlag(false);
+    $h->test(
+        'an unflagged shift does not raise the flag banner',
+        !str_contains($sheetFor($adminTokens['token']), $flagMarker),
+        'marker_absent=' . (!str_contains($sheetFor($adminTokens['token']), $flagMarker) ? 'yes' : 'NO')
+    );
+
+    // A finalized shift is a completed day, not a flagged one.
+    $setPmShift('finalized');
+    $setPmFlag(true);
+    $finalizedFlagged = $sheetFor($adminTokens['token']);
+    $h->test(
+        'a FINALIZED shift never shows the flag banner, even with a stale flag on the row',
+        !str_contains($finalizedFlagged, $flagMarker),
+        'marker_absent=' . (!str_contains($finalizedFlagged, $flagMarker) ? 'yes' : 'NO')
+    );
+
+    // THE NOTIFICATION MUST NOT WAIT FOR A RELOAD. With the evaluator free to run, the very
+    // render that flags the day has to notify on that render - reading the flag before the
+    // evaluator would leave the admin looking at an unclosed day with no warning until refresh.
+    $setPmShift('open');
+    $setPmFlag(false);
+    $freezeAutoClose(false);
+    $firstSight = $sheetFor($adminTokens['token']);
+    $h->test(
+        'the render that flags the day also notifies on that render (no reload required)',
+        $flagOnRow() && str_contains($firstSight, $flagMarker),
+        json_encode(['flag_now_on_row' => $flagOnRow(), 'banner_shown' => str_contains($firstSight, $flagMarker)])
+    );
 } finally {
     $cleanup();
 }

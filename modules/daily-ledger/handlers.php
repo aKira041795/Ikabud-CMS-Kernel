@@ -16222,6 +16222,7 @@ function handleAdminCommissary(): void
     $legacySheetStmt = $db->prepare('SELECT COUNT(*) FROM dl_commissary_product_ledger WHERE commissary_branch_id = :cb AND ledger_date = :d AND shift IS NULL');
     $legacySheetStmt->execute([':cb' => $sheetSourceBranchId, ':d' => $rawDate]);
     $historicalUnshiftedCount = (int)$legacySheetStmt->fetchColumn();
+
     // Request-triggered PM auto-close for the viewed commissary+date. There is
     // no cron: if nobody opens the sheet, nothing auto-finalizes. Idempotent.
     // Only run it for a branch the actor may access, so a GET never mutates a
@@ -16229,6 +16230,29 @@ function handleAdminCommissary(): void
     if ($sheetSourceBranchId > 0 && in_array($sheetSourceBranchId, dl_accessibleBranchIds($user), true)) {
         dl_maybeAutoFinalizeCommissaryPmShift($sheetSourceBranchId, $rawDate, dl_getActorUserId($user));
     }
+
+    // A PM day the auto-close flagged as closed-without-finalize. This is a
+    // NOTIFICATION only (R3): it exposes the existing flag (R1) as data (R4)
+    // and never guards, refuses or locks any write. Read pending_notified_at
+    // from the viewed date+commissary's PM shift row, reusing dl_getShiftStatus().
+    // R6: the read MUST happen AFTER the request-triggered auto-close above,
+    // because that evaluator runs ON RENDER and can FLAG this very day. Reading
+    // before it would show no warning on the render that flags the day, so the
+    // admin would only see the banner after a reload. A finalized shift is a
+    // completed day, not a flagged one, even if a stale flag remains.
+    $pmFlag = null;
+    if ($sheetSourceBranchId > 0) {
+        $pmShiftRow = dl_getShiftStatus($db, $sheetSourceBranchId, $rawDate, 'PM');
+        if ($pmShiftRow !== null
+            && ($pmShiftRow['pending_notified_at'] ?? null) !== null
+            && (string)($pmShiftRow['status'] ?? '') !== 'finalized') {
+            $pmFlag = [
+                'date' => $rawDate,
+                'at' => (string)$pmShiftRow['pending_notified_at'],
+            ];
+        }
+    }
+
     $shiftRow = $shift === null ? null : dl_getShiftStatus($db, $sheetSourceBranchId, $rawDate, $shift);
     $shiftStatus = $shift === null ? 'unshifted' : ($shiftRow ? (string)$shiftRow['status'] : 'open');
 
@@ -16319,6 +16343,7 @@ function handleAdminCommissary(): void
         'close_of_day_time' => dl_operatingClockLabel()['close_of_day_time'],
         'shift_status' => $shiftStatus,
         'prior_pending_day' => $priorPendingDay,
+        'pm_flag' => $pmFlag,
         'day_status' => $sheetSourceBranchId > 0 ? dl_getDayStatus($sheetSourceBranchId, $rawDate) : 'open',
         'production_reference_only' => !in_array($role, ['admin', 'supervisor', 'production_in_charge'], true) || $shift === null,
         'historical_unshifted_count' => $historicalUnshiftedCount,

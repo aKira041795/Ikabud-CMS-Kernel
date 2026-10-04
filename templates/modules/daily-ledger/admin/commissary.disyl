@@ -1346,6 +1346,13 @@
             <a class="ml-2 font-semibold text-amber-900 underline" href="{base_url}/daily-ledger/admin/commissary?date={prior_pending_day.date}&commissary_id={sheet_source_branch_id}&shift=PM">Open prior PM ledger</a>
         </div>
         {/if}
+        {if pm_flag}
+        <div id="production-pm-flag" class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+            <span class="font-semibold">The PM shift for {pm_flag.date} was closed without finalizing.</span>
+            <span class="ml-1 text-amber-800">The late ending counts are still outstanding.</span>
+            <span class="ml-1 text-amber-800">Flagged {pm_flag.at}.</span>
+        </div>
+        {/if}
         <div id="finalize-pm-result" class="hidden mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div>
         {if shift_status == 'finalized'}
         <div class="mx-4 mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">The {shift} shift is finalized and locked.</div>
