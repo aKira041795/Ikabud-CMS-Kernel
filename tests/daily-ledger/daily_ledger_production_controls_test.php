@@ -315,6 +315,30 @@ try {
                 && (string)($after['status'] ?? '') === 'finalized',
             json_encode(['result' => $finalized, 'row' => $after])
         );
+        // (d) A DELIBERATELY REOPENED day must not be re-finalised on the next evaluation.
+        //     apiReopenDay() sets reopened_at and reopens BOTH shifts precisely so that a signed-off
+        //     day can still be corrected. Without this exemption the very next page load re-finalises
+        //     the PM shift, so the correction is impossible and the sheet reads day=open while every
+        //     cell is locked -- the exact trap the cashier ledger's own day auto-close avoids by
+        //     skipping a day with reopened_at (see dl_maybeAutoCloseBranchDay).
+        $db->prepare('UPDATE dl_ledger_shift_status SET status = "open", finalized_by = NULL, finalized_at = NULL, pending_notified_at = NULL WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"')
+            ->execute([':b' => $branchId, ':d' => $date]);
+        $db->prepare(
+            'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_by, reopened_at)
+             VALUES (:b, :d, "open", :u, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE status = "open", reopened_by = VALUES(reopened_by), reopened_at = CURRENT_TIMESTAMP'
+        )->execute([':b' => $branchId, ':d' => $date, ':u' => $adminUserId]);
+        $afterReopen = dl_maybeAutoFinalizeCommissaryPmShift($branchId, $date, $adminUserId);
+        $reopenRowStmt = $db->prepare('SELECT status FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"');
+        $reopenRowStmt->execute([':b' => $branchId, ':d' => $date]);
+        $rowAfterReopen = $reopenRowStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $h->test(
+            'a deliberately reopened day is NOT re-finalised by the auto-close (revert re-locks a shift the admin just reopened)',
+            ($afterReopen['finalized'] ?? true) === false
+                && ($afterReopen['flagged'] ?? true) === false
+                && (string)($rowAfterReopen['status'] ?? '') === 'open',
+            json_encode(['result' => $afterReopen, 'row' => $rowAfterReopen])
+        );
     }
 } finally {
     $cleanup();

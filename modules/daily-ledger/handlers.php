@@ -1720,6 +1720,17 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
     }
     $db = $ctx->db();
 
+    // A day an admin deliberately reopened stays open until it is closed manually — the same
+    // exemption dl_maybeAutoCloseBranchDay() makes. Without it the next page load re-finalises the
+    // shift that apiReopenDay() just reopened, so the correction is impossible and the sheet reads
+    // day=open while every cell is locked.
+    $reopenStmt = $db->prepare('SELECT reopened_at FROM dl_ledger_day_status WHERE branch_id = :bid AND ledger_date = :d LIMIT 1');
+    $reopenStmt->execute([':bid' => $branchId, ':d' => $date]);
+    $reopenedAt = $reopenStmt->fetchColumn();
+    if ($reopenedAt !== false && $reopenedAt !== null && (string)$reopenedAt !== '') {
+        return $result;   // deliberately reopened: leave the shift exactly as the admin left it
+    }
+
     // Active commissary products whose PM ending was never recorded.
     $missingStmt = $db->prepare(
         'SELECT COUNT(*)
