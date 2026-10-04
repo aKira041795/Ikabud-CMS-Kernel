@@ -10634,6 +10634,20 @@ function handleAdminSales(array $params = []): void
     $listStmt->execute($bind);
     $salesRows = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // Label every rendered row with the SAME canonical predicate that buckets the totals
+    // (dl_rowIsProvisional()), so the badge and the footer cannot disagree. Do not
+    // re-derive the rule here or in the template — that duplication is the defect.
+    $pendingDates = [];
+    foreach ($salesRows as &$salesRow) {
+        $salesRow['status_label'] = dl_salesRowStatusLabel($salesRow);
+        if ($salesRow['status_label'] !== 'official') {
+            $pendingDates[(string)$salesRow['ledger_date']] = true;
+        }
+    }
+    unset($salesRow);
+    $pendingDates = array_keys($pendingDates);
+    sort($pendingDates);
+
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $accessibleBranchIds = dl_accessibleBranchIds($user);
@@ -10689,6 +10703,7 @@ function handleAdminSales(array $params = []): void
         'sales_total_matching' => $salesTotalMatching,
         'sales_shown'          => count($salesRows),
         'sales_row_limit'      => DL_SALES_PAGE_ROW_LIMIT,
+        'pending_dates'        => $pendingDates,
         'grand_units'  => $grandUnits,
         'grand_amount' => $grandAmount,
         'provisional_units' => $provisionalUnits,

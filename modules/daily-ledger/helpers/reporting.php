@@ -159,6 +159,25 @@ function dl_rowIsProvisional(array $row): bool
     return (string)$status !== 'finalized';
 }
 
+/**
+ * Canonical status label for a rendered sales row.
+ *
+ * 'pending ending' — bal_end IS NULL: nobody has entered a count yet.
+ * 'provisional'    — ending present, but dl_rowIsProvisional() is true.
+ * 'official'       — finalized/counted.
+ *
+ * It MUST delegate to dl_rowIsProvisional(): the bucket that totals use and the badge a
+ * row renders are then the same rule, so a row can never be labelled differently from how
+ * it is totalled. Do not re-implement the predicate here.
+ */
+function dl_salesRowStatusLabel(array $row): string
+{
+    if (($row['bal_end'] ?? null) === null) {
+        return 'pending ending';
+    }
+    return dl_rowIsProvisional($row) ? 'provisional' : 'official';
+}
+
 /** @return array{rows:array<int,array<string,mixed>>,totals:array<string,int|float>} */
 function dl_reportSalesData(ModuleDB $db, array $filters): array
 {
@@ -203,7 +222,7 @@ function dl_reportSalesData(ModuleDB $db, array $filters): array
     foreach ($rows as &$row) {
         $pending = $row['bal_end'] === null;
         $provisional = dl_rowIsProvisional($row);
-        $row['status_label'] = $pending ? 'pending ending' : ($provisional ? 'provisional' : 'official');
+        $row['status_label'] = dl_salesRowStatusLabel($row);
 
         // Settle the row from THIS sheet's own movement invariant — cashier:
         // beg_bal + addtl - withdraw (R6). The ladder is the single source of the

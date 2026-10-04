@@ -166,9 +166,18 @@ if ($renderError === '') {
 
     // Multi-date: the pending dates must be named, so the operator does not have to hunt
     // tooltips to find where the data is incomplete.
+    //
+    // It must be the SUMMARY that names the date, not merely "pending" somewhere plus the date
+    // somewhere. An earlier revision of this assertion asserted exactly that and PASSED on the
+    // unfixed template — the footer already reads "Provisional (pending ending / unfinalized
+    // PM)" and the Date cell already renders the date. A guard that cannot fail is worse than
+    // no guard, because it is trusted. Verified by reverting only sales.disyl to base.
     $h->test('a range view names the dates that have pending data',
-        stripos($html, 'pending') !== false && str_contains($html, $PENDING_ROW_DATE),
-        'expected a summary naming ' . $PENDING_ROW_DATE);
+        (bool)preg_match(
+            '/\d+\s+date\(s\)\s+have pending data:.*?' . preg_quote($PENDING_ROW_DATE, '/') . '/si',
+            $html
+        ),
+        'no summary block naming ' . $PENDING_ROW_DATE);
 
     // The official row must NOT be marked, or the marker is noise and gets ignored.
     $officialRowHtml = '';
