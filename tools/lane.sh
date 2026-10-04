@@ -36,7 +36,7 @@
 #   tools/lane.sh run      <name> <lane-script> [--timeout=7200] [--slice=90] [--wait-grace=120]
 #                          [--require-clean]
 #                          --acceptance="<cmd>" --pass-looks-like="<what PASS looks like>"
-#                          [--no-acceptance-gate="<reason>"] [--touches="<path,path>"]
+#                          [--no-acceptance-gate="<reason>"] [--touches="<path,path>"] [--notify]
 #   tools/lane.sh status   <name>
 #   tools/lane.sh list
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
@@ -61,6 +61,11 @@
 # from the working tree), `run` says what that lane can and cannot be handed, and records it in
 # .ai/runs/mcp-advice.log. Advisory only - it never refuses, because a wrong refusal is worse
 # than no advice. See mcp_advice() for the measured reason a lane cannot be given Pylance MCP.
+#
+# DESKTOP POP-UPS ARE OFF BY DEFAULT. Left on they are one pop-up PER LANDING, and every
+# `selftest` run lands ~16 lanes, so the constant command is the loudest source of desktop
+# flooding - for information the journal already carries durably. Opt in with --notify or
+# LANE_NOTIFY=1 when you are actually walking away from the workstation.
 #
 # Writing the lane script itself? Source tools/lane-model.sh for model invocation with
 # automatic fallback, instead of hand-rolling a try/retry block per lane:
@@ -96,6 +101,17 @@ RUNS="$ROOT/.ai/runs"
 MODEL_UNAVAILABLE_PATTERNS="$ROOT/tools/model-unavailable.patterns"
 mkdir -p "$RUNS"
 
+# ── desktop pop-ups: OFF BY DEFAULT ───────────────────────────────────────────
+# The toast is a courtesy; the journal is the reliable channel. Measured 2026-10-04: it is one
+# pop-up PER LANDING, and a single `selftest` run lands ~16 fixture lanes - so a command that is
+# run constantly floods the desktop with toasts that each have to be dismissed by hand, while
+# carrying nothing the journal does not already hold durably. Off is therefore the default.
+#   LANE_NOTIFY=1          raise pop-ups (or pass --notify: for when you are walking away)
+#   LANE_NOTIFY_CMD=<cmd>  what to invoke instead of notify-send; the selftest points this at a
+#                          stub so the notify path is ASSERTED without raising a single toast
+LANE_NOTIFY="${LANE_NOTIFY:-0}"
+LANE_NOTIFY_CMD="${LANE_NOTIFY_CMD:-notify-send}"
+
 # ── the landing JOURNAL is the queue the agent is notified from ────────────────
 # A per-lane marker is a snapshot; the journal is the ordered, append-only history.
 # The watcher reads the journal through a CURSOR and never the set of marker files,
@@ -125,14 +141,16 @@ cursor_get() {
 # notify-send IS installed - but it returns 0 even with no DISPLAY and no DBUS, so it
 # cannot report its own failure and must never be the only channel. The durable
 # journal is the reliable channel; the desktop toast is a courtesy on top of it.
+# The pop-up is gated by LANE_NOTIFY (default off - see the config block). The human-readable
+# log line below is NOT gated: it is durable, silent, and costs the owner nothing to ignore.
 notify_landing() {
   local name="$1" reason="$2" state="$3" summary="$4"
   local urgency="normal"
   case "$reason" in
     quota|fatal|empty|crash|timeout|unverified) urgency="critical";;
   esac
-  if command -v notify-send > /dev/null 2>&1; then
-    notify-send -u "$urgency" -a "lane" \
+  if [ "$LANE_NOTIFY" = "1" ] && command -v "$LANE_NOTIFY_CMD" > /dev/null 2>&1; then
+    "$LANE_NOTIFY_CMD" -u "$urgency" -a "lane" \
       "lane $name: $reason" "${summary:-no status line}" > /dev/null 2>&1 || true
   fi
   # one glanceable line for every landing, newest last
@@ -340,12 +358,13 @@ cmd_run() {
       --pass-looks-like=*) passLooksLike="${arg#*=}";;
       --no-acceptance-gate=*) gateOverride="${arg#*=}";;
       --touches=*) touches="${arg#*=}";;
+      --notify) LANE_NOTIFY=1;;
     esac
   done
 
   [ -n "$name" ] && [ -n "$laneScript" ] || {
     echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=N] [--require-clean]" >&2
-    echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"] [--touches=\"<path,path>\"]" >&2
+    echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"] [--touches=\"<path,path>\"] [--notify]" >&2
     exit 2
   }
 
@@ -766,6 +785,21 @@ cmd_selftest() {
   # will dispatch.
   local GATE=(--acceptance='exit 1' --pass-looks-like='the fixture lane reaches LANDED')
 
+  # The notify path is ASSERTED, never demonstrated. Pop-ups went off by default on 2026-10-04
+  # because a single run of this suite lands ~16 fixture lanes, so it raised ~16 real toasts - the
+  # loudest source of desktop flooding, from the command that gets run most often. Pointing
+  # LANE_NOTIFY_CMD at a stub keeps the coverage (that a landing notifies exactly once) and removes
+  # the noise, so the suite can be run as often as needed without touching the owner's screen.
+  cat > "$P/notify-stub.sh" <<'EOS'
+#!/usr/bin/env bash
+printf 'notify %s\n' "$*" >> "$NOTIFY_STUB_LOG"
+EOS
+  chmod +x "$P/notify-stub.sh"
+  export LANE_NOTIFY=1
+  export LANE_NOTIFY_CMD="$P/notify-stub.sh"
+  export NOTIFY_STUB_LOG="$P/notify.log"
+  : > "$P/notify.log"
+
   mklane() {  # mklane <path> <sleep> <exitcode>
     { echo '#!/usr/bin/env bash'
       echo "sleep $2"
@@ -963,6 +997,35 @@ cmd_selftest() {
     bad "S10b a php/disyl lane was given a python advisory (it must not be)"
   else
     ok "S10 must-refuse: a php/disyl lane gets no python advisory"
+  fi
+
+  # S11 (must-allow) - the notify path IS still covered: with the gate ON, exactly one pop-up per
+  # landing. The first version of this case counted the string 'lane st3:' and read 2 - and the
+  # evidence showed why: line 3 was `-a lane` (this script) and line 7 was `-a lane-watch` (the
+  # watcher), i.e. the SAME landing was toasted by two different programs. The assertion was
+  # wrong, and behind it was a real defect now fixed: a landing used to raise two pop-ups. Counting
+  # 'lane st3:' exactly once is therefore the meaningful invariant - one landing, one notification
+  # - and the watcher now has its own switch (LANE_WATCH_NOTIFY) for watching without a dispatch.
+  n11=$(grep -c 'lane st3:' "$P/notify.log" 2>/dev/null); n11=${n11:-0}
+  if [ "$n11" = "1" ]; then
+    ok "S11 must-allow: exactly one notification per landing (no double-toast)"
+  else
+    bad "S11 notifications for st3 were $n11 (expected exactly 1 - 2 means two programs toasted it)"
+  fi
+
+  # S11b (must-refuse) - the DEFAULT must be silence, because that is the actual complaint: a
+  # courtesy that fires once per landing, ~16 times per suite run, is not a courtesy - it is a
+  # screen the owner has to clear by hand.
+  : > "$P/notify-off.log"
+  # `env -u` rather than LANE_NOTIFY=0: the claim under test is the DEFAULT - what happens when
+  # the variable is not set at all - not the behaviour of an explicit zero.
+  env -u LANE_NOTIFY NOTIFY_STUB_LOG="$P/notify-off.log" \
+    bash "$SELF" run st11b "$P/lane-st10.sh" --timeout=60 --wait-grace=2 \
+    --acceptance='exit 1' --pass-looks-like='fixture' > "$P/st11b.mon.log" 2>&1
+  if [ -s "$P/notify-off.log" ]; then
+    bad "S11b the OFF default still raised $(wc -l < "$P/notify-off.log") desktop notification(s)"
+  else
+    ok "S11b must-refuse: pop-ups off (the default) sends nothing"
   fi
 
   # S5 (must-refuse) - ONE commit per landing. Every landing previously appeared twice

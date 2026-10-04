@@ -82,8 +82,9 @@ from the recording process) or a **bounded, re-armable poll** whose completion i
 - Subcommands: `run`, `status`, `list`, `pending`, `ack`, `record`, `selftest`.
 - **`tools/lane.sh selftest` — 10 cases at that date, each with a must-allow and a must-refuse direction.
   10/10 green, exit 0, repeatable, and each new guard falsified by mutation before being trusted.**
-  (The suite has since grown to **16 cases**: three S9 gate cases added on 2026-10-03, then S10/S10b for
-  the tooling advisory on 2026-10-04. All 16 pass as of 2026-10-04 — see §5 and §6.)
+  (The suite has since grown to **18 cases**: three S9 gate cases added on 2026-10-03, S10/S10b for
+  the tooling advisory and S11/S11b for the notification gate on 2026-10-04. All 18 pass as of
+  2026-10-04 — see §5 and §6.)
 
 Exit status of `run`: `0` landed clean · `<n>` landed with the lane's exit code · `3` still running,
 re-arm · `1` unverified / timeout.
@@ -196,9 +197,11 @@ failed on every run after the first. They now measure from a per-run baseline.
 1. **Record ownership:** the **runner**. Confirmed by construction — it is the only process holding the exit
    status at the instant it exists. Proven end-to-end: the monitor was `kill -9`'d mid-flight and the landing
    still reached the journal and was reported on the next arm.
-2. **Selftest on every dispatch?** No — **on demand**, and before a work session. It takes ~35s and fires
-   real desktop toasts (the toast *is* under test). Running it per dispatch would be noise and latency for a
-   regression that only a code change can introduce.
+2. **Selftest on every dispatch?** No — **on demand**, and before a work session. It takes ~35s. It used
+to fire real desktop toasts on the grounds that "the toast *is* under test" — which on 2026-10-04 measured
+as ~16 pop-ups per run, from the command run most often. It now points `LANE_NOTIFY_CMD` at a stub, which
+asserts the notify path instead of demonstrating it; see §6. Running it per dispatch would be noise and
+latency for a regression that only a code change can introduce.
 3. **Does this belong in `tools/`?** It is dev infrastructure, not product. It ships because packaging walks
    the working tree; that is a packaging concern, not a reason to leave the defect unfixed.
 4. **Wake-up model:** bounded slices, and the desktop toast is a courtesy. Two corrections to this
@@ -209,13 +212,20 @@ failed on every run after the first. They now measure from a per-run baseline.
      correct **either way** — which is why `run` exits deliberately at `--slice=90` rather than relying on
      either behaviour: a process that exits on purpose always produces a wake-up; a killed one produces
      nothing.
-   - **The toast CANNOT be the only channel — but it does work in practice.** `notify-send` returns **0**
+   - **The toast CANNOT be the only channel — but it did work in practice.** `notify-send` returns **0**
      with no `DISPLAY` and no `DBUS`, so it silently does nothing and cannot report its own failure; any
-     `|| true` around it is invisible. **Confirmed by the owner on 2026-10-02: the pop-ups do appear.** That
-     was the one link neither the code nor a self-test can check, and it settles the push path: the runner
-     calls `notify_landing` on every commit, detached, inheriting `DISPLAY`/`DBUS` — so a landing is pushed
-     to the owner even when no agent turn is live. Keep the journal as the reliable channel regardless: a
-     non-interactive dispatch (no `DISPLAY`) would toast nothing, and a toast is transient.
+     `|| true` around it is invisible. **Confirmed by the owner on 2026-10-02: the pop-ups do appear.**
+     That was the one link neither the code nor a self-test can check, and it settles the push path: the
+     runner calls `notify_landing` on every commit, detached, inheriting `DISPLAY`/`DBUS` — so a landing is
+     pushed to the owner even when no agent turn is live.
+   - **…and on 2026-10-04 the owner turned it off, because it was flooding the desktop.** That is the
+     correction this section now carries, and it is the same lesson as the earlier one: the channel worked,
+     and it worked *too often*. Pop-ups are **OFF by default** (`LANE_NOTIFY=1`, or `run --notify`) because
+     one landing raised **two** pop-ups — `commit_landing` toasted it and `lane-watch.sh` toasted it again —
+     so the loudest source of flooding was two per landing, ~16 per selftest run, from the commands that
+     run constantly. The watcher now has its own switch, so one landing yields exactly one notification.
+     **Nothing was lost:** `LANDINGS.log` and the journal are untouched by the gate and were always the
+     reliable channel. A courtesy nobody can decline is not a courtesy, it is a screen to clear.
 
 ### The user-facing loop
 
@@ -237,8 +247,10 @@ recorded override for a lane that genuinely cannot be verified; it is appended t
 Never a "is it done yet?" prompt: every return either reports the landing, or says the lane is still going
 and what to re-arm.
 
-And if no turn is live at all, the **runner still toasts** on commit — the toast fires from `commit_landing`
-inside the detached runner, not from any monitor, which is why it survives the monitor being killed.
+And if no turn is live at all, the **runner still records** on commit — the record is written from
+`commit_landing` inside the detached runner, not from any monitor, which is why it survives the monitor being
+killed. With `--notify` (or `LANE_NOTIFY=1`) it raises a pop-up from that same detached process, so the alert
+does not depend on a monitor surviving either.
 
 ### What remains unverified
 
@@ -419,13 +431,13 @@ BLOCKED lane was right and the spec was wrong.
     node tools/harpp-message-path-probe.js    # does a message really travel? (asserts the outcome)
     node tools/harpp-push-capability-probe.js # is push even possible on this origin?
     python3 tools/harpp-selector-audit.py harpp   # 95 checked, 0 missing
-    bash tools/lane.sh selftest               # MEASURED 16/16  (2026-10-04; 11/11 -> 14/14 with S9*, 16 with S10*)
+    bash tools/lane.sh selftest               # MEASURED 18/18  (2026-10-04; +S9*, +S10*, +S11*)
     bash tools/lane-model-selftest.sh         # MEASURED 19/19  (2026-10-04; was 14/14 before the chain cases)
     cat tools/model-chain.txt                 # the ONE ordered model chain (3 models)
     cat .ai/runs/mcp-advice.log               # which lanes were told they are python-dominant, and when
 
 Both counts above are **measured**, not expected: re-run on 2026-10-04, `19 passed, 0 failed` and
-`16 passed, 0 failed`. The selftest dispatches every fixture lane THROUGH the gate, so the gate is
+`18 passed, 0 failed`. The selftest dispatches every fixture lane THROUGH the gate, so the gate is
 exercised on every selftest run rather than only when a lane is dispatched by hand — and S10/S10b now
 exercise the tooling advisory in both of its directions while they are at it.
 
@@ -445,7 +457,7 @@ The host cleared on its own, and **no code change was needed for any of it to ru
 
     bash -n tools/lane.sh tools/lane-model.sh tools/lane-model-selftest.sh   # all three OK
     bash tools/lane-model-selftest.sh   # 19 passed, 0 failed
-    bash tools/lane.sh selftest         # 16 passed, 0 failed (16/16 twice; one earlier S8 flake - see §6)
+    bash tools/lane.sh selftest         # 18 passed, 0 failed (one earlier S8 flake - see §6)
     cat .ai/runs/acceptance-gate.log    # 8 lines: 7 fixture criteria + 1 bypass
 
 Both counts §4 listed as EXPECTED are now **MEASURED** and correct.
@@ -587,3 +599,27 @@ the journal. It is **not** from the advisory change: `mcp_advice` runs before di
 on the landing path, and zero stray watchdogs or runners were present. `rc=3` with no journal entry is
 exactly the signature the earlier note predicted, so this is one more sample of a known defect rather than
 a new one.
+
+### Desktop pop-ups — off by default, because they were flooding the owner's screen
+
+The owner's report: *"it's flooding my view and i have to manually turn them off."* The cause came from the
+stub log rather than from reading the code:
+
+    notify -u critical -a lane       lane st3: crash status: PASS     <- commit_landing (the runner)
+    notify -u critical -a lane-watch lane st3: crash status: PASS     <- lane-watch.sh, the SAME landing
+
+**Two different programs toasted the same landing**, so a landing meant two pop-ups — and this suite lands
+~16 fixture lanes per run, from the commands that run most often. Both are now off by default:
+
+| switch | effect |
+|---|---|
+| *(nothing)* | **silence** — the default; `LANDINGS.log` and the journal still record every landing |
+| `LANE_NOTIFY=1` or `run --notify` | the runner toasts once per landing — the authoritative notifier |
+| `LANE_WATCH_NOTIFY=1` or `lane-watch.sh --notify` | the watcher toasts too; only for watching without a dispatch |
+| `LANE_NOTIFY_CMD=<cmd>` | replaces `notify-send` — how the selftest asserts the path with a stub |
+
+The gate covers **only the pop-up**. `LANDINGS.log` and the journal are written unconditionally, so this
+removes noise and no information. S11 asserts **exactly one** notification per landing (its first version
+counted both programs and read 2 — my assertion was wrong, and the defect behind it was real), and S11b
+asserts silence via `env -u LANE_NOTIFY`, i.e. it tests the **default** as a default rather than an explicit
+zero.

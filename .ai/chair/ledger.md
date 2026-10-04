@@ -318,11 +318,24 @@ Mistakes that already cost this project real time. Not advice — rules.
    have silently re-included `node_modules`. Related, so nobody re-derives it: `vscode-java-debug`
    cannot debug an Android app at all; it attaches to JVM processes, and an APK needs `adb`.
 
-- **SESSION 2026-10-04: the gate + chain verified; tooling settled.** Measured `19/19` and `16/16`; the
-  gate falsified in all **four** directions (no criterion / already-passing / **hang** rc=124 after 300s /
-  deliberate **override** allowed and logged); `openai-codex/gpt-5.6-terra` probed to `TERRA_OK`; HARPP
-  re-measured rather than inherited (11/11 pages, 0 console errors, 0 contrast failures). **S8 flaked once**
-  (`rc=3`, empty reason, `journal=0`) — the known race, not the advisory change, which runs before dispatch
-  and touches nothing on the landing path: `16/16` on both runs afterwards with zero stray processes.
-  Residue stated, not hidden: `tools/pi-arch-review.sh` still carries a **two**-model chain, and §6 of the
-  handover records why that is not the one-line swap it looks like.
+15. **A courtesy nobody can decline is not a courtesy — it is a screen to clear.** The desktop toast
+   exists because the owner asked to be told when a lane lands. By 2026-10-04 it was *"flooding my view"*,
+   and the stub log showed why: **two different programs toasted the same landing** — `commit_landing` in
+   the runner and `lane-watch.sh` — so one landing meant two pop-ups, and a selftest run lands ~16 fixture
+   lanes. Fixed by making the pop-up opt-in (`LANE_NOTIFY=1` / `run --notify`; the watcher on its own
+   `LANE_WATCH_NOTIFY`) while leaving `LANDINGS.log` and the journal **unconditional**. **Gate the
+   intrusive channel, never the durable one.** Note how it was found: the first S11 counted the string
+   `lane st3:` and read **2**. My assertion was wrong *and* the defect behind it was real — read the
+   evidence log before believing either the code or your own test.
+
+- **SESSION 2026-10-04: the gate + chain verified; tooling settled; pop-ups turned off.** Measured
+  `19/19` and `18/18` (the suite grew 16 → 18 with S11/S11b). The gate was falsified in all **four**
+  directions (no criterion / already-passing / **hang** rc=124 after 300s / deliberate **override** allowed
+  and logged); `openai-codex/gpt-5.6-terra` probed to `TERRA_OK`; HARPP re-measured rather than inherited
+  (11/11 pages, 0 console errors, 0 contrast failures). **S8 flaked once** (`rc=3`, empty reason,
+  `journal=0`) — the known race, not a change: the advisory runs before dispatch and touches nothing on the
+  landing path, and zero strays were present. **Desktop pop-ups are now OFF by default** (owner: flooding),
+  because the runner *and* the watcher each toasted the same landing; the selftest no longer raises a single
+  real toast, since it asserts the notify path through `LANE_NOTIFY_CMD` instead. Residue stated, not
+  hidden: `tools/pi-arch-review.sh` still carries a **two**-model chain, and §6 of the handover records why
+  that is not the one-line swap it looks like.

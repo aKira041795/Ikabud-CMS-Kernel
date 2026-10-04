@@ -48,6 +48,7 @@ for arg in "$@"; do
   case "$arg" in
     --timeout=*) timeoutSecs="${arg#*=}";;
     --forever)   timeoutSecs=86400;;
+    --notify)    LANE_WATCH_NOTIFY=1;;
   esac
 done
 
@@ -55,8 +56,14 @@ iso() { date -Iseconds; }
 
 notify() {
   local title="$1" body="$2" urgency="$3"
-  if command -v notify-send > /dev/null 2>&1; then
-    notify-send -u "$urgency" -a "lane-watch" "$title" "$body" > /dev/null 2>&1 || true
+  # OFF by default, and on its OWN switch as of 2026-10-04. Measured while adding S11: the runner
+  # already toasts every landing it records, so the watcher toasting the same landing produced TWO
+  # pop-ups per landing - the flooding pattern, doubled. One landing, one notification. Opt in with
+  # LANE_WATCH_NOTIFY=1 or --notify, for the case where you watch WITHOUT a dispatch running.
+  [ "${LANE_WATCH_NOTIFY:-0}" = "1" ] || return 0
+  local cmd="${LANE_NOTIFY_CMD:-notify-send}"
+  if command -v "$cmd" > /dev/null 2>&1; then
+    "$cmd" -u "$urgency" -a "lane-watch" "$title" "$body" > /dev/null 2>&1 || true
   fi
 }
 
