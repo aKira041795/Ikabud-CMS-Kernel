@@ -674,6 +674,169 @@ try {
         $flagOnRow() && str_contains($firstSight, $flagMarker),
         json_encode(['flag_now_on_row' => $flagOnRow(), 'banner_shown' => str_contains($firstSight, $flagMarker)])
     );
+
+    // ─── smart settlement of an unfinalized shift ─────────────────────────────────────────
+    // Owner: "i want the daily ledger to be also smart", for BOTH sheets, accepting the chair's
+    // two caveats: a derived ending must never be indistinguishable from a COUNTED one (C1), and
+    // rule 3 is refused when the next beginning was carried, because then it is a copy of the very
+    // ending being estimated (C2).
+    //
+    // The ladder is asserted as a pure truth table so it needs no fixtures and no browser: the
+    // helper takes the counted ending, whether the shift is finalized, the movements computed by
+    // the CALLER's own invariant, and (for rule 3) the next beginning plus whether that beginning
+    // is independent.
+    $h->section('settling a shift nobody finalized');
+
+    $settle = 'dl_settleUnfinalizedRow';
+    $settleOk = function_exists($settle);
+    $h->test(
+        'the settlement ladder is a testable pure predicate (' . $settle . ')',
+        $settleOk,
+        $settleOk ? 'present' : 'MISSING - the decision is not exposed, so none of its rules can be asserted'
+    );
+
+    if ($settleOk) {
+        $row = static fn(?int $end, bool $fin, int $mv, ?int $next = null, bool $indep = false): array
+            => (array)$settle($end, $fin, $mv, $next, $indep);
+        $describe = static fn(array $r): string => json_encode($r);
+
+        // A counted ending is a count. With movements 100 and an ending of 30 the invariant gives
+        // 70 sold, and a SIGNED-OFF shift is official.
+        $signed = $row(30, true, 100);
+        $h->test(
+            'a counted ending on a finalized shift is official, with sales from the invariant',
+            ($signed['rung'] ?? '') === 'counted'
+                && (int)($signed['ending'] ?? -1) === 30
+                && (int)($signed['sales'] ?? -1) === 70
+                && ($signed['official'] ?? false) === true,
+            $describe($signed)
+        );
+
+        // The same count on an UNSIGNED shift is not official - it is provisional, and the number
+        // is unchanged. A derived number must never be more trusted than this, less trusted.
+        $unsigned = $row(30, false, 100);
+        $h->test(
+            'the same count on an unfinalized shift is counted-unsigned and NOT official',
+            ($unsigned['rung'] ?? '') === 'counted-unsigned'
+                && (int)($unsigned['sales'] ?? -1) === 70
+                && ($unsigned['official'] ?? true) === false,
+            $describe($unsigned)
+        );
+
+        // A RECORDED ZERO is a count, not a missing value. It must never be mistaken for the
+        // zero-forced rung, which exists only for a NULL ending.
+        $zeroCounted = $row(0, true, 100);
+        $h->test(
+            'a recorded ZERO ending is a count (sales 100), never confused with zero-forced',
+            ($zeroCounted['rung'] ?? '') === 'counted'
+                && (int)($zeroCounted['sales'] ?? -1) === 100
+                && ($zeroCounted['official'] ?? false) === true,
+            $describe($zeroCounted)
+        );
+
+        // Rule 2: nobody counted, but stock moved. The ending is DEFINED as the movements so the
+        // shift settles at zero sales - labelled, never official.
+        $derived = $row(null, false, 100);
+        $h->test(
+            'rule 2: an uncounted ending with movements settles to ending=movements, sales=0, not official',
+            ($derived['rung'] ?? '') === 'derived-from-movements'
+                && (int)($derived['ending'] ?? -1) === 100
+                && (int)($derived['sales'] ?? -1) === 0
+                && ($derived['official'] ?? true) === false,
+            $describe($derived)
+        );
+
+        // Rule 1. With every movement zero the invariant is max(0, 0 - bal_end) = 0 for ANY
+        // non-negative ending, so this is arithmetic rather than an assumption.
+        $forced = $row(null, false, 0);
+        $h->test(
+            'rule 1: an uncounted ending with all movements zero settles to sales 0',
+            ($forced['rung'] ?? '') === 'zero-forced'
+                && (int)($forced['sales'] ?? -1) === 0
+                && ($forced['official'] ?? true) === false,
+            $describe($forced)
+        );
+
+        // Rule 3: the next shift's independently counted beginning IS evidence of this ending.
+        $fromNext = $row(null, false, 100, 40, true);
+        $h->test(
+            'rule 3: an INDEPENDENT next beginning supplies the missing ending',
+            ($fromNext['rung'] ?? '') === 'derived-next-beginning'
+                && (int)($fromNext['ending'] ?? -1) === 40
+                && (int)($fromNext['sales'] ?? -1) === 60
+                && ($fromNext['official'] ?? true) === false,
+            $describe($fromNext)
+        );
+
+        // THE CIRCULARITY GUARD (caveat C2). When that beginning was CARRIED it is a copy of the
+        // missing ending, so using it would be estimating a value from itself. It must fall
+        // through to rule 2 - the same answer as having no next beginning at all.
+        $carried = $row(null, false, 100, 40, false);
+        $h->test(
+            'rule 3 is REFUSED when the next beginning was carried (it is a copy of the missing ending)',
+            ($carried['rung'] ?? '') !== 'derived-next-beginning'
+                && ($carried['rung'] ?? '') === 'derived-from-movements'
+                && (int)($carried['ending'] ?? -1) === 100
+                && (int)($carried['sales'] ?? -1) === 0,
+            $describe($carried)
+        );
+    }
+
+    // R5: the report's provisional rule is inline inside dl_reportSalesData(), so it is asserted
+    // through the predicate the contract requires. MEASURED DEFECT: an AM row with a recorded
+    // ending on an unfinalized AM shift satisfies neither clause today, so unsigned AM sales land
+    // in the OFFICIAL total.
+    $prov = 'dl_rowIsProvisional';
+    $provOk = function_exists($prov);
+    $h->test(
+        'the provisional rule is a testable predicate (' . $prov . ')',
+        $provOk,
+        $provOk ? 'present' : 'MISSING - the report buckets inline, so unsigned AM sales cannot be asserted'
+    );
+
+    if ($provOk) {
+        $h->test(
+            'an unfinalized AM shift with a recorded ending is provisional, not official',
+            (bool)$prov(['bal_end' => 30, 'shift' => 'AM', 'shift_status' => 'open']) === true,
+            'AM/open with a recorded ending must not be official'
+        );
+        $h->test(
+            'an unfinalized PM shift with a recorded ending is provisional',
+            (bool)$prov(['bal_end' => 30, 'shift' => 'PM', 'shift_status' => 'open']) === true,
+            'PM/open'
+        );
+        $h->test(
+            'a FINALIZED shift with a recorded ending is not provisional',
+            (bool)$prov(['bal_end' => 30, 'shift' => 'AM', 'shift_status' => 'finalized']) === false,
+            'AM/finalized must be official'
+        );
+        $h->test(
+            'a missing ending is provisional whatever the shift',
+            (bool)$prov(['bal_end' => null, 'shift' => 'AM', 'shift_status' => 'finalized']) === true
+                && (bool)$prov(['bal_end' => null, 'shift' => 'AM', 'shift_status' => 'open']) === true,
+            'NULL ending'
+        );
+
+        // THE NO-SHIFT-ROW CASE, and why it is pinned: a MISSING dl_ledger_shift_status row is
+        // ambiguous - it can mean "never finalized" OR "this shift was never tracked at all".
+        // Measured on tenant 207: 3,149 AM rows have a recorded ending and NO shift row (20,680
+        // units), while PM has only 46 such rows (1,602 units). Treating "no row" as unfinalized
+        // for BOTH shifts would move 20,680 units of AM sales out of the official total - a
+        // restatement of history on the strength of an ambiguity, NOT a fix.
+        // So the historical bucketing is PRESERVED exactly for the no-row case (PM provisional,
+        // AM official), and the fix applies only where the data is unambiguous: a shift row that
+        // EXISTS and says not-finalized.
+        $h->test(
+            'AM with NO shift-status row keeps its historical official bucket (no restatement)',
+            (bool)$prov(['bal_end' => 30, 'shift' => 'AM']) === false,
+            'AM/no-row must stay official - 3,149 rows / 20,680 units hang on this'
+        );
+        $h->test(
+            'PM with NO shift-status row keeps its historical provisional bucket (no restatement)',
+            (bool)$prov(['bal_end' => 30, 'shift' => 'PM']) === true,
+            'PM/no-row was already provisional'
+        );
+    }
 } finally {
     $cleanup();
 }

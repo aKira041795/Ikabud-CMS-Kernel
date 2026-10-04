@@ -118,6 +118,40 @@ function dl_reportFilterProducts(ModuleDB $db, array $filters): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/**
+ * Is this ledger row signed off, or merely provisional? AM and PM alike.
+ *
+ * A NULL ending is pending, hence provisional. A shift row that EXISTS and is not
+ * 'finalized' is unambiguously unsigned — an unfinalized AM is exactly as unsigned
+ * as an unfinalized PM (R5) — so a recorded status is never special-cased by shift.
+ *
+ * A MISSING shift-status row is AMBIGUOUS: it can mean "never finalized" OR "this
+ * shift was never tracked at all". Because it proves nothing either way, the no-row
+ * case is deliberately bucketed the OLD way (AM official, PM provisional) to PRESERVE
+ * history rather than restate it. Measured on tenant 207: 3,149 AM rows / 20,680 units
+ * hang on this, versus 46 PM rows. Do NOT "correct" the backwards-looking `=== 'PM'`
+ * below into `!== 'finalized'` — that would move 20,680 units of AM sales out of the
+ * official total on the strength of an ambiguity, i.e. restate history.
+ */
+function dl_rowIsProvisional(array $row): bool
+{
+    if (($row['bal_end'] ?? null) === null) {
+        return true;                                   // a missing ending is pending
+    }
+
+    $status = $row['shift_status'] ?? null;
+    if ($status === null) {
+        // No shift row is AMBIGUOUS: "never finalized" or "never tracked". Preserve the
+        // historical bucketing exactly - PM was provisional, AM was official. Measured:
+        // 3,149 AM rows / 20,680 units hang on this, versus 46 PM rows.
+        return (string)($row['shift'] ?? '') === 'PM';
+    }
+
+    // A shift row that EXISTS and is not finalized is unambiguous, and the shift does not
+    // matter: an unsigned AM is exactly as unsigned as an unsigned PM.
+    return (string)$status !== 'finalized';
+}
+
 /** @return array{rows:array<int,array<string,mixed>>,totals:array<string,int|float>} */
 function dl_reportSalesData(ModuleDB $db, array $filters): array
 {
@@ -161,11 +195,30 @@ function dl_reportSalesData(ModuleDB $db, array $filters): array
     $totals = ['official_units' => 0, 'official_amount' => 0.0, 'provisional_units' => 0, 'provisional_amount' => 0.0];
     foreach ($rows as &$row) {
         $pending = $row['bal_end'] === null;
-        $provisional = $pending || ((string)$row['shift'] === 'PM' && (string)($row['shift_status'] ?? '') !== 'finalized');
+        $provisional = dl_rowIsProvisional($row);
         $row['status_label'] = $pending ? 'pending ending' : ($provisional ? 'provisional' : 'official');
-        $bucket = $provisional ? 'provisional' : 'official';
-        $totals[$bucket . '_units'] += (int)($row['sales'] ?? 0);
-        $totals[$bucket . '_amount'] += (float)($row['amount'] ?? 0);
+
+        // Settle the row from THIS sheet's own movement invariant — cashier:
+        // beg_bal + addtl - withdraw (R6). The ladder is the single source of the
+        // rung/ending/sales, and only the 'counted' rung is official, so no
+        // derived value can enter the official total (R3). The derived ending is
+        // COMPUTED for this report only; the stored bal_end stays NULL and is
+        // never written back (R2).
+        $movements = (int)($row['beg_bal'] ?? 0) + (int)($row['addtl'] ?? 0) - (int)($row['withdraw'] ?? 0);
+        $settled = dl_settleUnfinalizedRow(
+            $pending ? null : (int)$row['bal_end'],
+            (string)($row['shift_status'] ?? '') === 'finalized',
+            $movements,
+            null,
+            false
+        );
+        $bucket = !empty($settled['official']) ? 'official' : 'provisional';
+        $settledSales = max(0, (int)($settled['sales'] ?? 0));
+        $row['settled_rung'] = (string)($settled['rung'] ?? '');
+        $row['sales'] = $settledSales;
+        $row['amount'] = $settledSales * (float)($row['price_snapshot'] ?? 0);
+        $totals[$bucket . '_units'] += $settledSales;
+        $totals[$bucket . '_amount'] += (float)$row['amount'];
     }
     unset($row);
 

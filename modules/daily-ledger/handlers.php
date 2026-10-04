@@ -2212,6 +2212,67 @@ function dl_ledgerSalesAmountSql(string $alias = 'dl', string $priceColumn = 'pr
     return dl_ledgerSalesQuantitySql($safeAlias) . " * COALESCE({$safeAlias}.{$safePriceColumn},0)";
 }
 
+/**
+ * Settle one ledger row whose shift may never have been finalized.
+ *
+ * Returns the rung, the ending to report, and the sales to report — all
+ * COMPUTED. Nothing here is ever written back into a counted column: the stored
+ * ending stays NULL (R2). The caller supplies $movements from its OWN invariant
+ * (cashier: beg_bal + addtl - withdraw; production: beg_qty + produced_qty -
+ * dispatched_qty - wastage_qty), so the two sheets never accidentally share a
+ * formula (R6).
+ *
+ * Rung 3 is only reached when $nextBeginningIsIndependent is true. A carried
+ * beginning is a COPY of the very ending being estimated, so using it would be
+ * estimating a value from itself; the circularity guard refuses it (R4) and the
+ * row falls through to rule 2.
+ *
+ * There is no sixth rung: every NULL-ending case is covered by 3, 4 or 5.
+ *
+ * @return array{rung:string,ending:?int,sales:?int,official:bool}
+ */
+function dl_settleUnfinalizedRow(
+    ?int $countedEnd,
+    bool $shiftFinalized,
+    int $movements,
+    ?int $nextBeginning,
+    bool $nextBeginningIsIndependent
+): array {
+    // A recorded ending — including a recorded ZERO — is a COUNT, never a
+    // missing value. Only a NULL ending reaches the derived rungs below.
+    if ($countedEnd !== null) {
+        return [
+            'rung' => $shiftFinalized ? 'counted' : 'counted-unsigned',
+            'ending' => $countedEnd,
+            'sales' => max(0, $movements - $countedEnd),
+            'official' => $shiftFinalized,
+        ];
+    }
+
+    // Rule 1: with every movement zero the invariant is max(0, 0 - ending) = 0
+    // for any non-negative ending, so this is arithmetic, not an assumption.
+    if ($movements === 0) {
+        return ['rung' => 'zero-forced', 'ending' => 0, 'sales' => 0, 'official' => false];
+    }
+
+    // Rule 3: an INDEPENDENT next beginning is evidence of this missing ending.
+    // A carried beginning is a COPY of the very ending being estimated, so using
+    // it would be estimating a value from itself; refuse it (R4) and fall
+    // through to rule 2.
+    if ($nextBeginning !== null && $nextBeginningIsIndependent) {
+        return [
+            'rung' => 'derived-next-beginning',
+            'ending' => $nextBeginning,
+            'sales' => max(0, $movements - $nextBeginning),
+            'official' => false,
+        ];
+    }
+
+    // Rule 2: define the ending as the movements, so the shift settles at zero
+    // sales. A labelled derivation, never official (C1, R3).
+    return ['rung' => 'derived-from-movements', 'ending' => $movements, 'sales' => 0, 'official' => false];
+}
+
 function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, int $delta, int $actorId, string $column = 'addtl', string $shift = 'AM'): array
 {
     if (!in_array($column, ['addtl', 'withdraw'], true)) {

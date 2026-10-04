@@ -69,8 +69,10 @@ test('a failed PM close returns structured missing_products, not names inside th
         return { status: r.status, body: await r.json().catch(() => null) };
     }, { date: DATE, branch: COMMISSARY });
 
-    note({ step: 'api-finalize-pm', date: DATE, status: res.status, ok: res.body && res.body.ok,
-        missingCount: res.body && Array.isArray(res.body.missing_products) ? res.body.missing_products.length : null });
+    note({
+        step: 'api-finalize-pm', date: DATE, status: res.status, ok: res.body && res.body.ok,
+        missingCount: res.body && Array.isArray(res.body.missing_products) ? res.body.missing_products.length : null
+    });
 
     expect(res.status, 'an incomplete day must refuse the close').toBe(422);
     expect(res.body && res.body.ok).toBe(false);
