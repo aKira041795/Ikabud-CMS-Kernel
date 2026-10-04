@@ -36,7 +36,7 @@
 #   tools/lane.sh run      <name> <lane-script> [--timeout=7200] [--slice=90] [--wait-grace=120]
 #                          [--require-clean]
 #                          --acceptance="<cmd>" --pass-looks-like="<what PASS looks like>"
-#                          [--no-acceptance-gate="<reason>"]
+#                          [--no-acceptance-gate="<reason>"] [--touches="<path,path>"]
 #   tools/lane.sh status   <name>
 #   tools/lane.sh list
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
@@ -56,6 +56,11 @@
 # lesson was measured at three restatements and zero prevented - so it is enforced here.
 # A genuinely non-verifiable lane may override with --no-acceptance-gate="<reason>";
 # every override is recorded in .ai/runs/acceptance-gate.log with its reason.
+#
+# THE TOOLING ADVISORY. If a lane is python-dominant (declared with --touches, else inferred
+# from the working tree), `run` says what that lane can and cannot be handed, and records it in
+# .ai/runs/mcp-advice.log. Advisory only - it never refuses, because a wrong refusal is worse
+# than no advice. See mcp_advice() for the measured reason a lane cannot be given Pylance MCP.
 #
 # Writing the lane script itself? Source tools/lane-model.sh for model invocation with
 # automatic fallback, instead of hand-rolling a try/retry block per lane:
@@ -267,6 +272,45 @@ write_marker() {
   mv "$tmp" "$marker"          # atomic: a reader never sees a half-written marker
 }
 
+# ── tooling advisory: what a lane can and cannot be handed ─────────────────────────────
+# Python work has two audiences and they are NOT interchangeable:
+#   - the CHAIR (a VS Code agent turn) can use the Pylance MCP server;
+#   - a LANE (pi, in a terminal) CANNOT.
+# Measured 2026-10-04, so this is a property of the tool and not a preference:
+#   - Pylance exposes its server only via contributes.mcpServerDefinitionProviders (id
+#     "pylanceMcp"), registered from inside the extension at runtime. package.json declares no
+#     CLI entry point and the dist bundles are browser/extension bundles - nothing to spawn.
+#   - ~/.pi/agent/settings.json carries no `mcp` key at all, so a pi lane has no MCP access.
+#   - There is also no type checker to hand over: pyright, mypy and ruff are absent from PATH
+#     AND from .venv. pytest IS present (.venv/bin/pytest).
+# So the only actionable advice for a Python lane is "give it an executable criterion". This
+# prints and returns; it never refuses, so it can never manufacture a false red.
+mcp_advice() {
+  local list="${1:-}" who="${2:-lane}" total=0 py=0 f
+  if [ -z "$list" ]; then
+    # Nothing declared: fall back to what is actually in play in the tree.
+    list=$(git -C "$ROOT" status --porcelain 2>/dev/null | awk '{print $NF}')
+  else
+    list=$(printf '%s\n' "$list" | tr ',' '\n')
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    total=$((total + 1))
+    case "$f" in *.py) py=$((py + 1));; esac
+  done < <(printf '%s\n' "$list")
+  [ "$total" -gt 0 ] || return 0
+  # Python-DOMINANT only: one .py among ten .php is not a Python lane, and calling it one would
+  # train the reader to ignore the advisory.
+  [ "$py" -gt 0 ] || return 0
+  [ "$((py * 2))" -ge "$total" ] || return 0
+  echo "== tooling advisory: python-dominant ($py/$total touched files are .py) =="
+  echo "   Pylance MCP is CHAIR-side only: pi lanes cannot reach it, and no type checker is"
+  echo "   installed (pyright/mypy/ruff absent). Give this lane an EXECUTABLE criterion -"
+  echo "   pytest is at .venv/bin/pytest."
+  printf '%s  %-24s python %s/%s\n' "$(iso)" "$who" "$py" "$total" \
+    >> "$RUNS/mcp-advice.log" 2>/dev/null || true
+}
+
 cmd_run() {
   local name="${1:-}"; shift || true
   local laneScript="${1:-}"; shift || true
@@ -284,6 +328,7 @@ cmd_run() {
   local acceptanceCmd=""
   local passLooksLike=""
   local gateOverride=""
+  local touches=""
   for arg in "$@"; do
     case "$arg" in
       --timeout=*) timeoutSecs="${arg#*=}";;
@@ -294,12 +339,13 @@ cmd_run() {
       --acceptance=*) acceptanceCmd="${arg#*=}";;
       --pass-looks-like=*) passLooksLike="${arg#*=}";;
       --no-acceptance-gate=*) gateOverride="${arg#*=}";;
+      --touches=*) touches="${arg#*=}";;
     esac
   done
 
   [ -n "$name" ] && [ -n "$laneScript" ] || {
     echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=N] [--require-clean]" >&2
-    echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"]" >&2
+    echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"] [--touches=\"<path,path>\"]" >&2
     exit 2
   }
 
@@ -351,6 +397,10 @@ cmd_run() {
       exit 1
     fi
   fi
+
+  # Tooling advisory. Deliberately at the moment the decision is made rather than after it is
+  # missed - the same reasoning as the chain-length warning.
+  mcp_advice "$touches" "$name"
 
   local log="$RUNS/$name.log"
   rm -f "$log" "$RUNS/$name.landed.json" "$RUNS/$name.pid"
@@ -890,6 +940,29 @@ cmd_selftest() {
     ok "S9c must-allow: a failing criterion plus a stated PASS dispatches and lands"
   else
     bad "S9c the gate refused a valid dispatch (rc=$rc9c state=$s9c)"
+  fi
+
+  # S10/S10b - the TOOLING ADVISORY. It only ever prints, so both directions are asserted: a
+  # python-dominant lane must be told, and a php/disyl one must NOT be. A one-directional test
+  # here would pass just as well against an advisory that fires unconditionally.
+  mklane "$P/lane-st10.sh" 1 0
+  bash "$SELF" run st10 "$P/lane-st10.sh" --timeout=60 --wait-grace=2 \
+    --acceptance='exit 1' --pass-looks-like='fixture' \
+    --touches='tools/a.py,tools/b.py' > "$P/st10.mon.log" 2>&1
+  if grep -q 'python-dominant (2/2' "$P/st10.mon.log"; then
+    ok "S10 must-allow: a python-dominant lane is told Pylance MCP is unreachable from it"
+  else
+    bad "S10 a python-dominant lane got no tooling advisory"
+  fi
+
+  mklane "$P/lane-st10b.sh" 1 0
+  bash "$SELF" run st10b "$P/lane-st10b.sh" --timeout=60 --wait-grace=2 \
+    --acceptance='exit 1' --pass-looks-like='fixture' \
+    --touches='modules/cms/handlers.php,templates/x.disyl' > "$P/st10b.mon.log" 2>&1
+  if grep -q 'tooling advisory' "$P/st10b.mon.log"; then
+    bad "S10b a php/disyl lane was given a python advisory (it must not be)"
+  else
+    ok "S10 must-refuse: a php/disyl lane gets no python advisory"
   fi
 
   # S5 (must-refuse) - ONE commit per landing. Every landing previously appeared twice

@@ -297,3 +297,32 @@ Mistakes that already cost this project real time. Not advice — rules.
    namespace (`slirp4netns` missing for `network.proxy`). The deliverable in that state is a reviewable
    diff plus the exact commands AND the exact host error, never a PASS and never a "should work". A count
    written as a result when it is only an expectation is the false green this ledger exists to prevent.
+13. **A guard the target cannot reach is not a guard — say so instead of building it.** "Should Pylance
+   MCP be part of the harness?" has one honest answer: a lane cannot use it. Pylance registers its MCP
+   server from inside the VS Code extension (`contributes.mcpServerDefinitionProviders`, id
+   `pylanceMcp`, and **no** CLI entry point in `package.json` — `dist/bundled/` is data only), and
+   `~/.pi/agent/settings.json` carries no `mcp` key at all, so a `pi` lane in a terminal has no MCP
+   access whatsoever. A "python lane" toggle in lane dispatch would have been a guard that can never
+   fire: trusted, and therefore worse than none. What was built instead is an advisory that says the
+   true thing at the moment of the decision — `run --touches="<paths>"` (else the working tree)
+   classifies the lane, and a python-dominant one is told its oracle is `.venv/bin/pytest`, because no
+   type checker exists here (pyright/mypy/ruff are absent from PATH AND from `.venv`). **Measure
+   reachability BEFORE designing the guard.** The advisory never refuses, cannot create a false red, and
+   fires only on python-*dominant* (S10/S10b assert both directions, because a one-directional test
+   passes just as well against an advisory that always fires).
+14. **Java language server: excluded from `android/` rather than left importing nothing.** Measured: 71
+   Kotlin files, **zero** hand-written Java (the only `.java` are generated Gradle accessors under
+   `.gradle/8.9/`), no Kotlin extension installed, and Android Studio already owns the tree (`.idea/`
+   plus `sdk.dir=~/Android/Sdk`). The exclusion had to repeat redhat.java's **four defaults verbatim**,
+   because overriding that key REPLACES the defaults rather than extending them — a one-item list would
+   have silently re-included `node_modules`. Related, so nobody re-derives it: `vscode-java-debug`
+   cannot debug an Android app at all; it attaches to JVM processes, and an APK needs `adb`.
+
+- **SESSION 2026-10-04: the gate + chain verified; tooling settled.** Measured `19/19` and `16/16`; the
+  gate falsified in all **four** directions (no criterion / already-passing / **hang** rc=124 after 300s /
+  deliberate **override** allowed and logged); `openai-codex/gpt-5.6-terra` probed to `TERRA_OK`; HARPP
+  re-measured rather than inherited (11/11 pages, 0 console errors, 0 contrast failures). **S8 flaked once**
+  (`rc=3`, empty reason, `journal=0`) — the known race, not the advisory change, which runs before dispatch
+  and touches nothing on the landing path: `16/16` on both runs afterwards with zero stray processes.
+  Residue stated, not hidden: `tools/pi-arch-review.sh` still carries a **two**-model chain, and §6 of the
+  handover records why that is not the one-line swap it looks like.

@@ -82,8 +82,8 @@ from the recording process) or a **bounded, re-armable poll** whose completion i
 - Subcommands: `run`, `status`, `list`, `pending`, `ack`, `record`, `selftest`.
 - **`tools/lane.sh selftest` — 10 cases at that date, each with a must-allow and a must-refuse direction.
   10/10 green, exit 0, repeatable, and each new guard falsified by mutation before being trusted.**
-  (The suite has since grown to 14 cases — the three S9 gate cases were added on 2026-10-03 and have not
-  been executed yet; see §5.)
+  (The suite has since grown to **16 cases**: three S9 gate cases added on 2026-10-03, then S10/S10b for
+  the tooling advisory on 2026-10-04. All 16 pass as of 2026-10-04 — see §5 and §6.)
 
 Exit status of `run`: `0` landed clean · `<n>` landed with the lane's exit code · `3` still running,
 re-arm · `1` unverified / timeout.
@@ -419,13 +419,15 @@ BLOCKED lane was right and the spec was wrong.
     node tools/harpp-message-path-probe.js    # does a message really travel? (asserts the outcome)
     node tools/harpp-push-capability-probe.js # is push even possible on this origin?
     python3 tools/harpp-selector-audit.py harpp   # 95 checked, 0 missing
-    bash tools/lane.sh selftest               # MEASURED 14/14  (2026-10-04; was 11/11 before S9*)
+    bash tools/lane.sh selftest               # MEASURED 16/16  (2026-10-04; 11/11 -> 14/14 with S9*, 16 with S10*)
     bash tools/lane-model-selftest.sh         # MEASURED 19/19  (2026-10-04; was 14/14 before the chain cases)
     cat tools/model-chain.txt                 # the ONE ordered model chain (3 models)
+    cat .ai/runs/mcp-advice.log               # which lanes were told they are python-dominant, and when
 
 Both counts above are **measured**, not expected: re-run on 2026-10-04, `19 passed, 0 failed` and
-`14 passed, 0 failed`. The selftest dispatches every fixture lane THROUGH the gate, so the gate is
-exercised on every selftest run rather than only when a lane is dispatched by hand.
+`16 passed, 0 failed`. The selftest dispatches every fixture lane THROUGH the gate, so the gate is
+exercised on every selftest run rather than only when a lane is dispatched by hand — and S10/S10b now
+exercise the tooling advisory in both of its directions while they are at it.
 
 ## 5. Verification of the second 2026-10-03 session's changes — RUN 2026-10-04, ALL PASS
 
@@ -443,7 +445,7 @@ The host cleared on its own, and **no code change was needed for any of it to ru
 
     bash -n tools/lane.sh tools/lane-model.sh tools/lane-model-selftest.sh   # all three OK
     bash tools/lane-model-selftest.sh   # 19 passed, 0 failed
-    bash tools/lane.sh selftest         # 14 passed, 0 failed
+    bash tools/lane.sh selftest         # 16 passed, 0 failed (16/16 twice; one earlier S8 flake - see §6)
     cat .ai/runs/acceptance-gate.log    # 8 lines: 7 fixture criteria + 1 bypass
 
 Both counts §4 listed as EXPECTED are now **MEASURED** and correct.
@@ -520,3 +522,68 @@ review text; `lane_model_run` writes a plain-text log and reports which model se
 at `$LANE_MODEL_CHAIN` therefore raises its own design question — does the architecture review keep its
 JSONL trace, or adopt the shared log format? That is a small piece of work with its own verification, not
 a drive-by edit during a verification pass.
+
+## 6. Tooling and editor configuration — decided 2026-10-04
+
+Neither item below is a product change. They are recorded because the *reasoning* is the reusable part,
+and because both were settled by measurement rather than preference.
+
+### Java language server — excluded from the Android trees
+
+Measured: `android/` holds **71 Kotlin files and zero hand-written Java**. The only `.java` files are
+generated Gradle dependency-accessors (`…/.gradle/8.9/dependencies-accessors/…`), and **no Kotlin
+extension is installed**. So the Java language server was importing two Android Gradle projects to serve
+nothing. `android/daily-ledger/.idea/` plus `sdk.dir=~/Android/Sdk` both show Android Studio already owns
+that tree.
+
+`.vscode/settings.json` now sets `java.import.exclusions` to redhat.java's **four defaults repeated
+verbatim** plus `**/android/**`. The repetition is load-bearing: overriding that key **replaces** the
+defaults rather than extending them, so a one-item list would have quietly un-excluded `node_modules`.
+
+**Also true, and listed so nobody re-derives it:** `vscode-java-debug` cannot debug this app at all. It
+attaches to JVM processes — a `main()`, a Gradle test JVM, a remote JDWP port — whereas an Android app runs
+on a device or emulator and is launched through `adb`, which is Android Studio's job. Nothing was broken;
+the capability simply does not apply here.
+
+### Pylance MCP — a CHAIR-side tool, now structurally impossible to forget
+
+Decision: **off by default, on for interactive Python work.** Every reason is a measured property of the
+tool, not a preference:
+
+| claim | measurement |
+|---|---|
+| Pylance does ship an MCP server | `contributes.mcpServerDefinitionProviders` = `[{id: "pylanceMcp", label: "pylance mcp server"}]` |
+| …but there is nothing to spawn | registered from inside the extension at runtime; `package.json` declares **no CLI entry point** and `dist/bundled/` is data only (stubs, indices, wasm) |
+| a **lane** cannot reach it anyway | `~/.pi/agent/settings.json` carries **no `mcp` key** — pi has no MCP at all |
+| a lane has no type checker either | `pyright`, `mypy` and `ruff` are absent from PATH **and** from `.venv`; `npx pyright` fails |
+| a lane's real oracle is already here | `.venv/bin/pytest` |
+
+So "make it part of the harness" cannot mean *turning MCP on for a lane* — that is the guard-that-can-never
+-fire this document already has a rule about. What the harness can do is say the true thing at the moment
+the decision is made. `run` now takes an optional `--touches="<path,path>"` and, when the touched set is
+**python-dominant**, prints:
+
+    == tooling advisory: python-dominant (2/2 touched files are .py) ==
+       Pylance MCP is CHAIR-side only: pi lanes cannot reach it, and no type checker is
+       installed (pyright/mypy/ruff absent). Give this lane an EXECUTABLE criterion -
+       pytest is at .venv/bin/pytest.
+
+and records it in `.ai/runs/mcp-advice.log`. Three deliberate choices, each of which a lazier version
+would have got wrong:
+
+- **Advisory, never a refusal.** A wrong refusal is worse than no advice, and this repo's measured history
+  is dominated by false reds. An advisory cannot manufacture one.
+- **Python-*dominant*, not "any `.py`".** One `.py` among ten `.php` is not a Python lane; firing there would
+  train the reader to ignore it.
+- **Both directions asserted (S10/S10b).** A one-directional test passes just as well against an advisory
+  that fires unconditionally, so the must-refuse case is a php/disyl touch list.
+
+### S8 flaked once during this session — recorded, not papered over
+
+The suite was run three times on 2026-10-04: **16/16**, **16/16**, and one earlier run failing as
+`S8 … rc=3 reason=<empty> journal=0`. That is the pre-existing race already documented above — the runner
+correctly returns 3, but the watchdog has not yet committed its `timeout` record when the assertion reads
+the journal. It is **not** from the advisory change: `mcp_advice` runs before dispatch and touches nothing
+on the landing path, and zero stray watchdogs or runners were present. `rc=3` with no journal entry is
+exactly the signature the earlier note predicted, so this is one more sample of a known defect rather than
+a new one.
