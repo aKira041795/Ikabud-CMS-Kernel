@@ -28,6 +28,9 @@ require_once __DIR__ . '/../harness/TestHarness.php';
 $h = new TestHarness('daily-ledger-shared-account-latest-holder', TestHarness::MODE_INTEGRATION, 'baronledger.test');
 ob_end_clean();
 
+// The module registry is rebuilt on a cold run; that cache line is expected noise here.
+$h->allowLogLines('kernel_state_cache');
+
 // These are the log lines the live login endpoint is EXPECTED to write for this
 // suite. Anything else added to app.log during the run is an unexpected offender
 // and fails the harness log check.

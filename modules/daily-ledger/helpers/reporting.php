@@ -219,7 +219,15 @@ function dl_reportSalesData(ModuleDB $db, array $filters): array
             null,
             false
         );
-        $bucket = !empty($settled['official']) ? 'official' : 'provisional';
+        $bucket = $provisional ? 'provisional' : 'official';
+        // The BUCKET must follow the SAME predicate as $row['status_label'] above, so a row can
+        // never be labelled provisional and totalled as official. The ladder decides the RUNG and
+        // the settled value; it must NOT decide the bucket, because the ladder calls ANY
+        // unfinalized shift 'counted-unsigned' - while dl_rowIsProvisional() deliberately treats a
+        // MISSING shift row as historically official. Deriving the bucket from the ladder's
+        // 'official' flag therefore silently restated the 3,149 AM rows / 20,680 units that have a
+        // recorded ending and no shift row - the exact restatement that predicate exists to
+        // prevent. Caught by daily_ledger_reporting_test; a predicate-only comparison missed it.
         $settledSales = max(0, (int)($settled['sales'] ?? 0));
         $row['settled_rung'] = (string)($settled['rung'] ?? '');
         $row['sales'] = $settledSales;

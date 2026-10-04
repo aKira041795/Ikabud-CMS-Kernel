@@ -143,7 +143,10 @@
                 "/daily-ledger/auth/refresh",
                 "/daily-ledger/api/v1/offline/enroll",
                 "/daily-ledger/api/v1/offline/revoke",
-                "/daily-ledger/api/v1/offline/reconcile"
+                "/daily-ledger/api/v1/offline/reconcile",
+                "/daily-ledger/api/v1/commissary/settle-endings",
+                "/daily-ledger/api/v1/commissary/verify-endings",
+                "/daily-ledger/api/v1/commissary/revert-endings"
             ],
             "PUT": [],
             "PATCH": [],

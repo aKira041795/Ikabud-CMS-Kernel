@@ -7,6 +7,10 @@ require_once __DIR__ . '/../harness/TestHarness.php';
 $h = new TestHarness('daily-ledger-reporting', TestHarness::MODE_INTEGRATION, 'localhost');
 ob_end_clean();
 
+// This suite EXPORTS a report - that is its subject - so the export's info line is expected
+// noise for this run. Declaring it keeps the log assertion pointed at genuinely unexpected lines.
+$h->allowLogLines('kernel.export');
+
 $h->fingerprint('modules/daily-ledger/helpers/reporting.php');
 $h->fingerprint('modules/daily-ledger/routes.php');
 $h->fingerprint('modules/daily-ledger/module.json');

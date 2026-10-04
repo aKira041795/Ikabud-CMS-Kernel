@@ -15,6 +15,10 @@ require_once __DIR__ . '/../harness/TestHarness.php';
 
 $h = new TestHarness('daily-ledger-overview', TestHarness::MODE_INTEGRATION, 'localhost');
 
+// Rendering the Overview compiles DiSyL templates, and the compiler emits a named info line per
+// compile. Expected noise, declared so the log assertion still catches anything ELSE.
+$h->allowLogLines('disyl.compile.phases');
+
 $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/helpers/reporting.php');
 $h->fingerprint('modules/daily-ledger/module.json');
