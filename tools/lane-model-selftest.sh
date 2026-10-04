@@ -111,6 +111,59 @@ lane_model_run "" "p" /tmp/lm-g >/dev/null 2>&1; rc=$?
 chk "empty models -> rc=2" "" 2 "$LANE_MODEL_USED" "$rc"
 
 echo
+echo "=== canonical chain: a third model must exist, or one provider ends the work ==="
+# Measured 2026-10-03: a lane whose list was Sol+DeepSeek stopped dead when BOTH were
+# unavailable. The chain now comes from one file and its minimum length is CHECKED, with
+# both directions proven - a chain that is too short, and one that is long enough.
+canon="$(lane_model_chain_from "$LANE_MODEL_CHAIN_FILE")"
+echo "  chain: $canon"
+lane_model_chain_ok "$canon" \
+  && { echo "  PASS  canonical chain carries >= ${LANE_MODEL_CHAIN_MIN} models"; pass=$((pass+1)); } \
+  || { echo "  FAIL  canonical chain is shorter than ${LANE_MODEL_CHAIN_MIN} models"; fail=$((fail+1)); }
+case "$canon" in
+  *openai-codex/gpt-5.6-sol*deepseek-v4-flash*gpt-5.6-terra*)
+    echo "  PASS  chain order is Sol -> DeepSeek Flash -> Terra"; pass=$((pass+1));;
+  *) echo "  FAIL  unexpected chain order: $canon"; fail=$((fail+1));;
+esac
+
+# MUST-REFUSE - a two-model chain IS the defect, so it must be rejected.
+printf 'openai-codex/gpt-5.6-sol\ndeepseek-v4-flash\n' > /tmp/lane-model-chain-short.txt
+short="$(lane_model_chain_from /tmp/lane-model-chain-short.txt)"
+if lane_model_chain_ok "$short"; then
+  echo "  FAIL  a 2-model chain was accepted"; fail=$((fail+1))
+else
+  echo "  PASS  a 2-model chain is rejected"; pass=$((pass+1))
+fi
+
+# MUST-ALLOW - the same check must not refuse the real chain, or it is a wrong guard.
+if lane_model_chain_ok "$canon"; then
+  echo "  PASS  the canonical chain passes its own check"; pass=$((pass+1))
+else
+  echo "  FAIL  the canonical chain fails its own check"; fail=$((fail+1))
+fi
+
+# The third model must be REACHABLE when the first two are exhausted - the whole point of
+# the chain. A stub that refuses the first two real model names proves the fall-through
+# through the actual chain file, not through a synthetic list.
+CHAINSTUB=/tmp/lane-model-chainstub.sh
+cat > "$CHAINSTUB" <<'CHAINEOF'
+#!/usr/bin/env bash
+model="$2"
+case "$model" in
+  openai-codex/gpt-5.6-sol|deepseek-v4-flash)
+    echo "Error: You have hit your usage limit, try again later"; exit 1;;
+  *) echo "did the work for $model"; exit 0;;
+esac
+CHAINEOF
+chmod +x "$CHAINSTUB"
+saved_cmd="$LANE_MODEL_CMD"
+export LANE_MODEL_CMD="$CHAINSTUB"
+lane_model_run "$canon" "p" /tmp/lm-chain >/dev/null 2>&1; rc=$?
+export LANE_MODEL_CMD="$saved_cmd"
+chk "first two exhausted -> the third model carries the work" \
+    "openai-codex/gpt-5.6-terra" 0 "$LANE_MODEL_USED" "$rc"
+
+echo
 echo "-------------------------------------------"
 echo "selftest: ${pass} passed, ${fail} failed"
 [ "$fail" -eq 0 ] || exit 1

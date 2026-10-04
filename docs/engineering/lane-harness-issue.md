@@ -4,6 +4,17 @@ Handover document, 2026-10-01. Updated 2026-10-03 — the root-issue analysis ab
 state of play at the end of the 2026-10-03 session is in "STATE OF PLAY" below. Read this first in a
 new session.
 
+**Second 2026-10-03 session (later): the two open HARNESS items are now built, not described.** The
+pre-dispatch acceptance gate and the three-model chain exist as code with their own falsifiable checks.
+That session could not execute a single command — its shell would not start at all (host sandbox
+misconfiguration) — so the changes were left reviewable-but-unverified.
+
+**VERIFIED 2026-10-04: everything below has now been run, and all of it passes.** The sandbox condition
+had cleared on its own; nothing in the code needed changing for it to run. §5 carries the measured
+results — including the two gate branches the selftest did **not** cover (the hang refusal and the
+deliberate override), which were falsified by hand rather than assumed, and the third model in the chain,
+which had never been proved to exist.
+
 ## What the harness is for
 
 Dispatch an AI lane (`pi --print --model <x> <prompt>`) as a background process running for 5–60 minutes,
@@ -60,7 +71,8 @@ from the recording process) or a **bounded, re-armable poll** whose completion i
 
 ## What works now (verified 2026-10-01, second session)
 
-- `tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=90] [--wait-grace=N] [--require-clean]`
+- `tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=90] [--wait-grace=N] [--require-clean]
+  --acceptance="<cmd>" --pass-looks-like="<what PASS looks like>"]`
   — generates the self-recording runner, dispatches it, and waits in **bounded slices**. If the lane is
   still running at the slice boundary it returns **3** and prints the re-arm command, instead of blocking
   past the terminal cap where a killed process produces no signal at all. The runner records the landing
@@ -68,8 +80,10 @@ from the recording process) or a **bounded, re-armable poll** whose completion i
 - `tools/lane-watch.sh [--timeout=90] [--forever]` — one-shot bounded watcher. Exits on a landing **or** on
   heartbeat; either way its completion wakes the agent, which then re-arms.
 - Subcommands: `run`, `status`, `list`, `pending`, `ack`, `record`, `selftest`.
-- **`tools/lane.sh selftest` — 10 cases, each with a must-allow and a must-refuse direction. Currently
+- **`tools/lane.sh selftest` — 10 cases at that date, each with a must-allow and a must-refuse direction.
   10/10 green, exit 0, repeatable, and each new guard falsified by mutation before being trusted.**
+  (The suite has since grown to 14 cases — the three S9 gate cases were added on 2026-10-03 and have not
+  been executed yet; see §5.)
 
 Exit status of `run`: `0` landed clean · `<n>` landed with the lane's exit code · `3` still running,
 re-arm · `1` unverified / timeout.
@@ -159,6 +173,16 @@ that never refuses is unproven and a **wrong** guard is worse than none — it i
 | S7b | must-allow | handing the wait back does **not** lose the lane — it still lands, is recorded, and is reported |
 | S5/S5b | must-refuse | exactly one journal entry and one human log line per landing, measured **per run** |
 | S6 | must-refuse | a lane name containing a quote still yields valid JSON |
+| S8 | must-allow | a lane killed by its own `--timeout`, with the monitor gone, is still recorded exactly once (`reason: timeout`) |
+| S9 | must-refuse | a dispatch with **no acceptance criterion** is refused (rc=2) and leaves no runner and no marker |
+| S9b | must-refuse | a criterion that **already passes** on this tree is refused — it cannot discriminate the change |
+| S9c | must-allow | a failing criterion plus a stated PASS **does** dispatch and land (a gate that refuses everything is a wrong guard) |
+
+S9/S9b/S9c are the pre-dispatch acceptance gate (added in the second 2026-10-03 session). Every fixture
+lane in this suite now dispatches **through** the gate, so the gate is exercised on every selftest run
+rather than only when a lane is dispatched by hand. All three pass as of 2026-10-04, and the gate log
+proves the point rather than the count: that same run left entries for `st1`, `st3`, `st4`, `st4b`, `st7`,
+`st8` and `st9c`, so the fixture lanes genuinely travel through the gate instead of around it.
 
 **The self-test was falsified before it was trusted:** re-introducing the original defect (treat everything
 already on disk as already reported) makes **S1 fail** and the suite exit 1. A guard that has never been
@@ -196,11 +220,19 @@ failed on every run after the first. They now measure from a per-run baseline.
 ### The user-facing loop
 
 ```
-bash tools/lane.sh run <name> <script> --slice=90      # dispatch; wakes you at 90s or on landing
+bash tools/lane.sh run <name> <script> --slice=90 \
+     --acceptance='<cmd that fails on this tree>' \
+     --pass-looks-like='<what PASS looks like on the target>'
+                               # dispatch; wakes you at 90s or on landing
+   -> REFUSED (exit 2)           if the criterion is missing, already passes, or times out
    -> exit 3 + RE-ARM line       (still running — nothing lost)
 bash tools/lane-watch.sh --timeout=90                  # re-arm; wakes you with the result
    -> LANDING(S) DETECTED: n + state/reason/status
 ```
+
+The two gate flags are mandatory for `run` — see §1 and §3. `--no-acceptance-gate="<reason>"` is the
+recorded override for a lane that genuinely cannot be verified; it is appended to
+`.ai/runs/acceptance-gate.log` with its reason.
 
 Never a "is it done yet?" prompt: every return either reports the landing, or says the lane is still going
 and what to re-arm.
@@ -279,11 +311,21 @@ recorded). Counting those as failures is wrong and I made that mistake first. Ex
 `pkill -f 'lane.sh watchdog'`, which matched the lane's OWN supervisor and SIGTERM'd it — `exit=143`,
 `log=0b`). The harness executed my instructions faithfully, including the bad ones.
 
-**Still open:**
-- **No third model fallback.** When Sol and DeepSeek were both unavailable the work simply stopped.
-  `lane_model_run` takes a model list; a third lane (e.g. `gpt-5.6-terra`, which does not spend Sol's
-  cap) would have kept going.
-- **No pre-dispatch gate on acceptance criteria.** This is the highest-value thing to build; see §3.
+**Still open (owner-only):** nothing in the harness. The two code-level gaps below are now closed by
+checks; what remains is §2's product decisions.
+
+**Closed in the second 2026-10-03 session:**
+
+| gap | how it is closed | the check that proves it |
+|---|---|---|
+| **No third model fallback** — when Sol and DeepSeek were both unavailable the work simply stopped | `tools/model-chain.txt` is the ONE ordered chain (Sol → DeepSeek Flash → Terra); `lane-model.sh` exposes `$LANE_MODEL_CHAIN` and `lane_model_chain_ok`, and now WARNS when a caller passes fewer than `LANE_MODEL_CHAIN_MIN` models — at the exact moment of the defect | `bash tools/lane-model-selftest.sh` — a stub that refuses the two real primary model names must fall through to `openai-codex/gpt-5.6-terra`; a two-model chain must be REJECTED; the canonical chain must be ACCEPTED |
+| **No pre-dispatch gate on acceptance criteria** | `tools/lane.sh run` now REFUSES to dispatch unless `--acceptance="<cmd>"` fails on this tree AND `--pass-looks-like="<text>"` is given; a deliberate override is allowed only as a recorded reason | `bash tools/lane.sh selftest` — S9 (no criterion → refuse, nothing runs), S9b (a criterion that already passes → refuse), S9c (failing criterion + stated PASS → dispatch and land) |
+
+The gate is in `cmd_run`, before `--require-clean` so any artifact the criterion writes is caught by the
+cleanliness check rather than handed to the lane. Both halves are enforced because they catch different
+errors: (a) alone was the observed gap — the criterion DID fail on HEAD and still could not pass on the
+new code, because it asserted a MECHANISM the change had replaced. Every override is appended to
+`.ai/runs/acceptance-gate.log` with its reason, so a bypass is visible rather than silent.
 
 ## 2. HARPP — works, except the one thing it exists for
 
@@ -313,17 +355,28 @@ and that has **never once worked**. This cannot be coded around.
 
 **Decisions only the owner can make:**
 1. **HTTPS for HARPP.** Until then "check the workstation" is unavoidable. This is the single item
-   blocking the presence goal.
+   blocking the presence goal. Note the one codeable-looking alternative and why it does not satisfy the
+   goal: a `localhost` origin IS a secure context, so a push subscription would become possible there —
+   but `localhost` is reachable only from the workstation itself, and presence means reaching the owner
+   **away** from it. So a localhost origin would let the push path be *proved*, not *used*. Reported as a
+   fact rather than offered as a fix.
 2. **Desktop vs app settings ownership.** `~/.config/harpp/config.json` legitimately holds secrets and
-   machine paths, but it ALSO holds `harpp_authority` and `cms.model`, which are control-plane policy —
-   so the desktop can silently disagree with the app. It also points at `tenant_id: 212` /
-   `harpp.ikabudkernel.com` while local is `1232` / `harpp.test`. Recommend: app owns policy, desktop
-   reads it down.
+   machine paths, but it ALSO holds `harpp_authority`, `cms.model`, `tenant_id` and `advisor.backend`,
+   which are control-plane policy — so the desktop can silently disagree with the app. It also points at
+   `tenant_id: 212` / `harpp.ikabudkernel.com` while local is `1232` / `harpp.test`. Recommend: app owns
+   policy, desktop reads it down. **Deliberately NOT implemented:** inverting that polarity touches both
+   the Python bridge and the PHP control plane, the owner has not confirmed which keys are policy, and
+   the session that found it had no runnable shell to verify even one direction. Escalated as
+   `ARCHITECTURE_DECISION_REQUIRED` rather than guessed at.
 3. **Bluehost deploy** — back up the DB (migration `062` rewrites ~186 rows),
    `php scripts/generate-release-manifest.php`, deploy + `db/tenant-upgrade.sql` (applies `062`-`073`),
    **then** `modules/daily-ledger/database/repair_login_names_20260918.sql`.
 
-## 3. The one thing to fix next (and why it is a HARNESS problem, not a discipline problem)
+## 3. The thing to fix next — NOW BUILT: the acceptance criterion is enforced, not restated
+
+This section is kept as the evidence for the gate, not as a plan. The gate exists now:
+`tools/lane.sh run` refuses to dispatch without a criterion that fails on this tree plus a stated PASS.
+See §1 and §5.
 
 Four of my false reds this session had **one** cause: **I wrote the acceptance criterion before the
 change, then trusted the criterion.**
@@ -341,9 +394,21 @@ not add another rule. Build the check:
 > **A pre-dispatch gate that refuses to dispatch unless (a) the acceptance command has been run against
 > `HEAD` and shown to FAIL, and (b) the brief states what PASS looks like on the target.**
 
-(a) alone is insufficient — that was exactly the gap: the criterion DID fail on HEAD and still could not
-pass on the new code, because it encoded the old interaction model. Assert OUTCOMES (a row exists, a
+**(a) alone is insufficient** — that was exactly the gap: the criterion DID fail on HEAD and still could
+not pass on the new code, because it encoded the old interaction model. Assert OUTCOMES (a row exists, a
 message persists), never MECHANISMS (one click suffices), whenever the design changes the mechanism.
+
+The built form of that check, and why it is a check rather than prose:
+
+    bash tools/lane.sh run <name> <script> \
+      --acceptance='<cmd that fails on this tree>' \
+      --pass-looks-like='<what PASS looks like on the target>'
+
+It runs (a) live at dispatch — stronger than "has been run against HEAD", because it proves the criterion
+is unsatisfied on the tree the lane actually starts from — refuses when the command passes, refuses when
+it times out (a hang is not a failing criterion), and records (b) beside it. `--no-acceptance-gate="<reason>"`
+exists for genuinely non-verifiable lanes and is appended to `.ai/runs/acceptance-gate.log`, so an
+override is evidence rather than silence.
 
 **A lane that reports BLOCKED with a precise reason is doing its job.** Three times this session the
 BLOCKED lane was right and the spec was wrong.
@@ -354,5 +419,104 @@ BLOCKED lane was right and the spec was wrong.
     node tools/harpp-message-path-probe.js    # does a message really travel? (asserts the outcome)
     node tools/harpp-push-capability-probe.js # is push even possible on this origin?
     python3 tools/harpp-selector-audit.py harpp   # 95 checked, 0 missing
-    bash tools/lane.sh selftest               # 11/11
-    bash tools/lane-model-selftest.sh         # 14/14
+    bash tools/lane.sh selftest               # MEASURED 14/14  (2026-10-04; was 11/11 before S9*)
+    bash tools/lane-model-selftest.sh         # MEASURED 19/19  (2026-10-04; was 14/14 before the chain cases)
+    cat tools/model-chain.txt                 # the ONE ordered model chain (3 models)
+
+Both counts above are **measured**, not expected: re-run on 2026-10-04, `19 passed, 0 failed` and
+`14 passed, 0 failed`. The selftest dispatches every fixture lane THROUGH the gate, so the gate is
+exercised on every selftest run rather than only when a lane is dispatched by hand.
+
+## 5. Verification of the second 2026-10-03 session's changes — RUN 2026-10-04, ALL PASS
+
+**Everything in this section has now been executed.** For the record, the reason the earlier session
+could not do it was purely environmental: its shell would not start at all — every command (including
+`pwd`) failed before running:
+
+    Sandboxing is enabled but this policy is not supported on this host: This host cannot bring up the
+    private network namespace Bubblewrap needs whenever the sandbox is allowed to reach the network, so
+    no sandboxed command or service can start. (Bubblewrap: network.proxy requires 'slirp4netns' on
+    PATH: No such file or directory (os error 2). Install slirp4netns or omit network.proxy.) Apply the
+    fix it names, or set sandbox.enabled to false to run without the sandbox.
+
+The host cleared on its own, and **no code change was needed for any of it to run.** Measured 2026-10-04:
+
+    bash -n tools/lane.sh tools/lane-model.sh tools/lane-model-selftest.sh   # all three OK
+    bash tools/lane-model-selftest.sh   # 19 passed, 0 failed
+    bash tools/lane.sh selftest         # 14 passed, 0 failed
+    cat .ai/runs/acceptance-gate.log    # 8 lines: 7 fixture criteria + 1 bypass
+
+Both counts §4 listed as EXPECTED are now **MEASURED** and correct.
+
+### The gate was falsified in FOUR directions, not one
+
+The gate has three refusal branches and one allow branch, and S9/S9b/S9c reach only two of them — so the
+other two were exercised by hand. Both were exactly the kind that would otherwise have failed silently:
+
+| direction | measured |
+|---|---|
+| no criterion at all (S9) | `rc=2`, refused; **no runner and no marker** created |
+| criterion already passes (S9b) | `rc=2`, refused |
+| criterion **hangs** (no selftest case) | `rc=2`, `elapsed=300s`, `REFUSING TO DISPATCH: … TIMED OUT (rc=124)`, markers `53->53` — nothing created |
+| deliberate **override** (no selftest case) | **allowed** — it dispatches, and `BYPASSED <reason>` is written to the gate log |
+
+The override direction was tested with `LANE_MODEL_CMD=false`, so proving the **allow** path cost no
+tokens. Refusals are deliberately *not* logged — only dispatches and bypasses are — which is why the log
+holds 8 lines rather than 11.
+
+### §2's HARPP claims were re-measured rather than carried over
+
+Not flagged as unverified, but re-run anyway instead of trusted: `node tools/harpp-ui-verify.js` reports
+**11 pages, 11 × status 200, 0 console errors, 0 contrast pairs under 4.5**, the only radius above 3px
+being the unread badge. Independently reproduced on 2026-10-04.
+
+Also checked while reviewing: a .ai/runs marker named `inj$(touch lane-injected)….landed.json` exists from
+an earlier injection test, and **no `lane-injected` file was ever created** — the lane name is used
+literally and is never evaluated. That is the one failure mode where a harness this size would be
+dangerous rather than merely unhelpful.
+
+What changed, and the falsifiable claim attached to each:
+
+| file | change | claim to falsify |
+|---|---|---|
+| `tools/model-chain.txt` (new) | the ONE ordered chain: Sol → DeepSeek Flash → Terra | removing the third line makes the chain check FAIL (the 2-model defect is the must-refuse case) |
+| `tools/lane-model.sh` | `$LANE_MODEL_CHAIN` + `lane_model_chain_ok` + a warning when a caller passes fewer than 3 models; empty-chain warning at source time | the chain-fall-through test reaches Terra only while the third model is in the file |
+| `tools/lane-model-selftest.sh` | 5 new cases: length, order, 2-model rejected, canonical accepted, third-model fall-through | deleting the rejection half turns a real guard into decoration |
+| `tools/lane.sh` | pre-dispatch acceptance gate + recorded override log; S9/S9b/S9c; every fixture lane now dispatches through the gate | S9b passes only if the gate genuinely refuses an already-passing criterion |
+| `tools/lane.sh` (comments) | removed two stale statements that contradicted the code: the header claimed an exit-0 log could be "unavailable", and `classify_log` carried two versions of its own output list | a comment that contradicts the code is how the next person reverts the fix |
+
+### The two stated risks — both resolved, one of them by measurement
+
+1. **The gate makes `--acceptance` + `--pass-looks-like` mandatory for `lane.sh run`.** Still true, and
+   still intended: a brief that documents the old invocation is refused with a precise message, and the
+   override exists and records its reason. Verified in the **allowing** direction as well as the refusing
+   one — a gate that refuses everything is also a wrong guard.
+2. **The chain's third model, `openai-codex/gpt-5.6-terra`, was asserted from the registry rather than
+   proved.** It is now proved: `pi --print --model openai-codex/gpt-5.6-terra "..."` returns `TERRA_OK`.
+   Worth recording **why** it looked unverifiable — it does not appear in `~/.pi/agent/models.json`, which
+   holds no `gpt-5.6-*` entry at all, because Codex subscription models are resolved by the provider and
+   not by the local store. The fallback is genuine; no lane wastes an attempt discovering otherwise.
+
+### Review finding: the chain fix did not reach every consumer
+
+`tools/model-chain.txt` is a single source only for the tools that read it. Three still hard-code their own
+model list — the exact defect the file was created to remove:
+
+| file | hard-coded list |
+|---|---|
+| `tools/pi-arch-review.sh` | `run_one "deepseek-v4-pro"` then `run_one "openai-codex/gpt-5.6-sol"` — still a **two**-model chain, so an exhausted pair stops the architecture review |
+| `tools/pi-arch-debate.py` | default `MODEL_B = "deepseek/deepseek-v4-pro"` |
+| `.github/AGENTS.md` | documents `deepseek-v4-pro` as the reasoning/architecture model and tells a reader to invoke `pi --model deepseek-v4-pro` |
+
+**Measured rather than assumed — which is why this is a finding and not a defect:** `deepseek-v4-pro` was
+retired on 2026-09-14, but both spellings still resolve. `pi --print --model deepseek-v4-pro` returned
+`V4PRO_OK` and `deepseek/deepseek-v4-pro` returned `SLASH_OK`, so the legacy alias still maps to Flash and
+these references are **stale documentation rather than a wasted attempt**. The only genuine residue is
+that `pi-arch-review.sh` carries the two-instead-of-three defect this file exists to prevent.
+
+**Deliberately not fixed here — and not because it is out of scope, but because it is not the one-line
+swap it appears to be.** `run_one` writes `arch-<name>.jsonl` and then **parses that JSONL** to produce the
+review text; `lane_model_run` writes a plain-text log and reports which model served. Pointing the script
+at `$LANE_MODEL_CHAIN` therefore raises its own design question — does the architecture review keep its
+JSONL trace, or adopt the shared log format? That is a small piece of work with its own verification, not
+a drive-by edit during a verification pass.

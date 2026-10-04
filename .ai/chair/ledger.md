@@ -108,6 +108,29 @@ divergent** templates and 11/32 divergences in the extends+include subset. Cache
 - **HARPP UI redesign** — DONE, committed `2035bec5`. See `proven`.
 - **HARPP presence work** — see `proven`: the server side is fixed and tested; delivery is
   blocked by the origin, not by HARPP. Flagged as a product constraint below.
+- **Harness: acceptance gate + three-model chain — BUILT AND PROVEN (verified 2026-10-04).**
+  The two open items from `docs/engineering/lane-harness-issue.md` §1 are now code, not prose:
+  `tools/lane.sh run` refuses to dispatch without `--acceptance="<cmd>"` failing on this tree plus
+  `--pass-looks-like="<text>"` (recorded override: `--no-acceptance-gate="<reason>"` →
+  `.ai/runs/acceptance-gate.log`), and `tools/model-chain.txt` is the ONE ordered chain
+  (Sol → DeepSeek Flash → Terra) behind `$LANE_MODEL_CHAIN` / `lane_model_chain_ok`.
+  The session that wrote it could execute nothing (host sandbox misconfiguration — `slirp4netns` missing
+  for `network.proxy`), so it left the exact commands and the exact error rather than a PASS. That block
+  has since cleared with **no code change**, and all of it runs: `bash -n` on all three OK →
+  `lane-model-selftest.sh` **19 passed, 0 failed** → `lane.sh selftest` **14 passed, 0 failed**.
+  The gate was then falsified in **all four** directions, not just the two the selftest covers: no
+  criterion (rc=2, and nothing created), an already-passing criterion (rc=2), a **hanging** criterion
+  (rc=2 after `elapsed=300s`, `rc=124`, markers `53->53`), and the deliberate **override** (allowed, with
+  its reason recorded). The third model was probed directly —
+  `pi --print --model openai-codex/gpt-5.6-terra` → `TERRA_OK` — so the fallback is real rather than
+  registry-asserted; it does not appear in `~/.pi/agent/models.json` because Codex subscription models are
+  resolved at the provider, which is why the question looked unanswerable.
+  **Residue, deliberately left and stated:** `tools/pi-arch-review.sh` still hard-codes a **two**-model
+  chain (`deepseek-v4-pro` + `gpt-5.6-sol`) — the same defect `model-chain.txt` exists to remove. It is not
+  the one-line swap it appears to be: `run_one` writes and then **parses** `arch-<name>.jsonl`, while
+  `lane_model_run` emits a text log, so migrating it raises its own decision about the JSONL trace. The
+  `deepseek-v4-pro` name still resolves (`V4PRO_OK`; `deepseek/deepseek-v4-pro` → `SLASH_OK`), so the
+  stale references cost an attempt nothing — stale documentation, not a wasted model call.
 
 ## proven
 
@@ -222,6 +245,15 @@ Each line names the command that proves it. Re-run rather than re-read.
   origin at all (no secure context -> no service worker -> no push subscription). Deciding whether
   HARPP is always served over HTTPS is a product/hosting decision. Until then the owner must open
   the workstation, which is the exact gap presence is meant to remove.
+- **DECISION (needs the owner, not technique): desktop vs app ownership of control-plane policy.**
+  `~/.config/harpp/config.json` legitimately holds secrets and machine paths, but it ALSO holds
+  `harpp_authority`, `cms.model`, `tenant_id` and `advisor.backend`, which are control-plane policy — so
+  the desktop can silently disagree with the app, and it actually points at `tenant_id: 212` /
+  `harpp.ikabudkernel.com` while local is `1232` / `harpp.test`. Recommendation stands: **app owns
+  policy, desktop reads it down.** Not implemented deliberately — inverting that polarity touches both
+  the Python bridge and the PHP control plane, the owner has not confirmed which keys are policy, and the
+  session had no runnable shell to verify even one direction. Escalated per the directive's
+  `ARCHITECTURE_DECISION_REQUIRED` rule rather than guessed at.
 - Bluehost deploy steps remain the owner's: back up the DB (migration `062` rewrites ~186
   rows), `php scripts/generate-release-manifest.php`, deploy + `db/tenant-upgrade.sql`
   (applies `062`-`073`), **then** `modules/daily-ledger/database/repair_login_names_20260918.sql`.
@@ -255,3 +287,13 @@ Mistakes that already cost this project real time. Not advice — rules.
 10. **Two patterns for one concept will drift.** `status_line()` and `classify_log()` each carried
    their own status regex; the stricter one announced a lane as having no status line while its own
    landing marker contained one. The fix was one calling the other, so they cannot diverge again.
+11. **A comment that contradicts the code is how the next person reverts the fix.** Two stale statements
+   sat in `tools/lane.sh` on 2026-10-03: the header still said an exit-0 log could be "unavailable" (the
+   exact false-red that was removed), and `classify_log` carried two different versions of its own output
+   list. Both were found only while changing that same file. When you reverse a behaviour, grep the
+   comments that describe it — a wrong guard is trusted, and so is a wrong comment.
+12. **No shell means no verification, and that must be said before anything is claimed.** On 2026-10-03
+   (later session) every command failed at startup — the host could not bring up the sandbox's network
+   namespace (`slirp4netns` missing for `network.proxy`). The deliverable in that state is a reviewable
+   diff plus the exact commands AND the exact host error, never a PASS and never a "should work". A count
+   written as a result when it is only an expectation is the false green this ledger exists to prevent.

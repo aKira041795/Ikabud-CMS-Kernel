@@ -1,0 +1,22 @@
+# Canonical ordered model chain for lane dispatch.
+#
+# WHY A FILE: lane scripts used to hard-code their own two-model list, so when both
+# providers became unavailable the work simply STOPPED. Measured 2026-10-03: Sol and
+# DeepSeek Flash were both exhausted and the lane ended without doing anything. Three
+# models in fallback order mean one exhausted provider cannot end the work - and one
+# source means a model is added or retired in one place, not in every lane script.
+#
+# One model per line, in fallback order. Blank lines and #-comments are ignored.
+# A model listed here must be registered in ~/.pi/agent/models.json, or be a Codex
+# subscription model, or every lane will spend one attempt discovering it is unsupported.
+#
+# Consumed by tools/lane-model.sh:
+#   source tools/lane-model.sh
+#   lane_model_run "$LANE_MODEL_CHAIN" "$PROMPT" /tmp/mylane
+#
+# Ordered for cost: the strongest model first, the cheap high-volume model second, and a
+# third provider's model last so it does not spend the primary subscription's cap.
+
+openai-codex/gpt-5.6-sol
+deepseek-v4-flash
+openai-codex/gpt-5.6-terra

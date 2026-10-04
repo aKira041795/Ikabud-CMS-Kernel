@@ -135,6 +135,34 @@ RESULT
 
 Do not repeatedly ask the user to authorize normal edit-test-fix cycles that are already within the approved task scope.
 
+### Pre-dispatch acceptance criterion — ENFORCED, not advised
+
+`tools/lane.sh run` REFUSES to dispatch a lane unless both are supplied:
+
+- `--acceptance="<cmd>"` — a command that FAILS on the tree the lane will start from. The gate runs it
+  live at dispatch, so it proves the criterion is unsatisfied on the base the lane actually gets. A
+  criterion that already passes cannot discriminate the change, so "green afterwards" proves nothing.
+- `--pass-looks-like="<text>"` — what PASS looks like on the target. Without it a criterion can fail on
+  the base and STILL be unsatisfiable, because it encodes the mechanism the change replaces.
+
+Assert **OUTCOMES** (a row exists, a message persists), never **MECHANISMS** (one click suffices),
+whenever the design changes the mechanism. Four false reds on 2026-10-03 shared this single cause, and
+restating the lesson was measured at three restatements and zero prevented — which is why it is a gate
+and not a rule.
+
+A genuinely non-verifiable lane may pass `--no-acceptance-gate="<reason>"`; the override and its reason
+are appended to `.ai/runs/acceptance-gate.log`. Never bypass silently.
+
+Model invocation inside a lane uses the shared chain, not a hand-written pair:
+
+    source tools/lane-model.sh
+    lane_model_run "$LANE_MODEL_CHAIN" "$PROMPT" /tmp/mylane
+
+`tools/model-chain.txt` holds three models in fallback order, so one exhausted provider cannot stop the
+work (measured 2026-10-03: a two-model lane stopped dead when both providers were unavailable; a
+short chain now warns at the moment of the defect). See `docs/engineering/lane-harness-issue.md` for the
+evidence and the checks that prove both directions.
+
 ---
 
 # 3. CONTEXT EFFICIENCY

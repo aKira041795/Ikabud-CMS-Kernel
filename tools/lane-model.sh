@@ -15,9 +15,14 @@
 # Usage, from a lane script:
 #
 #   source "$(dirname "${BASH_SOURCE[0]}")/lane-model.sh"   # or an absolute path
-#   lane_model_run "openai-codex/gpt-5.6-sol,deepseek-v4-flash" "$PROMPT" /tmp/mylane
+#   lane_model_run "$LANE_MODEL_CHAIN" "$PROMPT" /tmp/mylane
 #   rc=$?
 #   echo "completed by: $LANE_MODEL_USED"
+#
+# $LANE_MODEL_CHAIN is the canonical ordered chain from tools/model-chain.txt. Use it
+# rather than hard-coding a two-model list: a two-model chain stops the work when both
+# providers are unavailable, which is what happened on 2026-10-03. `lane_model_chain_ok`
+# checks the minimum length, and tools/lane-model-selftest.sh proves both directions.
 #
 # Sets, on return:
 #   LANE_MODEL_USED   the model that completed (empty if none did)
@@ -31,6 +36,44 @@
 LANE_MODEL_CMD="${LANE_MODEL_CMD:-pi --print --approve}"
 _LANE_MODEL_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_UNAVAILABLE_PATTERNS="$_LANE_MODEL_TOOLS_DIR/model-unavailable.patterns"
+
+# ── the canonical model chain ─────────────────────────────────────────────────────────
+# Read, not hard-coded per lane. A chain shorter than LANE_MODEL_CHAIN_MIN is the exact
+# defect this exists to remove (a single exhausted provider ending the work), so it is
+# checked rather than trusted.
+LANE_MODEL_CHAIN_FILE="${LANE_MODEL_CHAIN_FILE:-$_LANE_MODEL_TOOLS_DIR/model-chain.txt}"
+LANE_MODEL_CHAIN_MIN="${LANE_MODEL_CHAIN_MIN:-3}"
+
+# lane_model_chain_from <file> - print that file's models as a comma-separated list.
+lane_model_chain_from() {
+  local f="${1:-}"
+  [ -r "$f" ] || return 1
+  awk '!/^[[:space:]]*#/ && NF {gsub(/[[:space:]]/,""); printf "%s%s", (n++ ? "," : ""), $0}' "$f"
+}
+
+# The chain lanes use. Overridable for an experiment, but the default is the shared file.
+LANE_MODEL_CHAIN="${LANE_MODEL_CHAIN:-$(lane_model_chain_from "$LANE_MODEL_CHAIN_FILE")}"
+# An empty chain means the file is missing or carries no models. Say it at source time,
+# rather than letting a lane fail later with a puzzling "need 3 arguments".
+if [ -z "$LANE_MODEL_CHAIN" ]; then
+  echo "lane-model.sh: WARNING: no models found in ${LANE_MODEL_CHAIN_FILE} - \$LANE_MODEL_CHAIN is empty" >&2
+fi
+
+# lane_model_chain_ok <csv> - 0 when the chain carries at least LANE_MODEL_CHAIN_MIN models.
+lane_model_chain_ok() {
+  # ${1:-} not $1: under `set -u` an omitted argument must not become a raw
+  # "unbound variable" - that names the shell's problem instead of the caller's.
+  local csv="${1:-}" n=0 item
+  [ -n "$csv" ] || return 1
+  local oldifs="$IFS"; IFS=','
+  local items=($csv)
+  IFS="$oldifs"
+  for item in "${items[@]}"; do
+    item="$(printf '%s' "$item" | tr -d '[:space:]')"
+    [ -n "$item" ] && n=$((n + 1))
+  done
+  [ "$n" -ge "$LANE_MODEL_CHAIN_MIN" ]
+}
 
 # One second per unit; kept deliberately below common dispatcher timeouts so a stalled
 # model returns control to the caller rather than dying at the caller's own cap.
@@ -62,13 +105,25 @@ lane_model_run() {
   if [ "$#" -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
     echo "lane_model_run: need 3 arguments, got $#." >&2
     echo "  usage: lane_model_run <models-csv> <prompt> <log-prefix>" >&2
-    echo "  e.g.   lane_model_run \"openai-codex/gpt-5.6-sol,deepseek-v4-flash\" \"\$PROMPT\" /tmp/mylane" >&2
+    echo "  e.g.   lane_model_run \"\$LANE_MODEL_CHAIN\" \"\$PROMPT\" /tmp/mylane" >&2
     LANE_MODEL_USED=""
     LANE_MODEL_LOG=""
     return 2
   fi
 
   local models="$1" prompt="$2" prefix="$3"
+
+  # A list shorter than the canonical chain is the defect that ended the work on
+  # 2026-10-03: both models exhausted, nothing continued. This is a WARNING, not a
+  # refusal, because the documented contract accepts any list and a lane may legitimately
+  # pin one model for a cheap task. It fires at the exact moment of the defect, which is
+  # the only place a lane author will actually see it.
+  if ! lane_model_chain_ok "$models"; then
+    echo "lane_model_run: WARNING: '${models}' carries fewer than ${LANE_MODEL_CHAIN_MIN} models." >&2
+    echo "  One exhausted provider ends the work. Prefer the shared chain:" >&2
+    echo "    lane_model_run \"\$LANE_MODEL_CHAIN\" \"\$PROMPT\" <log-prefix>" >&2
+    echo "  (warning only; set LANE_MODEL_CHAIN_MIN=1 to silence)" >&2
+  fi
 
   LANE_MODEL_USED=""
   LANE_MODEL_LOG=""

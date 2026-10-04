@@ -35,6 +35,8 @@
 # Usage:
 #   tools/lane.sh run      <name> <lane-script> [--timeout=7200] [--slice=90] [--wait-grace=120]
 #                          [--require-clean]
+#                          --acceptance="<cmd>" --pass-looks-like="<what PASS looks like>"
+#                          [--no-acceptance-gate="<reason>"]
 #   tools/lane.sh status   <name>
 #   tools/lane.sh list
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
@@ -42,15 +44,32 @@
 #   tools/lane.sh selftest                     # prove this harness detects its own failures
 #   tools/lane.sh record   <name> <log> <exit> [run-id]   # called by the generated runner
 #
+# THE PRE-DISPATCH ACCEPTANCE GATE. `run` REFUSES to dispatch unless:
+#   (a) --acceptance="<cmd>" has been run against THIS tree and shown to FAIL, and
+#   (b) --pass-looks-like="<text>" states what PASS looks like on the target.
+# Both halves are required and they catch different errors. (a) alone was the observed gap:
+# the criterion DID fail on HEAD and still could not pass on the new code, because it
+# encoded the old interaction model. A criterion that already passes cannot discriminate
+# the change, so "green afterwards" proves nothing. Assert OUTCOMES (a row exists, a
+# message persists), never MECHANISMS (one click suffices), when the design changes the
+# mechanism. Four false reds in one session shared this single cause, and restating the
+# lesson was measured at three restatements and zero prevented - so it is enforced here.
+# A genuinely non-verifiable lane may override with --no-acceptance-gate="<reason>";
+# every override is recorded in .ai/runs/acceptance-gate.log with its reason.
+#
 # Writing the lane script itself? Source tools/lane-model.sh for model invocation with
 # automatic fallback, instead of hand-rolling a try/retry block per lane:
 #
 #   source tools/lane-model.sh
-#   lane_model_run "openai-codex/gpt-5.6-sol,deepseek-v4-flash" "$PROMPT" /tmp/mylane
+#   lane_model_run "$LANE_MODEL_CHAIN" "$PROMPT" /tmp/mylane
 #
-# It carries the shared model-unavailability signatures, treats an exit-0 log that
-# proves unavailability as a failure, and names the model that completed. Verified by
-# tools/lane-model-selftest.sh.
+# `LANE_MODEL_CHAIN` is the canonical ordered chain from tools/model-chain.txt (three
+# models, so a single exhausted provider cannot stop the work). It carries the shared
+# model-unavailability signatures in tools/model-unavailable.patterns, and names the
+# model that completed. Success is decided by the exit status ALONE; log content only
+# CLASSIFIES a failure, because a lane implementing the unavailability detector writes
+# about quota by definition and an earlier content check rejected its correct work.
+# Verified by tools/lane-model-selftest.sh.
 #
 # Exit status of `run`:  0 = landed (clean) | <n> = landed with the lane's exit code <n>
 #                        3 = STILL RUNNING, re-arm the watcher | 1 = unverified / timeout
@@ -156,8 +175,7 @@ commit_landing() {
 }
 
 # ── classify why a lane ended, from its log content ────────────────────────────
-# echoes one of: report_present | quota | fatal | empty | unknown
-# echoes one of: report_present | quota | crash | fatal | empty | unknown
+# echoes one of: report_present | quota | crash | timeout | fatal | empty | unknown
 #
 # $2 is the lane's real process exit status, when known. A non-zero exit is NEVER
 # a successful report: a lane that prints "status: PASS" and then exits 7 used to be
@@ -261,6 +279,11 @@ cmd_run() {
   # paths: a process killed at the cap produces NO signal, whereas a process that exits
   # on purpose produces a wake-up and an instruction.
   local sliceSecs=90
+  # Pre-dispatch acceptance gate. Empty means "not supplied", which is a refusal, not a
+  # pass - a gate that defaults open is decoration.
+  local acceptanceCmd=""
+  local passLooksLike=""
+  local gateOverride=""
   for arg in "$@"; do
     case "$arg" in
       --timeout=*) timeoutSecs="${arg#*=}";;
@@ -268,13 +291,56 @@ cmd_run() {
       --wait-grace=*) waitGrace="${arg#*=}";;
       --deadline-grace=*) deadlineGrace="${arg#*=}";;
       --slice=*) sliceSecs="${arg#*=}";;
+      --acceptance=*) acceptanceCmd="${arg#*=}";;
+      --pass-looks-like=*) passLooksLike="${arg#*=}";;
+      --no-acceptance-gate=*) gateOverride="${arg#*=}";;
     esac
   done
 
   [ -n "$name" ] && [ -n "$laneScript" ] || {
     echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=N] [--require-clean]" >&2
+    echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"]" >&2
     exit 2
   }
+
+  # ── pre-dispatch acceptance gate ───────────────────────────────────────────
+  # Runs BEFORE --require-clean so any artifact the criterion writes is caught by that
+  # check rather than silently handed to the lane.
+  if [ -n "$gateOverride" ]; then
+    echo "== acceptance gate BYPASSED: $gateOverride =="
+    printf '%s  %-24s BYPASSED  %s\n' "$(iso)" "$name" "$gateOverride" \
+      >> "$RUNS/acceptance-gate.log" 2>/dev/null || true
+  elif [ -z "$acceptanceCmd" ] || [ -z "$passLooksLike" ]; then
+    echo "REFUSING TO DISPATCH: no acceptance criterion." >&2
+    echo "  A lane that cannot be told apart from a no-op cannot be trusted when it reports PASS." >&2
+    echo "  required: --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\"" >&2
+    echo "  deliberate override (recorded with its reason): --no-acceptance-gate=\"<reason>\"" >&2
+    exit 2
+  else
+    local gateOut gateRc
+    echo "== acceptance gate =="
+    echo "   command: $acceptanceCmd"
+    gateOut=$(timeout 300 bash -c "$acceptanceCmd" 2>&1); gateRc=$?
+    case "$gateRc" in
+      124|137|143)
+        echo "REFUSING TO DISPATCH: the acceptance command TIMED OUT (rc=$gateRc)." >&2
+        echo "  That demonstrates a hang, not a failing criterion." >&2
+        exit 2;;
+    esac
+    if [ "$gateRc" -eq 0 ]; then
+      echo "REFUSING TO DISPATCH: the acceptance command ALREADY PASSES on this tree." >&2
+      echo "  A criterion that passes before the change cannot show the change worked." >&2
+      printf '%s\n' "$gateOut" | tail -20 | sed 's/^/     /' >&2
+      exit 2
+    fi
+    echo "   fails on this tree as required (rc=$gateRc)"
+    if [ -n "$gateOut" ]; then
+      printf '%s\n' "$gateOut" | tail -5 | sed 's/^/     /'
+    fi
+    echo "   PASS on the target looks like: $passLooksLike"
+    printf '%s  %-24s rc=%s  %s | pass=%s\n' "$(iso)" "$name" "$gateRc" "$acceptanceCmd" "$passLooksLike" \
+      >> "$RUNS/acceptance-gate.log" 2>/dev/null || true
+  fi
 
   if [ "$requireClean" = "1" ]; then
     local dirty
@@ -644,6 +710,12 @@ cmd_selftest() {
   ok()  { echo "   PASS  $1"; pass=$((pass+1)); }
   bad() { echo "   FAIL  $1"; fail=$((fail+1)); }
 
+  # Every fixture lane below is dispatched through the REAL gate, so the gate is exercised
+  # on every selftest run rather than only when a lane is dispatched by hand. 'exit 1' is a
+  # criterion that fails on this tree - which is exactly what the gate requires before it
+  # will dispatch.
+  local GATE=(--acceptance='exit 1' --pass-looks-like='the fixture lane reaches LANDED')
+
   mklane() {  # mklane <path> <sleep> <exitcode>
     { echo '#!/usr/bin/env bash'
       echo "sleep $2"
@@ -669,7 +741,7 @@ cmd_selftest() {
   # armed" was treated as "someone was told", so this landing was lost forever.
   mklane "$P/lane-st1.sh" 5 0
   rm -f "$RUNS/st1.landed.json" "$RUNS/st1.log"
-  nohup bash "$SELF" run st1 "$P/lane-st1.sh" --wait-grace=2 > "$P/st1.mon.log" 2>&1 &
+  nohup bash "$SELF" run st1 "$P/lane-st1.sh" --wait-grace=2 "${GATE[@]}" > "$P/st1.mon.log" 2>&1 &
   local i s1ok=0
   for i in $(seq 1 40); do [ -f "$RUNS/st1.landed.json" ] && break; sleep 1; done
   sleep 2   # deliberately NO watcher armed across the landing
@@ -698,7 +770,7 @@ cmd_selftest() {
   # NOT be green. This was the false green the previous fix claimed to have removed.
   mklane "$P/lane-st3.sh" 1 7
   local rc3 r3
-  bash "$SELF" run st3 "$P/lane-st3.sh" --timeout=60 --wait-grace=2 > "$P/st3.mon.log" 2>&1
+  bash "$SELF" run st3 "$P/lane-st3.sh" --timeout=60 --wait-grace=2 "${GATE[@]}" > "$P/st3.mon.log" 2>&1
   rc3=$?
   r3=$(marker_field "$RUNS/st3.landed.json" reason)
   if [ "$rc3" -ne 0 ] && [ "$r3" != "report_present" ]; then
@@ -710,7 +782,7 @@ cmd_selftest() {
   # S4 (must-refuse) - a lane the monitor gave up on must not be green.
   mklane "$P/lane-st4.sh" 30 0
   local rc4 s4
-  bash "$SELF" run st4 "$P/lane-st4.sh" --timeout=3 --wait-grace=2 > "$P/st4.mon.log" 2>&1
+  bash "$SELF" run st4 "$P/lane-st4.sh" --timeout=3 --wait-grace=2 "${GATE[@]}" > "$P/st4.mon.log" 2>&1
   rc4=$?
   s4=$(marker_field "$RUNS/st4.landed.json" state)
   if [ "$rc4" -ne 0 ] && [ "$s4" = "unverified" ]; then
@@ -721,7 +793,7 @@ cmd_selftest() {
   # S4b (must-allow companion) - the same guard must NOT refuse a lane that finished
   mklane "$P/lane-st4b.sh" 1 0
   local rc4b s4b
-  bash "$SELF" run st4b "$P/lane-st4b.sh" --timeout=60 --wait-grace=2 > "$P/st4b.mon.log" 2>&1
+  bash "$SELF" run st4b "$P/lane-st4b.sh" --timeout=60 --wait-grace=2 "${GATE[@]}" > "$P/st4b.mon.log" 2>&1
   rc4b=$?
   s4b=$(marker_field "$RUNS/st4b.landed.json" state)
   if [ "$rc4b" -eq 0 ] && [ "$s4b" = "landed" ]; then
@@ -735,7 +807,7 @@ cmd_selftest() {
   # blocking past the terminal cap, where a killed process produces no signal at all.
   mklane "$P/lane-st7.sh" 8 0
   local rc7 m7
-  bash "$SELF" run st7 "$P/lane-st7.sh" --timeout=120 --slice=4 --wait-grace=2 > "$P/st7.mon.log" 2>&1
+  bash "$SELF" run st7 "$P/lane-st7.sh" --timeout=120 --slice=4 --wait-grace=2 "${GATE[@]}" > "$P/st7.mon.log" 2>&1
   rc7=$?
   m7="none"
   [ -f "$RUNS/st7.landed.json" ] && m7=$(marker_field "$RUNS/st7.landed.json" state)
@@ -763,7 +835,7 @@ cmd_selftest() {
   mklane "$P/lane-st8.sh" 30 0
   rm -f "$RUNS/st8.landed.json" "$RUNS/st8.log"
   local rc8 r8 c8
-  bash "$SELF" run st8 "$P/lane-st8.sh" --timeout=4 --slice=2 --wait-grace=2 --deadline-grace=2 > "$P/st8.mon.log" 2>&1
+  bash "$SELF" run st8 "$P/lane-st8.sh" --timeout=4 --slice=2 --wait-grace=2 --deadline-grace=2 "${GATE[@]}" > "$P/st8.mon.log" 2>&1
   rc8=$?
   local i8
   for i8 in $(seq 1 25); do [ -f "$RUNS/st8.landed.json" ] && break; sleep 1; done
@@ -773,6 +845,51 @@ cmd_selftest() {
     ok "S8 a silent timeout kill is still recorded, exactly once (reason=$r8)"
   else
     bad "S8 a lane killed by its own timeout was LOST (rc=$rc8 reason=$r8 journal=$c8)"
+  fi
+
+  # S9 (must-refuse) - the PRE-DISPATCH ACCEPTANCE GATE. A dispatch with no acceptance
+  # criterion must be refused, and must leave no runner and no marker behind. This is
+  # enforced rather than restated because four false reds in one session shared ONE cause -
+  # a criterion written before the change and then trusted - and restating that lesson has a
+  # measured record of three restatements and zero prevented.
+  mklane "$P/lane-st9.sh" 1 0
+  rm -f "$RUNS/st9.landed.json" "$RUNS/st9.log" "$RUNS/st9.runner.sh"
+  rmdir "$RUNS/st9.commit.lock" 2>/dev/null || true
+  local rc9
+  bash "$SELF" run st9 "$P/lane-st9.sh" --wait-grace=2 > "$P/st9.mon.log" 2>&1
+  rc9=$?
+  if [ "$rc9" -eq 2 ] && [ ! -f "$RUNS/st9.runner.sh" ] && [ ! -f "$RUNS/st9.landed.json" ]; then
+    ok "S9 a dispatch with no acceptance criterion is refused (rc=$rc9) and runs nothing"
+  else
+    bad "S9 a lane was dispatched with no acceptance criterion (rc=$rc9)"
+  fi
+
+  # S9b (must-refuse) - a criterion that ALREADY PASSES cannot discriminate the change, so
+  # it must be refused even though it was supplied. This is the half that "(a) fails on HEAD"
+  # alone could not catch: the real criterion failed on HEAD and STILL could not pass on the
+  # new code, because it asserted a MECHANISM the change had replaced.
+  local rc9b
+  bash "$SELF" run st9b "$P/lane-st9.sh" --wait-grace=2 \
+    --acceptance='exit 0' --pass-looks-like='something or other' > "$P/st9b.mon.log" 2>&1
+  rc9b=$?
+  if [ "$rc9b" -eq 2 ]; then
+    ok "S9b an acceptance criterion that already passes is refused (rc=$rc9b)"
+  else
+    bad "S9b a criterion that cannot discriminate the change was accepted (rc=$rc9b)"
+  fi
+
+  # S9c (must-allow) - a criterion that fails on this tree, plus a stated PASS, must let the
+  # lane through and land. A gate that refuses everything is a wrong guard, not a strict one.
+  local rc9c s9c
+  bash "$SELF" run st9c "$P/lane-st9.sh" --timeout=60 --wait-grace=2 \
+    --acceptance='exit 1' --pass-looks-like='the row persists (a message reaches the database)' \
+    > "$P/st9c.mon.log" 2>&1
+  rc9c=$?
+  s9c=$(marker_field "$RUNS/st9c.landed.json" state)
+  if [ "$rc9c" -eq 0 ] && [ "$s9c" = "landed" ]; then
+    ok "S9c must-allow: a failing criterion plus a stated PASS dispatches and lands"
+  else
+    bad "S9c the gate refused a valid dispatch (rc=$rc9c state=$s9c)"
   fi
 
   # S5 (must-refuse) - ONE commit per landing. Every landing previously appeared twice
