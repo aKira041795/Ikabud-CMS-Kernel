@@ -135,6 +135,13 @@ function dl_reportFilterProducts(ModuleDB $db, array $filters): array
  */
 function dl_rowIsProvisional(array $row): bool
 {
+    // C1: a DERIVED ending is never a count. A settled row can be PROVISIONAL at most,
+    // whatever the shift status says, until an admin verifies it and clears end_source.
+    $endSource = (string)($row['end_source'] ?? '');
+    if ($endSource === 'derived-from-movements' || $endSource === 'zero-forced') {
+        return true;
+    }
+
     if (($row['bal_end'] ?? null) === null) {
         return true;                                   // a missing ending is pending
     }

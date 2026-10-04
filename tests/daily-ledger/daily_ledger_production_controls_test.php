@@ -837,6 +837,160 @@ try {
             'PM/no-row was already provisional'
         );
     }
+
+    // ─── settle -> verify for finality -> revert ─────────────────────────────────────────
+    // Owner: "move it but allow admin to verify for finality. that will solve the irreversible
+    // status". The settled ending IS written into the counted column - but tagged, provisional
+    // while unverified, and REVERSIBLE, which is what makes writing it acceptable. The guarantee
+    // that survives is caveat C1: a derived ending must never be indistinguishable from a count.
+    $h->section('settle, verify for finality, revert');
+
+    $settleShift = 'dl_settlePendingEndingsForShift';
+    $verifyShift = 'dl_verifySettledEndingsForShift';
+    $revertShift = 'dl_revertSettledEndingsForShift';
+    $lifecycleOk = function_exists($settleShift) && function_exists($verifyShift) && function_exists($revertShift);
+    $h->test(
+        'the settle/verify/revert lifecycle is exposed as testable services',
+        $lifecycleOk,
+        $lifecycleOk ? 'present' : 'MISSING - the derived write cannot be asserted without them'
+    );
+
+    if ($lifecycleOk) {
+        $admin = ['id' => $adminUserId, 'role' => 'admin'];
+        $producer = ['id' => $producerUserId, 'role' => 'production_in_charge'];
+
+        // An OPEN PM shift (so settling is eligible) with the fixture ledger row PENDING.
+        $db->prepare('INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status)
+                      VALUES (:b, :d, "PM", "open")
+                      ON DUPLICATE KEY UPDATE status = "open"')
+            ->execute([':b' => $branchId, ':d' => $date]);
+        $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id = :b AND ledger_date = :d')
+            ->execute([':b' => $branchId, ':d' => $date]);
+        $db->prepare('INSERT INTO dl_commissary_product_ledger
+                        (commissary_branch_id, product_id, ledger_date, shift, beg_qty, produced_qty,
+                         dispatched_qty, wastage_qty, actual_end_qty)
+                      VALUES (:b, :p, :d, "PM", 10, 0, 0, 0, NULL)')
+            ->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+        $readRow = static function () use ($db, $branchId, $productId, $date): array {
+            $q = $db->prepare('SELECT actual_end_qty, end_source, end_settled_at, end_verified_by, calc_variance
+                               FROM dl_commissary_product_ledger
+                               WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"');
+            $q->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+            return (array)($q->fetch(PDO::FETCH_ASSOC) ?: []);
+        };
+        $auditCount = static function (string $action) use ($db, $branchId, $date): int {
+            $q = $db->prepare('SELECT COUNT(*) FROM audit_logs WHERE module = "daily-ledger"
+                               AND action = :a AND branch_id = :b AND created_at >= (NOW() - INTERVAL 1 HOUR)');
+            $q->execute([':a' => $action, ':b' => $branchId]);
+            return (int)$q->fetchColumn();
+        };
+
+        // SETTLE: movements = 10 + 0 - 0 - 0 = 10, so rule 2 settles the ending to 10.
+        $settled = dl_settlePendingEndingsForShift($db, $branchId, $date, 'PM', $producer, true);
+        $afterSettle = $readRow();
+        $h->test(
+            'settle writes the derived ending AND tags its provenance',
+            (int)($afterSettle['actual_end_qty'] ?? -1) === 10
+                && (string)($afterSettle['end_source'] ?? '') === 'derived-from-movements'
+                && ($afterSettle['end_settled_at'] ?? null) !== null
+                && (int)($settled['settled'] ?? 0) === 1,
+            json_encode(['result' => $settled, 'row' => $afterSettle])
+        );
+
+        // THE C1 GUARANTEE: a settled row is provisional, i.e. it can never be official before a
+        // human certifies it, even though an ending is now present.
+        $h->test(
+            'a settled row reads PROVISIONAL, never official, before verification',
+            (bool)dl_rowIsProvisional([
+                'bal_end' => 10, 'shift' => 'PM', 'shift_status' => 'open',
+                'end_source' => (string)$afterSettle['end_source'],
+            ]) === true,
+            'end_source=' . (string)($afterSettle['end_source'] ?? '<none>')
+        );
+
+        // M4/R6b: a settle must not silence the variance signal by manufacturing a zero variance.
+        $h->test(
+            'a settled row manufactures NO variance (the "nobody counted this" signal survives)',
+            ($afterSettle['calc_variance'] ?? null) === null,
+            'calc_variance=' . var_export($afterSettle['calc_variance'] ?? null, true)
+        );
+
+        // A COUNTED ending is never overwritten by a settle.
+        $db->prepare('UPDATE dl_commissary_product_ledger SET actual_end_qty = 50, end_source = NULL
+                      WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"')
+            ->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+        $auditsBefore = $auditCount('settle_derived_ending');
+        $again = dl_settlePendingEndingsForShift($db, $branchId, $date, 'PM', $producer, true);
+        $afterNoop = $readRow();
+        $h->test(
+            'settle never overwrites a counted ending and is idempotent (no write, no audit)',
+            (int)($afterNoop['actual_end_qty'] ?? -1) === 50
+                && ($afterNoop['end_source'] ?? null) === null
+                && (int)($again['settled'] ?? -1) === 0
+                && $auditCount('settle_derived_ending') === $auditsBefore,
+            json_encode(['row' => $afterNoop, 'again' => $again, 'audit_same' => $auditCount('settle_derived_ending') === $auditsBefore])
+        );
+
+        // Back to a derived row for the verify/revert half.
+        $db->prepare('UPDATE dl_commissary_product_ledger SET actual_end_qty = 10,
+                        end_source = "derived-from-movements", end_settled_at = NOW(), end_verified_by = NULL
+                      WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"')
+            ->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+
+        // REVERT is the irreversibility guarantee: an unverified derived row returns to pending.
+        $reverted = dl_revertSettledEndingsForShift($db, $branchId, $date, 'PM', $admin, true);
+        $afterRevert = $readRow();
+        $h->test(
+            'revert returns an UNVERIFIED derived row to pending (nothing is irreversible)',
+            ($afterRevert['actual_end_qty'] ?? null) === null
+                && ($afterRevert['end_source'] ?? null) === null
+                && (int)($reverted['reverted'] ?? 0) === 1,
+            json_encode(['result' => $reverted, 'row' => $afterRevert])
+        );
+
+        // VERIFY is admin-only, and refusal must change nothing.
+        $db->prepare('UPDATE dl_commissary_product_ledger SET actual_end_qty = 10,
+                        end_source = "derived-from-movements", end_settled_at = NOW(), end_verified_by = NULL
+                      WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"')
+            ->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+        $refused = false;
+        try {
+            dl_verifySettledEndingsForShift($db, $branchId, $date, 'PM', $producer, true);
+        } catch (\Throwable $e) {
+            $refused = true;
+        }
+        $afterRefusal = $readRow();
+        $h->test(
+            'verify is refused for a non-admin, and the refusal changes NOTHING',
+            $refused
+                && (string)($afterRefusal['end_source'] ?? '') === 'derived-from-movements'
+                && ($afterRefusal['end_verified_by'] ?? null) === null,
+            json_encode(['refused' => $refused, 'row' => $afterRefusal])
+        );
+
+        // VERIFY promotes the same NUMBER to a count - a certification, not a recomputation.
+        $verified = dl_verifySettledEndingsForShift($db, $branchId, $date, 'PM', $admin, true);
+        $afterVerify = $readRow();
+        $h->test(
+            'an admin verify promotes a derived row to a COUNT without changing the number',
+            (int)($afterVerify['actual_end_qty'] ?? -1) === 10
+                && ($afterVerify['end_source'] ?? null) === null
+                && (int)($afterVerify['end_verified_by'] ?? 0) === $adminUserId
+                && (int)($verified['verified'] ?? 0) === 1,
+            json_encode(['result' => $verified, 'row' => $afterVerify])
+        );
+
+        // A certified count is a separate, deliberate thing - revert must NOT touch it.
+        $revertVerified = dl_revertSettledEndingsForShift($db, $branchId, $date, 'PM', $admin, true);
+        $afterRevertVerified = $readRow();
+        $h->test(
+            'revert does NOT undo an admin-verified count (certified means certified)',
+            (int)($afterRevertVerified['actual_end_qty'] ?? -1) === 10
+                && (int)($afterRevertVerified['end_verified_by'] ?? 0) === $adminUserId
+                && (int)($revertVerified['reverted'] ?? -1) === 0,
+            json_encode(['result' => $revertVerified, 'row' => $afterRevertVerified])
+        );
+    }
 } finally {
     $cleanup();
 }

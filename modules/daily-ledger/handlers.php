@@ -404,7 +404,8 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
                 || ($path === '/daily-ledger/api/v1/commissary/material' && in_array($entity, ['product_beg', 'product_count'], true))
                 || $path === '/daily-ledger/api/v1/commissary/carry-beginnings'
                 || ($path === '/daily-ledger/api/v1/commissary/dispatch' && (!empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet'))
-                || $path === '/daily-ledger/api/v1/commissary/finalize-pm';
+                || $path === '/daily-ledger/api/v1/commissary/finalize-pm'
+                || $path === '/daily-ledger/api/v1/commissary/settle-endings';
         }
         if (!$allowed) {
             http_response_code(403);
@@ -2271,6 +2272,291 @@ function dl_settleUnfinalizedRow(
     // Rule 2: define the ending as the movements, so the shift settles at zero
     // sales. A labelled derivation, never official (C1, R3).
     return ['rung' => 'derived-from-movements', 'ending' => $movements, 'sales' => 0, 'official' => false];
+}
+
+/**
+ * Resolve the ledger table an ending-provenance operation targets.
+ *
+ * @return array{table:string,branch_col:string,end_col:string,entity_type:string}
+ */
+function dl_endingProvenanceTable(bool $production): array
+{
+    return $production
+        ? [
+            'table' => 'dl_commissary_product_ledger',
+            'branch_col' => 'commissary_branch_id',
+            'end_col' => 'actual_end_qty',
+            'entity_type' => 'dl_commissary_product_ledger',
+        ]
+        : [
+            'table' => 'dl_daily_ledger',
+            'branch_col' => 'branch_id',
+            'end_col' => 'bal_end',
+            'entity_type' => 'dl_daily_ledger',
+        ];
+}
+
+/**
+ * Settle every NULL ending of one shift as a TAGGED, unverified proposal (R3).
+ *
+ * This SUPERSEDES R2 of the smart-settlement contract ("never write a derived ending
+ * into a counted column"). The C1 guarantee is kept by making the write DURABLE and
+ * REVERSIBLE: end_source names the ladder rung, the row reads provisional, and an admin
+ * can verify (certify) or revert (return to pending) it. A row whose ending is NOT NULL
+ * - a count, a verified count, or an earlier settle - is never touched.
+ *
+ * Authorization is enforced HERE on the resolved $actor array, before any write, so it is
+ * assertable in-process without an HTTP round trip (R7).
+ *
+ * @return array{settled:int}
+ */
+function dl_settlePendingEndingsForShift($db, int $branchId, string $date, string $shift, array $actor, bool $production): array
+{
+    $role = (string)($actor['role'] ?? '');
+    if (!in_array($role, ['admin', 'supervisor', 'production_in_charge'], true)) {
+        throw new \RuntimeException('Only an admin, supervisor or production-in-charge may settle pending endings.', 403);
+    }
+
+    $shift = dl_normalizeShift($shift);
+    $finalized = dl_shiftIsFinalized($db, $branchId, $date, $shift);
+    $actorId = dl_getActorUserId($actor);
+    $config = dl_endingProvenanceTable($production);
+
+    $db->beginTransaction();
+    try {
+        $settled = 0;
+        if ($production) {
+            // Production invariant is its OWN: beg_qty + produced_qty - dispatched_qty - wastage_qty.
+            $select = $db->prepare(
+                'SELECT id, product_id, beg_qty, produced_qty, dispatched_qty, wastage_qty
+                   FROM dl_commissary_product_ledger
+                  WHERE commissary_branch_id = :bid AND ledger_date = :d AND shift = :shift
+                    AND actual_end_qty IS NULL
+                  ORDER BY product_id
+                  FOR UPDATE'
+            );
+            $select->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+            foreach ($select->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $movements = (int)$row['beg_qty'] + (int)$row['produced_qty'] - (int)$row['dispatched_qty'] - (int)$row['wastage_qty'];
+                $decision = dl_settleUnfinalizedRow(null, $finalized, $movements, null, false);
+                $rung = (string)($decision['rung'] ?? '');
+                if ($rung !== 'derived-from-movements' && $rung !== 'zero-forced') {
+                    continue;
+                }
+                $ending = (int)$decision['ending'];
+                $update = $db->prepare(
+                    'UPDATE dl_commissary_product_ledger
+                        SET actual_end_qty = :end, end_source = :src, end_settled_at = NOW(),
+                            updated_by = :uid, updated_at = CURRENT_TIMESTAMP
+                      WHERE id = :id AND actual_end_qty IS NULL'
+                );
+                $update->execute([
+                    ':end' => $ending,
+                    ':src' => $rung,
+                    ':uid' => $actorId > 0 ? $actorId : null,
+                    ':id' => (int)$row['id'],
+                ]);
+                if ($update->rowCount() < 1) {
+                    continue;
+                }
+                dl_auditLog(
+                    'settle_derived_ending',
+                    $branchId,
+                    $config['entity_type'],
+                    $branchId . '-' . $date . '-' . $shift . '-' . (int)$row['product_id'],
+                    ['actual_end_qty' => null, 'end_source' => null],
+                    ['actual_end_qty' => $ending, 'end_source' => $rung, 'rung' => $rung, 'shift' => $shift, 'ledger_date' => $date]
+                );
+                $settled++;
+            }
+        } else {
+            // Cashier invariant is its OWN: beg_bal + addtl - withdraw.
+            $select = $db->prepare(
+                'SELECT id, product_id, beg_bal, addtl, withdraw
+                   FROM dl_daily_ledger
+                  WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift
+                    AND bal_end IS NULL
+                  ORDER BY product_id
+                  FOR UPDATE'
+            );
+            $select->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+            foreach ($select->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $movements = (int)$row['beg_bal'] + (int)$row['addtl'] - (int)$row['withdraw'];
+                $decision = dl_settleUnfinalizedRow(null, $finalized, $movements, null, false);
+                $rung = (string)($decision['rung'] ?? '');
+                if ($rung !== 'derived-from-movements' && $rung !== 'zero-forced') {
+                    continue;
+                }
+                $ending = (int)$decision['ending'];
+                $update = $db->prepare(
+                    'UPDATE dl_daily_ledger
+                        SET bal_end = :end, end_source = :src, end_settled_at = NOW(),
+                            updated_by = :uid, updated_at = CURRENT_TIMESTAMP
+                      WHERE id = :id AND bal_end IS NULL'
+                );
+                $update->execute([
+                    ':end' => $ending,
+                    ':src' => $rung,
+                    ':uid' => $actorId > 0 ? $actorId : null,
+                    ':id' => (int)$row['id'],
+                ]);
+                if ($update->rowCount() < 1) {
+                    continue;
+                }
+                // Normal cashier write path owns `sales`; production `remaining_qty` is generated.
+                dl_recomputeSales($branchId, (int)$row['product_id'], $date, $actorId, $shift);
+                dl_auditLog(
+                    'settle_derived_ending',
+                    $branchId,
+                    $config['entity_type'],
+                    $branchId . '-' . $date . '-' . $shift . '-' . (int)$row['product_id'],
+                    ['bal_end' => null, 'end_source' => null],
+                    ['bal_end' => $ending, 'end_source' => $rung, 'rung' => $rung, 'shift' => $shift, 'ledger_date' => $date]
+                );
+                $settled++;
+            }
+        }
+
+        $db->commit();
+        return ['settled' => $settled];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
+ * Admin-only: certify every unverified derived ending of a shift as a count (R4).
+ *
+ * The ENDING VALUE IS NOT CHANGED - a verify is a human certifying the number, not a
+ * recomputation. Clearing end_source is what makes the row countable/official again.
+ *
+ * @return array{verified:int}
+ */
+function dl_verifySettledEndingsForShift($db, int $branchId, string $date, string $shift, array $actor, bool $production): array
+{
+    if ((string)($actor['role'] ?? '') !== 'admin') {
+        throw new \RuntimeException('Only an admin may verify settled endings.', 403);
+    }
+
+    $shift = dl_normalizeShift($shift);
+    $actorId = dl_getActorUserId($actor);
+    $config = dl_endingProvenanceTable($production);
+
+    $db->beginTransaction();
+    try {
+        $verified = 0;
+        $select = $db->prepare(
+            "SELECT id, product_id, {$config['end_col']} AS ending, end_source
+               FROM {$config['table']}
+              WHERE {$config['branch_col']} = :bid AND ledger_date = :d AND shift = :shift
+                AND end_source IN ('derived-from-movements','zero-forced')
+                AND end_verified_by IS NULL
+              ORDER BY product_id
+              FOR UPDATE"
+        );
+        $select->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+        foreach ($select->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $ending = $row['ending'] === null ? null : (int)$row['ending'];
+            $source = (string)($row['end_source'] ?? '');
+            $update = $db->prepare(
+                "UPDATE {$config['table']}
+                    SET end_source = NULL, end_verified_by = :uid, end_verified_at = NOW()
+                  WHERE id = :id AND end_source IS NOT NULL AND end_verified_by IS NULL"
+            );
+            $update->execute([':uid' => $actorId, ':id' => (int)$row['id']]);
+            if ($update->rowCount() < 1) {
+                continue;
+            }
+            dl_auditLog(
+                'verify_derived_ending',
+                $branchId,
+                $config['entity_type'],
+                $branchId . '-' . $date . '-' . $shift . '-' . (int)$row['product_id'],
+                ['ending' => $ending, 'end_source' => $source],
+                ['ending' => $ending, 'end_source' => null, 'verified_by' => $actorId, 'rung' => $source]
+            );
+            $verified++;
+        }
+
+        $db->commit();
+        return ['verified' => $verified];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
+ * Admin-only: return every UNVERIFIED derived ending of a shift to pending (R5).
+ *
+ * This is the irreversibility guarantee. A VERIFIED row is a certified count and is NOT
+ * reverted here; undoing a certification is a separate, deliberate act (out of scope).
+ *
+ * @return array{reverted:int}
+ */
+function dl_revertSettledEndingsForShift($db, int $branchId, string $date, string $shift, array $actor, bool $production): array
+{
+    if ((string)($actor['role'] ?? '') !== 'admin') {
+        throw new \RuntimeException('Only an admin may revert settled endings.', 403);
+    }
+
+    $shift = dl_normalizeShift($shift);
+    $actorId = dl_getActorUserId($actor);
+    $config = dl_endingProvenanceTable($production);
+
+    $db->beginTransaction();
+    try {
+        $reverted = 0;
+        $select = $db->prepare(
+            "SELECT id, product_id, {$config['end_col']} AS ending, end_source
+               FROM {$config['table']}
+              WHERE {$config['branch_col']} = :bid AND ledger_date = :d AND shift = :shift
+                AND end_source IN ('derived-from-movements','zero-forced')
+                AND end_verified_by IS NULL
+              ORDER BY product_id
+              FOR UPDATE"
+        );
+        $select->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+        foreach ($select->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $ending = $row['ending'] === null ? null : (int)$row['ending'];
+            $source = (string)($row['end_source'] ?? '');
+            $update = $db->prepare(
+                "UPDATE {$config['table']}
+                    SET {$config['end_col']} = NULL, end_source = NULL, end_settled_at = NULL
+                  WHERE id = :id AND end_source IS NOT NULL AND end_verified_by IS NULL"
+            );
+            $update->execute([':id' => (int)$row['id']]);
+            if ($update->rowCount() < 1) {
+                continue;
+            }
+            if (!$production) {
+                // Keep `sales` consistent with the now-absent ending.
+                dl_recomputeSales($branchId, (int)$row['product_id'], $date, $actorId, $shift);
+            }
+            dl_auditLog(
+                'revert_derived_ending',
+                $branchId,
+                $config['entity_type'],
+                $branchId . '-' . $date . '-' . $shift . '-' . (int)$row['product_id'],
+                ['ending' => $ending, 'end_source' => $source],
+                ['ending' => null, 'end_source' => null, 'rung' => $source]
+            );
+            $reverted++;
+        }
+
+        $db->commit();
+        return ['reverted' => $reverted];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, int $delta, int $actorId, string $column = 'addtl', string $shift = 'AM'): array
@@ -17030,6 +17316,78 @@ function apiFinalizeProductionPmShift(): void
         $ctx->json(['ok' => true, 'finalized' => true]);
     } catch (\Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
+    }
+}
+
+/**
+ * Shared parser for the three explicit ending-settlement endpoints (R9).
+ *
+ * @return array{branch_id:int,date:string,shift:string,production:bool}
+ */
+function dl_endingSettlementRequest(array $user, array $input): array
+{
+    $production = !array_key_exists('production', $input)
+        ? true
+        : (bool)filter_var($input['production'], FILTER_VALIDATE_BOOLEAN);
+    $branchId = (int)($input['commissary_branch_id'] ?? $input['branch_id'] ?? 0);
+    $date = (string)($input['date'] ?? '');
+    if ($branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+        || !in_array($branchId, dl_accessibleBranchIds($user), true)) {
+        throw new \RuntimeException('Invalid or unauthorized branch/date.');
+    }
+    return [
+        'branch_id' => $branchId,
+        'date' => $date,
+        'shift' => dl_normalizeShift((string)($input['shift'] ?? 'AM')),
+        'production' => $production,
+    ];
+}
+
+function apiSettleCommissaryEndings(): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    try {
+        $request = dl_endingSettlementRequest($user, $ctx->input());
+        $result = dl_settlePendingEndingsForShift(
+            $ctx->db(), $request['branch_id'], $request['date'], $request['shift'], $user, $request['production']
+        );
+        $ctx->json(['ok' => true] + $result);
+    } catch (\Throwable $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
+    }
+}
+
+function apiVerifyCommissaryEndings(): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    try {
+        $request = dl_endingSettlementRequest($user, $ctx->input());
+        $result = dl_verifySettledEndingsForShift(
+            $ctx->db(), $request['branch_id'], $request['date'], $request['shift'], $user, $request['production']
+        );
+        $ctx->json(['ok' => true] + $result);
+    } catch (\Throwable $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
+    }
+}
+
+function apiRevertCommissaryEndings(): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    try {
+        $request = dl_endingSettlementRequest($user, $ctx->input());
+        $result = dl_revertSettledEndingsForShift(
+            $ctx->db(), $request['branch_id'], $request['date'], $request['shift'], $user, $request['production']
+        );
+        $ctx->json(['ok' => true] + $result);
+    } catch (\Throwable $e) {
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
     }
 }

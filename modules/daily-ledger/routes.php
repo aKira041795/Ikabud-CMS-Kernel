@@ -175,6 +175,10 @@ return [
         '/daily-ledger/api/v1/commissary/carry-beginnings' => 'daily-ledger:apiCarryCommissaryBeginnings',
         '/daily-ledger/api/v1/commissary/dispatch'        => 'daily-ledger:apiCommissaryDispatch',
         '/daily-ledger/api/v1/commissary/finalize-pm'     => 'daily-ledger:apiFinalizeProductionPmShift',
+        // Explicit ending settlement: settle -> admin verify -> admin revert
+        '/daily-ledger/api/v1/commissary/settle-endings'  => 'daily-ledger:apiSettleCommissaryEndings',
+        '/daily-ledger/api/v1/commissary/verify-endings'  => 'daily-ledger:apiVerifyCommissaryEndings',
+        '/daily-ledger/api/v1/commissary/revert-endings'  => 'daily-ledger:apiRevertCommissaryEndings',
 
         // Phase A: branch product supply rules
         '/daily-ledger/api/v1/admin/branch-supply-rules'  => 'daily-ledger:apiBranchProductSupplyRuleUpsert',

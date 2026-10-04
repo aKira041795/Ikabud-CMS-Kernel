@@ -151,7 +151,8 @@
     "database/migrations/070_production_daily_sheet_shift.sql",
     "database/migrations/071_informal_receipt_mismatch_notification.sql",
     "database/migrations/072_delivery_receipt_shifts.sql",
-    "database/migrations/073_audit_logs_module_created_index.sql"
+    "database/migrations/073_audit_logs_module_created_index.sql",
+    "database/migrations/074_add_ending_provenance.sql"
   ],
   "capabilities": {
     "exposes": [
