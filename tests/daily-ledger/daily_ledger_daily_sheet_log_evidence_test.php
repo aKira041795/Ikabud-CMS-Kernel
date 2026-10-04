@@ -28,7 +28,7 @@ declare(strict_types=1);
 
 ob_start();
 require_once __DIR__ . '/../harness/TestHarness.php';
-$h = new TestHarness('daily-ledger-daily-sheet-log-evidence', TestHarness::MODE_INTEGRATION, 'localhost');
+$h = new TestHarness('daily-ledger-daily-sheet-log-evidence', TestHarness::MODE_INTEGRATION, 'baronledger.test');
 ob_end_clean();
 
 // Rendering compiles the DiSyL template, which emits a named info line.
@@ -50,6 +50,20 @@ if (!$ctx) {
     exit(1);
 }
 $db = $ctx->db();
+
+$fixtureReceiverNameStmt = $db->prepare('SELECT full_name FROM dl_users WHERE id = ? LIMIT 1');
+$fixtureReceiverNameStmt->execute([27]);
+$fixtureReceiverName = $fixtureReceiverNameStmt->fetchColumn();
+
+$realReceiverNameStmt = $db->prepare(
+    'SELECT u.full_name
+     FROM dl_branch_receivings br
+     JOIN dl_users u ON u.id = br.received_by
+     WHERE br.id = ?
+     LIMIT 1'
+);
+$realReceiverNameStmt->execute([123]);
+$realReceiverName = $realReceiverNameStmt->fetchColumn();
 
 $commissaryId = 99301;
 $branchId = 99302;
@@ -277,13 +291,14 @@ try {
     $h->test(
         'AC2/AC10 only the posted RECEIVED row carries physical evidence; draft 100 is excluded',
         $received !== null
-        && $received['who'] === 'Noah Omamalin'
+        && $received['who'] === $fixtureReceiverName
         && $received['when'] === $date . ' 09:40:00'
         && (int)$received['quantity'] === 10
         && str_contains($received['reason'], 'DR DR-S15-0001')
         && str_contains($received['reason'], 'single paper capture · same encoder')
         && $received['source'] === 'receiving'
-        && count(array_filter($log, static fn(array $e): bool => $e['field'] === 'RECEIVED')) === 1
+        && count(array_filter($log, static fn(array $e): bool => $e['field'] === 'RECEIVED')) === 1,
+        json_encode($received)
     );
     $h->test(
         'AC5 the existing movement row is unchanged in content and order',
@@ -338,7 +353,7 @@ try {
         'AC3 the real render includes the paper RECEIVED row with user 22 and timestamp',
         $realReceived !== null
         && $realReceived[0] === '2026-09-27 22:43:57'
-        && $realReceived[1] === 'Bernalisa Dywatco'
+        && $realReceived[1] === $realReceiverName
         && $realReceived[3] === 'Miputak'
         && $realReceived[6] === '— → 1594',
         json_encode($realReceived)
