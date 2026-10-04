@@ -1688,6 +1688,127 @@ function dl_maybeAutoCloseBranches(array $branchIds, ?int $actorId = null, ?\Dat
     }
 }
 
+/**
+ * Auto-finalize the PM shift for ONE commissary branch+date once that business
+ * date has ended. Shift-only (the day auto-close at the cutoff is unchanged):
+ *   - PM already finalized        -> success, no write, no audit
+ *   - every active product has a PM ending -> finalize the PM shift (audited
+ *     as finalize_production_shift)
+ *   - ANY active product missing its PM ending -> never force-finalize; set
+ *     pending_notified_at and write exactly ONE auto_close_shift audit row with
+ *     status='closed_without_pm_finalize'. The shift stays open for correction.
+ * Idempotent: a repeat pass does not duplicate the flag or its audit row.
+ *
+ * @return array{finalized:bool,flagged:bool,missing:int}
+ */
+function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int $actorId = null): array
+{
+    $result = ['finalized' => false, 'flagged' => false, 'missing' => 0];
+    if ($branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return $result;
+    }
+
+    // Act only when the business date has already ended, matching the day
+    // auto-close condition. The current business date is still live.
+    if ($date >= dl_businessDate()) {
+        return $result;
+    }
+
+    $ctx = module();
+    if (!$ctx) {
+        return $result;
+    }
+    $db = $ctx->db();
+
+    // Active commissary products whose PM ending was never recorded.
+    $missingStmt = $db->prepare(
+        'SELECT COUNT(*)
+           FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+           LEFT JOIN dl_commissary_product_ledger cpl
+                  ON cpl.product_id = p.id
+                 AND cpl.commissary_branch_id = :bid2
+                 AND cpl.ledger_date = :d
+                 AND cpl.shift = "PM"
+          WHERE p.is_active = 1
+            AND (cpl.id IS NULL OR cpl.actual_end_qty IS NULL)'
+    );
+    $missingStmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
+    $missing = (int)$missingStmt->fetchColumn();
+    $result['missing'] = $missing;
+
+    $ownsTxn = !$db->inTransaction();
+    if ($ownsTxn) {
+        $db->beginTransaction();
+    }
+    try {
+        // Shift-status row is the resource this evaluator owns; lock it before
+        // reading its status or writing anything.
+        $shift = dl_lockShiftStatusRow($db, $branchId, $date, 'PM');
+
+        if ((string)($shift['status'] ?? 'open') === 'finalized') {
+            // A finalized shift is a signed-off record. Even an incomplete one
+            // stays finalized: this evaluator must never lift the immutability
+            // boundary. Return success with no write and no audit.
+            $result['finalized'] = true;
+            $result['flagged'] = false;
+        } elseif ($missing > 0) {
+            // Never force-finalize an incomplete shift. Set the notification
+            // flag only; the shift keeps whatever status it already has.
+            $db->prepare(
+                'UPDATE dl_ledger_shift_status
+                    SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
+                  WHERE branch_id = :bid AND ledger_date = :d AND shift = "PM"'
+            )->execute([':bid' => $branchId, ':d' => $date]);
+
+            $auditStmt = $db->prepare(
+                'SELECT COUNT(*) FROM audit_logs
+                  WHERE module = "daily-ledger" AND action = "auto_close_shift" AND entity_id = :eid'
+            );
+            $auditStmt->execute([':eid' => "{$branchId}-{$date}-PM"]);
+            if ((int)$auditStmt->fetchColumn() === 0) {
+                dl_auditLog('auto_close_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", null, [
+                    'status' => 'closed_without_pm_finalize',
+                    'source' => 'auto_finalize_pm_commissary',
+                    'missing' => $missing,
+                ]);
+            }
+            $result['flagged'] = true;
+            $result['finalized'] = false;
+        } else {
+            if ((string)($shift['status'] ?? 'open') !== 'finalized') {
+                $db->prepare(
+                    'UPDATE dl_ledger_shift_status
+                        SET status = "finalized", finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP
+                      WHERE branch_id = :bid AND ledger_date = :d AND shift = "PM"'
+                )->execute([
+                    ':uid' => ($actorId !== null && $actorId > 0) ? $actorId : null,
+                    ':bid' => $branchId,
+                    ':d' => $date,
+                ]);
+                dl_auditLog('finalize_production_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", ['status' => 'open'], ['status' => 'finalized']);
+            }
+            $result['finalized'] = true;
+        }
+
+        if ($ownsTxn) {
+            $db->commit();
+        }
+    } catch (\Throwable $e) {
+        if ($ownsTxn && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        write_log('daily-ledger PM auto-finalize failed', 'error', [
+            'branch_id' => $branchId,
+            'ledger_date' => $date,
+            'error' => $e->getMessage(),
+        ]);
+        return ['finalized' => false, 'flagged' => false, 'missing' => $missing];
+    }
+
+    return $result;
+}
+
 function dl_operatingClockLabel(): array
 {
     $settings = dl_closeOfDaySettings();
@@ -9057,7 +9178,7 @@ function apiCloseDay(array $params = []): void
         return;
     }
 
-    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin', 'production_in_charge']);
 
     $input = $ctx->input();
     $authResult = dl_authorizeBranch($user, $input);
@@ -9080,7 +9201,10 @@ function apiCloseDay(array $params = []): void
         return;
     }
 
-    if ((string)($user['role'] ?? '') === 'cashier' && $date !== dl_businessDate()) {
+    // Cashiers and production-in-charge may close only the current business
+    // date; a past date stays an admin/supervisor action. Admin may close any
+    // date. (The reference-date rule is server-side; the button is a hint.)
+    if (in_array((string)($user['role'] ?? ''), ['cashier', 'production_in_charge'], true) && $date !== dl_businessDate()) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
         return;
@@ -15583,11 +15707,23 @@ function handleAdminCommissary(): void
     $role = (string)($user['role'] ?? '');
     $isProductionUser = $role === 'production_in_charge';
     $canViewProductionManagement = in_array($role, ['admin', 'supervisor'], true);
+    // Day controls are role-gated here; the R7 production today-only rule is
+    // enforced server-side by apiCloseDay(), never by hiding the button alone.
+    $canCloseDay = in_array($role, ['admin', 'supervisor', 'production_in_charge'], true);
+    $canReopenDay = dl_roleHasPermission($role, 'ledger.override');
     $db = $ctx->db();
     $input = $ctx->input();
+    // A real calendar date only. An invalid date falls back to the current
+    // business date for everyone; a future date falls back only on the
+    // production view (the picker's max is today). Management keeps its
+    // existing ability to inspect a future-dated sheet. The HTML max="{today}"
+    // is a hint; this is the enforcement.
+    $today = dl_businessDate();
     $rawDate = (string)($input['date'] ?? '');
-    if ($rawDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
-        $rawDate = date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)
+        || !checkdate((int)substr($rawDate, 5, 2), (int)substr($rawDate, 8, 2), (int)substr($rawDate, 0, 4))
+        || ($isProductionUser && $rawDate > $today)) {
+        $rawDate = $today;
     }
     // Production operators follow the same shift contract as cashiers: an
     // assigned user is locked to that shift, while an unassigned user may
@@ -15835,6 +15971,13 @@ function handleAdminCommissary(): void
     if ($sheetSourceBranchId <= 0 && $commissaries !== []) {
         $sheetSourceBranchId = (int)$commissaries[0]['id'];
     }
+    $sheetSourceBranchName = '';
+    foreach ($commissaries as $commissaryRow) {
+        if ((int)($commissaryRow['id'] ?? 0) === $sheetSourceBranchId) {
+            $sheetSourceBranchName = (string)($commissaryRow['name'] ?? '');
+            break;
+        }
+    }
     // Branch column order = the order the admin set on each branch (lowest
     // number prints leftmost, matching the paper form). Unnumbered branches
     // (sort_order = 0) print AFTER all numbered ones so a newly added branch
@@ -16021,6 +16164,13 @@ function handleAdminCommissary(): void
     $legacySheetStmt = $db->prepare('SELECT COUNT(*) FROM dl_commissary_product_ledger WHERE commissary_branch_id = :cb AND ledger_date = :d AND shift IS NULL');
     $legacySheetStmt->execute([':cb' => $sheetSourceBranchId, ':d' => $rawDate]);
     $historicalUnshiftedCount = (int)$legacySheetStmt->fetchColumn();
+    // Request-triggered PM auto-close for the viewed commissary+date. There is
+    // no cron: if nobody opens the sheet, nothing auto-finalizes. Idempotent.
+    // Only run it for a branch the actor may access, so a GET never mutates a
+    // branch outside the actor's scope.
+    if ($sheetSourceBranchId > 0 && in_array($sheetSourceBranchId, dl_accessibleBranchIds($user), true)) {
+        dl_maybeAutoFinalizeCommissaryPmShift($sheetSourceBranchId, $rawDate, dl_getActorUserId($user));
+    }
     $shiftRow = $shift === null ? null : dl_getShiftStatus($db, $sheetSourceBranchId, $rawDate, $shift);
     $shiftStatus = $shift === null ? 'unshifted' : ($shiftRow ? (string)$shiftRow['status'] : 'open');
 
@@ -16095,6 +16245,7 @@ function handleAdminCommissary(): void
         'user_name' => $user['full_name'] ?? $user['username'] ?? 'User',
         'user_role' => $user['role'] ?? 'unknown',
         'date' => $rawDate,
+        'today' => $today,
         'shift' => $shift,
         'shift_locked' => $shiftLocked,
         'close_of_day_time' => dl_operatingClockLabel()['close_of_day_time'],
@@ -16103,6 +16254,8 @@ function handleAdminCommissary(): void
         'production_reference_only' => !in_array($role, ['admin', 'supervisor', 'production_in_charge'], true) || $shift === null,
         'historical_unshifted_count' => $historicalUnshiftedCount,
         'can_view_production_management' => $canViewProductionManagement,
+        'can_close_day' => $canCloseDay,
+        'can_reopen_day' => $canReopenDay,
         'can_view_production_variance' => $role === 'admin',
         'branches' => $branches,
         'commissaries' => $commissaries,
@@ -16115,6 +16268,7 @@ function handleAdminCommissary(): void
         'daily_sheet_rows' => $dailySheetRows,
         'sheet_branches' => $sheetBranches,
         'sheet_source_branch_id' => $sheetSourceBranchId,
+        'sheet_source_branch_name' => $sheetSourceBranchName,
         'production_log' => $productionLog,
         'production_can_override' => dl_roleHasPermission((string)($user['role'] ?? ''), 'production.override'),
         'unresolved_sheet_labels' => dl_unresolvedProductionSheetLabels(),

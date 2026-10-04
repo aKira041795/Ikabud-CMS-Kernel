@@ -451,68 +451,77 @@
     </script>
 
 <style>
-    /* Reclaim the dead horizontal padding. Cells inherited 16px per side, which
-       produced a 32px gap between the product name and the BEG cell for no
-       benefit. Spending it on the branch entry cells instead makes them wider
-       without pushing the table further to the right. Branch cells below set
-       their own tighter padding and win on specificity. */
+    /* FLUID GRID. table-layout: fixed lets the numeric columns share the
+       remaining width EQUALLY (equal share is what keeps them uniform), and
+       width: 100% lets that share grow or shrink with the wrapper. The floor is
+       on the TABLE, not on the cells: under fixed layout a cell min-width is
+       ignored. min-width is a function of the server-known numeric column count
+       (--sheet-numeric-cols), so a 3-branch sheet is not forced as wide as a
+       30-branch sheet. 82px per numeric column keeps the baseline above the
+       readable control floor; past it the wrapper scrolls instead of crushing
+       the entry controls below their own min-width. */
+    #tab-daily-sheet table {
+        table-layout: fixed;
+        width: 100%;
+        min-width: calc(200px + var(--sheet-numeric-cols, 14) * 82px);
+    }
+    /* ONE horizontal padding for every cell of the sheet, the product-name
+       column included. The old design spent 16px per side (a 32px gap between
+       the product name and BEG) and then clawed it back with a tighter 2px
+       override on the branch cells, so those cells sat 4px off their
+       neighbours. One shared value removes that drift. */
     #tab-daily-sheet table th,
     #tab-daily-sheet table td {
         padding-left: 6px;
         padding-right: 6px;
     }
-    /* Column widths are capped by MEASUREMENT, not by guesswork. The product
-       column is sized by its long tail (longest label 246px, MEDIAN only 117px,
-       just 10 of 174 names exceed 200px), so it cannot be tightened to the
-       median without wrapping 76 names, growing every row and lengthening the
-       printed sheet. The real slack is in the numeric columns, which were sized
-       generously for small numbers. Capping those funds wider entry cells. */
+    /* The product column keeps its measured 200px floor. Its longest label
+       ("MONGO/PEANUT/COCO/MAYO") is a single slash-joined token with no space to
+       break on, so it must be allowed to break anywhere or it spills 9px into
+       BEG; under fixed layout the overflow would clip instead of showing. */
     #tab-daily-sheet thead th:nth-child(1),
     #tab-daily-sheet tbody td:nth-child(1) {
         width: 200px;
         min-width: 200px;
         max-width: 200px;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
-    #tab-daily-sheet thead th:nth-child(2),   /* BEG    */
-    #tab-daily-sheet tbody td:nth-child(2) { width: 74px; min-width: 74px; max-width: 74px; }
-    #tab-daily-sheet thead th:nth-child(3),   /* ADDTL  */
-    #tab-daily-sheet tbody td:nth-child(3) { width: 84px; min-width: 84px; max-width: 84px; }
-    #tab-daily-sheet thead th:nth-child(14),  /* TOTAL  */
-    #tab-daily-sheet tbody td:nth-child(14) { width: 58px; min-width: 58px; max-width: 58px; }
-    #tab-daily-sheet thead th:nth-child(15),  /* ACTUAL BAL */
-    #tab-daily-sheet tbody td:nth-child(15) { width: 100px; min-width: 100px; max-width: 100px; }
-    #tab-daily-sheet thead th:nth-child(16),  /* VARIANCE */
-    #tab-daily-sheet tbody td:nth-child(16) { width: 76px; min-width: 76px; max-width: 76px; }
-    /* Branch columns must be sized EXPLICITLY, not by content. Under auto table
-       layout the old 28px minimum was the only respected constraint, so
-       shrinking the cell padding collapsed the column to its minimum and fed
-       back into a narrower entry target. 82px gives the 2/3-width trigger ~52px
-       of border box, comfortably fitting a five-digit figure at 13px bold. */
+    /* EVERY column after the product name is fluid (width: auto) so the numeric
+       columns divide the remaining width EQUALLY. The width is no longer a
+       function of a fixed px value, so adding a branch re-divides the same
+       space instead of pinning a 15th 82px column and forcing a scroll. */
+    #tab-daily-sheet thead th:nth-child(n+2),
+    #tab-daily-sheet tbody td:nth-child(n+2) {
+        width: auto;
+        min-width: 0;
+        max-width: none;
+    }
+    /* Branch columns are FLUID like every other numeric column; the vertical
+       writing-mode and fixed height keep the rotated header readable while the
+       width gives the trigger its equal share of the row. */
     #tab-daily-sheet .daily-sheet-branch-column {
         box-sizing: border-box;
-        width: 82px;
-        min-width: 82px;
-        max-width: 82px;
+        width: auto;
+        min-width: 0;
+        max-width: none;
         height: 118px;
-        padding: 4px 3px;
+        padding-top: 4px;
+        padding-bottom: 4px;
         text-align: left;
         vertical-align: bottom;
         white-space: nowrap;
         writing-mode: vertical-rl;
         transform: rotate(180deg);
     }
-    /* The branch cell is an entry target, so give it a real hit area.
-       Height matches the ADDTL trigger; width is ~2/3 of the column, and the
-       remainder acts as separation so adjacent columns still read apart.
-       The inherited 12px/16px cell padding used to crush this button to
-       ~19px wide inside a ~51px column, which is why it looked too small. */
-    #tab-daily-sheet .production-branch-cell {
-        padding: 3px 2px;
-    }
+    /* The branch cell is an entry target, so give it a real hit area. It now
+       uses the SAME cell padding as every other cell (the shared rule above);
+       the old 3px/2px override is gone. Separation between neighbouring branch
+       entries comes from that shared padding, not from shrinking one control. */
     #tab-daily-sheet .production-branch-cell .production-branch-trigger {
         box-sizing: border-box;
-        width: 66.667%;
-        min-width: 0;
+        width: 100%;
+        min-width: 52px;
         height: 34px;
         margin-left: auto;
         gap: 2px;
@@ -523,9 +532,28 @@
         justify-content: center;
         white-space: nowrap;
     }
-    /* S12: received-vs-sent reconciliation inside the branch cell. Kept tiny so the
-       82px column still holds the sent trigger. The pending marker is a deliberate
-       third state; a delivery nobody received must never read as a zero difference. */
+    /* ONE control box for all four entry controls. width:100% inside the shared
+       6px cell padding makes every control exactly its column's content box,
+       so nothing overflows and every control matches. height:34px is the proven
+       entry-target height (the inputs used to render 39px, the triggers 34px).
+       The branch trigger keeps its own font/gap rules; only the old 66.667%
+       width is replaced, so it fills the cell like its neighbours. */
+    #tab-daily-sheet .production-beg-input,
+    #tab-daily-sheet .addtl-trigger,
+    #tab-daily-sheet .production-branch-trigger,
+    #tab-daily-sheet .production-actual-input {
+        box-sizing: border-box;
+        width: 100%;
+        /* Readable floor: 64px column - 12px horizontal padding. Once the
+           fluid share drops below it the control stops shrinking and the
+           table's min-width makes the wrapper scroll instead. */
+        min-width: 52px;
+        height: 34px;
+    }
+    /* S12: received-vs-sent reconciliation inside the branch cell. Kept tiny so
+       the fluid branch column still holds the sent trigger. The pending marker
+       is a deliberate third state; a delivery nobody received must never read
+       as a zero difference. */
     #tab-daily-sheet .production-branch-receipt,
     #tab-daily-sheet .production-branch-diff,
     #tab-daily-sheet .production-branch-dr {
@@ -540,16 +568,63 @@
     #tab-daily-sheet .production-branch-diff-short { color: #b91c1c; }
     #tab-daily-sheet .production-branch-diff-over { color: #1d4ed8; }
     #tab-daily-sheet .production-branch-dr { color: #4338ca; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    /* Paper declaration. MUST stay at the top level of this stylesheet, NOT inside
+       @media print: Chrome does not honour an @page page-size declaration nested in a
+       media query. A 15-column sheet only reads on landscape. */
+    @page { size: A4 landscape; margin: 8mm; }
     @media print {
-        .print-hidden, form, .tab-panel:not(#tab-daily-sheet), .card.mt-6 { display: none !important; }
+        /* Existing hides kept, plus the app chrome: the sidebar, the top header bar,
+           the page title/subtitle block, the metric stat-card row and the tab nav
+           (all marked .print-hidden in markup) and the product-label warning banner. */
+        .print-hidden, form, .tab-panel:not(#tab-daily-sheet), .card.mt-6,
+        #wb-sidebar, header { display: none !important; }
+
+        /* Un-clip the layout. On screen the shell is height:100vh + overflow:hidden,
+           which pinned the ~9,200px sheet to one viewport. Undo the constraint so the
+           sheet flows in normal document order and can paginate. */
+        .flex.h-screen.overflow-hidden,
+        .h-screen,
+        .flex.h-screen.overflow-hidden > .flex-1.overflow-hidden {
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            display: block !important;
+        }
+        main, #main-content {
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            padding: 0 !important;
+        }
+
+        /* Print-only identity header: Tailwind .hidden keeps it off the screen, this
+           rule reveals it on paper. */
+        #daily-sheet-print-header { display: block !important; }
+
         #tab-daily-sheet { display: block !important; }
         #tab-daily-sheet .table-wrap { overflow: visible !important; }
+        /* The on-screen fluid grid's floor must not reach the paper: at 14 numeric columns
+           min-width is 1348px, wider than an A4-landscape content box, which cut the last
+           column off the printed sheet. */
+        #tab-daily-sheet table {
+            min-width: 0 !important;
+            width: 100% !important;
+            table-layout: fixed !important;
+        }
         #tab-daily-sheet table { font-size: 9px; }
         #tab-daily-sheet th, #tab-daily-sheet td { padding: 3px 4px; }
+        /* Repeat the column header on every printed page and never split a row. */
+        #tab-daily-sheet thead { display: table-header-group; }
+        #tab-daily-sheet tr { break-inside: avoid; page-break-inside: avoid; }
         #tab-daily-sheet .daily-sheet-branch-column {
-            width: 24px;
-            min-width: 24px;
-            max-width: 24px;
+            /* The screen fluid rule `#tab-daily-sheet thead th:nth-child(n+2)`
+               (specificity 1,1,2) otherwise outranks this rule (1,1,0) on paper,
+               so the paper branch width is re-asserted with !important. Without
+               it every numeric column keeps its equal 77px share and the nowrap
+               "ACTUAL BAL" header overflows the table by 8px. */
+            width: 24px !important;
+            min-width: 24px !important;
+            max-width: 24px !important;
             height: 112px;
             padding: 3px 2px;
             writing-mode: vertical-rl;
@@ -844,7 +919,7 @@
 
             <main class="flex-1 overflow-auto p-6" id="main-content">
 
-<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 print-hidden">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">{if can_view_production_management}Commissary{else}Daily Sheet{/if}</h2>
         <p class="text-sm text-gray-500">{if can_view_production_management}Daily Sheet · Inventory · Deliveries · Pullouts · Summary{else}Production encoding{/if}</p>
@@ -897,7 +972,7 @@
 
 {if can_view_production_management}
 <!-- Summary stat cards -->
-<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6 print-hidden">
     <div class="card">
         <div class="card-body py-3">
             <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Produced</div>
@@ -938,7 +1013,7 @@
 </div>
 
 <!-- Tabs -->
-<div class="border-b border-gray-200 mb-4">
+<div class="border-b border-gray-200 mb-4 print-hidden">
     <nav class="flex gap-0 -mb-px" role="tablist">
         <button type="button" id="tab-btn-daily-sheet" onclick="switchCommissaryTab('daily-sheet')"
             class="px-4 py-2.5 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">1. Daily Sheet</button>
@@ -1208,13 +1283,44 @@
 {/if}
 <!-- Tab 1: Daily Sheet -->
 <div id="tab-daily-sheet" class="tab-panel">
+    <!-- Print-only identity header. Hidden on screen (.hidden); the print stylesheet
+         reveals it so the printed sheet names the commissary, date, shift and day
+         status. Plain text only — no controls. -->
+    <div id="daily-sheet-print-header" class="hidden">
+        <div class="mb-2 border-b border-slate-300 pb-2">
+            <div class="text-base font-semibold text-slate-900">Daily Production Sheet</div>
+            <div class="mt-0.5 text-xs text-slate-700">
+                <span>Commissary: {sheet_source_branch_name}</span>
+                <span> &middot; Date: {date}</span>
+                <span> &middot; Shift: {if shift}{shift}{else}All{/if}</span>
+                <span> &middot; Status: {day_status}</span>
+            </div>
+        </div>
+    </div>
     <div class="card mb-6">
         <div class="card-header">
             <div>
                 <span>Daily Production Sheet — {date}{if shift} · {shift}{else} · All shifts{/if}</span>
+                {if sheet_source_branch_name}
+                <span id="production-commissary-name"
+                      class="ml-2 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200"
+                      title="Commissary this sheet, its day status and its close/reopen controls belong to">
+                    <i class="fas fa-warehouse" aria-hidden="true"></i>
+                    {sheet_source_branch_name}
+                </span>
+                {/if}
+                <span class="ml-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset
+                    {if day_status == 'open'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+                    {if day_status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+                " id="production-day-status">{day_status}</span>
                 <div class="text-xs text-gray-500">BEG + ADDTL − TOTAL − WASTAGE = ACTUAL BAL</div>
             </div>
             <div class="flex items-center gap-2 print-hidden">
+                {if !can_view_production_management}
+                <input type="date" id="production-date-picker" name="date" value="{date}" max="{today}"
+                       class="form-input w-auto min-w-40" onchange="window.dlReloadProductionDate(this.value)"
+                       title="Business date">
+                {/if}
                 {if !can_view_production_management}
                 {if shift_locked}
                 <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-300">Locked to {shift} Shift</span>
@@ -1228,6 +1334,8 @@
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
                 {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-outline btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
                 {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-outline btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
+                {if can_close_day && day_status != 'closed'}<button type="button" class="btn btn-outline btn-sm" id="production-close-day" onclick="closeProductionDay()">Close Day</button>{/if}
+                {if can_reopen_day && day_status == 'closed'}<button type="button" class="btn btn-outline btn-sm" id="production-reopen-day" onclick="reopenProductionDay()">Reopen Day</button>{/if}
                 <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">Print Daily Sheet</button>
             </div>
         </div>
@@ -1242,13 +1350,20 @@
         <div class="mx-4 mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">{historical_unshifted_count} pre-shift row(s) exist for this date. They remain unshifted historical data and are not included in AM or PM.</div>
         {/if}
         {if can_view_production_management}
-        <div class="mx-4 mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div class="mx-4 mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 print-hidden">
             Product-label seam pending owner ruling — unresolved: {unresolved_sheet_labels | join:', '}.
             No mapping has been guessed.
         </div>
         {/if}
+        {* Column count for the fluid grid floor. The rendered branch columns are the
+           active branches minus the sheet's own source branch; the four non-branch
+           numeric columns (BEG, ADDTL, TOTAL, ACTUAL BAL) are always present. The
+           table declares this as --sheet-numeric-cols so its min-width scales with
+           the branch count instead of being one hard-coded width. *}
+        {set sheet_branch_column_count = sheet_branches | count}
+        {set sheet_numeric_column_count = sheet_branch_column_count + 3}
         <div class="table-wrap">
-            <table class="production-ledger-table" id="production-ledger-table">
+            <table class="production-ledger-table" id="production-ledger-table" style="--sheet-numeric-cols: {sheet_numeric_column_count}">
                 <thead>
                     <tr>
                         <th>Product</th>
@@ -2052,6 +2167,49 @@
             setTimeout(function() { window.refreshMainContent(); }, 400);
         }).catch(function(error) { showToast(error.message || 'Failed to reopen shift', 'error'); });
     }
+
+    // Close Day goes through the ONE close implementation (apiCloseDay). The server
+    // enforces the production today-only rule; this only carries the viewed
+    // commissary branch, which is re-authorized server-side.
+    function closeProductionDay() {
+        var button = document.getElementById('production-close-day');
+        if (button) button.disabled = true;
+        productionJson('{base_url}/api/v1/cashier/ledger/close-day', {
+            date: '{date}', branch_id: {sheet_source_branch_id}
+        }).then(function() {
+            showToast('Day closed', 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 400);
+        }).catch(function(error) {
+            showToast(error.message || 'Failed to close day', 'error');
+            if (button) button.disabled = false;
+        });
+    }
+
+    function reopenProductionDay() {
+        var button = document.getElementById('production-reopen-day');
+        if (button) button.disabled = true;
+        productionJson('{base_url}/api/v1/admin/reopen-day', {
+            date: '{date}', branch_id: {sheet_source_branch_id}
+        }).then(function() {
+            showToast('Day reopened', 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 400);
+        }).catch(function(error) {
+            showToast(error.message || 'Failed to reopen day', 'error');
+            if (button) button.disabled = false;
+        });
+    }
+
+    // Reload the same sheet on a new date while preserving the commissary,
+    // destination-branch and shift filters (all live in the query string).
+    window.dlReloadProductionDate = function(value) {
+        try {
+            var url = new URL(window.location.href);
+            url.searchParams.set('date', value);
+            window.location.href = url.toString();
+        } catch (e) {
+            window.location.reload();
+        }
+    };
 
     function productionJson(url, payload) {
         if (!navigator.onLine) {
