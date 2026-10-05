@@ -93,7 +93,23 @@ $batchEnd = strpos($tpl, 'window.dlRecomputeSales = function()', $batchStart ===
 $batchBody = ($batchStart === false || $batchEnd === false) ? '' : substr($tpl, $batchStart, $batchEnd - $batchStart);
 
 $h->test('the batch body was located', $batchBody !== '');
-$h->test('it writes through the audited save-batch endpoint', str_contains($batchBody, "'/api/v1/cashier/ledger/save-batch'"));
+
+// A carried beginning must be IDENTIFIABLE AS CARRIED in the audit trail. That is why the carry
+// has its own endpoint instead of reusing the generic batch save: save-batch records a plain
+// beg_bal write, so in the audit trail a carried beginning was indistinguishable from one the
+// operator typed by hand (measured 2026-10-05; the production carry already recorded
+// source:'carry_forward' while the cashier carry did not).
+//
+// This assertion previously REQUIRED save-batch - it pinned the mechanism that lost the
+// provenance, so it had to fail the moment the provenance was fixed. It now pins the guarantee
+// in both directions: the carry uses its own audited endpoint, and it does NOT fall back to the
+// generic save.
+$h->test('it writes through the audited CARRY endpoint, so a carried beginning is identifiable',
+    str_contains($batchBody, "'/api/v1/cashier/ledger/carry-beginnings'"),
+    'the carry does not post to the dedicated carry endpoint');
+$h->test('it does not record carried beginnings through the generic save-batch',
+    !str_contains($batchBody, "'/api/v1/cashier/ledger/save-batch'"),
+    'the carry still posts to save-batch, which records no carry provenance');
 $h->test('it is one request for the whole sheet', str_contains($batchBody, 'rows: carry'));
 $h->test('it carries an idempotency key', str_contains($batchBody, 'idempotency_key:'));
 $h->test('it stays online-only like every ledger write', str_contains($batchBody, 'window.dlWriteTimeout('));
