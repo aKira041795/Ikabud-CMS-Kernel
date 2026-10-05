@@ -84,96 +84,25 @@ function browserClearLoginRateLimit(PDO $db, int $tenantId): void
 }
 
 /**
- * Upsert one tenant-scoped module setting (JSON-encoded value).
- */
-function browserUpsertModuleSetting(PDO $db, int $tenantId, string $moduleId, string $key, string $jsonValue): void
-{
-    $db->prepare(
-        'INSERT INTO tenant_module_settings (tenant_id, module_id, setting_key, setting_value, created_at, updated_at)
-         VALUES (:tid, :mid, :key, :val, NOW(), NOW())
-         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP'
-    )->execute([
-        ':tid' => $tenantId,
-        ':mid' => $moduleId,
-        ':key' => $key,
-        ':val' => $jsonValue,
-    ]);
-}
-
-/**
- * Pin the browser tenant's operating clock to the business date the Daily Ledger browser
- * specs read.
- *
- * `tests/browser/daily-ledger-nextday-entry.spec.js` and
- * `tests/browser/daily-ledger-prior-ledger-link.spec.js` hard-code 2026-10-03 (prior) and
- * 2026-10-04 (today), and the prior-pending banner is computed by `dl_priorPendingPmDay()`
- * from `dl_businessDate()`: the banner only renders when the VIEWED date is the day AFTER
- * the business date. Once the wall clock rolls past 2026-10-04, the banner disappears and
- * both specs go red even though their fixture rows are intact - the fixture has no date
- * logic at all. So the seed must make the business DATE deterministic, not just the rows.
- *
- * There is no `business_date` setting, so the supported lever is the operating timezone:
- * choose a timezone in which "now" is still the target date and store it for the test
- * tenant. The offset is centred on the target date (local time nearest noon) so the pin
- * survives the whole browser run. Only the browser test tenant is seeded; nothing
- * production is touched.
- *
- * @return string the chosen timezone id, or '' when no timezone can produce the date.
- */
-function browserPinDailyLedgerBusinessDate(PDO $db, int $tenantId, string $targetDate): string
-{
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $targetDate)) {
-        return '';
-    }
-
-    $best = '';
-    $bestDistance = PHP_INT_MAX;
-    foreach (\DateTimeZone::listIdentifiers() as $timezoneId) {
-        try {
-            $local = new \DateTimeImmutable('now', new \DateTimeZone($timezoneId));
-        } catch (\Throwable $e) {
-            continue;
-        }
-        if ($local->format('Y-m-d') !== $targetDate) {
-            continue;
-        }
-        $minutes = ((int)$local->format('G')) * 60 + (int)$local->format('i');
-        $distance = abs($minutes - 720); // minutes from local noon
-        if ($distance < $bestDistance) {
-            $bestDistance = $distance;
-            $best = $timezoneId;
-        }
-    }
-
-    if ($best === '') {
-        echo 'browser seed: WARNING no timezone puts "now" on ' . $targetDate
-            . ' — the Daily Ledger prior-pending specs need a frozen business date' . PHP_EOL;
-        return '';
-    }
-
-    browserUpsertModuleSetting($db, $tenantId, 'daily-ledger', 'operating_timezone', json_encode($best));
-    // `dl_businessDate()` shifts by the close-of-day time as well; pin it to midnight so the
-    // timezone above is the only thing that decides the business date.
-    browserUpsertModuleSetting($db, $tenantId, 'daily-ledger', 'close_of_day_time', json_encode('00:00'));
-    browserUpsertModuleSetting($db, $tenantId, 'daily-ledger', 'auto_close_enabled', json_encode('1'));
-    echo 'browser seed: pinned daily-ledger operating_timezone to ' . $best
-        . ' so the business date is ' . $targetDate . PHP_EOL;
-
-    return $best;
-}
-
-/**
  * Deterministically recreate the prior-pending-PM state the Daily Ledger browser specs need.
  *
- * State, matched to what the specs read (commissary 18, dates 2026-10-03 / 2026-10-04):
+ * The specs derive their dates from the LIVE business date (today / today - 1), so this
+ * fixture is built for whatever dates the app's operating clock resolves to. The seed writes
+ * NO clock settings - data only.
+ *
+ * State, matched to what the specs read (commissary 18):
  *   - the PRIOR day is OPEN, with `reopened_at` set. The render-time auto-close and
  *     auto-finalize evaluators treat a deliberately reopened day as "left exactly as the
  *     admin left it", so a render does not CONSUME the fixture - that consumption is why
  *     the specs went red after the first run;
  *   - the prior PM shift row EXISTS and is UNFINALIZED (`dl_shiftIsFinalized()` false), or
  *     the banner is suppressed;
- *   - the NEXT day is OPEN with an unfinalized PM shift, so the next-day flag fires and
- *     entry is not hampered.
+ *   - the NEXT day (the live business date) is OPEN with an unfinalized PM shift, so the
+ *     next-day flag fires and entry is not hampered. It is ALSO marked as deliberately
+ *     reopened: the next-day spec changes a recorded physical count and restores it, and
+ *     `dl_deliberateReopenUnlocksEntryEdit()` is the documented exemption that lets a
+ *     non-override role do that. Without it the spec's own restore is refused and the test
+ *     can only pass once (the same data-only lever the prior day already uses).
  *
  * Every write is an upsert, so running the seed repeatedly is safe.
  */
@@ -194,11 +123,12 @@ function browserEnsureDailyLedgerPriorPending(PDO $db, int $branchId, string $to
          ON DUPLICATE KEY UPDATE status = "open", finalized_by = NULL, finalized_at = NULL, updated_at = NOW()'
     )->execute([':bid' => $branchId, ':d' => $prior]);
 
-    // The next day the specs enter: open, with an unfinalized PM shift.
+    // The next day the specs enter: open, with an unfinalized PM shift. Marked reopened (see
+    // the docblock) so the production user can change and restore the current day's count.
     $db->prepare(
-        'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, created_at, updated_at)
-         VALUES (:bid, :d, "open", NOW(), NOW())
-         ON DUPLICATE KEY UPDATE status = "open", updated_at = NOW()'
+        'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_at, created_at, updated_at)
+         VALUES (:bid, :d, "open", NOW(), NOW(), NOW())
+         ON DUPLICATE KEY UPDATE status = "open", reopened_at = NOW(), updated_at = NOW()'
     )->execute([':bid' => $branchId, ':d' => $today]);
 
     $db->prepare(
@@ -523,9 +453,10 @@ if ($palTenantId !== null && $palTenantId > 0) {
 echo 'browser seed: done tenant=' . $tenantId . ' builder_page_id=' . $builderPageId . ' approval_id=' . $approvalId . PHP_EOL;
 
 // ─── Daily Ledger browser specs ───────────────────────────────────────────────
-// The prior-pending specs read the baronledger tenant (commissary 18) on the fixed dates
-// 2026-10-03 / 2026-10-04. Without this block the state is live data a render consumes and
-// nothing restores, so the specs go red after the first run. See the two helpers above.
+// The prior-pending specs read the baronledger tenant (commissary 18). They derive their dates
+// from the app's LIVE business date, so this block builds the same fixture around whatever date
+// the tenant's operating clock resolves to. Without this block the state is live data a render
+// consumes and nothing restores, so the specs go red after the first run.
 $ledgerHost = 'baronledger.test';
 $ledgerTenantId = browserResolveTenantForHost($ledgerHost);
 if ($ledgerTenantId !== null && $ledgerTenantId > 0) {
@@ -535,9 +466,24 @@ if ($ledgerTenantId !== null && $ledgerTenantId > 0) {
     $ledgerDb = app()->dbForTenant($ledgerTenantId);
     if ($ledgerDb instanceof PDO) {
         browserClearLoginRateLimit($ledgerDb, $ledgerTenantId);
-        $ledgerToday = '2026-10-04'; // the specs' "current business date"
-        $ledgerPrior = '2026-10-03'; // the day the specs require open with an unfinalized PM shift
-        browserPinDailyLedgerBusinessDate($ledgerDb, $ledgerTenantId, $ledgerToday);
+
+        // Compute the LIVE business date through the SAME helper the app uses, so the fixture
+        // follows the tenant's real operating clock. The seed never writes operating_timezone,
+        // close_of_day_time or auto_close_enabled - changing the product's clock to suit a test
+        // is exactly the defect this replaces.
+        //
+        // moduleTenantSettingsModeEnabled() disables tenant-scoped settings when CLI has no
+        // HTTP_HOST, so bind the ledger host before reading the clock; otherwise dl_businessDate()
+        // silently falls back to the app default timezone and the fixture is built for the wrong day.
+        $_SERVER['HTTP_HOST'] = $ledgerHost;
+        $_SERVER['SERVER_NAME'] = $ledgerHost;
+        require_once 'modules/daily-ledger/helpers.php';
+        require_once 'modules/daily-ledger/handlers.php';
+        app()->tenant()->setTenantId($ledgerTenantId);
+        invalidateTenantModuleSettingsCache();
+        $ledgerToday = dl_businessDate();
+        $ledgerPrior = (new \DateTimeImmutable($ledgerToday))->modify('-1 day')->format('Y-m-d');
+
         browserEnsureDailyLedgerPriorPending($ledgerDb, 18, $ledgerToday, $ledgerPrior);
         echo 'browser seed: daily-ledger prior-pending fixture ready (branch 18, ' . $ledgerPrior . ' -> ' . $ledgerToday . ')' . PHP_EOL;
     } else {

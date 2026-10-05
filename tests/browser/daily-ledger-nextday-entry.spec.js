@@ -30,8 +30,6 @@ const note = (o) => fs.appendFileSync(EVIDENCE, JSON.stringify(o) + '\n');
 const ADMIN = { username: 'shiela_baina', fullName: 'shiela_baina', password: 'shielab123' };
 const PRODUCER = { username: 'prod-rizal', fullName: 'Sheila Baina', password: 'prodrizal123' };
 const COMMISSARY = 18;
-const PREVIOUS = '2026-10-03'; // the day left open / unfinalized
-const NEXT = '2026-10-04';     // the current business date, which must stay enterable
 
 async function login(page, who) {
     await page.context().clearCookies();
@@ -56,9 +54,40 @@ async function openSheet(page, date, shift) {
 
 const dayStatus = (page) => page.locator('#production-day-status').innerText();
 
+/** Shift a YYYY-MM-DD date by whole days, in UTC so DST never changes the day. */
+function shiftDate(date, days) {
+    const [y, m, d] = date.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Read the LIVE business date from the admin dashboard. The dashboard and this sheet both use
+ * the server's dl_businessDate(), so this is the day the product itself calls "today". The spec
+ * derives its dates here rather than hard-coding them: a hard-coded pair only passes while the
+ * tenant's operating clock is pinned to that date, and moving the product's clock to suit a
+ * browser test is exactly the defect this spec must not reintroduce.
+ */
+async function readBusinessDate(page) {
+    await page.goto('/daily-ledger/admin/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#wb-sidebar', { timeout: 60000 });
+    const label = page.locator('p', { hasText: 'Business date:' }).first();
+    await label.waitFor({ timeout: 60000 });
+    const text = await label.innerText();
+    const match = text.match(/(\d{4}-\d{2}-\d{2})/);
+    if (!match) {
+        throw new Error(`Could not read the live business date from the dashboard: ${text}`);
+    }
+    return match[1];
+}
+
 test('an unfinalized previous day flags and notifies the operator but does NOT hamper the next day', async ({ page }) => {
     // ── 1. Establish the premise: the previous day is open (its PM unfinalized).
     await login(page, ADMIN);
+    const NEXT = await readBusinessDate(page);
+    const PREVIOUS = shiftDate(NEXT, -1);
+    note({ step: 'live-business-date', next: NEXT, previous: PREVIOUS });
     await openSheet(page, PREVIOUS, 'PM');
     const reopenOffered = await page.locator('#production-reopen-day').count();
     if (reopenOffered > 0) {

@@ -23,7 +23,6 @@ const note = (o) => fs.appendFileSync(EVIDENCE, JSON.stringify(o) + '\n');
 
 const PRODUCER = { username: 'prod-rizal', fullName: 'Sheila Baina', password: 'prodrizal123' };
 const COMMISSARY = 18;
-const TODAY = '2026-10-04';
 
 async function login(page, who) {
     await page.context().clearCookies();
@@ -39,15 +38,41 @@ async function login(page, who) {
     await page.waitForSelector('#wb-sidebar', { timeout: 60000 });
 }
 
+/** Shift a YYYY-MM-DD date by whole days, in UTC so DST never changes the day. */
+function shiftDate(date, days) {
+    const [y, m, d] = date.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Read the LIVE business date from the sheet's own "Business date" control. The date picker's
+ * `max` is the server's dl_businessDate(), so the spec follows the app's clock instead of
+ * hard-coding a day that only matches while the tenant's operating clock is pinned to it.
+ */
+async function readBusinessDate(page) {
+    await page.waitForSelector('#production-date-picker', { timeout: 60000 });
+    const max = await page.locator('#production-date-picker').getAttribute('max');
+    if (!max || !/^\d{4}-\d{2}-\d{2}$/.test(max)) {
+        throw new Error(`Could not read the live business date from #production-date-picker max: ${max}`);
+    }
+    return max;
+}
+
 test('the prior-pending banner links to a ledger that opens', async ({ page }) => {
     await login(page, PRODUCER);
-    await page.goto(`/daily-ledger/admin/commissary?date=${TODAY}&commissary_id=${COMMISSARY}&shift=PM`,
+    // No date in the URL: the handler defaults to the live business date, and we read that date
+    // from the sheet's own Business-date control rather than assuming a calendar day.
+    await page.goto(`/daily-ledger/admin/commissary?commissary_id=${COMMISSARY}&shift=PM`,
         { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#production-day-status', { timeout: 60000 });
+    const TODAY = await readBusinessDate(page);
+    const PRIOR = shiftDate(TODAY, -1);
 
     const link = page.getByRole('link', { name: /Open prior PM ledger/i });
     const linkCount = await link.count();
-    note({ step: 'banner', today: TODAY, linkCount });
+    note({ step: 'banner', today: TODAY, prior: PRIOR, linkCount });
 
     // The banner only renders when a prior PM day is still pending; if the fixture state has been
     // resolved, say so plainly instead of passing vacuously.
@@ -76,5 +101,6 @@ test('the prior-pending banner links to a ledger that opens', async ({ page }) =
     });
     const priorDate = new URL(href, page.url()).searchParams.get('date');
     note({ step: 'landed', priorDate, dateValue });
+    expect(priorDate, `the banner must link to the day before the live business date (${PRIOR})`).toBe(PRIOR);
     expect(dateValue, 'the opened ledger must be for the prior date').toBe(priorDate);
 });

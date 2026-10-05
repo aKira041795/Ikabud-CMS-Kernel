@@ -6,14 +6,26 @@ declare(strict_types=1);
  * Print the Daily Ledger operating clock for tenant 207 as a single line, for use in an
  * acceptance gate that must prove the browser seed did NOT move it.
  *
- * Usage:  php .ai/read-clock.php     -> e.g. "Asia/Manila|23:59|2026-10-05"
+ * Usage:  php tools/read-dl-clock.php     -> e.g. "Asia/Manila|23:59|2026-10-05"
+ *
+ * This is a probe, not a test suite. It deliberately bootstraps the kernel directly instead of
+ * going through TestHarness: the harness registers a shutdown guard that prints "SUITE ABORTED"
+ * and exits 1 unless done() is called, which made this tool fail the moment it was chained with
+ * `&&` even though it printed the correct line.
  */
 
-ob_start();
-require_once __DIR__ . '/../tests/harness/TestHarness.php';
-$h = new TestHarness('read-clock', TestHarness::MODE_INTEGRATION, 'baronledger.test');
-ob_end_clean();
-$base = $h->basePath();
+$base = dirname(__DIR__);
+
+$_SERVER['HTTP_HOST'] = 'baronledger.test';
+$_SERVER['REQUEST_URI'] = '/';
+$_SERVER['SERVER_NAME'] = 'baronledger.test';
+
+global $config;
+$returned = require $base . '/bootstrap.php';
+if ($config === null || !isset($config['database'])) {
+    $config = $returned;
+}
+
 require_once $base . '/src/helpers/module-manager.php';
 require_once $base . '/modules/daily-ledger/helpers.php';
 require_once $base . '/modules/daily-ledger/handlers.php';
