@@ -54,7 +54,21 @@ $rows = [
         'withdraw' => 4, 'bal_end' => null, 'sales' => null, 'price_snapshot' => 25.0, 'amount' => null,
         'shift_status' => 'finalized', 'status_label' => 'pending ending',
     ],
+    [
+        // A PROVISIONAL row that CARRIES a computed amount. This is the case an earlier revision of
+        // this oracle could not catch: its provisional fixture had amount => null, so the template
+        // rendered nothing and the check could never fire. Reported by the independent review on
+        // 2026-10-05; the Sales row amount cell has no `PHP` prefix, so a regex keyed on
+        // "provisional ... PHP" also missed it. The identifier-only template guard missed it too.
+        'ledger_date' => $PENDING_DATE, 'shift' => 'PM', 'branch_name' => 'Money Branch',
+        'product_name' => 'Unsettled Product', 'sku' => 'MON-C', 'beg_bal' => 20, 'addtl' => 100,
+        'withdraw' => 5, 'bal_end' => 100, 'sales' => 15, 'price_snapshot' => 10.0, 'amount' => 150.0,
+        'shift_status' => 'open', 'status_label' => 'provisional',
+    ],
 ];
+
+$PROVISIONAL_SKU = 'MON-C';
+$PROVISIONAL_AMOUNT = '150';
 
 $renderError = '';
 $html = '';
@@ -70,7 +84,7 @@ try {
         'operating_region' => 'PH', 'close_of_day_time' => '23:59',
         'pos_enabled' => false, 'sales_source_label' => 'Stock-derived (manual ledger)',
         'pos_reconciliation' => null,
-        'sales_rows' => $rows, 'sales_total_matching' => 2, 'sales_shown' => 2,
+        'sales_rows' => $rows, 'sales_total_matching' => 3, 'sales_shown' => 3,
         'sales_row_limit' => 500,
         'grand_units' => 42, 'grand_amount' => 1234.56,
         // A provisional money figure is supplied to the view. Base renders it; the fix must not.
@@ -142,6 +156,39 @@ if ($renderError === '') {
     $h->test('an uncounted figures cell shows an explicit dash rather than nothing',
         $salesCellText === '—',
         'sales cell text: "' . $salesCellText . '"');
+
+    // -----------------------------------------------------------------------
+    // THE CASE THAT MATTERS MOST, and that the first revision of this oracle could not catch:
+    // a PROVISIONAL row that carries a real computed amount must not display it.
+    // -----------------------------------------------------------------------
+    $provRowHtml = '';
+    if (preg_match_all('#<tr\b.*?</tr>#is', $html, $trs3)) {
+        foreach ($trs3[0] as $tr) {
+            if (str_contains($tr, $PROVISIONAL_SKU)) {
+                $provRowHtml = $tr;
+                break;
+            }
+        }
+    }
+    $h->test('the provisional row is present in the rendered table', $provRowHtml !== '',
+        'no <tr> containing ' . $PROVISIONAL_SKU . ' was rendered');
+
+    $h->test('the provisional row is labelled, not left as official',
+        $provRowHtml !== '' && stripos($provRowHtml, 'provisional') !== false,
+        'row: ' . substr(preg_replace('/\s+/', ' ', strip_tags($provRowHtml)), 0, 160));
+
+    // The row's amount is 150.0. The Sales row amount cell renders a bare number with NO `PHP`
+    // prefix, so a regex keyed on "provisional ... PHP" does not see it. Assert on the ROW TEXT.
+    $provRowText = preg_replace('/\s+/', ' ', strip_tags($provRowHtml));
+    $h->test('a provisional row does not display its computed money amount',
+        $provRowHtml !== '' && !str_contains($provRowText, $PROVISIONAL_AMOUNT),
+        'the provisional row renders the amount ' . $PROVISIONAL_AMOUNT . ': '
+        . substr($provRowText, 0, 200));
+
+    // Nor may it be monetised under another name.
+    $h->test('a provisional row displays no money figure at all (no PHP amount, no bare currency)',
+        $provRowHtml !== '' && !preg_match('/PHP\s*[\d,]/i', $provRowText),
+        'a currency figure appears on the provisional row: ' . substr($provRowText, 0, 200));
 }
 
 // ---------------------------------------------------------------------------
