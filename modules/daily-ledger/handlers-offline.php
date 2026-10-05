@@ -1212,27 +1212,98 @@ function dl_offlineRecordPendingReport(array $row, int $count, ?string $since = 
     }
     $fields = ($fields !== null && $fields !== '') ? substr((string)$fields, 0, 255) : null;
 
-    $stmt = $ctx->db()->prepare(
-        'UPDATE dl_offline_device_enrollments
-            SET last_reported_pending_count = :cnt,
-                pending_since = :since,
-                pending_fields = :fields,
-                updated_at = CURRENT_TIMESTAMP
-          WHERE id = :id'
-    );
-    $stmt->execute([
-        ':cnt' => $count,
-        ':since' => $since,
-        ':fields' => $fields,
-        ':id' => (int)$row['id'],
-    ]);
+    try {
+        $stmt = $ctx->db()->prepare(
+            'UPDATE dl_offline_device_enrollments
+                SET last_reported_pending_count = :cnt,
+                    pending_since = :since,
+                    pending_fields = :fields,
+                    updated_at = CURRENT_TIMESTAMP
+              WHERE id = :id'
+        );
+        $stmt->execute([
+            ':cnt' => $count,
+            ':since' => $since,
+            ':fields' => $fields,
+            ':id' => (int)$row['id'],
+        ]);
+    } catch (\Throwable $e) {
+        // Best-effort visibility only: a marker write must never turn a sync
+        // (or a refusal) into a harder failure than the sync itself.
+        write_log('daily-ledger offline pending marker write failed', 'warning', ['message' => $e->getMessage()]);
+    }
 }
 
 /**
- * Active enrollments (scoped to the actor's accessible branches) that last
- * reported unsynced work. Used by the admin dashboard to surface devices that
- * still hold data which has not reached the cloud, so "the cashier entered it"
- * is always actionable instead of silently stuck.
+ * Persists the precise enrollment-validation refusal for the ADMIN surface.
+ * This mirrors the reason code dl_offlineValidateEnrollment() already returns
+ * to the client, but is stored server-side so a device that cannot report is
+ * still diagnosable in the dashboard.
+ *
+ * ADMIN DIAGNOSTIC ONLY — it authorizes nothing. It is never read as a gate
+ * and never changes whether a write is allowed. The cashier-facing sheet keeps
+ * plain language and never displays this word.
+ */
+function dl_offlineRecordRefusal(array $row, string $reason): void
+{
+    $ctx = module();
+    if (!$ctx || (int)($row['id'] ?? 0) <= 0) {
+        return;
+    }
+    $reason = trim($reason);
+    if ($reason === '') {
+        $reason = 'refused';
+    }
+    try {
+        $stmt = $ctx->db()->prepare(
+            'UPDATE dl_offline_device_enrollments
+                SET last_refusal_reason = :reason,
+                    last_refusal_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+              WHERE id = :id'
+        );
+        $stmt->execute([':reason' => substr($reason, 0, 40), ':id' => (int)$row['id']]);
+    } catch (\Throwable $e) {
+        // Diagnostics are best-effort; the refusal itself still stands.
+        write_log('daily-ledger offline refusal marker write failed', 'warning', ['message' => $e->getMessage()]);
+    }
+}
+
+/**
+ * Clears the stored refusal diagnostic once the enrollment passes validation
+ * again, so the admin is not shown a stale reason for a device that has since
+ * recovered. Authorizes nothing; validation already passed by the time this is
+ * called.
+ */
+function dl_offlineClearRefusal(array $row): void
+{
+    $ctx = module();
+    if (!$ctx || (int)($row['id'] ?? 0) <= 0) {
+        return;
+    }
+    try {
+        $stmt = $ctx->db()->prepare(
+            'UPDATE dl_offline_device_enrollments
+                SET last_refusal_reason = NULL,
+                    last_refusal_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+              WHERE id = :id
+                AND (last_refusal_reason IS NOT NULL OR last_refusal_at IS NOT NULL)'
+        );
+        $stmt->execute([':id' => (int)$row['id']]);
+    } catch (\Throwable $e) {
+        // Clearing is best-effort; a valid sync must not fail because a stale
+        // diagnostic could not be cleared.
+        write_log('daily-ledger offline refusal marker clear failed', 'warning', ['message' => $e->getMessage()]);
+    }
+}
+
+/**
+ * Enrollments (scoped to the actor's accessible branches) that last reported
+ * unsynced work, regardless of whether the grant is still active. A device
+ * whose access is expired or revoked is precisely the one the admin must act
+ * on, so status is NOT a filter here — it is reported as `enrollment_state`
+ * and the precise `last_refusal_reason` is carried alongside it.
  */
 function dl_offlineUnsyncedDevices(array $user, int $limit = 20): array
 {
@@ -1249,13 +1320,19 @@ function dl_offlineUnsyncedDevices(array $user, int $limit = 20): array
         "SELECT e.id, e.enrollment_id, e.device_id, e.actor_user_id, e.branch_id,
                 e.last_reported_pending_count, e.pending_since, e.pending_fields,
                 e.last_sync_at, e.status, e.shift, e.expires_at,
+                e.last_refusal_reason, e.last_refusal_at,
+                CASE
+                    WHEN e.status = 'revoked' THEN 'revoked'
+                    WHEN e.status = 'expired' THEN 'expired'
+                    WHEN e.expires_at IS NOT NULL AND e.expires_at < NOW() THEN 'expired'
+                    ELSE 'active'
+                END AS enrollment_state,
                 b.name AS branch_name,
                 COALESCE(NULLIF(u.full_name, ''), u.username, CONCAT('User #', e.actor_user_id)) AS cashier_name
            FROM dl_offline_device_enrollments e
            LEFT JOIN dl_branches b ON b.id = e.branch_id
            LEFT JOIN dl_users u ON u.id = e.actor_user_id
-          WHERE e.status = 'active'
-            AND e.branch_id IN ({$placeholders})
+          WHERE e.branch_id IN ({$placeholders})
             AND e.last_reported_pending_count > 0
           ORDER BY e.last_reported_pending_count DESC, e.pending_since ASC
           LIMIT " . (int)$limit
@@ -1418,14 +1495,9 @@ function apiOfflineStatus(array $params = []): void
         dlJson(['ok' => false, 'error' => 'Offline enrollment not found.', 'reason' => 'not-found'], 404);
         return;
     }
-    $valid = dl_offlineValidateEnrollment($user, $row);
-    if (!$valid['ok']) {
-        dlJson(['ok' => false, 'error' => $valid['error'], 'reason' => $valid['reason']], 403);
-        return;
-    }
-
-    // Visibility marker: persist the client-reported non-decrypting pending
-    // summary so admins can see devices that still hold unsynced work.
+    // Visibility marker BEFORE the enrollment verdict: a refusal must never
+    // suppress the admin's view of a device that still holds unsynced work.
+    // This authorizes nothing — validation and the guard follow.
     if (isset($input['pending_count'])) {
         dl_offlineRecordPendingReport(
             $row,
@@ -1434,6 +1506,15 @@ function apiOfflineStatus(array $params = []): void
             (string)($input['pending_fields'] ?? '')
         );
     }
+
+    $valid = dl_offlineValidateEnrollment($user, $row);
+    if (!$valid['ok']) {
+        // Persist the precise diagnostic for the admin, then still refuse.
+        dl_offlineRecordRefusal($row, (string)($valid['reason'] ?? 'refused'));
+        dlJson(['ok' => false, 'error' => $valid['error'], 'reason' => $valid['reason']], 403);
+        return;
+    }
+    dl_offlineClearRefusal($row);
 
     dlJson([
         'ok' => true,
@@ -1531,23 +1612,9 @@ function apiOfflineReconcile(array $params = []): void
         dlJson(['ok' => false, 'error' => 'Offline enrollment not found.', 'reason' => 'not-found'], 404);
         return;
     }
-    $valid = dl_offlineValidateEnrollment($user, $row);
-    if (!$valid['ok']) {
-        dlJson(['ok' => false, 'error' => $valid['error'], 'reason' => $valid['reason']], 403);
-        return;
-    }
-
-    $branchId = (int)$row['branch_id'];
-    $operations = is_array($input['operations'] ?? null) ? $input['operations'] : [];
-    // Bounded batch: never accept an unbounded replay.
-    if (count($operations) > 200) {
-        dlJson(['ok' => false, 'error' => 'Batch too large. Sync in smaller batches.'], 422);
-        return;
-    }
-
-    // Visibility marker: record the client-reported non-decrypting pending
-    // summary even if this batch is interrupted, so the admin dashboard can
-    // show devices that still hold unsynced work.
+    // Visibility marker BEFORE the enrollment verdict: a refusal must never
+    // suppress the admin's view of a device that still holds unsynced work.
+    // This authorizes nothing — validation and the guard follow.
     if (isset($input['pending_count'])) {
         dl_offlineRecordPendingReport(
             $row,
@@ -1555,6 +1622,23 @@ function apiOfflineReconcile(array $params = []): void
             (string)($input['pending_since'] ?? ''),
             (string)($input['pending_fields'] ?? '')
         );
+    }
+
+    $valid = dl_offlineValidateEnrollment($user, $row);
+    if (!$valid['ok']) {
+        // Persist the precise diagnostic for the admin, then still refuse.
+        dl_offlineRecordRefusal($row, (string)($valid['reason'] ?? 'refused'));
+        dlJson(['ok' => false, 'error' => $valid['error'], 'reason' => $valid['reason']], 403);
+        return;
+    }
+    dl_offlineClearRefusal($row);
+
+    $branchId = (int)$row['branch_id'];
+    $operations = is_array($input['operations'] ?? null) ? $input['operations'] : [];
+    // Bounded batch: never accept an unbounded replay.
+    if (count($operations) > 200) {
+        dlJson(['ok' => false, 'error' => 'Batch too large. Sync in smaller batches.'], 422);
+        return;
     }
 
     $results = [];

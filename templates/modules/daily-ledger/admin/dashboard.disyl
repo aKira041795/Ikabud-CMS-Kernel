@@ -158,9 +158,11 @@
                     <tr>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Cashier</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Branch</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Offline Access</th>
                         <th class="px-4 py-3 text-right font-semibold text-slate-700">Pending</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Since</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Fields</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Last Refusal</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Last Sync</th>
                     </tr>
                 </thead>
@@ -169,16 +171,33 @@
                     <tr>
                         <td class="px-4 py-3 font-semibold text-gray-900">{dev.cashier_name}</td>
                         <td class="px-4 py-3 text-gray-600">{dev.branch_name}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset
+                                {if dev.enrollment_state == 'active'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+                                {if dev.enrollment_state == 'expired'}bg-amber-50 text-amber-700 ring-amber-200{/if}
+                                {if dev.enrollment_state == 'revoked'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+                            ">{dev.enrollment_state}</span>
+                        </td>
                         <td class="px-4 py-3 text-right font-semibold text-amber-700">{dev.last_reported_pending_count}</td>
                         <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{dev.pending_since}</td>
                         <td class="px-4 py-3 text-xs text-gray-600">{dev.pending_fields}</td>
+                        <td class="px-4 py-3">
+                            {if dev.last_refusal_reason}
+                            <span class="inline-flex items-center rounded bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 ring-1 ring-inset ring-rose-200" title="{dev.last_refusal_at}">{dev.last_refusal_reason}</span>
+                            {else}
+                            <span class="text-xs text-gray-400">&mdash;</span>
+                            {/if}
+                        </td>
                         <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{if dev.last_sync_at}{dev.last_sync_at}{else}Never{/if}</td>
                     </tr>
                     {/foreach}
                 </tbody>
             </table>
         </div>
-        <div class="px-4 py-3 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">Ask the cashier to open the ledger (or offline shell) and sync so these entries reach the cloud.</div>
+        <div class="px-4 py-3 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">
+            Ask the cashier to open the ledger (or offline shell) and sync so these entries reach the cloud.
+            If Offline Access is expired or revoked, or a Last Refusal is shown, the device cannot send these entries until an admin restores access (the cashier re-enrolls). The exact diagnostic is shown so the right action is obvious.
+        </div>
         {/if}
     </div>
 </div>
