@@ -18,6 +18,7 @@ Before it, a closed day could not be reopened for correction, a day with no prio
 - a day may be advanced even when the prior day is unfinalized — entry is unblocked, and the gap is flagged to the admin and the operator instead of being refused
 - unfinalized AM/PM shifts settle into counted sales only through `settle → verify → revert`, each transition tagged with provenance and each change audited
 - two duplicate-guard suites that had asserted a deliberately superseded contract since 2026-09-22 now assert the current one: a *repeat* is recorded, a *replay* is refused
+- pending data is **marked, never monetised**: a provisional money figure no longer surfaces on any admin surface, and every row whose figures are not final is visibly marked at the row
 - `tests/daily-ledger/daily_ledger_production_controls_test.php` — 70 assertions covering the whole lifecycle — is the oracle for this release
 
 ---
@@ -113,6 +114,38 @@ The two suites now assert the current contract — an identical line on a *new* 
 
 ---
 
+### 8. Pending data is marked, never monetised
+
+Owner directive: *"the provisional sales amount should not surface again. what the admin sees is the actual, correct amount thus pending sales are not included. my point is, provisional sales amount confuses accounting."*
+
+The authoritative amount was already correct — `dl_reportSalesData()` buckets rows with the canonical predicate, so the official total already excluded provisional. The defect was that a **second** money figure was put in front of the admin:
+
+```
+Provisional (pending ending / unfinalized PM): 6 PHP 150.00
+```
+
+which reads as revenue and invites double counting. It is now gone from every surface that carried it:
+
+| surface | now says |
+|---|---|
+| Sales footer | `Pending (not counted yet): 6 units — no amount is shown because these figures are not counted in the official total.` |
+| Dashboard (×3) | `+ N units pending (not counted yet) — no amount is shown …` and `+ N units pending (not counted)` per branch and per card |
+| Reports header | `Pending (not counted yet): N units — no amount is shown …` |
+| Reports row sets + `<th>` | `Pending Units (not counted)`; the provisional amount column is dropped |
+| Report column definitions | `provisional_amount` removed, so the CSV columns lose it |
+| PDF / export totals | `provisional_amount` unset, so a printed report cannot show it |
+
+Each replacement states **why** no amount is shown, so the figure is not quietly re-added later.
+
+Provisional **units** are deliberately kept and relabelled *not counted*: units are not money, and they tell an operator how much is outstanding. The provisional **bucket** stays in `helpers/reporting.php`, because the settlement workflow and the official totals depend on that classification — only its display was removed.
+
+**Row markers.** `dl_salesRowStatusLabel()` is now the single labeller and delegates to `dl_rowIsProvisional()`, so a row's badge and the totals bucket cannot drift apart. The template previously re-derived its own narrower condition, which could **never** fire when the ending was missing — so **942 rows with `bal_end IS NULL`** were counted as provisional and carried no marker at all. Two decisions taken on review:
+
+- **one badge per row** — the base rendered "Pending count" on both the shift and the sales cell, which reads as noise across a 70-row table. The shift cell carries the badge; the sales cell keeps its tint and flags itself with `title`/`aria-label` on the `<td>` itself, which is what a screen reader announces;
+- **uncounted figures render an explicit `—`** — before, Bal End, Sales and Amount rendered *empty*, which reads as a rendering failure.
+
+---
+
 ## Migration Notes
 
 | migration | change | rerun-safe |
@@ -173,6 +206,8 @@ php database/seeds/browser_environment.php
 
 ## Known Limits
 
+- **Pending units are shown but never monetised.** A row or bucket that is not counted yet contributes **no amount** to any display; it contributes only a unit count under a "not counted" label. If you want the unit figures gone too, that is a display change in the same three templates and nothing else.
+- **A pending row shows `—` for Bal End, Sales and Amount.** That is deliberate: there is no counted figure to show. The row is still counted inside the *provisional* bucket, so the row count and the excluded-from-official explanation above the table are what tell you it is outstanding.
 - **Withdrawal dedup is by submission identity, not by content** (`a971e41c`). A client that retries a withdrawal **without carrying a stable key will record a second row** — that is the deliberate contract, not a defect. Offline clients must carry the queued op's identity across retries; `dl_withdrawalSubmissionId()` mints one when a caller sends none, and the mint is per submission. Do not "fix" a blocked-but-legitimate entry by adding another content field to the fingerprint — that is the treadmill `a971e41c` replaced.
 - **Settlement rung 3 is unwired.** The ladder has a "no movements → zero forced" rung, but the carry audit records a row *count*, not product ids, so there is no per-product candidate list to settle from. Rung 3 is implemented in the pure function and not reachable from the UI.
 - **`calc_variance` is `NULL` for settled endings by design.** A settled row contributes to the provisional bucket; entering the official totals requires the admin verify step. This is the intended control, not a defect — but any external report reading `calc_variance` directly must handle `NULL`.
