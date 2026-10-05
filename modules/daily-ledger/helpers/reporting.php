@@ -379,9 +379,9 @@ function dl_reportDefinitions(): array
     return [
         'sales' => ['title' => 'Daily Sales Report', 'entity_type' => 'daily_ledger_sales', 'columns' => ['ledger_date', 'shift', 'branch_code', 'branch_name', 'product_category', 'sku', 'product_name', 'beg_bal', 'addtl', 'withdraw', 'bal_end', 'sales', 'price_snapshot', 'amount', 'status_label']],
         'variances' => ['title' => 'Variance Report', 'entity_type' => 'daily_ledger_variances', 'columns' => ['ledger_date', 'shift', 'kind', 'branch_name', 'sku', 'product_name', 'expected_end_bal', 'recorded_end_bal', 'variance', 'resolution_status']],
-        'branch-summary' => ['title' => 'Branch Consolidated Summary', 'entity_type' => 'daily_ledger_branch_summary', 'columns' => ['branch_code', 'branch_name', 'days_counted', 'product_count', 'official_units', 'official_amount', 'provisional_units', 'provisional_amount', 'total_units', 'total_amount', 'deduction_pct', 'net_amount', 'share_pct']],
-        'month-end' => ['title' => 'Month-End Summary', 'entity_type' => 'daily_ledger_month_end', 'columns' => ['month', 'branch_code', 'branch_name', 'days_counted', 'product_count', 'official_units', 'official_amount', 'provisional_units', 'provisional_amount', 'total_units', 'total_amount', 'deduction_pct', 'net_amount', 'share_pct']],
-        'category-sales' => ['title' => 'Sales by Category', 'entity_type' => 'daily_ledger_category_sales', 'columns' => ['product_category', 'product_count', 'official_units', 'official_amount', 'provisional_units', 'provisional_amount', 'total_units', 'total_amount', 'deduction_pct', 'net_amount', 'share_pct']],
+        'branch-summary' => ['title' => 'Branch Consolidated Summary', 'entity_type' => 'daily_ledger_branch_summary', 'columns' => ['branch_code', 'branch_name', 'days_counted', 'product_count', 'official_units', 'official_amount', 'provisional_units', 'total_units', 'total_amount', 'deduction_pct', 'net_amount', 'share_pct']],
+        'month-end' => ['title' => 'Month-End Summary', 'entity_type' => 'daily_ledger_month_end', 'columns' => ['month', 'branch_code', 'branch_name', 'days_counted', 'product_count', 'official_units', 'official_amount', 'provisional_units', 'total_units', 'total_amount', 'deduction_pct', 'net_amount', 'share_pct']],
+        'category-sales' => ['title' => 'Sales by Category', 'entity_type' => 'daily_ledger_category_sales', 'columns' => ['product_category', 'product_count', 'official_units', 'official_amount', 'provisional_units', 'total_units', 'total_amount', 'deduction_pct', 'net_amount', 'share_pct']],
         'data-integrity' => ['title' => 'Encoding Exceptions', 'entity_type' => 'daily_ledger_data_integrity', 'columns' => ['ledger_date', 'branch_code', 'branch_name', 'rows_total', 'pending_rows', 'zero_ending_rows', 'encoded_rows', 'encoded_amount', 'unencoded_amount', 'issue']],
     ];
 }
@@ -670,6 +670,11 @@ function dl_generateGovernedReport(string $type, string $format, array $data, ar
     if (!$rows) {
         throw new DlReportUserException('No report rows match the selected filters.');
     }
+    // The PDF renders its totals block from this array. A provisional money figure
+    // must not surface in an export any more than it does on screen; the official
+    // totals are unchanged, so only the display key is dropped here.
+    $exportTotals = is_array($data['totals'] ?? null) ? $data['totals'] : [];
+    unset($exportTotals['provisional_amount']);
     $filename = dl_reportFilename($type, $filters, $format, $branchLabel);
     $quality = is_array($data['data_quality'] ?? null) ? $data['data_quality'] : null;
     // The PDF carries a real header block, so the warning travels with the
@@ -687,7 +692,7 @@ function dl_generateGovernedReport(string $type, string $format, array $data, ar
         'filter_summary' => $filterSummary,
         'notice' => $quality !== null ? (string)$quality['label'] : '',
         'generated_by' => (string)($user['full_name'] ?? $user['name'] ?? $user['username'] ?? 'Unknown'),
-        'totals' => $data['totals'],
+        'totals' => $exportTotals,
     ];
     $export = KernelExport::export($definition['entity_type'], $format, $rows, $options);
     if (!is_array($export)) {

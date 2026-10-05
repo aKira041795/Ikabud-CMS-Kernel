@@ -65,7 +65,7 @@
     <div class="card-body text-sm text-gray-700">
         {if report_type == 'variances'}Unreviewed: <strong>{totals.unreviewed}</strong> · Absolute variance: <strong>{totals.absolute_variance}</strong>{/if}
         {if report_type == 'data-integrity'}Flagged days: <strong>{totals.flagged_days}</strong> · Pending rows: <strong>{totals.pending_rows}</strong> · Zero-ending rows: <strong>{totals.zero_ending_rows}</strong> · Amount at risk: PHP <strong>{totals.unencoded_amount | number_format:2}</strong>{/if}
-        {if report_type != 'variances' && report_type != 'data-integrity'}Official: <strong>{totals.official_units}</strong> units · PHP <strong>{totals.official_amount | number_format:2}</strong> · Provisional: <strong>{totals.provisional_units}</strong> units · PHP <strong>{totals.provisional_amount | number_format:2}</strong>{/if}
+        {if report_type != 'variances' && report_type != 'data-integrity'}Official: <strong>{totals.official_units}</strong> units · PHP <strong>{totals.official_amount | number_format:2}</strong> · Pending (not counted yet): <strong>{totals.provisional_units}</strong> units — no amount is shown because these figures are not counted in the official total.{/if}
     </div>
 </div>
 
@@ -81,18 +81,18 @@
 </tbody>
 {/if}
 {if report_type == 'branch-summary'}
-<thead><tr><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th><th>Net</th><th>Share</th></tr></thead><tbody>
-{foreach report_rows as row}<tr><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
+<thead><tr><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Pending Units (not counted)</th><th>Net</th><th>Share</th></tr></thead><tbody>
+{foreach report_rows as row}<tr><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
 </tbody>
 {/if}
 {if report_type == 'month-end'}
-<thead><tr><th>Month</th><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th><th>Net</th><th>Share</th></tr></thead><tbody>
-{foreach report_rows as row}<tr><td>{row.month}</td><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
+<thead><tr><th>Month</th><th>Branch</th><th>Official Units</th><th>Official Amount</th><th>Pending Units (not counted)</th><th>Net</th><th>Share</th></tr></thead><tbody>
+{foreach report_rows as row}<tr><td>{row.month}</td><td>{row.branch_name}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
 </tbody>
 {/if}
 {if report_type == 'category-sales'}
-<thead><tr><th>Category</th><th>Products</th><th>Official Units</th><th>Official Amount</th><th>Provisional Units</th><th>Provisional Amount</th><th>Net</th><th>Share</th></tr></thead><tbody>
-{foreach report_rows as row}<tr><td>{row.product_category}</td><td>{row.product_count}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.provisional_amount | number_format:2}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
+<thead><tr><th>Category</th><th>Products</th><th>Official Units</th><th>Official Amount</th><th>Pending Units (not counted)</th><th>Net</th><th>Share</th></tr></thead><tbody>
+{foreach report_rows as row}<tr><td>{row.product_category}</td><td>{row.product_count}</td><td>{row.official_units}</td><td>PHP {row.official_amount | number_format:2}</td><td>{row.provisional_units}</td><td>PHP {row.net_amount | number_format:2}</td><td>{row.share_pct | number_format:2}%</td></tr>{/foreach}
 </tbody>
 {/if}
 {if report_type == 'data-integrity'}
