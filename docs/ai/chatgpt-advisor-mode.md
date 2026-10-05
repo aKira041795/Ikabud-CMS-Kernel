@@ -32,6 +32,11 @@ lane therefore:
 | Mutability | Advisor is **read-only**: it replies with an opinion and may read workspace context, but cannot edit code, run workflows, or mutate decisions. |
 | Failure | On model/contract failure the items stay staged for bounded retry (stage + notify by the caller) — nothing is dropped, nothing is re-routed to the dev pool. |
 
+A dedicated lane owns its bound conversation: title matching establishes the binding, and the
+conversation id preserves it across later renames. Its messages are never queued as dev runs,
+even while the lane is disabled. For the `page` backend, the watch daemon environment must expose
+both `DISPLAY` and `XAUTHORITY` so Playwright can launch headed Chrome.
+
 ## Setup (one time)
 
 The advisor lane is **Linux-only** for now and reuses the always-on `harpp watch` daemon

@@ -38,6 +38,15 @@ DEFAULT_AUTHORITY_POLICY = {
     "L3": "autonomous",
     "L4": "human_approval",
 }
+LANE_DEFAULT_TITLES = {
+    "advisor": "ChatGPT Advisor",
+    "cms": "CMS Assistant",
+}
+# Process-local mirror of bindings persisted by harpp_wake. The mirror makes a
+# newly bound conversation visible to autoprocess immediately; on daemon restart
+# _lane_context() reloads the same bindings from wake-processed.json.
+_BOUND_LANE_CONVERSATIONS = {"advisor": set(), "cms": set()}
+
 OWNER_MESSAGE_TYPES = {
     "INFO", "PROGRESS", "WARNING", "DECISION_REQUIRED", "BLOCKED", "RELEASE_READY", "FAILED",
     # Completion is its own type rather than PROGRESS. PROGRESS is deliberately treated
@@ -442,9 +451,82 @@ def apply_decision(decision_id, config=None, rationale="Harness applied the owne
                {"rationale": rationale}, config=config)
 
 
+def lane_of(record, config=None):
+    """Return the dedicated lane owning a message, or None.
+
+    Classification is deliberately independent of a lane's enabled flag. Either
+    the configured title or a previously bound conversation id is sufficient.
+    ``config`` may include the wake ledger's ``lane_conversations`` map.
+    """
+    cfg = config if isinstance(config, dict) else {}
+    bindings = cfg.get("lane_conversations")
+    bindings = bindings if isinstance(bindings, dict) else {}
+    try:
+        conversation_id = int(record.get("conversation_id") or 0)
+    except (TypeError, ValueError):
+        conversation_id = 0
+    title = str(record.get("conversation_title") or "").strip().lower()
+    for lane, default_title in LANE_DEFAULT_TITLES.items():
+        lane_cfg = cfg.get(lane)
+        lane_cfg = lane_cfg if isinstance(lane_cfg, dict) else {}
+        wanted = str(lane_cfg.get("conversation_title", default_title) or "").strip().lower()
+        bound = bindings.get(lane, [])
+        if not isinstance(bound, (list, tuple, set)):
+            bound = []
+        bound_ids = set()
+        for value in bound:
+            try:
+                bound_ids.add(int(value))
+            except (TypeError, ValueError):
+                continue
+        if (conversation_id and conversation_id in bound_ids) or (wanted and title == wanted):
+            return lane
+    return None
+
+
+def remember_lane_conversations(lane, conversation_ids):
+    """Mirror wake-ledger bindings in memory for the current daemon process."""
+    if lane not in _BOUND_LANE_CONVERSATIONS:
+        return
+    for value in conversation_ids or []:
+        try:
+            conversation_id = int(value)
+        except (TypeError, ValueError):
+            continue
+        if conversation_id > 0:
+            _BOUND_LANE_CONVERSATIONS[lane].add(conversation_id)
+
+
+def _lane_context():
+    try:
+        cfg = dict(load_config())
+    except Exception:  # noqa: BLE001 - lane guard must not break ordinary autoprocess
+        cfg = {}
+    bindings = {lane: set(ids) for lane, ids in _BOUND_LANE_CONVERSATIONS.items()}
+    config_dir = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "harpp"
+    state_path = config_dir / "wake-processed.json"
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        persisted = state.get("lane_conversations") if isinstance(state, dict) else {}
+        if isinstance(persisted, dict):
+            for lane in bindings:
+                values = persisted.get(lane, [])
+                if isinstance(values, list):
+                    for value in values:
+                        try:
+                            bindings[lane].add(int(value))
+                        except (TypeError, ValueError):
+                            continue
+    except (OSError, TypeError, ValueError):
+        pass
+    cfg["lane_conversations"] = {lane: sorted(ids) for lane, ids in bindings.items()}
+    return cfg
+
+
 def autoprocess(records, outcomes=None):
     """Deterministically queue messages and close decisions; optionally report success."""
     notes = []
+    lane_context = _lane_context()
     for rec in records or []:
         ok = False
         try:
@@ -452,6 +534,14 @@ def autoprocess(records, outcomes=None):
                 conv = rec.get("conversation_id")
                 if not conv:
                     raise HarppError("message has no conversation_id")
+                lane = lane_of(rec, lane_context)
+                if lane:
+                    ok = True
+                    notes.append(
+                        f"message {rec.get('id')} skipped: owned by dedicated {lane} lane")
+                    if outcomes is not None:
+                        outcomes.append((rec, ok))
+                    continue
                 r = queue_run(
                     message_id=int(rec.get("id", 0)),
                     required_capabilities=rec.get("required_capabilities") or ["desktop"],

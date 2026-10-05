@@ -374,6 +374,13 @@ def _normalized_state() -> dict:
     state.setdefault("plans", {})
     state.setdefault("ideation_usage", {})
     state.setdefault("cms_usage", {})
+    lane_conversations = state.setdefault("lane_conversations", {})
+    if not isinstance(lane_conversations, dict):
+        lane_conversations = {}
+        state["lane_conversations"] = lane_conversations
+    for lane in ("advisor", "cms"):
+        if not isinstance(lane_conversations.get(lane), list):
+            lane_conversations[lane] = []
     return state
 
 
@@ -865,6 +872,34 @@ def record_failure(records: list) -> None:
             key = str(int(r.get("id", 0)))
             state["failures"][key] = int(state["failures"].get(key, 0)) + 1
         _save_json(PROCESSED_FILE, state)
+
+
+def bind_lane_conversations(lane: str, records: list) -> None:
+    """Persist conversation ids claimed by a dedicated lane in the wake ledger."""
+    if lane not in ("advisor", "cms"):
+        return
+    ids = set()
+    for record in records or []:
+        try:
+            conversation_id = int(record.get("conversation_id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if conversation_id > 0:
+            ids.add(conversation_id)
+    if not ids:
+        return
+    with _processed_state_lock():
+        state = _normalized_state()
+        current = set()
+        for value in state["lane_conversations"].get(lane, []):
+            try:
+                current.add(int(value))
+            except (TypeError, ValueError):
+                continue
+        if not ids.issubset(current):
+            state["lane_conversations"][lane] = sorted(current | ids)
+            _save_json(PROCESSED_FILE, state)
+    harpp_client.remember_lane_conversations(lane, ids)
 
 
 def mark_abandoned(record: dict, reason: str) -> None:
@@ -4267,10 +4302,13 @@ def advisor_config(config=None) -> dict:
 
 def is_advisor_item(item, config=None) -> bool:
     """True when an inbox message belongs to the dedicated ChatGPT Advisor channel."""
-    adv = advisor_config(config)
-    wanted = str(adv.get("conversation_title") or "").strip().lower()
-    title = str(item.get("conversation_title") or "").strip().lower()
-    return bool(wanted) and title == wanted
+    if isinstance(config, dict) and "advisor" in config:
+        cfg = config
+    else:
+        cfg = {"advisor": config if isinstance(config, dict) else advisor_config({})}
+    cfg = dict(cfg)
+    cfg["lane_conversations"] = read_state().get("lane_conversations", {})
+    return harpp_client.lane_of(item, cfg) == "advisor"
 
 
 def _normalized_ideation_usage(state: dict) -> dict:
@@ -4446,17 +4484,13 @@ def cms_config(config=None) -> dict:
 
 
 def is_cms_item(item, config=None) -> bool:
-    # Accept either the full config (with a "cms" section) or an already
-    # normalized cms dict — double-wrapping through cms_config() reset a
-    # configured title back to the default and silently misrouted messages.
-    cfg = config
-    if isinstance(cfg, dict) and "cms" in cfg:
-        cfg = cms_config(cfg)
-    elif not isinstance(cfg, dict):
-        cfg = cms_config({})
-    wanted = str(cfg.get("conversation_title") or "").strip().lower()
-    title = str(item.get("conversation_title") or "").strip().lower()
-    return bool(wanted) and title == wanted
+    if isinstance(config, dict) and "cms" in config:
+        cfg = config
+    else:
+        cfg = {"cms": config if isinstance(config, dict) else cms_config({})}
+    cfg = dict(cfg)
+    cfg["lane_conversations"] = read_state().get("lane_conversations", {})
+    return harpp_client.lane_of(item, cfg) == "cms"
 
 
 def _cms_model_ok(model: str) -> bool:
@@ -4513,6 +4547,7 @@ def maybe_wake_cms(inbox: str, cms_items: list, cfg: dict | None = None, *,
                    open_terminal: bool = False,
                    verify_delivery_receipts: bool = True) -> bool:
     """One guarded CMS-assistant pass. Draft-only; never Codex; fail-safe staging."""
+    bind_lane_conversations("cms", cms_items)
     cfg = cms_config({"cms": cfg or {}})
     model = str(cfg.get("model") or "").strip()
     if not model or not _cms_model_ok(model):
@@ -4611,7 +4646,8 @@ def _record_ideation_usage(records: list, model: str) -> None:
 def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None, *,
                        command: str | None = None, workspace: str | None = None,
                        open_terminal: bool = False,
-                       verify_delivery_receipts: bool = True) -> bool:
+                       verify_delivery_receipts: bool = True,
+                       max_retries: int = DEFAULT_MAX_RETRIES) -> bool:
     """One guarded ideation pass for ChatGPT Advisor items.
 
     Returns True only when every advisor item was processed; otherwise False and the
@@ -4621,6 +4657,7 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
     so ideation can never consume Codex quota. Failures keep items staged — never
     re-routed to the dev pool.
     """
+    bind_lane_conversations("advisor", advisor_items)
     adv = advisor_config({"advisor": adv or {}})
     model = str(adv.get("model") or "").strip()
     if not model:
@@ -4640,6 +4677,45 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
         if not advisor_items:
             return False
     state = read_state()
+    exhausted = [r for r in advisor_items
+                 if int(state["failures"].get(str(r.get("id")), 0)) >= max_retries]
+    if exhausted:
+        if not acquire_lock(timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT)):
+            log(f"advisor: single-flight lock held; {len(exhausted)} failure reply/replies remain pending")
+            return False
+        delivered = []
+        try:
+            # Recheck both ledgers under the lane lock: another pass may have sent
+            # and marked the stable terminal reply while this pass was waiting.
+            state = read_state()
+            processed = {int(value) for value in state.get("messages", [])}
+            for item in exhausted:
+                mid = int(item.get("id", 0))
+                if mid in processed or int(state["failures"].get(str(mid), 0)) < max_retries:
+                    continue
+                try:
+                    response = harpp_client.harpp_notify(
+                        conversation_id=int(item.get("conversation_id") or 0),
+                        message_type="FAILED", idempotency_key=f"wake-message-{mid}",
+                        body="I’m sorry — the advisor could not complete this request after multiple attempts. Please retry or ask the harness to handle it interactively.")
+                    if response.get("ok"):
+                        delivered.append(item)
+                        log(f"advisor: sent bounded-retry failure reply for message {mid}")
+                except harpp_client.HarppError as exc:
+                    if exc.status == 404:
+                        mark_abandoned(item, f"conversation closed/not found: {exc}")
+                    else:
+                        log(f"advisor: failure reply for message {mid} could not be delivered: {exc}")
+                except Exception as exc:  # noqa: BLE001
+                    log(f"advisor: failure reply for message {mid} could not be delivered: {exc}")
+            if delivered:
+                mark_processed(delivered)
+        finally:
+            release_lock()
+        advisor_items = [r for r in advisor_items if r not in exhausted]
+        if not advisor_items:
+            return bool(delivered)
+        state = read_state()
     ok, why = _advisor_budget_ok(adv, state)
     if not ok:
         log(f"advisor: {why}; {len(advisor_items)} ideation item(s) remain staged")
@@ -4716,41 +4792,49 @@ def maybe_wake(inbox: str, *, enabled: bool = True, command: str | None = None,
     items = unprocessed_items(inbox)
     if not items:
         return False
-    # --- ChatGPT Advisor (ideation) lane: separate, read-only, never Codex ---
-    # Partition Advisor-channel items first and run them on the ideation provider
-    # only. They never enter the dev quick/agent tiers, so ideation stays fully
-    # isolated from HARPP dev work and can never consume Codex quota.
-    advisor_done = False
+    # --- Dedicated lanes: classify before checking enabled state. Disabling a
+    # lane stages its messages; it must never convert them into dev work. ---
     try:
-        _advisor_cfg = advisor_config(harpp_client.load_config())
-    except Exception:  # noqa: BLE001 - unconfigured harness => advisor disabled
-        _advisor_cfg = advisor_config({})
-    if _advisor_cfg.get("enabled"):
-        advisor_items = [r for r in items if is_advisor_item(r, _advisor_cfg)]
-        if advisor_items:
+        _lane_cfg = harpp_client.load_config()
+    except Exception:  # noqa: BLE001 - defaults still preserve lane isolation
+        _lane_cfg = {}
+    _advisor_cfg = advisor_config(_lane_cfg)
+    _cms_cfg = cms_config(_lane_cfg)
+    lane_context = dict(_lane_cfg)
+    lane_context["advisor"] = _advisor_cfg
+    lane_context["cms"] = _cms_cfg
+    lane_context["lane_conversations"] = read_state().get("lane_conversations", {})
+
+    advisor_done = False
+    advisor_items = [r for r in items if harpp_client.lane_of(r, lane_context) == "advisor"]
+    if advisor_items:
+        bind_lane_conversations("advisor", advisor_items)
+        if _advisor_cfg.get("enabled"):
             advisor_done = maybe_wake_advisor(
                 inbox, advisor_items, _advisor_cfg, command=command,
                 workspace=workspace, open_terminal=open_terminal,
-                verify_delivery_receipts=verify_delivery_receipts)
-            items = [r for r in items if r not in advisor_items]
-            if not items:
-                return advisor_done
-    # --- CMS Assistant lane: draft-only content editing, deepseek/groq, never Codex ---
+                verify_delivery_receipts=verify_delivery_receipts,
+                max_retries=max_retries)
+        else:
+            log(f"advisor: lane disabled; {len(advisor_items)} item(s) remain staged")
+        items = [r for r in items if r not in advisor_items]
+        if not items:
+            return advisor_done
+
     cms_done = False
-    try:
-        _cms_cfg = cms_config(harpp_client.load_config())
-    except Exception:  # noqa: BLE001 - unconfigured harness => lane disabled
-        _cms_cfg = cms_config({})
-    if _cms_cfg.get("enabled"):
-        cms_items = [r for r in items if is_cms_item(r, _cms_cfg)]
-        if cms_items:
+    cms_items = [r for r in items if harpp_client.lane_of(r, lane_context) == "cms"]
+    if cms_items:
+        bind_lane_conversations("cms", cms_items)
+        if _cms_cfg.get("enabled"):
             cms_done = maybe_wake_cms(
                 inbox, cms_items, _cms_cfg, command=command,
                 workspace=workspace, open_terminal=open_terminal,
                 verify_delivery_receipts=verify_delivery_receipts)
-            items = [r for r in items if r not in cms_items]
-            if not items:
-                return cms_done
+        else:
+            log(f"cms-assistant: lane disabled; {len(cms_items)} item(s) remain staged")
+        items = [r for r in items if r not in cms_items]
+        if not items:
+            return cms_done
     # A message whose wake-message-<id> reply is already delivered was answered. It
     # cannot be retried with a new body (idempotency 409 Conflict) and must never be
     # escalated to the terminal FAILED reply. Mark it processed up front so it is not

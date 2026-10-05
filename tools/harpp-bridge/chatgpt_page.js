@@ -62,6 +62,32 @@ async function launch(profile, headless) {
     }
 }
 
+// ChatGPT's web UI is not a stable API surface (the advisor contract flags this). Measured
+// 2026-10-05: the app-shell build renders turns with data-conversation-role /
+// data-markdown-text-style, so `[data-message-author-role="assistant"]` matched NOTHING and every
+// advisor run died on a 100s locator timeout while the reply sat on screen. Keep the classic
+// attribute first and fall back to the current ones; a stale selector must not silently kill the
+// lane again.
+const ASSISTANT_REPLY_SELECTORS = [
+    '[data-message-author-role="assistant"]',
+    '[data-conversation-role="assistant"]',
+    '[data-markdown-text-style="assistant-message"]',
+    '[data-content-search-unit-key*="assistant"]',
+];
+const STOP_BUTTON_SELECTORS = [
+    'button[data-testid="stop-button"]',
+    'button[aria-label*="Stop streaming"]',
+    'button[aria-label*="Stop"]',
+];
+
+function assistantLocator(page) {
+    return page.locator(ASSISTANT_REPLY_SELECTORS.join(", ")).last();
+}
+
+function stopButtonLocator(page) {
+    return page.locator(STOP_BUTTON_SELECTORS.join(", ")).first();
+}
+
 async function isLoggedIn(page) {
     // ChatGPT shows the composer when logged in; a "Log in" button when not.
     const composer = page.locator('#prompt-textarea, div[contenteditable="true"]').first();
@@ -124,12 +150,12 @@ async function submitPrompt(page, composer, prompt) {
 }
 
 async function waitForAssistantReply(page, timeoutMs) {
-    const assistant = page.locator('[data-message-author-role="assistant"]').last();
+    const assistant = assistantLocator(page);
     await assistant.waitFor({ state: "attached", timeout: timeoutMs });
     let lastLen = -1;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-        const stop = page.locator('button[data-testid="stop-button"], button[aria-label*="Stop streaming"]').first();
+        const stop = stopButtonLocator(page);
         const stopping = await stop.count().then((n) => n > 0).catch(() => false);
         const text = (await assistant.innerText().catch(() => "")) || "";
         const stable = text.length > 0 && text.length === lastLen;
@@ -143,7 +169,7 @@ async function waitForAssistantReply(page, timeoutMs) {
     if (finalText.trim()) {
         return finalText;
     }
-    throw new Error("timed out waiting for a ChatGPT reply");
+    throw new Error("timed out waiting for a ChatGPT reply in any known reply element");
 }
 
 async function cmdLogin(args) {
