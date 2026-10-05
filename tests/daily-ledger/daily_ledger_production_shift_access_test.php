@@ -42,6 +42,10 @@ $count = static function () use ($db, $countTables): array {
     return $out;
 };
 $cleanup = static function () use ($db, $productId, $productionUserId, $unboundProductionUserId, $branchId, $date): void {
+    // D4 raises an integrity notification for this fixture date; remove it so the
+    // before/after table-count invariant below stays meaningful.
+    $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b AND aggregate_key LIKE :k)')->execute([':b' => $branchId, ':k' => '%' . $date . '%']);
+    $db->prepare('DELETE FROM dl_integrity_notifications WHERE branch_id = :b AND aggregate_key LIKE :k')->execute([':b' => $branchId, ':k' => '%' . $date . '%']);
     $db->prepare('DELETE FROM dl_delivery_items WHERE product_id = :p')->execute([':p' => $productId]);
     $db->prepare('DELETE FROM dl_deliveries WHERE remarks = :marker')->execute([':marker' => '[shift-access-fixture]']);
     $db->prepare('DELETE FROM audit_logs WHERE branch_id = :b AND (entity_id LIKE :p OR new_data LIKE :j)')->execute([':b' => $branchId, ':p' => "%{$productId}%", ':j' => "%{$productId}%"]);

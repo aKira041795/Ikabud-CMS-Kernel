@@ -571,19 +571,21 @@ dl_t_ledger($db, $branchId, $pB, $testDate, 'PM', 20, 0, 0, 20);
 
 // Boundary: now = 00:05 on the next day (past 22:00 rollover) → closeDate = $testDate.
 $afterCutoff = new \DateTimeImmutable($nextDate . ' 00:05:00', new \DateTimeZone('UTC'));
-// Owner rule (2026-09-04): an unfinalized manual day CLOSES at the cutoff too
-// (both shifts), surfacing the missing PM ending in the audit instead of
-// leaving the day open to leak entries into the next business date.
+// Contract 2026-10-05 (D1): a manual day must NOT close while its PM shift is
+// still open — closing first stranded the cashier. The close is refused and the
+// gap flagged + notified instead. (The old 2026-09-04 owner rule closed it.)
 $closedPending = dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
-$h->test('auto-close closes an unfinalized manual day at the cutoff', $closedPending === true && dl_getDayStatus($branchId, $testDate) === 'closed');
+$h->test('auto-close REFUSES to close an unfinalized manual day at the cutoff', $closedPending === false && dl_getDayStatus($branchId, $testDate) === 'open');
 $gapAudit = static function () use ($db, $branchId): int {
     $st = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'auto_close_day' AND branch_id = :b");
     $st->execute([':b' => $branchId]);
     return (int)$st->fetchColumn();
 };
 $h->test('auto-close surfaces the missing PM ending in the audit', $gapAudit() >= 1);
-// Repeated passes are no-ops once the day is closed (single close).
-$h->test('auto-close repeated pass is a no-op after closing', dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff) === false);
+// Repeated passes are no-ops while the day stays open: the day is never closed
+// and the refusal audit is written exactly once.
+$auditAfterFirstRefusal = $gapAudit();
+$h->test('auto-close repeated pass is a no-op (a single refusal)', dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff) === false && $gapAudit() === $auditAfterFirstRefusal);
 
 // A finalized manual PM closes at the boundary and freezes its snapshot.
 $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);

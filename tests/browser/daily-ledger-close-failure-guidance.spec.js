@@ -13,8 +13,9 @@
  *   2. the failure lands in a PERSISTENT role="alert" panel that lists those products
  *
  * 2026-09-01 is used deliberately: branch 18 holds ledger rows for 2026-10-01..04 ONLY, so this
- * date is deterministically incomplete (measured: 178 missing PM endings). The close therefore
- * always refuses, and the test cannot mutate state by accidentally succeeding.
+ * date starts empty. D3 (contract 2026-10-05) says a day with NO movement is not a gap and is
+ * auto-finalized, so the spec seeds ONE product with a PM beginning and no ending: that is a real
+ * gap, which is what the failure-guidance path exists for. The seed is idempotent.
  *
  * Run:  APP_URL=http://baronledger.test npx playwright test tests/browser/daily-ledger-close-failure-guidance.spec.js --reporter=line
  */
@@ -28,7 +29,7 @@ const note = (o) => fs.appendFileSync(EVIDENCE, JSON.stringify(o) + '\n');
 
 const ADMIN = { username: 'shiela_baina', fullName: 'shiela_baina', password: 'shielab123' };
 const COMMISSARY = 18;
-const DATE = '2026-09-01'; // before the branch's data range (2026-10-01..04) => nothing is counted
+const DATE = '2026-09-01'; // before the branch's data range (2026-10-01..04): seeded by the spec
 
 async function login(page, who) {
     await page.context().clearCookies();
@@ -51,8 +52,60 @@ async function openSheet(page, date) {
     await page.waitForSelector('#production-day-status', { timeout: 60000 });
 }
 
+/**
+ * Record a PM beginning (activity) with no ending on the target day, so the day
+ * is a real gap. A product is taken from a FUTURE sheet (which is never
+ * auto-finalized), then POSTed before the target sheet is opened, so the
+ * request-triggered auto-finalize sees the gap and refuses to finalize.
+ */
+async function seedMovedProduct(page, targetDate, branch) {
+    // A previous run may have auto-finalized the shift before this seed existed;
+    // reopen it (admin-only, audited) so the seed is not refused. The movement
+    // row then keeps the auto-finalize on its flag branch.
+    await page.evaluate(async ({ targetDate, branch }) => {
+        await fetch('/daily-ledger/api/v1/admin/reopen-day', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': window.DL_CSRF || '',
+                'Authorization': window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '',
+            },
+            body: JSON.stringify({ branch_id: branch, date: targetDate }),
+        });
+    }, { targetDate, branch });
+    const pid = await page.evaluate(async ({ branch }) => {
+        const r = await fetch('/daily-ledger/admin/commissary?date=2030-01-01&commissary_id=' + branch + '&shift=PM', { credentials: 'same-origin' });
+        const html = await r.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const row = doc.querySelector('#tab-daily-sheet tbody tr.daily-sheet-product-row');
+        return row ? Number(row.getAttribute('data-product-id')) : 0;
+    }, { branch });
+    if (!pid) throw new Error('no product row on the future sheet to seed from');
+    const res = await page.evaluate(async ({ targetDate, branch, pid }) => {
+        const r = await fetch('/daily-ledger/api/v1/commissary/material', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': window.DL_CSRF || '',
+                'Authorization': window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '',
+            },
+            body: JSON.stringify({
+                entity: 'product_beg', date: targetDate, commissary_branch_id: branch,
+                product_id: pid, shift: 'PM', beg_qty: 1,
+                submission_id: 'close-guidance-seed-' + targetDate,
+            }),
+        });
+        return { status: r.status, body: await r.json().catch(() => null) };
+    }, { targetDate, branch, pid });
+    note({ step: 'seed-moved-product', date: targetDate, productId: pid, status: res.status, body: res.body });
+    return pid;
+}
+
 test('a failed PM close returns structured missing_products, not names inside the message', async ({ page }) => {
     await login(page, ADMIN);
+    await seedMovedProduct(page, DATE, COMMISSARY);
     await openSheet(page, DATE);
 
     const res = await page.evaluate(async ({ date, branch }) => {
@@ -93,6 +146,7 @@ test('a failed PM close returns structured missing_products, not names inside th
 
 test('a failed PM close lands in a persistent role="alert" panel that lists the blocking products', async ({ page }) => {
     await login(page, ADMIN);
+    await seedMovedProduct(page, DATE, COMMISSARY);
     await openSheet(page, DATE);
 
     const panel = page.locator('#finalize-pm-result');

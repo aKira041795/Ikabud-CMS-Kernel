@@ -470,9 +470,17 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
     $lateEndingEligible = ($role === 'cashier' && $column === 'bal_end' && $shift === 'PM'
         && dl_lateEndingReopenEligible($ctx->db(), $branchId, $date));
 
-    if ($role === 'cashier' && !$lateEndingEligible
-        && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), dl_getDayStatus($branchId, $date))) {
-        throw new RuntimeException('Reference only', 403);
+    if ($role === 'cashier' && !$lateEndingEligible) {
+        $dayStatus = dl_getDayStatus($branchId, $date);
+        if ($dayStatus === 'closed') {
+            // The closed day is a deliberate guard (only an admin may reopen),
+            // so the refusal must name the real remedy instead of the bare
+            // 'Reference only'.
+            throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
+        }
+        if (!dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
+            throw new RuntimeException('Reference only', 403);
+        }
     }
 
     if (!$inTx) {
@@ -487,10 +495,10 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
                 if (dl_lateEndingReopenEligible($ctx->db(), $branchId, $date)) {
                     dl_reopenDayForLateEnding($ctx->db(), $branchId, $date, $userId);
                 } else {
-                    throw new RuntimeException('Day is closed', 403);
+                    throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
                 }
             } else {
-                throw new RuntimeException('Day is closed', 403);
+                throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
             }
         }
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
@@ -655,11 +663,11 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
 
     $role = (string)($user['role'] ?? '');
     $dayStatus = dl_getDayStatus($branchId, $date);
+    if ($role === 'cashier' && $dayStatus === 'closed') {
+        throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
+    }
     if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
         throw new RuntimeException('Reference only', 403);
-    }
-    if ($dayStatus === 'closed' && $role === 'cashier') {
-        throw new RuntimeException('Day is closed', 403);
     }
 
     $userId = dl_getActorUserId($user);

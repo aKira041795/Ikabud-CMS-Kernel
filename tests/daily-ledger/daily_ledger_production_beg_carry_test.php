@@ -33,6 +33,10 @@ $auditor = ['id' => 27, 'sub' => 'auditor:27', 'role' => 'auditor', 'source' => 
 
 $cleanup = static function () use ($db, $branchId, $productA, $productB, $productC): void {
     $ids = implode(',', [$productA, $productB, $productC]);
+    // D4 raises an integrity notification for this fixture shift; remove it
+    // with the rest of the fixture so the tenant counts are unchanged.
+    $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id = :b)')->execute([':b' => $branchId]);
+    $db->prepare('DELETE FROM dl_integrity_notifications WHERE branch_id = :b')->execute([':b' => $branchId]);
     $db->prepare('DELETE FROM audit_logs WHERE branch_id = :b OR entity_id LIKE :prefix')->execute([':b' => $branchId, ':prefix' => $branchId . '-%']);
     $db->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b')->execute([':b' => $branchId]);
     $db->prepare('DELETE FROM dl_ledger_day_status WHERE branch_id = :b')->execute([':b' => $branchId]);
@@ -68,6 +72,13 @@ try {
         [$productB, $prior, 'PM', 32], [$productB, $date, 'AM', 42],
         [$productC, $prior, 'PM', 33], [$productC, $date, 'AM', 43],
     ] as [$pid, $d, $shift, $end]) $insert->execute([$branchId, $pid, $d, $shift, $end]);
+
+    // D3: a past PM shift with NO activity is (correctly) auto-finalized on render,
+    // which would make the carry impossible. Use the documented reopened_at
+    // exemption to leave the fixture day exactly as seeded (open) so the carry
+    // workflow under test can run.
+    $db->prepare('INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_at) VALUES (?, ?, "open", CURRENT_TIMESTAMP)')
+        ->execute([$branchId, $date]);
 
     $pm = dl_fetchCommissaryBeginningSuggestions($db, $branchId, $date, 'PM');
     $am = dl_fetchCommissaryBeginningSuggestions($db, $branchId, $date, 'AM');
@@ -144,7 +155,7 @@ try {
     catch (RuntimeException $e) { $readonlyMessage = $e->getMessage(); }
     $h->test('read-only role has its own refusal', str_contains($readonlyMessage, 'read-only for your role'), $readonlyMessage);
 
-    $db->prepare('INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status) VALUES (?, ?, "closed")')->execute([$branchId, $date]);
+    $db->prepare('INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status) VALUES (?, ?, "closed") ON DUPLICATE KEY UPDATE status = "closed"')->execute([$branchId, $date]);
     $closedMessage = '';
     try { dl_carryCommissaryBeginnings($user, ['date' => $date, 'shift' => 'AM', 'commissary_branch_id' => $branchId, 'idempotency_key' => 'guard-closed', 'rows' => [['product_id' => $productA, 'beg_qty' => 31]]]); }
     catch (RuntimeException $e) { $closedMessage = $e->getMessage(); }

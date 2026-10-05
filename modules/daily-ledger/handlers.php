@@ -1612,33 +1612,64 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
         }
 
         // POS/fallback days close under their own receipt/checkpoint rules.
-        // Owner rule (2026-09-04): AM and PM shifts close when the day is over —
-        // at the business-day cutoff (midnight) the previous date closes for
-        // both shifts regardless of whether the PM ending was finalized. This
-        // stops an unfinalized PM shift from keeping the day open and leaking
-        // entries into the next business date. A manual day whose PM was not
-        // finalized still closes, but is flagged so the owner can reopen and
-        // backfill the PM ending counts if needed.
+        // A fully-manual day is ordered after its work: the day closes only once
+        // the PM shift is finalized. If PM is still open at the cutoff the close
+        // is REFUSED (the day stays open so the cashier keeps the bounded
+        // late-count window), the gap is flagged, and the admin is notified.
+        // (Superseded owner rule 2026-09-04, which closed the day anyway and
+        // stranded the cashier; contract 2026-10-05 D1.)
         if (dl_isFullyManualDay($ctx->db(), $branchId, $closeDate)) {
             $pmRow = dl_lockShiftStatusRow($ctx->db(), $branchId, $closeDate, 'PM');
-            if ((string)($pmRow['status'] ?? 'open') === 'finalized') {
-                // Finalized manual day: full variance sweep + freeze before closing.
-                dl_recomputeVariancesForDay($branchId, $closeDate, false);
-                dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
-            } else {
-                // PM not finalized — close at the cutoff anyway and surface the
-                // gap so it is never silently lost.
+            if ((string)($pmRow['status'] ?? 'open') !== 'finalized') {
+                // D1: a manual day must NOT close while its PM shift is still open
+                // and expected to write. Closing first is exactly the dead-end this
+                // incident is about: the cashier could neither edit nor finalize a
+                // closed day. Refuse the close, flag it, and tell the admin. The
+                // cashier keeps the bounded late-count window (previous date, day
+                // open, PM pending) to finish and finalize; the next auto-close
+                // pass closes the day once the PM shift is finalized.
                 $notify = $ctx->db()->prepare(
-                    'UPDATE dl_ledger_shift_status SET pending_notified_at = CURRENT_TIMESTAMP
-                      WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\' AND pending_notified_at IS NULL'
+                    'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
+                      WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
                 );
                 $notify->execute([':bid' => $branchId, ':d' => $closeDate]);
-                dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$closeDate}-PM", null, [
-                    'status' => 'closed_without_pm_finalize',
-                    'source' => 'auto_close_cutoff',
-                    'close_of_day_time' => $settings['close_of_day_time'],
-                ]);
+
+                // One audit row per day, not one per request now that the day
+                // stays open and this path re-runs on every page load.
+                $auditStmt = $ctx->db()->prepare(
+                    'SELECT COUNT(*) FROM audit_logs
+                      WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
+                );
+                $auditStmt->execute([':eid' => "{$branchId}-{$closeDate}-PM"]);
+                if ((int)$auditStmt->fetchColumn() === 0) {
+                    dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$closeDate}-PM", null, [
+                        'status' => 'closed_without_pm_finalize',
+                        'source' => 'auto_close_cutoff',
+                        'close_of_day_time' => $settings['close_of_day_time'],
+                    ]);
+                }
+
+                // D4: tell the admin immediately, through the existing channel.
+                dl_raiseIntegrityNotification(
+                    $ctx->db(),
+                    'closed_without_pm_finalize-day-' . $branchId . '-' . $closeDate,
+                    'variance',
+                    $branchId,
+                    'dl_ledger_day_status',
+                    null,
+                    'Business day not closed: PM shift still open',
+                    'Branch #' . $branchId . ' business date ' . $closeDate . ' reached the close-of-day cutoff while its PM shift was still open. The day was NOT closed so pending endings can still be completed. An admin must review; finalize the PM shift (or reopen and correct) before the day is closed.'
+                );
+
+                if ($ownsTxn) {
+                    $ctx->db()->commit();
+                }
+                return false;
             }
+
+            // Finalized manual day: full variance sweep + freeze before closing.
+            dl_recomputeVariancesForDay($branchId, $closeDate, false);
+            dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
         }
 
         $stmt = $ctx->db()->prepare(
@@ -1732,7 +1763,11 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
         return $result;   // deliberately reopened: leave the shift exactly as the admin left it
     }
 
-    // Active commissary products whose PM ending was never recorded.
+    // Commissary products that were EXPECTED to hold a PM ending but have not:
+    // an activity-bearing ledger row (a beginning, production, dispatch or
+    // wastage) whose ending is still NULL. A no-movement product (no row, or a
+    // row with every movement at zero) is not a gap and must not block
+    // finalization (D3).
     $missingStmt = $db->prepare(
         'SELECT COUNT(*)
            FROM dl_products p
@@ -1743,7 +1778,9 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
                  AND cpl.ledger_date = :d
                  AND cpl.shift = "PM"
           WHERE p.is_active = 1
-            AND (cpl.id IS NULL OR cpl.actual_end_qty IS NULL)'
+            AND cpl.id IS NOT NULL
+            AND cpl.actual_end_qty IS NULL
+            AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)'
     );
     $missingStmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
     $missing = (int)$missingStmt->fetchColumn();
@@ -1785,6 +1822,22 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
                     'missing' => $missing,
                 ]);
             }
+
+            // D4: the one event an accountant must act on must reach the people
+            // who can act. Reuse the existing integrity channel (addresses active
+            // admins and branch supervisors, dedups by aggregate_key, tracks
+            // seen_at, appears in the admin surface). The admin is the only actor
+            // who can reopen a closed day, so they must be the one told.
+            dl_raiseIntegrityNotification(
+                $db,
+                'closed_without_pm_finalize-pm-' . $branchId . '-' . $date,
+                'variance',
+                $branchId,
+                'dl_ledger_shift_status',
+                null,
+                'PM shift not finalized',
+                'Commissary #' . $branchId . ' business date ' . $date . ' has ' . $missing . ' product(s) with movement but no PM ending count. The shift was NOT force-finalized; the day stays open so the counts can be completed. An admin must review.'
+            );
             $result['flagged'] = true;
             $result['finalized'] = false;
         } else {
@@ -4915,8 +4968,32 @@ function dl_lockShiftStatusRow($db, int $branchId, string $date, string $shift):
 }
 
 /**
- * Active branch products lacking a ledger row for the shift, or whose ending
- * has not been recorded yet. PM finalization reports these before locking.
+ * SQL predicate for a joined dl_daily_ledger alias that is TRUE only when the
+ * row records real activity: a beginning movement, an addition/delivery, or a
+ * withdrawal/sale. A row with no movement is not a cell that was expected to
+ * hold an ending (D3). NULL keeps exactly ONE meaning: "not yet entered".
+ */
+function dl_ledgerActivitySql(string $alias): string
+{
+    $a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
+    return "({$a}.beg_bal <> 0 OR {$a}.addtl <> 0 OR {$a}.withdraw <> 0)";
+}
+
+/**
+ * The honest refusal a cashier sees on a closed day. The closed day is a
+ * DELIBERATE process guard: only an admin/supervisor with ledger.override may
+ * reopen it. Naming the remedy does NOT widen access - the write is refused.
+ */
+function dl_closedDayRefusalMessage(): string
+{
+    return 'This business date is closed. An admin must reopen the day before entries can be changed.';
+}
+
+/**
+ * Branch products that were expected to hold a shift ending but have not: an
+ * activity-bearing ledger row whose ending is still NULL. A no-movement product
+ * (no row, or a row with every movement at zero) is NOT a gap and never blocks
+ * finalization (D3).
  *
  * @return array<int,array{product_id:int,name:string,sku:string}>
  */
@@ -4929,7 +5006,9 @@ function dl_shiftMissingEndings($db, int $branchId, string $date, string $shift)
            INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
            LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d AND dl.shift = :shift
           WHERE p.is_active = 1
-            AND (dl.id IS NULL OR dl.bal_end IS NULL)
+            AND dl.id IS NOT NULL
+            AND dl.bal_end IS NULL
+            AND ' . dl_ledgerActivitySql('dl') . '
           ORDER BY p.sort_order, p.name'
     );
     $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
@@ -6987,12 +7066,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $dayStatus = dl_getDayStatus($branchId, $date);
-    if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
-        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+    if ($role === 'cashier' && $dayStatus === 'closed') {
+        $ctx->json(['ok' => false, 'error' => dl_closedDayRefusalMessage()], 403);
         return;
     }
-    if ($dayStatus === 'closed' && $role === 'cashier') {
-        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+    if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
         return;
     }
 
@@ -8786,6 +8865,11 @@ function apiSaveLedgerField(array $params = []): void
     }
 
     $dayStatus = $branchId ? dl_getDayStatus($branchId, $date) : 'open';
+    if ($role === 'cashier' && $dayStatus === 'closed') {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => dl_closedDayRefusalMessage(), 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => dl_closedDayRefusalMessage()], 403);
+        return;
+    }
     if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
@@ -8796,7 +8880,7 @@ function apiSaveLedgerField(array $params = []): void
         $ctx->db()->beginTransaction();
         $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
         if ($dayStatus === 'closed' && $role === 'cashier') {
-            throw new RuntimeException('Day is closed');
+            throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
         }
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
@@ -9074,7 +9158,13 @@ function apiSaveLedgerBatch(array $params = []): void
         return;
     }
 
-    $isReadOnly = ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), dl_getDayStatus($branchId, $date)));
+    $dayStatusForBatch = dl_getDayStatus($branchId, $date);
+    if ($role === 'cashier' && $dayStatusForBatch === 'closed') {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => dl_closedDayRefusalMessage(), 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => dl_closedDayRefusalMessage()], 403);
+        return;
+    }
+    $isReadOnly = ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatusForBatch));
     if ($isReadOnly) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
@@ -9162,7 +9252,7 @@ function apiSaveLedgerBatch(array $params = []): void
             $ctx->db()->beginTransaction();
             $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
             if ($role === 'cashier' && $dayStatus === 'closed') {
-                throw new RuntimeException('Day is closed');
+                throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
             }
             dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
@@ -9882,6 +9972,48 @@ function apiCloseDay(array $params = []): void
     }
 }
 
+/**
+ * The deliberate admin/supervisor reopen, extracted from the exit()-terminating
+ * apiReopenDay handler so its behaviour is assertable end to end. Sets
+ * reopened_by/reopened_at (the exemption that suppresses auto-close and
+ * auto-finalize), reopens both shift lifecycles, un-freezes the variance
+ * snapshot, recomputes variances and audits the transition.
+ *
+ * Authorization is NOT performed here: the handler admits only an actor with
+ * the ledger.override permission before calling this.
+ */
+function dl_reopenDayService($db, int $branchId, string $date, int $userId): void
+{
+    $stmt = $db->prepare(
+        'UPDATE dl_ledger_day_status SET status = \'open\', reopened_by = :uid, reopened_at = CURRENT_TIMESTAMP
+         WHERE branch_id = :bid AND ledger_date = :d'
+    );
+    $stmt->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date]);
+
+    // Reopening a day deliberately reopens both shift lifecycles so locked
+    // finalized sales can be corrected under an audited override.
+    $shiftStmt = $db->prepare(
+        'UPDATE dl_ledger_shift_status
+            SET status = \'open\', finalized_by = NULL, finalized_at = NULL, pending_notified_at = NULL
+          WHERE branch_id = :bid AND ledger_date = :d'
+    );
+    $shiftStmt->execute([':bid' => $branchId, ':d' => $date]);
+    if ($shiftStmt->rowCount() > 0) {
+        dl_auditLog('reopen_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}", ['status' => 'finalized'], ['status' => 'open']);
+    }
+
+    // An audited reopen returns the day's derived variance snapshot to a
+    // mutable state; otherwise a reported frozen-day reprice could never be rerun.
+    $db->prepare(
+        'UPDATE dl_variance_flags SET frozen_at = NULL
+          WHERE branch_id = :bid AND ledger_date = :d'
+    )->execute([':bid' => $branchId, ':d' => $date]);
+
+    dl_recomputeVariancesForDay($branchId, $date);
+
+    dl_auditLog('reopen_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", ['status' => 'closed'], ['status' => 'open']);
+}
+
 function apiReopenDay(array $params = []): void
 {
     $ctx = module();
@@ -9921,34 +10053,7 @@ function apiReopenDay(array $params = []): void
     }
 
     try {
-        $stmt = $ctx->db()->prepare(
-            'UPDATE dl_ledger_day_status SET status = \'open\', reopened_by = :uid, reopened_at = CURRENT_TIMESTAMP
-             WHERE branch_id = :bid AND ledger_date = :d'
-        );
-        $stmt->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date]);
-
-        // Reopening a day deliberately reopens both shift lifecycles so locked
-        // finalized sales can be corrected under an audited override.
-        $shiftStmt = $ctx->db()->prepare(
-            'UPDATE dl_ledger_shift_status
-                SET status = \'open\', finalized_by = NULL, finalized_at = NULL, pending_notified_at = NULL
-              WHERE branch_id = :bid AND ledger_date = :d'
-        );
-        $shiftStmt->execute([':bid' => $branchId, ':d' => $date]);
-        if ($shiftStmt->rowCount() > 0) {
-            dl_auditLog('reopen_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}", ['status' => 'finalized'], ['status' => 'open']);
-        }
-
-        // An audited reopen returns the day's derived variance snapshot to a
-        // mutable state; otherwise a reported frozen-day reprice could never be rerun.
-        $ctx->db()->prepare(
-            'UPDATE dl_variance_flags SET frozen_at = NULL
-              WHERE branch_id = :bid AND ledger_date = :d'
-        )->execute([':bid' => $branchId, ':d' => $date]);
-
-        dl_recomputeVariancesForDay($branchId, $date);
-
-        dl_auditLog('reopen_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", ['status' => 'closed'], ['status' => 'open']);
+        dl_reopenDayService($ctx->db(), $branchId, $date, $userId);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day reopened', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'day_status' => 'open']);

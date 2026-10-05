@@ -45,6 +45,11 @@ $branchId = 18;
 $date = '2019-03-03';   // a throwaway business date that has already ended
 
 $cleanup = static function () use ($db, $productId, $producerUserId, $adminUserId, $branchId, $date): void {
+    // D4 now raises an integrity notification when the auto-close flags a day
+    // closed-without-PM-finalize; remove the fixture's rows so the
+    // notification-count invariant the tenant suites assert is not polluted.
+    $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE aggregate_key LIKE :k)')->execute([':k' => '%' . $date . '%']);
+    $db->prepare('DELETE FROM dl_integrity_notifications WHERE aggregate_key LIKE :k')->execute([':k' => '%' . $date . '%']);
     $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE ledger_date = :d')->execute([':d' => $date]);
     $db->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d')->execute([':b' => $branchId, ':d' => $date]);
     $db->prepare('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d')->execute([':b' => $branchId, ':d' => $date]);
@@ -250,6 +255,14 @@ try {
         // here rather than asserting a state the contract never described.
         $db->prepare('UPDATE dl_ledger_shift_status SET status = "open", finalized_by = NULL, finalized_at = NULL WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"')
             ->execute([':b' => $branchId, ':d' => $date]);
+
+        // D3: the flagged path only fires for a product that MOVED but has no
+        // ending. Seed one so the completeness gate is exercised, not a
+        // no-movement product that is now (correctly) not a gap.
+        $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id = :b AND ledger_date = :d AND shift = "PM"')
+            ->execute([':b' => $branchId, ':d' => $date]);
+        $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id, product_id, ledger_date, shift, beg_qty, produced_qty, dispatched_qty, wastage_qty, actual_end_qty) VALUES (:b, :p, :d, "PM", 5, 0, 0, 0, NULL)')
+            ->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
 
         $flagged = dl_maybeAutoFinalizeCommissaryPmShift($branchId, $date, $adminUserId);
         $shiftStatus = $db->prepare('SELECT status, pending_notified_at FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"');
@@ -613,9 +626,12 @@ try {
     $flagMarker = 'id="production-pm-flag"';
 
     // An INCOMPLETE PM ledger is the state the flagged path exists for; it also keeps the
-    // evaluator on its flag branch rather than its finalize branch.
+    // evaluator on its flag branch rather than its finalize branch. D3: the row must
+    // carry MOVEMENT or it is not a gap and the evaluator would finalize instead.
     $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id = :b AND ledger_date = :d AND shift = "PM"')
         ->execute([':b' => $branchId, ':d' => $flagDate]);
+    $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id, product_id, ledger_date, shift, beg_qty, produced_qty, dispatched_qty, wastage_qty, actual_end_qty) VALUES (:b, :p, :d, "PM", 5, 0, 0, 0, NULL)')
+        ->execute([':b' => $branchId, ':p' => $productId, ':d' => $flagDate]);
     $freezeAutoClose(true);
 
     // Flagged while still unfinalized: the state the auto-close creates. The banner must name the
