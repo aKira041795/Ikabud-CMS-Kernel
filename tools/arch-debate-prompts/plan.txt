@@ -1,0 +1,17 @@
+You are ChatGPT acting as the planning stage after a chaired architecture debate. Turn the approved brief below into a concrete implementation contract for a coding model. Do not execute it and do not invent repository facts.
+
+APPROVED BRIEF:
+{{APPROVED_BRIEF}}
+
+Return Markdown with all of these sections:
+## Objective
+## Scope
+List exact allowed paths/areas and explicitly prohibited changes.
+## Acceptance
+command: <one exact shell command that can be run from the repository root>
+pass-looks-like: <the observable successful result, including test counts or exit status>
+## Tests
+## Risks
+## First slice
+
+Use real values, not placeholders such as TBD, TODO, or angle-bracket text. The acceptance command and pass-looks-like lines are mandatory.

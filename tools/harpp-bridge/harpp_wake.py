@@ -3237,6 +3237,9 @@ def parse_debate_command(body) -> dict | None:
                     flags=re.IGNORECASE)
     intent = re.sub(r"\b(?:max\s*rounds?|rounds?|depth)\s*[:=]?\s*\d+\b", "",
                     intent, flags=re.IGNORECASE)
+    no_plan = bool(re.search(r"(?<!\S)--no-plan(?!\S)", intent))
+    no_delegate = bool(re.search(r"(?<!\S)--no-delegate(?!\S)", intent))
+    intent = re.sub(r"(?<!\S)--no-(?:plan|delegate)(?!\S)", "", intent)
     # Removing the round clause ("max round 5.") can leave leading punctuation; strip again.
     intent = re.sub(r"^[,:;.\s]+|^(?:with|and|about|from|to)\b[,:;.\s]*", "", intent,
                     flags=re.IGNORECASE)
@@ -3257,6 +3260,10 @@ def parse_debate_command(body) -> dict | None:
         first = "deepseek"
 
     result = {"intent": intent, "rounds": rounds, "first": first}
+    if no_plan:
+        result["no_plan"] = True
+    if no_delegate:
+        result["no_delegate"] = True
     if participant:
         result["participant"] = participant
     return result
@@ -3295,6 +3302,10 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
     argv = ["python3", "tools/pi-arch-debate.py", "--quiet"]
     if first != "auto":
         argv += ["--first", first]
+    if cmd.get("no_plan"):
+        argv.append("--no-plan")
+    if cmd.get("no_delegate"):
+        argv.append("--no-delegate")
     argv.append(intent)
     command = " ".join(shlex.quote(a) for a in argv)
     if rounds:
@@ -3304,14 +3315,22 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
         # from advisor config so a debate never depends on API credit being available.
         command = f"DEBATE_MODEL_B={CHATGPT_DEBATE_MODEL} {command}"
     verdict_file = Path(workspace) / ".ai" / "debate" / "approved.txt"
+    chair_file = Path(workspace) / ".ai" / "debate" / "chair-decision.json"
     verify_script = (
-        "import pathlib,sys; "
+        "import json,pathlib,sys; "
         f"p=pathlib.Path({str(verdict_file)!r}); "
+        f"c=pathlib.Path({str(chair_file)!r}); "
         "v=p.read_text(encoding='utf-8').strip().upper() if p.exists() else 'MISSING'; "
+        "d=json.loads(c.read_text(encoding='utf-8')) if c.exists() else {}; "
+        "a=str(d.get('action') or ''); r=str(d.get('reason') or ''); "
         "print('verdict: '+v); "
-        "print(('The debate reached approval.' if v == 'APPROVED' else "
-        "'The debate did not reach approval within the configured round(s); the critic requested revisions. "
-        "Remedy: reply \"Approve debate\" to accept the last draft as chair, re-run with more rounds "
+        # An abort is a decision, not a shortfall: telling the owner to spend more rounds on an
+        # idea the chair rejected would be wrong advice, so say what the chair actually decided.
+        "print('The chair aborted this idea: ' + (r or 'no reason recorded') + "
+        "'. Remedy: none — the chair judged it not worth pursuing; rephrase the idea or drop it.') "
+        "if a == 'abort' else print(('The debate reached approval.' if v == 'APPROVED' else "
+        "'The chair did not approve the debate within the configured safety ceiling (the critic requested revisions or the chair requested another round). "
+        "Remedy: reply \"Approve debate\" to accept the last draft as a human override, re-run with a higher ceiling "
         "(e.g. DEBATE_MAX_ROUNDS=5), or sharpen the intent.')); "
         "sys.exit(0 if v == 'APPROVED' else 2)"
     )

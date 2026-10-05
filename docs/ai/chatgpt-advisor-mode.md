@@ -114,15 +114,26 @@ start debate with chatgpt: <your idea>
 discuss with chatgpt: <your idea>
 ```
 
-Optionally pin the rounds (`max rounds 5`). The chair picks who opens, argues the rounds, and
-critiques the other side — the discussion ends in `verdict: APPROVED` or `REVISIONS`, and
-`Approve debate` in the Messenger accepts the last draft as the chair. Naming ChatGPT only
-ever *selects the partner*: a passing mention ("I asked chatgpt about X") launches nothing.
+Optionally set the safety ceiling (`max rounds 5`). After every critique, the chair model emits
+an explicit `CHAIR_DECISION` with `converge`, `another_round`, or `abort` and a reason. The
+critic's verdict is evidence, not approval authority. A missing/malformed chair block is recorded
+as `critic_fallback` and can only continue the debate; it never silently approves. The decision
+and provenance are in `.ai/debate/chair-decision.json`. `Approve debate` remains available as an
+explicit human override.
+
+For a ChatGPT-participant debate, chair approval starts a second page-backend call that turns the
+approved brief into `.ai/debate/plan-<timestamp>.md`. Delegation is refused unless that plan has a
+real acceptance command and says what passing looks like. A valid plan is offered to Sol first,
+then explicit model-chain fallbacks; no available model is reported rather than silently skipped.
+Use `--no-plan` to stop after the approved brief or `--no-delegate` to retain the plan without
+launching implementation. Ordinary dev-pool debates still stop at the approved draft. No stage
+pushes or merges.
 
 Under the hood this is `tools/pi-arch-debate.py` with `DEBATE_MODEL_B=chatgpt/page`, which
 resolves to `tools/harpp-bridge/chatgpt_page.js`. The `openai-ideation` API model is **not**
 used for this: its credits can be exhausted (measured 2026-10-05: HTTP 429
-`credit_balance_exhausted` produced a debate draft with no text).
+`credit_balance_exhausted` produced a debate draft with no text). Naming ChatGPT only selects the
+partner; a passing mention ("I asked chatgpt about X") launches nothing.
 
 ## Operations
 

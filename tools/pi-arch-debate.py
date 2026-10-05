@@ -16,8 +16,10 @@ Usage:
   python3 tools/pi-arch-debate.py "<intent description>"
   python3 tools/pi-arch-debate.py --first A|B "<intent>"   # chair picks the drafter side
   python3 tools/pi-arch-debate.py --preflight "<short intent>"  # firm intent first (flash)
-  python3 tools/pi-arch-debate.py --fast "<intent>"        # single-round triage
-  python3 tools/pi-arch-debate.py --approve                  # chair-approve last saved draft (no API)
+  python3 tools/pi-arch-debate.py --fast "<intent>"        # single-round safety ceiling
+  python3 tools/pi-arch-debate.py --approve                  # human-approve last saved draft (no API)
+  python3 tools/pi-arch-debate.py --no-plan "<intent>"      # skip ChatGPT planning/delegation
+  python3 tools/pi-arch-debate.py --no-delegate "<intent>"  # produce plan but do not implement
   python3 tools/pi-arch-debate.py --quiet "<intent>"        # no live print
 
 Default opener is AUTO (intent-based chair decision):
@@ -26,9 +28,9 @@ Default opener is AUTO (intent-based chair decision):
   The decision + reason is printed; override with --first.
 
 Env:
-  DEBATE_MAX_ROUNDS     max draft/critique cycles (default 3)
+  DEBATE_MAX_ROUNDS     safety ceiling for draft/critique cycles (default 3)
   PI_MODEL_TIMEOUT      per-model timeout in seconds (default 600)
-  DEBATE_AUTO_APPROVE=1 auto-approve the last draft (scripted use)
+  DEBATE_MODEL_AVAILABILITY optional JSON object used by delegation capacity routing
   DEBATE_MODEL_A        provider-qualified model for Side A
   DEBATE_MODEL_B        provider-qualified model for Side B (must differ from A; enforced)
                         `chatgpt/page` debates the owner's ChatGPT SUBSCRIPTION — the advisor's
@@ -54,11 +56,17 @@ import subprocess
 import sys
 import tempfile
 import threading
-from difflib import SequenceMatcher
+import time
 
 QUIET = False
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BRIDGE_DIR = os.path.join(ROOT, "tools", "harpp-bridge")
+if BRIDGE_DIR not in sys.path:
+    sys.path.insert(0, BRIDGE_DIR)
+
+from debate_pipeline import choose_implementer, parse_chair_decision, plan_is_delegatable
+
 os.chdir(ROOT)
 
 def rooted_path(value: str) -> str:
@@ -337,6 +345,76 @@ def verdict_of(critique: str) -> str:
     return "REVISIONS"  # ambiguous -> one more revision round
 
 
+def record_chair_decision(*, action: str, reason: str, source: str, round_no: int,
+                          critic_verdict: str | None = None) -> None:
+    """Persist authority and fallback provenance separately from approved.txt."""
+    payload = {
+        "action": action,
+        "reason": reason,
+        "decision_source": source,
+        "round": round_no,
+    }
+    if critic_verdict:
+        payload["critic_verdict"] = critic_verdict
+    atomic_write(
+        os.path.join(WORK, "chair-decision.json"),
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+    )
+
+
+def model_availability() -> dict[str, bool]:
+    """Return explicit capacity state, or local launch capacity for the canonical chain."""
+    chain_path = os.path.join(ROOT, "tools", "model-chain.txt")
+    with open(chain_path, encoding="utf-8") as handle:
+        models = [line.strip() for line in handle if line.strip() and not line.lstrip().startswith("#")]
+    configured = os.environ.get("DEBATE_MODEL_AVAILABILITY", "").strip()
+    if configured:
+        try:
+            value = json.loads(configured)
+        except json.JSONDecodeError as exc:
+            raise DebateError(f"DEBATE_MODEL_AVAILABILITY is not valid JSON: {exc}") from exc
+        if not isinstance(value, dict):
+            raise DebateError("DEBATE_MODEL_AVAILABILITY must be a JSON object")
+        return {model: bool(value.get(model, False)) for model in models}
+    can_launch = shutil.which("pi") is not None
+    return {model: can_launch for model in models}
+
+
+def make_plan(approved_brief: str) -> str:
+    prompt = load_template("plan.txt").replace("{{APPROVED_BRIEF}}", approved_brief)
+    plan = run_page(prompt, "plan", 0, "🗺️ ChatGPT — implementation plan")
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    path = os.path.join(WORK, f"plan-{timestamp}.md")
+    atomic_write(path, plan.rstrip() + "\n")
+    print(f"plan: {path}")
+    return plan
+
+
+def delegate_plan(plan: str) -> bool:
+    availability = model_availability()
+    prompt = (
+        "Implement the following approved plan as the binding contract. Stay within its scope, "
+        "run its acceptance command, and report the real result. Never push or merge.\n\n" + plan
+    )
+    while True:
+        model, reason = choose_implementer(availability)
+        if model is None:
+            print(f"delegation: NOT STARTED — {reason}")
+            return False
+        print(f"delegation: {model} — {reason}")
+        try:
+            run_pi(model, prompt, "implementation", 0, f"🛠️ Implementation — {model}")
+            return True
+        except DebateError as exc:
+            detail = str(exc)
+            if re.search(r"(?i)\b(?:429|quota|rate[ -]?limit|exhausted|capacity)\b", detail):
+                availability[model] = False
+                print(f"delegation: {model} unavailable ({detail}); selecting an explicit fallback")
+                continue
+            print(f"delegation: FAILED for {model} — {detail}; no silent fallback for a non-capacity failure")
+            return False
+
+
 def latest_draft_path() -> str:
     # Most recent draft by mtime, not highest round number: drafts from older
     # debates (higher round files) must not shadow a newer lower-round draft.
@@ -361,6 +439,8 @@ def chair_approve() -> None:
     # (checks approved.txt == 'APPROVED') passes; chair provenance is preserved in
     # the printed/reported outcome ("APPROVED (chair)").
     atomic_write(os.path.join(WORK, "approved.txt"), "approved\n")
+    record_chair_decision(action="converge", reason="human explicitly approved the latest saved draft",
+                          source="human", round_no=0)
     print(f"APPROVED (chair): wrote {TASK_FILE} from {src} ({len(draft)} chars)")
 
 
@@ -400,7 +480,8 @@ def main() -> None:
     PREFLIGHT = "--preflight" in args
     CHAIR = "--approve" in args
     FAST = "--fast" in args
-    AUTO = os.environ.get("DEBATE_AUTO_APPROVE", "0") == "1"
+    NO_PLAN = "--no-plan" in args
+    NO_DELEGATE = "--no-delegate" in args
     first = "auto"
     clean = []
     i = 0
@@ -410,7 +491,7 @@ def main() -> None:
             first = args[i + 1].lower()
             i += 2
             continue
-        if a in ("--quiet", "--preflight", "--approve", "--fast"):
+        if a in ("--quiet", "--preflight", "--approve", "--fast", "--no-plan", "--no-delegate"):
             i += 1
             continue
         clean.append(a)
@@ -463,11 +544,11 @@ def main() -> None:
     critic_label = f"{'🧠' if first == 'codex' else '🔍'} {MODEL_B if first == 'codex' else MODEL_A}"
 
     draft = ""
-    prev_draft = ""
     critique = ""
     verdict = "REVISIONS"
     rounds_used = 0
-    converged = False
+    chair_reason = "chair did not converge before the safety ceiling"
+    aborted = False
 
     for r in range(1, rounds + 1):
         rounds_used = r
@@ -479,25 +560,42 @@ def main() -> None:
         validate_draft(draft)
         print(f"\n    → draft len={len(draft)}")
 
-        # Convergence check: if the draft stopped changing, stop to save cost.
-        if prev_draft and SequenceMatcher(None, prev_draft, draft).ratio() > 0.9:
-            print(f"    → converged (draft ~unchanged); stopping early to save cost")
-            converged = True
-            break
-
         cp = load_template("critique.txt")
         cp = cp.replace("{{INTENT}}", intent)
         cp = cp.replace("{{DRAFT}}", draft)
         critique = run_model(CRITIC, cp, "critique", r, f"{critic_label} — Round {r} critique")
         validate_critique(critique)
-        verdict = verdict_of(critique)
-        print(f"    → verdict={verdict}  critique len={len(critique)}")
-        if verdict == "APPROVED":
-            break
-        prev_draft = draft
+        critic_verdict = verdict_of(critique)
+        print(f"    → critic verdict={critic_verdict}  critique len={len(critique)}")
 
-    if verdict != "APPROVED" and AUTO:
-        verdict = "APPROVED"
+        chair_prompt = load_template("chair.txt")
+        chair_prompt = chair_prompt.replace("{{INTENT}}", intent)
+        chair_prompt = chair_prompt.replace("{{DRAFT}}", draft)
+        chair_prompt = chair_prompt.replace("{{CRITIQUE}}", critique)
+        chair_text = run_model(MODEL_A, chair_prompt, "chair", r, f"⚖️ {MODEL_A} — Round {r} chair decision")
+        decision = parse_chair_decision(chair_text)
+        if decision is None:
+            # The critic's verdict preserves the round's evidence, but can never authorize approval.
+            chair_reason = (
+                f"chair decision was missing or invalid; critic fallback was {critic_verdict}, "
+                "which cannot authorize convergence"
+            )
+            record_chair_decision(action="another_round", reason=chair_reason,
+                                  source="critic_fallback", round_no=r,
+                                  critic_verdict=critic_verdict)
+            print(f"    → chair decision invalid; critic_fallback={critic_verdict}; continuing")
+            continue
+
+        chair_reason = decision.reason
+        record_chair_decision(action=decision.action, reason=decision.reason,
+                              source="chair", round_no=r, critic_verdict=critic_verdict)
+        print(f"    → chair={decision.action}: {decision.reason}")
+        if decision.action == "converge":
+            verdict = "APPROVED"
+            break
+        if decision.action == "abort":
+            aborted = True
+            break
 
     if verdict == "APPROVED":
         validate_draft(draft)
@@ -507,16 +605,41 @@ def main() -> None:
         atomic_write(os.path.join(WORK, "approved.txt"), "revisions\n")
 
     print("=== DONE ===")
-    print(f"verdict: {verdict} after {rounds_used} round(s)")
+    print(f"verdict: {verdict} after {rounds_used} round(s) — chair: {chair_reason}")
     print(f"artifacts: {WORK}/")
     if verdict == "APPROVED":
         print(f"wrote: {TASK_FILE} ({len(draft)} chars)")
+        chatgpt_participant = MODEL_B.strip().lower() in PAGE_MODEL_ALIASES
+        if chatgpt_participant and NO_PLAN:
+            print("plan: skipped by --no-plan; delegation cannot start without a plan")
+        elif chatgpt_participant:
+            try:
+                approved_context = (
+                    draft.rstrip()
+                    + "\n\n## Chair approval context\n"
+                    + f"Reason: {chair_reason}\n\nFinal critique:\n{critique.rstrip()}\n"
+                )
+                plan = make_plan(approved_context)
+            except DebateError as exc:
+                print(f"plan: REFUSED — ChatGPT plan stage failed: {exc}; delegation not started")
+                return
+            delegatable, plan_reason = plan_is_delegatable(plan)
+            if not delegatable:
+                print(f"plan: REFUSED — {plan_reason}; delegation not started")
+                return
+            print(f"plan: delegatable — {plan_reason}")
+            if NO_DELEGATE:
+                print("delegation: skipped by --no-delegate")
+            else:
+                delegate_plan(plan)
     if verdict != "APPROVED":
         print(f"preserved: {TASK_FILE}")
-        print("NOTE: not APPROVED. Options:")
+        if aborted:
+            print(f"NOTE: chair aborted the idea: {chair_reason}")
+        else:
+            print("NOTE: chair did not converge before the safety ceiling. Options:")
         print("  arch-debate --approve                      # accept the last draft (chair-approved)")
         print("  DEBATE_MAX_ROUNDS=5 arch-debate …          # more rounds")
-        print("  DEBATE_AUTO_APPROVE=1 arch-debate …        # auto-approve the last draft")
         sys.exit(2)
 
 
