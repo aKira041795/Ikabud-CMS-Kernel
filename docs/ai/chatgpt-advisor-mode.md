@@ -82,7 +82,8 @@ Requires an `openai-ideation` auth entry in `~/.pi/agent/auth.json` + provider i
 
 ## Usage
 
-1. In the Messenger, flip **Ask ChatGPT** on the composer. That switches you to the
+1. In the Messenger, flip **Ask ChatGPT** next to the **Archive** button at the top of the
+   thread. That switches you to the
    advisor conversation (creating it once). The thread title gains a `· ChatGPT` marker so it
    is always clear where your next message goes; flipping the toggle off returns you to a work
    thread.

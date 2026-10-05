@@ -165,6 +165,30 @@ test.describe.serial('HARPP PW-2 messenger/notify/archive/PWA isolated browser j
         expect(archived.status, 'archive closed conversation must succeed').toBe(200);
     });
 
+    test('messenger layout: advisor toggle sits with the thread actions and the composer buttons keep their height', async ({ page }) => {
+        test.setTimeout(120000);
+        const appUrl = process.env.APP_URL || ('http://' + state.domain);
+        await login(page, appUrl, state.owner_email, OWNER_PASSWORD);
+        await page.goto(appUrl + '/harpp');
+        await page.waitForLoadState('networkidle');
+
+        // The ChatGPT toggle belongs beside Archive in the thread header, not in the composer.
+        await expect(page.locator('.thread-actions #advisor-toggle'), 'advisor toggle must sit in the thread actions').toHaveCount(1);
+        await expect(page.locator('#compose #advisor-toggle'), 'advisor toggle must no longer be in the composer').toHaveCount(0);
+
+        // Enlarging the textarea must not drag Send/Refresh with it.
+        const send = page.locator('#compose button[type="submit"]');
+        const refresh = page.locator('#refresh-thread');
+        const textarea = page.locator('#compose textarea');
+        const before = { send: await send.boundingBox(), refresh: await refresh.boundingBox(), textarea: await textarea.boundingBox() };
+        await textarea.evaluate((el) => { el.style.height = '240px'; });
+        const after = { send: await send.boundingBox(), refresh: await refresh.boundingBox(), textarea: await textarea.boundingBox() };
+
+        expect(after.textarea.height, 'the textarea must actually grow, or the resize check proves nothing').toBeGreaterThan(before.textarea.height + 100);
+        expect(Math.abs(after.send.height - before.send.height), 'Send must not resize with the textarea').toBeLessThan(0.5);
+        expect(Math.abs(after.refresh.height - before.refresh.height), 'Refresh must not resize with the textarea').toBeLessThan(0.5);
+    });
+
     test('notifications/push status: unread-count + list + page render', async ({ page }) => {
         test.setTimeout(120000);
         const appUrl = process.env.APP_URL || ('http://' + state.domain);
