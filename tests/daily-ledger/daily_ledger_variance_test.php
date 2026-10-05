@@ -571,21 +571,36 @@ dl_t_ledger($db, $branchId, $pB, $testDate, 'PM', 20, 0, 0, 20);
 
 // Boundary: now = 00:05 on the next day (past 22:00 rollover) → closeDate = $testDate.
 $afterCutoff = new \DateTimeImmutable($nextDate . ' 00:05:00', new \DateTimeZone('UTC'));
-// Contract 2026-10-05 (D1): a manual day must NOT close while its PM shift is
-// still open — closing first stranded the cashier. The close is refused and the
-// gap flagged + notified instead. (The old 2026-09-04 owner rule closed it.)
+// Owner directive 2026-10-05: a fully-manual day whose PM shift is still open
+// MUST still close at the cutoff — a day left open compounds into the next day.
+// The gap is flagged and the admin notified (once per day); the admin reopen is
+// the remedy. This supersedes contract 2026-10-05 D1, which refused the close.
 $closedPending = dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff);
-$h->test('auto-close REFUSES to close an unfinalized manual day at the cutoff', $closedPending === false && dl_getDayStatus($branchId, $testDate) === 'open');
+$pendingNotifKey = 'closed_without_pm_finalize-day-' . $branchId . '-' . $testDate;
+$pendingNotifStmt = $db->prepare('SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key = :k');
+$pendingNotifStmt->execute([':k' => $pendingNotifKey]);
+$pendingNotifCount = (int)$pendingNotifStmt->fetchColumn();
+$pendingFlagStmt = $db->prepare('SELECT pending_notified_at FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"');
+$pendingFlagStmt->execute([':b' => $branchId, ':d' => $testDate]);
+$pendingFlagVal = $pendingFlagStmt->fetchColumn();
+$h->test(
+    'auto-close CLOSES an unfinalized manual day, notifies once, and stamps the flag',
+    $closedPending === true && dl_getDayStatus($branchId, $testDate) === 'closed'
+        && $pendingNotifCount === 1
+        && $pendingFlagVal !== false && $pendingFlagVal !== null && (string)$pendingFlagVal !== ''
+);
 $gapAudit = static function () use ($db, $branchId): int {
     $st = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'auto_close_day' AND branch_id = :b");
     $st->execute([':b' => $branchId]);
     return (int)$st->fetchColumn();
 };
 $h->test('auto-close surfaces the missing PM ending in the audit', $gapAudit() >= 1);
-// Repeated passes are no-ops while the day stays open: the day is never closed
-// and the refusal audit is written exactly once.
-$auditAfterFirstRefusal = $gapAudit();
-$h->test('auto-close repeated pass is a no-op (a single refusal)', dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff) === false && $gapAudit() === $auditAfterFirstRefusal);
+// The day is already closed, so a repeated pass is a no-op and neither the gap
+// audit nor the per-day notification is duplicated.
+$auditAfterFirstPass = $gapAudit();
+$pendingNotifStmt->execute([':k' => $pendingNotifKey]);
+$pendingNotifAfter = (int)$pendingNotifStmt->fetchColumn();
+$h->test('auto-close repeated pass is a no-op (one gap audit, one notification)', dl_maybeAutoCloseBranchDay($branchId, 1, $afterCutoff) === false && $gapAudit() === $auditAfterFirstPass && $pendingNotifAfter === 1);
 
 // A finalized manual PM closes at the boundary and freezes its snapshot.
 $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);

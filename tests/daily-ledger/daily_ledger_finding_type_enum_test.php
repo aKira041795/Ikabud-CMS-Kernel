@@ -324,7 +324,8 @@ try {
     $h->test('A1 the PM call site flagged the shift', ($pmResult['flagged'] ?? false) === true, json_encode($pmResult));
     $h->test('A2 the PM notification finding_type is ' . $newType, is_array($pmRow) && (string)$pmRow['finding_type'] === $newType, json_encode($pmRow));
 
-    // Day call site: an open cashier PM shift makes the day refuse to close.
+    // Day call site: an open cashier PM shift makes the day close while
+    // flagged (owner directive 2026-10-05; it no longer refuses the close).
     $db->execute(
         'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, bal_end, sales)
          VALUES (:b, :p, :d, "PM", 5, NULL, NULL)',
@@ -333,7 +334,10 @@ try {
     $dayResult = false;
     try { $dayResult = dl_maybeAutoCloseBranchDay($dayBranchId, $adminId, null); } catch (Throwable $e) { $h->detail('day close threw: ' . $e->getMessage()); }
     $dayRow = $notifByKey('closed_without_pm_finalize-day-' . $dayBranchId . '-' . $prev);
-    $h->test('A3 the day call site refused the close', $dayResult === false, 'returned=' . var_export($dayResult, true));
+    $dayStatusStmt = $db->prepare('SELECT status FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d LIMIT 1');
+    $dayStatusStmt->execute([':b' => $dayBranchId, ':d' => $prev]);
+    $dayStatusVal = $dayStatusStmt->fetchColumn();
+    $h->test('A3 the day call site CLOSES the day without a finalized PM', $dayResult === true && $dayStatusVal === 'closed', json_encode(['returned' => $dayResult, 'day' => $dayStatusVal]));
     $h->test('A4 the day notification finding_type is ' . $newType, is_array($dayRow) && (string)$dayRow['finding_type'] === $newType, json_encode($dayRow));
 
     // ══════════════════════════════════════════════════════════════════════

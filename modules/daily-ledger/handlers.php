@@ -1612,30 +1612,29 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
         }
 
         // POS/fallback days close under their own receipt/checkpoint rules.
-        // A fully-manual day is ordered after its work: the day closes only once
-        // the PM shift is finalized. If PM is still open at the cutoff the close
-        // is REFUSED (the day stays open so the cashier keeps the bounded
-        // late-count window), the gap is flagged, and the admin is notified.
-        // (Superseded owner rule 2026-09-04, which closed the day anyway and
-        // stranded the cashier; contract 2026-10-05 D1.)
+        // A fully-manual day closes at the cutoff even when its PM shift is
+        // still open: a day left open compounds into the next day (owner
+        // directive 2026-10-05). The gap is flagged, the admin is notified, and
+        // the cashier is locked out of the closed day; the admin reopen is the
+        // remedy. Variance recompute/freeze still only runs for a finalized day.
+        // (Superseded contract 2026-10-05 D1, which refused the close and left
+        // the day open so the cashier kept the late-count window.)
         if (dl_isFullyManualDay($ctx->db(), $branchId, $closeDate)) {
             $pmRow = dl_lockShiftStatusRow($ctx->db(), $branchId, $closeDate, 'PM');
             if ((string)($pmRow['status'] ?? 'open') !== 'finalized') {
-                // D1: a manual day must NOT close while its PM shift is still open
-                // and expected to write. Closing first is exactly the dead-end this
-                // incident is about: the cashier could neither edit nor finalize a
-                // closed day. Refuse the close, flag it, and tell the admin. The
-                // cashier keeps the bounded late-count window (previous date, day
-                // open, PM pending) to finish and finalize; the next auto-close
-                // pass closes the day once the PM shift is finalized.
+                // The day closes anyway: leaving it open is exactly what
+                // compounds the gap into the next day. Flag it, tell the admin,
+                // then fall through to the normal close INSERT below. The
+                // notification is per-day (aggregate key), so re-running this
+                // path on every page load does not duplicate it.
                 $notify = $ctx->db()->prepare(
                     'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
                       WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
                 );
                 $notify->execute([':bid' => $branchId, ':d' => $closeDate]);
 
-                // One audit row per day, not one per request now that the day
-                // stays open and this path re-runs on every page load.
+                // One audit row per day, not one per request: the aggregate
+                // close below is idempotent, but this path can re-run.
                 $auditStmt = $ctx->db()->prepare(
                     'SELECT COUNT(*) FROM audit_logs
                       WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
@@ -1657,19 +1656,14 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
                     $branchId,
                     'dl_ledger_day_status',
                     null,
-                    'Business day not closed: PM shift still open',
-                    'Branch #' . $branchId . ' business date ' . $closeDate . ' reached the close-of-day cutoff while its PM shift was still open. The day was NOT closed so pending endings can still be completed. An admin must review; finalize the PM shift (or reopen and correct) before the day is closed.'
+                    'Business day closed with PM shift still open',
+                    'Branch #' . $branchId . ' business date ' . $closeDate . ' reached the close-of-day cutoff while its PM shift was still open. The day WAS closed while its PM shift was still open, so pending endings still need completing. An admin must REOPEN the day so the encoder can complete the pending endings and finalize the PM shift.'
                 );
-
-                if ($ownsTxn) {
-                    $ctx->db()->commit();
-                }
-                return false;
+            } else {
+                // Finalized manual day: full variance sweep + freeze before closing.
+                dl_recomputeVariancesForDay($branchId, $closeDate, false);
+                dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
             }
-
-            // Finalized manual day: full variance sweep + freeze before closing.
-            dl_recomputeVariancesForDay($branchId, $closeDate, false);
-            dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
         }
 
         $stmt = $ctx->db()->prepare(

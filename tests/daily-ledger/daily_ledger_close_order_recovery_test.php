@@ -7,7 +7,9 @@ declare(strict_types=1);
  * .ai/dl-close-order-and-finalize-recovery.contract.md).
  *
  * Acceptance oracle for the four deliverables:
- *   A. a manual day must NOT close while its PM shift is still open;
+ *   A. an unfinalized manual day still CLOSES at the cutoff and the admin is
+ *      notified (owner directive 2026-10-05; supersedes contract D1, which
+ *      refused the close and left the day open);
  *   B. a cashier is STILL refused on a closed day, the refusal names the real
  *      remedy (day closed + admin must reopen), and the admin reopen path
  *      actually lets the cashier write again;
@@ -122,9 +124,9 @@ try {
     $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . app()->jwt()->generate($cashier + ['token_type' => 'access']);
 
     // ══════════════════════════════════════════════════════════════════════════
-    // A. (D1) the close must not run while the PM shift is still open
+    // A. an unfinalized day closes + notifies; the admin reopen is the remedy
     // ══════════════════════════════════════════════════════════════════════════
-    $h->section('A. close ordering (D1)');
+    $h->section('A. close ordering (owner directive 2026-10-05)');
 
     $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $prev]);
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $prev]);
@@ -143,10 +145,13 @@ try {
     }
     $dayA = $dayStatusOf($branchId, $prev);
     $pmA = $shiftStatusOf($branchId, $prev, 'PM');
+    $notifAStmt = $db->prepare('SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key = :k');
+    $notifAStmt->execute([':k' => 'closed_without_pm_finalize-day-' . $branchId . '-' . $prev]);
+    $notifACount = (int)$notifAStmt->fetchColumn();
     $h->test(
-        'A1 day=closed + PM=open cannot be produced by the close path (D1)',
-        $dayA !== 'closed' || $pmA === 'finalized',
-        json_encode(['close_returned' => $closeRan, 'day' => $dayA, 'pm' => $pmA])
+        'A1 an unfinalized manual day CLOSES and the admin is notified (no day left open)',
+        $closeRan === true && $dayA === 'closed' && $pmA === 'open' && $notifACount === 1,
+        json_encode(['close_returned' => $closeRan, 'day' => $dayA, 'pm' => $pmA, 'notifications' => $notifACount])
     );
 
     // ══════════════════════════════════════════════════════════════════════════
