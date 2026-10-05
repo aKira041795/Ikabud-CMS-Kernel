@@ -42,6 +42,15 @@ LANE_DEFAULT_TITLES = {
     "advisor": "ChatGPT Advisor",
     "cms": "CMS Assistant",
 }
+# Explicit lane markers, keyed by the conversation's harness_session_id. This is the PRIMARY
+# key: the Messenger's advisor toggle creates a conversation with the marker, and the bridge
+# already returns harness_session_id on every polled message. A marked conversation owns its
+# lane whatever its title is, so renaming a thread cannot silently turn a plan into dev work.
+# The title below is only a fallback for conversations created before the marker existed.
+LANE_SESSION_MARKERS = {
+    "chatgpt-advisor": "advisor",
+    "cms-assistant": "cms",
+}
 # Process-local mirror of bindings persisted by harpp_wake. The mirror makes a
 # newly bound conversation visible to autoprocess immediately; on daemon restart
 # _lane_context() reloads the same bindings from wake-processed.json.
@@ -461,6 +470,10 @@ def lane_of(record, config=None):
     cfg = config if isinstance(config, dict) else {}
     bindings = cfg.get("lane_conversations")
     bindings = bindings if isinstance(bindings, dict) else {}
+    # Primary key: an explicit lane marker on the conversation.
+    marker = LANE_SESSION_MARKERS.get(str(record.get("harness_session_id") or "").strip().lower())
+    if marker:
+        return marker
     try:
         conversation_id = int(record.get("conversation_id") or 0)
     except (TypeError, ValueError):

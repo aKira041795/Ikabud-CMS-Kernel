@@ -9,9 +9,35 @@ document.addEventListener('DOMContentLoaded', () => {
   const archiveToggle = document.getElementById('archive-toggle');
   const closeBtn = document.getElementById('close-conversation');
   const archiveBtn = document.getElementById('archive-conversation');
+  // Advisor toggle: the conversation's harness_session_id decides the lane, so a thread
+  // created with this marker is answered by ChatGPT instead of the work harness. No schema
+  // change is needed — the marker already travels on every polled message.
+  const advisorToggle = document.getElementById('advisor-toggle');
+  const ADVISOR_SESSION = 'chatgpt-advisor';
+  const ADVISOR_TITLE = 'ChatGPT Advisor';
+  let lastRows = [];
 
   const escText = (el, text) => { el.textContent = text ?? ''; };
   const errorMessage = (error, fallback) => error && error.message ? error.message : fallback;
+
+  const activeRow = () => lastRows.find(row => Number(row.id) === active) || null;
+  const inAdvisorThread = () => {
+    const row = activeRow();
+    return Boolean(row && String(row.harness_session_id || '') === ADVISOR_SESSION);
+  };
+  // The toggle states where the NEXT message goes, so it is derived from the active thread
+  // rather than kept as separate state that can drift out of step with it.
+  function syncAdvisorToggle() {
+    if (advisorToggle) advisorToggle.checked = inAdvisorThread();
+  }
+
+  async function openConversation(id) {
+    active = Number(id);
+    last = 0;
+    history.replaceState(null, '', `/harpp?conversation=${active}`);
+    await conversations();
+    await load(false);
+  }
 
   async function conversations() {
     try {
@@ -29,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
           await new Promise((res) => setTimeout(res, 600 * (attempt + 1)));
         }
       }
+      lastRows = rows;
       list.replaceChildren();
       rows.forEach(row => {
         const rowBox = document.createElement('div');
@@ -78,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         list.append(rowBox);
       });
       if (archiveToggle) archiveToggle.textContent = showArchived ? 'Show active' : 'Show archived';
+      syncAdvisorToggle();
       if (!active && rows.length) { active = Number(rows[0].id); load(false); }
     } catch (e) { escText(status, errorMessage(e, 'Unable to load conversations.')); }
   }
@@ -118,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
         (parent || messages).append(link);
       }
       await Harpp.fetch(`/api/v1/harpp/conversations/${active}/read`, { method: 'POST', body: { through_id: last } });
-      title.textContent = `Conversation #${active}`;
+      title.textContent = `Conversation #${active}` + (inAdvisorThread() ? ' · ChatGPT' : '');
       if (!incremental || nearBottom) {
         messages.scrollTop = messages.scrollHeight;
       }
@@ -295,6 +323,47 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   document.getElementById('new-conversation').onclick = createConversation;
+
+  // Advisor toggle. ON switches to (creating once) the ChatGPT-marked conversation so the
+  // next message you send is answered by the advisor; OFF returns you to a work thread. The
+  // toggle is re-derived from the active thread afterwards, so it can never claim the wrong
+  // destination.
+  if (advisorToggle) {
+    advisorToggle.onchange = async () => {
+      try {
+        if (!advisorToggle.checked) {
+          const workRow = lastRows.find(row => Number(row.id) !== active
+            && String(row.harness_session_id || '') !== ADVISOR_SESSION);
+          if (!workRow) {
+            syncAdvisorToggle();
+            escText(status, 'No other conversation to switch back to.');
+            return;
+          }
+          await openConversation(workRow.id);
+          escText(status, 'Back to the work harness.');
+          return;
+        }
+        const existing = lastRows.find(
+          row => String(row.harness_session_id || '') === ADVISOR_SESSION);
+        if (existing) {
+          await openConversation(existing.id);
+        } else {
+          const activeWorkspace = Number(window.localStorage.getItem('HARPP_ACTIVE_WORKSPACE') || 0);
+          const scope = activeWorkspace > 0 ? { workspace_id: activeWorkspace } : {};
+          const created = await Harpp.fetch('/api/v1/harpp/conversations', {
+            method: 'POST',
+            body: { title: ADVISOR_TITLE, harness_session_id: ADVISOR_SESSION, ...scope },
+          });
+          await openConversation(created.data.conversation_id);
+        }
+        escText(status, 'Advisor mode: messages in this thread go to ChatGPT, not the work harness.');
+      } catch (error) {
+        escText(status, errorMessage(error, 'Unable to switch to the advisor thread.'));
+        syncAdvisorToggle();
+      }
+    };
+  }
+
   conversations();
   // New messages also arrive via Web Push, so polling is a fallback rather than
   // the primary delivery path — refresh at a pace that does not interrupt

@@ -154,7 +154,14 @@ function harppPageOverview(array $params = []): void
 }
 function harppRunnersPage(array $params = []): void { harppRenderShell('runners', 'runners'); }
 function harppPageStatus(array $params = []): void { harppRenderShell('status', 'status'); }
-function harppPageAdvisor(array $params = []): void { harppRenderShell('advisor', 'advisor'); }
+// Retired 2026-10-05: the advisor moved into the Messenger as a toggle on the composer,
+// so the lane is chosen where the message is written instead of on a page of its own.
+// The route is kept as a redirect so links and bookmarks do not 404.
+function harppPageAdvisor(array $params = []): void
+{
+    http_response_code(302);
+    header('Location: /harpp');
+}
 function harppPageSettings(array $params = []): void { harppRenderShell('settings', 'settings'); }
 function harppPageUsers(array $params = []): void
 {

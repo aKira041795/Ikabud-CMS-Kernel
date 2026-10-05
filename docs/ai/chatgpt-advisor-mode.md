@@ -52,8 +52,8 @@ The advisor lane is **Linux-only** for now and reuses the always-on `harpp watch
    The session persists in `~/.config/harpp/chatgpt-profile` for headless runs. This is the
    only interactive step; `harpp watch` handles everything after.
 
-2. **Create the conversation** — in the HARPP messenger/PWA, create a conversation titled
-   `ChatGPT Advisor`.
+2. **No conversation to create by hand** — the Messenger's **Ask ChatGPT** toggle creates the
+   conversation for you, marked with `harness_session_id = chatgpt-advisor`.
 
 3. **Enable + verify:**
    ```bash
@@ -74,7 +74,10 @@ Requires an `openai-ideation` auth entry in `~/.pi/agent/auth.json` + provider i
 
 ## Usage
 
-1. Open the **ChatGPT Advisor** conversation in the messenger (or `harpp msg send --title 'ChatGPT Advisor' ...`).
+1. In the Messenger, flip **Ask ChatGPT** on the composer. That switches you to the
+   advisor conversation (creating it once). The thread title gains a `· ChatGPT` marker so it
+   is always clear where your next message goes; flipping the toggle off returns you to a work
+   thread.
 2. Paste your plan/proposal (or reference the workspace path).
 3. The daemon spawns the advisor agent on the ideation model; it replies with:
    - **What is strong**
@@ -82,6 +85,16 @@ Requires an `openai-ideation` auth entry in `~/.pi/agent/auth.json` + provider i
    - **Restructuring suggestion**
    - **Recommendation** (go / go-with-changes / rethink)
 4. Reconcile the opinion with `/architect` and continue the normal pipeline.
+
+### How the lane is chosen
+
+The **conversation's `harness_session_id`** is the routing key (`chatgpt-advisor`), not the
+conversation title. The marker travels on every polled message, so renaming a thread cannot
+change which lane answers it, and a marked thread is never queued as development work. Threads
+created before the toggle existed are still recognised by their `ChatGPT Advisor` title.
+
+There is no separate Advisor page: the lane is picked where the message is written.
+`/harpp/advisor` redirects to the Messenger so old links keep working.
 
 ## Operations
 

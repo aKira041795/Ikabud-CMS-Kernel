@@ -24,7 +24,6 @@ const OUT_DIR = process.env.HARPP_OUT || '/tmp/chair-verify';
 const NOCACHE = '?disyl_nocache=1';
 const PAGES = [
     ['Messenger', '/harpp'],
-    ['Advisor', '/harpp/advisor'],
     ['Status', '/harpp/status'],
     ['Runners', '/harpp/runners'],
     ['Notifications', '/harpp/notifications'],
@@ -101,7 +100,7 @@ function auditInPage() {
 }
 
 (async () => {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
+    fs.mkdirSync(OUT_DIR, { recursive: true });
     const browser = await chromium.launch();
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const page = await ctx.newPage();
@@ -162,7 +161,7 @@ function auditInPage() {
         await page.screenshot({ path: nodePath.join(OUT_DIR, 'harpp-' + label.toLowerCase() + '.png'), fullPage: true });
     }
 
-  fs.writeFileSync(nodePath.join(OUT_DIR, 'harpp-audit.json'), JSON.stringify(summary, null, 2));
-  console.log('\nwrote ' + nodePath.join(OUT_DIR, 'harpp-audit.json') + '  + screenshots');
+    fs.writeFileSync(nodePath.join(OUT_DIR, 'harpp-audit.json'), JSON.stringify(summary, null, 2));
+    console.log('\nwrote ' + nodePath.join(OUT_DIR, 'harpp-audit.json') + '  + screenshots');
     await browser.close();
 })().catch((e) => { console.error('FATAL: ' + e.message); process.exit(1); });

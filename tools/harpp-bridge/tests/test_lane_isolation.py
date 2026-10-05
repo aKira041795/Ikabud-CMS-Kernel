@@ -142,6 +142,25 @@ class LaneIsolationTest(unittest.TestCase):
             self.queued, [],
             "a CMS Assistant message was queued as a dev run; a draft request can be executed as work")
 
+    def test_advisor_session_marker_is_not_queued_as_a_dev_run(self):
+        # The Messenger advisor toggle marks the conversation; the marker is what routes it.
+        # The title deliberately looks ordinary, so the marker alone must decide.
+        rec = dict(self._msg(9030, "Design chat", 970))
+        rec["harness_session_id"] = "chatgpt-advisor"
+        self._write_inbox([rec])
+        harpp_client.autoprocess([rec])
+        self.assertEqual(
+            self.queued, [],
+            "a conversation marked chatgpt-advisor was queued as dev work")
+
+    def test_ordinary_session_is_still_queued(self):
+        # must-allow pair: an ordinary Messenger session must keep reaching the dev lane.
+        rec = dict(self._msg(9031, "Design chat", 971))
+        rec["harness_session_id"] = "operator-1234567890"
+        self.queued.clear()
+        harpp_client.autoprocess([rec])
+        self.assertEqual(len(self.queued), 1, "an ordinary session stopped reaching the dev lane")
+
     def test_lane_message_is_not_queued_when_the_lane_is_disabled(self):
         # Disabling the advisor must not convert its plans into dev work. The lane stays
         # lane-owned; it simply has no worker, so the message stages and warns.
