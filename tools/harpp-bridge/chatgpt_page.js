@@ -153,21 +153,37 @@ async function waitForAssistantReply(page, timeoutMs) {
     const assistant = assistantLocator(page);
     await assistant.waitFor({ state: "attached", timeout: timeoutMs });
     let lastLen = -1;
+    let lastText = "";
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
         const stop = stopButtonLocator(page);
         const stopping = await stop.count().then((n) => n > 0).catch(() => false);
         const text = (await assistant.innerText().catch(() => "")) || "";
+        if (text) {
+            lastText = text;
+        }
         const stable = text.length > 0 && text.length === lastLen;
         if (stable && !stopping) {
-            return text;
+            return { text, partial: false };
         }
         lastLen = text.length;
-        await page.waitForTimeout(1500);
+        try {
+            await page.waitForTimeout(1500);
+        } catch (err) {
+            // The page/context went away mid-wait — the profile was closed by hand or taken over by
+            // another launch on the same persistent profile. Measured 2026-10-06: ChatGPT had already
+            // answered and the reply was readable, but this throw discarded it and the lane reported
+            // failure, so the harness's own model answered instead. Return what was already read, and
+            // mark it partial: the caller must not present a half-streamed opinion as the full one.
+            if (lastText.trim()) {
+                return { text: lastText, partial: true };
+            }
+            throw err;
+        }
     }
-    const finalText = (await assistant.innerText().catch(() => "")) || "";
+    const finalText = (await assistant.innerText().catch(() => "")) || lastText;
     if (finalText.trim()) {
-        return finalText;
+        return { text: finalText, partial: true };
     }
     throw new Error("timed out waiting for a ChatGPT reply in any known reply element");
 }
@@ -228,8 +244,8 @@ async function cmdRun(args) {
         await startFreshChat(page);
         const composer = await waitForComposer(page, 15000);
         await submitPrompt(page, composer, prompt);
-        const text = await waitForAssistantReply(page, timeout);
-        out({ ok: true, text });
+        const reply = await waitForAssistantReply(page, timeout);
+        out(reply.partial ? { ok: true, text: reply.text, partial: true } : { ok: true, text: reply.text });
         return 0;
     } catch (err) {
         out({ ok: false, error: String(err && err.message ? err.message : err) });

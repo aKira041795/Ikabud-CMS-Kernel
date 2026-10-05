@@ -4426,6 +4426,17 @@ def chatgpt_page_login(profile=None) -> int:
     return subprocess.run([node, str(script), "login", "--profile", profile], text=True).returncode
 
 
+ADVISOR_PARTIAL_NOTE = (
+    "\n\n---\n_Captured mid-stream: the ChatGPT browser went away while it was still writing, so the "
+    "text above stops where it stopped. This is ChatGPT's own answer, not a harness fallback._"
+)
+
+
+def advisor_page_body(text: str, partial: bool) -> str:
+    """Disclose a mid-stream capture. A truncated opinion must never read as the full one."""
+    return (text + ADVISOR_PARTIAL_NOTE) if partial else text
+
+
 def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=None) -> bool:
     """ChatGPT-page backend: drive the owner's logged-in ChatGPT (Pro/Plus) via Playwright.
 
@@ -4501,6 +4512,7 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
                 except OSError:
                     pass
             text = None
+            partial = False
             page_error = ""
             for line in (out or "").splitlines():
                 line = line.strip()
@@ -4509,6 +4521,7 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
                         parsed = json.loads(line)
                         if isinstance(parsed, dict):
                             text = parsed.get("text") if parsed.get("ok") else None
+                            partial = bool(parsed.get("partial"))
                             page_error = str(parsed.get("error") or "")
                             break
                     except Exception:  # noqa: BLE001
@@ -4524,7 +4537,7 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
                 try:
                     resp = harpp_client.send_message(
                         conversation_id=int(item.get("conversation_id") or 0),
-                        body=text,
+                        body=advisor_page_body(text, partial),
                         idempotency_key=f"wake-message-{int(item.get('id', 0))}")
                     if not (isinstance(resp, dict) and resp.get("ok")):
                         delivered = False
@@ -4536,7 +4549,8 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
                 mark_processed(batch)
                 _record_ideation_usage(batch, "chatgpt-page")
                 successful += len(batch)
-                log(f"advisor(page): ChatGPT opinion delivered for {len(batch)} item(s)")
+                log(f"advisor(page): ChatGPT opinion delivered for {len(batch)} item(s)"
+                    + (" (captured mid-stream; disclosed as partial)" if partial else ""))
                 _cancel_answered_runs(batch)
             else:
                 record_failure(batch)
