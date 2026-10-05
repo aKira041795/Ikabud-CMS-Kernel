@@ -37,9 +37,14 @@ Consequence: an accountant filtering the admin notification surface by type cann
 and they look like variances. The admin is told, but the signal is not addressable.
 
 ## Your task
-1. **Add a migration `075_...sql`** (075 is the next FREE number — 074 is the highest; VERIFY that
-   before you write it, and do not renumber or touch the pre-existing duplicate at 041). The migration
-   must extend the `finding_type` ENUM on `dl_integrity_notifications` with a single new value,
+1. **Add a migration** for the enum change. **DO NOT ASSUME THE NUMBER — determine it at run time.**
+   Run `ls modules/daily-ledger/database/migrations/ | grep -oE "^[0-9]+" | sort -n | tail -1` and use
+   the NEXT free number after the highest. When this brief was written 074 was the highest and 075 was
+   free, but a later lane claimed `075_offline_refusal_visibility.sql`, so the next free number is now
+   **076** — verify that for yourself and use whatever is actually next at the moment you run.
+   Rationale: a duplicated migration number is a real defect (there is already a pre-existing duplicate
+   at 041). Do NOT renumber or touch that historical one. The migration must extend the
+   `finding_type` ENUM on `dl_integrity_notifications` with a single new value,
    `closed_without_pm_finalize`.
 2. **Switch the two D4 call sites** in `modules/daily-ledger/handlers.php` from `'variance'` to the new
    value (the two `closed_without_pm_finalize-day-...` and `closed_without_pm_finalize-pm-...` sites).
