@@ -31,6 +31,10 @@ Env:
   DEBATE_AUTO_APPROVE=1 auto-approve the last draft (scripted use)
   DEBATE_MODEL_A        provider-qualified model for Side A
   DEBATE_MODEL_B        provider-qualified model for Side B (must differ from A; enforced)
+                        `chatgpt/page` debates the owner's ChatGPT SUBSCRIPTION — the advisor's
+                        own backend, via tools/harpp-bridge/chatgpt_page.js — so a discussion
+                        never depends on API credit. Like the advisor's page backend it drives
+                        a HEADED Chrome, so it needs DISPLAY + XAUTHORITY.
   DEBATE_CODEX_MODEL    legacy alias for DEBATE_MODEL_A
   DEBATE_DEEPSEEK_MODEL legacy alias for DEBATE_MODEL_B
   DEBATE_FLASH_MODEL    provider-qualified preflight model
@@ -67,6 +71,12 @@ os.makedirs(WORK, exist_ok=True)
 MAX_ROUNDS = int(os.environ.get("DEBATE_MAX_ROUNDS", "3"))
 
 DS_FLASH = os.environ.get("DEBATE_FLASH_MODEL", "deepseek/deepseek-v4-flash")
+# Alias for the owner's ChatGPT SUBSCRIPTION, served by the advisor's own page driver. The
+# `openai-ideation` API model is NOT used here: its credits can be exhausted, and a debate that
+# depends on API credit is a debate that silently produces no draft. Provider-qualified form is
+# required by validate_model_name, so `chatgpt/page` is the canonical spelling.
+PAGE_MODEL_ALIASES = {"chatgpt/page", "chatgpt-page", "chatgpt", "advisor/page"}
+PAGE_DRIVER = os.path.join(ROOT, "tools", "harpp-bridge", "chatgpt_page.js")
 # Two INDEPENDENT, DISTINCT LLM models — one per debate side. The runner fails
 # closed if they resolve to the same model, so both sides can never be played by
 # the same LLM. Override with DEBATE_MODEL_A/B (legacy per-provider vars still
@@ -149,6 +159,77 @@ def extract_text(jsonl_path: str) -> str:
     except Exception as exc:
         print(f"  (parse warning: {exc})")
     return "".join(parts).strip()
+
+
+def run_page(prompt: str, tag: str, round_no: int, label: str) -> str:
+    """Run one debate side on the owner's ChatGPT SUBSCRIPTION (the advisor's own backend).
+
+    Naming ChatGPT as a participant must reach the same ChatGPT the advisor lane uses, which is
+    the ChatGPT web driven by tools/harpp-bridge/chatgpt_page.js — not the `openai-ideation` API
+    model, whose credits can run out (measured 2026-10-05: HTTP 429 credit_balance_exhausted, which
+    silently produced a draft with no text). The driver is one-shot, so the reply is printed when
+    it returns rather than streamed. Artifact contract is identical to run_pi's.
+    """
+    timeout_s = int(os.environ.get("PI_MODEL_TIMEOUT", "600"))
+    node = shutil.which("node")
+    if not node:
+        raise DebateError("node executable not found on PATH (required for the ChatGPT page side)")
+    if not os.path.exists(PAGE_DRIVER):
+        raise DebateError(f"ChatGPT page driver not found at {PAGE_DRIVER}")
+
+    if not QUIET:
+        print()
+        print("=" * 62)
+        print(f"  {label}")
+        print("=" * 62, flush=True)
+
+    fd, prompt_file = tempfile.mkstemp(prefix="debate-page-", suffix=".txt")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(prompt)
+        try:
+            proc = subprocess.run(
+                [node, PAGE_DRIVER, "run", "--prompt", prompt_file, "--timeout", str(timeout_s)],
+                capture_output=True, text=True, timeout=timeout_s + 30,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise DebateError(
+                f"{tag} timed out after {timeout_s}s on the ChatGPT page side") from exc
+    finally:
+        try:
+            os.unlink(prompt_file)
+        except OSError:
+            pass
+
+    text = ""
+    for line in (proc.stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            payload = json.loads(line)
+        except Exception:
+            continue
+        if not payload.get("ok"):
+            raise DebateError(
+                f"ChatGPT page side failed: {payload.get('error') or 'unknown error'}")
+        text = str(payload.get("text") or "").strip()
+        break
+    if not text:
+        detail = (proc.stdout or proc.stderr or "").strip()[-300:] or "no output"
+        raise DebateError(f"{tag} returned no text from the ChatGPT page side: {detail}")
+
+    atomic_write(os.path.join(WORK, f"round-{round_no}-{tag}.txt"), text)
+    if not QUIET:
+        print(text, flush=True)
+    return text
+
+
+def run_model(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
+    """Dispatch one debate side to the Pi model or, for a page alias, to the ChatGPT web."""
+    if model.strip().lower() in PAGE_MODEL_ALIASES:
+        return run_page(prompt, tag, round_no, label)
+    return run_pi(model, prompt, tag, round_no, label)
 
 
 def run_pi(model: str, prompt: str, tag: str, round_no: int, label: str) -> str:
@@ -394,7 +475,7 @@ def main() -> None:
         dp = dp.replace("{{INTENT}}", intent)
         dp = dp.replace("{{PREVIOUS_DRAFT}}", draft or "(none)")
         dp = dp.replace("{{CRITIQUE}}", critique or "(none)")
-        draft = run_pi(DRAFTER, dp, "draft", r, f"{draft_label} — Round {r} draft/revise")
+        draft = run_model(DRAFTER, dp, "draft", r, f"{draft_label} — Round {r} draft/revise")
         validate_draft(draft)
         print(f"\n    → draft len={len(draft)}")
 
@@ -407,7 +488,7 @@ def main() -> None:
         cp = load_template("critique.txt")
         cp = cp.replace("{{INTENT}}", intent)
         cp = cp.replace("{{DRAFT}}", draft)
-        critique = run_pi(CRITIC, cp, "critique", r, f"{critic_label} — Round {r} critique")
+        critique = run_model(CRITIC, cp, "critique", r, f"{critic_label} — Round {r} critique")
         validate_critique(critique)
         verdict = verdict_of(critique)
         print(f"    → verdict={verdict}  critique len={len(critique)}")

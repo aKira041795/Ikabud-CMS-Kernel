@@ -96,6 +96,26 @@ created before the toggle existed are still recognised by their `ChatGPT Advisor
 There is no separate Advisor page: the lane is picked where the message is written.
 `/harpp/advisor` redirects to the Messenger so old links keep working.
 
+### Asking the chair to discuss it with ChatGPT
+
+Send either of these from the Messenger and the chair will run a chaired discussion with
+**your ChatGPT subscription** (the same backend the toggle uses — no API credit involved):
+
+```
+start debate with chatgpt: <your idea>
+discuss with chatgpt: <your idea>
+```
+
+Optionally pin the rounds (`max rounds 5`). The chair picks who opens, argues the rounds, and
+critiques the other side — the discussion ends in `verdict: APPROVED` or `REVISIONS`, and
+`Approve debate` in the Messenger accepts the last draft as the chair. Naming ChatGPT only
+ever *selects the partner*: a passing mention ("I asked chatgpt about X") launches nothing.
+
+Under the hood this is `tools/pi-arch-debate.py` with `DEBATE_MODEL_B=chatgpt/page`, which
+resolves to `tools/harpp-bridge/chatgpt_page.js`. The `openai-ideation` API model is **not**
+used for this: its credits can be exhausted (measured 2026-10-05: HTTP 429
+`credit_balance_exhausted` produced a debate draft with no text).
+
 ## Operations
 
 ```bash

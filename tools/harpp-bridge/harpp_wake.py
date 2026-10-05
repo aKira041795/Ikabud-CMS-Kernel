@@ -104,6 +104,12 @@ MODEL_FALLBACK_ORDER = [
 # that runs ONLY on a dedicated ideation provider (never openai-codex/*, so it can
 # never consume Codex usage limits reserved for coding/review).
 ADVISOR_DEFAULT_MODEL = "openai-ideation/gpt-5.4"
+# The ChatGPT the chair debates when the owner names ChatGPT as the other participant. This is the
+# advisor's own backend — the owner's ChatGPT SUBSCRIPTION driven through the web UI — not the
+# openai-ideation API model, whose credits can be exhausted (measured 2026-10-05: HTTP 429
+# credit_balance_exhausted produced a debate draft with no text). See pi-arch-debate.py, which
+# resolves this alias to tools/harpp-bridge/chatgpt_page.js.
+CHATGPT_DEBATE_MODEL = "chatgpt/page"
 ADVISOR_CONVERSATION_TITLE = "ChatGPT Advisor"
 ADVISOR_TEMPLATE = Path(__file__).resolve().parent / "wake" / "task-contract-advisor.md"
 ADVISOR_DEFAULT_PROFILE = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "harpp" / "chatgpt-profile"
@@ -3185,29 +3191,55 @@ def route_workflow_commands(records) -> int:
 # ---------------------------------------------------------------------------
 
 def parse_debate_command(body) -> dict | None:
-    """Parse an owner message into a debate launch request, or return None."""
+    """Parse an owner message into a debate launch request, or return None.
+
+    A debate runs between two DISTINCT models. The owner may name ChatGPT as the other
+    participant ("start debate with chatgpt", "discuss with chatgpt: <idea>"), which selects
+    the advisor's ideation model for one side. Naming ChatGPT is a PARTICIPANT, never a
+    trigger on its own: a passing mention must not launch anything, so the same explicit
+    action verb is still required.
+    """
     if not body or not isinstance(body, str):
         return None
     low = " ".join(body.split()).lower().strip()
-    if not re.search(r"(?<![\w-])debate(?![\w-])", low):
+    has_debate = bool(re.search(r"(?<![\w-])debate(?![\w-])", low))
+    # "chatgpt"/"gpt-5"/"advisor"/"ideation" name the partner; they are not the chair side.
+    participant = None
+    if re.search(r"(?<![\w-])(chatgpt|gpt-?5|advisor|ideation)(?![\w-])", low):
+        participant = "chatgpt"
+    if not has_debate and participant is None:
         return None
-    if not re.search(r"\b(start|run|begin|launch|kick\s*off)\b", low):
+    if not re.search(r"\b(start|run|begin|launch|kick\s*off|discuss)\b", low):
         return None
+    # The participant phrase must not be mistaken for the chair's own opener signal, or
+    # "discuss with chatgpt, start with the router" would resolve the chair to the GPT side.
+    if participant:
+        low_for_first = re.sub(r"(?<![\w-])(chatgpt|gpt-?5|advisor|ideation)(?![\w-])", "", low)
+        body_for_intent = re.sub(r"(?<![\w-])(chatgpt|gpt-?5|advisor|ideation)(?![\w-])", "", body,
+                                 flags=re.IGNORECASE)
+    else:
+        low_for_first = low
+        body_for_intent = body
 
-    # Intent: prefer an explicit "Objective:" clause, else the remainder after "debate".
+    # Intent: prefer an explicit "Objective:" clause, else the remainder after "debate"
+    # (or after the named participant when only that was given).
     intent = ""
     m = re.search(r"\bobjective\s*[:：]\s*(.+)", body, flags=re.IGNORECASE | re.DOTALL)
     if m:
         intent = m.group(1).strip()
     else:
-        m = re.search(r"\bdebate\b(.*)", body, flags=re.IGNORECASE | re.DOTALL)
+        m = re.search(r"\bdebate\b(.*)", body_for_intent, flags=re.IGNORECASE | re.DOTALL)
+        if m is None and participant:
+            m = re.search(r"[:：](.*)", body_for_intent, flags=re.DOTALL)
         if m:
             intent = m.group(1).strip()
-    intent = re.sub(r"^[,:;.\s]+", "", intent)
+    intent = re.sub(r"^[,:;.\s]+|^(?:with|and|about|from|to)\b[,:;.\s]*", "", intent,
+                    flags=re.IGNORECASE)
     intent = re.sub(r"\b(?:max\s*rounds?|rounds?|depth)\s*[:=]?\s*\d+\b", "",
                     intent, flags=re.IGNORECASE)
     # Removing the round clause ("max round 5.") can leave leading punctuation; strip again.
-    intent = re.sub(r"^[,:;.\s]+", "", intent)
+    intent = re.sub(r"^[,:;.\s]+|^(?:with|and|about|from|to)\b[,:;.\s]*", "", intent,
+                    flags=re.IGNORECASE)
     intent = " ".join(intent.split())
     if not intent:
         return None
@@ -3219,12 +3251,15 @@ def parse_debate_command(body) -> dict | None:
 
     # Opener: which model drafts first (the other critiques). Default AUTO (chair decides).
     first = "auto"
-    if re.search(r"\b(?:gpt|codex|sol)\b[^.;]*\b(?:start|open|draft|begin|first)", low):
+    if re.search(r"\b(?:gpt|codex|sol)\b[^.;]*\b(?:start|open|draft|begin|first)", low_for_first):
         first = "codex"
-    elif re.search(r"\bdeepseek\b[^.;]*\b(?:start|open|draft|begin|first)", low):
+    elif re.search(r"\bdeepseek\b[^.;]*\b(?:start|open|draft|begin|first)", low_for_first):
         first = "deepseek"
 
-    return {"intent": intent, "rounds": rounds, "first": first}
+    result = {"intent": intent, "rounds": rounds, "first": first}
+    if participant:
+        result["participant"] = participant
+    return result
 
 
 def parse_debate_approve_command(body) -> dict | None:
@@ -3251,6 +3286,7 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
     """Launch an architecture debate as a tracked background job and return the reply."""
     intent = str(cmd.get("intent") or "").strip()
     rounds = cmd.get("rounds")
+    participant = str(cmd.get("participant") or "").lower()
     first = str(cmd.get("first") or "auto").lower()
     if first not in ("codex", "deepseek"):
         first = "auto"
@@ -3263,6 +3299,10 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
     command = " ".join(shlex.quote(a) for a in argv)
     if rounds:
         command = f"DEBATE_MAX_ROUNDS={int(rounds)} {command}"
+    if participant == "chatgpt":
+        # Same ChatGPT the advisor uses: the subscription page backend. Pinned rather than read
+        # from advisor config so a debate never depends on API credit being available.
+        command = f"DEBATE_MODEL_B={CHATGPT_DEBATE_MODEL} {command}"
     verdict_file = Path(workspace) / ".ai" / "debate" / "approved.txt"
     verify_script = (
         "import pathlib,sys; "
@@ -3286,15 +3326,17 @@ def _exec_debate_command(cmd: dict, conv: int) -> str:
         cwd=workspace,
         open_terminal=False,
     )
-    return _debate_started_reply(jid, intent, rounds, first)
+    return _debate_started_reply(jid, intent, rounds, first, participant)
 
 
-def _debate_started_reply(jid, intent, rounds, first) -> str:
+def _debate_started_reply(jid, intent, rounds, first, participant: str = "") -> str:
+    partner = ("ChatGPT (your advisor subscription)" if participant == "chatgpt"
+               else "the configured second model")
     return (f"🧠 Architecture debate started (job {jid}).\n"
             f"intent: {intent}\n"
             f"rounds: {rounds or 'default (3)'}\n"
             f"opener: {first}\n"
-            "The debate is argued by TWO DIFFERENT LLM models — one per side (never the same model twice).\n"
+            f"participants: the chair model and {partner} — two DISTINCT models, one per side.\n"
             "It runs as a tracked job; I'll auto-report the verdict when it finishes.\n"
             "If it ends in REVISIONS, finalize the last draft as chair by replying \"Approve debate\".\n"
             f"To inspect: run \"harpp workflow show {jid}\" or open .ai/debate/debate-job-*.log.")
