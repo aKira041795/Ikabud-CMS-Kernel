@@ -1653,7 +1653,7 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
                 dl_raiseIntegrityNotification(
                     $ctx->db(),
                     'closed_without_pm_finalize-day-' . $branchId . '-' . $closeDate,
-                    'variance',
+                    'closed_without_pm_finalize',
                     $branchId,
                     'dl_ledger_day_status',
                     null,
@@ -1831,7 +1831,7 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
             dl_raiseIntegrityNotification(
                 $db,
                 'closed_without_pm_finalize-pm-' . $branchId . '-' . $date,
-                'variance',
+                'closed_without_pm_finalize',
                 $branchId,
                 'dl_ledger_shift_status',
                 null,
