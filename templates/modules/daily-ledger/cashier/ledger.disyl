@@ -151,7 +151,12 @@
         {/if}
         {/if}
 
-        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
+        {* One cashier-facing truth surface. Its text is always one of: saved,
+           not-saved-with-cause, or held-on-device. Retry/discard controls exist only
+           for the held state; Discard is separated and styled as the last resort. *}
+        <span class="inline-flex max-w-2xl items-center rounded-lg px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200"
+              id="global-status" data-cashier-save-status role="status" aria-live="polite">All saved</span>
+        <span id="held-actions"></span>
         <span id="offline-ready-badge" class="hidden inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">Offline ready</span>
         <button type="button" class="btn btn-outline" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>
         {if shift == 'PM' && day_status == 'open' && !reference_only}
@@ -217,13 +222,6 @@
         </div>
     </div>
     <p id="offline-pin-msg" class="mt-1 text-xs text-rose-600 hidden"></p>
-</div>
-
-<div id="pending-save-warning" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-    <div>
-        <div class="font-semibold">Offline saves need review.</div>
-        <p id="pending-save-warning-text" class="mt-1 text-xs text-amber-800">Pending saves remain on this device until their matching account and sheet can safely replay them.</p>
-    </div>
 </div>
 
 <div class="mb-4 grid gap-3 lg:grid-cols-3">
@@ -509,7 +507,6 @@
         LEDGER_DATE || 'date',
         SHIFT || 'AM'
     ].join(':');
-    var QUARANTINE_KEY = [PENDING_STORAGE_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
     // Start ONLINE. This HTML was just delivered by the server over this very
     // connection, so connectivity was proven a moment ago; assuming 'offline' until
     // the first probe answers made every page load flash an amber "Offline" banner
@@ -633,22 +630,6 @@
             return false;
         }
     }
-    function getQuarantinedPending() {
-        return readStoredArray(QUARANTINE_KEY);
-    }
-    function setQuarantinedPending(arr) {
-        try {
-            if (!Array.isArray(arr) || arr.length === 0) {
-                localStorage.removeItem(QUARANTINE_KEY);
-                return true;
-            }
-            localStorage.setItem(QUARANTINE_KEY, JSON.stringify(arr.slice(-200)));
-            return true;
-        } catch (e) {
-            markStorageUnavailable();
-            return false;
-        }
-    }
     function buildPendingPayload(productId, field, value) {
         var storedValue = (String(field) === 'bal_end' && (value === null || value === '' || value === undefined)) ? null : (parseInt(value, 10) || 0);
         return {
@@ -688,35 +669,6 @@
         }
         return buildPendingPayload(payload.product_id, payload.field, val);
     }
-    function quarantinePendingEntries(entries, reason, sourceKey) {
-        if (!Array.isArray(entries) || entries.length === 0) return 0;
-        var stale = getQuarantinedPending();
-        var quarantinedAt = new Date().toISOString();
-        entries.forEach(function(entry) {
-            stale.push({
-                reason: reason,
-                source_key: sourceKey,
-                quarantined_at: quarantinedAt,
-                payload: entry
-            });
-        });
-        return setQuarantinedPending(stale) ? entries.length : 0;
-    }
-    function listPendingKeys() {
-        var keys = [];
-        try {
-            for (var i = 0; i < localStorage.length; i++) {
-                var key = localStorage.key(i);
-                if (!key) continue;
-                if (key.indexOf(PENDING_STORAGE_PREFIX) === 0 || key === LEGACY_PENDING_PREFIX || key.indexOf(LEGACY_PENDING_PREFIX + ':') === 0) {
-                    keys.push(key);
-                }
-            }
-        } catch (e) {
-            return [];
-        }
-        return keys;
-    }
     function shouldQueueServerFailure(res) {
         // Unify with the replay/retry classifier so deterministic rejections
         // (already received, missing, required, A different, etc.) surface as
@@ -726,60 +678,106 @@
         if (isSessionExpiredResponse(res)) window.dlSessionExpired(res);
         return shouldQueueOperationFailure(res);
     }
-    function isPendingQuarantineKey(key) {
-        return key.indexOf(PENDING_STORAGE_PREFIX + ':quarantine:') === 0;
-    }
-    function foreignPendingCount() {
-        var count = 0;
-        listPendingKeys().forEach(function(key) {
-            // Quarantine is evidence, not a queue. Every other pending key - another
-            // actor's, another scope's, or the older bbs_pending_saves format - is
-            // retained data and is reported as still queued for its matching sheet.
-            if (key !== PENDING_KEY && !isPendingQuarantineKey(key)) {
-                count += readStoredArray(key).length;
+    function listHeldLocalKeys() {
+        var keys = [];
+        try {
+            for (var i = 0; i < localStorage.length; i++) {
+                var key = localStorage.key(i);
+                if (!key) continue;
+                if (key.indexOf(PENDING_STORAGE_PREFIX) === 0 ||
+                    key.indexOf('daily-ledger:pending-ops') === 0 ||
+                    key === LEGACY_PENDING_PREFIX || key.indexOf(LEGACY_PENDING_PREFIX + ':') === 0) {
+                    keys.push(key);
+                }
             }
-        });
-        return count;
+        } catch (e) { markStorageUnavailable(); }
+        return keys.sort();
     }
-    function allQuarantinedPendingCount() {
-        var count = 0;
-        listPendingKeys().forEach(function(key) {
-            if (isPendingQuarantineKey(key)) count += readStoredArray(key).length;
-        });
-        return count;
+
+    function heldPayload(entry) {
+        var outer = entry && typeof entry === 'object' ? entry : {};
+        var inner = outer.payload && typeof outer.payload === 'object' ? outer.payload : {};
+        // Quarantine records wrap the original operation, which can itself wrap its
+        // business payload. Keep walking only for display metadata; never rewrite it.
+        if (inner.payload && typeof inner.payload === 'object') inner = inner.payload;
+        return { outer: outer, inner: inner };
     }
+
+    function heldSheetFor(entry) {
+        var p = heldPayload(entry);
+        var outerPayload = (p.outer.payload && typeof p.outer.payload === 'object') ? p.outer.payload : {};
+        var branch = p.outer.branch_id || outerPayload.branch_id || p.inner.branch_id || '';
+        var date = p.outer.date || outerPayload.date || p.inner.date || '';
+        var shift = p.outer.shift || outerPayload.shift || p.inner.shift || '';
+        var products = [];
+        function addProduct(value) {
+            value = String(value == null ? '' : value).trim();
+            if (value && products.indexOf(value) === -1) products.push(value);
+        }
+        addProduct(p.outer.product_id || outerPayload.product_id || p.inner.product_id);
+        var items = p.inner.items || outerPayload.items || [];
+        if (Array.isArray(items)) items.forEach(function(item) { addProduct(item && item.product_id); });
+        return {
+            branch: String(branch || 'unknown'),
+            date: String(date || 'unknown date'),
+            shift: String(shift || 'unknown shift'),
+            products: products
+        };
+    }
+
+    function heldLocalSummary() {
+        var summary = { count: 0, keys: [], sheets: [] };
+        var grouped = {};
+        listHeldLocalKeys().forEach(function(key) {
+            var entries = readStoredArray(key);
+            if (!entries.length) return;
+            summary.keys.push(key);
+            entries.forEach(function(entry) {
+                summary.count++;
+                var sheet = heldSheetFor(entry);
+                var groupKey = [sheet.branch, sheet.date, sheet.shift].join('|');
+                if (!grouped[groupKey]) grouped[groupKey] = { branch: sheet.branch, date: sheet.date, shift: sheet.shift, products: [] };
+                sheet.products.forEach(function(product) {
+                    if (grouped[groupKey].products.indexOf(product) === -1) grouped[groupKey].products.push(product);
+                });
+            });
+        });
+        Object.keys(grouped).sort().forEach(function(key) { summary.sheets.push(grouped[key]); });
+        return summary;
+    }
+
+    function allHeldSummary() {
+        var local = heldLocalSummary();
+        var sheets = local.sheets.slice();
+        vaultHeldDetails.forEach(function(sheet) {
+            var found = sheets.some(function(existing) {
+                return existing.branch === sheet.branch && existing.date === sheet.date && existing.shift === sheet.shift;
+            });
+            if (!found) sheets.push(sheet);
+        });
+        if ((vaultPendingCount + vaultQuarantineCount) > 0 && vaultHeldDetails.length === 0) {
+            sheets.push({ branch: String(BRANCH_ID || 'unknown'), date: String(LEDGER_DATE || 'unknown date'), shift: String(SHIFT || 'unknown shift'), products: [] });
+        }
+        return { count: local.count + vaultPendingCount + vaultQuarantineCount, local: local, sheets: sheets };
+    }
+
+    function heldSheetsText(sheets) {
+        if (!sheets.length) return 'sheet details unavailable';
+        return sheets.map(function(sheet) {
+            var productText = sheet.products && sheet.products.length
+                ? 'products ' + sheet.products.slice(0, 8).join(', ') + (sheet.products.length > 8 ? ' and others' : '')
+                : 'product set on this sheet';
+            return 'Branch #' + sheet.branch + ' · ' + sheet.date + ' · ' + sheet.shift + ' shift · ' + productText;
+        }).join('; ');
+    }
+
     function syncPendingStorage() {
-        // REPORT-ONLY (owner directive 2026-10-05). The offline path is deferred and
-        // this device may hold the ONLY copy of up to ~5 weeks of stranded entries.
-        // Loading the sheet therefore must not move, re-scope, rewrite, quarantine or
-        // delete ANY stored entry.
-        //
-        // In particular the auto-migration that re-scoped another actor's stored
-        // entries onto the current actor's sheet was REMOVED. It would replay up to
-        // 5 weeks of stranded entries on first open, onto days that are already
-        // CLOSED, where the server answers 403 'Reference only' / 403 'Day is closed'
-        // and records a PERMANENT rejection - destroying the very data it claimed to
-        // rescue. The legacy bbs_pending_saves key is likewise left exactly in place
-        // instead of being quarantined and deleted.
-        renderPendingWarning();
+        // REPORT ONLY. A load, login, logout, account change, or routine sync may
+        // inspect retained work but must never move, re-scope, rewrite, or delete it.
+        renderHeldDataStatus();
         return 0;
     }
-    function renderPendingWarning() {
-        var box = document.getElementById('pending-save-warning');
-        var text = document.getElementById('pending-save-warning-text');
-        if (!box || !text) return;
-        var queued = foreignPendingCount();
-        var quarantined = allQuarantinedPendingCount();
-        box.classList.toggle('hidden', queued + quarantined === 0);
-        var parts = [];
-        if (queued > 0) {
-            parts.push(queued + ' pending save' + (queued === 1 ? ' belongs' : 's belong') + ' to another account, branch, date, or shift and remain safely queued for that matching sheet.');
-        }
-        if (quarantined > 0) {
-            parts.push(quarantined + ' incompatible or server-rejected save' + (quarantined === 1 ? '' : 's') + ' remain quarantined as retained evidence; they will not replay automatically.');
-        }
-        text.textContent = parts.join(' ');
-    }
+    function renderPendingWarning() { renderHeldDataStatus(); }
 
     // ── Offline cashier-operation queue ──────────────────────────────
     // Stock Adjustment (withdrawal) and Paper-DR Receive can be entered
@@ -795,7 +793,6 @@
         LEDGER_DATE || 'date',
         SHIFT || 'AM'
     ].join(':');
-    var OPS_QUARANTINE_KEY = [PENDING_OPS_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
 
     function getPendingOps() {
         return readStoredArray(PENDING_OPS_KEY);
@@ -809,7 +806,7 @@
         return true;
     }
     function pendingTotal() {
-        return getPending().length + getPendingOps().length + vaultPendingCount;
+        return allHeldSummary().count;
     }
 
     // ── Encrypted vault queue adapter ────────────────────────────────
@@ -820,12 +817,31 @@
     // so the old path is preserved until migration/browser proof.
     var vaultQueueActive = false;
     var vaultPendingCount = 0;
+    var vaultQuarantineCount = 0;
+    var vaultHeldDetails = [];
+    var cashierFailure = null;
+    var heldRetryOutcome = '';
+    var heldRetryRunning = false;
+    var lastAutomaticHeldRetry = 0;
 
     function vaultRefreshPendingCount() {
-        if (!window.DLOfflineVault || !window.DLOfflineVault.isUnlocked()) return;
-        window.DLOfflineVault.countPending().then(function(n) {
-            vaultPendingCount = n;
-            updateGlobalStatus('saved');
+        if (!window.DLOfflineVault) return Promise.resolve();
+        var unlocked = window.DLOfflineVault.isUnlocked();
+        var countPromise = unlocked
+            ? window.DLOfflineVault.countPending()
+            : window.DLOfflineVault.countPendingLocked();
+        var detailsPromise = unlocked
+            ? window.DLOfflineVault.listOperations().catch(function() { return []; })
+            : Promise.resolve([]);
+        var quarantinePromise = (typeof window.DLOfflineVault.listQuarantine === 'function')
+            ? window.DLOfflineVault.listQuarantine().catch(function() { return []; })
+            : Promise.resolve([]);
+        return Promise.all([countPromise, detailsPromise, quarantinePromise]).then(function(values) {
+            vaultPendingCount = Number(values[0]) || 0;
+            vaultQuarantineCount = values[2].length;
+            vaultHeldDetails = values[1].map(heldSheetFor);
+            values[2].forEach(function(record) { vaultHeldDetails.push(heldSheetFor(record)); });
+            renderHeldDataStatus();
             renderConnectivityBanner();
         }).catch(function() {});
     }
@@ -865,6 +881,49 @@
             return;
         }
         addPending(payload);
+    }
+
+    function plainRefusalCause(reason, error) {
+        var causes = {
+            'expired': 'offline access has expired. Ask the office to restore access, then Retry',
+            'revoked': 'offline access was turned off. Ask the office to restore access, then Retry',
+            'account-mismatch': 'this data belongs to a different cashier account. Open that account, then Retry',
+            'branch-mismatch': 'this data belongs to a different branch. Open that branch sheet, then Retry',
+            'scope-mismatch': 'this data belongs to a different branch. Open that branch sheet, then Retry',
+            'schema-mismatch': 'this device needs an update before it can send these entries. Ask the office for help, then Retry',
+            'inactive': 'this cashier account is inactive. Ask the office to restore it, then Retry',
+            'not-found': 'offline access is no longer available. Ask the office to restore access, then Retry'
+        };
+        if (causes[String(reason || '')]) return causes[String(reason || '')];
+        var message = String(error || '').toLowerCase();
+        if (message.indexOf('closed') !== -1) return 'this day is closed. Ask an admin to reopen it, then Retry';
+        if (message.indexOf('finalized') !== -1 || message.indexOf('locked') !== -1) return 'this shift is closed. Ask an admin to reopen it, then Retry';
+        return 'the office did not accept these entries. Ask the office for help, then Retry';
+    }
+
+    function recordSyncDiagnostic(res, count) {
+        var record = {
+            at: new Date().toISOString(),
+            reason: String((res && res.reason) || 'refused'),
+            error: String((res && res.error) || ''),
+            status: Number((res && res.__status) || 0),
+            branch_id: String(BRANCH_ID || ''), date: String(LEDGER_DATE || ''), shift: String(SHIFT || ''),
+            held_count: Number(count) || 0
+        };
+        try {
+            var key = ['daily-ledger:sync-diagnostics', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
+            var rows = JSON.parse(localStorage.getItem(key) || '[]');
+            if (!Array.isArray(rows)) rows = [];
+            rows.push(record);
+            localStorage.setItem(key, JSON.stringify(rows.slice(-50)));
+        } catch (e) { /* the refusal remains visible even if diagnostics cannot persist */ }
+        console.error('Daily Ledger held-data refusal', record);
+    }
+
+    function reportHeldRetryFailure(res) {
+        recordSyncDiagnostic(res, allHeldSummary().count);
+        heldRetryOutcome = plainRefusalCause(res && res.reason, res && res.error);
+        renderHeldDataStatus();
     }
 
     function drainVault() {
@@ -909,26 +968,37 @@
                         pending_count: pendingReport.pending_count, pending_since: pendingReport.pending_since, pending_fields: pendingReport.pending_fields })
                 }).then(dlResponseJson).then(function(res) {
                     if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
-                    // A JSON rejection is an APPLICATION answer, not a lost connection:
-                    // the server is demonstrably reachable, so never mark it offline here.
-                    if (!res.ok) { return; }
+                    // A JSON refusal proves the server was reached. Preserve every
+                    // operation and name the refusal; never mislabel it as a slow link.
+                    if (!res.ok) {
+                        reportHeldRetryFailure(res);
+                        return;
+                    }
                     var remove = [];
+                    var firstRejected = null;
                     (res.results || []).forEach(function(r) {
                         if (r.status === 'applied' || r.duplicate) {
                             window.DLOfflineVault.saveReceipt({ client_op_id: r.client_op_id, result: r.result || {}, duplicate: !!r.duplicate, status: r.status }).catch(function() {});
                             remove.push(r.client_op_id);
                         } else if (r.status === 'rejected' || r.status === 'conflict') {
-                            window.DLOfflineVault.quarantineRecord({ reason: r.status, source_key: 'ledger-reconcile', payload: { client_op_id: r.client_op_id, type: r.type, error: r.error } }).catch(function() {});
-                            remove.push(r.client_op_id);
+                            // A rejected operation is still cashier-owned data. Keep it
+                            // retryable until the cashier explicitly discards it.
+                            if (!firstRejected) firstRejected = r;
                         }
                     });
+                    if (firstRejected) reportHeldRetryFailure({ reason: firstRejected.reason || firstRejected.status, error: firstRejected.error || '' });
                     return Promise.all(remove.map(function(id) { return window.DLOfflineVault.removeOperation(id).catch(function() {}); })).then(function() {
                         return window.DLOfflineVault.countPending().then(function(n) { vaultPendingCount = n; });
                     });
                 });
             });
-        }).catch(function() { markCloudProbeFailure(); }).then(function() {
-            updateGlobalStatus('saved');
+        }).catch(function() {
+            markCloudProbeFailure();
+            heldRetryOutcome = 'the connection is slow. Nothing was sent; Retry';
+        }).then(function() {
+            return vaultRefreshPendingCount();
+        }).then(function() {
+            renderHeldDataStatus();
             renderConnectivityBanner();
         });
     }
@@ -989,11 +1059,6 @@
         setPendingOps(list);
         renderConnectivityBanner();
     }
-    function quarantinePendingOperation(entry, reason) {
-        var stale = readStoredArray(OPS_QUARANTINE_KEY);
-        stale.push({ reason: reason, quarantined_at: new Date().toISOString(), payload: entry });
-        try { localStorage.setItem(OPS_QUARANTINE_KEY, JSON.stringify(stale.slice(-200))); } catch (e) { markStorageUnavailable(); }
-    }
     // Decide whether a failed save should be queued for retry or surfaced to the
     // operator as a refusal. The status code decides; message text is only a
     // fallback for responses that carry no status.
@@ -1038,13 +1103,12 @@
         var requests = list.map(function(entry) {
             if (!entry || entry.schema_version !== 1 || entry.module !== 'daily-ledger' ||
                 (entry.op !== 'withdrawal' && entry.op !== 'receive_paper_dr')) {
-                quarantinePendingOperation(entry, 'schema-mismatch');
-                removePendingOperation(entry.idempotency_key);
+                heldRetryOutcome = plainRefusalCause('schema-mismatch');
                 return Promise.resolve();
             }
-            if (String(entry.branch_id) !== String(BRANCH_ID || '') || String(entry.date) !== String(LEDGER_DATE || '')) {
-                quarantinePendingOperation(entry, 'scope-mismatch');
-                removePendingOperation(entry.idempotency_key);
+            if (String(entry.branch_id) !== String(BRANCH_ID || '') || String(entry.date) !== String(LEDGER_DATE || '') ||
+                String(entry.shift || 'AM') !== String(SHIFT || 'AM')) {
+                heldRetryOutcome = 'some entries belong to another sheet. Open that sheet, then Retry';
                 return Promise.resolve();
             }
             var url = entry.op === 'withdrawal'
@@ -1076,22 +1140,27 @@
                 } else if (isSessionExpiredResponse(res)) {
                     window.dlSessionExpired(res);
                 } else if (!shouldQueueOperationFailure(res)) {
-                    quarantinePendingOperation(entry, 'server-rejected');
-                    removePendingOperation(entry.idempotency_key);
+                    reportHeldRetryFailure(res);
                 }
             })
-            .catch(function() { markCloudProbeFailure(); });
+            .catch(function() {
+                markCloudProbeFailure();
+                heldRetryOutcome = 'the connection is slow. Nothing was sent; Retry';
+            });
         });
         return Promise.all(requests).then(function() {
-            updateGlobalStatus(pendingTotal() > 0 ? 'pending' : 'saved');
+            renderHeldDataStatus();
             renderConnectivityBanner();
         });
     }
     function drainPendingWork() {
         var queuedBefore = pendingTotal();
-        var drained = (vaultQueueActive && window.DLOfflineVault && window.DLOfflineVault.isUnlocked())
-            ? drainVault()
-            : retryPending().then(function() { return replayPendingOperations(); });
+        // Old local entries and encrypted entries can coexist after upgrades. Retry
+        // both; choosing one silently stranded the other.
+        var drained = Promise.all([
+            retryPending().then(function() { return replayPendingOperations(); }),
+            drainVault()
+        ]);
         return drained.then(function() {
             // A withdrawal queued while the banner was amber has now reached the cloud,
             // but the cells on screen were rendered before it landed - and the ledger
@@ -1419,7 +1488,7 @@
         if (value === null) { input.value = ''; } else { input.value = value; }
         input.classList.remove('saved', 'error');
         input.classList.add('saving');
-        updateGlobalStatus('pending');
+        reportCashierNotSaved('the server has not replied yet', function() { sendFieldValue(input, productId, field, value); });
 
         // Recompute sales display immediately
         computeSales(productId);
@@ -1436,9 +1505,11 @@
             if (res.ok) {
                 input.classList.add('saved');
                 setTimeout(function() { input.classList.remove('saved'); }, 1500);
-                removePending(productId, field);
+                // A normal online save must not delete older held data as a side
+                // effect. Only that held entry's confirmed replay, or confirmed
+                // cashier discard, may remove it.
                 input.dataset.serverValue = input.value;
-                if (window.dlClearWriteFailure) window.dlClearWriteFailure();
+                clearCashierFailure();
                 if (window.dlToastSaved) { window.dlToastSaved('Saved'); }
                 else if (window.showToast) { window.showToast('Saved', 'success'); }
             } else {
@@ -1454,12 +1525,9 @@
                     // reported with a Retry, never buffered on the device.
                     revertCellToServerValue(input);
                     computeSales(productId);
-                    var busyMsg = 'NOT saved — the server is not accepting changes right now'
-                        + (res.error ? ' (' + res.error + ')' : '') + '. Retry in a moment.';
-                    if (window.dlReportWriteFailure) {
-                        window.dlReportWriteFailure(busyMsg, function() { sendFieldValue(input, productId, field, value); });
-                    }
-                    if (window.showToast) window.showToast(busyMsg, 'error');
+                    var busyCause = 'the server is not accepting changes right now';
+                    reportCashierNotSaved(busyCause, function() { sendFieldValue(input, productId, field, value); });
+                    if (window.showToast) window.showToast('Not saved — ' + busyCause + '. Retry.', 'error');
                 } else {
                     // Deterministic rejection (locked shift, closed day, reference
                     // only). PRESERVATION + no-false-success: put the cell back to
@@ -1477,14 +1545,14 @@
                         input.value = (value === null) ? '' : value;
                     }
                     computeSales(productId);
-                    var refusedMsg = 'NOT saved — ' + (res.error || 'the server refused the change') + '. Retry.';
-                    if (window.dlReportWriteFailure) {
-                        window.dlReportWriteFailure(refusedMsg, function() { sendFieldValue(input, productId, field, value); });
-                    }
-                    if (window.showToast) window.showToast(refusedMsg, 'error');
+                    var refusedCause = res.reason
+                        ? plainRefusalCause(res.reason, res.error)
+                        : (res.error || 'the server refused the change');
+                    reportCashierNotSaved(refusedCause, function() { sendFieldValue(input, productId, field, value); });
+                    if (window.showToast) window.showToast('Not saved — ' + refusedCause + '. Retry.', 'error');
                 }
             }
-            updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
+            renderHeldDataStatus();
         })
         .catch(function(err) {
             if (window.dlSetBusy) window.dlSetBusy(false);
@@ -1496,17 +1564,10 @@
             // so the screen can never suggest a value that was not recorded.
             revertCellToServerValue(input);
             computeSales(productId);
-            updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
-            var reason = (err && err.dlTimedOut)
-                ? window.dlWriteTimeoutMessage('This edit')
-                : 'NOT saved — the server could not be reached.';
-            if (window.dlReportWriteFailure) {
-                window.dlReportWriteFailure(
-                    reason + ' The cell was put back to its last saved value so the screen is not misleading.',
-                    function() { sendFieldValue(input, productId, field, value); }
-                );
-            }
-            if (window.showToast) window.showToast(reason, 'error');
+            // This cause is used only after an actual fetch error or timeout.
+            var reason = 'the connection is slow';
+            reportCashierNotSaved(reason, function() { sendFieldValue(input, productId, field, value); });
+            if (window.showToast) window.showToast('Not saved — ' + reason + '. Retry.', 'error');
         });
     }
 
@@ -1529,14 +1590,6 @@
         renderConnectivityBanner();
     }
 
-    function removePending(productId, field) {
-        var list = getPending().filter(function(p) {
-            return !(p.product_id == productId && p.field == field && p.branch_id == BRANCH_ID && p.date == LEDGER_DATE);
-        });
-        setPending(list);
-        renderConnectivityBanner();
-    }
-
     function removePendingIfUnchanged(completed) {
         var list = getPending().filter(function(p) {
             var sameEntry = p.product_id == completed.product_id &&
@@ -1552,23 +1605,210 @@
         renderConnectivityBanner();
     }
 
-    function updateGlobalStatus(state) {
-        var el = document.getElementById('global-status');
-        if (!el) return;
-        el.classList.remove('all-saved', 'pending');
-        if (!storageAvailable) {
-            el.textContent = 'Storage unavailable';
-            el.classList.add('pending');
+    function setHeldActionsVisible(visible) {
+        var actions = document.getElementById('held-actions');
+        if (!actions) return;
+        if (!visible) {
+            // ABSENT, not merely disabled: destructive controls must not exist when
+            // there is no held data to act on.
+            actions.replaceChildren();
             return;
         }
-        if (state === 'saved' && pendingTotal() === 0) {
-            el.textContent = 'All saved';
-            el.classList.add('all-saved');
-        } else {
-            el.textContent = 'Saving...';
-            el.classList.add('pending');
-        }
+        if (document.getElementById('held-retry')) return;
+        var retry = document.createElement('button');
+        retry.type = 'button';
+        retry.id = 'held-retry';
+        retry.className = 'btn btn-primary btn-sm';
+        retry.textContent = 'Retry';
+        retry.addEventListener('click', function() { window.dlRetryHeldData(); });
+
+        var discardWrap = document.createElement('span');
+        discardWrap.id = 'held-discard-wrap';
+        discardWrap.className = 'ml-8 border-l border-rose-200 pl-6';
+        var lastResort = document.createElement('span');
+        lastResort.className = 'mr-2 text-xs text-gray-500';
+        lastResort.textContent = 'Last resort';
+        var discard = document.createElement('button');
+        discard.type = 'button';
+        discard.id = 'held-discard';
+        discard.className = 'btn btn-danger btn-sm';
+        discard.textContent = 'Discard and re-encode';
+        discard.addEventListener('click', function() { window.dlDiscardHeldData(); });
+        discardWrap.appendChild(lastResort);
+        discardWrap.appendChild(discard);
+        actions.appendChild(retry);
+        actions.appendChild(discardWrap);
     }
+
+    function paintCashierStatus(kind, text) {
+        var el = document.getElementById('global-status');
+        if (!el) return;
+        el.textContent = text;
+        el.dataset.state = kind;
+        el.className = 'inline-flex max-w-2xl items-center rounded-lg px-3 py-1 text-xs font-semibold ring-1 ring-inset ' +
+            (kind === 'saved'
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                : (kind === 'held'
+                    ? 'bg-amber-50 text-amber-900 ring-amber-300'
+                    : 'bg-rose-50 text-rose-800 ring-rose-300'));
+        el.setAttribute('data-cashier-save-status', '');
+        el.setAttribute('role', kind === 'not-saved' ? 'alert' : 'status');
+        el.tabIndex = (kind === 'not-saved' && cashierFailure && cashierFailure.retry) ? 0 : -1;
+    }
+
+    function renderHeldDataStatus() {
+        var held = allHeldSummary();
+        if (held.count > 0) {
+            var text = held.count + ' still on this device — Retry / Discard. ' + heldSheetsText(held.sheets) +
+                '. The office can see that this shift still has entries here; you can go home without waiting.';
+            if (heldRetryOutcome) text += ' Last try: ' + heldRetryOutcome + '.';
+            paintCashierStatus('held', text);
+            setHeldActionsVisible(true);
+            return;
+        }
+        setHeldActionsVisible(false);
+        if (!storageAvailable) {
+            paintCashierStatus('not-saved', 'Not saved — this device cannot store the change. Stop and ask the office for help. Retry.');
+            return;
+        }
+        if (cashierFailure) {
+            paintCashierStatus('not-saved', 'Not saved — ' + cashierFailure.cause + '. Retry.');
+            return;
+        }
+        paintCashierStatus('saved', 'All saved');
+    }
+    window.renderHeldDataStatus = renderHeldDataStatus;
+
+    function reportCashierNotSaved(cause, retry) {
+        cashierFailure = { cause: String(cause || 'the change was refused'), retry: (typeof retry === 'function') ? retry : null };
+        renderHeldDataStatus();
+    }
+    function clearCashierFailure() {
+        cashierFailure = null;
+        renderHeldDataStatus();
+    }
+    // On this sheet the single status element replaces the shell's generic
+    // write-failure panel. Clicking/tapping the status retries the captured value.
+    window.dlReportWriteFailure = function(reason, retry) {
+        reportCashierNotSaved(String(reason || '').replace(/^NOT saved\s*[—-]\s*/i, '').replace(/\.?\s*Retry\.?$/i, ''), retry);
+    };
+    window.dlClearWriteFailure = clearCashierFailure;
+    window.dlRetryWriteFailure = function() {
+        if (cashierFailure && typeof cashierFailure.retry === 'function') cashierFailure.retry();
+    };
+    var statusElement = document.getElementById('global-status');
+    if (statusElement) {
+        statusElement.addEventListener('click', function() {
+            if (statusElement.dataset.state === 'not-saved') window.dlRetryWriteFailure();
+        });
+        statusElement.addEventListener('keydown', function(event) {
+            if ((event.key === 'Enter' || event.key === ' ') && statusElement.dataset.state === 'not-saved') {
+                event.preventDefault();
+                window.dlRetryWriteFailure();
+            }
+        });
+    }
+
+    function updateGlobalStatus(state) {
+        if (state === 'saved' && pendingTotal() === 0) cashierFailure = null;
+        if (state === 'pending' && pendingTotal() === 0 && !cashierFailure) {
+            cashierFailure = { cause: 'the server has not replied yet', retry: null };
+        }
+        renderHeldDataStatus();
+    }
+
+    window.dlRetryHeldData = function() {
+        if (heldRetryRunning) return Promise.resolve();
+        heldRetryRunning = true;
+        heldRetryOutcome = 'trying again now';
+        renderHeldDataStatus();
+        return Promise.all([retryPending(), replayPendingOperations(), drainVault()])
+            .then(function() {
+                if (allHeldSummary().count === 0) heldRetryOutcome = '';
+                else if (heldRetryOutcome === 'trying again now') heldRetryOutcome = 'some entries belong to another sheet; open that sheet and Retry';
+            })
+            .finally(function() {
+                heldRetryRunning = false;
+                renderHeldDataStatus();
+            });
+    };
+
+    function vaultDiscardSnapshot() {
+        if (!window.DLOfflineVault || typeof indexedDB === 'undefined') return Promise.resolve({ enrollment: '', operations: [], quarantine: [] });
+        return window.DLOfflineVault.getStoredEnrollmentId().then(function(enrollment) {
+            return new Promise(function(resolve) {
+                var request = indexedDB.open('daily-ledger-offline-vault', 1);
+                request.onerror = function() { resolve({ enrollment: enrollment || '', operations: [], quarantine: [] }); };
+                request.onsuccess = function() {
+                    var db = request.result;
+                    var snapshot = { enrollment: enrollment || '', operations: [], quarantine: [] };
+                    var tx = db.transaction(['operations', 'quarantine'], 'readonly');
+                    var opCursor = tx.objectStore('operations').openCursor();
+                    opCursor.onsuccess = function() {
+                        var cursor = opCursor.result;
+                        if (!cursor) return;
+                        if (!enrollment || cursor.value.enrollment_id === enrollment) snapshot.operations.push(cursor.primaryKey);
+                        cursor.continue();
+                    };
+                    var qCursor = tx.objectStore('quarantine').openCursor();
+                    qCursor.onsuccess = function() {
+                        var cursor = qCursor.result;
+                        if (!cursor) return;
+                        if (!enrollment || cursor.value.enrollment_id === enrollment) snapshot.quarantine.push(cursor.primaryKey);
+                        cursor.continue();
+                    };
+                    tx.oncomplete = function() { db.close(); resolve(snapshot); };
+                    tx.onerror = function() { db.close(); resolve(snapshot); };
+                };
+            });
+        }).catch(function() { return { enrollment: '', operations: [], quarantine: [] }; });
+    }
+
+    function discardVaultSnapshot(snapshot) {
+        if ((!snapshot.operations.length && !snapshot.quarantine.length) || typeof indexedDB === 'undefined') return Promise.resolve();
+        return new Promise(function(resolve, reject) {
+            var request = indexedDB.open('daily-ledger-offline-vault', 1);
+            request.onerror = function() { reject(new Error('storage')); };
+            request.onsuccess = function() {
+                var db = request.result;
+                var tx = db.transaction(['operations', 'quarantine'], 'readwrite');
+                snapshot.operations.forEach(function(id) { tx.objectStore('operations').delete(id); });
+                snapshot.quarantine.forEach(function(id) { tx.objectStore('quarantine').delete(id); });
+                tx.oncomplete = function() { db.close(); resolve(); };
+                tx.onerror = function() { db.close(); reject(new Error('storage')); };
+            };
+        });
+    }
+
+    window.dlDiscardHeldData = function() {
+        var held = allHeldSummary();
+        if (held.count === 0) return Promise.resolve();
+        var localSnapshot = held.local.keys.map(function(key) { return { key: key, raw: localStorage.getItem(key) }; });
+        return vaultDiscardSnapshot().then(function(vaultSnapshot) {
+            var message = 'Discard ' + held.count + ' entr' + (held.count === 1 ? 'y' : 'ies') + ' from ' +
+                heldSheetsText(held.sheets) + '?\n\nThey will be removed from this device. You must re-encode this data yourself.';
+            if (!confirm(message)) return false;
+            localSnapshot.forEach(function(item) {
+                // Remove only the exact data named in the confirmation. If another
+                // action changed a key meanwhile, preserve it rather than over-delete.
+                if (localStorage.getItem(item.key) === item.raw) localStorage.removeItem(item.key);
+            });
+            return discardVaultSnapshot(vaultSnapshot).then(function() {
+                vaultPendingCount = 0;
+                vaultQuarantineCount = 0;
+                vaultHeldDetails = [];
+                heldRetryOutcome = '';
+                cashierFailure = null;
+                renderHeldDataStatus();
+                if (window.showToast) window.showToast('Discarded. Re-encode those entries on the named sheet.', 'warning');
+                return true;
+            });
+        }).catch(function() {
+            heldRetryOutcome = 'device storage would not remove the entries; nothing was discarded';
+            renderHeldDataStatus();
+            return false;
+        });
+    };
 
     function retryPending() {
         // Gate on the browser's own signal, never on the probe's. A stale "offline"
@@ -1586,9 +1826,7 @@
 
         var requests = list.map(function(payload) {
             if (normalizePendingEntry(payload) === null) {
-                quarantinePendingEntries([payload], 'schema-mismatch', PENDING_KEY);
-                removePending(payload.product_id, payload.field);
-                renderPendingWarning();
+                heldRetryOutcome = plainRefusalCause('schema-mismatch');
                 return Promise.resolve();
             }
             return window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save', {
@@ -1613,18 +1851,21 @@
                 } else if (isSessionExpiredResponse(res)) {
                     window.dlSessionExpired(res);
                 } else if (!shouldQueueServerFailure(res)) {
-                    quarantinePendingEntries([payload], 'server-rejected', PENDING_KEY);
-                    removePending(payload.product_id, payload.field);
-                    renderPendingWarning();
+                    reportHeldRetryFailure(res);
+                } else {
+                    heldRetryOutcome = 'the server is not accepting entries right now; Retry';
                 }
             })
-            .catch(function() { markCloudProbeFailure(); });
+            .catch(function() {
+                markCloudProbeFailure();
+                heldRetryOutcome = 'the connection is slow. Nothing was sent; Retry';
+            });
         });
         return Promise.all(requests).then(function() {
             if (cloudOnline) lastCloudSync = new Date();
         }).finally(function() {
             syncingPending = false;
-            updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
+            renderHeldDataStatus();
             renderConnectivityBanner();
         });
     }
@@ -1752,8 +1993,27 @@
         blockOnlineAction(target.getAttribute('data-online-action') || 'This action');
     }, true);
 
+    function automaticHeldRetry() {
+        if (!navigator.onLine || document.hidden || pendingTotal() === 0 || heldRetryRunning) return;
+        var now = Date.now();
+        if (now - lastAutomaticHeldRetry < 1000) return;
+        lastAutomaticHeldRetry = now;
+        window.dlRetryHeldData();
+    }
+
+    window.addEventListener('online', automaticHeldRetry);
     window.addEventListener('online', probeCloud);
     window.addEventListener('offline', function() { cloudOnline = false; renderConnectivityBanner(); });
+    // The very next meaningful interaction is a prompt retry. Destructive controls
+    // are excluded so pressing Discard can never send or alter data before consent.
+    document.addEventListener('pointerdown', function(event) {
+        if (event.target && event.target.closest && event.target.closest('#held-retry, #held-discard-wrap')) return;
+        automaticHeldRetry();
+    }, true);
+    document.addEventListener('keydown', function(event) {
+        if (event.target && event.target.closest && event.target.closest('#held-retry, #held-discard-wrap')) return;
+        if (event.key === 'Tab' || event.key === 'Enter' || event.key === ' ') automaticHeldRetry();
+    }, true);
     cloudProbeInterval = setInterval(function() {
         // A background tab costs a whole PHP worker per probe and nobody is looking
         // at it, so skip entirely; visibilitychange probes as soon as it returns.
@@ -1777,7 +2037,10 @@
     }, 15000);
 
     document.addEventListener('visibilitychange', function() {
-        if (!document.hidden && navigator.onLine) probeCloud();
+        if (!document.hidden && navigator.onLine) {
+            automaticHeldRetry();
+            probeCloud();
+        }
     });
 
     // Tab/Enter navigation between inputs
@@ -1952,7 +2215,7 @@
             if (confirmation !== pin) { showToast('PINs do not match.', 'error'); return; }
 
             var btn = document.getElementById('offline-access-btn');
-            if (btn) { btn.disabled = true; btn.textContent = 'Enrolling…'; }
+            if (btn) { btn.disabled = true; btn.textContent = 'Setting up…'; }
 
             window.DLOfflineVault.ensureDeviceId().then(function(deviceId) {
                 return fetch(BASE + '/api/v1/offline/enroll', {
@@ -1967,12 +2230,9 @@
                 }).then(dlResponseJson);
             }).then(function(res) {
                 if (!res.ok || !res.enrollment || !res.bootstrap) {
-                    throw new Error((res && res.error) || 'Enrollment failed');
+                    throw new Error('Could not set up offline access. Ask the office for help.');
                 }
                 return window.DLOfflineVault.activate(res.enrollment, res.bootstrap, pin)
-                    .then(function() {
-                        return window.DLOfflineVault.migrateLegacy().catch(function() { return null; });
-                    })
                     .then(function() {
                         vaultQueueActive = true;
                         vaultRefreshPendingCount();
@@ -2038,26 +2298,30 @@
                 if (btn) btn.disabled = false;
                 var reasons = {
                     'bad-pin': 'Incorrect PIN.', 'locked': 'Too many attempts. Try again in a few minutes.',
-                    'corrupt': 'The offline vault is unreadable. Remove offline access online and re-enroll.',
-                    'expired': 'Offline access expired. Re-enroll online.', 'revoked': 'Offline access was revoked. Re-enroll online.',
+                    'corrupt': 'Offline data cannot be read. Ask the office for help before discarding anything.',
+                    'expired': 'Offline access expired. Ask the office to set it up again.', 'revoked': 'Offline access was turned off. Ask the office to set it up again.',
                     'storage': 'Device storage is unavailable.'
                 };
                 showMsg(reasons[(res && res.reason)] || 'Unable to unlock.');
                 return;
             }
             vaultQueueActive = true;
-            return window.DLOfflineVault.migrateLegacy().catch(function() { return null; })
-                .then(function() {
-                    return window.DLOfflineVault.countPending().then(function(n) { vaultPendingCount = n; });
-                })
+            return window.DLOfflineVault.countPending().then(function(n) { vaultPendingCount = n; })
                 .then(function() {
                     renderOfflineReadyBadge(true);
                     return drainVault();
                 })
                 .then(function() {
-                    dlShowPendingSyncPrompt(0);
+                    var remaining = allHeldSummary().count;
+                    dlShowPendingSyncPrompt(remaining);
+                    renderHeldDataStatus();
                     renderConnectivityBanner();
-                    if (window.showToast) window.showToast('Synced. Offline entries sent to the cloud.', 'success');
+                    if (window.showToast) {
+                        window.showToast(remaining === 0
+                            ? 'All saved.'
+                            : (remaining + ' still on this device. Read the status, then Retry or Discard and re-encode.'),
+                            remaining === 0 ? 'success' : 'warning');
+                    }
                 });
         }).catch(function() {
             if (btn) btn.disabled = false;
@@ -2077,16 +2341,13 @@
                     renderOfflineReadyBadge(true);
                     if (window.DLOfflineVault.isUnlocked()) {
                         vaultQueueActive = true;
-                        window.DLOfflineVault.migrateLegacy().catch(function() {});
-                        window.DLOfflineVault.countPending().then(function(n) {
-                            vaultPendingCount = n;
-                            updateGlobalStatus('saved');
-                            renderConnectivityBanner();
-                        }).catch(function() {});
+                        vaultRefreshPendingCount();
                     } else {
                         // Locked vault: surface unsynced work so it is never stuck.
                         window.DLOfflineVault.countPendingLocked().then(function(n) {
+                            vaultPendingCount = n;
                             if (n > 0) dlShowPendingSyncPrompt(n);
+                            return vaultRefreshPendingCount();
                         }).catch(function() {});
                     }
                 }

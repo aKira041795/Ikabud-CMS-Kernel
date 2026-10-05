@@ -98,10 +98,10 @@ test('A. forced save failure is loud, reverts the cell, and queues nothing', asy
     await cell.dispatchEvent('change');
 
     // Explicit, persistent, actionable failure.
-    var failure = page.locator('#dl-write-failure');
-    await expect(failure).toBeVisible();
-    await expect(page.locator('#dl-write-failure-text')).toContainText(/NOT saved/i);
-    await expect(page.locator('#dl-write-failure-retry')).toBeVisible();
+    var failure = page.locator('#global-status');
+    await expect(failure).toHaveAttribute('data-state', 'not-saved');
+    await expect(failure).toContainText(/Not saved/i);
+    await expect(failure).toContainText(/Retry/i);
 
     // The cell is visibly unsaved: rolled back to the server's value, not the typed one.
     await expect(cell).toHaveValue('20');
@@ -131,7 +131,7 @@ test('A2. a transport failure never fabricates a success toast', async ({ page }
     var cell = page.locator('[data-field="beg_bal"]').first();
     await cell.fill('31');
     await cell.dispatchEvent('change');
-    await expect(page.locator('#dl-write-failure')).toBeVisible();
+    await expect(page.locator('#global-status')).toHaveAttribute('data-state', 'not-saved');
     toasts = await page.evaluate(function () { return window.__toasts || []; });
     var success = toasts.filter(function (t) { return t.type === 'success' && /saved/i.test(t.message); });
     expect(success, 'a failed save must not emit a success toast').toEqual([]);
@@ -159,9 +159,9 @@ test('A3. a non-2xx (403 deterministic) rejection is persistent, actionable, and
     await cell.fill('25');
     await cell.dispatchEvent('change');
 
-    await expect(page.locator('#dl-write-failure')).toBeVisible();
-    await expect(page.locator('#dl-write-failure-text')).toContainText(/NOT saved/i);
-    await expect(page.locator('#dl-write-failure-retry')).toBeVisible();
+    await expect(page.locator('#global-status')).toHaveAttribute('data-state', 'not-saved');
+    await expect(page.locator('#global-status')).toContainText(/Not saved/i);
+    await expect(page.locator('#global-status')).toContainText(/Retry/i);
     await expect(cell).toHaveValue('20');
     await expect(cell).not.toHaveClass(/saved/);
 
@@ -199,11 +199,11 @@ test('A4. Retry re-sends the value the cashier typed, without re-entering it', a
     var cell = page.locator('[data-field="beg_bal"]').first();
     await cell.fill('25');
     await cell.dispatchEvent('change');
-    await expect(page.locator('#dl-write-failure')).toBeVisible();
+    await expect(page.locator('#global-status')).toHaveAttribute('data-state', 'not-saved');
 
-    // The operator never re-types: the Retry control replays the captured value.
-    await page.locator('#dl-write-failure-retry').click();
-    await expect(page.locator('#dl-write-failure')).toBeHidden();
+    // The operator never re-types: the one status control replays the captured value.
+    await page.locator('#global-status').click();
+    await expect(page.locator('#global-status')).toHaveText('All saved');
     await expect(cell).toHaveClass(/saved/);
     expect(attempts.length).toBe(2);
     expect(attempts[0].value).toBe(25);

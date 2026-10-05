@@ -57,14 +57,16 @@ test.describe('Daily Ledger — Pending Save Scope', () => {
                 source: JSON.parse(localStorage.getItem(sourceKey) || '[]'),
                 raw: localStorage.getItem(sourceKey),
                 quarantineCount: quarantineCount,
-                warning: (document.querySelector('#pending-save-warning-text') || {}).textContent || ''
+                warning: (document.querySelector('#global-status') || {}).textContent || ''
             };
         }, seeded.key);
 
         expect(afterOtherActor.source, 'actor A queue must remain under actor A').toEqual([seeded.payload]);
         expect(afterOtherActor.raw, 'actor A queue must be byte-identical').toBe(seeded.raw);
         expect(afterOtherActor.quarantineCount, 'switching actors must not quarantine a valid queue').toBe(0);
-        expect(afterOtherActor.warning).toContain('remain safely queued');
+        expect(afterOtherActor.warning).toContain('1 still on this device');
+        expect(afterOtherActor.warning).toContain(seeded.payload.date);
+        expect(afterOtherActor.warning).toContain(seeded.payload.shift);
     });
 
     // Legacy bbs_pending_saves entries are stranded data too: preserve them exactly.
@@ -99,8 +101,8 @@ test.describe('Daily Ledger — Pending Save Scope', () => {
 
         await page.reload({ waitUntil: 'networkidle' });
 
-        await expect(page.locator('#pending-save-warning')).toBeVisible();
-        await expect(page.locator('#pending-save-warning-text')).toContainText('remain safely queued');
+        await expect(page.locator('#global-status')).toHaveAttribute('data-state', 'held');
+        await expect(page.locator('#global-status')).toContainText('1 still on this device');
 
         var state = await page.evaluate(function () {
             var keys = [];
