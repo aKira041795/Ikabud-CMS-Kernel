@@ -19,7 +19,7 @@
 cd /var/www/html/applicationostest || exit 1
 source tools/lane-model.sh
 
-LANE_MODEL_CHAIN="openai-codex/gpt-5.6-sol,deepseek-v4-flash,openai-codex/gpt-5.6-terra"
+LANE_MODEL_CHAIN="deepseek-v4-flash,openai-codex/gpt-5.6-terra,openai-codex/gpt-5.6-sol"
 
 PROMPT="$(cat <<'PROMPT_EOF'
 You are closing a COVERAGE gap in the Daily Ledger module at /var/www/html/applicationostest.
