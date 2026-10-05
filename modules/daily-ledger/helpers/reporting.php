@@ -160,6 +160,41 @@ function dl_rowIsProvisional(array $row): bool
 }
 
 /**
+ * The SQL twin of dl_rowIsProvisional(): the one fragment every aggregate uses to decide
+ * whether a ledger row is provisional.
+ *
+ * It mirrors dl_rowIsProvisional() clause for clause, in the SAME spirit as the
+ * "the bucket must follow the SAME predicate" comment further down this file:
+ *   - a DERIVED ending (end_source is a ladder rung) is provisional (C1);
+ *   - bal_end IS NULL is provisional;
+ *   - a shift row that EXISTS and is not 'finalized' is provisional for ANY shift, AM
+ *     included (R5) — this is the clause the hand-written dashboard/sales copies were
+ *     missing, gating it on `shift = 'PM'` and silently counting an unfinalized AM as
+ *     official;
+ *   - a MISSING shift row is AMBIGUOUS and keeps the historical bucketing (AM official,
+ *     PM provisional), so history is preserved rather than restated.
+ *
+ * Keep this and dl_rowIsProvisional() in lockstep: change one, change the other in the
+ * same commit. Do NOT re-hand-write the rule in a query — that duplication is the defect
+ * this function removes.
+ *
+ * @param string $ledgerAlias Alias of dl_daily_ledger in the enclosing query.
+ * @param string $shiftAlias  Alias of the LEFT JOINed dl_ledger_shift_status row.
+ */
+function dl_provisionalSqlExpr(string $ledgerAlias, string $shiftAlias): string
+{
+    $ledger = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $ledgerAlias) ? $ledgerAlias : 'dl';
+    $shift = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $shiftAlias) ? $shiftAlias : 'ss';
+
+    return '('
+        . "{$ledger}.end_source IN ('derived-from-movements','zero-forced')"
+        . " OR {$ledger}.bal_end IS NULL"
+        . " OR ({$shift}.status IS NULL AND {$ledger}.shift = 'PM')"
+        . " OR ({$shift}.status IS NOT NULL AND {$shift}.status <> 'finalized')"
+        . ')';
+}
+
+/**
  * Canonical status label for a rendered sales row.
  *
  * 'pending ending' — bal_end IS NULL: nobody has entered a count yet.

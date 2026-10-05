@@ -9871,9 +9871,10 @@ function handleAdminDashboard(array $params = []): void
     }
 
     // Today's sales per branch — computed: sales = beg_bal + addtl - withdraw - bal_end.
-    // Official vs provisional: unfinalized manual PM rows and uncounted endings
-    // (bal_end IS NULL) are provisional and never inflate official totals.
-    $provisionalExpr = '(dl.bal_end IS NULL OR (dl.shift = \'PM\' AND (ss.status IS NULL OR ss.status <> \'finalized\')))';
+    // Official vs provisional: derived from the one shared predicate (dl_provisionalSqlExpr),
+    // which mirrors dl_rowIsProvisional() so this aggregate cannot drift from the row-level
+    // authority. Do NOT hand-write the rule here.
+    $provisionalExpr = dl_provisionalSqlExpr('dl', 'ss');
     $qtyExpr = 'GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end)';
     $salesStmt = $ctx->db()->prepare(
         'SELECT dl.branch_id, b.name AS branch_name,
@@ -10574,10 +10575,10 @@ function handleAdminSales(array $params = []): void
     // shift_status marks unfinalized manual PM rows as provisional.
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $amountExpr = dl_ledgerSalesAmountSql('dl');
-    // A row is provisional when its ending is uncounted (NULL) or it is an
-    // unfinalized manual PM row. Kept in one place so the aggregate totals and
-    // the rendered rows cannot disagree about it.
-    $provisionalExpr = "(dl.bal_end IS NULL OR (dl.shift = 'PM' AND COALESCE(ss.status, '') <> 'finalized'))";
+    // A row is provisional when dl_rowIsProvisional() says so. The rule lives in ONE
+    // place (dl_provisionalSqlExpr, the SQL twin of dl_rowIsProvisional()); the aggregate
+    // totals and the rendered rows therefore cannot disagree about it.
+    $provisionalExpr = dl_provisionalSqlExpr('dl', 'ss');
 
     $where = 'dl.branch_id IN (' . $branchPlaceholders . ') AND dl.ledger_date BETWEEN ? AND ?';
     $bind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);

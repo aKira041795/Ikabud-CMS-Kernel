@@ -2730,9 +2730,11 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
 
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $amountExpr = dl_ledgerSalesAmountSql('dl');
-    // Official totals exclude provisional rows: uncounted endings (bal_end NULL)
-    // and unfinalized manual PM rows must never inflate the official summary.
-    $provisional = '(dl.bal_end IS NULL OR (dl.shift = \'PM\' AND (ss.status IS NULL OR ss.status <> \'finalized\')))';
+    // Official totals exclude provisional rows, where "provisional" is the one shared
+    // predicate (dl_provisionalSqlExpr) — the SQL twin of dl_rowIsProvisional(). The
+    // hand-written PM-only copy that used to sit here was a fifth copy of the rule and
+    // counted an unfinalized AM shift as official; do not reintroduce it.
+    $provisional = dl_provisionalSqlExpr('dl', 'ss');
     $regStmt = $ctx->db()->prepare(
         'SELECT COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $salesExpr . ' END),0) AS qty,
                 COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $amountExpr . ' END),0) AS amt,
