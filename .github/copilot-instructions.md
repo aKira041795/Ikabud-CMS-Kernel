@@ -119,6 +119,17 @@ Capabilities must be designed before routes. Declare `capabilities.exposes`/`cap
 - **Perf + certification gates / Guardrail 8 / Track 9:** `tools/perf-gate.php` enforces aggregate load-delta only; `tools/module-certification-gate.php` enforces fleet certification rate.
 - **Browser verification:** use `database/seeds/browser_environment.php` before the delivered browser journeys; the seed is part of the reproducible verification story, not optional setup drift.
 
+## HARPP Messenger command surface (owner-triggered)
+
+The owner drives HARPP from the Messenger with plain text; the daemon routes it deterministically. Agents must know these exist rather than inventing a parallel path:
+
+- **Task plans**: send `Proposed plan: T1 - …` first, then `Start T1, T2 has option B. Then T3`, `resume the failed tasks`, or `/implement`.
+- **Workflows**: `workflow list` · `workflow status` · `workflow start <name>` · `workflow show <id>`.
+- **Debate**: `Start debate <topic>` (two dev-pool models, distinct and enforced) — `Approve debate` accepts the last draft as chair.
+- **Discussion with the owner's ChatGPT** (the chaired loop): `start debate with chatgpt: <idea>` or `discuss with chatgpt: <idea>`, optionally `max rounds N`. This is the existing debate lane with `DEBATE_MODEL_B=chatgpt/page`, which resolves to the owner's ChatGPT **subscription** through `tools/harpp-bridge/chatgpt_page.js`. It must **never** be pointed at the `openai-ideation` API model: those credits are exhausted (HTTP 429 `credit_balance_exhausted`, measured 2026-10-05) and a debate then produces a draft with no text. Naming ChatGPT selects the *partner*, never a trigger — a passing mention launches nothing.
+- **Advisor**: the **Ask ChatGPT** toggle on the Messenger composer routes a thread to the advisor lane (conversation `harness_session_id = chatgpt-advisor`; the marker, not the title, is the routing key). There is no Advisor page — `/harpp/advisor` redirects to the Messenger. `/harpp/overview` ("Today") is retired and redirects to `/harpp/status`.
+- **Status page "no data"** means the FEED is rejected, not the page broken: the panel is fed by the daemon's `report_daemon_status`, so check `journalctl --user -u harpp-watch.service` (the file `wake.log` lags) for the bridge error rather than editing `status.js`.
+
 ## Mandatory debugging workflow
 - Always check logs after running tests/builds or reproducing bugs:
   - app log: [storage/logs/app.log](../storage/logs/app.log)

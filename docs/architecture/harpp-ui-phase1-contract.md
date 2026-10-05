@@ -1,5 +1,19 @@
 # Architecture/Task Contract — HARPP UI Phase 1 (Organized Shell + Today Overview)
 
+> **SUPERSEDED IN PART — 2026-10-05.** This contract is preserved as the record of what was
+> decided and built; two of its surfaces were retired afterwards by owner decision, so do not
+> implement against the sections below without reading this note first:
+> - **Today / Overview is retired.** It duplicated the Status page — both read
+>   `/api/v1/harpp/status` for daemon health and the run queue — so `overview.disyl`,
+>   `overview.js` and the nav entry were removed (commit 05d87678) and `/harpp/overview` now
+>   302s to `/harpp/status`. The surviving Status page carries the same system state.
+> - **The Advisor nav item is retired.** The advisor became an **Ask ChatGPT** toggle on the
+>   Messenger composer, keyed by the conversation's `harness_session_id` (commit e9801212);
+>   `/harpp/advisor` now 302s to the Messenger and `advisor.disyl` / `advisor.js` are deleted.
+>
+> Everything else in the shell/IA pass (nav buckets, mobile-safe nav, `current_page` marking)
+> still describes the shipped UI.
+
 - **Role:** `/architect` · **Primary reasoning:** Codex
 - **Status:** `READY_FOR_IMPLEMENTATION`
 - **Origin:** Chaired multi-model debate (Claude Sonnet 4.5 = Proponent, GPT-5.4 = Skeptic).

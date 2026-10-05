@@ -112,6 +112,10 @@ for ideation (no extra API spend). The primary backend is therefore:
   Codex, separate from API billing). Built at `tools/harpp-bridge/chatgpt_page.js`.
 - **Backend `api` (Option B, retained as fallback):** `openai-ideation` dedicated OpenAI API key
   (still wired in `~/.pi/agent`). Selectable via `harpp advisor set backend api|page`.
+  **Measured 2026-10-05: this account has no API credits** (`HTTP 429 insufficient_quota`,
+  `credit_balance_exhausted`), and the failure is silent — the reply comes back empty rather than
+  erroring. Do not select Option B, and do not point the chaired ChatGPT discussion at it, until
+  credits are added; `page` (the subscription) is the working backend for both.
 - **Never** routed to `openai-codex/*` under either backend.
 - **Interface:** ideation lives in the HARPP messenger (durable, autonomous, no manual
   copy/paste). Read-only advisor contract + separate ideation ledger apply to both backends.

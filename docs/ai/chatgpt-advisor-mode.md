@@ -70,6 +70,14 @@ harpp advisor set model openai-ideation/gpt-5.4
 Requires an `openai-ideation` auth entry in `~/.pi/agent/auth.json` + provider in
 `~/.pi/agent/models.json` (dedicated API key with its own billing; never the Codex token).
 
+> **Currently unusable — measured 2026-10-05:** that API account has **no credits**. A direct probe
+> returns `HTTP 429 {"type":"insufficient_quota","code":"credit_balance_exhausted"}`, and the
+> failure is silent in practice — the advisor/debate produces an empty reply rather than an error
+> you would notice. `pi auth check --provider openai-ideation` still reports `ready`, because the
+> credential is present; readiness is not availability. Add credits before selecting this backend,
+> or stay on `page` (the owner's ChatGPT subscription), which is what the Messenger toggle and
+> `start debate with chatgpt:` both use.
+
 `harpp advisor setup` prints the same steps.
 
 ## Usage
