@@ -169,9 +169,12 @@
                 <tr><td colspan="12" class="px-4 py-10 text-center text-sm text-gray-500">No data for selected range</td></tr>
                 {/if}
                 {foreach sales_rows as row}
-                <tr>
-                    <td>{row.ledger_date}</td>
-                    <td{if row.status_label != 'official'} class="bg-amber-100 text-amber-800"{/if}>
+                <tr{if row.status_label == 'no record'} class="bg-gray-50 text-gray-500"{/if}>
+                    <td>{if row.status_label == 'no record'}—{else}{row.ledger_date}{/if}</td>
+                    <td{if row.status_label == 'no record'} class="bg-gray-100 text-gray-600"{elseif row.status_label != 'official'} class="bg-amber-100 text-amber-800"{/if}>
+                        {if row.status_label == 'no record'}
+                        <span class="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700 ring-1 ring-inset ring-gray-300" title="No record: no ledger row exists for this product on this shift, so nothing was recorded. Unlike a pending count, there may simply have been no movement; it contributes zero to the totals." aria-label="No record">No record</span>
+                        {else}
                         {if row.shift == 'PM'}PM{else}AM{/if}
                         {if row.status_label == 'pending ending'}
                         <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300" title="Pending count: no ending has been entered for this row; its figures are provisional and excluded from the official total." aria-label="Pending count">Pending count</span>
@@ -179,15 +182,19 @@
                         {if row.status_label == 'provisional'}
                         <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300" title="Provisional: an ending was entered but the shift is not finalized; excluded from the official total." aria-label="Provisional">Not finalized</span>
                         {/if}
+                        {/if}
                     </td>
                     <td>{row.branch_name}</td>
                     <td>{row.product_name}</td>
                     <td class="text-muted text-sm">{row.sku}</td>
-                    <td class="text-right">{row.beg_bal}</td>
-                    <td class="text-right">{row.addtl}</td>
-                    <td class="text-right">{row.withdraw}</td>
+                    <td class="text-right">{if row.status_label == 'no record'}—{else}{row.beg_bal}{/if}</td>
+                    <td class="text-right">{if row.status_label == 'no record'}—{else}{row.addtl}{/if}</td>
+                    <td class="text-right">{if row.status_label == 'no record'}—{else}{row.withdraw}{/if}</td>
                     <td class="text-right">{row.bal_end | default:'—'}</td>
-                    <td class="text-right{if row.status_label != 'official'} bg-amber-100 text-amber-800{/if}"{if row.status_label == 'pending ending'} title="Pending ending: this sales figure is not counted in the official total." aria-label="Sales figure not final: pending ending"{/if}{if row.status_label == 'provisional'} title="Provisional: this sales figure is not counted in the official total." aria-label="Sales figure not final: provisional"{/if}>
+                    <td class="text-right{if row.status_label == 'no record'} text-gray-500{/if}{if row.status_label == 'pending ending' or row.status_label == 'provisional'} bg-amber-100 text-amber-800{/if}"{if row.status_label == 'pending ending'} title="Pending ending: this sales figure is not counted in the official total." aria-label="Sales figure not final: pending ending"{/if}{if row.status_label == 'provisional'} title="Provisional: this sales figure is not counted in the official total." aria-label="Sales figure not final: provisional"{/if}>
+                        {if row.status_label == 'no record'}
+                        <span title="No record: no value was recorded for this product on this shift.">—</span>
+                        {/if}
                         {if row.status_label == 'pending ending'}
                         <span title="Not final: no ending entered">{row.sales | default:'—'}</span>
                         {/if}

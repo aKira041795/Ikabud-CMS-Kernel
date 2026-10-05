@@ -197,7 +197,9 @@ function dl_provisionalSqlExpr(string $ledgerAlias, string $shiftAlias): string
 /**
  * Canonical status label for a rendered sales row.
  *
- * 'pending ending' — bal_end IS NULL: nobody has entered a count yet.
+ * 'no record'      — the product-driven sheet found no ledger row for this shift (has_ledger_row
+ *                    is set and false). No recorded values, hence no money and no gap (D3).
+ * 'pending ending' — bal_end IS NULL AND a row exists: nobody has entered a count yet.
  * 'provisional'    — ending present, but dl_rowIsProvisional() is true.
  * 'official'       — finalized/counted.
  *
@@ -207,6 +209,15 @@ function dl_provisionalSqlExpr(string $ledgerAlias, string $shiftAlias): string
  */
 function dl_salesRowStatusLabel(array $row): string
 {
+    // The admin Sales view (and the cashier sheet) are PRODUCT-DRIVEN: they render one row per
+    // active product, so a row can arrive with NO ledger row at all. A product with no record has
+    // no recorded values: it is NOT a gap (D3 counts only ACTIVITY-BEARING rows as missing an
+    // ending) and it must never be labelled pending. Callers on the ledger-driven path do not set
+    // this key, so their labels are byte-identical to before. This ADDS a fourth state; it does
+    // not weaken or re-route the existing three.
+    if (array_key_exists('has_ledger_row', $row) && !(int)$row['has_ledger_row']) {
+        return 'no record';
+    }
     if (($row['bal_end'] ?? null) === null) {
         return 'pending ending';
     }
@@ -222,6 +233,12 @@ function dl_reportSalesData(ModuleDB $db, array $filters): array
     $amount = dl_ledgerSalesAmountSql('dl');
     // dl.end_source is REQUIRED by C1 in dl_rowIsProvisional(): a derived, unverified ending must
     // stay provisional whatever the shift status says. Do not drop this column from the SELECT.
+    // NOTE: dl_reportSalesData() stays ROW-DRIVEN on purpose. It is the ledger RECORD used by the
+    // Daily Sales/Branch/Month-End/Category reports and the scheduled exports, where a "row" means
+    // "a ledger entry", and it runs across the whole accessible branch set at once. The full-sheet
+    // "every active product" view is the admin Sales page (handleAdminSales), which is scoped to
+    // the viewed branch/date/shift and carries its own product-driven query. Product-driving this
+    // report would turn a three-row exceptions export into thousands of synthetic rows.
     $sql = "SELECT dl.ledger_date, dl.shift, dl.branch_id, b.code AS branch_code, b.name AS branch_name,
                    dl.product_id, p.sku, p.name AS product_name, p.product_category, dl.beg_bal, dl.addtl, dl.withdraw,
                    dl.bal_end, dl.end_source, {$qty} AS sales, dl.price_snapshot, {$amount} AS amount,

@@ -10829,30 +10829,36 @@ function handleAdminSales(array $params = []): void
     // totals and the rendered rows therefore cannot disagree about it.
     $provisionalExpr = dl_provisionalSqlExpr('dl', 'ss');
 
-    $where = 'dl.branch_id IN (' . $branchPlaceholders . ') AND dl.ledger_date BETWEEN ? AND ?';
-    $bind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);
+    $where = 'p.is_active = 1 AND bp.branch_id IN (' . $branchPlaceholders . ')';
+    $whereBind = $accessibleBranchIds;
 
     if ($branchId) {
-        $where .= ' AND dl.branch_id = ?';
-        $bind[] = $branchId;
+        $where .= ' AND bp.branch_id = ?';
+        $whereBind[] = $branchId;
     }
     if ($search !== '') {
         $where .= ' AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)';
         $like = "%{$search}%";
-        $bind[] = $like;
-        $bind[] = $like;
-        $bind[] = $like;
-    }
-    if ($shiftFilter !== '') {
-        $where .= ' AND dl.shift = ?';
-        $bind[] = $shiftFilter;
+        $whereBind[] = $like;
+        $whereBind[] = $like;
+        $whereBind[] = $like;
     }
 
-    $salesFromSql = 'FROM dl_daily_ledger dl
-             INNER JOIN dl_products p ON p.id = dl.product_id
-             INNER JOIN dl_branches b ON b.id = dl.branch_id
+    // PRODUCT-DRIVEN, matching the cashier sheet (dl_fetchCashierLedgerRows): every active product
+    // assigned to an in-scope branch appears, whether or not a ledger row exists. The date range
+    // and the shift are in the LEFT JOIN's ON clause — were either in the WHERE, a product with no
+    // row would be filtered out and this would silently become row-driven again.
+    $salesFromSql = 'FROM dl_products p
+             INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.is_active = 1
+             INNER JOIN dl_branches b ON b.id = bp.branch_id
+             LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = bp.branch_id
+                  AND dl.ledger_date BETWEEN ? AND ?'
+        . ($shiftFilter !== '' ? ' AND dl.shift = ?' : '')
+        . '
              LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
             WHERE ' . $where;
+    // Bind order follows the SQL text: the LEFT JOIN date range (and shift) precede the WHERE.
+    $bind = array_merge([$dateFrom, $dateTo], $shiftFilter !== '' ? [$shiftFilter] : [], $whereBind);
 
     // Grand totals — official vs provisional — over every matching row, not over
     // the capped slice rendered below.
@@ -10881,8 +10887,9 @@ function handleAdminSales(array $params = []): void
                    ' . $salesExpr . ' AS sales,
                    dl.price_snapshot,
                    (' . $amountExpr . ') AS amount,
-                   ss.status AS shift_status '
-        . $salesFromSql . ' ORDER BY dl.ledger_date DESC, b.name, p.name LIMIT ' . DL_SALES_PAGE_ROW_LIMIT
+                   ss.status AS shift_status,
+                   CASE WHEN dl.id IS NULL THEN 0 ELSE 1 END AS has_ledger_row '
+        . $salesFromSql . ' ORDER BY (dl.ledger_date IS NULL), dl.ledger_date DESC, b.name, p.name LIMIT ' . DL_SALES_PAGE_ROW_LIMIT
     );
     $listStmt->execute($bind);
     $salesRows = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -10893,7 +10900,10 @@ function handleAdminSales(array $params = []): void
     $pendingDates = [];
     foreach ($salesRows as &$salesRow) {
         $salesRow['status_label'] = dl_salesRowStatusLabel($salesRow);
-        if ($salesRow['status_label'] !== 'official') {
+        // A no-record row is not pending (D3): it has no recorded values, so naming its date in
+        // the "pending data" banner would turn a blind spot into false noise. Only real rows that
+        // are official-less (pending/provisional) name a date.
+        if ($salesRow['status_label'] !== 'official' && $salesRow['status_label'] !== 'no record') {
             $pendingDates[(string)$salesRow['ledger_date']] = true;
         }
     }
