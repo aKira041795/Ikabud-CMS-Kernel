@@ -29,7 +29,7 @@ lane therefore:
 |---|---|
 | Codex quota | Ideation is **never** routed to `openai-codex/*`, even if the owner body says "use gpt sol". The chain is the configured ideation model only. |
 | HARPP dev state | Advisor messages never enter the dev quick/agent tiers; dev runs, decisions, and workflows are untouched. |
-| Mutability | Advisor is **read-only**: it replies with an opinion and may read workspace context, but cannot edit code, run workflows, or mutate decisions. |
+| Mutability | Advisor is **read-only**: API agents are launched with Pi's `read,grep,find,ls` tool allowlist (no shell/edit/write), and the page backend has no repository access. Neither can edit code, run workflows, or mutate decisions. |
 | Failure | On model/contract failure the items stay staged for bounded retry (stage + notify by the caller) — nothing is dropped, nothing is re-routed to the dev pool. |
 
 A dedicated lane owns its bound conversation: title matching establishes the binding, and the
@@ -97,12 +97,20 @@ harpp advisor set <key> <value>   # conversation_title | model | backend | profi
 ## Backend `page` — how it works and its limits
 
 - The lane invokes `tools/harpp-bridge/chatgpt_page.js` (Playwright) with the persistent
-  logged-in profile: starts a fresh chat, pastes the plan + the read-only advisor persona,
-  waits for the reply to settle, and posts the opinion back over the bridge.
+  logged-in profile: starts a fresh chat, pastes the bounded plan plus conversation context,
+  durable decisions, chair ledger, and the read-only advisor persona, waits for the reply to
+  settle, and posts the opinion back over the bridge. The prompt states that the page model
+  cannot inspect the repository and must identify facts it cannot verify.
+- Browser-pasted state is bounded: plan 12,000 characters, decisions 6,000, conversation context
+  6,000 (the helper currently caps it at 4,000), and chair ledger 6,000.
 - **Uses the subscription's ChatGPT chat quota** — separate from Codex and from API billing.
 - **Fragile by design:** ChatGPT web is not a stable API surface; selectors may break when the
   product changes. Every failure fails closed to stage + notify (nothing dropped, never Codex).
 - If the web UI breaks, fall back to `backend api` for a stable path.
+
+For the API backend, the agent only emits the four-section opinion. The daemon extracts final
+text from Pi's JSON output and performs bridge delivery using `wake-message-<source-id>`; the
+agent has no shell merely for delivery.
 
 The ideation ledger (`ideation_usage` in `~/.config/harpp/watch-processed.json`) records
 `count`, `last`, `hour`, `messages`, and `models` — independent of the dev `wake_hour` and

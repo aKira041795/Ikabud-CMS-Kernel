@@ -16,6 +16,7 @@ Python stdlib only; no DB/PHP/route changes. This is purely the local client wak
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import re
@@ -106,7 +107,10 @@ ADVISOR_DEFAULT_MODEL = "openai-ideation/gpt-5.4"
 ADVISOR_CONVERSATION_TITLE = "ChatGPT Advisor"
 ADVISOR_TEMPLATE = Path(__file__).resolve().parent / "wake" / "task-contract-advisor.md"
 ADVISOR_DEFAULT_PROFILE = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "harpp" / "chatgpt-profile"
-# Backend `page` persona: the ChatGPT web is driven with this prompt (the plan is appended).
+# Backend `page` persona. Unlike the API agent, the page model has no repository tools;
+# bounded state is appended explicitly below.
+ADVISOR_PAGE_PLAN_MAX_CHARS = 12000
+ADVISOR_PAGE_STATE_MAX_CHARS = 6000
 ADVISOR_PAGE_PROMPT = (
     "You are acting as a structured second-opinion advisor. The owner is preparing a plan "
     "for a governed /architect -> /implement -> /review -> /release-gate pipeline and wants an "
@@ -116,8 +120,9 @@ ADVISOR_PAGE_PROMPT = (
     "2) Gaps and risks\n"
     "3) Restructuring suggestion\n"
     "4) Recommendation: go / go-with-changes / rethink, plus the single most important next action.\n"
-    "Be concrete and concise. You are read-only: recommend, never execute.\n\n"
-    "PLAN:\n"
+    "Be concrete and concise. You are read-only: recommend, never execute. This page backend "
+    "cannot see the repository. Do not invent repository facts; state plainly what you cannot "
+    "verify.\n\n"
 )
 AUTHORITY_ORDER = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 ESCALATION_FLAGS = {
@@ -3951,7 +3956,9 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
                 open_terminal: bool = False,
                 thinking: str | None = None,
                 return_reason: bool = False,
-                require_marker: bool = True) -> bool | tuple[bool, str | None]:
+                require_marker: bool = True,
+                tools: str | None = None,
+                return_output: bool = False):
     """Run Pi once and optionally classify why it failed for safe model fallback.
 
     require_marker=True (wake agent): success requires the HARPP_WAKE_RESULT marker
@@ -3962,11 +3969,20 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
     """
     _ensure_provider_env()
 
+    captured_output = ""
+
     def finish(ok: bool, reason: str | None = None):
+        if return_output:
+            return ok, reason, _reassemble_text(captured_output)
         return (ok, reason) if return_reason else ok
 
     receipt_offset = _delivery_receipt_offset()
     try:
+        if command and tools is not None:
+            # A shell command cannot be constrained by Pi's tool allowlist. Refuse rather
+            # than silently turning a hard read-only lane back into a prose promise.
+            log("wake agent refused custom command with a tool allowlist")
+            return finish(False, "unsafe_command")
         if command:
             cmd = command.replace("{model}", model).replace("{prompt}", prompt)
             proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -3975,6 +3991,8 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
             pi_cmd = ["pi", "--model", model, "--mode", "json"]
             if thinking:
                 pi_cmd += ["--thinking", thinking]
+            if tools is not None:
+                pi_cmd += ["--tools", tools]
             pi_cmd += ["--print", prompt]
             proc = subprocess.Popen(
                 pi_cmd,
@@ -3994,6 +4012,7 @@ def spawn_agent(prompt: str, *, command: str | None, model: str, timeout: int,
         open_agent_terminal(proc.pid, str(CONFIG_DIR / "wake-agent.log"), f"HARPP wake ({model})")
     try:
         out, timed_out = _stream_agent_output(proc, timeout, tee)
+        captured_output = out
     finally:
         if tee is not None:
             try:
@@ -4366,9 +4385,26 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
             batches.setdefault(int(item.get("conversation_id") or 0), []).append(item)
         all_ok = True
         successful = 0
-        for _, batch in batches.items():
+        for conversation_id, batch in batches.items():
             plan = "\n\n---\n\n".join(str(i.get("body") or "") for i in batch)
-            prompt = ADVISOR_PAGE_PROMPT + plan
+            if len(plan) > ADVISOR_PAGE_PLAN_MAX_CHARS:
+                plan = plan[:ADVISOR_PAGE_PLAN_MAX_CHARS] + "\n…(plan truncated)"
+            decisions = recent_decisions_text(conversation_id=conversation_id)
+            context = conversation_context_block(conversation_id)
+            run_workspace = conversation_workspace_dir(conversation_id) or workspace
+            ledger = chair_ledger_block(run_workspace)
+            # Helpers already bound context/ledger and decision count. Character caps also
+            # protect this browser paste from unexpectedly large individual records.
+            decisions = decisions[:ADVISOR_PAGE_STATE_MAX_CHARS]
+            context = context[:ADVISOR_PAGE_STATE_MAX_CHARS]
+            ledger = ledger[:CHAIR_LEDGER_MAX_CHARS]
+            prompt = (
+                ADVISOR_PAGE_PROMPT
+                + "DURABLE DECISIONS:\n" + (decisions or "- none")
+                + "\n\nCHAIR LEDGER:\n" + (ledger or "- none available")
+                + "\n\nCONVERSATION CONTEXT:\n" + (context or "- none available")
+                + "\n\nPLAN:\n" + plan
+            )
             fd, tmp = tempfile.mkstemp(prefix="harpp-advisor-", suffix=".txt")
             page_timeout = int(adv.get("timeout") or DEFAULT_TIMEOUT)
             try:
@@ -4750,16 +4786,53 @@ def maybe_wake_advisor(inbox: str, advisor_items: list, adv: dict | None = None,
             if len(convs) == 1:
                 run_workspace = conversation_workspace_dir(next(iter(convs))) or run_workspace
             prompt = task_prompt(inbox, batch, template=advisor_text, workspace=run_workspace)
-            log(f"advisor: spawning ideation agent with {model} ({len(batch)} request(s)); chain=[{model}] only")
-            attempt = spawn_agent(
-                prompt, command=command, model=model,
-                timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT),
+            log(f"advisor: spawning read-only ideation agent with {model} "
+                f"({len(batch)} request(s)); chain=[{model}] only")
+            # Some unit-test doubles retain the historical spawn signature. Production's
+            # spawn_agent always takes this branch and enforces the Pi allowlist; the narrow
+            # compatibility branch does not alter runtime policy.
+            spawn_params = inspect.signature(spawn_agent).parameters
+            supports_readonly_output = (
+                "tools" in spawn_params and "return_output" in spawn_params
+            ) or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in spawn_params.values())
+            spawn_kwargs = dict(
+                command=None if supports_readonly_output else command,
+                model=model, timeout=int(adv.get("timeout") or DEFAULT_TIMEOUT),
                 expected_replies=len(batch), cwd=run_workspace,
                 expected_source_ids=[int(i.get("id", 0)) for i in batch],
                 verify_delivery_receipts=verify_delivery_receipts,
                 open_terminal=open_terminal, return_reason=True,
                 thinking=_reasoning_effort(model, lane="advisor"))
-            attempt_ok, failure_kind = attempt if isinstance(attempt, tuple) else (bool(attempt), None)
+            if supports_readonly_output:
+                spawn_kwargs.update(
+                    tools="read,grep,find,ls", return_output=True, require_marker=False)
+            attempt = spawn_agent(prompt, **spawn_kwargs)
+            if isinstance(attempt, tuple):
+                attempt_ok = bool(attempt[0])
+                failure_kind = attempt[1] if len(attempt) > 1 else None
+                opinion = str(attempt[2] or "").strip() if len(attempt) > 2 else None
+            else:
+                attempt_ok, failure_kind, opinion = bool(attempt), None, None
+
+            # In production the model only emits its opinion; the trusted daemon owns bridge
+            # delivery. A legacy two-tuple can only come from an injected test double.
+            if attempt_ok and supports_readonly_output:
+                if not opinion:
+                    attempt_ok, failure_kind = False, "empty_output"
+                else:
+                    for item in batch:
+                        try:
+                            response = harpp_client.send_message(
+                                conversation_id=int(item.get("conversation_id") or 0),
+                                body=opinion,
+                                idempotency_key=f"wake-message-{int(item.get('id', 0))}")
+                            if not (isinstance(response, dict) and response.get("ok")):
+                                attempt_ok, failure_kind = False, "delivery_failed"
+                                break
+                        except Exception as exc:  # noqa: BLE001
+                            log(f"advisor: daemon delivery for message {item.get('id')} failed: {exc}")
+                            attempt_ok, failure_kind = False, "delivery_failed"
+                            break
             if attempt_ok:
                 mark_processed(batch)
                 _record_ideation_usage(batch, model)
