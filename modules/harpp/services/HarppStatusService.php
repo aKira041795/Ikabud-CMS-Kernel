@@ -38,14 +38,25 @@ final class HarppStatusService
                 'status' => trim((string)$item['status']),
                 'updated_at' => trim((string)$item['updated_at']),
             ];
-            if (strlen($workflow['id']) > 191 || strlen($workflow['title']) > 255 || strlen($workflow['status']) > 40 || strlen($workflow['updated_at']) > 32) {
+            // Measure CHARACTERS, not bytes. These limits mirror the columns
+            // (varchar(255) etc.), and MySQL counts characters — but strlen() counts
+            // bytes, so a legitimate 255-character title containing any multibyte
+            // character (an em dash is 3 bytes) was rejected. Because that workflow was
+            // the newest, the daemon's status report 422'd on EVERY cycle and the Status
+            // page's daemon panel stayed empty (measured 2026-10-05: title 255 chars /
+            // 257 bytes).
+            if (mb_strlen($workflow['id'], 'UTF-8') > 191
+                || mb_strlen($workflow['title'], 'UTF-8') > 255
+                || mb_strlen($workflow['status'], 'UTF-8') > 40
+                || mb_strlen($workflow['updated_at'], 'UTF-8') > 32) {
                 return HarppServiceResult::failure('Recent workflow fields exceed their maximum length.', 422);
             }
             $recent[] = $workflow;
         }
 
         $version = trim((string)($input['daemon_version'] ?? ''));
-        $version = $version === '' ? null : substr($version, 0, 64);
+        // mb_substr: a byte-wise cut can split a multibyte character and store invalid UTF-8.
+        $version = $version === '' ? null : mb_substr($version, 0, 64, 'UTF-8');
         // Migration 018 must be applied to the tenant before reporting; degrade
         // with a clear code instead of a raw 500 (the daemon client treats any
         // failure as non-fatal and retries on the next throttle window).

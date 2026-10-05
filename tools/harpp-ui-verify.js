@@ -23,7 +23,6 @@ const BASE = process.env.HARPP_BASE || 'http://harpp.test';
 const OUT_DIR = process.env.HARPP_OUT || '/tmp/chair-verify';
 const NOCACHE = '?disyl_nocache=1';
 const PAGES = [
-    ['Today', '/harpp/overview'],
     ['Messenger', '/harpp'],
     ['Advisor', '/harpp/advisor'],
     ['Status', '/harpp/status'],

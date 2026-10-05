@@ -22,6 +22,7 @@ if(!is_array($owner))throw new RuntimeException('HARPP owner missing.');
 $owner['id']=(int)$owner['id'];$owner['source']='harpp';
 $bridge=$owner;$bridge['source']='harpp_bridge';
 $runnerKey='status-test-'.getmypid();
+$mbKey=$runnerKey.'-mb';
 
 $h = new TestHarness('harpp-status-overview');
 $assert = static function(string $name, bool $ok, string $detail = '') use ($h): void { $h->test($name, $ok, $detail); };
@@ -40,8 +41,30 @@ try {
     $assert('overview includes runner fleet and queue',is_array($data['runners']??null)&&is_int($data['run_queue']['total']??null)&&$data['run_queue']['total']>=0,'data='.json_encode($data));
     $assert('fresh daemon report is online',is_array($data['daemon']??null)&&($data['daemon']['online']??false)===true,'daemon='.json_encode($data['daemon']??null));
     $assert('overview includes recent decisions and runs',is_array($data['recent_decisions']??null)&&is_array($data['recent_runs']??null),'data='.json_encode($data));
+
+    // Root cause 2026-10-05: the daemon report was rejected 422 on every cycle because the
+    // validator measured BYTES (strlen) while the column stores CHARACTERS (varchar(255)).
+    // A real workflow title of 255 characters / 257 bytes starved the Status page silently.
+    $mbTitle='w'.str_repeat('a',249).str_repeat('—',5); // 255 characters, 265 bytes
+    $mbReport=$service->reportDaemonStatus($bridge,[
+        'runner_key'=>$mbKey,'daemon_version'=>'2.4.0-test',
+        'workflow_counts'=>['done'=>7],
+        'recent_workflows'=>[['id'=>'wf-mb','title'=>$mbTitle,'status'=>'done','updated_at'=>date(DATE_ATOM)]],
+    ],$tenantId);
+    $assert('a 255-character multibyte title is accepted',!empty($mbReport['ok']),'result='.json_encode($mbReport));
+
+    $afterMb=(array)($service->overview($owner,$tenantId)['data']??[]);
+    $assert('the daemon report actually reaches the status page',
+        (($afterMb['daemon']['runner_key']??'')===$mbKey)&&(($afterMb['daemon']['online']??false)===true),
+        'daemon='.json_encode($afterMb['daemon']??null));
+
+    $overlong=$service->reportDaemonStatus($bridge,[
+        'runner_key'=>$mbKey,'workflow_counts'=>[],
+        'recent_workflows'=>[['id'=>'wf-big','title'=>str_repeat('a',300),'status'=>'done','updated_at'=>date(DATE_ATOM)]],
+    ],$tenantId);
+    $assert('a genuinely oversized title is still rejected',empty($overlong['ok'])&&(int)($overlong['status']??0)===422,'result='.json_encode($overlong));
 } finally {
-    $db->prepare('DELETE FROM harpp_daemon_status WHERE runner_key=:key')->execute([':key'=>$runnerKey]);
+    $db->prepare('DELETE FROM harpp_daemon_status WHERE runner_key IN (:key,:mb)')->execute([':key'=>$runnerKey,':mb'=>$mbKey]);
 }
 
 $h->done();

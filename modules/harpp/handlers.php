@@ -143,7 +143,15 @@ function harppRenderShell(string $template, string $page, array $context = []): 
 }
 
 function harppPageMessenger(array $params = []): void { harppRenderShell('messenger', 'messenger'); }
-function harppPageOverview(array $params = []): void { harppRenderShell('overview', 'overview'); }
+// Retired 2026-10-05: "Today" showed the same data as Status (both read
+// /api/v1/harpp/status — daemon health and run queue — while its two extra cards were
+// already reachable from Deploy and Notifications). The route is kept as a redirect so
+// existing links and bookmarks do not 404.
+function harppPageOverview(array $params = []): void
+{
+    http_response_code(302);
+    header('Location: /harpp/status');
+}
 function harppRunnersPage(array $params = []): void { harppRenderShell('runners', 'runners'); }
 function harppPageStatus(array $params = []): void { harppRenderShell('status', 'status'); }
 function harppPageAdvisor(array $params = []): void { harppRenderShell('advisor', 'advisor'); }
