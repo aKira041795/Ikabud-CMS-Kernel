@@ -140,23 +140,22 @@ if ($renderError === '') {
         'expected "pending count" on the pending row and "provisional" somewhere for the unfinalized PM row');
 
     // bal_end renders as an em dash while sales renders the DERIVED settled value. A bare
-    // 0 next to a missing ending reads like a counted zero, so the marker must reach the
-    // Sales cell too, not only the shift cell.
-    $salesCells = [];
-    if (preg_match_all('#<td[^>]*class="[^"]*text-right[^"]*"[^>]*>(.*?)</td>#is', $pendingRowHtml, $m)) {
-        foreach ($m[1] as $cell) {
-            $salesCells[] = trim(preg_replace('/\s+/', ' ', strip_tags($cell)));
-        }
-    }
-    $salesCellMarked = false;
-    foreach ($salesCells as $cell) {
-        if (stripos($cell, 'pending') !== false) {
-            $salesCellMarked = true;
-            break;
-        }
-    }
-    $h->test('the pending marker reaches the Sales cell, not only the shift cell', $salesCellMarked,
-        'right-aligned cells on the pending row: ' . json_encode($salesCells));
+    // 0 next to a missing ending reads like a counted zero, so the Sales cell must flag itself.
+    //
+    // Density decision (owner, 2026-10-05): ONE badge per row, on the shift cell. The Sales cell
+    // flags its figure through the CELL's own tint and title/aria-label, not by repeating the
+    // badge text - two badges per row read as noise across a 70-row table.
+    $badges = preg_match_all('/aria-label="(?:Pending count|Provisional)"/', $pendingRowHtml);
+    $h->test('a pending row carries exactly one marker badge, not two', $badges === 1,
+        'found ' . $badges . ' marker badge(s) in the row');
+
+    // The attribute must be on a <td> itself, so the badge's own <span> cannot satisfy it.
+    $cellFlagged = preg_match(
+        '#<td\b[^>]*(?:title|aria-label)="[^"]*(?:pending|provisional)[^"]*"#i',
+        $pendingRowHtml
+    ) === 1;
+    $h->test('the Sales cell flags its figure as not final via the cell itself', $cellFlagged,
+        'no title/aria-label on a <td> in the pending row');
 
     // Accessible label: colour alone is not a marker, and this view is printed.
     $h->test('the marker carries an accessible label (title or aria-label), not colour alone',
