@@ -177,7 +177,7 @@
                         <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300" title="Pending count: no ending has been entered for this row; its figures are provisional and excluded from the official total." aria-label="Pending count">Pending count</span>
                         {/if}
                         {if row.status_label == 'provisional'}
-                        <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300" title="Provisional: an ending was entered but the shift is not finalized; excluded from the official total." aria-label="Provisional">Provisional</span>
+                        <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300" title="Provisional: an ending was entered but the shift is not finalized; excluded from the official total." aria-label="Provisional">Not finalized</span>
                         {/if}
                     </td>
                     <td>{row.branch_name}</td>
@@ -199,7 +199,7 @@
                         {/if}
                     </td>
                     <td class="text-right">{row.price_snapshot | default:'—'}</td>
-                    <td class="text-right font-semibold text-emerald-700">{row.amount | default:'—'}</td>
+                    <td class="text-right font-semibold text-emerald-700">{if row.status_label == 'official'}{row.amount | default:'—'}{else}—{/if}</td>
                 </tr>
                 {/foreach}
                 {if sales_rows | count > 0}

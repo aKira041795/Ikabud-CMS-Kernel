@@ -10215,10 +10215,13 @@ function handleAdminOverview(array $params = []): void
         $salesSql =
             'SELECT dl.branch_id, b.name AS branch_name,
                     COALESCE(SUM(' . dl_ledgerSalesQuantitySql('dl') . '), 0) AS total_units,
-                    COALESCE(SUM(' . dl_ledgerSalesAmountSql('dl') . '), 0) AS total_amount,
+                    COALESCE(SUM(CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss') . ' THEN 0 ELSE ' . dl_ledgerSalesAmountSql('dl') . ' END), 0) AS total_amount,
                     COUNT(DISTINCT dl.product_id) AS product_count
              FROM dl_daily_ledger dl
              INNER JOIN dl_branches b ON b.id = dl.branch_id
+             LEFT JOIN dl_ledger_shift_status ss
+                    ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+                   AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
              WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
         $salesBind = array_merge([$dateFrom, $dateTo], $scopedBranchIds);
         if ($pendingRowsMode === 'exclude') {
@@ -11336,11 +11339,16 @@ function handleAdminReconciliation(array $params = []): void
 
     // One row per (branch, date, shift) that exists in the ledger. The reconciliation
     // row is LEFT JOINed: its absence means "nobody has checked this shift yet".
+    //
+    // ledger_sales is OFFICIAL ONLY: this view compares counted sales against the
+    // paper/cash sheets, so a provisional figure here would be presented as revenue.
+    // The pending / is_provisional markers still tell the operator what is outstanding.
+    $provisionalSql = dl_provisionalSqlExpr('dl', 'ss');
     $sql = 'SELECT dl.branch_id, b.name AS branch_name, b.code AS branch_code,
                    dl.ledger_date, dl.shift,
                    COUNT(*) AS row_count,
                    SUM(dl.bal_end IS NULL) AS pending_rows,
-                   ROUND(SUM(CASE WHEN dl.bal_end IS NULL THEN 0 ELSE GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) * COALESCE(dl.price_snapshot,0) END), 2) AS ledger_sales,
+                   ROUND(SUM(CASE WHEN ' . $provisionalSql . ' THEN 0 ELSE GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) * COALESCE(dl.price_snapshot,0) END), 2) AS ledger_sales,
                    SUM(CASE WHEN dl.shift = \'PM\' AND COALESCE(ss.status, \'\') <> \'finalized\' THEN 1 ELSE 0 END) AS pm_unfinalized_rows,
                    r.id AS recon_id, r.paper_sales, r.cash_remitted, r.review_note,
                    r.recorded_at, COALESCE(u.full_name, \'\') AS recorded_by_name

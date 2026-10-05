@@ -369,7 +369,7 @@ function dl_reportBranchSummaryData(ModuleDB $db, array $filters): array
         $grouped[$id]['product_count'] = count($products[$id] ?? []);
     }
 
-    return ['rows' => dl_reportEnrichSummary(array_values($grouped)), 'totals' => $sales['totals']];
+    return ['rows' => dl_reportEnrichSummary(array_values($grouped), true), 'totals' => $sales['totals']];
 }
 
 /** @return array{rows:array<int,array<string,mixed>>,totals:array<string,int|float>} */
@@ -407,7 +407,7 @@ function dl_reportMonthEndData(ModuleDB $db, array $filters): array
     }
     ksort($grouped);
 
-    return ['rows' => dl_reportEnrichSummary(array_values($grouped)), 'totals' => $sales['totals']];
+    return ['rows' => dl_reportEnrichSummary(array_values($grouped), true), 'totals' => $sales['totals']];
 }
 
 /** @return array<string,array{title:string,entity_type:string,columns:array<int,string>}> */
@@ -460,7 +460,7 @@ function dl_reportCategorySalesData(ModuleDB $db, array $filters): array
     // Heaviest category first — the point of the report is where the money is.
     uasort($grouped, static fn(array $a, array $b): int => ($b['official_amount'] + $b['provisional_amount']) <=> ($a['official_amount'] + $a['provisional_amount']));
 
-    return ['rows' => dl_reportEnrichSummary(array_values($grouped)), 'totals' => $sales['totals']];
+    return ['rows' => dl_reportEnrichSummary(array_values($grouped), true), 'totals' => $sales['totals']];
 }
 
 /**
@@ -550,20 +550,32 @@ function dl_reportDataIntegrityData(ModuleDB $db, array $filters): array
  * Net sales reuse the same helper the Business Overview uses, so a report and
  * the screen can never disagree about what "net" means.
  *
+ * MONEY IS OFFICIAL ONLY. When $officialOnly is true (the report screens and
+ * their exports), total_amount, net_amount and share_pct are computed from
+ * official_amount alone: a provisional row is not money the owner may see
+ * presented as sales. UNITS keep the official + provisional breakdown because
+ * outstanding units are operational information, not money.
+ *
+ * The default (false) preserves the historical combined-total behaviour for
+ * callers that still need the bucket breakdown; the report data builders pass
+ * true so nothing provisional-inclusive reaches a screen or an export.
+ *
  * @param array<int,array<string,mixed>> $rows
  * @return array<int,array<string,mixed>>
  */
-function dl_reportEnrichSummary(array $rows): array
+function dl_reportEnrichSummary(array $rows, bool $officialOnly = false): array
 {
     $setting = (string)(dlModuleSettings()['net_sales_deduction_percent'] ?? '0');
     $grandTotal = 0.0;
     foreach ($rows as $row) {
-        $grandTotal += (float)($row['official_amount'] ?? 0) + (float)($row['provisional_amount'] ?? 0);
+        $grandTotal += (float)($row['official_amount'] ?? 0)
+            + ($officialOnly ? 0.0 : (float)($row['provisional_amount'] ?? 0));
     }
 
     foreach ($rows as &$row) {
         $units = (int)($row['official_units'] ?? 0) + (int)($row['provisional_units'] ?? 0);
-        $amount = (float)($row['official_amount'] ?? 0) + (float)($row['provisional_amount'] ?? 0);
+        $amount = (float)($row['official_amount'] ?? 0)
+            + ($officialOnly ? 0.0 : (float)($row['provisional_amount'] ?? 0));
         $net = dl_overviewNetSales($amount, $setting);
         $row['total_units'] = $units;
         $row['total_amount'] = round($amount, 2);
@@ -655,14 +667,28 @@ function dl_reportDataForType(ModuleDB $db, string $type, array $filters): array
     return $data;
 }
 
-/** @return array<int,array<string,mixed>> */
-function dl_reportExportRows(array $rows, array $columns): array
+/**
+ * Shape report rows for CSV/PDF output.
+ *
+ * For the Daily Sales export a non-official (pending/provisional) row's computed
+ * `amount` is NOT money to export: it is blanked so it can never be summed or
+ * read as revenue. The `status_label` column is kept, so the row still explains
+ * itself and nothing is silently dropped.
+ *
+ * @param array<int,array<string,mixed>> $rows
+ * @param array<int,string> $columns
+ * @return array<int,array<string,mixed>>
+ */
+function dl_reportExportRows(array $rows, array $columns, string $type = ''): array
 {
     $out = [];
     foreach ($rows as $row) {
         $item = [];
         foreach ($columns as $column) {
             $value = $row[$column] ?? '';
+            if ($column === 'amount' && $type === 'sales' && (string)($row['status_label'] ?? '') !== 'official') {
+                $value = '';
+            }
             $item[$column] = is_float($value) ? number_format($value, 2, '.', '') : $value;
         }
         $out[] = $item;
@@ -703,7 +729,7 @@ function dl_generateGovernedReport(string $type, string $format, array $data, ar
         )));
     }
 
-    $rows = dl_reportExportRows($data['rows'], $definition['columns']);
+    $rows = dl_reportExportRows($data['rows'], $definition['columns'], $type);
     if (!$rows) {
         throw new DlReportUserException('No report rows match the selected filters.');
     }
@@ -1201,12 +1227,19 @@ function dl_overviewProductTotals(DatabaseContract $db, array $filters): array
     $marks = implode(',', array_fill(0, count($ids), '?'));
     $qty = dl_ledgerSalesQuantitySql('dl');
     $amount = dl_ledgerSalesAmountSql('dl');
+    // Money is OFFICIAL ONLY: a provisional (unfinalized/derived) row contributes
+    // units for operational visibility but never a sales amount. The units stay
+    // inclusive so the outstanding work is still visible in the ranking.
+    $officialAmount = 'CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss') . " THEN 0 ELSE {$amount} END";
     $sql = "SELECT p.id, p.name, p.sku, p.product_category,
                    COALESCE(SUM({$qty}), 0) AS units,
-                   COALESCE(SUM({$amount}), 0) AS amount,
+                   COALESCE(SUM({$officialAmount}), 0) AS amount,
                    COUNT(DISTINCT dl.branch_id) AS branch_count
               FROM dl_daily_ledger dl
               INNER JOIN dl_products p ON p.id = dl.product_id
+              LEFT JOIN dl_ledger_shift_status ss
+                     ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+                    AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
              WHERE dl.ledger_date BETWEEN ? AND ?
                AND dl.branch_id IN ({$marks})";
     $bind = array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids);
@@ -1261,13 +1294,19 @@ function dl_overviewBranchProductTotals(
     $marks = implode(',', array_fill(0, count($ids), '?'));
     $qty = dl_ledgerSalesQuantitySql('dl');
     $amount = dl_ledgerSalesAmountSql('dl');
+    // Same official-only money rule as the overall totals: provisional rows keep
+    // their units for visibility but contribute no sales amount.
+    $officialAmount = 'CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss') . " THEN 0 ELSE {$amount} END";
     $sql = "SELECT dl.branch_id, b.name AS branch_name,
                    p.id AS product_id, p.name, p.sku, p.product_category,
                    COALESCE(SUM({$qty}), 0) AS units,
-                   COALESCE(SUM({$amount}), 0) AS amount
+                   COALESCE(SUM({$officialAmount}), 0) AS amount
               FROM dl_daily_ledger dl
               INNER JOIN dl_branches b ON b.id = dl.branch_id
               INNER JOIN dl_products p ON p.id = dl.product_id
+              LEFT JOIN dl_ledger_shift_status ss
+                     ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+                    AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
              WHERE dl.ledger_date BETWEEN ? AND ?
                AND dl.branch_id IN ({$marks})";
     $bind = array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids);
