@@ -220,12 +220,9 @@
 </div>
 
 <div id="pending-save-warning" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <div class="font-semibold">Stale offline saves need review.</div>
-            <p id="pending-save-warning-text" class="mt-1 text-xs text-amber-800">Pending ledger saves from another user, branch, date, or schema were quarantined and will not be retried automatically.</p>
-        </div>
-        <button type="button" class="btn btn-outline btn-sm" onclick="clearQuarantinedPending()">Purge stale saves</button>
+    <div>
+        <div class="font-semibold">Offline saves need review.</div>
+        <p id="pending-save-warning-text" class="mt-1 text-xs text-amber-800">Pending saves remain on this device until their matching account and sheet can safely replay them.</p>
     </div>
 </div>
 
@@ -703,8 +700,7 @@
                 payload: entry
             });
         });
-        setQuarantinedPending(stale);
-        return entries.length;
+        return setQuarantinedPending(stale) ? entries.length : 0;
     }
     function listPendingKeys() {
         var keys = [];
@@ -730,54 +726,59 @@
         if (isSessionExpiredResponse(res)) window.dlSessionExpired(res);
         return shouldQueueOperationFailure(res);
     }
-    function syncPendingStorage() {
-        var keys = listPendingKeys();
-        var quarantinedCount = 0;
-        keys.forEach(function(key) {
-            if (key === QUARANTINE_KEY) return;
-            var entries = readStoredArray(key);
-            if (key !== PENDING_KEY) {
-                if (entries.length > 0) {
-                    quarantinedCount += quarantinePendingEntries(entries, key.indexOf(LEGACY_PENDING_PREFIX) === 0 ? 'legacy-key' : 'scope-mismatch', key);
-                }
-                try { localStorage.removeItem(key); } catch (e) { markStorageUnavailable(); }
-                return;
+    function isPendingQuarantineKey(key) {
+        return key.indexOf(PENDING_STORAGE_PREFIX + ':quarantine:') === 0;
+    }
+    function foreignPendingCount() {
+        var count = 0;
+        listPendingKeys().forEach(function(key) {
+            // Quarantine is evidence, not a queue. Every other pending key - another
+            // actor's, another scope's, or the older bbs_pending_saves format - is
+            // retained data and is reported as still queued for its matching sheet.
+            if (key !== PENDING_KEY && !isPendingQuarantineKey(key)) {
+                count += readStoredArray(key).length;
             }
-            var valid = [];
-            var invalid = [];
-            entries.forEach(function(entry) {
-                var normalized = normalizePendingEntry(entry);
-                if (normalized) {
-                    valid.push(normalized);
-                } else {
-                    invalid.push(entry);
-                }
-            });
-            if (invalid.length > 0) {
-                quarantinedCount += quarantinePendingEntries(invalid, 'schema-mismatch', key);
-            }
-            setPending(valid);
         });
+        return count;
+    }
+    function allQuarantinedPendingCount() {
+        var count = 0;
+        listPendingKeys().forEach(function(key) {
+            if (isPendingQuarantineKey(key)) count += readStoredArray(key).length;
+        });
+        return count;
+    }
+    function syncPendingStorage() {
+        // REPORT-ONLY (owner directive 2026-10-05). The offline path is deferred and
+        // this device may hold the ONLY copy of up to ~5 weeks of stranded entries.
+        // Loading the sheet therefore must not move, re-scope, rewrite, quarantine or
+        // delete ANY stored entry.
+        //
+        // In particular the auto-migration that re-scoped another actor's stored
+        // entries onto the current actor's sheet was REMOVED. It would replay up to
+        // 5 weeks of stranded entries on first open, onto days that are already
+        // CLOSED, where the server answers 403 'Reference only' / 403 'Day is closed'
+        // and records a PERMANENT rejection - destroying the very data it claimed to
+        // rescue. The legacy bbs_pending_saves key is likewise left exactly in place
+        // instead of being quarantined and deleted.
         renderPendingWarning();
-        return quarantinedCount;
+        return 0;
     }
     function renderPendingWarning() {
         var box = document.getElementById('pending-save-warning');
         var text = document.getElementById('pending-save-warning-text');
         if (!box || !text) return;
-        var count = getQuarantinedPending().length;
-        box.classList.toggle('hidden', count === 0);
-        if (count > 0) {
-            text.textContent = count + ' stale offline save' + (count === 1 ? '' : 's') + ' were quarantined and will not be retried automatically.';
+        var queued = foreignPendingCount();
+        var quarantined = allQuarantinedPendingCount();
+        box.classList.toggle('hidden', queued + quarantined === 0);
+        var parts = [];
+        if (queued > 0) {
+            parts.push(queued + ' pending save' + (queued === 1 ? ' belongs' : 's belong') + ' to another account, branch, date, or shift and remain safely queued for that matching sheet.');
         }
-    }
-    window.clearQuarantinedPending = function() {
-        var count = getQuarantinedPending().length;
-        try { localStorage.removeItem(QUARANTINE_KEY); } catch (e) { markStorageUnavailable(); return; }
-        renderPendingWarning();
-        if (count > 0 && window.showToast) {
-            window.showToast('Cleared ' + count + ' stale offline save' + (count === 1 ? '' : 's') + '.', 'success');
+        if (quarantined > 0) {
+            parts.push(quarantined + ' incompatible or server-rejected save' + (quarantined === 1 ? '' : 's') + ' remain quarantined as retained evidence; they will not replay automatically.');
         }
+        text.textContent = parts.join(' ');
     }
 
     // ── Offline cashier-operation queue ──────────────────────────────
@@ -1461,20 +1462,26 @@
                     if (window.showToast) window.showToast(busyMsg, 'error');
                 } else {
                     // Deterministic rejection (locked shift, closed day, reference
-                    // only): the ledger will still read the old value after reload,
-                    // so put the cell back and say why instead of flashing red and
-                    // leaving an unreplayable entry behind.
+                    // only). PRESERVATION + no-false-success: put the cell back to
+                    // the server's authoritative value and report the refusal with
+                    // the SAME persistent, actionable notice as a transport failure.
+                    // Never mint a pending/quarantine entry for this edit - the typed
+                    // value already lives in the Retry closure, so nothing has to be
+                    // re-entered or buffered.
                     var restored = revertCellToServerValue(input);
                     if (!restored) {
                         // No snapshot to roll back to, so the authoritative value is
-                        // unknown. Keep the refused entry for review rather than
-                        // discarding the only record of what was attempted.
+                        // unknown. Keep the typed value on screen (marked unsaved)
+                        // rather than asserting a value the server may not hold; do
+                        // NOT enqueue or quarantine it.
                         input.value = (value === null) ? '' : value;
-                        quarantinePendingEntries([buildPendingPayload(productId, field, value)], 'server-rejected', PENDING_KEY);
-                        renderPendingWarning();
                     }
                     computeSales(productId);
-                    if (window.showToast) window.showToast(res.error || 'Change rejected', 'error');
+                    var refusedMsg = 'NOT saved — ' + (res.error || 'the server refused the change') + '. Retry.';
+                    if (window.dlReportWriteFailure) {
+                        window.dlReportWriteFailure(refusedMsg, function() { sendFieldValue(input, productId, field, value); });
+                    }
+                    if (window.showToast) window.showToast(refusedMsg, 'error');
                 }
             }
             updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
