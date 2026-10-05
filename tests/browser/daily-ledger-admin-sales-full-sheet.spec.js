@@ -2,37 +2,51 @@
 /**
  * CHAIR PROBE — admin Sales full sheet, on the real page, against live data.
  *
- * Independent of the lane that made the change. The lane admitted it could not
- * finish browser verification, so this closes that gap on the case that matters:
- * branch 8 / 2026-10-03 — the date the audit found a whole missing shift, where
- * the admin previously saw 73 rows and could not see the 109 active products
- * with no record at all.
+ * Independent of the lane that made the change. This closes the browser-verification gap
+ * twice admitted by lanes, and it does so by CROSS-CHECKING the rendered footer against money
+ * the chair measured independently in SQL against the ROW-DRIVEN RECORD — the same numbers the
+ * governed reports/exports compute. If the page agrees per date, then query, totals, view and
+ * record all agree with one another.
  *
- * Cross-checks the page footer against an INDEPENDENT SQL measurement taken
- * outside the browser:
- *     rows 182, official 1 unit / PHP 400, provisional 0
- * If the page agrees, query + totals + rendering all agree with each other.
+ * These expectations were measured with raw SQL on branch 8 (tenant 207), NOT read from the
+ * implementation's own tests:
+ *     2026-09-25  official 1849 / 15509.49   provisional    0 /     0.00
+ *     2026-10-03  official    1 /   400.00   provisional    0 /     0.00
+ *     2026-10-04  official    0 /     0.00   provisional    0 /     0.00
+ *     2026-10-05  official 1364 / 11401.48   provisional    2 /   800.00
  *
- * Read-only: this spec only views a page. It performs no writes.
+ * 2026-10-03 row expectations: 178 rows and 105 "No record" badges.
+ *   182 active products, minus the 4 created AFTER 2026-10-03 (which must NOT be projected
+ *   backwards in time), = 178. The 105 no-record rows are products with no ledger row anywhere
+ *   on that date. The other 73 rows are REAL rows bearing activity with no ending, and they must
+ *   keep rendering as amber "Pending count" — that is the data an encoder has to fill.
+ *
+ * Read-only: this spec only views pages. It performs no writes.
  *
  * Run:  APP_URL=http://baronledger.test npx playwright test \
- *         tests/browser/daily-ledger-admin-sales-full-sheet.spec.js --reporter=line
+ *         tests/browser/daily-ledger-admin-sales-full-sheet.spec.js --reporter=line --retries=0
  */
 const { test, expect } = require('@playwright/test');
 
-test.setTimeout(180000);
+test.setTimeout(240000);
 
 const ADMIN = { username: 'shiela_baina', fullName: 'shiela_baina', password: 'shielab123' };
 const BRANCH = '8';
-const DATE = '2026-10-03';
 
-// Measured independently via SQL before this probe was written.
-const EXPECT_ROWS = 182;
-const EXPECT_NO_RECORD = 109;
-const EXPECT_OFFICIAL_UNITS = '1';
-const EXPECT_OFFICIAL_AMOUNT = 'PHP 400';
+// date -> { officialUnits, officialAmountShown } measured in SQL against the row-driven RECORD.
+// NOTE the amounts below are the ZERO-DECIMAL renderings the page actually produces
+// (15,509.49 -> "15,509"). The template line `PHP {grand_amount | number_format}` drops
+// centavos. That is PRE-EXISTING behaviour, not introduced by the full-sheet work, and it is
+// recorded here explicitly rather than silently accepted: an official total that rounds to the
+// peso can hide a sub-peso discrepancy from the accountant auditing this page.
+const MONEY = [
+    { date: '2026-09-25', officialUnits: 1849, officialAmountShown: '15,509' },
+    { date: '2026-10-03', officialUnits: 1, officialAmountShown: '400' },
+    { date: '2026-10-04', officialUnits: 0, officialAmountShown: '0' },
+    { date: '2026-10-05', officialUnits: 1364, officialAmountShown: '11,401' },
+];
 
-test('admin Sales sheet shows every active product and separates no-record from pending', async ({ page }) => {
+async function login(page) {
     await page.goto('/daily-ledger/login', { waitUntil: 'domcontentloaded' });
     await page.fill('input[name="username"]', ADMIN.username);
     await page.fill('input[name="full_name"]', ADMIN.fullName);
@@ -42,42 +56,107 @@ test('admin Sales sheet shows every active product and separates no-record from 
         page.click('button[type="submit"], input[type="submit"]'),
     ]);
     await page.waitForSelector('#wb-sidebar', { timeout: 60000 });
+}
 
-    const url = `/daily-ledger/admin/sales?date_from=${DATE}&date_to=${DATE}&branch_id=${BRANCH}`;
-    const resp = await page.goto(url, { waitUntil: 'domcontentloaded' });
-    console.log('HTTP:', resp && resp.status(), url);
+const unitsOf = (footer) => {
+    const m = footer.match(/Official Total:\s*([\d,]+)/);
+    return m ? Number(m[1].replace(/,/g, '')) : null;
+};
 
+test('admin Sales footer agrees with the row-driven RECORD money for every date', async ({ page }) => {
+    await login(page);
+
+    for (const exp of MONEY) {
+        await page.goto(`/daily-ledger/admin/sales?date_from=${exp.date}&date_to=${exp.date}&branch_id=${BRANCH}`, {
+            waitUntil: 'domcontentloaded',
+        });
+        await page.waitForSelector('.table-wrap table tbody tr', { timeout: 60000 });
+
+        const header = (await page.locator('.card-header', { hasText: 'Sales Data' }).first().innerText()).replace(/\s+/g, ' ');
+        const footer = (await page.locator('td:has-text("Official Total:")').first().locator('..').innerText()).replace(/\s+/g, ' ');
+        const units = unitsOf(footer);
+
+        console.log(`[money] ${exp.date}  header="${header}"  footer="${footer}"  units=${units} expected=${exp.officialUnits}`);
+
+        expect(units, `${exp.date}: official units must match the row-driven record`).toBe(exp.officialUnits);
+        expect(footer, `${exp.date}: official amount must match the row-driven record`).toContain(exp.officialAmountShown);
+    }
+});
+
+test('2026-10-03 shows the whole sheet, separates no-record from pending, and invents no future product', async ({ page }) => {
+    await login(page);
+
+    await page.goto(`/daily-ledger/admin/sales?date_from=2026-10-03&date_to=2026-10-03&branch_id=${BRANCH}`, {
+        waitUntil: 'domcontentloaded',
+    });
     await page.waitForSelector('.table-wrap table tbody tr', { timeout: 60000 });
 
     const header = (await page.locator('.card-header', { hasText: 'Sales Data' }).first().innerText()).replace(/\s+/g, ' ');
     const noRecord = await page.getByText('No record', { exact: true }).count();
-    const pendingBadge = await page.getByText('Pending count', { exact: true }).count();
-    const provisionalBadge = await page.getByText('Not finalized', { exact: true }).count();
-    const totalRowLoc = page.locator('td:has-text("Official Total:")').first();
-    const totalsRow = (await totalRowLoc.locator('..').innerText()).replace(/\s+/g, ' ');
-    const trCount = await page.locator('.table-wrap table tbody tr').count();
-
-    // The pending banner must NOT name a date for no-record rows (false pending).
-    const banner = await page.locator('text=/date\\(s\\) have pending data/').count();
+    const pending = await page.getByText('Pending count', { exact: true }).count();
+    const footer = (await page.locator('td:has-text("Official Total:")').first().locator('..').innerText()).replace(/\s+/g, ' ');
 
     console.log('--- EVIDENCE -------------------------------------------------');
-    console.log('header            :', JSON.stringify(header));
-    console.log('tbody tr elements :', trCount);
-    console.log('NO RECORD badges  :', noRecord);
-    console.log('PENDING badges    :', pendingBadge);
-    console.log('PROVISIONAL badges:', provisionalBadge);
-    console.log('pending-data banner present:', banner);
-    console.log('TOTALS row        :', JSON.stringify(totalsRow));
+    console.log('header       :', JSON.stringify(header));
+    console.log('NO RECORD    :', noRecord, '(expect 105 — 4 post-date products excluded)');
+    console.log('PENDING      :', pending, '(expect 71: the 73 AM rows, 2 of which DO have an ending)');
+    console.log('footer       :', JSON.stringify(footer));
 
-    await page.screenshot({ path: '/tmp/chair-admin-sales-2026-10-03.png', fullPage: false });
+    await page.screenshot({ path: '/tmp/chair-admin-sales-2026-10-03-fixed.png', fullPage: false });
 
-    // The whole point: the admin can see every active product, not the 73 recorded rows.
-    expect(header, 'header should report the full product set').toContain(`${EXPECT_ROWS} rows`);
-    expect(noRecord, 'every no-record product must render a distinct "No record" badge').toBe(EXPECT_NO_RECORD);
+    // 182 active products MINUS the 4 created after this date. The bound must hold.
+    expect(header, 'products created after the viewed date must not be projected backwards').toContain('178 rows');
+    expect(noRecord, 'no-record rows must be exactly the products that existed and had no row').toBe(105);
+    // 73 products have an AM row and no PM row on this date, but only 71 LACK an ending — two of
+    // those rows carry an ending and are therefore not pending. 71 is the figure the original
+    // audit recorded for this date ("73 rows, 71 missing endings"); the chair's first draft of
+    // this probe asserted 73 and was wrong.
+    expect(pending, 'genuine activity-bearing gaps must still be called out').toBe(71);
 
-    // Money: the footer must agree with the independent SQL measurement.
-    expect(totalsRow).toContain(EXPECT_OFFICIAL_AMOUNT);
-    expect(totalsRow, `official units must be ${EXPECT_OFFICIAL_UNITS}`).toMatch(
-        new RegExp(`Official Total:\\s*${EXPECT_OFFICIAL_UNITS}\\b`)
-    );
+    // And the money is still the record's money.
+    expect(unitsOf(footer)).toBe(1);
+    expect(footer).toContain('PHP 400');
+});
+
+/**
+ * The wide window is the stress case for FIX A's UNION derived table: MySQL 5.7 cannot merge a
+ * UNION derived table, so it materialises ~12k pair rows before joining. This proves on the real
+ * page that (a) it still returns the RECORD's money over a 35-day span, (b) it does not become
+ * pathological, and (c) the corrected truncation disclosure actually renders when the cap bites.
+ */
+test('wide range: money still matches the record, stays responsive, and discloses the cap honestly', async ({ page }) => {
+    await login(page);
+
+    const t0 = Date.now();
+    await page.goto(`/daily-ledger/admin/sales?date_from=2026-09-01&date_to=2026-10-05&branch_id=${BRANCH}`, {
+        waitUntil: 'domcontentloaded',
+    });
+    await page.waitForSelector('.table-wrap table tbody tr', { timeout: 90000 });
+    const elapsed = Date.now() - t0;
+
+    const body = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+    const footer = (await page.locator('td:has-text("Official Total:")').first().locator('..').innerText()).replace(/\s+/g, ' ');
+    const units = unitsOf(footer);
+
+    console.log('--- WIDE RANGE -----------------------------------------------');
+    console.log('elapsed ms   :', elapsed);
+    console.log('footer       :', JSON.stringify(footer));
+    console.log('truncated    :', /Showing the newest/.test(body));
+    console.log('disclosure   :', (body.match(/The daily sales report[^.]*\./) || body.match(/Reports .*?omitted from this page[^.]*\./) || [''])[0]);
+
+    await page.screenshot({ path: '/tmp/chair-admin-sales-wide-range.png', fullPage: false });
+
+    // Measured independently in SQL for 2026-09-01..2026-10-05, branch 8, row-driven RECORD:
+    // official 64692 units / PHP 571330.61.
+    expect(units, 'a 35-day window must still total exactly the record').toBe(64692);
+
+    // A derived-table UNION must not make a shared-hosted page pathological.
+    expect(elapsed, 'wide range must stay responsive').toBeLessThan(30000);
+
+    // The cap DID bite, so the corrected copy must be present and must no longer claim that the
+    // governed report contains the no-record rows.
+    expect(body, 'the cap must be disclosed').toContain('Showing the newest');
+    expect(body, 'the report must no longer be presented as the full version of this view')
+        .not.toContain('to view and export the full set');
+    expect(body, 'the omission count must be disclosed').toMatch(/no-record row\(s\) are omitted from this page/);
 });

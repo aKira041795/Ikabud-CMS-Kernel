@@ -46,13 +46,23 @@ $P_PENDING = 99231;         // AM finalized shift but no ending -> genuine pendi
 $P_NORECORD = 99232;        // no ledger row at all -> "no record"
 $P_PROVISIONAL = 99233;     // PM open, ending -> provisional sales 10 / 100
 $P_LONELY = 99234;          // no ledger row on the lonely branch
+// FIX A/B/C fixtures (same private branch, later dates so they do not perturb the sections above).
+$P_DEACT = 99235;           // FIX A1: product deactivated AFTER its ledger row exists
+$P_DEACT_LINK = 99236;      // FIX A2: assignment deactivated AFTER its ledger row exists
+$P_PRESENT = 99237;         // FIX B control: existed before the viewed date, no row -> no-record
+$P_FUTURE = 99238;          // FIX B1: product created AFTER the viewed date -> no synthetic row
+$P_BACKDATED = 99239;       // FIX B: created AFTER the viewed date but HAS a ledger row -> recorded row
+$P_TRUNC = 99240;           // FIX C: > limit recorded rows -> forces the cap
+$P_TRUNC_NR = 99241;        // FIX C: no-record row that the cap omits
+$FIXTURE_PRODUCTS = [$P_OFFICIAL, $P_PENDING, $P_NORECORD, $P_PROVISIONAL, $P_LONELY,
+    $P_DEACT, $P_DEACT_LINK, $P_PRESENT, $P_FUTURE, $P_BACKDATED, $P_TRUNC, $P_TRUNC_NR];
 
-$cleanup = static function () use ($db, $BRANCH, $LONELY_BRANCH, $P_OFFICIAL, $P_PENDING, $P_NORECORD, $P_PROVISIONAL, $P_LONELY): void {
+$cleanup = static function () use ($db, $BRANCH, $LONELY_BRANCH, $FIXTURE_PRODUCTS): void {
     $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id IN (' . $BRANCH . ',' . $LONELY_BRANCH . ')');
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id IN (' . $BRANCH . ',' . $LONELY_BRANCH . ')');
     $db->execute('DELETE FROM dl_branch_products WHERE branch_id IN (' . $BRANCH . ',' . $LONELY_BRANCH . ')');
     $db->execute('DELETE FROM dl_branches WHERE id IN (' . $BRANCH . ',' . $LONELY_BRANCH . ')');
-    $db->execute('DELETE FROM dl_products WHERE id IN (' . $P_OFFICIAL . ',' . $P_PENDING . ',' . $P_NORECORD . ',' . $P_PROVISIONAL . ',' . $P_LONELY . ')');
+    $db->execute('DELETE FROM dl_products WHERE id IN (' . implode(',', $FIXTURE_PRODUCTS) . ')');
 };
 
 $cleanup();
@@ -383,6 +393,242 @@ $h->test(
     'three renders agree with the cashier product count',
     $runs[0]['matching'] === count(dl_fetchCashierLedgerRows($db, $BRANCH, $DATE, 'AM')),
     json_encode($runs[0])
+);
+
+// The independent row-driven money for any window. This is the RECORD baseline the rendered
+// totals must stay byte-identical to; every FIX A/B/C assertion compares against it.
+$rowDriven = static function (int $branch, string $from, string $to) use ($db): array {
+    $stmt = $db->prepare(
+        "SELECT COUNT(*) AS row_count,
+                COALESCE(SUM(CASE WHEN (" . dl_provisionalSqlExpr('dl', 'ss') . ") THEN 0 ELSE (" . dl_ledgerSalesQuantitySql('dl') . ") END), 0) AS official_units,
+                COALESCE(SUM(CASE WHEN (" . dl_provisionalSqlExpr('dl', 'ss') . ") THEN 0 ELSE (" . dl_ledgerSalesAmountSql('dl') . ") END), 0) AS official_amount,
+                COALESCE(SUM(CASE WHEN (" . dl_provisionalSqlExpr('dl', 'ss') . ") THEN (" . dl_ledgerSalesQuantitySql('dl') . ") ELSE 0 END), 0) AS provisional_units,
+                COALESCE(SUM(CASE WHEN (" . dl_provisionalSqlExpr('dl', 'ss') . ") THEN (" . dl_ledgerSalesAmountSql('dl') . ") ELSE 0 END), 0) AS provisional_amount
+           FROM dl_daily_ledger dl
+           INNER JOIN dl_products p ON p.id = dl.product_id
+           INNER JOIN dl_branches b ON b.id = dl.branch_id
+           LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+          WHERE dl.branch_id = ? AND dl.ledger_date BETWEEN ? AND ?"
+    );
+    $stmt->execute([$branch, $from, $to]);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+};
+
+// ===========================================================================
+// FIX A — deactivation must never erase recorded history
+//
+// On the BASE tree the view required p.is_active = 1 AND an active dl_branch_products
+// row, so retiring a product silently deleted its recorded sales from the view AND from
+// the totals for every historical date — while dl_reportSalesData() still reported them.
+// A1 deactivates the PRODUCT after its ledger row exists; A2 deactivates the ASSIGNMENT.
+// Both must still render the recorded row and keep the money identical.
+// ===========================================================================
+$h->section('G — deactivation never erases recorded history (FIX A)');
+
+$DATE_A = '2032-06-01';
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_DEACT . ", 'FULL-DEACT', 'Full Deactivated Product', 'bread', 10, 0, 1)");
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_DEACT_LINK . ", 'FULL-DEACTA', 'Full Deactivated Assignment', 'bread', 10, 0, 1)");
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (' . $BRANCH . ',' . $P_DEACT . ',1)');
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (' . $BRANCH . ',' . $P_DEACT_LINK . ',1)');
+$ledger->execute([':b' => $BRANCH, ':p' => $P_DEACT, ':d' => $DATE_A, ':s' => 'AM', ':beg' => 10, ':end' => 5, ':sales' => 5]);
+$ledger->execute([':b' => $BRANCH, ':p' => $P_DEACT_LINK, ':d' => $DATE_A, ':s' => 'AM', ':beg' => 20, ':end' => 15, ':sales' => 5]);
+$db->execute("INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status) VALUES (" . $BRANCH . ", '" . $DATE_A . "', 'AM', 'finalized')");
+
+$baseA = $rowDriven($BRANCH, $DATE_A, $DATE_A);
+$htmlABefore = $renderSales(['date_from' => $DATE_A, 'date_to' => $DATE_A, 'branch_id' => (string)$BRANCH]);
+$beforeA = $extract($htmlABefore);
+$h->test(
+    'A baseline: both recorded rows render and the official money is 10 units / 100',
+    $rowForSku($htmlABefore, 'FULL-DEACT') !== '' && $rowForSku($htmlABefore, 'FULL-DEACTA') !== ''
+        && $beforeA['official_units'] === 10 && $beforeA['official_amount'] === 100.0,
+    'rendered=' . json_encode($beforeA) . ' baseline=' . json_encode($baseA)
+);
+
+// A1 — deactivate the PRODUCT; its recorded row and money must survive.
+$db->execute('UPDATE dl_products SET is_active = 0 WHERE id = ' . $P_DEACT);
+$htmlA1 = $renderSales(['date_from' => $DATE_A, 'date_to' => $DATE_A, 'branch_id' => (string)$BRANCH]);
+$a1 = $extract($htmlA1);
+$deactRow = $rowForSku($htmlA1, 'FULL-DEACT');
+$h->test(
+    'A1: a deactivated product still renders its recorded row',
+    $deactRow !== '' && !str_contains($deactRow, 'aria-label="No record"'),
+    substr(preg_replace('/\s+/', ' ', strip_tags($deactRow)), 0, 220)
+);
+$h->test(
+    'A1: the deactivated product is still counted in the official totals',
+    $a1['official_units'] === (int)$baseA['official_units']
+        && $a1['official_amount'] === (float)$baseA['official_amount']
+        && $a1['official_units'] === 10 && $a1['official_amount'] === 100.0,
+    'after=' . json_encode($a1) . ' baseline=' . json_encode($baseA)
+);
+
+// A2 — deactivate the ASSIGNMENT; its recorded row and money must survive too.
+$db->execute('UPDATE dl_branch_products SET is_active = 0 WHERE branch_id = ' . $BRANCH . ' AND product_id = ' . $P_DEACT_LINK);
+$htmlA2 = $renderSales(['date_from' => $DATE_A, 'date_to' => $DATE_A, 'branch_id' => (string)$BRANCH]);
+$a2 = $extract($htmlA2);
+$deactLinkRow = $rowForSku($htmlA2, 'FULL-DEACTA');
+$h->test(
+    'A2: an inactive assignment still renders its recorded row',
+    $deactLinkRow !== '' && !str_contains($deactLinkRow, 'aria-label="No record"'),
+    substr(preg_replace('/\s+/', ' ', strip_tags($deactLinkRow)), 0, 220)
+);
+$h->test(
+    'A2: the inactive assignment is still counted in the official totals',
+    $a2['official_units'] === 10 && $a2['official_amount'] === 100.0,
+    'after=' . json_encode($a2)
+);
+$h->test(
+    'A1+A2: both recorded rows survived both deactivations with the money unchanged',
+    $rowForSku($htmlA2, 'FULL-DEACT') !== '' && $rowForSku($htmlA2, 'FULL-DEACTA') !== ''
+        && $a2['official_units'] === $beforeA['official_units']
+        && $a2['official_amount'] === $beforeA['official_amount']
+        && $a2['pending_units'] === $beforeA['pending_units'],
+    'after=' . json_encode($a2) . ' before=' . json_encode($beforeA)
+);
+
+// ===========================================================================
+// FIX B — do not project today's products backwards in time
+//
+// A synthetic no-record row may only exist for a product/assignment that already
+// existed on the viewed date. P_FUTURE was created after 2032-06-02 and has no row,
+// so it must NOT appear. P_PRESENT already existed, so it must appear as no-record.
+// P_BACKDATED is created after the date but HAS a ledger row, proving the bound is
+// applied to SYNTHETIC rows only.
+// ===========================================================================
+$h->section('H — synthetic rows are bounded by the range end (FIX B)');
+
+$DATE_B = '2032-06-02';
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_PRESENT . ", 'FULL-PRESENT', 'Full Present', 'cake', 10, 0, 1)");
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active, created_at) VALUES (' . $P_FUTURE . ", 'FULL-FUTURE', 'Full Future', 'cake', 10, 0, 1, '2032-06-03 08:00:00')");
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active, created_at) VALUES (' . $P_BACKDATED . ", 'FULL-BACK', 'Full Backdated', 'cake', 10, 0, 1, '2032-06-03 08:00:00')");
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active, created_at) VALUES (' . $BRANCH . ',' . $P_PRESENT . ", 1, '2032-05-01 00:00:00')");
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active, created_at) VALUES (' . $BRANCH . ',' . $P_FUTURE . ", 1, '2032-06-03 08:00:00')");
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active, created_at) VALUES (' . $BRANCH . ',' . $P_BACKDATED . ", 1, '2032-06-03 08:00:00')");
+$ledger->execute([':b' => $BRANCH, ':p' => $P_BACKDATED, ':d' => $DATE_B, ':s' => 'AM', ':beg' => 10, ':end' => 5, ':sales' => 5]);
+$db->execute("INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status) VALUES (" . $BRANCH . ", '" . $DATE_B . "', 'AM', 'finalized')");
+
+$htmlB = $renderSales(['date_from' => $DATE_B, 'date_to' => $DATE_B, 'branch_id' => (string)$BRANCH]);
+$b = $extract($htmlB);
+$h->test(
+    'B1: a product created after the viewed date produces NO synthetic row',
+    $rowForSku($htmlB, 'FULL-FUTURE') === '',
+    'future row: ' . substr(preg_replace('/\s+/', ' ', strip_tags($rowForSku($htmlB, 'FULL-FUTURE'))), 0, 220)
+);
+$h->test(
+    'B control: a product that already existed renders a no-record row',
+    ($presentRow = $rowForSku($htmlB, 'FULL-PRESENT')) !== '' && str_contains($presentRow, 'aria-label="No record"'),
+    substr(preg_replace('/\s+/', ' ', strip_tags($rowForSku($htmlB, 'FULL-PRESENT'))), 0, 220)
+);
+$h->test(
+    'B: an existing ledger row is NOT subject to the created_at bound',
+    ($backRow = $rowForSku($htmlB, 'FULL-BACK')) !== '' && !str_contains($backRow, 'aria-label="No record"'),
+    substr(preg_replace('/\s+/', ' ', strip_tags($rowForSku($htmlB, 'FULL-BACK'))), 0, 220)
+);
+$baseB = $rowDriven($BRANCH, $DATE_B, $DATE_B);
+$h->test(
+    'B: the totals still equal the row-driven money (the recorded row contributes)',
+    $b['official_units'] === (int)$baseB['official_units']
+        && $b['official_amount'] === (float)$baseB['official_amount']
+        && $b['official_units'] === 5 && $b['official_amount'] === 50.0,
+    'rendered=' . json_encode($b) . ' baseline=' . json_encode($baseB)
+);
+
+// ===========================================================================
+// FIX C — the page must not make claims that are not true
+// ===========================================================================
+$h->section('I — truncation warning truthfulness (FIX C)');
+
+$DATE_C = '2032-07-01';
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_TRUNC . ", 'FULL-TRUNC', 'Full Truncated', 'bread', 10, 0, 1)");
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_TRUNC_NR . ", 'FULL-TRUNCNR', 'Full Truncated NoRecord', 'cake', 10, 0, 1)");
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active, created_at) VALUES (' . $BRANCH . ',' . $P_TRUNC . ", 1, '2032-05-01 00:00:00')");
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active, created_at) VALUES (' . $BRANCH . ',' . $P_TRUNC_NR . ", 1, '2032-05-01 00:00:00')");
+$cursor = new DateTimeImmutable($DATE_C);
+$datesC = [];
+for ($i = 0; $i < DL_SALES_PAGE_ROW_LIMIT + 1; $i++) {
+    $d = $cursor->modify("+{$i} days")->format('Y-m-d');
+    $datesC[] = $d;
+    $ledger->execute([':b' => $BRANCH, ':p' => $P_TRUNC, ':d' => $d, ':s' => 'AM', ':beg' => 10, ':end' => 5, ':sales' => 5]);
+}
+$DATE_C_END = end($datesC);
+$htmlC = $renderSales(['date_from' => $DATE_C, 'date_to' => $DATE_C_END, 'branch_id' => (string)$BRANCH]);
+$c = $extract($htmlC);
+
+$warning = '';
+if (preg_match('#<span class="font-semibold">Showing the newest.*?narrow the date range to see them here\.#is', $htmlC, $wm)) {
+    $warning = trim(preg_replace('/\s+/', ' ', $wm[0]));
+}
+$h->test(
+    'C1: the page is actually truncated, so the warning path is exercised',
+    $c['matching'] > DL_SALES_PAGE_ROW_LIMIT && $warning !== '',
+    'matching=' . $c['matching'] . ' warning=' . $warning
+);
+$h->test(
+    'C1: the warning states the report exports RECORDED entries only',
+    stripos($warning, 'RECORDED ledger entries only') !== false,
+    $warning
+);
+$h->test(
+    'C1: the warning says the report does NOT contain the no-record rows',
+    stripos($warning, 'does NOT contain the') !== false && stripos($warning, 'No record') !== false,
+    $warning
+);
+$h->test(
+    'C1: the old false "view and export the full set" claim is gone',
+    $warning !== '' && stripos($warning, 'full set') === false && stripos($warning, 'view and export the full') === false,
+    $warning
+);
+
+// Independently measure the omitted no-record count, then require the rendered number to match.
+// It is NOT sales_total_matching - sales_shown: on this window that difference is 1 larger, because
+// one of the omitted rows is a RECORDED row. Both operands below are measured from the DB.
+$activeStmt = $db->prepare(
+    "SELECT COUNT(*) FROM dl_branch_products bp
+       INNER JOIN dl_products p2 ON p2.id = bp.product_id
+      WHERE bp.is_active = 1 AND p2.is_active = 1 AND bp.branch_id = ?
+        AND DATE(bp.created_at) <= ? AND DATE(p2.created_at) <= ?"
+);
+$activeStmt->execute([$BRANCH, $DATE_C_END, $DATE_C_END]);
+$activePairs = (int)$activeStmt->fetchColumn();
+$activeWithRowStmt = $db->prepare(
+    "SELECT COUNT(DISTINCT bp.product_id) FROM dl_branch_products bp
+       INNER JOIN dl_products p2 ON p2.id = bp.product_id
+       INNER JOIN dl_daily_ledger dl ON dl.product_id = bp.product_id AND dl.branch_id = bp.branch_id
+      WHERE bp.is_active = 1 AND p2.is_active = 1 AND bp.branch_id = ?
+        AND DATE(bp.created_at) <= ? AND DATE(p2.created_at) <= ?
+        AND dl.ledger_date BETWEEN ? AND ?"
+);
+$activeWithRowStmt->execute([$BRANCH, $DATE_C_END, $DATE_C_END, $DATE_C, $DATE_C_END]);
+$activeWithRow = (int)$activeWithRowStmt->fetchColumn();
+$expectedNoRecordTotal = $activePairs - $activeWithRow;
+$shownNoRecord = substr_count($htmlC, 'aria-label="No record"');
+$expectedOmitted = max(0, $expectedNoRecordTotal - $shownNoRecord);
+$disclosed = null;
+if (preg_match('#(\d[\d,]*) no-record row\(s\) are omitted#', $warning, $dm)) {
+    $disclosed = (int)str_replace(',', '', $dm[1]);
+}
+$h->test(
+    'C1: the warning discloses the EXACT omitted no-record count, measured not guessed',
+    $disclosed !== null && $disclosed === $expectedOmitted && $expectedOmitted >= 1,
+    'disclosed=' . var_export($disclosed, true) . ' expected=' . $expectedOmitted
+        . ' activePairs=' . $activePairs . ' activeWithRow=' . $activeWithRow . ' shownNR=' . $shownNoRecord
+        . ' totalShownDiff=' . ($c['matching'] - DL_SALES_PAGE_ROW_LIMIT)
+);
+
+// C2 — the no-record tooltip must describe the filter state actually selected.
+$htmlTipAll = $renderSales(['date_from' => $DATE, 'date_to' => $DATE, 'branch_id' => (string)$BRANCH]);
+$tipAll = $rowForSku($htmlTipAll, 'FULL-NONE');
+$h->test(
+    'C2: with Shift=All the no-record tooltip says "anywhere in the selected date range"',
+    $tipAll !== '' && str_contains($tipAll, 'anywhere in the selected date range') && !str_contains($tipAll, 'on this shift'),
+    substr(preg_replace('/\s+/', ' ', strip_tags($tipAll)), 0, 260)
+);
+$htmlTipAm = $renderSales(['date_from' => $DATE, 'date_to' => $DATE, 'branch_id' => (string)$BRANCH, 'shift' => 'AM']);
+$tipAm = $rowForSku($htmlTipAm, 'FULL-NONE');
+$h->test(
+    'C2: with Shift=AM the no-record tooltip names the AM shift and the range',
+    $tipAm !== '' && str_contains($tipAm, 'for the AM shift in the selected range'),
+    substr(preg_replace('/\s+/', ' ', strip_tags($tipAm)), 0, 260)
 );
 
 $cleanup();

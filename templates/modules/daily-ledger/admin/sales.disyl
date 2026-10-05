@@ -134,9 +134,11 @@
     {if sales_total_matching > sales_shown}
     <div class="card-body text-sm text-amber-900 bg-amber-50 border-b border-amber-200">
         <span class="font-semibold">Showing the newest {sales_shown} of {sales_total_matching} matching rows.</span>
-        The totals below cover all of them. Narrow the date range, or open
+        The totals below cover all of them. The
         <a class="underline font-medium" href="{base_url}/admin/reports/sales">Reports &rarr; Daily Sales</a>
-        to view and export the full set as CSV or PDF.
+        report exports RECORDED ledger entries only &mdash; it does NOT contain the
+        &ldquo;No record&rdquo; rows. {sales_no_record_omitted} no-record row(s) are omitted from this page;
+        narrow the date range to see them here.
     </div>
     {/if}
     {if (pending_dates | count) > 0}
@@ -173,7 +175,7 @@
                     <td>{if row.status_label == 'no record'}—{else}{row.ledger_date}{/if}</td>
                     <td{if row.status_label == 'no record'} class="bg-gray-100 text-gray-600"{elseif row.status_label != 'official'} class="bg-amber-100 text-amber-800"{/if}>
                         {if row.status_label == 'no record'}
-                        <span class="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700 ring-1 ring-inset ring-gray-300" title="No record: no ledger row exists for this product on this shift, so nothing was recorded. Unlike a pending count, there may simply have been no movement; it contributes zero to the totals." aria-label="No record">No record</span>
+                        <span class="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700 ring-1 ring-inset ring-gray-300" {if filter_shift != ''}title="No record: no ledger row exists for this product for the {filter_shift} shift in the selected range, so nothing was recorded. Unlike a pending count, there may simply have been no movement; it contributes zero to the totals."{else}title="No record: no ledger row exists for this product anywhere in the selected date range, so nothing was recorded. Unlike a pending count, there may simply have been no movement; it contributes zero to the totals."{/if} aria-label="No record">No record</span>
                         {else}
                         {if row.shift == 'PM'}PM{else}AM{/if}
                         {if row.status_label == 'pending ending'}
@@ -193,7 +195,7 @@
                     <td class="text-right">{row.bal_end | default:'—'}</td>
                     <td class="text-right{if row.status_label == 'no record'} text-gray-500{/if}{if row.status_label == 'pending ending' or row.status_label == 'provisional'} bg-amber-100 text-amber-800{/if}"{if row.status_label == 'pending ending'} title="Pending ending: this sales figure is not counted in the official total." aria-label="Sales figure not final: pending ending"{/if}{if row.status_label == 'provisional'} title="Provisional: this sales figure is not counted in the official total." aria-label="Sales figure not final: provisional"{/if}>
                         {if row.status_label == 'no record'}
-                        <span title="No record: no value was recorded for this product on this shift.">—</span>
+                        {if filter_shift != ''}<span title="No record: no value was recorded for this product for the {filter_shift} shift in the selected range.">—</span>{else}<span title="No record: no value was recorded for this product anywhere in the selected date range.">—</span>{/if}
                         {/if}
                         {if row.status_label == 'pending ending'}
                         <span title="Not final: no ending entered">{row.sales | default:'—'}</span>

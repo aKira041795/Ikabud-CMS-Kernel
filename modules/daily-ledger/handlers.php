@@ -10829,41 +10829,78 @@ function handleAdminSales(array $params = []): void
     // totals and the rendered rows therefore cannot disagree about it.
     $provisionalExpr = dl_provisionalSqlExpr('dl', 'ss');
 
-    $where = 'p.is_active = 1 AND bp.branch_id IN (' . $branchPlaceholders . ')';
-    $whereBind = $accessibleBranchIds;
-
-    if ($branchId) {
-        $where .= ' AND bp.branch_id = ?';
-        $whereBind[] = $branchId;
-    }
+    // FIX A — the DRIVING SET is the UNION of two pair sets, so an is_active flag can never erase
+    // recorded history:
+    //   (1) currently-active product/assignment pairs (the SYNTHETIC no-record candidates);
+    //   (2) every (branch, product) pair that actually HAS a ledger row in the selected range.
+    // The is_active restriction lives ONLY in (1): a pair already present in dl_daily_ledger is
+    // driven by (2) whatever its product or assignment state, so deactivating a product or an
+    // assignment leaves the recorded row — and its money — in the view and in the totals. UNION
+    // (not UNION ALL) collapses a pair that is in both sets so it renders once.
+    //
+    // FIX B — the synthetic candidates are bounded by the range END in the pair's own metadata
+    // (dl_products.created_at AND dl_branch_products.created_at): a product/assignment that did not
+    // exist by the viewed date produces no no-record row. DATE(created_at) compares the stored
+    // timestamp's date part to the viewed date; created_at is assumed to be written in the same
+    // operating timezone as ledger_date, which is how the rest of the module treats it. The bound
+    // is NEVER applied to set (2): an existing ledger row is not subject to it.
+    //
+    // MySQL 5.7-safe: a plain derived table + UNION, no CTE / window function / JSON_TABLE / LIMIT.
+    $searchSql = '';
+    $searchBind = [];
     if ($search !== '') {
-        $where .= ' AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)';
+        $searchSql = ' AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)';
         $like = "%{$search}%";
-        $whereBind[] = $like;
-        $whereBind[] = $like;
-        $whereBind[] = $like;
+        $searchBind = [$like, $like, $like];
     }
-
-    // PRODUCT-DRIVEN, matching the cashier sheet (dl_fetchCashierLedgerRows): every active product
-    // assigned to an in-scope branch appears, whether or not a ledger row exists. The date range
-    // and the shift are in the LEFT JOIN's ON clause — were either in the WHERE, a product with no
-    // row would be filtered out and this would silently become row-driven again.
+    // Branch scoping is applied inside BOTH union branches so each keeps its own index; the
+    // single-branch filter is kept on the pair key and never excludes a recorded pair.
+    $activeBranchSql = ' AND bp.branch_id IN (' . $branchPlaceholders . ')'
+        . ($branchId ? ' AND bp.branch_id = ?' : '');
+    $ledgerBranchSql = ' AND dl.branch_id IN (' . $branchPlaceholders . ')'
+        . ($branchId ? ' AND dl.branch_id = ?' : '');
     $salesFromSql = 'FROM dl_products p
-             INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.is_active = 1
-             INNER JOIN dl_branches b ON b.id = bp.branch_id
-             LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = bp.branch_id
+             INNER JOIN (
+                 SELECT bp.branch_id AS branch_id, bp.product_id AS product_id
+                   FROM dl_branch_products bp
+                   INNER JOIN dl_products p2 ON p2.id = bp.product_id
+                  WHERE bp.is_active = 1 AND p2.is_active = 1
+                    AND DATE(bp.created_at) <= ? AND DATE(p2.created_at) <= ?'
+        . $activeBranchSql . '
+                 UNION
+                 SELECT dl.branch_id AS branch_id, dl.product_id AS product_id
+                   FROM dl_daily_ledger dl
+                  WHERE dl.ledger_date BETWEEN ? AND ?'
+        . ($shiftFilter !== '' ? ' AND dl.shift = ?' : '')
+        . $ledgerBranchSql . '
+             ) drv ON drv.product_id = p.id
+             INNER JOIN dl_branches b ON b.id = drv.branch_id
+             LEFT JOIN dl_daily_ledger dl ON dl.product_id = drv.product_id AND dl.branch_id = drv.branch_id
                   AND dl.ledger_date BETWEEN ? AND ?'
         . ($shiftFilter !== '' ? ' AND dl.shift = ?' : '')
         . '
              LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
-            WHERE ' . $where;
-    // Bind order follows the SQL text: the LEFT JOIN date range (and shift) precede the WHERE.
-    $bind = array_merge([$dateFrom, $dateTo], $shiftFilter !== '' ? [$shiftFilter] : [], $whereBind);
+            WHERE 1 = 1' . $searchSql;
+    // Bind order follows the SQL text: active-pair bounds, ledger-pair range/shift, the LEFT JOIN
+    // range/shift, then the outer search.
+    $bind = array_merge(
+        [$dateTo, $dateTo],
+        $accessibleBranchIds,
+        $branchId ? [$branchId] : [],
+        [$dateFrom, $dateTo],
+        $shiftFilter !== '' ? [$shiftFilter] : [],
+        $accessibleBranchIds,
+        $branchId ? [$branchId] : [],
+        [$dateFrom, $dateTo],
+        $shiftFilter !== '' ? [$shiftFilter] : [],
+        $searchBind
+    );
 
     // Grand totals — official vs provisional — over every matching row, not over
     // the capped slice rendered below.
     $totalsStmt = $ctx->db()->prepare(
         'SELECT COUNT(*) AS row_count,
+                COALESCE(SUM(CASE WHEN dl.id IS NULL THEN 1 ELSE 0 END), 0) AS no_record_rows,
                 COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE (' . $salesExpr . ') END), 0) AS official_units,
                 COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN 0 ELSE (' . $amountExpr . ') END), 0) AS official_amount,
                 COALESCE(SUM(CASE WHEN ' . $provisionalExpr . ' THEN (' . $salesExpr . ') ELSE 0 END), 0) AS provisional_units,
@@ -10873,6 +10910,7 @@ function handleAdminSales(array $params = []): void
     $totalsStmt->execute($bind);
     $salesTotals = $totalsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $salesTotalMatching = (int)($salesTotals['row_count'] ?? 0);
+    $salesNoRecordTotal = (int)($salesTotals['no_record_rows'] ?? 0);
     $grandUnits = (int)($salesTotals['official_units'] ?? 0);
     $grandAmount = (float)($salesTotals['official_amount'] ?? 0);
     $provisionalUnits = (int)($salesTotals['provisional_units'] ?? 0);
@@ -10898,18 +10936,26 @@ function handleAdminSales(array $params = []): void
     // (dl_rowIsProvisional()), so the badge and the footer cannot disagree. Do not
     // re-derive the rule here or in the template — that duplication is the defect.
     $pendingDates = [];
+    $salesNoRecordShown = 0;
     foreach ($salesRows as &$salesRow) {
         $salesRow['status_label'] = dl_salesRowStatusLabel($salesRow);
-        // A no-record row is not pending (D3): it has no recorded values, so naming its date in
-        // the "pending data" banner would turn a blind spot into false noise. Only real rows that
-        // are official-less (pending/provisional) name a date.
-        if ($salesRow['status_label'] !== 'official' && $salesRow['status_label'] !== 'no record') {
+        if ($salesRow['status_label'] === 'no record') {
+            $salesNoRecordShown++;
+        } elseif ($salesRow['status_label'] !== 'official') {
+            // A no-record row is not pending (D3): it has no recorded values, so naming its date in
+            // the "pending data" banner would turn a blind spot into false noise. Only real rows that
+            // are official-less (pending/provisional) name a date.
             $pendingDates[(string)$salesRow['ledger_date']] = true;
         }
     }
     unset($salesRow);
     $pendingDates = array_keys($pendingDates);
     sort($pendingDates);
+    // FIX C1 — how many NO-RECORD rows the cap left out. Both operands are measured, not guessed:
+    // the totals query counts every no-record row in the full matching set, and the loop above
+    // counts the no-record rows that actually rendered. The old copy implied the row-driven
+    // Reports -> Daily Sales report was the full version of this view; it never contained these.
+    $salesNoRecordOmitted = max(0, $salesNoRecordTotal - $salesNoRecordShown);
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -10966,6 +11012,7 @@ function handleAdminSales(array $params = []): void
         'sales_total_matching' => $salesTotalMatching,
         'sales_shown'          => count($salesRows),
         'sales_row_limit'      => DL_SALES_PAGE_ROW_LIMIT,
+        'sales_no_record_omitted' => $salesNoRecordOmitted,
         'pending_dates'        => $pendingDates,
         'grand_units'  => $grandUnits,
         'grand_amount' => $grandAmount,
