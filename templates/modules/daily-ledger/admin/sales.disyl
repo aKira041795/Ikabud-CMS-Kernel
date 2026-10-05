@@ -148,6 +148,19 @@
         &mdash; their figures are provisional and excluded from the official total.
     </div>
     {/if}
+    {if (shift_coverage_notes | count) > 0}
+    <div class="card-body text-sm text-amber-900 bg-amber-50 border-b border-amber-200" id="shift-coverage-disclosure">
+        <span class="font-semibold">Shift coverage:</span>
+        <ul class="list-disc pl-5 mt-1 space-y-0.5">
+        {foreach shift_coverage_notes as note}
+            <li>{note}</li>
+        {/foreach}
+        {if shift_coverage_overflow > 0}
+            <li>and {shift_coverage_overflow} more date(s) with missing shift coverage.</li>
+        {/if}
+        </ul>
+    </div>
+    {/if}
     <div class="table-wrap">
         <table>
             <thead>

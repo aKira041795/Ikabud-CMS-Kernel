@@ -10966,6 +10966,76 @@ function handleAdminSales(array $params = []): void
     $stmtAll->execute($accessibleBranchIds);
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // FIX D — one additive shift-coverage disclosure. A single cheap grouped query over the SAME
+    // branch scope and date range counts REAL ledger rows per (ledger_date, shift). Synthetic
+    // no-record rows never enter this query (they do not exist in dl_daily_ledger), so a product
+    // with no movement can never be mistaken for a missing shift. Coverage spans BOTH shifts
+    // regardless of the row-level shift filter, because the missing half is the blind spot.
+    // MySQL 5.7-safe: GROUP BY only, no CTE / window / JSON_TABLE / LIMIT.
+    $coverageStmt = $ctx->db()->prepare(
+        'SELECT dl.ledger_date, dl.shift, COUNT(*) AS row_count
+           FROM dl_daily_ledger dl
+          WHERE dl.branch_id IN (' . $branchPlaceholders . ')'
+        . ($branchId ? ' AND dl.branch_id = ?' : '')
+        . ' AND dl.ledger_date BETWEEN ? AND ?
+          GROUP BY dl.ledger_date, dl.shift'
+    );
+    $coverageStmt->execute(array_merge(
+        $accessibleBranchIds,
+        $branchId ? [$branchId] : [],
+        [$dateFrom, $dateTo]
+    ));
+    $coverageByDate = [];
+    $coverageRangeHasRows = false;
+    foreach ($coverageStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $coverageRow) {
+        $coverageCount = (int)$coverageRow['row_count'];
+        if ($coverageCount <= 0) {
+            continue;
+        }
+        $coverageDate = (string)$coverageRow['ledger_date'];
+        $coverageShift = strtoupper(trim((string)$coverageRow['shift']));
+        if (!isset($coverageByDate[$coverageDate])) {
+            $coverageByDate[$coverageDate] = ['AM' => 0, 'PM' => 0, 'OTHER' => 0];
+        }
+        // Only the two known shifts are named. An unknown shift value is held apart and, by
+        // itself, suppresses a missing-shift claim rather than being guessed at.
+        if ($coverageShift === 'AM') {
+            $coverageByDate[$coverageDate]['AM'] += $coverageCount;
+        } elseif ($coverageShift === 'PM') {
+            $coverageByDate[$coverageDate]['PM'] += $coverageCount;
+        } else {
+            $coverageByDate[$coverageDate]['OTHER'] += $coverageCount;
+        }
+        $coverageRangeHasRows = true;
+    }
+    $shiftCoverageNotes = [];
+    $shiftCoverageOverflow = 0;
+    $coverageFrom = dl_reportValidDate($dateFrom);
+    $coverageTo = dl_reportValidDate($dateTo);
+    if ($coverageRangeHasRows && $coverageFrom !== null && $coverageTo !== null) {
+        $coverageCursor = new DateTimeImmutable($coverageFrom);
+        $coverageEnd = new DateTimeImmutable($coverageTo);
+        while ($coverageCursor <= $coverageEnd) {
+            $coverageDate = $coverageCursor->format('Y-m-d');
+            $counts = $coverageByDate[$coverageDate] ?? ['AM' => 0, 'PM' => 0, 'OTHER' => 0];
+            if ($counts['OTHER'] === 0) {
+                if ($counts['AM'] > 0 && $counts['PM'] === 0) {
+                    $shiftCoverageNotes[] = 'No PM rows recorded for ' . $coverageDate . '.';
+                } elseif ($counts['PM'] > 0 && $counts['AM'] === 0) {
+                    $shiftCoverageNotes[] = 'No AM rows recorded for ' . $coverageDate . '.';
+                } elseif ($counts['AM'] === 0 && $counts['PM'] === 0) {
+                    $shiftCoverageNotes[] = 'No rows recorded at all for ' . $coverageDate . '.';
+                }
+            }
+            $coverageCursor = $coverageCursor->modify('+1 day');
+        }
+    }
+    // Cap the rendered list so a very wide range cannot print hundreds of date sentences.
+    if (count($shiftCoverageNotes) > 10) {
+        $shiftCoverageOverflow = count($shiftCoverageNotes) - 10;
+        $shiftCoverageNotes = array_slice($shiftCoverageNotes, 0, 10);
+    }
+
     $clockLabel = dl_operatingClockLabel();
 
     // POS reconciliation: per-branch sales mode + POS-vs-calculated summary
@@ -11014,6 +11084,8 @@ function handleAdminSales(array $params = []): void
         'sales_row_limit'      => DL_SALES_PAGE_ROW_LIMIT,
         'sales_no_record_omitted' => $salesNoRecordOmitted,
         'pending_dates'        => $pendingDates,
+        'shift_coverage_notes' => $shiftCoverageNotes,
+        'shift_coverage_overflow' => $shiftCoverageOverflow,
         'grand_units'  => $grandUnits,
         'grand_amount' => $grandAmount,
         'provisional_units' => $provisionalUnits,

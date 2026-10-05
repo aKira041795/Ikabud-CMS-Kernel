@@ -54,8 +54,12 @@ $P_FUTURE = 99238;          // FIX B1: product created AFTER the viewed date -> 
 $P_BACKDATED = 99239;       // FIX B: created AFTER the viewed date but HAS a ledger row -> recorded row
 $P_TRUNC = 99240;           // FIX C: > limit recorded rows -> forces the cap
 $P_TRUNC_NR = 99241;        // FIX C: no-record row that the cap omits
+$P_D1 = 99242;              // FIX D: AM row only on its date -> "No PM rows recorded"
+$P_D3_AM = 99243;           // FIX D: AM row on a date that also has a PM row
+$P_D3_PM = 99244;           // FIX D: PM row on the same date
 $FIXTURE_PRODUCTS = [$P_OFFICIAL, $P_PENDING, $P_NORECORD, $P_PROVISIONAL, $P_LONELY,
-    $P_DEACT, $P_DEACT_LINK, $P_PRESENT, $P_FUTURE, $P_BACKDATED, $P_TRUNC, $P_TRUNC_NR];
+    $P_DEACT, $P_DEACT_LINK, $P_PRESENT, $P_FUTURE, $P_BACKDATED, $P_TRUNC, $P_TRUNC_NR,
+    $P_D1, $P_D3_AM, $P_D3_PM];
 
 $cleanup = static function () use ($db, $BRANCH, $LONELY_BRANCH, $FIXTURE_PRODUCTS): void {
     $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id IN (' . $BRANCH . ',' . $LONELY_BRANCH . ')');
@@ -629,6 +633,102 @@ $h->test(
     'C2: with Shift=AM the no-record tooltip names the AM shift and the range',
     $tipAm !== '' && str_contains($tipAm, 'for the AM shift in the selected range'),
     substr(preg_replace('/\s+/', ' ', strip_tags($tipAm)), 0, 260)
+);
+
+// ===========================================================================
+// FIX D — shift-coverage disclosure: a whole missing shift must be visible
+//
+// On the BASE tree nothing told the admin that a date had NO rows on one shift.
+// The disclosure is computed from REAL dl_daily_ledger rows only, so a synthetic
+// no-record row can never be mistaken for a recorded shift. These cases MEASURE
+// the rendered sentences on the private fixture branch.
+// ===========================================================================
+$h->section('J — shift-coverage disclosure (FIX D)');
+
+$DATE_D1 = '2032-06-10';   // AM row only            -> "No PM rows recorded"
+$DATE_D2 = '2032-06-11';   // no rows at all         -> "No rows recorded at all"
+$DATE_D3 = '2032-06-12';   // AM AND PM rows         -> neither
+$DATE_D4 = '2032-06-13';   // all products no-record  -> neither (false-alarm guard)
+
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_D1 . ", 'FULL-D1', 'Full D1 AM Only', 'bread', 10, 0, 1)");
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_D3_AM . ", 'FULL-D3A', 'Full D3 AM', 'bread', 10, 0, 1)");
+$db->execute('INSERT INTO dl_products (id, sku, name, product_category, current_price, sort_order, is_active) VALUES (' . $P_D3_PM . ", 'FULL-D3P', 'Full D3 PM', 'cake', 10, 0, 1)");
+foreach ([$P_D1, $P_D3_AM, $P_D3_PM] as $pid) {
+    $db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active, created_at) VALUES (' . $BRANCH . ',' . $pid . ", 1, '2032-05-01 00:00:00')");
+}
+$ledger->execute([':b' => $BRANCH, ':p' => $P_D1,    ':d' => $DATE_D1, ':s' => 'AM', ':beg' => 10, ':end' => 5,  ':sales' => 5]);
+$ledger->execute([':b' => $BRANCH, ':p' => $P_D3_AM, ':d' => $DATE_D3, ':s' => 'AM', ':beg' => 10, ':end' => 5,  ':sales' => 5]);
+$ledger->execute([':b' => $BRANCH, ':p' => $P_D3_PM, ':d' => $DATE_D3, ':s' => 'PM', ':beg' => 20, ':end' => 10, ':sales' => 10]);
+
+$shiftCoverage = static function (string $html): array {
+    if (!preg_match('#id="shift-coverage-disclosure"(.*?)</div>#s', $html, $m)) {
+        return ['present' => false, 'text' => '', 'notes' => []];
+    }
+    preg_match_all('#<li>(.*?)</li>#s', $m[1], $lis);
+    $notes = array_map(
+        static fn(string $s): string => trim(preg_replace('/\s+/', ' ', strip_tags($s))),
+        $lis[1] ?? []
+    );
+    return [
+        'present' => true,
+        'text' => trim(preg_replace('/\s+/', ' ', strip_tags($m[1]))),
+        'notes' => $notes,
+    ];
+};
+
+// D1 — one shift recorded, the other absent.
+$htmlD1 = $renderSales(['date_from' => $DATE_D1, 'date_to' => $DATE_D1, 'branch_id' => (string)$BRANCH]);
+$covD1 = $shiftCoverage($htmlD1);
+$h->test(
+    'D1: a date with AM rows and no PM rows discloses "No PM rows recorded for ' . $DATE_D1 . '"',
+    in_array('No PM rows recorded for ' . $DATE_D1 . '.', $covD1['notes'], true),
+    json_encode($covD1)
+);
+
+// D2 — a date with no real rows, inside a range that has rows elsewhere.
+$htmlD2 = $renderSales(['date_from' => $DATE_D1, 'date_to' => $DATE_D2, 'branch_id' => (string)$BRANCH]);
+$covD2 = $shiftCoverage($htmlD2);
+$h->test(
+    'D2: a date with no rows at all discloses "No rows recorded at all for ' . $DATE_D2 . '"',
+    in_array('No rows recorded at all for ' . $DATE_D2 . '.', $covD2['notes'], true),
+    json_encode($covD2)
+);
+
+// D3 — both shifts recorded: no disclosure.
+$htmlD3 = $renderSales(['date_from' => $DATE_D3, 'date_to' => $DATE_D3, 'branch_id' => (string)$BRANCH]);
+$covD3 = $shiftCoverage($htmlD3);
+$h->test(
+    'D3: a date with both AM and PM recorded renders neither disclosure',
+    $covD3['present'] === false,
+    json_encode($covD3)
+);
+
+// D4 — the false-alarm guard: every product on the date has NO ledger row. The page renders
+// many synthetic "No record" rows, but no movement is not a missing shift.
+$htmlD4 = $renderSales(['date_from' => $DATE_D4, 'date_to' => $DATE_D4, 'branch_id' => (string)$BRANCH]);
+$covD4 = $shiftCoverage($htmlD4);
+$h->test(
+    'D4: a date whose products are all no-record synthetic rows renders neither disclosure',
+    $covD4['present'] === false
+        && str_contains($htmlD4, 'aria-label="No record"')
+        && !str_contains($htmlD4, 'No AM rows recorded for ' . $DATE_D4)
+        && !str_contains($htmlD4, 'No PM rows recorded for ' . $DATE_D4)
+        && !str_contains($htmlD4, 'No rows recorded at all for ' . $DATE_D4),
+    'no-record badges=' . substr_count($htmlD4, 'aria-label="No record"') . ' coverage=' . json_encode($covD4)
+);
+
+// D5 — the disclosure is additive: the money and row grain are untouched.
+$baseD5 = $rowDriven($BRANCH, $DATE_D1, $DATE_D3);
+$htmlD5 = $renderSales(['date_from' => $DATE_D1, 'date_to' => $DATE_D3, 'branch_id' => (string)$BRANCH]);
+$d5 = $extract($htmlD5);
+$h->test(
+    'D5: the rendered money still equals the row-driven RECORD over the coverage range',
+    $d5['official_units'] === (int)$baseD5['official_units']
+        && $d5['official_amount'] === (float)$baseD5['official_amount']
+        && $d5['pending_units'] === (int)$baseD5['provisional_units']
+        && $d5['official_units'] === 10 && $d5['official_amount'] === 100.0
+        && $d5['pending_units'] === 10,
+    'rendered=' . json_encode($d5) . ' baseline=' . json_encode($baseD5)
 );
 
 $cleanup();

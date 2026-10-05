@@ -101,6 +101,8 @@ test('2026-10-03 shows the whole sheet, separates no-record from pending, and in
     console.log('NO RECORD    :', noRecord, '(expect 105 — 4 post-date products excluded)');
     console.log('PENDING      :', pending, '(expect 71: the 73 AM rows, 2 of which DO have an ending)');
     console.log('footer       :', JSON.stringify(footer));
+    const cov = page.locator('#shift-coverage-disclosure');
+    console.log('coverage     :', (await cov.count()) ? JSON.stringify((await cov.first().innerText()).replace(/\s+/g, ' ')) : '(absent)');
 
     await page.screenshot({ path: '/tmp/chair-admin-sales-2026-10-03-fixed.png', fullPage: false });
 
@@ -142,6 +144,8 @@ test('wide range: money still matches the record, stays responsive, and disclose
     console.log('elapsed ms   :', elapsed);
     console.log('footer       :', JSON.stringify(footer));
     console.log('truncated    :', /Showing the newest/.test(body));
+    const covWide = page.locator('#shift-coverage-disclosure');
+    console.log('coverage     :', (await covWide.count()) ? JSON.stringify((await covWide.first().innerText()).replace(/\s+/g, ' ')) : '(absent)');
     console.log('disclosure   :', (body.match(/The daily sales report[^.]*\./) || body.match(/Reports .*?omitted from this page[^.]*\./) || [''])[0]);
 
     await page.screenshot({ path: '/tmp/chair-admin-sales-wide-range.png', fullPage: false });
