@@ -124,15 +124,41 @@ if ($productOk) {
             'official_amount=' . var_export($data['totals']['official_amount'] ?? null, true));
     }
 
-    // The badge path uses the same predicate, so its query must carry the column too.
-    $handlerSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
-    $listSelect = '';
-    if (preg_match('/\$listStmt = \$ctx->db\(\)->prepare\((.*?)LIMIT/s', $handlerSrc, $m)) {
-        $listSelect = $m[1];
+    // Exercise the real list handler and template. A source grep is not a guard: replacing the
+    // projection with `NULL AS end_source` still contains the token while making C1 blind.
+    $productNameStmt = $db->prepare('SELECT name FROM dl_products WHERE id = :pid LIMIT 1');
+    $productNameStmt->execute([':pid' => $PRODUCT]);
+    $productName = (string)$productNameStmt->fetchColumn();
+    $tokens = dl_generateAuthTokens([
+        'sub' => 'admin:1', 'id' => 1, 'username' => 'c1-admin', 'name' => 'C1 Admin',
+        'role' => 'admin', 'source' => 'daily-ledger',
+    ]);
+    $_COOKIE[dlCookieName()] = $tokens['token'];
+    $_GET = ['date_from' => $DATE, 'date_to' => $DATE, 'branch_id' => (string)$BRANCH, 'shift' => $SHIFT];
+    $_SERVER['REQUEST_URI'] = '/daily-ledger/admin/sales?' . http_build_query($_GET);
+    $_SERVER['REQUEST_METHOD'] = 'GET';
+    ob_start();
+    handleAdminSales();
+    $listHtml = (string)ob_get_clean();
+    $renderedRow = '';
+    if (preg_match_all('#<tr\b.*?</tr>#is', $listHtml, $matches)) {
+        foreach ($matches[0] as $candidateHtml) {
+            if ($productName !== '' && str_contains(html_entity_decode(strip_tags($candidateHtml)), $productName)) {
+                $renderedRow = $candidateHtml;
+                break;
+            }
+        }
     }
-    $h->test('the sales LIST query carries end_source, so the row badge can see C1',
-        $listSelect !== '' && str_contains($listSelect, 'end_source'),
-        'the list SELECT does not include end_source, so a settled row would be badged official');
+    $amountCell = '';
+    if ($renderedRow !== '' && preg_match_all('#<td\b[^>]*>(.*?)</td>#is', $renderedRow, $cells)) {
+        $amountCell = trim(html_entity_decode(strip_tags((string)end($cells[1]))));
+    }
+    $h->test('the sales LIST renders the derived finalized row provisional and hides its money',
+        $renderedRow !== ''
+        && str_contains($renderedRow, 'aria-label="Provisional"')
+        && $amountCell === '—',
+        'row=' . substr(preg_replace('/\s+/', ' ', strip_tags($renderedRow)), 0, 300)
+        . '; amount_cell=' . var_export($amountCell, true));
 
     $cleanup();
 }

@@ -1156,8 +1156,8 @@
         return out;
     }
 
-    // The pending list drops the locked cells and the display-only flag: the batch endpoint
-    // takes {product_id, beg_bal} and nothing else.
+    // The pending list drops the locked cells and the display-only flag: the dedicated carry
+    // endpoint takes {product_id, beg_bal} and records that these values were carried.
     function dlPendingCarryForward() {
         return dlCarryCandidates()
             .filter(function(row) { return !row.disabled; })
@@ -1237,11 +1237,11 @@
 
     // Carry the preceding shift's ending into every unrecorded beginning, in ONE batch.
     // Doing it here is what removes the per-product link clicking: one press replaces
-    // opening "Use previous ending" on each row. It is still an explicit, audited edit - a
-    // batch save through the same endpoint the row link uses - and it never runs on load
-    // or on a plain re-read.
+    // opening "Use previous ending" on each row. The dedicated endpoint stores the same
+    // beg_bal values but tags their carry-forward provenance; it never runs on load or on
+    // a plain re-read.
     function dlCarryForwardBeginnings(carry, onDone) {
-        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/save-batch', {
+        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/carry-beginnings', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {

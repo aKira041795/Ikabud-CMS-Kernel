@@ -15,7 +15,9 @@
  * assumed, by reopening the previous day as an admin if it is already closed. That is the
  * audited, permitted way to reach the state, and it is exactly the state the owner describes.
  *
- * The written value is restored in a finally block, so the ledger is left as found.
+ * The next day fixture is an ordinary open day (`reopened_at` is NULL). The spec writes an
+ * unrecorded count through the regular entry path, then logs in as admin to restore NULL;
+ * restoration therefore does not require granting the operator the reopen exemption.
  *
  * Run:  APP_URL=http://baronledger.test npx playwright test tests/browser/daily-ledger-nextday-entry.spec.js --reporter=line
  */
@@ -117,8 +119,14 @@ test('an unfinalized previous day flags and notifies the operator but does NOT h
     // NOT HAMPERED: the next day is still open and its cells are still editable.
     expect((await dayStatus(page)).trim(), 'the next day must still be open for entry').toBe('open');
 
-    const pid = await page.evaluate(() =>
-        Number(document.querySelector('#tab-daily-sheet tbody tr.daily-sheet-product-row').getAttribute('data-product-id')));
+    // Use an unrecorded count. Changing an existing count would test override/reopen authority,
+    // not ordinary entry, and could pass solely because reopened_at was set.
+    const pid = await page.evaluate(() => {
+        const input = Array.from(document.querySelectorAll('.production-actual-input'))
+            .find((el) => el.getAttribute('data-original') === '');
+        return input ? Number(input.id.replace('production-actual-', '')) : 0;
+    });
+    expect(pid, 'fixture must offer an unrecorded count so this proves ordinary entry').toBeGreaterThan(0);
     const sel = `#production-actual-${pid}`;
     await page.waitForSelector(sel, { timeout: 60000 });
     const original = await page.evaluate((s) => document.querySelector(s).getAttribute('data-original'), sel);
@@ -126,7 +134,8 @@ test('an unfinalized previous day flags and notifies the operator but does NOT h
     note({ step: 'next-day-cell', productId: pid, original, enabled });
     expect(enabled, 'the next day must not be locked out by the previous day being unfinalized').toBe(true);
 
-    const target = String(Number(original || 0) + 1);
+    expect(original, 'ordinary-entry fixture count must be unrecorded').toBe('');
+    const target = '1';
     let written = null;
     try {
         const resp = page.waitForResponse((r) => r.url().includes('/api/v1/commissary/material'), { timeout: 60000 });
@@ -147,13 +156,27 @@ test('an unfinalized previous day flags and notifies the operator but does NOT h
             'the written value must persist',
         ).toBe(target);
     } finally {
-        // Leave the ledger as found.
-        if (written && written.status === 200 && original !== null && original !== undefined) {
+        // Leave the ledger as found. A production user cannot turn a now-recorded count back
+        // into NULL on an ordinary day, so perform cleanup as admin and prove the cleanup itself.
+        if (written && written.status === 200) {
+            await login(page, ADMIN);
+            await openSheet(page, NEXT, 'PM');
+            await page.waitForSelector(sel, { timeout: 60000 });
             const resp = page.waitForResponse((r) => r.url().includes('/api/v1/commissary/material'), { timeout: 60000 });
-            await page.fill(sel, String(original));
+            await page.fill(sel, '');
             await page.dispatchEvent(sel, 'change');
             const res = await resp;
-            note({ step: 'restore', productId: pid, restoredTo: original, status: res.status() });
+            const restore = { status: res.status(), body: await res.json().catch(() => null) };
+            note({ step: 'restore', productId: pid, restoredTo: original, ...restore });
+            expect(restore.status, 'admin cleanup must be accepted').toBe(200);
+            expect(restore.body && restore.body.ok, 'admin cleanup response must report success').toBe(true);
+
+            await page.reload({ waitUntil: 'domcontentloaded' });
+            await page.waitForSelector(sel, { timeout: 60000 });
+            expect(
+                await page.evaluate((s) => document.querySelector(s).getAttribute('data-original'), sel),
+                'reload must confirm the original unrecorded value was restored',
+            ).toBe(original);
         }
     }
 

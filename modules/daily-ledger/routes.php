@@ -114,6 +114,8 @@ return [
         '/daily-ledger/api/v1/cashier/ledger/save'       => 'daily-ledger:apiSaveLedgerField',
         // Cashier: batch save (offline sync)
         '/daily-ledger/api/v1/cashier/ledger/save-batch' => 'daily-ledger:apiSaveLedgerBatch',
+        // Cashier: explicit preceding-ending carry (provenance-tagged)
+        '/daily-ledger/api/v1/cashier/ledger/carry-beginnings' => 'daily-ledger:apiCarryCashierBeginnings',
         // Cashier: close day
         '/daily-ledger/api/v1/cashier/ledger/close-day'  => 'daily-ledger:apiCloseDay',
         // Cashier: finalize the PM shift (server-authoritative manual-day gate)

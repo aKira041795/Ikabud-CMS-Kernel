@@ -97,12 +97,9 @@ function browserClearLoginRateLimit(PDO $db, int $tenantId): void
  *     the specs went red after the first run;
  *   - the prior PM shift row EXISTS and is UNFINALIZED (`dl_shiftIsFinalized()` false), or
  *     the banner is suppressed;
- *   - the NEXT day (the live business date) is OPEN with an unfinalized PM shift, so the
- *     next-day flag fires and entry is not hampered. It is ALSO marked as deliberately
- *     reopened: the next-day spec changes a recorded physical count and restores it, and
- *     `dl_deliberateReopenUnlocksEntryEdit()` is the documented exemption that lets a
- *     non-override role do that. Without it the spec's own restore is refused and the test
- *     can only pass once (the same data-only lever the prior day already uses).
+ *   - the NEXT day (the live business date) is an ordinary OPEN day with an unfinalized
+ *     PM shift. Its reopened_at is deliberately NULL: the next-day spec must prove the
+ *     regular entry path, not pass through the deliberate-reopen edit exemption.
  *
  * Every write is an upsert, so running the seed repeatedly is safe.
  */
@@ -123,12 +120,11 @@ function browserEnsureDailyLedgerPriorPending(PDO $db, int $branchId, string $to
          ON DUPLICATE KEY UPDATE status = "open", finalized_by = NULL, finalized_at = NULL, updated_at = NOW()'
     )->execute([':bid' => $branchId, ':d' => $prior]);
 
-    // The next day the specs enter: open, with an unfinalized PM shift. Marked reopened (see
-    // the docblock) so the production user can change and restore the current day's count.
+    // The next day the specs enter: an ordinary open day, never deliberately reopened.
     $db->prepare(
         'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_at, created_at, updated_at)
-         VALUES (:bid, :d, "open", NOW(), NOW(), NOW())
-         ON DUPLICATE KEY UPDATE status = "open", reopened_at = NOW(), updated_at = NOW()'
+         VALUES (:bid, :d, "open", NULL, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE status = "open", reopened_at = NULL, updated_at = NOW()'
     )->execute([':bid' => $branchId, ':d' => $today]);
 
     $db->prepare(

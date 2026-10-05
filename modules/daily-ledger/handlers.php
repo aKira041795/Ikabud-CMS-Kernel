@@ -2867,7 +2867,8 @@ function dl_carryCommissaryBeginnings(array $user, array $input): array
             ]);
         }
         dl_auditLog('carry_commissary_beginnings', $branchId, 'dl_commissary_product_ledger', $batchEntityId, null, [
-            'date' => $date, 'shift' => $shift, 'rows' => count($normalized), 'idempotency_key' => $key,
+            'date' => $date, 'shift' => $shift, 'rows' => count($normalized),
+            'product_ids' => array_slice(array_keys($normalized), 0, 50), 'idempotency_key' => $key,
         ]);
         $db->commit();
         return ['carried' => count($normalized), 'duplicate' => false];
@@ -8879,6 +8880,146 @@ function apiSaveLedgerField(array $params = []): void
         ]);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Save failed', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Save failed'], 500);
+    }
+}
+
+/**
+ * Carry the exact beginning values offered by the cashier sheet.
+ *
+ * PM uses this date's AM ending. AM uses the immediately preceding date's PM
+ * ending, falling back to that date's AM ending. This is intentionally the
+ * same SQL ladder as dl_fetchCashierLedgerRows(); the endpoint changes only
+ * provenance, never the value selected by the existing carry control.
+ */
+function dl_carryCashierBeginnings(array $user, array $input): array
+{
+    $ctx = module();
+    if (!$ctx) throw new \RuntimeException('Module context unavailable.');
+    $db = $ctx->db();
+    $date = (string)($input['date'] ?? '');
+    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shift = $shiftResolved['shift'];
+    $rows = $input['rows'] ?? null;
+    $key = trim((string)($input['idempotency_key'] ?? ''));
+
+    $auth = dl_authorizeBranch($user, $input);
+    $branchId = (int)$auth['branch_id'];
+    if ($branchId < 0) throw new \RuntimeException('Branch not authorized.', 403);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $branchId <= 0 || !is_array($rows)
+        || $rows === [] || $key === '' || strlen($key) > 190) {
+        throw new \RuntimeException('Invalid cashier carry request.');
+    }
+
+    $dayStatus = dl_getDayStatus($branchId, $date);
+    if ($dayStatus === 'closed') {
+        throw new \RuntimeException('This day is closed. Use Reopen Day (top bar) first - a beginning cannot be carried into a closed day.', 403);
+    }
+    if (dl_shiftIsFinalized($db, $branchId, $date, $shift)) {
+        throw new \RuntimeException("The {$shift} shift is finalized. Reopen the shift first, then carry the beginnings.", 403);
+    }
+    if ((string)($user['role'] ?? '') === 'cashier'
+        && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
+        throw new \RuntimeException('This date is read-only for your role, so the beginnings cannot be carried forward here.', 403);
+    }
+
+    $batchEntityId = strlen($key) <= 50 ? $key : 'cf-' . sha1($key);
+    $duplicate = $db->prepare(
+        'SELECT 1 FROM audit_logs WHERE module = "daily-ledger" AND action = "carry_cashier_beginnings" AND entity_id = :eid LIMIT 1'
+    );
+    $duplicate->execute([':eid' => $batchEntityId]);
+    if ($duplicate->fetchColumn()) return ['carried' => 0, 'duplicate' => true];
+
+    $prevDate = (new \DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
+    $sourceStmt = $db->prepare(
+        "SELECT p.id AS product_id,
+                CASE WHEN :is_pm = 1 THEN am.bal_end
+                     WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
+                     ELSE prev_am.bal_end END AS carry_from
+           FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :b AND bp.is_active = 1
+           LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :b2 AND am.ledger_date = :d AND am.shift = 'AM'
+           LEFT JOIN dl_daily_ledger prev_pm ON prev_pm.product_id = p.id AND prev_pm.branch_id = :b3 AND prev_pm.ledger_date = :pd AND prev_pm.shift = 'PM'
+           LEFT JOIN dl_daily_ledger prev_am ON prev_am.product_id = p.id AND prev_am.branch_id = :b4 AND prev_am.ledger_date = :pd2 AND prev_am.shift = 'AM'
+          WHERE p.is_active = 1"
+    );
+    $sourceStmt->execute([
+        ':is_pm' => $shift === 'PM' ? 1 : 0,
+        ':b' => $branchId, ':b2' => $branchId, ':b3' => $branchId, ':b4' => $branchId,
+        ':d' => $date, ':pd' => $prevDate, ':pd2' => $prevDate,
+    ]);
+    $sources = [];
+    foreach ($sourceStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $sourceRow) {
+        if ($sourceRow['carry_from'] !== null && (int)$sourceRow['carry_from'] > 0) {
+            $sources[(int)$sourceRow['product_id']] = (int)$sourceRow['carry_from'];
+        }
+    }
+
+    $normalized = [];
+    foreach ($rows as $row) {
+        $productId = (int)($row['product_id'] ?? 0);
+        $begBal = filter_var($row['beg_bal'] ?? null, FILTER_VALIDATE_INT);
+        if ($productId <= 0 || $begBal === false || (int)$begBal <= 0 || isset($normalized[$productId])
+            || !isset($sources[$productId]) || $sources[$productId] !== (int)$begBal) {
+            throw new \RuntimeException('Carry rows no longer match the preceding positive endings; nothing was changed.');
+        }
+        $normalized[$productId] = (int)$begBal;
+    }
+
+    $actorId = dl_getActorUserId($user);
+    if ($actorId <= 0) throw new \RuntimeException('Auth required.', 403);
+    $db->beginTransaction();
+    try {
+        $lock = $db->prepare(
+            'SELECT beg_bal FROM dl_daily_ledger
+              WHERE branch_id = :b AND product_id = :pid AND ledger_date = :d AND shift = :shift
+              LIMIT 1 FOR UPDATE'
+        );
+        $upsert = $db->prepare(
+            'INSERT INTO dl_daily_ledger
+                (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, encoded_by, updated_by)
+             VALUES (:b, :pid, :d, :shift, :price, :beg, 0, 0, :uid, :uid2)
+             ON DUPLICATE KEY UPDATE beg_bal = VALUES(beg_bal), updated_by = VALUES(updated_by), updated_at = CURRENT_TIMESTAMP'
+        );
+        foreach ($normalized as $productId => $begBal) {
+            $lock->execute([':b' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
+            $current = $lock->fetchColumn();
+            if ($current !== false && (int)$current !== 0) {
+                throw new \RuntimeException('A beginning is no longer zero; nothing was changed.');
+            }
+            $upsert->execute([
+                ':b' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift,
+                ':price' => dl_resolveBranchProductPrice($branchId, $productId, $date),
+                ':beg' => $begBal, ':uid' => $actorId, ':uid2' => $actorId,
+            ]);
+            dl_recomputeSales($branchId, $productId, $date, $actorId, $shift);
+            dl_auditLog('save_cashier_ledger_beg', $branchId, 'dl_daily_ledger',
+                "{$branchId}-{$productId}-{$date}-{$shift}",
+                ['beg_bal' => $current === false ? null : (int)$current],
+                ['beg_bal' => $begBal, 'source' => 'carry_forward', 'idempotency_key' => $key]);
+        }
+        $productIds = array_keys($normalized);
+        dl_auditLog('carry_cashier_beginnings', $branchId, 'dl_daily_ledger', $batchEntityId, null, [
+            'date' => $date, 'shift' => $shift, 'rows' => count($normalized),
+            'product_ids' => array_slice($productIds, 0, 50), 'idempotency_key' => $key,
+        ]);
+        dl_recomputeVariancesForDay($branchId, $date);
+        $db->commit();
+        return ['carried' => count($normalized), 'duplicate' => false];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
+function apiCarryCashierBeginnings(): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    try {
+        $ctx->json(['ok' => true] + dl_carryCashierBeginnings($user, $ctx->input()));
+    } catch (\Throwable $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
     }
 }
 
