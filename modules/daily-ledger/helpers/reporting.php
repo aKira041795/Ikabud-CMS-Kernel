@@ -220,9 +220,11 @@ function dl_reportSalesData(ModuleDB $db, array $filters): array
     $marks = implode(',', array_fill(0, count($ids), '?'));
     $qty = dl_ledgerSalesQuantitySql('dl');
     $amount = dl_ledgerSalesAmountSql('dl');
+    // dl.end_source is REQUIRED by C1 in dl_rowIsProvisional(): a derived, unverified ending must
+    // stay provisional whatever the shift status says. Do not drop this column from the SELECT.
     $sql = "SELECT dl.ledger_date, dl.shift, dl.branch_id, b.code AS branch_code, b.name AS branch_name,
                    dl.product_id, p.sku, p.name AS product_name, p.product_category, dl.beg_bal, dl.addtl, dl.withdraw,
-                   dl.bal_end, {$qty} AS sales, dl.price_snapshot, {$amount} AS amount,
+                   dl.bal_end, dl.end_source, {$qty} AS sales, dl.price_snapshot, {$amount} AS amount,
                    ss.status AS shift_status
               FROM dl_daily_ledger dl
               JOIN dl_branches b ON b.id = dl.branch_id

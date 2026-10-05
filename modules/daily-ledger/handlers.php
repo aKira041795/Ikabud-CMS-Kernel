@@ -10623,9 +10623,12 @@ function handleAdminSales(array $params = []): void
     $provisionalUnits = (int)($salesTotals['provisional_units'] ?? 0);
     $provisionalAmount = (float)($salesTotals['provisional_amount'] ?? 0);
 
+    // dl.end_source is REQUIRED by C1 in dl_rowIsProvisional() (reached via
+    // dl_salesRowStatusLabel()): without it the row badge is blind to a derived, unverified
+    // ending. Do not drop this column from the SELECT.
     $listStmt = $ctx->db()->prepare(
         'SELECT dl.ledger_date, dl.shift, p.name AS product_name, p.sku, b.name AS branch_name,
-                   dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end,
+                   dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end, dl.end_source,
                    ' . $salesExpr . ' AS sales,
                    dl.price_snapshot,
                    (' . $amountExpr . ') AS amount,
