@@ -676,7 +676,7 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
 
 function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, int $deliveryId, int $userId, string $receiveDate, ?array $partialQtys = null, string $shift = 'AM'): int
 {
-    $shift = ($shift === 'PM') ? 'PM' : 'AM';
+    $shift = dl_requireResolvedReceiveShift(['shift' => $shift]);
     $headStmt = $db->prepare(
         'SELECT *
            FROM dl_deliveries
@@ -778,6 +778,10 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
     }
 
     dl_recordReceivingVariances($receivingId);
+    $receiptTimeStmt = $db->prepare('SELECT received_at FROM dl_branch_receivings WHERE id = :id');
+    $receiptTimeStmt->execute([':id' => $receivingId]);
+    $receivedAt = (string)$receiptTimeStmt->fetchColumn();
+    $receivingCashierName = dl_userDisplayNameById($db, $userId);
     dl_auditLog('create_receiving', $branchId, 'dl_branch_receivings', (string)$receivingId, null, [
         'delivery_id' => $deliveryId,
         'status' => 'posted',
@@ -785,7 +789,14 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         'items' => count($items),
         'received_shift' => $shift,
         'production_shift' => $head['production_shift'] ?? null,
+        'receiving_cashier_id' => $userId,
+        'receiving_cashier_name' => $receivingCashierName,
+        'source_branch_id' => dl_deliveryResolvedOriginId($head),
+        'destination_branch_id' => $branchId,
+        'received_at' => $receivedAt,
+        'line_count' => count($items),
     ]);
+    dl_requireAuditRow($db, 'create_receiving', 'dl_branch_receivings', (string)$receivingId);
 
     return $receivingId;
 }
@@ -1413,7 +1424,7 @@ function apiListDeliveries(array $params = []): void
         $bind[':ps'] = $provenanceStatus;
     }
     $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.destination_type, d.destination_id, d.dr_number,
-                   d.delivery_date, d.production_shift,
+                   d.delivery_date, d.production_shift, d.legacy_cashier_withdrawal_id,
                    CASE WHEN ' . $hasReceivingSql . ' THEN "received" ELSE d.status END AS status,
                    d.status AS delivery_status,
                    CASE WHEN ' . $hasReceivingSql . ' THEN 1 ELSE 0 END AS has_receiving,
@@ -1454,12 +1465,165 @@ function apiListDeliveries(array $params = []): void
     $ctx->json(['ok' => true, 'deliveries' => $deliveries]);
 }
 
+/** @return array{receiving:array,items:array}|null */
+function dl_formalReceiptViewModel(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $deliveryId): ?array
+{
+    $rcvStmt = $db->prepare(
+        'SELECT br.id, br.status, br.received_ledger_date, br.received_shift,
+                br.received_at, br.posted_at, br.received_by AS receiving_cashier_id,
+                d.production_shift, COALESCE(d.resolved_origin_id, d.origin_id) AS source_branch_id,
+                d.destination_id AS destination_branch_id,
+                COALESCE(NULLIF(du.full_name, ""), du.username) AS received_by_name,
+                ob.name AS source_branch_name, dest.name AS destination_branch_name
+         FROM dl_branch_receivings br
+         INNER JOIN dl_deliveries d ON d.id = br.delivery_id
+         LEFT JOIN dl_users du ON du.id = br.received_by
+         LEFT JOIN dl_branches ob ON ob.id = COALESCE(d.resolved_origin_id, d.origin_id)
+         LEFT JOIN dl_branches dest ON dest.id = d.destination_id
+         WHERE br.delivery_id = :did AND br.status <> "voided"
+         ORDER BY br.id DESC LIMIT 1'
+    );
+    $rcvStmt->execute([':did' => $deliveryId]);
+    $receiving = $rcvStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($receiving === null) {
+        return null;
+    }
+    $receiving['receipt_kind'] = 'formal';
+
+    $itemStmt = $db->prepare(
+        'SELECT p.name AS product_name,
+                di.quantity AS sent_qty,
+                COALESCE(ri.quantity_received, di.quantity) AS received_qty,
+                COALESCE(ri.quantity_received, di.quantity) - di.quantity AS variance
+         FROM dl_delivery_items di
+         INNER JOIN dl_products p ON p.id = di.product_id
+         LEFT JOIN dl_branch_receiving_items ri
+             ON ri.delivery_item_id = di.id AND ri.receiving_id = :rcv
+         WHERE di.delivery_id = :did
+         ORDER BY p.name'
+    );
+    $itemStmt->execute([':did' => $deliveryId, ':rcv' => (int)$receiving['id']]);
+    $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($items as &$item) {
+        $item['sent_qty'] = (int)$item['sent_qty'];
+        $item['received_qty'] = (int)$item['received_qty'];
+        $item['variance'] = (int)$item['variance'];
+    }
+    unset($item);
+    return ['receiving' => $receiving, 'items' => $items];
+}
+
+/** @return array{receiving:array,items:array}|null */
+function dl_branchTransferReceiptViewModel(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $withdrawalId): ?array
+{
+    $anchorStmt = $db->prepare(
+        'SELECT cw.id, cw.branch_id, cw.target_branch_id, cw.dr_number, cw.ledger_date, cw.shift,
+                cw.received_by, cw.received_at, cw.received_ledger_date, cw.received_shift,
+                COALESCE(NULLIF(du.full_name, ""), du.username) AS received_by_name,
+                ob.name AS source_branch_name, dest.name AS destination_branch_name
+         FROM dl_cashier_withdrawals cw
+         LEFT JOIN dl_users du ON du.id = cw.received_by
+         LEFT JOIN dl_branches ob ON ob.id = cw.branch_id
+         LEFT JOIN dl_branches dest ON dest.id = cw.target_branch_id
+         WHERE cw.id = :id AND cw.withdrawal_type = "delivery" LIMIT 1'
+    );
+    $anchorStmt->execute([':id' => $withdrawalId]);
+    $anchor = $anchorStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($anchor === null || $anchor['received_at'] === null) {
+        return null;
+    }
+
+    $itemStmt = $db->prepare(
+        'SELECT cw.id, p.name AS product_name, cw.quantity AS sent_qty,
+                COALESCE(cw.received_qty, cw.quantity) AS received_qty,
+                COALESCE(cw.received_qty, cw.quantity) - cw.quantity AS variance
+         FROM dl_cashier_withdrawals cw
+         INNER JOIN dl_products p ON p.id = cw.product_id
+         WHERE cw.withdrawal_type = "delivery"
+           AND cw.branch_id = :source_branch_id
+           AND cw.target_branch_id = :destination_branch_id
+           AND cw.ledger_date = :ledger_date
+           AND (cw.dr_number = :dr_number OR (cw.dr_number IS NULL AND :dr_is_null = 1))
+           AND (cw.shift = :dispatch_shift OR (cw.shift IS NULL AND :dispatch_shift_is_null = 1))
+           AND cw.received_by = :received_by
+           AND cw.received_ledger_date = :received_ledger_date
+           AND cw.received_shift = :received_shift
+           AND cw.received_at IS NOT NULL
+         ORDER BY p.name, cw.id'
+    );
+    $itemStmt->execute([
+        ':source_branch_id' => (int)$anchor['branch_id'],
+        ':destination_branch_id' => (int)$anchor['target_branch_id'],
+        ':ledger_date' => $anchor['ledger_date'],
+        ':dr_number' => $anchor['dr_number'],
+        ':dr_is_null' => $anchor['dr_number'] === null ? 1 : 0,
+        ':dispatch_shift' => $anchor['shift'],
+        ':dispatch_shift_is_null' => $anchor['shift'] === null ? 1 : 0,
+        ':received_by' => (int)$anchor['received_by'],
+        ':received_ledger_date' => $anchor['received_ledger_date'],
+        ':received_shift' => $anchor['received_shift'],
+    ]);
+    $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($items as &$item) {
+        $item['sent_qty'] = (int)$item['sent_qty'];
+        $item['received_qty'] = (int)$item['received_qty'];
+        $item['variance'] = (int)$item['variance'];
+    }
+    unset($item);
+
+    $receiving = [
+        'id' => (int)$anchor['id'],
+        'status' => 'posted',
+        'receipt_kind' => 'branch_transfer',
+        'received_ledger_date' => $anchor['received_ledger_date'],
+        'received_shift' => $anchor['received_shift'],
+        'received_at' => $anchor['received_at'],
+        'posted_at' => $anchor['received_at'],
+        'receiving_cashier_id' => (int)$anchor['received_by'],
+        'received_by_name' => $anchor['received_by_name'],
+        'production_shift' => $anchor['shift'],
+        'source_branch_id' => (int)$anchor['branch_id'],
+        'source_branch_name' => $anchor['source_branch_name'],
+        'destination_branch_id' => (int)$anchor['target_branch_id'],
+        'destination_branch_name' => $anchor['destination_branch_name'],
+    ];
+    return ['receiving' => $receiving, 'items' => $items];
+}
+
 function apiGetDeliveryReceivingDetail(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $receiptKind = (string)($_GET['receipt_kind'] ?? 'formal');
+    $withdrawalId = (int)($_GET['withdrawal_id'] ?? 0);
     $deliveryId = (int)($_GET['delivery_id'] ?? 0);
+    if ($receiptKind === 'branch_transfer') {
+        if ($withdrawalId <= 0) { $ctx->json(['ok' => false, 'error' => 'withdrawal_id required'], 422); return; }
+        $authStmt = $ctx->db()->prepare(
+            'SELECT branch_id AS origin_id, target_branch_id AS destination_id
+             FROM dl_cashier_withdrawals WHERE id = :id AND withdrawal_type = "delivery" LIMIT 1'
+        );
+        $authStmt->execute([':id' => $withdrawalId]);
+        $transfer = $authStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $authRecord = $transfer === null ? [] : [
+            'origin_type' => 'branch',
+            'origin_id' => (int)$transfer['origin_id'],
+            'destination_type' => 'branch',
+            'destination_id' => (int)$transfer['destination_id'],
+        ];
+        if ($transfer === null) {
+            $ctx->json(['ok' => false, 'error' => 'Branch transfer not found'], 404);
+            return;
+        }
+        if (!dl_deliveryRecordAuthorized($user, $authRecord)) {
+            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+            return;
+        }
+        $view = dl_branchTransferReceiptViewModel($ctx->db(), $withdrawalId);
+        $ctx->json(['ok' => true, 'receiving' => $view['receiving'] ?? null, 'items' => $view['items'] ?? []]);
+        return;
+    }
     if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
 
     $deliveryStmt = $ctx->db()->prepare(
@@ -1479,47 +1643,8 @@ function apiGetDeliveryReceivingDetail(array $params = []): void
         return;
     }
 
-    // Get the latest non-voided receiving for this delivery
-    $rcvStmt = $ctx->db()->prepare(
-        'SELECT br.id, br.status, br.received_ledger_date, br.received_shift, br.posted_at,
-                d.production_shift, du.username AS received_by_name
-         FROM dl_branch_receivings br
-         INNER JOIN dl_deliveries d ON d.id = br.delivery_id
-         LEFT JOIN dl_users du ON du.id = br.posted_by
-         WHERE br.delivery_id = :did AND br.status <> \'voided\'
-         ORDER BY br.id DESC LIMIT 1'
-    );
-    $rcvStmt->execute([':did' => $deliveryId]);
-    $rcv = $rcvStmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$rcv) {
-        $ctx->json(['ok' => true, 'receiving' => null, 'items' => []]);
-        return;
-    }
-
-    $itemStmt = $ctx->db()->prepare(
-        'SELECT p.name AS product_name,
-                di.quantity AS sent_qty,
-                COALESCE(ri.quantity_received, di.quantity) AS received_qty,
-                COALESCE(ri.quantity_received, di.quantity) - di.quantity AS variance
-         FROM dl_delivery_items di
-         INNER JOIN dl_products p ON p.id = di.product_id
-         LEFT JOIN dl_branch_receiving_items ri
-             ON ri.delivery_item_id = di.id AND ri.receiving_id = :rcv
-         WHERE di.delivery_id = :did
-         ORDER BY p.name'
-    );
-    $itemStmt->execute([':did' => $deliveryId, ':rcv' => (int)$rcv['id']]);
-    $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    foreach ($items as &$item) {
-        $item['sent_qty']     = (int)$item['sent_qty'];
-        $item['received_qty'] = (int)$item['received_qty'];
-        $item['variance']     = (int)$item['variance'];
-    }
-    unset($item);
-
-    $ctx->json(['ok' => true, 'receiving' => $rcv, 'items' => $items]);
+    $view = dl_formalReceiptViewModel($ctx->db(), $deliveryId);
+    $ctx->json(['ok' => true, 'receiving' => $view['receiving'] ?? null, 'items' => $view['items'] ?? []]);
 }
 
 function apiCreateReceiving(array $params = []): void

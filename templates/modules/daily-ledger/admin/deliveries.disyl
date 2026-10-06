@@ -195,6 +195,9 @@
                                             <div class="flex items-center gap-3 mb-2">
                                                 <span class="text-xs font-semibold text-gray-700">Receipt Details</span>
                                                 <span class="text-xs text-gray-500">Date: <span x-text="receivingCache[d.id].receiving.received_ledger_date"></span></span>
+                                                <span class="text-xs text-gray-500">Received: <span x-text="receivingCache[d.id].receiving.received_at || receivingCache[d.id].receiving.posted_at"></span></span>
+                                                <span class="text-xs text-gray-500">From: <span x-text="receivingCache[d.id].receiving.source_branch_name || ('Branch #' + receivingCache[d.id].receiving.source_branch_id)"></span></span>
+                                                <span class="text-xs text-gray-500">To: <span x-text="receivingCache[d.id].receiving.destination_branch_name || ('Branch #' + receivingCache[d.id].receiving.destination_branch_id)"></span></span>
                                                 <span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Received into: <span class="ml-1" x-text="receivingCache[d.id].receiving.received_shift || 'Not captured (historical)'"></span><span x-show="receivingCache[d.id].receiving.received_shift" class="ml-1">shift</span></span>
                                                 <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Produced: <span class="ml-1" x-text="receivingCache[d.id].receiving.production_shift || 'Not captured (historical)'"></span><span x-show="receivingCache[d.id].receiving.production_shift" class="ml-1">shift</span></span>
                                                 <span class="text-xs text-gray-500" x-show="receivingCache[d.id].receiving.received_by_name">By: <span x-text="receivingCache[d.id].receiving.received_by_name"></span></span>
@@ -649,7 +652,11 @@ function deliveriesPage() {
             this.expandedId = id;
             if (!this.receivingCache[id]) {
                 this.receivingCache[id] = { loading: true, receiving: null, items: [] };
-                fetch('{base_url}/api/v1/deliveries/receiving-detail?delivery_id=' + id, {
+                const row = this.rows.find(function(item) { return parseInt(item.id, 10) === parseInt(id, 10); });
+                const receiptQuery = row && row.legacy_cashier_withdrawal_id
+                    ? ('receipt_kind=branch_transfer&withdrawal_id=' + encodeURIComponent(row.legacy_cashier_withdrawal_id))
+                    : ('delivery_id=' + encodeURIComponent(id));
+                fetch('{base_url}/api/v1/deliveries/receiving-detail?' + receiptQuery, {
                     credentials: 'same-origin',
                     headers: {
                         'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')

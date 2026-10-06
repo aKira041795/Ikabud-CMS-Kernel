@@ -64,6 +64,42 @@ function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType 
     }
 }
 
+/**
+ * Confirm that a non-fatal kernel audit call actually wrote the expected row.
+ * The module and kernel gateways share app()->db(), so this check runs on the
+ * caller's transaction and turns a missing accountability row into a rollback.
+ */
+function dl_requireAuditRow(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    string $action,
+    string $entityType,
+    string $entityId
+): void {
+    $stmt = $db->prepare(
+        'SELECT COUNT(*) FROM audit_logs
+          WHERE module = :module AND action = :action AND entity_type = :entity_type AND entity_id = :entity_id'
+    );
+    $stmt->execute([
+        ':module' => 'daily-ledger',
+        ':action' => $action,
+        ':entity_type' => $entityType,
+        ':entity_id' => $entityId,
+    ]);
+    if ((int)$stmt->fetchColumn() < 1) {
+        throw new \RuntimeException('Required accountability audit could not be recorded.');
+    }
+}
+
+/** Require the resolved receive shift without changing historical NULL rows. */
+function dl_requireResolvedReceiveShift(array $resolved): string
+{
+    $shift = $resolved['shift'] ?? null;
+    if (!is_string($shift) || !in_array($shift, ['AM', 'PM'], true)) {
+        throw new \RuntimeException('A receiving shift of AM or PM is required.', 422);
+    }
+    return $shift;
+}
+
 function dl_refreshTokenCacheKey(string $refreshToken): string
 {
     return 'refresh_token:' . hash('sha256', $refreshToken);
@@ -8614,6 +8650,7 @@ function apiCreateCashierDispatch(array $params = []): void
     $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
     $role = (string)($user['role'] ?? '');
     $actorId = dl_getActorUserId($user);
+    $dispatchingCashierName = dl_userDisplayNameById($ctx->db(), $actorId);
 
     if ($originBranchId <= 0) {
         $ctx->json(['ok' => false, 'error' => 'Missing source branch.'], 422);
@@ -8728,7 +8765,9 @@ function apiCreateCashierDispatch(array $params = []): void
             dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $shift);
         }
 
-        $ctx->db()->commit();
+        $dispatchTimeStmt = $ctx->db()->prepare('SELECT posted_at FROM dl_deliveries WHERE id = :id');
+        $dispatchTimeStmt->execute([':id' => $deliveryId]);
+        $dispatchedAt = (string)$dispatchTimeStmt->fetchColumn();
         dl_auditLog('create_delivery', $originBranchId, 'dl_deliveries', (string)$deliveryId, null, [
             'destination_type' => $destType,
             'destination_id' => $destId,
@@ -8736,7 +8775,16 @@ function apiCreateCashierDispatch(array $params = []): void
             'dr_number' => $drNumber,
             'status' => 'posted',
             'source' => 'cashier_dispatch',
+            'dispatching_cashier_id' => $actorId,
+            'dispatching_cashier_name' => $dispatchingCashierName,
+            'dispatch_shift' => $shift,
+            'origin_branch_id' => $originBranchId,
+            'destination_branch_id' => $destId,
+            'dispatched_at' => $dispatchedAt,
+            'line_count' => count($items),
         ]);
+        dl_requireAuditRow($ctx->db(), 'create_delivery', 'dl_deliveries', (string)$deliveryId);
+        $ctx->db()->commit();
         $ctx->json(['ok' => true, 'delivery_id' => $deliveryId]);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
@@ -8974,7 +9022,12 @@ function apiReceiveDelivery(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $shiftResolved = dl_resolveLedgerShift($user, $input);
-    $shift = $shiftResolved['shift'];
+    try {
+        $shift = dl_requireResolvedReceiveShift($shiftResolved);
+    } catch (\RuntimeException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    }
     $productionShift = strtoupper(trim((string)($input['production_shift'] ?? '')));
     if ($productionShift !== '' && !in_array($productionShift, ['AM', 'PM'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Production shift must be AM or PM.'], 422);
@@ -9057,7 +9110,7 @@ function apiReceiveDelivery(array $params = []): void
     // Make sure all ids are deliveries targeting this branch and not yet received.
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $check = $ctx->db()->prepare(
-        "SELECT id, product_id, quantity FROM dl_cashier_withdrawals
+        "SELECT id, branch_id, product_id, quantity FROM dl_cashier_withdrawals
          WHERE id IN ($placeholders) AND target_branch_id = ? AND withdrawal_type = 'delivery' AND received_at IS NULL"
     );
     $check->execute(array_merge($ids, [$branchId]));
@@ -9084,6 +9137,7 @@ function apiReceiveDelivery(array $params = []): void
         return;
     }
 
+    $receivingCashierName = dl_userDisplayNameById($ctx->db(), $userId);
     $ctx->db()->beginTransaction();
     try {
         // Sum received pcs per product (using actual received qty, not sent qty)
@@ -9151,6 +9205,25 @@ function apiReceiveDelivery(array $params = []): void
             }
         }
 
+        $receiptTimeStmt = $ctx->db()->prepare('SELECT received_at FROM dl_cashier_withdrawals WHERE id = :id');
+        $receiptTimeStmt->execute([':id' => $foundIds[0]]);
+        $receivedAt = (string)$receiptTimeStmt->fetchColumn();
+        $sourceBranchId = (int)$rows[0]['branch_id'];
+        $auditEntityId = (string)$foundIds[0];
+        dl_auditLog('delivery_received', $branchId, 'dl_cashier_withdrawals', $auditEntityId, null, [
+            'source' => 'branch_transfer',
+            'withdrawal_ids' => $foundIds,
+            'receiving_cashier_id' => $userId,
+            'receiving_cashier_name' => $receivingCashierName,
+            'received_shift' => $shift,
+            'source_branch_id' => $sourceBranchId,
+            'destination_branch_id' => $branchId,
+            'received_at' => $receivedAt,
+            'received_ledger_date' => $receiveDate,
+            'items' => count($foundIds),
+            'line_count' => count($foundIds),
+        ]);
+        dl_requireAuditRow($ctx->db(), 'delivery_received', 'dl_cashier_withdrawals', $auditEntityId);
         $ctx->db()->commit();
         dl_respondThenFlushMail([
             'ok' => true,
