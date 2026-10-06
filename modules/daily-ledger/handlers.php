@@ -65,28 +65,54 @@ function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType 
 }
 
 /**
- * Confirm that a non-fatal kernel audit call actually wrote the expected row.
- * The module and kernel gateways share app()->db(), so this check runs on the
- * caller's transaction and turns a missing accountability row into a rollback.
+ * Watch the accountability audit that was just emitted, WITHOUT blocking on it.
+ *
+ * The accountability this change was asked to capture lives in the ROW
+ * (received_by / received_shift / received_at on dl_cashier_withdrawals and
+ * dl_branch_receivings), which the row write has already set and which the
+ * receipt and trace surfaces read back. The audit row is the TRAIL, not the data.
+ *
+ * So a failed audit write must never stop an operator recording goods that really
+ * moved: refusing here would turn an infrastructure fault into a locked door,
+ * which is the one failure this module has already been burned by. The gap is
+ * recorded at error level with enough detail to find it, and the write proceeds.
+ *
+ * The kernel's dl_auditLog() deliberately swallows its own exceptions, so this
+ * re-read is the only thing that makes a silently-missing audit row visible at
+ * all. Keep it even though it no longer refuses.
  */
-function dl_requireAuditRow(
+function dl_accountabilityAuditGuard(
     \Ikabud\Kernel\Contracts\DatabaseContract $db,
     string $action,
     string $entityType,
-    string $entityId
+    string $entityId,
+    ?int $branchId = null
 ): void {
-    $stmt = $db->prepare(
-        'SELECT COUNT(*) FROM audit_logs
-          WHERE module = :module AND action = :action AND entity_type = :entity_type AND entity_id = :entity_id'
-    );
-    $stmt->execute([
-        ':module' => 'daily-ledger',
-        ':action' => $action,
-        ':entity_type' => $entityType,
-        ':entity_id' => $entityId,
-    ]);
-    if ((int)$stmt->fetchColumn() < 1) {
-        throw new \RuntimeException('Required accountability audit could not be recorded.');
+    try {
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) FROM audit_logs
+              WHERE module = :module AND action = :action AND entity_type = :entity_type AND entity_id = :entity_id'
+        );
+        $stmt->execute([
+            ':module' => 'daily-ledger',
+            ':action' => $action,
+            ':entity_type' => $entityType,
+            ':entity_id' => $entityId,
+        ]);
+        $found = (int)$stmt->fetchColumn() > 0;
+    } catch (\Throwable $e) {
+        // A broken audit TRAIL must not break the stock write either: the read
+        // failure is reported below, never thrown.
+        $found = false;
+    }
+    if (!$found) {
+        write_log('daily-ledger accountability audit row is MISSING (the stock write was allowed)', 'error', [
+            'action' => $action,
+            'entity_type' => $entityType,
+            'entity_id' => $entityId,
+            'branch_id' => $branchId,
+            'hint' => 'the receipt still shows the receiver and shift because those live on the row; only the audit TRAIL is incomplete for this record',
+        ]);
     }
 }
 
@@ -8783,7 +8809,7 @@ function apiCreateCashierDispatch(array $params = []): void
             'dispatched_at' => $dispatchedAt,
             'line_count' => count($items),
         ]);
-        dl_requireAuditRow($ctx->db(), 'create_delivery', 'dl_deliveries', (string)$deliveryId);
+        dl_accountabilityAuditGuard($ctx->db(), 'create_delivery', 'dl_deliveries', (string)$deliveryId, $originBranchId);
         $ctx->db()->commit();
         $ctx->json(['ok' => true, 'delivery_id' => $deliveryId]);
     } catch (\Throwable $e) {
@@ -9223,7 +9249,7 @@ function apiReceiveDelivery(array $params = []): void
             'items' => count($foundIds),
             'line_count' => count($foundIds),
         ]);
-        dl_requireAuditRow($ctx->db(), 'delivery_received', 'dl_cashier_withdrawals', $auditEntityId);
+        dl_accountabilityAuditGuard($ctx->db(), 'delivery_received', 'dl_cashier_withdrawals', $auditEntityId, $branchId);
         $ctx->db()->commit();
         dl_respondThenFlushMail([
             'ok' => true,

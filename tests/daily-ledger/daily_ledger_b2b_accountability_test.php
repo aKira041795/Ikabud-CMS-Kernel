@@ -16,6 +16,16 @@ $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/handlers-deliveries.php');
 $h->fingerprint('templates/modules/daily-ledger/admin/deliveries.disyl');
 $h->fingerprint('tests/daily-ledger/daily_ledger_b2b_accountability_harness.php');
+// D8 deliberately points the fail-open guard at an audit row that does not exist, so that one line
+// is expected. The kernel_state_cache lines are the documented cold-cache noise (the suite runner
+// deletes storage/modules.json per test), so they must not fail this oracle the way they fail a
+// naive log check. Every OTHER unexpected app.log/error.log line still fails the run.
+$h->allowLogLines(
+    'accountability audit row is MISSING',
+    'kernel_state_cache: module_registry rebuilt',
+    'kernel_state_cache: capability_map rebuilt',
+    'capability.call'
+);
 
 app()->tenant()->setTenantId(207);
 $ctx = modulePushContext('daily-ledger');
@@ -207,6 +217,35 @@ try {
         json_encode($formalAudit, JSON_UNESCAPED_SLASHES));
     $h->test('formal receipt identity follows received_by, not the deliberately changed posted_by (latent trap on base)',
         ($formalReceipt['receiving']['received_by_name'] ?? '') === 'Receive Cashier Snapshot');
+
+    // ── D8 fail-open guard ───────────────────────────────────────────────────────────────────
+    // Owner: "thus, i have an issue of blocking the operator". The accountability the client asked
+    // for lives in the ROW (received_by / received_shift / received_at), which the row write has
+    // already set and which the receipt reads. The audit row is the TRAIL, not the data. So a
+    // missing trail must be LOUD and must NEVER be a locked door: refusing here would turn an
+    // infrastructure fault into operators unable to record goods that really moved.
+    $appLogPath = $base . '/storage/logs/app.log';
+    $logBefore = is_file($appLogPath) ? (string)file_get_contents($appLogPath) : '';
+    $guardThrew = null;
+    try {
+        dl_accountabilityAuditGuard($db, 'b2b_probe_absent_action', 'b2b_probe', 'absent-row', $destination);
+    } catch (\Throwable $e) {
+        $guardThrew = get_class($e) . ': ' . $e->getMessage();
+    }
+    $logWritten = substr((string)(is_file($appLogPath) ? file_get_contents($appLogPath) : ''), strlen($logBefore));
+    $h->test('D8 must-allow: a missing accountability audit row is LOUD and never blocks the stock write',
+        $guardThrew === null
+        && str_contains($logWritten, 'accountability audit row is MISSING')
+        && str_contains($logWritten, 'b2b_probe_absent_action'),
+        'threw=' . var_export($guardThrew, true) . ' logged=' . substr($logWritten, 0, 160));
+
+    // The other half: a row that IS present must stay completely silent, or the guard becomes
+    // noise and the real gap stops standing out.
+    $logBeforeOk = (string)file_get_contents($appLogPath);
+    dl_accountabilityAuditGuard($db, 'create_receiving', 'dl_branch_receivings', (string)$formalReceiving, $destination);
+    $logWrittenOk = substr((string)file_get_contents($appLogPath), strlen($logBeforeOk));
+    $h->test('D8b must-stay-silent: an accountability audit row that exists logs nothing',
+        !str_contains($logWrittenOk, 'MISSING'), substr($logWrittenOk, 0, 160));
 } finally {
     $cleanup();
     dlPersistModuleSettings(['formal_delivery_workflow_enabled' => $previousFormal]);

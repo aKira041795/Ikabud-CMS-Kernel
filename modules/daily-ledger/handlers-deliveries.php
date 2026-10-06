@@ -796,7 +796,7 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         'received_at' => $receivedAt,
         'line_count' => count($items),
     ]);
-    dl_requireAuditRow($db, 'create_receiving', 'dl_branch_receivings', (string)$receivingId);
+    dl_accountabilityAuditGuard($db, 'create_receiving', 'dl_branch_receivings', (string)$receivingId, $branchId);
 
     return $receivingId;
 }
