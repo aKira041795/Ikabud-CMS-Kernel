@@ -53,10 +53,115 @@
             grid-template-columns: 1fr;
         }
     }
+    .picker-row.is-hidden { display: none; }
 </style>
 {/block}
 
 {block content}
+<div class="mb-4 border-b border-gray-200">
+    <nav class="flex gap-1" aria-label="Products sections" data-products-tabs>
+        <a href="{base_url}/admin/products" data-tab-products
+           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment'}text-gray-500 hover:text-gray-700{else}border-b-2 border-indigo-600 text-indigo-700{/if}">Products</a>
+        <a href="{base_url}/admin/products?tab=assignment" data-tab-assignment
+           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment'}border-b-2 border-indigo-600 text-indigo-700{else}text-gray-500 hover:text-gray-700{/if}">Show in Branches</a>
+    </nav>
+</div>
+
+{if tab == 'assignment'}
+<div class="card mb-4">
+    <div class="card-body flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <form method="GET" action="{base_url}/admin/products" onsubmit="return window.dlLoadForm(this)" data-picker-branch-form>
+                <input type="hidden" name="tab" value="assignment">
+                <label class="form-label" for="picker-branch">Branch being edited</label>
+                <select class="form-input sm:w-80" id="picker-branch" name="branch_id" onchange="window.dlLoadForm(this.form)" data-picker-branch>
+                    {foreach branches as b}
+                    <option value="{b.id}" {if b.id == branch_id}selected{/if}>{b.code} — {b.name}{if b.is_commissary == 1} (commissary){/if}</option>
+                    {/foreach}
+                </select>
+            </form>
+            <div>
+                <label class="form-label" for="picker-search">Search name or SKU</label>
+                <input type="text" class="form-input sm:w-72" id="picker-search" placeholder="Type to filter..." autocomplete="off" oninput="filterPicker()" data-picker-search>
+            </div>
+        </div>
+        <div class="text-sm text-gray-600">
+            <span class="font-semibold text-gray-900" id="picker-visible-count">{assignment_products | length}</span>
+            product(s) shown
+            <span class="mx-2 text-gray-300">|</span>
+            <span id="picker-checked-count">0</span> ticked
+        </div>
+    </div>
+</div>
+
+{if assignment_branch}
+<div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+    Editing products for
+    <span class="font-semibold" data-picker-branch-name>{assignment_branch.code} — {assignment_branch.name}</span>
+    {if assignment_branch.is_commissary == 1}<span class="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">COMMISSARY</span>{/if}
+</div>
+{/if}
+
+{if warning_groups | length > 0}
+<div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-picker-warning-info>
+    <div class="font-semibold">Information: older unfinished days</div>
+    <p class="mt-1">These days are already stalled and <span class="font-semibold">do not block saving</span>. You may want to look at them later.</p>
+    <details class="mt-2">
+        <summary class="cursor-pointer font-medium">{warning_groups | length} product(s) with older unfinished days</summary>
+        <div class="mt-2 space-y-1">
+            {foreach warning_groups as wg}
+            <div>
+                <span class="font-medium">{wg.product_name}</span>
+                {foreach wg.items as w}
+                <span class="ml-2 whitespace-nowrap text-xs">{w.ledger} {w.date} {w.shift}</span>
+                {/foreach}
+            </div>
+            {/foreach}
+        </div>
+    </details>
+</div>
+{/if}
+
+<div class="mb-3 flex flex-wrap items-center gap-2">
+    <button type="button" class="btn btn-outline btn-sm" onclick="pickerCheckAll(true)">Tick all shown</button>
+    <button type="button" class="btn btn-outline btn-sm" onclick="pickerCheckAll(false)">Untick all shown</button>
+</div>
+
+<div class="card">
+    <div class="table-wrap" style="max-height: 60vh; overflow-y: auto;">
+        <table id="picker-table" data-picker-table>
+            <thead>
+                <tr>
+                    <th style="width:3rem;">Show</th>
+                    <th>SKU</th>
+                    <th>Product</th>
+                    <th>Category</th>
+                </tr>
+            </thead>
+            <tbody>
+                {foreach assignment_products as p}
+                <tr class="picker-row" data-product-id="{p.id}">
+                    <td>
+                        <input type="checkbox" class="picker-check" value="{p.id}" {if p.assigned == 1}checked{/if} onchange="updatePickerCheckedCount()" data-product-check>
+                    </td>
+                    <td class="picker-sku font-mono text-xs text-gray-500">{p.sku}</td>
+                    <td class="picker-name font-medium text-gray-900">{p.name}</td>
+                    <td class="text-xs uppercase tracking-wider text-gray-600">{p.product_category}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="picker-refusal" class="hidden mt-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900" data-picker-refusal></div>
+<div id="picker-warning" class="hidden mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-picker-save-warning></div>
+
+<div class="mt-4 flex items-center justify-end gap-2">
+    <a href="{base_url}/admin/branches" class="btn btn-outline">Cancel</a>
+    <button type="button" class="btn btn-primary" id="picker-save" onclick="submitPicker()" data-picker-save>Save changes</button>
+</div>
+{else}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Products</h2>
@@ -126,7 +231,7 @@
                         {if p.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}')">Edit</button>
+                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}', '{p.assignment_mode | default:'all_active'}', '{p.assigned_branch_ids | default:''}')">Edit</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -134,6 +239,7 @@
         </table>
     </div>
 </div>
+{/if}
 
 <!-- Add Product Modal -->
 <div class="modal-overlay" id="add-modal">
@@ -184,6 +290,25 @@
             <p class="text-xs text-gray-400 mt-1">Number of eggs that make up one batch. Leave blank if not applicable.</p>
         </div>
         <p class="text-sm text-muted">SKU will be generated automatically.</p>
+        <div class="form-group" data-add-assignment>
+            <label class="form-label">Show in branches</label>
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input type="radio" name="add-assignment-mode" value="all_active" checked onchange="toggleAddBranchPicker()">
+                All active branches
+            </label>
+            <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                <input type="radio" name="add-assignment-mode" value="specific" onchange="toggleAddBranchPicker()">
+                Only selected branches
+            </label>
+            <div id="add-branch-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
+                {foreach branches as b}
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" class="add-branch-check" value="{b.id}">
+                    {b.code} — {b.name}
+                </label>
+                {/foreach}
+            </div>
+        </div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
             <button class="btn btn-primary" id="add-submit" onclick="submitAddProduct()">Add Product</button>
@@ -237,6 +362,25 @@
                             <option value="1">Active</option>
                             <option value="0">Inactive</option>
                         </select>
+                    </div>
+                    <div class="form-group" data-edit-assignment>
+                        <label class="form-label">Show in branches</label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="radio" name="edit-assignment-mode" value="all_active" checked onchange="toggleEditBranchPicker()">
+                            All active branches
+                        </label>
+                        <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                            <input type="radio" name="edit-assignment-mode" value="specific" onchange="toggleEditBranchPicker()">
+                            Only selected branches
+                        </label>
+                        <div id="edit-branch-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
+                            {foreach branches as b}
+                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" class="edit-branch-check" value="{b.id}">
+                                {b.code} — {b.name}
+                            </label>
+                            {/foreach}
+                        </div>
                     </div>
                 </div>
 
@@ -301,11 +445,18 @@
     var BASE = '{base_url}';
     var TODAY = '{today}';
 
-    function openAddProduct() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-name').focus(); }
+    function openAddProduct() {
+        document.getElementById('add-modal').classList.add('show');
+        var allRadio = document.querySelector('input[name="add-assignment-mode"][value="all_active"]');
+        if (allRadio) { allRadio.checked = true; }
+        Array.prototype.forEach.call(document.querySelectorAll('.add-branch-check'), function (cb) { cb.checked = false; });
+        toggleAddBranchPicker();
+        document.getElementById('add-name').focus();
+    }
     function openImportProduct() { document.getElementById('import-modal').classList.add('show'); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack, currentPriceEffectiveFrom) {
+    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack, currentPriceEffectiveFrom, assignmentMode, assignedBranchIdsCsv) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name;
         document.getElementById('edit-category').value = category || 'bread';
@@ -319,9 +470,46 @@
         document.getElementById('edit-pcs-per-pack').value = (pcsPerPack && pcsPerPack > 0) ? pcsPerPack : '';
         document.getElementById('edit-effective-from').value = TODAY;
         document.getElementById('edit-current-price-effective').textContent = currentPriceEffectiveFrom || 'Not recorded';
+        // Load the CURRENT assignment intent into the modal so opening and saving an
+        // edit cannot silently rewrite assignments (the loadiness guard).
+        var mode = assignmentMode || 'all_active';
+        Array.prototype.forEach.call(document.getElementsByName('edit-assignment-mode'), function (radio) {
+            radio.checked = (radio.value === mode);
+        });
+        var assignedSet = {};
+        String(assignedBranchIdsCsv || '').split(',').forEach(function (value) {
+            if (value !== '') { assignedSet[parseInt(value, 10)] = true; }
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('.edit-branch-check'), function (cb) {
+            cb.checked = !!assignedSet[parseInt(cb.value, 10)];
+        });
+        toggleEditBranchPicker();
         updateEffectiveFromWarning();
         document.getElementById('edit-modal').classList.add('show');
         document.getElementById('edit-name').focus();
+    }
+
+    function toggleAddBranchPicker() {
+        var specific = document.querySelector('input[name="add-assignment-mode"][value="specific"]');
+        document.getElementById('add-branch-picker').classList.toggle('hidden', !(specific && specific.checked));
+    }
+
+    function toggleEditBranchPicker() {
+        var specific = document.querySelector('input[name="edit-assignment-mode"][value="specific"]');
+        document.getElementById('edit-branch-picker').classList.toggle('hidden', !(specific && specific.checked));
+    }
+
+    function selectedAssignmentMode(name) {
+        var checked = document.querySelector('input[name="' + name + '"]:checked');
+        return checked ? checked.value : 'all_active';
+    }
+
+    function collectCheckedBranches(selector) {
+        var ids = [];
+        Array.prototype.forEach.call(document.querySelectorAll(selector + ':checked'), function (cb) {
+            ids.push(parseInt(cb.value, 10));
+        });
+        return ids;
     }
 
     function updateEffectiveFromWarning() {
@@ -344,7 +532,9 @@
                 output_unit_label: document.getElementById('add-output-unit').value || 'pcs',
                 batch_input_qty: parseFloat(document.getElementById('add-batch-kilo-qty').value) || null,
                 batch_egg_qty: parseFloat(document.getElementById('add-batch-egg-qty').value) || null,
-                pcs_per_pack: parseInt(document.getElementById('add-pcs-per-pack').value, 10) || null
+                pcs_per_pack: parseInt(document.getElementById('add-pcs-per-pack').value, 10) || null,
+                assignment_mode: selectedAssignmentMode('add-assignment-mode'),
+                branch_ids: (selectedAssignmentMode('add-assignment-mode') === 'specific') ? collectCheckedBranches('.add-branch-check') : []
             })
         })
         .then(function(r) { return r.json(); })
@@ -379,7 +569,9 @@
                 output_unit_label: document.getElementById('edit-output-unit').value || 'pcs',
                 batch_input_qty: parseFloat(document.getElementById('edit-batch-kilo-qty').value) || null,
                 batch_egg_qty: parseFloat(document.getElementById('edit-batch-egg-qty').value) || null,
-                pcs_per_pack: parseInt(document.getElementById('edit-pcs-per-pack').value, 10) || null
+                pcs_per_pack: parseInt(document.getElementById('edit-pcs-per-pack').value, 10) || null,
+                assignment_mode: selectedAssignmentMode('edit-assignment-mode'),
+                branch_ids: (selectedAssignmentMode('edit-assignment-mode') === 'specific') ? collectCheckedBranches('.edit-branch-check') : []
             })
         })
         .then(function(r) { return r.json(); })
@@ -390,6 +582,9 @@
                 var message = 'Product updated; ' + (reprice.updated_rows || 0) + ' ledger row(s) repriced';
                 if ((reprice.skipped_rows || 0) > 0) message += ', ' + reprice.skipped_rows + ' closed/frozen row(s) skipped';
                 showToast(message);
+                if (res.warnings && res.warnings.length) {
+                    showToast(res.warnings.length + ' older unfinished day(s) remain on this branch (informational).', 'warning');
+                }
                 setTimeout(function() { window.refreshMainContent(); }, 600);
             } else {
                 showToast(res.error || 'Failed');
@@ -430,6 +625,131 @@
         })
         .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = originalText; });
     }
+
+    // ── Assignment tab (Slice B) — picker behaviour ────────────────────
+    var PICKER_BRANCH_ID = {branch_id | default:0};
+
+    function pickerEscape(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+    }
+
+    function updatePickerCheckedCount() {
+        var el = document.getElementById('picker-checked-count');
+        if (!el) { return; }
+        el.textContent = String(document.querySelectorAll('.picker-check:checked').length);
+    }
+
+    function filterPicker() {
+        var search = document.getElementById('picker-search');
+        if (!search) { return; }
+        var q = (search.value || '').toLowerCase().trim();
+        var rows = document.querySelectorAll('#picker-table tbody tr.picker-row');
+        var visible = 0;
+        Array.prototype.forEach.call(rows, function (row) {
+            var nameCell = row.querySelector('.picker-name');
+            var skuCell = row.querySelector('.picker-sku');
+            var text = ((nameCell ? nameCell.textContent : '') + ' ' + (skuCell ? skuCell.textContent : '')).toLowerCase();
+            var show = q === '' || text.indexOf(q) !== -1;
+            row.classList.toggle('is-hidden', !show);
+            if (show) { visible++; }
+        });
+        var count = document.getElementById('picker-visible-count');
+        if (count) { count.textContent = String(visible); }
+    }
+
+    function pickerCheckAll(checked) {
+        Array.prototype.forEach.call(document.querySelectorAll('#picker-table tbody tr.picker-row'), function (row) {
+            if (row.classList.contains('is-hidden')) { return; }
+            var cb = row.querySelector('.picker-check');
+            if (cb) { cb.checked = checked; }
+        });
+        updatePickerCheckedCount();
+    }
+
+    function renderPickerRefusals(res) {
+        var box = document.getElementById('picker-refusal');
+        if (!box) { return; }
+        var refused = (res && res.refused) ? res.refused : [];
+        if (!refused.length) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+        var html = '<p class="font-semibold text-rose-900">Nothing was saved. These products could not be removed:</p>';
+        html += '<ul class="mt-1 list-disc pl-5 text-rose-800">';
+        refused.forEach(function (item) {
+            var parts = (item.blockers || []).map(function (b) {
+                return b.date + ' ' + (b.shift || '') + ' (' + b.ledger + ')';
+            });
+            html += '<li><span class="font-medium">' + pickerEscape(item.name || ('#' + item.product_id)) + '</span>: '
+                + pickerEscape(parts.join(', ')) + '</li>';
+        });
+        html += '</ul>';
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    function renderPickerWarnings(warnings) {
+        var box = document.getElementById('picker-warning');
+        if (!box) { return; }
+        warnings = warnings || [];
+        if (!warnings.length) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+        var html = '<p class="font-semibold">Information: older unfinished days (these do not block saving)</p>';
+        html += '<ul class="mt-1 list-disc pl-5">';
+        warnings.forEach(function (w) {
+            html += '<li>' + pickerEscape(((w.product_name || '') + ' — ' + w.ledger + ' ' + w.date + ' ' + (w.shift || '')).trim()) + '</li>';
+        });
+        html += '</ul>';
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    function submitPicker() {
+        var btn = document.getElementById('picker-save');
+        if (!btn) { return; }
+        var original = btn.textContent;
+        var ids = [];
+        Array.prototype.forEach.call(document.querySelectorAll('.picker-check:checked'), function (cb) {
+            ids.push(parseInt(cb.value, 10));
+        });
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        fetch(BASE + '/api/v1/admin/branches/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ branch_id: PICKER_BRANCH_ID, product_ids: ids })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (res && res.ok) {
+                renderPickerRefusals(null);
+                renderPickerWarnings(res.warnings || []);
+                showToast('Saved: ' + (res.added || 0) + ' shown, ' + (res.removed || 0) + ' hidden');
+                btn.disabled = false;
+                btn.textContent = original;
+                setTimeout(function () { window.refreshMainContent(); }, 800);
+            } else {
+                renderPickerRefusals(res || {});
+                renderPickerWarnings((res && res.warnings) || []);
+                showToast((res && res.error) || 'Nothing was saved', 'error');
+                btn.disabled = false;
+                btn.textContent = original;
+            }
+        })
+        .catch(function () {
+            showToast('Network error', 'error');
+            btn.disabled = false;
+            btn.textContent = original;
+        });
+    }
+
+    updatePickerCheckedCount();
 
     // Clicking the overlay background closes the modal (delegated so it survives
     // the in-place #main-content refresh).

@@ -12,7 +12,7 @@ declare(strict_types=1);
  *
  *   { "role": "admin", "get": {...}, "body": {...} }
  *
- * Modes: batch | field | withdrawal | update_product | create_branch
+ * Modes: batch | field | withdrawal | update_product | create_branch | create_product | bulk_assign
  *
  * stdout is the JSON the endpoint would have returned, so the caller asserts
  * on what actually happened rather than on a helper's decision.
@@ -22,7 +22,7 @@ $basePath = dirname(__DIR__, 2);
 require_once $basePath . '/src/helpers/cli-bootstrap.php';
 $mode = (string)($argv[1] ?? '');
 $payloadFile = (string)($argv[2] ?? '');
-$modes = ['batch', 'field', 'withdrawal', 'update_product', 'create_branch'];
+$modes = ['batch', 'field', 'withdrawal', 'update_product', 'create_branch', 'create_product', 'bulk_assign'];
 if (!in_array($mode, $modes, true) || !is_file($payloadFile)) {
     exit(2);
 }
@@ -82,6 +82,17 @@ if ($mode === 'batch') {
     apiSaveCashierWithdrawals();
 } elseif ($mode === 'update_product') {
     apiUpdateProduct();
+} elseif ($mode === 'create_product') {
+    apiCreateProduct();
+} elseif ($mode === 'bulk_assign') {
+    if (function_exists('apiBulkAssignBranchProducts')) {
+        apiBulkAssignBranchProducts();
+    } else {
+        // Base tree (pre-Slice B) has no bulk picker endpoint. Emit a JSON
+        // failure so the caller reports an explicit failed case instead of a
+        // fatal, keeping the base-tree discrimination observation honest.
+        echo json_encode(['ok' => false, 'error' => 'bulk_assign API not implemented on this tree']);
+    }
 } else {
     apiCreateBranch();
 }

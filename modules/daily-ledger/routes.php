@@ -38,7 +38,6 @@ return [
         '/daily-ledger/admin/products'             => 'daily-ledger:handleAdminProducts',
         '/daily-ledger/admin/products/export'      => 'daily-ledger:handleProductsCsvExport',
         '/daily-ledger/admin/branches'             => 'daily-ledger:handleAdminBranches',
-        '/daily-ledger/admin/branches/products'    => 'daily-ledger:handleAdminBranchProducts',
         '/daily-ledger/admin/deliveries'           => 'daily-ledger:handleAdminDeliveries',
         '/daily-ledger/admin/price-groups'         => 'daily-ledger:handleAdminPriceGroups',
 

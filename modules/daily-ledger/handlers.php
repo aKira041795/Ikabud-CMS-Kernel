@@ -14917,27 +14917,87 @@ function handleAdminProducts(array $params = []): void
     dl_promoteCurrentPrices();
     $input = $ctx->input();
     $search = trim((string)($input['q'] ?? ''));
+    // Slice B: /admin/products carries two server-rendered tabs. With NO `tab`
+    // parameter the page renders exactly the product list it always has; the
+    // assignment tab is the per-branch picker on that SAME page.
+    $tab = trim((string)($input['tab'] ?? ''));
+    $selectedBranchId = isset($input['branch_id']) && $input['branch_id'] !== '' ? (int)$input['branch_id'] : 0;
     $today = dl_businessDate();
     $effectivePrice = dl_effectivePriceSql('p', ':product_price_at');
 
-    $sql = 'SELECT p.*, ' . $effectivePrice . ' AS current_price,
+    $products = [];
+    if ($tab !== 'assignment') {
+        $sql = 'SELECT p.*, ' . $effectivePrice . ' AS current_price,
                    (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS branch_count,
                    (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS assigned_branch_ids,
                    (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
                      WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
                      ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
             FROM dl_products p WHERE 1=1';
-    $bind = [':product_price_at' => $today, ':product_label_at' => $today];
-    if ($search !== '') {
-        $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2)';
-        $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
+        $bind = [':product_price_at' => $today, ':product_label_at' => $today];
+        if ($search !== '') {
+            $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2)';
+            $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
+        }
+        $sql .= ' ORDER BY p.sort_order, p.name';
+        $stmt = $ctx->db()->prepare($sql);
+        $stmt->execute($bind);
+        $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
-    $sql .= ' ORDER BY p.sort_order, p.name';
-    $stmt = $ctx->db()->prepare($sql);
-    $stmt->execute($bind);
-    $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // Shared by the assignment selector and the product modal's branch pickers.
+    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // ── Assignment tab: one branch's full checklist ─────────────────────
+    $assignmentBranch = null;
+    $assignmentProducts = [];
+    $warningGroups = [];
+    if ($tab === 'assignment') {
+        if ($selectedBranchId <= 0 && $branches !== []) {
+            $selectedBranchId = (int)$branches[0]['id'];
+        }
+        foreach ($branches as $b) {
+            if ((int)$b['id'] === $selectedBranchId) {
+                $assignmentBranch = $b;
+                break;
+            }
+        }
+        if ($assignmentBranch === null && $branches !== []) {
+            // An inactive/unknown branch id falls back to the first active branch
+            // so the editor always shows a real branch.
+            $assignmentBranch = $branches[0];
+            $selectedBranchId = (int)$assignmentBranch['id'];
+        }
+        if ($assignmentBranch !== null) {
+            $pStmt = $ctx->db()->prepare(
+                'SELECT p.id, p.sku, p.name, p.product_category, p.sort_order,
+                        CASE WHEN bp.is_active = 1 THEN 1 ELSE 0 END AS assigned
+                   FROM dl_products p
+                   LEFT JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid
+                  WHERE p.is_active = 1
+                  ORDER BY p.sort_order, p.name'
+            );
+            $pStmt->execute([':bid' => $selectedBranchId]);
+            $assignmentProducts = $pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            // INFORMATIONAL only: older unfinished days the admin may look at
+            // later. Never a refusal and never a block (Option A).
+            foreach ($assignmentProducts as $product) {
+                if ((int)($product['assigned'] ?? 0) !== 1) {
+                    continue;
+                }
+                $warnings = dl_productOlderOpenDayWarnings($ctx->db(), (int)$product['id'], $selectedBranchId);
+                if ($warnings === []) {
+                    continue;
+                }
+                $warningGroups[] = [
+                    'product_id' => (int)$product['id'],
+                    'product_name' => (string)$product['name'],
+                    'items' => $warnings,
+                ];
+            }
+        }
+    }
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -14952,90 +15012,11 @@ function handleAdminProducts(array $params = []): void
         'branches' => $branches,
         'search' => $search,
         'today' => $today,
-    ]);
-}
-
-function handleAdminBranchProducts(array $params = []): void
-{
-    $ctx = module();
-    if (!$ctx) {
-        http_response_code(500);
-        echo 'Module context unavailable';
-        return;
-    }
-
-    $user = dlCurrentUser(['admin']);
-    $input = $ctx->input();
-    $branchId = isset($input['branch_id']) && $input['branch_id'] !== '' ? (int)$input['branch_id'] : 0;
-
-    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')
-        ->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    if ($branchId <= 0 && $branches !== []) {
-        $branchId = (int)$branches[0]['id'];
-    }
-    $branch = null;
-    foreach ($branches as $b) {
-        if ((int)$b['id'] === $branchId) {
-            $branch = $b;
-            break;
-        }
-    }
-    if ($branch === null && $branches !== []) {
-        // An inactive/unknown branch id falls back to the first active branch so
-        // the page always shows a real branch instead of an empty editor.
-        $branch = $branches[0];
-        $branchId = (int)$branch['id'];
-    }
-
-    $products = [];
-    $warningGroups = [];
-    if ($branch !== null) {
-        $pStmt = $ctx->db()->prepare(
-            'SELECT p.id, p.sku, p.name, p.product_category, p.sort_order,
-                    CASE WHEN bp.is_active = 1 THEN 1 ELSE 0 END AS assigned
-               FROM dl_products p
-               LEFT JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid
-              WHERE p.is_active = 1
-              ORDER BY p.sort_order, p.name'
-        );
-        $pStmt->execute([':bid' => $branchId]);
-        $products = $pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        // INFORMATIONAL only (Option A): older unfinished days the admin may
-        // want to look at later. Never a refusal — this must not block a save.
-        // Only currently assigned products can be removed by this editor, so
-        // only those are scanned.
-        foreach ($products as $product) {
-            if ((int)($product['assigned'] ?? 0) !== 1) {
-                continue;
-            }
-            $warnings = dl_productOlderOpenDayWarnings($ctx->db(), (int)$product['id'], $branchId);
-            if ($warnings === []) {
-                continue;
-            }
-            $warningGroups[] = [
-                'product_id' => (int)$product['id'],
-                'product_name' => (string)$product['name'],
-                'items' => $warnings,
-            ];
-        }
-    }
-
-    $role = (string)($user['role'] ?? '');
-    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo dlRender('modules/daily-ledger/admin/branch-products.disyl', [
-        'page_title' => 'Branch Products',
-        'user_name' => $userName,
-        'user_role' => $role,
-        'current_page' => 'branches',
-        'base_url' => dlGetBaseUrl(),
-        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
-        'branches' => $branches,
-        'branch' => $branch,
-        'branch_id' => $branchId,
-        'products' => $products,
+        'tab' => $tab,
+        'branch_id' => $selectedBranchId,
+        'assignment_branch' => $assignmentBranch,
+        'assignment_products' => $assignmentProducts,
         'warning_groups' => $warningGroups,
-        'today' => dl_businessDate(),
     ]);
 }
 
