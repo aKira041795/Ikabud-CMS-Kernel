@@ -238,5 +238,76 @@ class GroundingWiringTest(unittest.TestCase):
             self.assertEqual(body.count("# RETRIEVED REPOSITORY FACTS"), 2)
 
 
+class RagCompletionTest(unittest.TestCase):
+    """RAG must COMPOUND: what the chair and ChatGPT concluded before has to be retrievable
+    next time, and the harness's own decision memory must reach the prompt."""
+
+    def _seed_repo(self, tmp: str) -> Path:
+        ws = Path(tmp) / "ws"
+        (ws / "docs").mkdir(parents=True)
+        (ws / "docs" / "runs.md").write_text(
+            "# Run lifecycle\nRuns are QUEUED, CLAIMED, RUNNING, CANCELLED.\n", encoding="utf-8")
+        (ws / ".ai" / "consult").mkdir(parents=True)
+        (ws / ".ai" / "consult" / "stop-button.md").write_text(
+            "# CHAIR CONSULTATION\nVerdict: cooperative cancellation is required before a stop "
+            "button ships.\n", encoding="utf-8")
+        (ws / ".ai" / "debate").mkdir(parents=True)
+        (ws / ".ai" / "debate" / "plan-1.md").write_text(
+            "# Approved plan\nAdd a cancellation handshake the runner polls.\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=ws, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=ws, check=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed"],
+                       cwd=ws, check=True)
+        return ws
+
+    def test_pack_makes_past_consultations_and_plans_retrievable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self._seed_repo(tmp)
+            pack = context_pack.build_context_pack(
+                "stop button cooperative cancellation handshake", str(ws), budget_chars=4000)
+            self.assertIn(".ai/consult/stop-button.md", pack,
+                          "a previous consultation on this topic must be retrievable")
+            self.assertIn("cooperative cancellation", pack)
+            self.assertIn(".ai/debate/plan-1.md", pack,
+                          "an approved debate plan must be retrievable")
+            # ...and the repository itself is still retrieved.
+            self.assertIn("docs/runs.md", pack)
+            # Ordering matters: the chair's own prior verdict is the most valuable context.
+            self.assertLess(pack.index(".ai/consult/stop-button.md"), pack.index("docs/runs.md"))
+
+    def test_pack_accepts_prefetched_durable_memory(self):
+        """Harness memory (approved ADRs/decisions) is fetched by the caller and injected, so
+        the pack stays deterministic and offline."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self._seed_repo(tmp)
+            pack = context_pack.build_context_pack(
+                "stop button", str(ws), budget_chars=4000,
+                extra_facts="DECISION memory: ADR-042 owner-only cancellation requires an audit row")
+            self.assertIn("ADR-042 owner-only cancellation requires an audit row", pack,
+                          "prefetched durable memory must reach the pack")
+            # The injected block is bounded by the same budget as everything else.
+            self.assertLessEqual(len(pack), 4000)
+
+    def test_advisor_prompt_includes_harness_memory_when_available(self):
+        original = harpp_wake.harpp_client.memory_search
+        harpp_wake.harpp_client.memory_search = lambda *a, **kw: {
+            "ok": True, "data": {"results": [{"title": "ADR-777 stop control",
+                                              "body": "Cancellation must be cooperative."}]}}
+        try:
+            prompt = harpp_wake.build_advisor_prompt(
+                plan="stop button to cancel a run", workspace=str(ROOT))
+        finally:
+            harpp_wake.harpp_client.memory_search = original
+        self.assertIn("ADR-777", prompt,
+                      "the advisor must receive the harness's durable decision memory")
+        # A failing memory search must never break the prompt.
+        harpp_wake.harpp_client.memory_search = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("down"))
+        try:
+            degraded = harpp_wake.build_advisor_prompt(plan="anything", workspace=str(ROOT))
+        finally:
+            harpp_wake.harpp_client.memory_search = original
+        self.assertIn("RETRIEVED REPOSITORY FACTS", degraded)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

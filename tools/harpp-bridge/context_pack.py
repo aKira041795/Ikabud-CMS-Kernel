@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Deterministic, read-only repository retrieval for HARPP prompts.
+"""Deterministic, read-only workspace retrieval for HARPP prompts.
 
-Only files known to git are considered.  The module deliberately uses no index or
-third-party package: a context pack is rebuilt from the current checkout each time.
+Repository facts use git when available.  Saved chair conclusions are read directly
+because they are commonly untracked.  No index or third-party package is required.
 """
 from __future__ import annotations
 
@@ -10,6 +10,10 @@ import json
 import re
 import subprocess
 from pathlib import Path
+
+# Keep retrieval isolated from callers that replace subprocess.Popen while testing
+# their own process launchers.
+_POPEN = subprocess.Popen
 
 _STOP = frozenset(
     "a an and are as at be by do for from how in is it of on or should the this to we what with anything".split()
@@ -24,13 +28,21 @@ _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+\S")
 
 
 def _git(root: Path, args: list[str]) -> str:
+    proc = None
     try:
-        proc = subprocess.run(
-            ["git", "-C", str(root), *args], capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=20, check=False,
+        proc = _POPEN(
+            ["git", "-C", str(root), *args], stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
         )
-        return proc.stdout if proc.returncode in (0, 1) else ""
+        stdout, _stderr = proc.communicate(timeout=20)
+        return stdout if proc.returncode in (0, 1) else ""
     except Exception:  # retrieval must never make its caller fail
+        if proc is not None:
+            try:
+                proc.kill()
+                proc.communicate()
+            except Exception:
+                pass
         return ""
 
 
@@ -183,8 +195,7 @@ def _history_entries(root: Path, paths: list[str], entries: list, seen: set) -> 
 
 def _ledger_entries(root: Path, tracked: set[str], terms: list[str], phrase: str,
                     entries: list, seen: set) -> None:
-    paths = [p for p in tracked if p == ".ai/chair/ledger.md" or
-             (p.startswith(".ai/debate/plan-") and p.endswith(".md"))]
+    paths = [p for p in tracked if p == ".ai/chair/ledger.md"]
     for path in sorted(paths):
         try:
             lines = (root / path).read_text(encoding="utf-8", errors="replace").splitlines()
@@ -196,7 +207,83 @@ def _ledger_entries(root: Path, tracked: set[str], terms: list[str], phrase: str
             _add(entries, seen, 5, score, path, index + 1, lines[index])
 
 
-def build_context_pack(query: str, workspace: str | None, budget_chars: int = 6000) -> str:
+def _without_embedded_packs(lines: list[str]) -> list[tuple[int, str]]:
+    """(original line number, text) worth indexing from a saved .ai artefact.
+
+    Two things are dropped, both measured 2026-10-06:
+
+    1. Previously embedded retrieved-facts blocks. A saved consultation stores the pack it was
+       given; indexing those lines re-serves a copy of the repository as if it were the chair's
+       conclusion, and one long transcript then consumes the whole budget (a 900-char pack was
+       entirely one consultation quoting an older pack).
+    2. When a consultation HAS a reply, its scaffolding. The heading, the idea/instruction
+       labels and the composer's own boilerplate match a query's words but conclude nothing, so
+       they crowded out real facts. The reply IS the conclusion, so only replies are indexed.
+
+    A file with no reply marker is indexed as-is, so a plan or a note keeps working.
+    """
+    replies_only = any(line.startswith("# CHATGPT REPLY") for line in lines)
+    kept: list[tuple[int, str]] = []
+    in_pack = in_reply = False
+    for number, line in enumerate(lines, start=1):
+        if line.strip() == "# RETRIEVED REPOSITORY FACTS":
+            in_pack = True
+            continue
+        if line.startswith("# CHATGPT REPLY"):
+            in_pack, in_reply = False, True
+            continue
+        if in_pack and line.startswith("#"):
+            in_pack = False
+        if in_reply and not line.strip():
+            continue
+        if in_reply and line.startswith("#"):
+            in_reply = False
+        if not in_pack and (not replies_only or in_reply):
+            kept.append((number, line))
+    return kept
+
+
+def _conclusion_entries(root: Path, terms: list[str], phrase: str,
+                        entries: list, seen: set) -> None:
+    """Read saved chair conclusions directly, including untracked files."""
+    candidates: list[tuple[int, str, list[str]]] = []
+    patterns = (".ai/consult/*.md", ".ai/debate/plan-*.md")
+    for pattern in patterns:
+        for file_path in root.glob(pattern):
+            try:
+                if not file_path.is_file() or file_path.is_symlink():
+                    continue
+                relative = file_path.relative_to(root).as_posix()
+                if _SECRET_PATH.search(relative):
+                    continue
+                lines = _without_embedded_packs(
+                    file_path.read_text(encoding="utf-8", errors="replace").splitlines())
+                candidates.append((file_path.stat().st_mtime_ns, relative, lines))
+            except Exception:
+                continue
+    ranked: list[tuple[int, int, str, int, str]] = []
+    for modified, path, lines in candidates:
+        for index, line in lines:
+            score = _score(line, path, terms, phrase)
+            if (score > 0 and _safe_line(line) and
+                    line.strip() != "# RETRIEVED REPOSITORY FACTS"):
+                ranked.append((-score, -modified, path, index, line))
+    for neg_score, neg_modified, path, index, line in sorted(ranked)[:12]:
+        number = index
+        cleaned = " ".join(line.strip().split())
+        key = (path, number)
+        content_key = ("content:" + cleaned.lower(), 0)
+        if key in seen or content_key in seen or not cleaned or not _safe_line(cleaned):
+            continue
+        seen.update((key, content_key))
+        # The third tuple field is only a deterministic sort key.  For equal scores,
+        # negative mtime puts the most recently modified conclusion first.
+        order_key = f"{10**30 + neg_modified:031d}:{path}"
+        entries.append((0, neg_score, order_key, f"{path}:{number} {cleaned}"))
+
+
+def build_context_pack(query: str, workspace: str | None, budget_chars: int = 6000,
+                       extra_facts: str | None = "") -> str:
     """Return a cited context pack, or ``""`` for invalid/unavailable input.
 
     Failures are intentionally swallowed: retrieval is grounding assistance and must not
@@ -209,24 +296,30 @@ def build_context_pack(query: str, workspace: str | None, budget_chars: int = 60
         if not query or root is None or not root.is_dir() or budget <= 0:
             return ""
         tracked = {p for p in _git(root, ["ls-files"]).splitlines() if p}
-        if not tracked:
-            return ""
         terms = _terms(query)
         phrase = query.lower()
         entries: list[tuple[int, int, str, str]] = []
         seen: set[tuple[str, int]] = set()
+        _conclusion_entries(root, terms, phrase, entries, seen)
+        conclusion_count = len(entries)
         names, doc_text = _doc_entries(root, tracked, terms, phrase, entries, seen)
         _module_entries(root, tracked, terms, phrase, names, doc_text, entries, seen)
         matched_paths = _grep_entries(root, tracked, terms, phrase, entries, seen)
         _history_entries(root, matched_paths, entries, seen)
         _ledger_entries(root, tracked, terms, phrase, entries, seen)
 
-        if not entries:  # A generic intent still gets a small, real orientation fact.
+        # A query matched only by prior conclusions still gets one repository
+        # orientation fact where available.
+        if (conclusion_count > 0 and not doc_text) or len(entries) == conclusion_count:
             fallback = next((p for p in ("README.md", "docs/README.md") if p in tracked), None)
+            if fallback is None:
+                fallback = next(iter(sorted(p for p in tracked
+                                            if p.startswith("docs/") and p.endswith(".md"))), None)
             if fallback:
                 lines = (root / fallback).read_text(encoding="utf-8", errors="replace").splitlines()
-                index = next((i for i, line in enumerate(lines) if _HEADING.match(line)), 0)
-                _add(entries, seen, 3, 1, fallback, index + 1, lines[index])
+                if lines:
+                    index = next((i for i, line in enumerate(lines) if _HEADING.match(line)), 0)
+                    _add(entries, seen, 3, 1, fallback, index + 1, lines[index])
         entries.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
         header = f"Repository context for intent: {query}\n"
         if len(header) > budget:
@@ -234,6 +327,15 @@ def build_context_pack(query: str, workspace: str | None, budget_chars: int = 60
         result = header
         omitted = False
         marker = "\n[context pack truncated to budget]"
+        facts = str(extra_facts or "")
+        # Durable memory is trusted text, but credential-shaped lines remain excluded
+        # under the same no-secrets guarantee as workspace snippets.
+        if facts and all(_safe_line(line) for line in facts.splitlines() if line.strip()):
+            addition = facts + ("" if facts.endswith("\n") else "\n")
+            if len(result) + len(addition) <= budget:
+                result += addition
+            else:
+                omitted = True
         for _, _, _, line in entries:
             addition = line + "\n"
             if len(result) + len(addition) <= budget:

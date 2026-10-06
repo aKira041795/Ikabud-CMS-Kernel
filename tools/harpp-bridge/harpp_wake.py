@@ -135,6 +135,27 @@ ADVISOR_PAGE_PROMPT = (
 )
 
 
+def _memory_facts(query: str) -> str:
+    """Return compact approved decision memory; every availability failure is silent."""
+    try:
+        response = harpp_client.memory_search(str(query or ""))
+        if not isinstance(response, dict) or not response.get("ok"):
+            return ""
+        rows = ((response.get("data") or {}).get("results") or [])
+        facts = []
+        for row in rows[:5]:
+            if not isinstance(row, dict):
+                continue
+            title = " ".join(str(row.get("title") or "").split())
+            body = " ".join(str(row.get("body") or row.get("decision") or
+                                row.get("rationale") or row.get("snippet") or "").split())
+            if title or body:
+                facts.append(f"DECISION memory: {title}" + (f" — {body}" if body else ""))
+        return "\n".join(facts)
+    except Exception:  # noqa: BLE001 - durable memory is optional grounding
+        return ""
+
+
 def build_advisor_prompt(*, plan, workspace, decisions="", context="", ledger="",
                          budget_chars=ADVISOR_CONTEXT_PACK_DEFAULT_CHARS) -> str:
     """Assemble the page-advisor prompt without mutating state or launching a process."""
@@ -142,7 +163,8 @@ def build_advisor_prompt(*, plan, workspace, decisions="", context="", ledger=""
     decisions = str(decisions or "")
     context = str(context or "")
     ledger = str(ledger or "")
-    pack = context_pack.build_context_pack(plan, workspace, budget_chars=budget_chars)
+    pack = context_pack.build_context_pack(
+        plan, workspace, budget_chars=budget_chars, extra_facts=_memory_facts(plan))
     # Existing state remains authoritative and present. Avoid repeating retrieved source
     # text already supplied by those blocks while retaining citations and unique facts.
     existing = "\n".join((decisions, context, ledger)).lower()
@@ -3709,9 +3731,10 @@ def _handoff_repo_facts(conv: int, instruction: str, opinion: str) -> str:
     try:
         workspace = repo_retrieval_workspace(conversation_workspace_dir(conv),
                                              default_workspace())
+        query = f"{instruction}\n{opinion[:600]}"
         pack = context_pack.build_context_pack(
-            f"{instruction}\n{opinion[:600]}", workspace,
-            budget_chars=CHAIR_HANDOFF_PACK_CHARS)
+            query, workspace, budget_chars=CHAIR_HANDOFF_PACK_CHARS,
+            extra_facts=_memory_facts(query))
     except Exception as e:  # noqa: BLE001 - the handoff must survive a retrieval miss
         log(f"chair handoff: context pack unavailable: {e}")
         return ""
