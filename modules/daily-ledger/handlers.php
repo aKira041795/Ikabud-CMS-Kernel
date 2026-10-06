@@ -17039,7 +17039,7 @@ function apiProductsImportCsv(): void
             $batchEggQty = $parsed['batch_egg_qty'];
             
             if ($sku !== '') {
-                $stmt = $ctx->db()->prepare('SELECT id, current_price FROM dl_products WHERE sku = :sku');
+                $stmt = $ctx->db()->prepare('SELECT id, current_price, assignment_mode FROM dl_products WHERE sku = :sku');
                 $stmt->execute([':sku' => $sku]);
                 $existing = $stmt->fetch(PDO::FETCH_ASSOC);
                 
@@ -17078,12 +17078,17 @@ function apiProductsImportCsv(): void
                         )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId, ':effective_at' => $importEffectiveAt]);
                     }
                     
-                    // Assign active branches if not present
-                    $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
-                    foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
-                        $ctx->db()->prepare(
-                            'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
-                        )->execute([':bid' => (int)$br['id'], ':pid' => $pid]);
+                    // Assign active branches ONLY when the product opted into
+                    // 'all_active'. A 'specific' product's pairs are managed by
+                    // the picker and must survive an import exactly as they are
+                    // (no create, reactivate or delete) — decision 6 / G3.
+                    if ((string)($existing['assignment_mode'] ?? 'all_active') === 'all_active') {
+                        $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
+                        foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
+                            $ctx->db()->prepare(
+                                'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
+                            )->execute([':bid' => (int)$br['id'], ':pid' => $pid]);
+                        }
                     }
                     
                     dl_auditLog('update_product', null, 'product', (string)$pid, null, [
@@ -17129,11 +17134,19 @@ function apiProductsImportCsv(): void
                 'INSERT INTO dl_product_price_history (product_id, price, changed_by, effective_at) VALUES (:pid, :price, :uid, :effective_at)'
             )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId, ':effective_at' => $importEffectiveAt]);
             
-            $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
-            foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
-                $ctx->db()->prepare(
-                    'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
-                )->execute([':bid' => (int)$br['id'], ':pid' => $pid]);
+            // A CSV-created product carries no assignment_mode column, so the
+            // schema default ('all_active') applies. Assign active branches for
+            // that mode only, mirroring the update path's guard; a 'specific'
+            // product can never be introduced by the import.
+            $newModeStmt = $ctx->db()->prepare('SELECT assignment_mode FROM dl_products WHERE id = :id');
+            $newModeStmt->execute([':id' => $pid]);
+            if ((string)($newModeStmt->fetchColumn() ?: 'all_active') === 'all_active') {
+                $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
+                foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
+                    $ctx->db()->prepare(
+                        'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
+                    )->execute([':bid' => (int)$br['id'], ':pid' => $pid]);
+                }
             }
             
             dl_auditLog('create_product', null, 'product', (string)$pid, null, [

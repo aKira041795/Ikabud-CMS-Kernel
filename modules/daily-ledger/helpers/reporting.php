@@ -107,14 +107,59 @@ function dl_reportFilterProducts(ModuleDB $db, array $filters): array
 {
     $ids = $filters['accessible_branch_ids'];
     $marks = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $db->prepare(
-        "SELECT DISTINCT p.id, p.sku, p.name
-           FROM dl_products p
-           JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.is_active = 1
-          WHERE p.is_active = 1 AND bp.branch_id IN ({$marks})
-          ORDER BY p.name"
-    );
-    $stmt->execute($ids);
+
+    // The report's own defaults (dl_reportFilters()): date_from falls back to the
+    // current business date, date_to to date_from, and the pair is swapped when
+    // inverted. dl_reportFilters() normally normalises these already; deriving
+    // them here keeps a caller that omits them from silently seeing no rows.
+    $dateFrom = dl_reportValidDate((string)($filters['date_from'] ?? '')) ?: dl_businessDate();
+    $dateTo = dl_reportValidDate((string)($filters['date_to'] ?? '')) ?: $dateFrom;
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
+
+    // ADDITIVE filter. (a) is today's behaviour: active-assignment products in the
+    // accessible branches. (b) adds every product that HAS a ledger row in the
+    // selected scope/range, so a recorded product whose assignment was hidden or
+    // deactivated can still be selected and will not vanish from the report.
+    // (b) must NOT add `p.is_active = 1`: dl_reportSalesData() joins dl_products
+    // with no such predicate, so an inactive product that still holds rows is part
+    // of the RECORD. MySQL 5.7-safe: plain UNION, no CTE/window/JSON_TABLE/
+    // LIMIT-in-IN.
+    $sql = "SELECT DISTINCT p.id, p.sku, p.name
+              FROM dl_products p
+              JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.is_active = 1
+             WHERE p.is_active = 1 AND bp.branch_id IN ({$marks})
+            UNION
+            SELECT DISTINCT p.id, p.sku, p.name
+              FROM dl_products p
+              JOIN dl_daily_ledger dl ON dl.product_id = p.id
+             WHERE dl.branch_id IN ({$marks})
+               AND dl.ledger_date BETWEEN ? AND ?";
+    $bind = array_merge($ids, $ids, [$dateFrom, $dateTo]);
+
+    // Mirror the row predicates dl_reportSalesData() applies so the offered set
+    // agrees with the record for the same filters.
+    if ((int)($filters['branch_id'] ?? 0) > 0) {
+        $sql .= ' AND dl.branch_id = ?';
+        $bind[] = (int)$filters['branch_id'];
+    }
+    if ((int)($filters['product_id'] ?? 0) > 0) {
+        $sql .= ' AND dl.product_id = ?';
+        $bind[] = (int)$filters['product_id'];
+    }
+    $shift = strtoupper(trim((string)($filters['shift'] ?? '')));
+    if (in_array($shift, ['AM', 'PM'], true)) {
+        $sql .= ' AND dl.shift = ?';
+        $bind[] = $shift;
+    }
+    if (dl_overviewPendingRowsMode($filters['pending_rows_mode'] ?? null) === 'exclude') {
+        $sql .= dl_overviewPendingPredicate('dl');
+    }
+    $sql .= ' ORDER BY name';
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
