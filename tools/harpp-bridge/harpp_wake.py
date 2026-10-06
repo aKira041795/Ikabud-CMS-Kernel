@@ -3643,6 +3643,7 @@ def _exec_plan_command(record: dict, conv: int, default_model: str) -> str:
 CHAIR_HANDOFF_RE = re.compile(r"^/to-chair\b[:\s,-]*(.*)$", re.IGNORECASE)
 CHAIR_HANDOFF_OPINION_SESSION = "chatgpt-advisor"
 CHAIR_HANDOFF_BRIEF_MAX_CHARS = 2500
+CHAIR_HANDOFF_PACK_CHARS = 3000
 
 
 def parse_chair_handoff_command(body) -> str | None:
@@ -3682,6 +3683,19 @@ def _last_advisor_opinion(conversation_id: int, config=None) -> str:
     return ""
 
 
+def _handoff_repo_facts(conv: int, instruction: str, opinion: str) -> str:
+    """Retrieved repository facts for the handoff brief ("" when unavailable)."""
+    try:
+        workspace = conversation_workspace_dir(conv) or default_workspace()
+        pack = context_pack.build_context_pack(
+            f"{instruction}\n{opinion[:600]}", workspace,
+            budget_chars=CHAIR_HANDOFF_PACK_CHARS)
+    except Exception as e:  # noqa: BLE001 - the handoff must survive a retrieval miss
+        log(f"chair handoff: context pack unavailable: {e}")
+        return ""
+    return f"\n\n# RETRIEVED REPOSITORY FACTS\n{pack}\n" if pack.strip() else ""
+
+
 def _exec_chair_handoff(record: dict, conv: int, instruction: str) -> str:
     """Brief the chair with the advisor opinion + instruction, then queue the run."""
     opinion = _last_advisor_opinion(conv)
@@ -3695,6 +3709,8 @@ def _exec_chair_handoff(record: dict, conv: int, instruction: str) -> str:
         "# Advisor opinion (ChatGPT, latest reply in this thread)\n"
         + opinion[:CHAIR_HANDOFF_BRIEF_MAX_CHARS]
         + ("\n…(truncated)" if len(opinion) > CHAIR_HANDOFF_BRIEF_MAX_CHARS else "")
+        # Ground the chair's run in repository facts, not only in the opinion.
+        + _handoff_repo_facts(conv, instruction, opinion)
     )
     harpp_client.harpp_notify(
         conversation_id=conv, message_type="INFO",

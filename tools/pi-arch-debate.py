@@ -85,6 +85,24 @@ DS_FLASH = os.environ.get("DEBATE_FLASH_MODEL", "deepseek/deepseek-v4-flash")
 # required by validate_model_name, so `chatgpt/page` is the canonical spelling.
 PAGE_MODEL_ALIASES = {"chatgpt/page", "chatgpt-page", "chatgpt", "advisor/page"}
 PAGE_DRIVER = os.path.join(ROOT, "tools", "harpp-bridge", "chatgpt_page.js")
+
+
+def repo_context(query: str, budget: int = 4000) -> str:
+    """Retrieved repository facts for a prompt, so no side argues in a vacuum.
+
+    Never raises: a retrieval failure degrades to no facts, which is the old behaviour.
+    """
+    try:
+        bridge = os.path.join(ROOT, "tools", "harpp-bridge")
+        if bridge not in sys.path:
+            sys.path.insert(0, bridge)
+        import context_pack
+        pack = context_pack.build_context_pack(str(query or ""), ROOT, budget_chars=budget)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not pack.strip():
+        return ""
+    return "\n\n# RETRIEVED REPOSITORY FACTS\n" + pack + "\n"
 # Two INDEPENDENT, DISTINCT LLM models — one per debate side. The runner fails
 # closed if they resolve to the same model, so both sides can never be played by
 # the same LLM. Override with DEBATE_MODEL_A/B (legacy per-provider vars still
@@ -381,7 +399,8 @@ def model_availability() -> dict[str, bool]:
 
 
 def make_plan(approved_brief: str) -> str:
-    prompt = load_template("plan.txt").replace("{{APPROVED_BRIEF}}", approved_brief)
+    prompt = (load_template("plan.txt").replace("{{APPROVED_BRIEF}}", approved_brief)
+              + repo_context(approved_brief[:1000]))
     plan = run_page(prompt, "plan", 0, "🗺️ ChatGPT — implementation plan")
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     path = os.path.join(WORK, f"plan-{timestamp}.md")
@@ -549,20 +568,21 @@ def main() -> None:
     rounds_used = 0
     chair_reason = "chair did not converge before the safety ceiling"
     aborted = False
+    facts = repo_context(intent)
 
     for r in range(1, rounds + 1):
         rounds_used = r
         dp = load_template("draft.txt")
         dp = dp.replace("{{INTENT}}", intent)
         dp = dp.replace("{{PREVIOUS_DRAFT}}", draft or "(none)")
-        dp = dp.replace("{{CRITIQUE}}", critique or "(none)")
+        dp = dp.replace("{{CRITIQUE}}", critique or "(none)") + facts
         draft = run_model(DRAFTER, dp, "draft", r, f"{draft_label} — Round {r} draft/revise")
         validate_draft(draft)
         print(f"\n    → draft len={len(draft)}")
 
         cp = load_template("critique.txt")
         cp = cp.replace("{{INTENT}}", intent)
-        cp = cp.replace("{{DRAFT}}", draft)
+        cp = cp.replace("{{DRAFT}}", draft) + facts
         critique = run_model(CRITIC, cp, "critique", r, f"{critic_label} — Round {r} critique")
         validate_critique(critique)
         critic_verdict = verdict_of(critique)
@@ -571,7 +591,7 @@ def main() -> None:
         chair_prompt = load_template("chair.txt")
         chair_prompt = chair_prompt.replace("{{INTENT}}", intent)
         chair_prompt = chair_prompt.replace("{{DRAFT}}", draft)
-        chair_prompt = chair_prompt.replace("{{CRITIQUE}}", critique)
+        chair_prompt = chair_prompt.replace("{{CRITIQUE}}", critique) + facts
         chair_text = run_model(MODEL_A, chair_prompt, "chair", r, f"⚖️ {MODEL_A} — Round {r} chair decision")
         decision = parse_chair_decision(chair_text)
         if decision is None:

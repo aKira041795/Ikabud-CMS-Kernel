@@ -13,6 +13,7 @@ What is frozen here:
 Grounding is ON BY DEFAULT: the advisor prompt must carry retrieved repository facts, and
 must no longer claim it cannot see the repository.
 """
+import importlib.util
 import json
 import os
 import re
@@ -129,6 +130,73 @@ class ChairConsultTest(unittest.TestCase):
         payload = json.loads(proc.stdout.strip().splitlines()[-1])
         self.assertIn("prompt", payload)
         self.assertGreater(payload.get("citations", 0), 0)
+
+
+class GroundingWiringTest(unittest.TestCase):
+    """Every place the chair discusses or hands off work must be grounded, not just the
+    advisor lane — otherwise the discussion still argues from memory."""
+
+    def test_chair_handoff_brief_is_grounded(self):
+        sent, queued = [], []
+        originals = (harpp_wake.harpp_client.harpp_notify, harpp_wake.harpp_client.poll_messages,
+                     harpp_wake.harpp_client.queue_run, harpp_wake.conversation_workspace_dir)
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: sent.append(kw) or {"ok": True}
+        harpp_wake.harpp_client.poll_messages = lambda **kw: {"ok": True, "data": {"messages": [
+            {"id": 1, "harness_session_id": "chatgpt-advisor",
+             "body": "Add a stop button; runs already have a CANCELLED state."}]}}
+        harpp_wake.harpp_client.queue_run = lambda **kw: queued.append(kw) or {
+            "ok": True, "data": {"run": {"state": "QUEUED"}}}
+        harpp_wake.conversation_workspace_dir = lambda conv: str(ROOT)
+        try:
+            reply = harpp_wake._exec_chair_handoff(
+                {"kind": "message", "id": 950, "conversation_id": 187}, 187,
+                "implement the stop button")
+            # The return value is the owner-facing reply; the GROUNDED brief is what gets posted.
+            posted = [str(kw.get("body") or "") for kw in sent
+                      if int(kw.get("conversation_id") or 0) == 187]
+            self.assertTrue(posted, "the handoff must post a brief for the chair")
+            self.assertTrue(any("# RETRIEVED REPOSITORY FACTS" in body for body in posted),
+                            "the posted brief must carry a retrieved-facts section")
+            self.assertTrue(any(CITATION.findall(body) for body in posted),
+                            "the posted brief must carry repository citations")
+            self.assertIn("queued", reply.lower())
+            self.assertEqual(len(queued), 1, "the run must still be queued")
+        finally:
+            (harpp_wake.harpp_client.harpp_notify, harpp_wake.harpp_client.poll_messages,
+             harpp_wake.harpp_client.queue_run,
+             harpp_wake.conversation_workspace_dir) = originals
+
+    def test_debate_prompts_are_grounded(self):
+        spec = importlib.util.spec_from_file_location(
+            "pi_arch_debate_under_test", str(ROOT / "tools/pi-arch-debate.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        block = module.repo_context("stop button to cancel a running harness run")
+        self.assertIn("# RETRIEVED REPOSITORY FACTS", block)
+        cites = CITATION.findall(block)
+        self.assertTrue(cites, "the debate must argue from retrieved facts")
+        for rel, _line in cites:
+            self.assertTrue((ROOT / rel).exists(), f"debate cites a missing path: {rel}")
+        # A missing query or an unreachable pack must degrade, never break the debate.
+        self.assertEqual(module.repo_context(""), "")
+
+    def test_consult_session_continues_the_discussion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session = Path(tmp) / "session.md"
+            for query in ("should we add a stop button?", "what about the 409 on cancel?"):
+                proc = subprocess.run(
+                    [sys.executable, str(BRIDGE / "chair_consult.py"), "--dry-run",
+                     "--session", "demo", "--out", str(session), "--query", query,
+                     "--workspace", str(ROOT)],
+                    capture_output=True, text=True, timeout=180)
+                self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
+            body = session.read_text(encoding="utf-8")
+            self.assertIn("should we add a stop button?", body,
+                          "a continuing discussion must carry the earlier turn")
+            self.assertIn("SO FAR", body)
+            # Each turn is grounded for its OWN question, and the carried history must not
+            # re-feed the previous pack (that would spend the budget twice).
+            self.assertEqual(body.count("# RETRIEVED REPOSITORY FACTS"), 2)
 
 
 if __name__ == "__main__":

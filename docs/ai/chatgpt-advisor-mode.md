@@ -142,6 +142,20 @@ python3 tools/harpp-bridge/chair_consult.py --query "<the idea>" [--instruction 
 It composes the same grounded prompt, drives the existing page lane (`chatgpt_page.js`) and
 saves the transcript under `.ai/consult/`. `--dry-run` composes without opening a browser.
 
+A discussion is meant to be steered, not scripted. Add `--session <name>` to keep one going: the
+transcript is read back in (previous turns only — old retrieved-facts blocks are stripped, so the
+next prompt does not pay again for facts already reasoned over) and the reply is appended, so each
+call continues the same conversation instead of restarting it:
+
+```
+python3 tools/harpp-bridge/chair_consult.py --session stop-button --query "what breaks if a run is cancelled mid-write?"
+python3 tools/harpp-bridge/chair_consult.py --session stop-button --query "and the 409 on cancel?"
+```
+
+The debate tool (`start debate with chatgpt:`) remains available for an adversarial two-model
+check, but it is a pipeline; for thinking an idea through, the steerable session is the intended
+path. Debate rounds and the plan step are grounded the same way.
+
 ### How the lane is chosen
 
 The **conversation's `harness_session_id`** is the routing key (`chatgpt-advisor`), not the
