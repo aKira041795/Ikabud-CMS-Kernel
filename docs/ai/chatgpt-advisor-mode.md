@@ -116,6 +116,32 @@ and reports in the same conversation. Notes:
 - The bridge cannot create conversations (only the owner can), so the handoff lands in the thread
   where you sent it rather than a new work thread.
 
+### What the advisor can see (retrieval, on by default)
+
+The advisor is no longer blind to the repository. Every prompt now carries a
+`# RETRIEVED REPOSITORY FACTS` block assembled by `tools/harpp-bridge/context_pack.py`:
+ranked `docs/**/*.md`, the relevant `modules/*/module.json` capabilities/routes, `git grep`
+hits and recent commit subjects for the matched paths — each rendered as `path:line` so an
+opinion can be checked instead of trusted.
+
+- Deterministic (same query + same tree ⇒ byte-identical), stdlib-only, read-only, and it
+  never raises: a broken retrieval degrades to no facts rather than a failed run.
+- It never emits secrets (git-tracked files only), and it dedupes against the decisions,
+  chair ledger and conversation context that are already in the prompt.
+- Budget is `advisor.context_pack_chars` (default 6000); oversized packs are truncated with
+  an explicit marker rather than cut silently.
+- The prompt now instructs the model to use the retrieved facts, to name what is missing
+  instead of inventing repository facts, and to cite paths it relies on.
+
+For a chair-initiated discussion (no Messenger round trip):
+
+```
+python3 tools/harpp-bridge/chair_consult.py --query "<the idea>" [--instruction "…"] [--dry-run] [--json]
+```
+
+It composes the same grounded prompt, drives the existing page lane (`chatgpt_page.js`) and
+saves the transcript under `.ai/consult/`. `--dry-run` composes without opening a browser.
+
 ### How the lane is chosen
 
 The **conversation's `harness_session_id`** is the routing key (`chatgpt-advisor`), not the

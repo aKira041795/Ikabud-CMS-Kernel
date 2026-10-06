@@ -36,6 +36,7 @@ from pathlib import Path
 import fcntl
 
 import harpp_client
+import context_pack
 
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "harpp"
 LOCK_FILE = CONFIG_DIR / "wake.lock"
@@ -117,6 +118,7 @@ ADVISOR_DEFAULT_PROFILE = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home()
 # bounded state is appended explicitly below.
 ADVISOR_PAGE_PLAN_MAX_CHARS = 12000
 ADVISOR_PAGE_STATE_MAX_CHARS = 6000
+ADVISOR_CONTEXT_PACK_DEFAULT_CHARS = 6000
 ADVISOR_PAGE_PROMPT = (
     "You are acting as a structured second-opinion advisor. The owner is preparing a plan "
     "for a governed /architect -> /implement -> /review -> /release-gate pipeline and wants an "
@@ -126,10 +128,42 @@ ADVISOR_PAGE_PROMPT = (
     "2) Gaps and risks\n"
     "3) Restructuring suggestion\n"
     "4) Recommendation: go / go-with-changes / rethink, plus the single most important next action.\n"
-    "Be concrete and concise. You are read-only: recommend, never execute. This page backend "
-    "cannot see the repository. Do not invent repository facts; state plainly what you cannot "
-    "verify.\n\n"
+    "Be concrete and concise. You are read-only: recommend, never execute. Use the retrieved "
+    "repository facts below as evidence and cite the path:line references you rely on. If the "
+    "retrieved facts do not establish something, say exactly what is missing rather than "
+    "inventing a repository fact.\n\n"
 )
+
+
+def build_advisor_prompt(*, plan, workspace, decisions="", context="", ledger="",
+                         budget_chars=ADVISOR_CONTEXT_PACK_DEFAULT_CHARS) -> str:
+    """Assemble the page-advisor prompt without mutating state or launching a process."""
+    plan = str(plan or "")
+    decisions = str(decisions or "")
+    context = str(context or "")
+    ledger = str(ledger or "")
+    pack = context_pack.build_context_pack(plan, workspace, budget_chars=budget_chars)
+    # Existing state remains authoritative and present. Avoid repeating retrieved source
+    # text already supplied by those blocks while retaining citations and unique facts.
+    existing = "\n".join((decisions, context, ledger)).lower()
+    if pack and existing:
+        filtered = []
+        for line in pack.splitlines():
+            match = re.match(r"^[^:]+:\d+\s+(.*)$", line)
+            if match and match.group(1).strip().lower() in existing:
+                continue
+            filtered.append(line)
+        pack = "\n".join(filtered)
+    return (
+        ADVISOR_PAGE_PROMPT
+        + "DURABLE DECISIONS:\n" + (decisions or "- none")
+        + "\n\nCHAIR LEDGER:\n" + (ledger or "- none available")
+        + "\n\nCONVERSATION CONTEXT:\n" + (context or "- none available")
+        + "\n\n# RETRIEVED REPOSITORY FACTS\n" + (pack or "- none retrieved; identify the missing evidence")
+        + "\n\nPLAN:\n" + plan
+    )
+
+
 AUTHORITY_ORDER = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 ESCALATION_FLAGS = {
     "architecture_change": "change architecture/contract",
@@ -4506,6 +4540,7 @@ def advisor_config(config=None) -> dict:
         ("timeout", DEFAULT_TIMEOUT),
         ("cooldown", DEFAULT_COOLDOWN),
         ("max_per_hour", DEFAULT_MAX_PER_HOUR),
+        ("context_pack_chars", ADVISOR_CONTEXT_PACK_DEFAULT_CHARS),
     ):
         adv.setdefault(key, default)
     return adv
@@ -4601,12 +4636,10 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
             decisions = decisions[:ADVISOR_PAGE_STATE_MAX_CHARS]
             context = context[:ADVISOR_PAGE_STATE_MAX_CHARS]
             ledger = ledger[:CHAIR_LEDGER_MAX_CHARS]
-            prompt = (
-                ADVISOR_PAGE_PROMPT
-                + "DURABLE DECISIONS:\n" + (decisions or "- none")
-                + "\n\nCHAIR LEDGER:\n" + (ledger or "- none available")
-                + "\n\nCONVERSATION CONTEXT:\n" + (context or "- none available")
-                + "\n\nPLAN:\n" + plan
+            prompt = build_advisor_prompt(
+                plan=plan, workspace=run_workspace, decisions=decisions,
+                context=context, ledger=ledger,
+                budget_chars=int(adv.get("context_pack_chars") or ADVISOR_CONTEXT_PACK_DEFAULT_CHARS),
             )
             fd, tmp = tempfile.mkstemp(prefix="harpp-advisor-", suffix=".txt")
             page_timeout = int(adv.get("timeout") or DEFAULT_TIMEOUT)
