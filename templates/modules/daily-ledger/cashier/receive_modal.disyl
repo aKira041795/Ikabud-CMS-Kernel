@@ -120,9 +120,16 @@
                                             From <span class="font-medium" x-text="g.origin_branch_name"></span>
                                             &middot; <span x-text="g.ledger_date"></span>
                                         </div>
-                                        <div class="mt-1 text-xs text-gray-700">
-                                            Sent by: <span class="font-semibold" x-text="g.dispatching_cashier_name || 'not recorded (historical)'"></span>
-                                        </div>
+                                        <template x-if="g.provenance_status === 'none'">
+                                            <div class="mt-1 text-xs text-gray-700">
+                                                Sent by: <span class="font-semibold" x-text="g.dispatching_cashier_name || 'not recorded (historical)'"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="g.provenance_status === 'paper_dr_pending'">
+                                            <div class="mt-1 text-xs font-semibold text-amber-800">
+                                                not electronically dispatched - captured from paper DR
+                                            </div>
+                                        </template>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <template x-if="isPartial(g)">

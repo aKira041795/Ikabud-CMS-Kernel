@@ -996,6 +996,7 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
     $receiveDate = (string)($input['receive_date'] ?? dl_businessDate());
     $items = dl_normalizeDeliveryItems(is_array($input['items'] ?? null) ? $input['items'] : []);
     $actorId = dl_getActorUserId($user);
+    $creatorNameSnapshot = dl_userDisplayNameById($ctx->db(), $actorId);
     $role = (string)($user['role'] ?? '');
     $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
 
@@ -1071,8 +1072,8 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
             $ins = $ctx->db()->prepare(
                 'INSERT INTO dl_deliveries
                     (origin_type, origin_id, destination_type, destination_id, dr_number,
-                     delivery_date, production_shift, status, created_by, posted_by, posted_at, remarks, provenance_status)
-                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status)'
+                     delivery_date, production_shift, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks, provenance_status)
+                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks, :provenance_status)'
             );
             $ins->execute([
                 ':ot' => $originType,
@@ -1083,6 +1084,7 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
                 ':dd' => $deliveryDate,
                 ':production_shift' => $productionShift,
                 ':created_by' => $actorId ?: null,
+                ':created_by_name_snapshot' => $creatorNameSnapshot,
                 ':posted_by' => $actorId ?: null,
                 ':remarks' => dl_paperDrCaptureRemark(),
                 ':provenance_status' => 'paper_dr_pending',

@@ -8758,8 +8758,8 @@ function apiCreateCashierDispatch(array $params = []): void
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
-                 delivery_date, status, created_by, posted_by, posted_at, remarks)
-             VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :posted_by, NOW(), :remarks)'
+                 delivery_date, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks)
+             VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks)'
         );
         $ins->execute([
             ':ot' => 'branch',
@@ -8769,6 +8769,7 @@ function apiCreateCashierDispatch(array $params = []): void
             ':dr' => $drNumber,
             ':dd' => $deliveryDate,
             ':created_by' => $actorId ?: null,
+            ':created_by_name_snapshot' => $dispatchingCashierName,
             ':posted_by' => $actorId ?: null,
             ':remarks' => dl_cashierDispatchRemark(),
         ]);
@@ -8868,6 +8869,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                 'origin_branch_name' => $r['origin_branch_name'],
                 'ledger_date' => $r['ledger_date'],
                 'production_shift' => in_array(($r['production_shift'] ?? null), ['AM', 'PM'], true) ? $r['production_shift'] : null,
+                'provenance_status' => 'none',
                 'dispatching_cashier_id' => $r['dispatching_cashier_id'] !== null ? (int)$r['dispatching_cashier_id'] : null,
                 'dispatching_cashier_name' => $r['dispatching_cashier_name'] !== '' ? $r['dispatching_cashier_name'] : null,
                 'items' => [],
@@ -8888,8 +8890,9 @@ function apiGetIncomingDeliveries(array $params = []): void
         $formalSql = 'SELECT d.id AS delivery_id, d.dr_number, d.delivery_date, d.production_shift,
                              d.origin_id AS origin_branch_id,
                              COALESCE(ob.name, cb.name, d.origin_type) AS origin_branch_name,
-                             d.posted_by AS dispatching_cashier_id,
-                             COALESCE(NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name,
+                             d.provenance_status,
+                             d.created_by AS dispatching_cashier_id,
+                             COALESCE(NULLIF(d.created_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name,
                              di.id AS delivery_item_id,
                              di.product_id, p.name AS product_name, di.quantity
                       FROM dl_deliveries d
@@ -8897,7 +8900,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                       INNER JOIN dl_products p ON p.id = di.product_id
                       LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type = "branch"
                       LEFT JOIN dl_branches cb ON cb.id = d.origin_id AND d.origin_type = "commissary"
-                      LEFT JOIN dl_users u ON u.id = d.posted_by
+                      LEFT JOIN dl_users u ON u.id = d.created_by
                       WHERE d.destination_type = "branch"
                         AND d.destination_id = :bid
                         AND d.status = "posted"
@@ -8922,6 +8925,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                     'origin_branch_name' => $row['origin_branch_name'],
                     'ledger_date' => $row['delivery_date'],
                     'production_shift' => in_array(($row['production_shift'] ?? null), ['AM', 'PM'], true) ? $row['production_shift'] : null,
+                    'provenance_status' => (string)($row['provenance_status'] ?? 'none'),
                     'dispatching_cashier_id' => $row['dispatching_cashier_id'] !== null ? (int)$row['dispatching_cashier_id'] : null,
                     'dispatching_cashier_name' => $row['dispatching_cashier_name'] !== '' ? $row['dispatching_cashier_name'] : null,
                     'items' => [],
@@ -9382,6 +9386,7 @@ function apiReceivePaperDelivery(array $params = []): void
     $receiveDate = (string)($input['receive_date'] ?? dl_businessDate());
     $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
     $actorId = dl_getActorUserId($user);
+    $creatorNameSnapshot = dl_userDisplayNameById($ctx->db(), $actorId);
     $role = (string)($user['role'] ?? '');
     $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
 
@@ -9552,9 +9557,9 @@ function apiReceivePaperDelivery(array $params = []): void
             $ins = $ctx->db()->prepare(
                 'INSERT INTO dl_deliveries
                     (origin_type, origin_id, destination_type, destination_id, dr_number,
-                     delivery_date, production_shift, status, created_by, posted_by, posted_at, remarks, provenance_status,
+                     delivery_date, production_shift, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks, provenance_status,
                      produced_by, produced_at)
-                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status,
+                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks, :provenance_status,
                          :produced_by, :produced_at)'
             );
             $ins->execute([
@@ -9566,6 +9571,7 @@ function apiReceivePaperDelivery(array $params = []): void
                 ':dd' => $deliveryDate,
                 ':production_shift' => $productionShift,
                 ':created_by' => $actorId ?: null,
+                ':created_by_name_snapshot' => $creatorNameSnapshot,
                 ':posted_by' => $actorId ?: null,
                 ':remarks' => $autoDr ? '[auto-dr-production]' : dl_paperDrCaptureRemark(),
                 ':provenance_status' => $autoDr ? 'none' : 'paper_dr_pending',

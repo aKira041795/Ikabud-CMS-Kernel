@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Oracle for the branch-to-branch capture-context UI.
  *
  * Base-tree discrimination:
- * D1-D4 fail on base. D5-D6 are survival pins and already pass on base.
+ * D1-D4 and D7-D8 fail on base. D5-D6 are survival pins and already pass on base.
  * Fixture ids are private to this oracle and are removed in finally.
  */
 ob_start();
@@ -36,6 +36,8 @@ $dispatcher = 99881;
 $receiver = 99882;
 $withdrawal = 998801;
 $historical = 998802;
+$electronicDelivery = 998803;
+$paperDelivery = 998804;
 $date = dl_businessDate();
 $payloadPath = tempnam(sys_get_temp_dir(), 'dl-b2b-context-');
 $incomingHarness = __DIR__ . '/daily_ledger_preserve_cashier_variance_harness.php';
@@ -55,11 +57,12 @@ $run = static function (string $harness, array $arguments, array $payload) use (
     return ['exit' => $exit, 'body' => json_decode($raw, true), 'raw' => $raw];
 };
 
-$cleanup = static function () use ($db, $origin, $destination, $product, $dispatcher, $receiver): void {
+$cleanup = static function () use ($db, $origin, $destination, $product, $dispatcher, $receiver, $electronicDelivery, $paperDelivery): void {
     $db->prepare('DELETE FROM audit_logs WHERE module="daily-ledger" AND branch_id IN (?, ?)')->execute([$origin, $destination]);
     $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN (?, ?))')->execute([$origin, $destination]);
     $db->prepare('DELETE FROM dl_integrity_notifications WHERE branch_id IN (?, ?)')->execute([$origin, $destination]);
     $db->prepare('DELETE FROM dl_delivery_variance_flags WHERE product_id=?')->execute([$product]);
+    $db->prepare('DELETE FROM dl_deliveries WHERE id IN (?, ?)')->execute([$electronicDelivery, $paperDelivery]);
     $db->prepare('DELETE FROM dl_cashier_withdrawals WHERE branch_id IN (?, ?) OR target_branch_id IN (?, ?)')->execute([$origin, $destination, $origin, $destination]);
     $db->prepare('DELETE FROM dl_daily_ledger WHERE branch_id IN (?, ?) OR product_id=?')->execute([$origin, $destination, $product]);
     $db->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id IN (?, ?)')->execute([$origin, $destination]);
@@ -91,6 +94,17 @@ try {
             $withdrawal, $origin, $product, $date, $destination, $dispatcher, sha1('ctx-snapshot-9988'),
             $historical, $origin, $product, $date, $destination, $dispatcher, sha1('ctx-historical-9988'),
         ]);
+    $db->prepare('INSERT INTO dl_deliveries
+        (id, origin_type, origin_id, destination_type, destination_id, dr_number, delivery_date, production_shift,
+         status, created_by, created_by_name_snapshot, posted_by, posted_at, provenance_status)
+        VALUES (?, "branch", ?, "branch", ?, "CTX-FORMAL-9988", ?, "AM", "posted", ?, "Frozen Formal Dispatcher", ?, NOW(), "none"),
+               (?, "branch", ?, "branch", ?, "CTX-PAPER-9988", ?, "PM", "posted", ?, "Receiving Cashier Fixture", ?, NOW(), "paper_dr_pending")')
+        ->execute([
+            $electronicDelivery, $origin, $destination, $date, $dispatcher, $dispatcher,
+            $paperDelivery, $origin, $destination, $date, $receiver, $receiver,
+        ]);
+    $db->prepare('INSERT INTO dl_delivery_items (delivery_id, product_id, quantity, unit, price_snapshot) VALUES (?, ?, 4, "pcs", 10), (?, ?, 5, "pcs", 10)')
+        ->execute([$electronicDelivery, $product, $paperDelivery, $product]);
     $db->prepare('UPDATE dl_users SET full_name="Renamed Live Name" WHERE id=?')->execute([$dispatcher]);
 
     $incoming = $run($incomingHarness, ['incoming'], ['role' => 'admin', 'get' => ['branch_id' => $destination]]);
@@ -105,13 +119,19 @@ try {
     $handlers = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
     $offline = (string)file_get_contents($base . '/modules/daily-ledger/handlers-offline.php');
     $migration = (string)file_get_contents($base . '/modules/daily-ledger/database/migrations/079_snapshot_withdrawal_encoder_name.sql');
-    $h->test('D2 discriminating (literal cited writers only): both withdrawal writers snapshot encoded_by at INSERT time and migration is guarded (fails on base: column absent; active formal dispatch mismatch reported)',
+    $h->test('D2 discriminating: withdrawal writers, both named delivery creators, and paper replay freeze display names; migration guards both columns without backfill (fails on base: snapshot columns/writes absent)',
         substr_count($handlers, 'encoded_by_name_snapshot') >= 2
         && substr_count($offline, 'encoded_by_name_snapshot') >= 1
+        && substr_count($handlers, 'created_by_name_snapshot') >= 5
+        && substr_count($offline, 'created_by_name_snapshot') >= 2
+        && substr_count($handlers, 'dl_userDisplayNameById($ctx->db(), $actorId)') >= 2
+        && str_contains($offline, 'dl_userDisplayNameById($ctx->db(), $actorId)')
         && str_contains($handlers, 'dl_userDisplayNameById($ctx->db(), $userId)')
         && str_contains($offline, 'dl_userDisplayNameById($ctx->db(), $userId)')
-        && str_contains($migration, 'information_schema.columns')
-        && !str_contains($migration, 'UPDATE dl_cashier_withdrawals'));
+        && substr_count($migration, 'information_schema.columns') === 2
+        && str_contains($migration, "table_name = 'dl_deliveries'")
+        && !str_contains($migration, 'UPDATE dl_cashier_withdrawals')
+        && !str_contains($migration, 'UPDATE dl_deliveries'));
 
     $dispatch = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/dispatch_modal.disyl');
     $receive = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/receive_modal.disyl');
@@ -123,6 +143,20 @@ try {
         str_contains($receive, 'Receiving as:') && str_contains($receive, 'Sent by:')
         && str_contains($receive, 'not recorded (historical)')
         && str_contains($receive, 'not electronically dispatched — captured from paper DR'));
+
+    $h->test('D7 discriminating: cashier-dispatched dl_deliveries payload prefers the frozen dispatcher and modal labels provenance none as Sent by (fails on base: delivery snapshot field/query absent)',
+        ($groups['CTX-FORMAL-9988']['dispatching_cashier_id'] ?? null) === $dispatcher
+        && ($groups['CTX-FORMAL-9988']['dispatching_cashier_name'] ?? null) === 'Frozen Formal Dispatcher'
+        && ($groups['CTX-FORMAL-9988']['provenance_status'] ?? null) === 'none'
+        && str_contains($receive, 'x-if="g.provenance_status === \'none\'"')
+        && str_contains($receive, 'Sent by:'),
+        $incoming['raw']);
+    $h->test('D8 discriminating: populated paper-capture creator snapshot is guarded by provenance and never labelled Sent by (fails on base: provenance-driven label absent)',
+        ($groups['CTX-PAPER-9988']['dispatching_cashier_name'] ?? null) === 'Receiving Cashier Fixture'
+        && ($groups['CTX-PAPER-9988']['provenance_status'] ?? null) === 'paper_dr_pending'
+        && str_contains($receive, 'x-if="g.provenance_status === \'paper_dr_pending\'"')
+        && str_contains($receive, 'not electronically dispatched - captured from paper DR'),
+        $incoming['raw']);
     $h->test('D5 pin: source branch, production shift, DR, required paper shift, and bound-cashier lock survive (passes on base)',
         str_contains($receive, 'x-text="g.origin_branch_name"')
         && str_contains($receive, 'x-text="g.dr_number || \'NO DR\'"')
