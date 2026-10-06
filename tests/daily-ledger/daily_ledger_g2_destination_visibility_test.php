@@ -16,7 +16,12 @@ $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/handlers-deliveries.php');
 $h->fingerprint('templates/modules/daily-ledger/admin/commissary.disyl');
 $h->fingerprint('tests/daily-ledger/daily_ledger_g2_destination_visibility_harness.php');
-$h->allowLogLines('disyl.compile.phases', 'kernel_state_cache: module_registry rebuilt');
+$h->allowLogLines(
+    'disyl.compile.phases',
+    'kernel_state_cache: module_registry rebuilt',
+    'kernel_state_cache: capability_map rebuilt',
+    'capability.call'
+);
 app()->tenant()->setTenantId(207);
 $ctx = modulePushContext('daily-ledger');
 $db = $ctx->db();
