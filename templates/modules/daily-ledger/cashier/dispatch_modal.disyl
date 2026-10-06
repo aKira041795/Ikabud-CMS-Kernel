@@ -18,7 +18,11 @@
 
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="dispatch-modal-title">Send to Another Branch</h3>
-                    <p class="text-sm text-gray-500 mb-4">Use this when this branch is sending stock out. The paper DR stays the source of truth so the receiving branch can match the same transfer.</p>
+                    <p class="text-sm text-gray-500 mb-2">Use this when this branch is sending stock out. The paper DR stays the source of truth so the receiving branch can match the same transfer.</p>
+                    <div class="mb-4 text-sm font-medium text-slate-700">
+                        Sending as: <span class="text-slate-900">{user_name}</span>
+                        &middot; <span class="text-slate-900" x-text="window.SHIFT"></span> shift
+                    </div>
                     <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900">
                         Quick rule: this is only for <span class="font-semibold">sending stock out</span> to another branch. Enter the DR exactly as written on paper so the receiving branch can find the same record.
                     </div>

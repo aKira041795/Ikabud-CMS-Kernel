@@ -58,6 +58,18 @@
                     </template>
 
                     <div class="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+                        <div class="mb-3 text-sm font-medium text-slate-700">
+                            Receiving as: <span class="text-slate-900">{user_name}</span> &middot;
+                            <template x-if="window.SHIFT_LOCKED">
+                                <span class="inline-flex items-center text-slate-700">
+                                    <i class="fas fa-lock mr-1 text-[10px]" aria-hidden="true"></i>
+                                    <span x-text="receivingShift"></span>&nbsp;shift &middot; LOCKED
+                                </span>
+                            </template>
+                            <template x-if="!window.SHIFT_LOCKED">
+                                <span><span x-text="receivingShift || 'select below'"></span> shift</span>
+                            </template>
+                        </div>
                         <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Required receipt shifts</div>
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div>
@@ -107,6 +119,9 @@
                                         <div class="text-xs text-gray-500">
                                             From <span class="font-medium" x-text="g.origin_branch_name"></span>
                                             &middot; <span x-text="g.ledger_date"></span>
+                                        </div>
+                                        <div class="mt-1 text-xs text-gray-700">
+                                            Sent by: <span class="font-semibold" x-text="g.dispatching_cashier_name || 'not recorded (historical)'"></span>
                                         </div>
                                     </div>
                                     <div class="flex items-center gap-2">
@@ -165,6 +180,7 @@
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <div class="text-sm font-semibold text-indigo-900">Step 2: Nothing found? Use the Paper DR</div>
+                                <p class="mt-1 text-xs font-semibold text-indigo-900">not electronically dispatched — captured from paper DR</p>
                                 <p class="mt-1 text-xs text-indigo-800">Use this only when the truck already arrived but the transfer was not encoded in the system yet. The paper DR remains the source of truth.</p>
                             </div>
                             <button type="button" class="btn btn-outline" @click="paperOpen = !paperOpen" x-text="paperOpen ? 'Hide Paper DR Entry' : 'Open Paper DR Entry'"></button>

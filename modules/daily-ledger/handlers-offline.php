@@ -690,12 +690,13 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     }
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
-        // Snapshot the charged person's name (migration 060) so later renames do
-        // not rewrite who the offline-recorded charge was for.
+        // Snapshot names as they read now so online and replayed entries preserve
+        // the same encoder and liable-person evidence across later renames.
+        $encodedByNameSnapshot = dl_userDisplayNameById($ctx->db(), $userId);
         $liableUserName = dl_userDisplayNameById($ctx->db(), $liableUserId);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, liable_user_name, dedup_hash)
-             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :luid_name, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, encoded_by_name_snapshot, liable_user_id, liable_user_name, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :uid_name, :luid, :luid_name, :dedup)'
         );
         // Mirrors apiSaveCashierWithdrawals: both accumulators are read under
         // lock because cashier rows are not the only source of ledger movement.
@@ -759,6 +760,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                     ':unit' => $unit,
                     ':pack_qty' => $packQty,
                     ':uid' => $userId,
+                    ':uid_name' => $encodedByNameSnapshot,
                     ':luid' => $liableUserId,
                     ':luid_name' => $liableUserName,
                     ':dedup' => $dedupHash,

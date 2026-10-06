@@ -7957,12 +7957,13 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $ctx->db()->beginTransaction();
     try {
         dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
-        // Snapshot the charged person's name as it reads now (migration 060), so a
-        // later rename of that account cannot rewrite who this charge was for.
+        // Snapshot names as they read now so later account renames cannot rewrite
+        // who encoded the entry or who a charge was for.
+        $encodedByNameSnapshot = dl_userDisplayNameById($ctx->db(), $userId);
         $liableUserName = dl_userDisplayNameById($ctx->db(), $liableUserId);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, liable_user_id, liable_user_name, dedup_hash)
-             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :luid, :luid_name, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, encoded_by_name_snapshot, liable_user_id, liable_user_name, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :uid_name, :luid, :luid_name, :dedup)'
         );
         // Both accumulator columns are read under the row lock. Cashier rows are
         // only one source of ledger movement (dispatches also move withdraw), so
@@ -8032,6 +8033,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     ':unit' => $unit,
                     ':pack_qty' => $packQty,
                     ':uid' => $userId,
+                    ':uid_name' => $encodedByNameSnapshot,
                     ':luid' => $liableUserId,
                     ':luid_name' => $liableUserName,
                     ':dedup' => $dedupHash,
@@ -8834,10 +8836,13 @@ function apiGetIncomingDeliveries(array $params = []): void
     $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
 
     $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.shift AS production_shift, cw.quantity, cw.branch_id AS origin_branch_id,
-                   ob.name AS origin_branch_name, cw.product_id, p.name AS product_name
+                   ob.name AS origin_branch_name, cw.product_id, p.name AS product_name,
+                   cw.encoded_by AS dispatching_cashier_id,
+                   COALESCE(NULLIF(cw.encoded_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name
             FROM dl_cashier_withdrawals cw
             INNER JOIN dl_branches ob ON ob.id = cw.branch_id
             INNER JOIN dl_products p ON p.id = cw.product_id
+            LEFT JOIN dl_users u ON u.id = cw.encoded_by
             WHERE cw.target_branch_id = :bid
               AND cw.withdrawal_type = \'delivery\'
               AND cw.received_at IS NULL'
@@ -8863,6 +8868,8 @@ function apiGetIncomingDeliveries(array $params = []): void
                 'origin_branch_name' => $r['origin_branch_name'],
                 'ledger_date' => $r['ledger_date'],
                 'production_shift' => in_array(($r['production_shift'] ?? null), ['AM', 'PM'], true) ? $r['production_shift'] : null,
+                'dispatching_cashier_id' => $r['dispatching_cashier_id'] !== null ? (int)$r['dispatching_cashier_id'] : null,
+                'dispatching_cashier_name' => $r['dispatching_cashier_name'] !== '' ? $r['dispatching_cashier_name'] : null,
                 'items' => [],
                 'ids' => [],
                 'delivery_ids' => [],
@@ -8881,6 +8888,8 @@ function apiGetIncomingDeliveries(array $params = []): void
         $formalSql = 'SELECT d.id AS delivery_id, d.dr_number, d.delivery_date, d.production_shift,
                              d.origin_id AS origin_branch_id,
                              COALESCE(ob.name, cb.name, d.origin_type) AS origin_branch_name,
+                             d.posted_by AS dispatching_cashier_id,
+                             COALESCE(NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name,
                              di.id AS delivery_item_id,
                              di.product_id, p.name AS product_name, di.quantity
                       FROM dl_deliveries d
@@ -8888,6 +8897,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                       INNER JOIN dl_products p ON p.id = di.product_id
                       LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type = "branch"
                       LEFT JOIN dl_branches cb ON cb.id = d.origin_id AND d.origin_type = "commissary"
+                      LEFT JOIN dl_users u ON u.id = d.posted_by
                       WHERE d.destination_type = "branch"
                         AND d.destination_id = :bid
                         AND d.status = "posted"
@@ -8912,6 +8922,8 @@ function apiGetIncomingDeliveries(array $params = []): void
                     'origin_branch_name' => $row['origin_branch_name'],
                     'ledger_date' => $row['delivery_date'],
                     'production_shift' => in_array(($row['production_shift'] ?? null), ['AM', 'PM'], true) ? $row['production_shift'] : null,
+                    'dispatching_cashier_id' => $row['dispatching_cashier_id'] !== null ? (int)$row['dispatching_cashier_id'] : null,
+                    'dispatching_cashier_name' => $row['dispatching_cashier_name'] !== '' ? $row['dispatching_cashier_name'] : null,
                     'items' => [],
                     'ids' => [],
                     'delivery_ids' => [(int)$row['delivery_id']],
