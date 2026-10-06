@@ -532,6 +532,12 @@
         justify-content: center;
         white-space: nowrap;
     }
+    #tab-daily-sheet .production-branch-cell .production-branch-trigger[aria-disabled="true"] {
+        color: #9ca3af;
+        background: #f3f4f6;
+        border-color: #d1d5db;
+        cursor: not-allowed;
+    }
     /* ONE control box for all four entry controls. width:100% inside the shared
        6px cell padding makes every control exactly its column's content box,
        so nothing overflows and every control matches. height:34px is the proven
@@ -1473,9 +1479,10 @@
                                     data-branch="{cell.branch_id}"
                                     data-branch-name="{cell.branch_name}"
                                     data-exists="{if cell.has_entry}1{else}0{/if}"
-                                    {if shift_status == 'finalized'}disabled{/if}
+                                    {if shift_status == 'finalized' || !cell.is_assigned}disabled{/if}
+                                    {if !cell.is_assigned}aria-disabled="true"{/if}
                                     onclick="openBranchCellModal({row.product_id}, {cell.branch_id})"
-                                    title="Record a delivery for {row.sheet_label} to {cell.branch_name}">
+                                    title="{if !cell.is_assigned}Not available: {row.sheet_label} is not assigned to {cell.branch_name}{else}Record a delivery for {row.sheet_label} to {cell.branch_name}{/if}">
                                 <span class="production-branch-value" data-product="{row.product_id}" data-branch-id="{cell.branch_id}">{cell.quantity}</span>
                                 <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
                             </button>

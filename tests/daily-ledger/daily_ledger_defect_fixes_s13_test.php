@@ -301,6 +301,8 @@ $seedBranch($fix3Comm, 'S13-F3C', 'S13 F3 Commissary', true);
 $seedBranch($fix3Branch, 'S13-F3B', 'S13 F3 Branch', false);
 $seedProduct($fix3Product, 'S13-F3P', 'S13 F3 Product');
 $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$fix3Comm, $fix3Product]);
+// G2: a sheet delivery requires the destination branch to carry the product.
+$db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$fix3Branch, $fix3Product]);
 $fix3Date = '2031-02-20';
 
 dl_recordDailySheetBranchEntry($admin, [

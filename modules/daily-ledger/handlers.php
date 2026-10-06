@@ -3918,6 +3918,13 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         throw new \RuntimeException('Product is not active for this commissary.');
     }
 
+    // Destination assignment: the store must also carry the product. Slice A
+    // validates the source (above); this is the destination half of the same
+    // rule, so a stale sheet tab or offline replay cannot create a delivery to
+    // a branch the product is no longer shown in. Throws
+    // DlProductNotAssignedException (PRODUCT_NOT_ASSIGNED) before any write.
+    dl_assertBranchProductAssigned($db, $branchId, $productId);
+
     $hasEntry = dl_dailySheetCellHasEntry($db, $date, $commissaryBranchId, $productId, $branchId, $shift);
     $type = '';
     $reasonCode = '';
@@ -17274,6 +17281,19 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
     }
     $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // Usage is an operational entry surface: offer only globally active
+    // products currently assigned to the selected destination branch.
+    if ($selectedBranchId > 0) {
+        $assignedStmt = $db->prepare(
+            'SELECT product_id FROM dl_branch_products WHERE branch_id = :bid AND is_active = 1'
+        );
+        $assignedStmt->execute([':bid' => $selectedBranchId]);
+        $assignedProductIds = array_fill_keys(array_map('intval', $assignedStmt->fetchAll(PDO::FETCH_COLUMN) ?: []), true);
+        $products = array_values(array_filter($products, static function (array $product) use ($assignedProductIds): bool {
+            return !empty($product['is_active']) && isset($assignedProductIds[(int)$product['id']]);
+        }));
+    }
+
     $paperCaptureItems = [];
     if ($selectedBranchId > 0) {
         $paperStmt = $db->prepare(
@@ -17815,6 +17835,18 @@ function handleAdminCommissary(): void
     $sheetDispatchEntries = dl_fetchProductionSheetDispatchEntryFlags($db, $rawDate, $selectedCommissaryId, $shift);
     $sheetReceiving = dl_fetchProductionSheetReceivingMatrix($db, $rawDate, $selectedCommissaryId, $shift);
 
+    // Destination assignment controls whether a branch cell is offered for
+    // entry. Build one map without changing either the product universe or the
+    // branch column set; historical dispatch/receipt data remains visible even
+    // when its cell is no longer enterable.
+    $sheetAssignmentMap = [];
+    $assignmentStmt = $db->query(
+        'SELECT branch_id, product_id FROM dl_branch_products WHERE is_active = 1'
+    );
+    foreach ($assignmentStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $assignment) {
+        $sheetAssignmentMap[(int)$assignment['product_id']][(int)$assignment['branch_id']] = true;
+    }
+
     $sheetLedgerSql = "SELECT product_id,
                               COUNT(*) AS ledger_row_count,
                               SUM(beg_qty) AS beg_qty,
@@ -17918,6 +17950,7 @@ function handleAdminCommissary(): void
                 'quantity' => $quantity,
                 'has_entry' => isset($sheetDispatchEntries[$productId][$branchId]),
                 'has_delivery' => $receiving !== null,
+                'is_assigned' => isset($sheetAssignmentMap[$productId][$branchId]),
                 'received_qty' => $receivedQty,
                 'received_pending' => $receivedPending,
                 'not_independently_counted' => $notIndependentlyCounted,
@@ -18884,7 +18917,11 @@ function apiCommissaryDispatch(): void
             $ctx->json(['ok' => true] + $result);
         } catch (Throwable $e) {
             write_log('apiCommissaryDispatch sheet entry error: ' . $e->getMessage(), 'error');
-            $ctx->json(['ok' => false, 'error' => $e->getMessage()], $e->getCode() === 403 ? 403 : 422);
+            $payload = ['ok' => false, 'error' => $e->getMessage()];
+            if ($e instanceof DlProductNotAssignedException) {
+                $payload['code'] = $e->errorCode();
+            }
+            $ctx->json($payload, $e->getCode() === 403 ? 403 : 422);
         }
         return;
     }

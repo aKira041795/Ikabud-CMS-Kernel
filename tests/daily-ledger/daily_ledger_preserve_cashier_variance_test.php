@@ -103,6 +103,8 @@ try {
     $db->prepare('INSERT INTO dl_branches (id,code,name,is_commissary,assigned_commissary_id,default_supply_mode,is_active) VALUES (?,?,?,0,?,"commissary_supplied",1)')->execute([$destination, 'PC-DEST', 'PC Destination', $commissary]);
     $db->prepare('INSERT INTO dl_products (id,sku,name,current_price,is_active) VALUES (?,?,?,10,1)')->execute([$product, 'PC-P', 'PC Product']);
     $db->prepare('INSERT INTO dl_branch_products (branch_id,product_id,is_active) VALUES (?,?,1)')->execute([$commissary, $product]);
+    // G2: the Daily Sheet delivery path requires the destination to carry the product too.
+    $db->prepare('INSERT INTO dl_branch_products (branch_id,product_id,is_active) VALUES (?,?,1)')->execute([$destination, $product]);
     $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id,product_id,ledger_date,beg_qty,produced_qty,dispatched_qty,actual_end_qty) VALUES (?,?,?,30,30,20,40)')->execute([$commissary, $product, $date]);
 
     $itemA = 0;

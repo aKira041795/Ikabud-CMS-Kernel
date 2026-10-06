@@ -167,6 +167,9 @@ try {
         ->execute([$commissaryId, $productA, 1]);
     $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, ?)')
         ->execute([$commissaryId, $productB, 1]);
+    // G2: the destination store must carry the product for a sheet delivery.
+    $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, ?)')
+        ->execute([$branchA, $productA, 1]);
 
     $first = dl_recordDailySheetBranchEntry($user, [
         'date' => $date,

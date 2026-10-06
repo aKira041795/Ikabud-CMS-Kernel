@@ -997,6 +997,17 @@ function apiCreateDelivery(array $params = []): void
         $remarks = $remarks !== null && $remarks !== ''
             ? 'Admin recovery reason: ' . $recoveryReason . "\n" . $remarks
             : 'Admin recovery reason: ' . $recoveryReason;
+
+        // The destination's current product list is authoritative even for a
+        // stale admin tab. Refuse the whole document before opening a
+        // transaction so no delivery or item row can be partially created.
+        foreach ($items as $item) {
+            $refusal = dl_branchProductAssignmentRefusal($ctx->db(), (int)$destId, (int)$item['product_id']);
+            if ($refusal !== null) {
+                $ctx->json(['ok' => false, 'code' => 'PRODUCT_NOT_ASSIGNED', 'error' => $refusal], 422);
+                return;
+            }
+        }
     }
 
     $priceGroupId = null;

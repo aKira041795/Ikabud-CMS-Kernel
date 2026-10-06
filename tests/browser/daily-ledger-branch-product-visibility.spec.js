@@ -458,3 +458,29 @@ test('add product modal: horizontal grid — two columns desktop, one mobile (re
 
     await page.screenshot({ path: '/tmp/add-product-modal-horizontal.png', fullPage: false });
 });
+
+test('G2 production sheet keeps every branch column and row cell intact (read-only)', async ({ page }) => {
+    await login(page);
+    const resp = await page.goto('/daily-ledger/admin/commissary', { waitUntil: 'domcontentloaded' });
+    console.log('commissary HTTP:', resp && resp.status());
+    await page.waitForSelector('#production-ledger-table .daily-sheet-product-row', { timeout: 120000 });
+
+    const rows = page.locator('#production-ledger-table .daily-sheet-product-row');
+    const headers = page.locator('#production-ledger-table thead .daily-sheet-branch-column');
+    const rowCount = await rows.count();
+    const branchCount = await headers.count();
+    const cellCount = await page.locator('#production-ledger-table .production-branch-cell').count();
+    const disabledByAssignment = await page.locator('#production-ledger-table .production-branch-trigger[aria-disabled="true"]').count();
+
+    console.log('--- G2 PRODUCTION SHEET (READ-ONLY) ------------------------');
+    console.log('product rows      :', rowCount);
+    console.log('branch columns    :', branchCount);
+    console.log('branch cells      :', cellCount);
+    console.log('assignment-disabled:', disabledByAssignment, '(tenant 207 has zero hidden pairs)');
+
+    expect(resp && resp.status()).toBe(200);
+    expect(rowCount).toBeGreaterThan(0);
+    expect(branchCount).toBeGreaterThan(0);
+    expect(cellCount, 'every product row must retain every destination column').toBe(rowCount * branchCount);
+    expect(disabledByAssignment, 'live tenant has no hidden pairs, so the disabled state cannot be exercised read-only').toBe(0);
+});
