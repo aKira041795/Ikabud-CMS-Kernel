@@ -1551,6 +1551,141 @@ function dl_businessDate(?\DateTimeImmutable $now = null): string
     }
 }
 
+/**
+ * Close ONE branch business day with the existing auto-close policy.
+ *
+ * Extracted from dl_maybeAutoCloseBranchDay() so the bounded backward sweep
+ * can apply exactly the SAME treatment to older days without re-implementing
+ * a single rule. Owns its transaction when the caller is not already in one.
+ *
+ * @return string 'closed' | 'already_closed' | 'reopened' | 'failed'
+ */
+function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $settings, ?int $closeActorId, bool $emitPerDayNotification): string
+{
+    $db = $ctx->db();
+    $ownsTxn = !$db->inTransaction();
+    if ($ownsTxn) {
+        $db->beginTransaction();
+    }
+    try {
+        $lockedStatus = dl_lockDayStatusRow($db, $branchId, $date);
+        if ($lockedStatus === 'closed') {
+            if ($ownsTxn) {
+                $db->commit();
+            }
+            return 'already_closed';
+        }
+
+        // A day that an admin/supervisor deliberately reopened (apiReopenDay
+        // sets reopened_by/reopened_at) must STAY open until it is closed
+        // manually. Without this exemption the next auto-close pass re-closes
+        // the just-reopened day on the very next request, so admin reopen of a
+        // previous day appears to fail for both AM and PM. Keying on
+        // reopened_at preserves the offline late-ending bridge
+        // (dl_reopenDayForLateEnding) which reopens WITHOUT setting reopened_at
+        // and relies on the next auto-close pass to re-close.
+        $reopenStmt = $db->prepare(
+            'SELECT reopened_at FROM dl_ledger_day_status
+              WHERE branch_id = :bid AND ledger_date = :d LIMIT 1'
+        );
+        $reopenStmt->execute([':bid' => $branchId, ':d' => $date]);
+        $reopenedAt = $reopenStmt->fetchColumn();
+        if ($reopenedAt !== false && $reopenedAt !== null && (string)$reopenedAt !== '') {
+            if ($ownsTxn) {
+                $db->commit();
+            }
+            return 'reopened';
+        }
+
+        // POS/fallback days close under their own receipt/checkpoint rules.
+        // A fully-manual day closes at the cutoff even when its PM shift is
+        // still open: a day left open compounds into the next day (owner
+        // directive 2026-10-05). The gap is flagged, the admin is notified, and
+        // the cashier is locked out of the closed day; the admin reopen is the
+        // remedy. Variance recompute/freeze still only runs for a finalized day.
+        // (Superseded contract 2026-10-05 D1, which refused the close and left
+        // the day open so the cashier kept the late-count window.)
+        if (dl_isFullyManualDay($db, $branchId, $date)) {
+            $pmRow = dl_lockShiftStatusRow($db, $branchId, $date, 'PM');
+            if ((string)($pmRow['status'] ?? 'open') !== 'finalized') {
+                // The day closes anyway: leaving it open is exactly what
+                // compounds the gap into the next day. Flag it and fall through
+                // to the normal close INSERT below. The audit and flag are
+                // idempotent, so re-running this path does not duplicate them.
+                $notify = $db->prepare(
+                    'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
+                      WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
+                );
+                $notify->execute([':bid' => $branchId, ':d' => $date]);
+
+                // One audit row per day, not one per request: the aggregate
+                // close below is idempotent, but this path can re-run.
+                $auditStmt = $db->prepare(
+                    'SELECT COUNT(*) FROM audit_logs
+                      WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
+                );
+                $auditStmt->execute([':eid' => "{$branchId}-{$date}-PM"]);
+                if ((int)$auditStmt->fetchColumn() === 0) {
+                    dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", null, [
+                        'status' => 'closed_without_pm_finalize',
+                        'source' => 'auto_close_cutoff',
+                        'close_of_day_time' => $settings['close_of_day_time'],
+                    ]);
+                }
+
+                // D4: tell the admin immediately, through the existing channel.
+                // Only for the day's own (yesterday) close; the older-day sweep
+                // aggregates its notifications into ONE summary per pass so a
+                // backlog cannot flood the admin (see dl_maybeAutoCloseBranchDay).
+                if ($emitPerDayNotification) {
+                    dl_raiseIntegrityNotification(
+                        $db,
+                        'closed_without_pm_finalize-day-' . $branchId . '-' . $date,
+                        'closed_without_pm_finalize',
+                        $branchId,
+                        'dl_ledger_day_status',
+                        null,
+                        'Business day closed with PM shift still open',
+                        'Branch #' . $branchId . ' business date ' . $date . ' reached the close-of-day cutoff while its PM shift was still open. The day WAS closed while its PM shift was still open, so pending endings still need completing. An admin must REOPEN the day so the encoder can complete the pending endings and finalize the PM shift.'
+                    );
+                }
+            } else {
+                // Finalized manual day: full variance sweep + freeze before closing.
+                dl_recomputeVariancesForDay($branchId, $date, false);
+                dl_freezeVarianceFlags($db, $branchId, $date, $closeActorId);
+            }
+        }
+
+        $stmt = $db->prepare(
+            'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_by, closed_at)
+             VALUES (:bid, :d, \'closed\', :uid, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE status = \'closed\', closed_by = VALUES(closed_by), closed_at = CURRENT_TIMESTAMP'
+        );
+        $stmt->execute([':bid' => $branchId, ':d' => $date, ':uid' => $closeActorId]);
+
+        dl_auditLog('auto_close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", null, [
+            'status' => 'closed',
+            'source' => 'cutoff',
+            'close_of_day_time' => $settings['close_of_day_time'],
+        ]);
+
+        if ($ownsTxn) {
+            $db->commit();
+        }
+        return 'closed';
+    } catch (\Throwable $e) {
+        if ($ownsTxn && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        write_log('daily-ledger auto close failed', 'error', [
+            'branch_id' => $branchId,
+            'ledger_date' => $date,
+            'error' => $e->getMessage(),
+        ]);
+        return 'failed';
+    }
+}
+
 function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateTimeImmutable $now = null): bool
 {
     if ($branchId <= 0) {
@@ -1567,9 +1702,6 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
     // The shift before the *current* business date has already ended.
     $currentBusinessDate = dl_businessDate($now);
     $closeDate = (new \DateTimeImmutable($currentBusinessDate))->modify('-1 day')->format('Y-m-d');
-    if (dl_getDayStatus($branchId, $closeDate) === 'closed') {
-        return false;
-    }
 
     $ctx = module();
     if (!$ctx) {
@@ -1577,123 +1709,130 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
     }
 
     $closeActorId = ($actorId !== null && $actorId > 0) ? $actorId : null;
-    $ownsTxn = !$ctx->db()->inTransaction();
-    if ($ownsTxn) {
-        $ctx->db()->beginTransaction();
+    $closedAny = false;
+
+    // ── Yesterday: exactly the existing behaviour, including its per-day
+    //    closed_without_pm_finalize notification. ───────────────────────────
+    if (dl_getDayStatus($branchId, $closeDate) !== 'closed') {
+        $outcome = dl_autoCloseBranchDayAt($ctx, $branchId, $closeDate, $settings, $closeActorId, true);
+        if ($outcome === 'closed') {
+            $closedAny = true;
+        }
+        // 'reopened' (deliberate admin work) and 'already_closed' deliberately
+        // fall through to the sweep below, so a day that was missed on its own
+        // "yesterday" is still recoverable even though today's yesterday is
+        // already closed.
     }
+
+    // ── Bounded backward sweep of older days ──────────────────────────────
+    // A day missed on the single day it was "yesterday" is never revisited by
+    // the single-date close above, so stale open days accumulate forever. Walk
+    // backward from the day before yesterday and apply the SAME close policy.
+    //
+    // MAX OLDER DAYS CLOSED PER PASS: 7. This runs on page loads, so the pass
+    // must stay cheap; one week of backlog per request converges within a few
+    // page loads without a long request. A deliberately reopened day costs one
+    // probe and does NOT count against the cap, so it can never block the
+    // sweep.
+    //
+    // STOP CONDITION: an already-closed day, or a day that was never in use
+    // (no day-status row AND no ledger activity), ends the walk. That is what
+    // makes the steady state cheap: with nothing stale the very first probe
+    // (the day before yesterday) is closed and the extra cost is one SELECT.
+    //
+    // COLLECT-THEN-CLOSE, OLDEST FIRST: closing the newest days first would,
+    // on the next request, hit the just-closed newest day and stop, so a
+    // backlog larger than the cap could never drain. Closing the OLDEST
+    // qualifying days first leaves the newest still open as the next pass's
+    // entry point, which is exactly what lets a capped remainder finish on a
+    // later pass. The collection is still a backward walk; only the order in
+    // which the collected days are closed is oldest-first.
+    $maxOlderClosedPerPass = 7;
+    $maxDaysProbedPerPass = 31;
+    $cursor = (new \DateTimeImmutable($closeDate))->modify('-1 day');
+    $qualifyingOlder = [];
+    $probed = 0;
     try {
-        $lockedStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $closeDate);
-        if ($lockedStatus === 'closed') {
-            if ($ownsTxn) {
-                $ctx->db()->commit();
-            }
-            return false;
-        }
-
-        // A day that an admin/supervisor deliberately reopened (apiReopenDay
-        // sets reopened_by/reopened_at) must STAY open until it is closed
-        // manually. Without this exemption the next auto-close pass re-closes
-        // the just-reopened day on the very next request, so admin reopen of a
-        // previous day appears to fail for both AM and PM. Keying on
-        // reopened_at preserves the offline late-ending bridge
-        // (dl_reopenDayForLateEnding) which reopens WITHOUT setting reopened_at
-        // and relies on the next auto-close pass to re-close.
-        $reopenStmt = $ctx->db()->prepare(
-            'SELECT reopened_at FROM dl_ledger_day_status
-              WHERE branch_id = :bid AND ledger_date = :d LIMIT 1'
+        $probe = $ctx->db()->prepare(
+            'SELECT ds.status AS day_status, ds.reopened_at AS reopened_at,
+                    (SELECT COUNT(*) FROM dl_daily_ledger dl
+                      WHERE dl.branch_id = ? AND dl.ledger_date = ?) AS activity_rows
+               FROM (SELECT 1) AS one
+               LEFT JOIN dl_ledger_day_status ds
+                      ON ds.branch_id = ? AND ds.ledger_date = ?
+              LIMIT 1'
         );
-        $reopenStmt->execute([':bid' => $branchId, ':d' => $closeDate]);
-        $reopenedAt = $reopenStmt->fetchColumn();
-        if ($reopenedAt !== false && $reopenedAt !== null && (string)$reopenedAt !== '') {
-            if ($ownsTxn) {
-                $ctx->db()->commit();
+        while ($probed < $maxDaysProbedPerPass) {
+            $date = $cursor->format('Y-m-d');
+            $probed++;
+            $probe->execute([$branchId, $date, $branchId, $date]);
+            $row = $probe->fetch(PDO::FETCH_ASSOC) ?: [];
+            $dayStatus = (string)($row['day_status'] ?? '');
+            $reopenedAt = (string)($row['reopened_at'] ?? '');
+            $hasActivity = (int)($row['activity_rows'] ?? 0) > 0;
+
+            if ($dayStatus === 'closed') {
+                break; // a genuinely closed day is the wall
             }
-            return false;
-        }
-
-        // POS/fallback days close under their own receipt/checkpoint rules.
-        // A fully-manual day closes at the cutoff even when its PM shift is
-        // still open: a day left open compounds into the next day (owner
-        // directive 2026-10-05). The gap is flagged, the admin is notified, and
-        // the cashier is locked out of the closed day; the admin reopen is the
-        // remedy. Variance recompute/freeze still only runs for a finalized day.
-        // (Superseded contract 2026-10-05 D1, which refused the close and left
-        // the day open so the cashier kept the late-count window.)
-        if (dl_isFullyManualDay($ctx->db(), $branchId, $closeDate)) {
-            $pmRow = dl_lockShiftStatusRow($ctx->db(), $branchId, $closeDate, 'PM');
-            if ((string)($pmRow['status'] ?? 'open') !== 'finalized') {
-                // The day closes anyway: leaving it open is exactly what
-                // compounds the gap into the next day. Flag it, tell the admin,
-                // then fall through to the normal close INSERT below. The
-                // notification is per-day (aggregate key), so re-running this
-                // path on every page load does not duplicate it.
-                $notify = $ctx->db()->prepare(
-                    'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
-                      WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
-                );
-                $notify->execute([':bid' => $branchId, ':d' => $closeDate]);
-
-                // One audit row per day, not one per request: the aggregate
-                // close below is idempotent, but this path can re-run.
-                $auditStmt = $ctx->db()->prepare(
-                    'SELECT COUNT(*) FROM audit_logs
-                      WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
-                );
-                $auditStmt->execute([':eid' => "{$branchId}-{$closeDate}-PM"]);
-                if ((int)$auditStmt->fetchColumn() === 0) {
-                    dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$closeDate}-PM", null, [
-                        'status' => 'closed_without_pm_finalize',
-                        'source' => 'auto_close_cutoff',
-                        'close_of_day_time' => $settings['close_of_day_time'],
-                    ]);
-                }
-
-                // D4: tell the admin immediately, through the existing channel.
-                dl_raiseIntegrityNotification(
-                    $ctx->db(),
-                    'closed_without_pm_finalize-day-' . $branchId . '-' . $closeDate,
-                    'closed_without_pm_finalize',
-                    $branchId,
-                    'dl_ledger_day_status',
-                    null,
-                    'Business day closed with PM shift still open',
-                    'Branch #' . $branchId . ' business date ' . $closeDate . ' reached the close-of-day cutoff while its PM shift was still open. The day WAS closed while its PM shift was still open, so pending endings still need completing. An admin must REOPEN the day so the encoder can complete the pending endings and finalize the PM shift.'
-                );
-            } else {
-                // Finalized manual day: full variance sweep + freeze before closing.
-                dl_recomputeVariancesForDay($branchId, $closeDate, false);
-                dl_freezeVarianceFlags($ctx->db(), $branchId, $closeDate, $closeActorId);
+            if ($reopenedAt !== '') {
+                // Deliberately reopened by an admin: leave it open and KEEP
+                // walking, so one reopened day cannot block the whole sweep.
+                $cursor = $cursor->modify('-1 day');
+                continue;
             }
+            if ($dayStatus !== 'open' && !$hasActivity) {
+                // Idle day that was never started: stop. NEVER fabricate a
+                // day-status row for a day that has neither a row nor activity.
+                break;
+            }
+            $qualifyingOlder[] = $date;
+            $cursor = $cursor->modify('-1 day');
         }
-
-        $stmt = $ctx->db()->prepare(
-            'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_by, closed_at)
-             VALUES (:bid, :d, \'closed\', :uid, CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE status = \'closed\', closed_by = VALUES(closed_by), closed_at = CURRENT_TIMESTAMP'
-        );
-        $stmt->execute([':bid' => $branchId, ':d' => $closeDate, ':uid' => $closeActorId]);
-
-        dl_auditLog('auto_close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$closeDate}", null, [
-            'status' => 'closed',
-            'source' => 'cutoff',
-            'close_of_day_time' => $settings['close_of_day_time'],
-        ]);
-
-        if ($ownsTxn) {
-            $ctx->db()->commit();
-        }
-        return true;
     } catch (\Throwable $e) {
-        if ($ownsTxn && $ctx->db()->inTransaction()) {
-            $ctx->db()->rollBack();
-        }
-        write_log('daily-ledger auto close failed', 'error', [
+        // A probe failure must not take the page down; the yesterday close has
+        // already committed. Report and stop this pass's sweep.
+        write_log('daily-ledger sweep probe failed', 'error', [
             'branch_id' => $branchId,
-            'ledger_date' => $closeDate,
             'error' => $e->getMessage(),
         ]);
-        return false;
     }
+
+    $sweptDates = [];
+    foreach (array_reverse($qualifyingOlder) as $date) {
+        if (count($sweptDates) >= $maxOlderClosedPerPass) {
+            break;
+        }
+        $outcome = dl_autoCloseBranchDayAt($ctx, $branchId, $date, $settings, $closeActorId, false);
+        if ($outcome === 'closed') {
+            $sweptDates[] = $date;
+            $closedAny = true;
+        }
+    }
+
+    if ($sweptDates !== []) {
+        // ONE summary notification per branch per pass instead of one per swept
+        // day: a 15-day backlog would otherwise flood the admin. The aggregate
+        // key carries the closed range, so retrying the same pass dedups while a
+        // later backlog raises its own summary. The yesterday close above keeps
+        // its existing per-day notification, untouched. The existing
+        // closed_without_pm_finalize finding type is reused because stale days
+        // are the same class of event (a missed cutoff) and adding an enum value
+        // would need a migration, which this change must not require.
+        $oldest = $sweptDates[0];
+        $newest = $sweptDates[count($sweptDates) - 1];
+        dl_raiseIntegrityNotification(
+            $ctx->db(),
+            'auto_close_sweep-' . $branchId . '-' . $oldest . '-' . $newest,
+            'closed_without_pm_finalize',
+            $branchId,
+            'dl_ledger_day_status',
+            null,
+            'Stale business days auto-closed',
+            'Branch #' . $branchId . ' auto-closed ' . count($sweptDates) . ' stale business day(s) missed at their cutoff: ' . $oldest . ' to ' . $newest . '. An admin must reopen a day to complete any pending shift endings.'
+        );
+    }
+
+    return $closedAny;
 }
 
 function dl_maybeAutoCloseBranches(array $branchIds, ?int $actorId = null, ?\DateTimeImmutable $now = null): void
