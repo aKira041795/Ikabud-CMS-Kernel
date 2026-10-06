@@ -5030,12 +5030,15 @@ function dl_shiftMissingEndings($db, int $branchId, string $date, string $shift)
 
 /**
  * Every activity-bearing, ending-less ledger row that would be STRANDED by
- * hiding a product: one that still sits on an ACTIONABLE date. A row blocks
- * while its date is the current business date or an earlier date whose
- * dl_ledger_day_status is absent/'open'. A CLOSED day never blocks — it is not
- * actionable and its rows cannot be edited anyway; a no-activity row and a row
- * with a recorded ending never block, so a long-discontinued product can be
- * unassigned immediately.
+ * hiding a product: one that still sits on an ACTIONABLE date. Under the
+ * owner-approved OPTION A scope a row blocks ONLY while an operator can still
+ * act on it WITHOUT an admin reopen:
+ *   - ledger_date = the CURRENT business date -> always blocks; or
+ *   - ledger_date = the PREVIOUS business date AND the day is not 'closed'.
+ * Older open days do NOT block — they are reported by
+ * dl_productOlderOpenDayWarnings() as information instead. A CLOSED day never
+ * blocks; a no-activity row and a row with a recorded ending never block, so a
+ * long-discontinued product can be unassigned immediately.
  *
  * Read-only: it selects and returns, it never writes. Returns every blocking
  * date+shift (never just a count) across BOTH ledgers, because a branch may be
@@ -5049,6 +5052,8 @@ function dl_productUnfinishedEndingBlockers($db, int $productId, ?int $branchId 
         return [];
     }
     $today = dl_businessDate();
+    // Same derivation the rest of the module uses (dl_cashierMayEdit, dl_maybeAutoCloseBranchDay).
+    $previous = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
     $blockers = [];
 
     // Cashier ledger: bal_end NULL with a real movement.
@@ -5060,9 +5065,9 @@ function dl_productUnfinishedEndingBlockers($db, int $productId, ?int $branchId 
           WHERE dl.product_id = :pid
             AND dl.bal_end IS NULL
             AND (dl.beg_bal <> 0 OR dl.addtl <> 0 OR dl.withdraw <> 0)
-            AND dl.ledger_date <= :today
-            AND COALESCE(ds.status, \'open\') <> \'closed\'';
-    $cashierBind = [':pid' => $productId, ':today' => $today];
+            AND (dl.ledger_date = :today
+                 OR (dl.ledger_date = :prev AND COALESCE(ds.status, \'open\') <> \'closed\'))';
+    $cashierBind = [':pid' => $productId, ':today' => $today, ':prev' => $previous];
     if ($branchId !== null) {
         $cashierSql .= ' AND dl.branch_id = :bid';
         $cashierBind[':bid'] = $branchId;
@@ -5089,9 +5094,9 @@ function dl_productUnfinishedEndingBlockers($db, int $productId, ?int $branchId 
           WHERE cpl.product_id = :pid
             AND cpl.actual_end_qty IS NULL
             AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)
-            AND cpl.ledger_date <= :today
-            AND COALESCE(ds.status, \'open\') <> \'closed\'';
-    $commissaryBind = [':pid' => $productId, ':today' => $today];
+            AND (cpl.ledger_date = :today
+                 OR (cpl.ledger_date = :prev AND COALESCE(ds.status, \'open\') <> \'closed\'))';
+    $commissaryBind = [':pid' => $productId, ':today' => $today, ':prev' => $previous];
     if ($branchId !== null) {
         $commissarySql .= ' AND cpl.commissary_branch_id = :bid';
         $commissaryBind[':bid'] = $branchId;
@@ -5137,6 +5142,102 @@ function dl_branchProductUnassignmentBlockers($db, int $branchId, int $productId
 function dl_productDeactivationBlockers($db, int $productId): array
 {
     return dl_productUnfinishedEndingBlockers($db, $productId, null);
+}
+
+/**
+ * INFORMATIONAL companion to the narrowed removal guard (OPTION A). Lists the
+ * OLDER-than-yesterday dates+shifts that still carry an activity-bearing,
+ * ending-less ledger row on a day that is NOT closed, across BOTH ledgers.
+ * These rows do NOT block unassignment — an operator cannot act on them without
+ * an admin reopen — but the admin must still be able to SEE them so a stalled
+ * day is not silently hidden by the scope narrowing. Read-only; never use the
+ * result to refuse a write.
+ *
+ * Each returned row has the blocker shape plus a human-readable 'summary'.
+ * Returns [] when there is nothing older.
+ *
+ * @return array<int,array{branch_id:int,ledger:string,date:string,shift:?string,product_id:int,summary:string}>
+ */
+function dl_productOlderOpenDayWarnings($db, int $productId, ?int $branchId = null): array
+{
+    if ($productId <= 0) {
+        return [];
+    }
+    $today = dl_businessDate();
+    // Same derivation the rest of the module uses (dl_cashierMayEdit, dl_maybeAutoCloseBranchDay).
+    $previous = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+    $warnings = [];
+
+    // Cashier ledger: older than yesterday, activity-bearing, no ending, not closed.
+    $cashierSql =
+        'SELECT dl.branch_id, dl.ledger_date, dl.shift
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_ledger_day_status ds
+             ON ds.branch_id = dl.branch_id AND ds.ledger_date = dl.ledger_date
+          WHERE dl.product_id = :pid
+            AND dl.bal_end IS NULL
+            AND (dl.beg_bal <> 0 OR dl.addtl <> 0 OR dl.withdraw <> 0)
+            AND dl.ledger_date < :prev
+            AND COALESCE(ds.status, \'open\') <> \'closed\'';
+    $cashierBind = [':pid' => $productId, ':prev' => $previous];
+    if ($branchId !== null) {
+        $cashierSql .= ' AND dl.branch_id = :bid';
+        $cashierBind[':bid'] = $branchId;
+    }
+    $cashierSql .= ' ORDER BY dl.ledger_date, dl.shift';
+    $stmt = $db->prepare($cashierSql);
+    $stmt->execute($cashierBind);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $date = (string)$row['ledger_date'];
+        $shift = $row['shift'] !== null ? (string)$row['shift'] : '';
+        $warnings[] = [
+            'branch_id' => (int)$row['branch_id'],
+            'ledger' => 'cashier',
+            'date' => $date,
+            'shift' => $row['shift'] !== null ? (string)$row['shift'] : null,
+            'product_id' => $productId,
+            'summary' => "Cashier branch {$row['branch_id']}: {$date}" . ($shift !== '' ? " {$shift}" : '') . ' has activity but no ending (day is still open).',
+        ];
+    }
+
+    // Commissary ledger: older than yesterday, activity-bearing, no actual ending, not closed.
+    $commissarySql =
+        'SELECT cpl.commissary_branch_id AS branch_id, cpl.ledger_date, cpl.shift
+           FROM dl_commissary_product_ledger cpl
+           LEFT JOIN dl_ledger_day_status ds
+             ON ds.branch_id = cpl.commissary_branch_id AND ds.ledger_date = cpl.ledger_date
+          WHERE cpl.product_id = :pid
+            AND cpl.actual_end_qty IS NULL
+            AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)
+            AND cpl.ledger_date < :prev
+            AND COALESCE(ds.status, \'open\') <> \'closed\'';
+    $commissaryBind = [':pid' => $productId, ':prev' => $previous];
+    if ($branchId !== null) {
+        $commissarySql .= ' AND cpl.commissary_branch_id = :bid';
+        $commissaryBind[':bid'] = $branchId;
+    }
+    $commissarySql .= ' ORDER BY cpl.ledger_date, cpl.shift';
+    $stmt = $db->prepare($commissarySql);
+    $stmt->execute($commissaryBind);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $date = (string)$row['ledger_date'];
+        $shift = $row['shift'] !== null ? (string)$row['shift'] : '';
+        $warnings[] = [
+            'branch_id' => (int)$row['branch_id'],
+            'ledger' => 'commissary',
+            'date' => $date,
+            'shift' => $row['shift'] !== null ? (string)$row['shift'] : null,
+            'product_id' => $productId,
+            'summary' => "Commissary branch {$row['branch_id']}: {$date}" . ($shift !== '' ? " {$shift}" : '') . ' has activity but no actual ending (day is still open).',
+        ];
+    }
+
+    usort($warnings, static function (array $a, array $b): int {
+        return [$a['date'], (string)$a['shift'], $a['ledger'], $a['branch_id']]
+            <=> [$b['date'], (string)$b['shift'], $b['ledger'], $b['branch_id']];
+    });
+
+    return $warnings;
 }
 
 /**

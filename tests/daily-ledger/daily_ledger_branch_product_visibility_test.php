@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Daily Ledger — per-branch product visibility, SLICE A (safety core).
+ * Daily Ledger — per-branch product visibility, SLICE A (safety core) + SLICE A2 (guard scope).
  *
  * Proves the removal guard and the write-side assignment validation for the
  * branch-product feature. Every fixture is synthetic (branch/product ids in the
@@ -12,6 +12,12 @@ declare(strict_types=1);
  * Cases G1-G11 from the slice contract. G8/G9 are the discriminating cases:
  * on the base tree the ledger write is ACCEPTED and creates a row; here it must
  * be refused with PRODUCT_NOT_ASSIGNED and create nothing.
+ *
+ * SLICE A2 (Option A) narrows the guard's date scope to the current business
+ * date plus the previous business date while it is not closed. G1-G7 now use the
+ * PREVIOUS business date as their open-day fixture; the N1-N6 cases pin the new
+ * scope, including N4 which must FAIL on the base tree (2cbbd9bc) because the
+ * base blocks on the older open day the new tree permits and warns about.
  *
  * Tenant 207 (baronledger).
  */
@@ -64,13 +70,17 @@ $createdBranchIds = [];
 $payloadFile = tempnam(sys_get_temp_dir(), 'dl-vis-');
 
 $today = dl_businessDate();
-$openPrior = (new \DateTimeImmutable($today))->modify('-3 days')->format('Y-m-d');
+// Option A scope: the PREVIOUS business date (not closed) still blocks, anything
+// older does not. Same derivation the module uses elsewhere.
+$openPrior = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
 $closedDay = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+$olderOpen = (new \DateTimeImmutable($today))->modify('-3 days')->format('Y-m-d');
 
 $guardAvailable = function_exists('dl_branchProductUnassignmentBlockers')
     && function_exists('dl_productDeactivationBlockers')
     && function_exists('dl_setBranchProductActive')
     && function_exists('dl_setProductActive');
+$warningAvailable = function_exists('dl_productOlderOpenDayWarnings');
 
 $countTenant = static function () use ($db): array {
     return [
@@ -140,6 +150,14 @@ $setDayStatus = static function (int $branchId, string $date, string $status) us
 $hasBlocker = static function (array $blockers, string $date, string $shift, string $ledger): bool {
     foreach ($blockers as $b) {
         if (($b['date'] ?? null) === $date && (string)($b['shift'] ?? '') === $shift && ($b['ledger'] ?? null) === $ledger) {
+            return true;
+        }
+    }
+    return false;
+};
+$hasWarning = static function (array $warnings, string $date, string $shift, string $ledger): bool {
+    foreach ($warnings as $w) {
+        if (($w['date'] ?? null) === $date && (string)($w['shift'] ?? '') === $shift && ($w['ledger'] ?? null) === $ledger) {
             return true;
         }
     }
@@ -334,6 +352,150 @@ try {
         $g7ok = dl_setProductActive($db, $prodGlobal, false, 1);
         $h->test('G7 after the missing ending is entered the deactivation SUCCEEDS', ($g7ok['ok'] ?? false) === true && (int)$db->query("SELECT is_active FROM dl_products WHERE id={$prodGlobal}")->fetchColumn() === 0, json_encode($g7ok));
         dl_setProductActive($db, $prodGlobal, true, 1);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // N1-N6: Option A narrowed date scope (Slice A2)
+    // ═════════════════════════════════════════════════════════════════════
+    $h->section('N1 current business date always blocks');
+    if (!$guardAvailable) {
+        $h->fail('N1 current-date guard (pre-slice base tree: guard function absent)', 'guard missing');
+    } else {
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        // No day-status row at all: the current business date blocks regardless.
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $today, 'PM']);
+        $n1 = dl_setBranchProductActive($db, $store, $prodCashier, false, 1);
+        $h->test('N1 an activity-bearing, ending-less row on the CURRENT business date is REFUSED',
+            ($n1['ok'] ?? true) === false
+            && ($n1['code'] ?? '') === 'PRODUCT_UNASSIGNMENT_BLOCKED'
+            && $hasBlocker($n1['blockers'] ?? [], $today, 'PM', 'cashier'),
+            json_encode($n1));
+        $h->test('N1 the pair stays active after the current-date refusal', $pairActive($store, $prodCashier) === 1, 'is_active=' . $pairActive($store, $prodCashier));
+    }
+
+    $h->section('N2 previous business date blocks while NOT closed');
+    if (!$guardAvailable) {
+        $h->fail('N2 previous-date guard (pre-slice base tree: guard function absent)', 'guard missing');
+    } else {
+        // No dl_ledger_day_status row for the previous business date: a missing
+        // status row counts as open (not closed), so this still blocks.
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $openPrior, 'PM']);
+        $n2 = dl_setBranchProductActive($db, $store, $prodCashier, false, 1);
+        $h->test('N2 the PREVIOUS business date blocks while its status row is absent (counts as open)',
+            ($n2['ok'] ?? true) === false
+            && ($n2['code'] ?? '') === 'PRODUCT_UNASSIGNMENT_BLOCKED'
+            && $hasBlocker($n2['blockers'] ?? [], $openPrior, 'PM', 'cashier'),
+            json_encode($n2));
+    }
+
+    $h->section('N3 previous business date CLOSED does not block');
+    if (!$guardAvailable) {
+        $h->fail('N3 closed previous-date guard (pre-slice base tree: guard function absent)', 'guard missing');
+    } else {
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        $setDayStatus($store, $openPrior, 'closed');
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $openPrior, 'PM']);
+        $n3 = dl_setBranchProductActive($db, $store, $prodCashier, false, 1);
+        $h->test('N3 the PREVIOUS business date does NOT block once it is CLOSED', ($n3['ok'] ?? false) === true && $pairActive($store, $prodCashier) === 0, json_encode($n3));
+    }
+
+    $h->section('N4 old open day: NOT blocked, still WARNED (the discriminating case)');
+    if (!$guardAvailable) {
+        $h->fail('N4 old-open-day unassignment is permitted (pre-slice base tree: guard function absent)', 'guard missing');
+    } else {
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        $activatePair($comm, $prodCommissary);
+        // No day-status row for the older open day: it was never closed.
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $olderOpen, 'PM']);
+        $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id,product_id,ledger_date,shift,beg_qty,produced_qty,dispatched_qty,wastage_qty,actual_end_qty) VALUES (?,?,?,?,5,0,0,0,NULL)')
+            ->execute([$comm, $prodCommissary, $olderOpen, 'PM']);
+
+        $h->test('N4 an older OPEN day is NOT in the blocker list',
+            dl_branchProductUnassignmentBlockers($db, $store, $prodCashier) === []
+            && dl_branchProductUnassignmentBlockers($db, $comm, $prodCommissary) === [],
+            'cashier blockers=' . json_encode(dl_productUnfinishedEndingBlockers($db, $prodCashier, $store))
+            . ' commissary blockers=' . json_encode(dl_productUnfinishedEndingBlockers($db, $prodCommissary, $comm)));
+
+        $n4cashier = dl_setBranchProductActive($db, $store, $prodCashier, false, 1);
+        $n4comm = dl_setBranchProductActive($db, $comm, $prodCommissary, false, 1);
+        $h->test('N4 the older-open-day cashier pair is unassignable immediately (base tree REFUSES this)', ($n4cashier['ok'] ?? false) === true && $pairActive($store, $prodCashier) === 0, json_encode($n4cashier));
+        $h->test('N4 the older-open-day commissary pair is unassignable immediately (base tree REFUSES this)', ($n4comm['ok'] ?? false) === true && $pairActive($comm, $prodCommissary) === 0, json_encode($n4comm));
+
+        if (!$warningAvailable) {
+            $h->fail('N4 the warning function reports the older open day (pre-slice base tree: function absent)', 'dl_productOlderOpenDayWarnings missing');
+        } else {
+            $warnCashier = dl_productOlderOpenDayWarnings($db, $prodCashier, $store);
+            $warnComm = dl_productOlderOpenDayWarnings($db, $prodCommissary, $comm);
+            $h->test('N4 the warning function REPORTS the older cashier open day+shift', $hasWarning($warnCashier, $olderOpen, 'PM', 'cashier'), json_encode($warnCashier));
+            $h->test('N4 the warning function REPORTS the older commissary open day+shift', $hasWarning($warnComm, $olderOpen, 'PM', 'commissary'), json_encode($warnComm));
+            $cashierSummary = '';
+            foreach ($warnCashier as $w) {
+                if (($w['date'] ?? null) === $olderOpen) {
+                    $cashierSummary = (string)($w['summary'] ?? '');
+                }
+            }
+            $h->test('N4 the warning carries a human-readable summary', $cashierSummary !== '' && str_contains($cashierSummary, $olderOpen), $cashierSummary);
+        }
+    }
+
+    $h->section('N5 warning function returns [] when nothing is older');
+    if (!$warningAvailable) {
+        $h->fail('N5 warning function returns [] when nothing older (pre-slice base tree: function absent)', 'dl_productOlderOpenDayWarnings missing');
+    } else {
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        // Current and previous business dates only: nothing older to warn about.
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $today, 'PM']);
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $openPrior, 'PM']);
+        $n5Current = dl_productOlderOpenDayWarnings($db, $prodCashier, $store);
+        $h->test('N5 no older open day means no warning', $n5Current === [], json_encode($n5Current));
+
+        // A CLOSED older day is not an "open day" either: no warning.
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        $setDayStatus($store, $olderOpen, 'closed');
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $olderOpen, 'PM']);
+        $n5Closed = dl_productOlderOpenDayWarnings($db, $prodCashier, $store);
+        $h->test('N5 a CLOSED older day is not warned', $n5Closed === [], json_encode($n5Closed));
+    }
+
+    $h->section('N6 closed day / zero activity / completed row never block (G2/G3/G4)');
+    if (!$guardAvailable) {
+        $h->fail('N6 row predicates hold (pre-slice base tree: guard function absent)', 'guard missing');
+    } else {
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        $setDayStatus($store, $openPrior, 'closed');
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $openPrior, 'PM']);
+        $n6closed = dl_setBranchProductActive($db, $store, $prodCashier, false, 1);
+        $h->test('N6 a CLOSED day never blocks', ($n6closed['ok'] ?? false) === true, json_encode($n6closed));
+
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,0,0,0,NULL,10)')
+            ->execute([$store, $prodCashier, $today, 'AM']);
+        $n6zero = dl_setBranchProductActive($db, $store, $prodCashier, false, 1);
+        $h->test('N6 an ending-less row with ZERO activity never blocks', ($n6zero['ok'] ?? false) === true, json_encode($n6zero));
+
+        $resetLedgers();
+        $activatePair($store, $prodCashier);
+        $db->prepare('INSERT INTO dl_daily_ledger (branch_id,product_id,ledger_date,shift,beg_bal,addtl,withdraw,bal_end,price_snapshot) VALUES (?,?,?,?,5,0,0,5,10)')
+            ->execute([$store, $prodCashier, $today, 'PM']);
+        $n6done = dl_setBranchProductActive($db, $store, $prodCashier, false, 1);
+        $h->test('N6 an activity-bearing row with a recorded ending never blocks', ($n6done['ok'] ?? false) === true, json_encode($n6done));
     }
 
     // ═════════════════════════════════════════════════════════════════════
