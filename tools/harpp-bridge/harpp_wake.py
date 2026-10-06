@@ -3597,6 +3597,137 @@ def _exec_plan_command(record: dict, conv: int, default_model: str) -> str:
             "Each stage runs as a tracked governed job; results are auto-reported here.")
 
 
+# ---------------------------------------------------------------------------
+# Advisor -> chair handoff. The advisor lane is read-only by design: its messages are
+# never queued as work (harpp_client.autoprocess) and the plan/debate routers skip
+# them outright, so an opinion can only reach implementation by hand. `/to-chair` is
+# the one owner command allowed inside that lane: it claims the message, briefs the
+# chair with the last ChatGPT opinion, and queues the run under the normal risk gate.
+# A bare advisor message still queues nothing.
+# ---------------------------------------------------------------------------
+
+CHAIR_HANDOFF_RE = re.compile(r"^/to-chair\b[:\s,-]*(.*)$", re.IGNORECASE)
+CHAIR_HANDOFF_OPINION_SESSION = "chatgpt-advisor"
+CHAIR_HANDOFF_BRIEF_MAX_CHARS = 2500
+
+
+def parse_chair_handoff_command(body) -> str | None:
+    """Return the owner's instruction for a `/to-chair ...` message, else None.
+
+    "" means the command was sent bare (no instruction) — distinct from None, which
+    means the message is not a handoff at all (ordinary advisor chatter).
+    """
+    if not body or not isinstance(body, str):
+        return None
+    stripped = body.strip()
+    if not stripped:
+        return None
+    first = stripped.splitlines()[0].strip()
+    match = CHAIR_HANDOFF_RE.match(first)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _last_advisor_opinion(conversation_id: int, config=None) -> str:
+    """Best-effort: the last ChatGPT advisor reply in a conversation ("" when none).
+
+    Identified by the lane's session marker, not by sender: the marker is what routes
+    the lane (see harpp_client.LANE_SESSION_MARKERS).
+    """
+    try:
+        resp = harpp_client.poll_messages(
+            conversation_id=conversation_id, after=0, limit=50, config=config)
+    except Exception as e:  # noqa: BLE001 - unreadable history must not queue blind work
+        log(f"chair handoff: could not read conversation {conversation_id}: {e}")
+        return ""
+    rows = ((resp or {}).get("data") or {}).get("messages") or []
+    for row in reversed(rows):
+        if str(row.get("harness_session_id") or "").strip().lower() == CHAIR_HANDOFF_OPINION_SESSION:
+            return str(row.get("body") or "")
+    return ""
+
+
+def _exec_chair_handoff(record: dict, conv: int, instruction: str) -> str:
+    """Brief the chair with the advisor opinion + instruction, then queue the run."""
+    opinion = _last_advisor_opinion(conv)
+    if not opinion.strip():
+        return ("⚠️ Handoff not queued: there is no ChatGPT reply in this thread to hand over.\n"
+                "To fix: ask the advisor first (toggle **Ask ChatGPT** on), then send "
+                "`/to-chair <instruction>` again.")
+    brief = (
+        "Handoff to the chair\n\n"
+        f"# Owner instruction\n{instruction or '(none — implement the advisor opinion below)'}\n\n"
+        "# Advisor opinion (ChatGPT, latest reply in this thread)\n"
+        + opinion[:CHAIR_HANDOFF_BRIEF_MAX_CHARS]
+        + ("\n…(truncated)" if len(opinion) > CHAIR_HANDOFF_BRIEF_MAX_CHARS else "")
+    )
+    harpp_client.harpp_notify(
+        conversation_id=conv, message_type="INFO",
+        idempotency_key=f"route-chair-brief-{int(record.get('id', 0))}", body=brief)
+    queued = harpp_client.queue_run(
+        message_id=int(record.get("id", 0)), required_capabilities=["desktop"])
+    run = ((queued or {}).get("data") or {}).get("run") or {}
+    state = str(run.get("state") or ("QUEUED" if (queued or {}).get("ok") else "UNKNOWN"))
+    return (f"🧭 Handoff to the chair queued (state={state}).\n"
+            "The brief below carries your instruction and the advisor opinion. The chair "
+            "implements it as a normal work run under the risk gate; progress and results "
+            "are reported in this thread.")
+
+
+def route_chair_handoff_commands(records) -> int:
+    """Claim `/to-chair` handoffs from the advisor lane and queue them as chair work.
+
+    Returns the number of messages handled. Runs BEFORE the plan/debate routers and
+    before the wake agent, so the command is never answered as advisor chatter and is
+    never double-handled as dev work.
+    """
+    handled = 0
+    try:
+        cfg = harpp_client.load_config()
+    except Exception:  # noqa: BLE001 - unconfigured harness => lane falls back to defaults
+        cfg = {}
+    advisor_cfg = advisor_config(cfg)
+    for r in records or []:
+        if r.get("kind") != "message":
+            continue
+        if str(r.get("sender_type") or "owner").lower() not in ("owner", "user"):
+            continue
+        instruction = parse_chair_handoff_command(r.get("body"))
+        if instruction is None:
+            continue
+        # Only the advisor channel hands off: in any other thread the message already
+        # goes to the chair, so claiming it here would change nothing but the reply.
+        if not is_advisor_item(r, advisor_cfg):
+            continue
+        conv = int(r.get("conversation_id") or 0)
+        if not conv:
+            continue
+        action, saved_body = claim_routing_record(r, "chair")
+        if action == "skip":
+            continue
+        try:
+            reply = saved_body if action == "deliver" else _exec_chair_handoff(r, conv, instruction)
+            if action == "execute":
+                store_routing_result(r, "chair", reply)
+            harpp_client.harpp_notify(
+                conversation_id=conv, message_type="INFO",
+                idempotency_key=f"route-chair-{int(r.get('id', 0))}", body=reply)
+            mark_processed([r])
+            handled += 1
+            log(f"routed advisor->chair handoff for message {r.get('id')}")
+        except Exception as e:  # noqa: BLE001
+            log(f"chair handoff failed for message {r.get('id')}: {e}")
+            try:
+                harpp_client.harpp_notify(
+                    conversation_id=conv, message_type="WARNING",
+                    idempotency_key=f"route-chair-warning-{int(r.get('id', 0))}",
+                    body=f"⚠️ Handoff to the chair could not be queued: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+    return handled
+
+
 def route_plan_commands(records, default_model: str = DEFAULT_MODEL) -> int:
     """Deterministically claim owner plan messages + plan-execution requests so the
     wake agent never re-drives them (saving tokens) and the plan runs as a governed

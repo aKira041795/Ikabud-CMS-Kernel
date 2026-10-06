@@ -1818,6 +1818,89 @@ class HarppWakeTest(unittest.TestCase):
         self.assertEqual([task["desc"] for task in tasks],
                          ["Fix parser", "Add tests", "Verify behavior", "Report results"])
 
+    def test_parse_chair_handoff_command_variants(self):
+        self.assertEqual(harpp_wake.parse_chair_handoff_command("/to-chair implement the stop button"),
+                         "implement the stop button")
+        self.assertEqual(harpp_wake.parse_chair_handoff_command("/to-chair: fix it"), "fix it")
+        self.assertEqual(harpp_wake.parse_chair_handoff_command("  /to-chair   "), "")
+        # Ordinary advisor chatter must never be read as a handoff.
+        self.assertIsNone(harpp_wake.parse_chair_handoff_command("to chair the meeting, we need quorum"))
+        self.assertIsNone(harpp_wake.parse_chair_handoff_command("What about the stop button?"))
+        self.assertIsNone(harpp_wake.parse_chair_handoff_command(""))
+
+    def _chair_handoff_fakes(self, opinion="OPINION: add a governed stop control."):
+        sent, queued = [], []
+        originals = (harpp_wake.harpp_client.harpp_notify,
+                     harpp_wake.harpp_client.load_config,
+                     harpp_wake.harpp_client.poll_messages,
+                     harpp_wake.harpp_client.queue_run)
+        harpp_wake.harpp_client.harpp_notify = lambda **kw: sent.append(kw) or {"ok": True}
+        harpp_wake.harpp_client.load_config = lambda: {
+            "advisor": {"enabled": True, "conversation_title": "ChatGPT Advisor"}}
+        harpp_wake.harpp_client.poll_messages = lambda **kw: {
+            "ok": True,
+            "data": {"messages": [{"id": 1, "harness_session_id": "chatgpt-advisor",
+                                   "body": opinion}] if opinion else []}}
+        harpp_wake.harpp_client.queue_run = lambda **kw: queued.append(kw) or {
+            "ok": True, "data": {"run": {"state": "QUEUED"}}}
+        return sent, queued, originals
+
+    def _restore_chair_handoff_fakes(self, originals):
+        (harpp_wake.harpp_client.harpp_notify, harpp_wake.harpp_client.load_config,
+         harpp_wake.harpp_client.poll_messages,
+         harpp_wake.harpp_client.queue_run) = originals
+
+    def test_route_chair_handoff_queues_run_and_briefs_chair(self):
+        sent, queued, originals = self._chair_handoff_fakes()
+        try:
+            record = {"kind": "message", "id": 910, "conversation_id": 187,
+                      "conversation_title": "ChatGPT Advisor",
+                      "harness_session_id": "chatgpt-advisor", "sender_type": "user",
+                      "body": "/to-chair implement the stop button"}
+            n = harpp_wake.route_chair_handoff_commands([record])
+            self.assertEqual(n, 1)
+            # The run is the chair's work, bound to the owner's own command message.
+            self.assertEqual(len(queued), 1)
+            self.assertEqual(queued[0]["message_id"], 910)
+            self.assertIn(910, harpp_wake.read_state()["messages"])
+            bodies = " ".join(str(kw.get("body") or "") for kw in sent)
+            self.assertIn("OPINION: add a governed stop control.", bodies)
+            self.assertIn("implement the stop button", bodies)
+            self.assertIn("state=QUEUED", bodies)
+        finally:
+            self._restore_chair_handoff_fakes(originals)
+
+    def test_route_chair_handoff_refuses_without_advisor_reply(self):
+        # No ChatGPT reply to hand over => nothing is queued (fail closed, never blind work).
+        sent, queued, originals = self._chair_handoff_fakes(opinion="")
+        try:
+            record = {"kind": "message", "id": 911, "conversation_id": 187,
+                      "conversation_title": "ChatGPT Advisor",
+                      "harness_session_id": "chatgpt-advisor", "sender_type": "user",
+                      "body": "/to-chair implement the stop button"}
+            n = harpp_wake.route_chair_handoff_commands([record])
+            self.assertEqual(n, 1)
+            self.assertEqual(queued, [])
+            self.assertIn("not queued", " ".join(str(kw.get("body") or "") for kw in sent))
+        finally:
+            self._restore_chair_handoff_fakes(originals)
+
+    def test_route_chair_handoff_ignores_non_advisor_thread(self):
+        # Outside the advisor lane the message already goes to the chair; the router
+        # must not claim it and must not touch the queue.
+        sent, queued, originals = self._chair_handoff_fakes()
+        try:
+            record = {"kind": "message", "id": 912, "conversation_id": 3,
+                      "conversation_title": "Work", "sender_type": "user",
+                      "body": "/to-chair implement the stop button"}
+            n = harpp_wake.route_chair_handoff_commands([record])
+            self.assertEqual(n, 0)
+            self.assertEqual(queued, [])
+            self.assertEqual(sent, [])
+            self.assertNotIn(912, harpp_wake.read_state()["messages"])
+        finally:
+            self._restore_chair_handoff_fakes(originals)
+
     def test_route_plan_commands_records_plan_message(self):
         sent = []
         original_notify = harpp_wake.harpp_client.harpp_notify

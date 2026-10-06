@@ -95,6 +95,27 @@ Requires an `openai-ideation` auth entry in `~/.pi/agent/auth.json` + provider i
    - **Recommendation** (go / go-with-changes / rethink)
 4. Reconcile the opinion with `/architect` and continue the normal pipeline.
 
+### Handing an opinion to the chair
+
+The advisor lane is read-only by design: its messages are never queued as development work, and
+neither the plan router nor the debate router will claim them. To implement an opinion, use the
+one command allowed inside that lane:
+
+```
+/to-chair <instruction>
+```
+
+It claims the message, posts a brief containing your instruction and the **latest ChatGPT reply in
+that thread**, and queues that as a normal run under the risk gate — the chair then implements it
+and reports in the same conversation. Notes:
+
+- A bare advisor message still queues nothing; the handoff is always explicit.
+- With no ChatGPT reply in the thread there is nothing to hand over, so the handoff is **refused**
+  rather than queued blind.
+- Outside the advisor thread `/to-chair` is inert: that message already goes to the chair.
+- The bridge cannot create conversations (only the owner can), so the handoff lands in the thread
+  where you sent it rather than a new work thread.
+
 ### How the lane is chosen
 
 The **conversation's `harness_session_id`** is the routing key (`chatgpt-advisor`), not the
