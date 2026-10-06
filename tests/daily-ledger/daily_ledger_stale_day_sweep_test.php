@@ -8,20 +8,27 @@ declare(strict_types=1);
  * S1..S8 exercise the older-day sweep inside dl_maybeAutoCloseBranchDay():
  *   S1 an older open day IS closed by the sweep; yesterday's behaviour
  *      (per-day notification) is unchanged.
- *   S2 a day with reopened_at set is NOT closed, and the sweep CONTINUES past
- *      it to close older qualifying days.
- *   S3 the sweep STOPS at a closed day.
- *   S4 an idle day (no status row, no ledger activity) gains NO day-status row.
+ *   S2 a day with reopened_at set is NOT closed (now enforced by the query's
+ *      reopened_at IS NULL), and it does NOT block older qualifying days.
+ *   S3 (NEW) a CLOSED day between yesterday and a stale open day does not stop
+ *      the sweep: the older open day is still selected and closed. This is the
+ *      discriminating case for the set-selection mechanism: the old backward
+ *      walk stopped at the closed wall and left the older day open.
+ *   S4 an idle day (no status row, no ledger activity) gains NO day-status row;
+ *      it is simply not a candidate and does not block older open days.
  *   S5 the cap (7 older days per pass) is respected: the remainder closes on a
  *      later pass.
  *   S6 a day whose PM was never finalized closes with the approved notify-once
  *      behaviour and its variance flags are NOT frozen (finalized-only rule).
- *   S7 exactly ONE summary notification for swept days, not one per day.
+ *   S7 the swept days are closed QUIETLY: NO notification is raised for them
+ *      (summary or per-day), but the per-day audit row IS written. This is an
+ *      intentional spec change driven by the owner's 2026-10-06 principle that
+ *      background processes are not emitted for the user to decide.
  *   S8 steady state: nothing stale closes nothing, issues no notification, and
- *      the sweep costs exactly ONE probe query (no writes).
+ *      the sweep costs exactly ONE candidate query (no writes).
  *
  * Everything is seeded on a private fixture branch (99341) with fixed UTC
- * dates so the sweep's backward walk is deterministic. Never branch 8.
+ * dates so the sweep's set selection is deterministic. Never branch 8.
  */
 
 ob_start();
@@ -181,9 +188,9 @@ try {
     );
 
     // ══════════════════════════════════════════════════════════════════════
-    // S2 — reopened day skipped, sweep continues past it
+    // S2 — reopened day skipped (by the query), older day still closed
     // ══════════════════════════════════════════════════════════════════════
-    $h->section('S2 reopened day is skipped and the sweep continues');
+    $h->section('S2 reopened day is excluded by the query and does not block older days');
     $reset();
     $setDay($YESTERDAY, 'closed');
     $setDay('2026-10-18', 'open', true); // deliberately reopened
@@ -197,25 +204,27 @@ try {
         json_encode(['day' => $dayStatusOf('2026-10-18')])
     );
     $h->test(
-        'S2b the sweep CONTINUES past the reopened day and closes the older one',
+        'S2b the older day IS selected and closed despite the reopened day',
         $dayStatusOf('2026-10-17') === 'closed',
         json_encode(['day' => $dayStatusOf('2026-10-17')])
     );
 
     // ══════════════════════════════════════════════════════════════════════
-    // S3 — the sweep stops at a closed day
+    // S3 (NEW, discriminating) — a closed day does not wall off older days
     // ══════════════════════════════════════════════════════════════════════
-    $h->section('S3 the sweep stops at a closed day');
+    $h->section('S3 (NEW) a closed day between yesterday and a stale open day does not block it');
     $reset();
     $setDay($YESTERDAY, 'closed');
-    $setDay('2026-10-18', 'closed'); // the wall
-    $setDay('2026-10-17', 'open');   // must NOT be touched
+    $setDay('2026-10-18', 'closed'); // the old walk's "wall" — now just not a candidate
+    $setDay('2026-10-17', 'open');   // stale open day BEYOND the closed day
 
     $sweepClose();
     $h->test(
-        'S3 a day beyond a closed day stays open (sweep stopped)',
-        $dayStatusOf('2026-10-17') === 'open' && $dayStatusOf('2026-10-18') === 'closed',
-        json_encode(['wall' => $dayStatusOf('2026-10-18'), 'beyond' => $dayStatusOf('2026-10-17')])
+        'S3-NEW a stale open day beyond a closed day IS selected and closed',
+        $dayStatusOf('2026-10-17') === 'closed'
+            && $dayStatusOf('2026-10-18') === 'closed'
+            && $auditCount('2026-10-17') === 1,
+        json_encode(['closed_between' => $dayStatusOf('2026-10-18'), 'beyond' => $dayStatusOf('2026-10-17')])
     );
 
     // ══════════════════════════════════════════════════════════════════════
@@ -234,8 +243,8 @@ try {
         'rows=' . $dayRowCount('2026-10-18')
     );
     $h->test(
-        'S4b the idle day stops the sweep, so the day beyond stays open',
-        $dayStatusOf('2026-10-17') === 'open',
+        'S4b the idle day does NOT block: the older explicit-open day IS closed',
+        $dayStatusOf('2026-10-17') === 'closed',
         json_encode(['beyond' => $dayStatusOf('2026-10-17')])
     );
 
@@ -316,9 +325,9 @@ try {
     );
 
     // ══════════════════════════════════════════════════════════════════════
-    // S7 — exactly ONE summary notification for swept days
+    // S7 — swept days are closed QUIETLY (no notification, audit row present)
     // ══════════════════════════════════════════════════════════════════════
-    $h->section('S7 one summary notification for the swept backlog');
+    $h->section('S7 swept days are closed quietly: no notification, per-day audit row present');
     $reset();
     $setDay($YESTERDAY, 'closed');
     foreach (['2026-10-18', '2026-10-17', '2026-10-16'] as $d) {
@@ -327,20 +336,20 @@ try {
 
     $sweepClose();
     $h->test(
-        'S7a exactly ONE summary notification is raised for the three swept days',
-        $sweepNotifCount() === 1,
-        'summary=' . $sweepNotifCount()
+        'S7a NO notification (summary or per-day) is raised for the swept days',
+        $sweepNotifCount() === 0 && $perDayNotifs() === 0,
+        json_encode(['summary' => $sweepNotifCount(), 'per_day' => $perDayNotifs()])
     );
     $h->test(
-        'S7b NO per-day notification is raised for any swept day',
-        $perDayNotifs() === 0,
-        'per_day=' . $perDayNotifs()
+        'S7b each swept day still carries its per-day auto_close_day audit row',
+        $auditCount('2026-10-18') === 1 && $auditCount('2026-10-17') === 1 && $auditCount('2026-10-16') === 1,
+        json_encode(['18' => $auditCount('2026-10-18'), '17' => $auditCount('2026-10-17'), '16' => $auditCount('2026-10-16')])
     );
 
     // ══════════════════════════════════════════════════════════════════════
     // S8 — steady state: one probe query, no write, no notification
     // ══════════════════════════════════════════════════════════════════════
-    $h->section('S8 steady state is one probe and no write');
+    $h->section('S8 steady state is one candidate query and no write');
     $reset();
     $setDay($YESTERDAY, 'closed');
     $setDay('2026-10-18', 'closed'); // nothing stale
@@ -355,7 +364,7 @@ try {
             return;
         }
         $sql = (string)($payload['sql'] ?? '');
-        if (str_contains($sql, 'FROM (SELECT 1) AS one')) {
+        if (str_contains($sql, 'ORDER BY ledger_date ASC')) {
             $probeHits++;
         }
         if (preg_match('/^\s*(INSERT|UPDATE|DELETE|REPLACE)/i', $sql)) {
@@ -373,7 +382,7 @@ try {
         json_encode(['returned' => $r8, 'notifs' => [$notifsBefore, $notifsAfter], 'audits' => [$auditsBefore, $auditsAfter]])
     );
     $h->test(
-        'S8b the sweep costs exactly ONE probe query and zero writes',
+        'S8b the sweep costs exactly ONE candidate query and zero writes',
         $probeHits === 1 && $writeHits === 0,
         json_encode(['probe_queries' => $probeHits, 'write_queries' => $writeHits])
     );

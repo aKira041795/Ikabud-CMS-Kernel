@@ -1724,112 +1724,61 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
         // already closed.
     }
 
-    // ── Bounded backward sweep of older days ──────────────────────────────
+    // ── Bounded SET SELECTION of stale open days ──────────────────────────
     // A day missed on the single day it was "yesterday" is never revisited by
-    // the single-date close above, so stale open days accumulate forever. Walk
-    // backward from the day before yesterday and apply the SAME close policy.
+    // the single-date close above, so stale open days accumulate forever. The
+    // qualifying days are selected DIRECTLY instead of by walking backward: a
+    // closed or idle day is simply not a candidate, so it cannot form a wall
+    // that hides an older backlog, and the query cost is constant no matter how
+    // far back the stale days reach.
     //
-    // MAX OLDER DAYS CLOSED PER PASS: 7. This runs on page loads, so the pass
-    // must stay cheap; one week of backlog per request converges within a few
-    // page loads without a long request. A deliberately reopened day costs one
-    // probe and does NOT count against the cap, so it can never block the
-    // sweep.
+    // ONLY days that already carry an explicit status='open' row are selected,
+    // so no day-status row is ever fabricated for a day that was never started.
+    // (A day with ledger activity but NO status row at all is out of scope.)
     //
-    // STOP CONDITION: an already-closed day, or a day that was never in use
-    // (no day-status row AND no ledger activity), ends the walk. That is what
-    // makes the steady state cheap: with nothing stale the very first probe
-    // (the day before yesterday) is closed and the extra cost is one SELECT.
+    // reopened_at IS NULL is the whole protection for the encoder's live work:
+    // an admin-reopened day is excluded by the query and needs no PHP skip.
     //
-    // COLLECT-THEN-CLOSE, OLDEST FIRST: closing the newest days first would,
-    // on the next request, hit the just-closed newest day and stop, so a
-    // backlog larger than the cap could never drain. Closing the OLDEST
-    // qualifying days first leaves the newest still open as the next pass's
-    // entry point, which is exactly what lets a capped remainder finish on a
-    // later pass. The collection is still a backward walk; only the order in
-    // which the collected days are closed is oldest-first.
+    // OLDEST FIRST + LIMIT 7: this runs on page loads, so at most one week of
+    // backlog is closed per request. Closing the oldest first leaves the newer
+    // candidates still open, so a capped remainder is selected and drained on
+    // the next pass.
     $maxOlderClosedPerPass = 7;
-    $maxDaysProbedPerPass = 31;
-    $cursor = (new \DateTimeImmutable($closeDate))->modify('-1 day');
-    $qualifyingOlder = [];
-    $probed = 0;
     try {
-        $probe = $ctx->db()->prepare(
-            'SELECT ds.status AS day_status, ds.reopened_at AS reopened_at,
-                    (SELECT COUNT(*) FROM dl_daily_ledger dl
-                      WHERE dl.branch_id = ? AND dl.ledger_date = ?) AS activity_rows
-               FROM (SELECT 1) AS one
-               LEFT JOIN dl_ledger_day_status ds
-                      ON ds.branch_id = ? AND ds.ledger_date = ?
-              LIMIT 1'
+        $select = $ctx->db()->prepare(
+            "SELECT ledger_date
+               FROM dl_ledger_day_status
+              WHERE branch_id = :bid
+                AND status = 'open'
+                AND ledger_date < :yesterday
+                AND reopened_at IS NULL
+              ORDER BY ledger_date ASC
+              LIMIT :cap"
         );
-        while ($probed < $maxDaysProbedPerPass) {
-            $date = $cursor->format('Y-m-d');
-            $probed++;
-            $probe->execute([$branchId, $date, $branchId, $date]);
-            $row = $probe->fetch(PDO::FETCH_ASSOC) ?: [];
-            $dayStatus = (string)($row['day_status'] ?? '');
-            $reopenedAt = (string)($row['reopened_at'] ?? '');
-            $hasActivity = (int)($row['activity_rows'] ?? 0) > 0;
-
-            if ($dayStatus === 'closed') {
-                break; // a genuinely closed day is the wall
-            }
-            if ($reopenedAt !== '') {
-                // Deliberately reopened by an admin: leave it open and KEEP
-                // walking, so one reopened day cannot block the whole sweep.
-                $cursor = $cursor->modify('-1 day');
-                continue;
-            }
-            if ($dayStatus !== 'open' && !$hasActivity) {
-                // Idle day that was never started: stop. NEVER fabricate a
-                // day-status row for a day that has neither a row nor activity.
-                break;
-            }
-            $qualifyingOlder[] = $date;
-            $cursor = $cursor->modify('-1 day');
-        }
+        $select->bindValue(':bid', $branchId, PDO::PARAM_INT);
+        $select->bindValue(':yesterday', $closeDate);
+        $select->bindValue(':cap', $maxOlderClosedPerPass, PDO::PARAM_INT);
+        $select->execute();
+        $staleDates = $select->fetchAll(PDO::FETCH_COLUMN) ?: [];
     } catch (\Throwable $e) {
-        // A probe failure must not take the page down; the yesterday close has
-        // already committed. Report and stop this pass's sweep.
-        write_log('daily-ledger sweep probe failed', 'error', [
+        // A selection failure must not take the page down; the yesterday close
+        // has already committed. Report and skip this pass's sweep.
+        write_log('daily-ledger sweep selection failed', 'error', [
             'branch_id' => $branchId,
             'error' => $e->getMessage(),
         ]);
+        $staleDates = [];
     }
 
-    $sweptDates = [];
-    foreach (array_reverse($qualifyingOlder) as $date) {
-        if (count($sweptDates) >= $maxOlderClosedPerPass) {
-            break;
-        }
-        $outcome = dl_autoCloseBranchDayAt($ctx, $branchId, $date, $settings, $closeActorId, false);
+    foreach ($staleDates as $date) {
+        // Exactly the same per-day close path as the single yesterday close,
+        // minus the per-day notification: swept days are closed QUIETLY. The
+        // per-day audit row and pending_notified_at are still written by the
+        // close body, so the housekeeping remains traceable.
+        $outcome = dl_autoCloseBranchDayAt($ctx, $branchId, (string)$date, $settings, $closeActorId, false);
         if ($outcome === 'closed') {
-            $sweptDates[] = $date;
             $closedAny = true;
         }
-    }
-
-    if ($sweptDates !== []) {
-        // ONE summary notification per branch per pass instead of one per swept
-        // day: a 15-day backlog would otherwise flood the admin. The aggregate
-        // key carries the closed range, so retrying the same pass dedups while a
-        // later backlog raises its own summary. The yesterday close above keeps
-        // its existing per-day notification, untouched. The existing
-        // closed_without_pm_finalize finding type is reused because stale days
-        // are the same class of event (a missed cutoff) and adding an enum value
-        // would need a migration, which this change must not require.
-        $oldest = $sweptDates[0];
-        $newest = $sweptDates[count($sweptDates) - 1];
-        dl_raiseIntegrityNotification(
-            $ctx->db(),
-            'auto_close_sweep-' . $branchId . '-' . $oldest . '-' . $newest,
-            'closed_without_pm_finalize',
-            $branchId,
-            'dl_ledger_day_status',
-            null,
-            'Stale business days auto-closed',
-            'Branch #' . $branchId . ' auto-closed ' . count($sweptDates) . ' stale business day(s) missed at their cutoff: ' . $oldest . ' to ' . $newest . '. An admin must reopen a day to complete any pending shift endings.'
-        );
     }
 
     return $closedAny;
