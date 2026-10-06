@@ -31,7 +31,10 @@
 cd /var/www/html/applicationostest || exit 1
 source tools/lane-model.sh
 
-LANE_MODEL_CHAIN="deepseek-v4-flash,openai-codex/gpt-5.6-terra,openai-codex/gpt-5.6-sol"
+# SOL LEADS (owner: "use sol again"). G2 is design + architecture: a presentation rule (the disabled cell) plus
+# a write-path rule, with a correctness trap in it (existing stock must never be hidden). terra is the strong
+# fallback; flash last.
+LANE_MODEL_CHAIN="openai-codex/gpt-5.6-sol,openai-codex/gpt-5.6-terra,deepseek-v4-flash"
 
 PROMPT="$(cat <<'PROMPT_EOF'
 You are implementing G2 (destination visibility) in the Ikabud repo at /var/www/html/applicationostest.
