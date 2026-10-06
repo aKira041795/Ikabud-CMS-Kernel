@@ -180,6 +180,45 @@ class GroundingWiringTest(unittest.TestCase):
         # A missing query or an unreachable pack must degrade, never break the debate.
         self.assertEqual(module.repo_context(""), "")
 
+    def test_retrieval_workspace_requires_a_repository(self):
+        # Measured 2026-10-06: conversation 187 was bound to /var/www/html/legacy, which holds
+        # only tools/ and no .git, so every pack came back empty while the code looked correct.
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy = Path(tmp) / "legacy"
+            (legacy / "tools").mkdir(parents=True)
+            self.assertEqual(harpp_wake.repo_retrieval_workspace(str(legacy), str(ROOT)), str(ROOT),
+                             "a non-repository workspace must never be used for retrieval")
+            self.assertEqual(harpp_wake.repo_retrieval_workspace(None, ""), str(ROOT),
+                             "with no usable candidate it must fall through to the harness root")
+            self.assertTrue(harpp_wake.repo_retrieval_workspace(str(ROOT)))
+
+    def test_handoff_stays_grounded_when_the_conversation_workspace_is_not_a_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy = Path(tmp) / "legacy"
+            (legacy / "tools").mkdir(parents=True)
+            sent = []
+            originals = (harpp_wake.harpp_client.harpp_notify, harpp_wake.harpp_client.poll_messages,
+                         harpp_wake.harpp_client.queue_run, harpp_wake.conversation_workspace_dir)
+            harpp_wake.harpp_client.harpp_notify = lambda **kw: sent.append(kw) or {"ok": True}
+            harpp_wake.harpp_client.poll_messages = lambda **kw: {"ok": True, "data": {"messages": [
+                {"id": 1, "harness_session_id": "chatgpt-advisor",
+                 "body": "Runs already have a CANCELLED state."}]}}
+            harpp_wake.harpp_client.queue_run = lambda **kw: {
+                "ok": True, "data": {"run": {"state": "QUEUED"}}}
+            harpp_wake.conversation_workspace_dir = lambda conv: str(legacy)
+            try:
+                harpp_wake._exec_chair_handoff(
+                    {"kind": "message", "id": 951, "conversation_id": 187}, 187,
+                    "implement the stop button")
+            finally:
+                (harpp_wake.harpp_client.harpp_notify, harpp_wake.harpp_client.poll_messages,
+                 harpp_wake.harpp_client.queue_run,
+                 harpp_wake.conversation_workspace_dir) = originals
+            posted = [str(kw.get("body") or "") for kw in sent]
+            self.assertTrue(any(CITATION.findall(body) for body in posted),
+                            "the handoff must stay grounded even when the conversation's "
+                            "workspace is not a repository")
+
     def test_consult_session_continues_the_discussion(self):
         with tempfile.TemporaryDirectory() as tmp:
             session = Path(tmp) / "session.md"

@@ -3683,10 +3683,32 @@ def _last_advisor_opinion(conversation_id: int, config=None) -> str:
     return ""
 
 
+def repo_retrieval_workspace(*candidates: str | None) -> str:
+    """First candidate that is actually a git repository, else "".
+
+    Retrieval needs a repository, and a conversation's bound workspace need not be one:
+    measured 2026-10-06, conversation 187 resolves to /var/www/html/legacy, which holds only
+    a tools/ directory and has no .git — so every pack built against it came back empty and
+    the advisor was silently ungrounded while the code looked correct. Prefer a real repo,
+    and let the caller fall through to its own root (this file lives inside one).
+    """
+    harness_root = Path(__file__).resolve().parents[2]
+    for candidate in list(candidates) + [str(harness_root), str(Path.cwd())]:
+        if not candidate:
+            continue
+        try:
+            if (Path(candidate) / ".git").exists():
+                return str(candidate)
+        except OSError:
+            continue
+    return ""
+
+
 def _handoff_repo_facts(conv: int, instruction: str, opinion: str) -> str:
     """Retrieved repository facts for the handoff brief ("" when unavailable)."""
     try:
-        workspace = conversation_workspace_dir(conv) or default_workspace()
+        workspace = repo_retrieval_workspace(conversation_workspace_dir(conv),
+                                             default_workspace())
         pack = context_pack.build_context_pack(
             f"{instruction}\n{opinion[:600]}", workspace,
             budget_chars=CHAIR_HANDOFF_PACK_CHARS)
@@ -4653,7 +4675,11 @@ def _advisor_page_pass(inbox: str, advisor_items: list, adv: dict, *, workspace=
             context = context[:ADVISOR_PAGE_STATE_MAX_CHARS]
             ledger = ledger[:CHAIR_LEDGER_MAX_CHARS]
             prompt = build_advisor_prompt(
-                plan=plan, workspace=run_workspace, decisions=decisions,
+                plan=plan,
+                # The ledger follows the run workspace, but retrieval must come from a real
+                # repository: a conversation bound to a non-repo dir otherwise yields no facts.
+                workspace=repo_retrieval_workspace(run_workspace, workspace),
+                decisions=decisions,
                 context=context, ledger=ledger,
                 budget_chars=int(adv.get("context_pack_chars") or ADVISOR_CONTEXT_PACK_DEFAULT_CHARS),
             )
