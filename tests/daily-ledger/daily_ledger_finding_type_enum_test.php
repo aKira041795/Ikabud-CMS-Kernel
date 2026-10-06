@@ -233,8 +233,14 @@ try {
     $column = $enumColumn();
     $occurrences = substr_count((string)($column['COLUMN_TYPE'] ?? ''), $newType);
     $h->test('C3 the enum still holds exactly ONE ' . $newType . ' value', $occurrences === 1, 'occurrences=' . $occurrences);
-    $h->test('C4 column definition is the six-value enum, NOT NULL, no default',
-        (string)($column['COLUMN_TYPE'] ?? '') === strtolower($enumSql)
+    // 076's contract is about ORDER: the five originals, then the appended
+    // value, with nothing dropped, renamed or reordered. Comparing the PREFIX
+    // pins exactly that and stays true when a later migration appends another
+    // value (078 does). An exact === comparison would make this test fail on
+    // every future append and tempt someone to relax it instead of reading it.
+    $enumPrefix = "enum('" . implode("','", array_merge($originalValues, [$newType])) . "'";
+    $h->test('C4 column definition opens with the six-value enum 076 appended to, NOT NULL, no default',
+        str_starts_with(strtolower((string)($column['COLUMN_TYPE'] ?? '')), $enumPrefix)
         && (string)($column['IS_NULLABLE'] ?? '') === 'NO'
         && ($column['COLUMN_DEFAULT'] ?? null) === null,
         json_encode($column));

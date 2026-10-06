@@ -3918,12 +3918,37 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         throw new \RuntimeException('Product is not active for this commissary.');
     }
 
-    // Destination assignment: the store must also carry the product. Slice A
-    // validates the source (above); this is the destination half of the same
-    // rule, so a stale sheet tab or offline replay cannot create a delivery to
-    // a branch the product is no longer shown in. Throws
-    // DlProductNotAssignedException (PRODUCT_NOT_ASSIGNED) before any write.
-    dl_assertBranchProductAssigned($db, $branchId, $productId);
+    // Destination assignment. Owner decision (2026-10-06): the encoder's data is
+    // authoritative and the branch's product list is bookkeeping that may simply
+    // be behind, so a destination that branch does not currently list is no
+    // longer a wall. "once production user enters data on a supposed
+    // hidden/deactivated product in a branch, the upstream flow is it's
+    // included/activated auto. admin is notified."
+    //
+    // The entry is recorded, the branch link is switched back on in the SAME
+    // transaction, and the admin is notified. The operator never waits for an
+    // admin to update a list before recording goods that really moved, and the
+    // admin still gets the diagnosis. If the entry was a mistake the encoder
+    // reverses it back to zero (the correction path below), and the link can
+    // then be hidden again from Show in Branches.
+    //
+    // The PRODUCT is deliberately the exception. Reviving a branch link is
+    // bookkeeping for one branch, but reviving a discontinued product from a
+    // sheet entry would resurrect it in every list at once, so an inactive
+    // product is still refused. In practice the source check above already
+    // requires an active product, so this branch is a second line of defence:
+    // if that check is ever relaxed, this is what stops a sheet entry from
+    // reviving a product the catalogue retired.
+    $reviveBranchLink = false;
+    $assignmentState = dl_branchProductAssignmentState($db, $branchId, $productId);
+    if (!$assignmentState['pair_active']) {
+        if (!$assignmentState['product_active']) {
+            throw new DlProductNotAssignedException(
+                "Cannot save {$assignmentState['product_name']}: the product is inactive at {$assignmentState['branch_name']}."
+            );
+        }
+        $reviveBranchLink = true;
+    }
 
     $hasEntry = dl_dailySheetCellHasEntry($db, $date, $commissaryBranchId, $productId, $branchId, $shift);
     $type = '';
@@ -3997,6 +4022,63 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
             $shiftStatus = dl_lockShiftStatusRow($db, $commissaryBranchId, $date, $shift);
             if ((string)$shiftStatus['status'] === 'finalized') {
                 throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
+            }
+        }
+
+        // The branch link is revived on the same transaction as the delivery, so
+        // the pair and the goods can never disagree: either both land or neither
+        // does. The revival is audited by the primitive itself
+        // (branch_product_assigned), and it sits AFTER the shift-finalized check
+        // so a locked shift revives nothing.
+        if ($reviveBranchLink) {
+            dl_setBranchProductActive($db, $branchId, $productId, true, $actorId);
+
+            // Best-effort on purpose: this notice is observability, not a rule. A
+            // notification that cannot be written (for example the finding_type
+            // enum extension has not been migrated yet) must never roll back a
+            // delivery the encoder has already recorded on the floor.
+            try {
+                $findingId = dl_raiseIntegrityNotification(
+                    $db,
+                    'branch-link-revived:' . $branchId . ':' . $productId . ':' . $date,
+                    'product_branch_link_revived',
+                    $branchId,
+                    'dl_branch_products',
+                    $productId,
+                    'Product added back to ' . (string)($destination['name'] ?? ('branch #' . $branchId)),
+                    'A daily sheet entry on ' . $date . ' recorded ' . (string)($product['name'] ?? ('product #' . $productId))
+                        . ' for a branch that did not list it, so the branch link was switched back on.'
+                        . ' The entry is the authority, not the list. If this was an error, reverse the entry'
+                        . ' and hide the product again from Show in Branches.'
+                );
+                // Read the type back. dl_raiseIntegrityNotification uses INSERT
+                // IGNORE, which downgrades an unknown ENUM value to a warning, so a
+                // column that has not been extended stores an EMPTY finding_type
+                // instead of failing. The row then exists but means nothing, and
+                // nothing anywhere would say so. Verify rather than assume.
+                if ($findingId !== null) {
+                    $storedFindingType = (string)$db->query(
+                        'SELECT finding_type FROM dl_integrity_notifications WHERE id = ' . (int)$findingId
+                    )->fetchColumn();
+                    if ($storedFindingType !== 'product_branch_link_revived') {
+                        write_log('daily-ledger branch revival finding stored with the WRONG type', 'error', [
+                            'branch_id' => $branchId,
+                            'product_id' => $productId,
+                            'ledger_date' => $date,
+                            'finding_id' => $findingId,
+                            'stored_type' => $storedFindingType,
+                            'expected_type' => 'product_branch_link_revived',
+                            'hint' => 'migration 078 has not been applied to this database',
+                        ]);
+                    }
+                }
+            } catch (\Throwable $notifyError) {
+                write_log('daily-ledger branch link revived but notification failed', 'warning', [
+                    'branch_id' => $branchId,
+                    'product_id' => $productId,
+                    'ledger_date' => $date,
+                    'error' => $notifyError->getMessage(),
+                ]);
             }
         }
         // Keep the commissary finished-goods position in step with the delivery, and
@@ -4123,6 +4205,11 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         'has_previous_entry' => $hasEntry,
         'submission_id' => $submissionId,
         'duplicate' => false,
+        // Named back to the sheet so the encoder is TOLD what happened to the
+        // list instead of discovering later that a branch gained a product.
+        'branch_link_revived' => $reviveBranchLink,
+        'branch_name' => (string)($destination['name'] ?? ''),
+        'product_name' => (string)($product['name'] ?? ''),
     ];
 }
 
@@ -5336,17 +5423,22 @@ function dl_productOlderOpenDayWarnings($db, int $productId, ?int $branchId = nu
 }
 
 /**
- * The human refusal when a (branch, product) pair is not currently assigned,
- * or null when a ledger write may proceed. A pair is assigned only when the
- * product is globally active AND the branch-product link exists with
- * is_active = 1. Names both the product and the branch so the held-save /
- * offline queue can show a specific reason instead of a generic error.
+ * The RAW assignment state of a (branch, product) pair, in one query: whether
+ * the product itself is sellable and whether the branch currently lists it.
+ *
+ * The two halves are pulled apart because they are NOT the same problem:
+ *  - the branch link being off is the admin's bookkeeping lagging behind goods
+ *    that really moved, which the Daily Sheet resolves by reviving the link and
+ *    telling the admin (see dl_recordDailySheetBranchEntry);
+ *  - the product itself being inactive is a catalogue decision that no ledger
+ *    write may quietly reverse.
+ * Keeping both in one call also guarantees the refusal message and that revival
+ * decision can never disagree about the same pair.
+ *
+ * @return array{found:bool,product_active:bool,pair_active:bool,product_name:string,branch_name:string}
  */
-function dl_branchProductAssignmentRefusal($db, int $branchId, int $productId): ?string
+function dl_branchProductAssignmentState($db, int $branchId, int $productId): array
 {
-    if ($branchId <= 0 || $productId <= 0) {
-        return null; // invalid ids are the caller's own validation error, not an assignment one
-    }
     $stmt = $db->prepare(
         'SELECT p.name AS product_name, p.is_active AS product_active,
                 b.name AS branch_name, bp.is_active AS pair_active
@@ -5359,19 +5451,46 @@ function dl_branchProductAssignmentRefusal($db, int $branchId, int $productId): 
     $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':pid' => $productId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
+        return [
+            'found' => false,
+            'product_active' => false,
+            'pair_active' => false,
+            'product_name' => '#' . $productId,
+            'branch_name' => '#' . $branchId,
+        ];
+    }
+    return [
+        'found' => true,
+        'product_active' => (int)($row['product_active'] ?? 0) === 1,
+        'pair_active' => $row['pair_active'] !== null && (int)$row['pair_active'] === 1,
+        'product_name' => (string)($row['product_name'] ?? ('#' . $productId)),
+        'branch_name' => (string)($row['branch_name'] ?? ('#' . $branchId)),
+    ];
+}
+
+/**
+ * The human refusal when a (branch, product) pair is not currently assigned,
+ * or null when a ledger write may proceed. A pair is assigned only when the
+ * product is globally active AND the branch-product link exists with
+ * is_active = 1. Names both the product and the branch so the held-save /
+ * offline queue can show a specific reason instead of a generic error.
+ */
+function dl_branchProductAssignmentRefusal($db, int $branchId, int $productId): ?string
+{
+    if ($branchId <= 0 || $productId <= 0) {
+        return null; // invalid ids are the caller's own validation error, not an assignment one
+    }
+    $state = dl_branchProductAssignmentState($db, $branchId, $productId);
+    if (!$state['found']) {
         return "Cannot save: product #{$productId} is not assigned to branch #{$branchId}.";
     }
-    $pairActive = $row['pair_active'] !== null && (int)$row['pair_active'] === 1;
-    $productActive = (int)($row['product_active'] ?? 0) === 1;
-    if ($pairActive && $productActive) {
+    if ($state['pair_active'] && $state['product_active']) {
         return null;
     }
-    $productName = (string)($row['product_name'] ?? ('#' . $productId));
-    $branchName = (string)($row['branch_name'] ?? ('#' . $branchId));
-    $reason = !$productActive
+    $reason = !$state['product_active']
         ? 'the product is inactive'
         : 'it is not assigned to this branch';
-    return "Cannot save {$productName}: {$reason} at {$branchName}. Refresh the page to pick up the current product list.";
+    return "Cannot save {$state['product_name']}: {$reason} at {$state['branch_name']}. Refresh the page to pick up the current product list.";
 }
 
 /**

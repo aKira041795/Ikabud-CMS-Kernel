@@ -56,6 +56,10 @@ $cleanup = static function () use ($db, $comm, $store, $product, $carriedProduct
     $db->execute("DELETE FROM dl_ledger_day_status WHERE branch_id IN ({$branches})");
     $db->execute("DELETE FROM audit_logs WHERE module = 'daily-ledger' AND (branch_id IN ({$branches}) OR entity_id IN ('{$product}','{$carriedProduct}'))");
     $db->execute("DELETE FROM dl_branch_products WHERE branch_id IN ({$branches}) OR product_id IN ({$products})");
+    // The revival finding this oracle creates must not survive the run. A stale
+    // row would satisfy a later COUNT(*) and let D6b pass without any write having
+    // happened, which is exactly the false pass this cleanup exists to prevent.
+    $db->execute("DELETE FROM dl_integrity_notifications WHERE branch_id IN ({$branches}) AND aggregate_key LIKE 'branch-link-revived:%'");
     $db->execute("DELETE FROM dl_products WHERE id IN ({$products})");
     $db->execute("DELETE FROM dl_branches WHERE id IN ({$branches})");
 };
@@ -105,7 +109,13 @@ try {
     $h->section('C1 destination cells remain rectangular and preserve records');
     $emptyHtml = $render();
     $emptyCell = $cellMarkup($emptyHtml, $product, $store);
-    $h->test('D1 unassigned empty destination cell renders disabled in place', $emptyCell !== '' && str_contains($emptyCell, 'disabled') && str_contains($emptyCell, 'aria-disabled="true"') && str_contains($emptyCell, 'not assigned to G2 Store'), $emptyCell);
+    $h->test('D1 unassigned empty destination cell renders enterable, warned, and in place',
+        $emptyCell !== ''
+        && str_contains($emptyCell, 'data-unassigned="1"')
+        && !str_contains($emptyCell, 'aria-disabled')
+        && !preg_match('/\sdisabled(?:\s|>)/', $emptyCell)
+        && str_contains($emptyCell, "is not in G2 Store's product list"),
+        $emptyCell);
 
     $db->prepare('INSERT INTO dl_deliveries (origin_type,origin_id,destination_type,destination_id,dr_number,delivery_date,status,production_shift,created_by) VALUES ("commissary",?,"branch",?,?,?,"posted","AM",1)')
         ->execute([$comm, $store, 'G2-EXISTING', $today]);
@@ -115,12 +125,12 @@ try {
     $existingHtml = $render();
     $existingCell = $cellMarkup($existingHtml, $product, $store);
     $h->test('D2 unassigned cell keeps its existing dispatch quantity visible', str_contains($existingCell, 'data-product="' . $product . '"') && preg_match('/>7<\/span>/', $existingCell) === 1, $existingCell);
-    $h->test('D2 existing unassigned cell is visible but non-enterable', str_contains($existingCell, 'disabled') && str_contains($existingCell, 'aria-disabled="true"'), $existingCell);
+    $h->test('D2 existing unassigned cell is visible and still enterable', str_contains($existingCell, 'data-unassigned="1"') && !str_contains($existingCell, 'aria-disabled') && !preg_match('/\sdisabled(?:\s|>)/', $existingCell), $existingCell);
 
     $assign($store, $product, 1);
     $assignedHtml = $render();
     $assignedCell = $cellMarkup($assignedHtml, $product, $store);
-    $h->test('D3 re-assignment makes the same cell enterable again', $assignedCell !== '' && !str_contains($assignedCell, 'aria-disabled="true"') && !preg_match('/\sdisabled(?:\s|>)/', $assignedCell), $assignedCell);
+    $h->test('D3 re-assignment clears the warning on the same cell', $assignedCell !== '' && !str_contains($assignedCell, 'data-unassigned') && !preg_match('/\sdisabled(?:\s|>)/', $assignedCell), $assignedCell);
 
     $expectedColumns = (int)$db->query("SELECT COUNT(*) FROM dl_branches WHERE is_active=1 AND id<>{$comm}")->fetchColumn();
     preg_match('/<tr class="daily-sheet-product-row" data-product-id="' . $product . '".*?<\/tr>/s', $assignedHtml, $productRow);
@@ -154,27 +164,45 @@ try {
     $error = (string)($deliveryResult['body']['error'] ?? '');
     $h->test('D6 delivery to unassigned destination is refused and writes nothing', ($deliveryResult['body']['code'] ?? '') === 'PRODUCT_NOT_ASSIGNED' && str_contains($error, 'G2 Hidden Product') && str_contains($error, 'G2 Store') && $afterDeliveries === $beforeDeliveries, $deliveryResult['raw'] . " before={$beforeDeliveries} after={$afterDeliveries}");
 
-    // D6b: the Daily Sheet cell's own write path (api/v1/commissary/dispatch ->
-    // dl_recordDailySheetBranchEntry) is the delivery behind the disabled cell.
-    // A stale tab or offline replay must be refused here too, not only at
-    // apiCreateDelivery.
+    // D6b: THE POLICY (owner, 2026-10-06). The Daily Sheet cell's own write path
+    // (api/v1/commissary/dispatch -> dl_recordDailySheetBranchEntry) no longer
+    // refuses an unassigned destination. The encoder's data is authoritative,
+    // the branch link is revived in the same transaction, and the admin is
+    // notified. D5 and D6 above stay refused on purpose: the formal movement
+    // path and the admin recovery page are different surfaces, unchanged here.
+    $assign($store, $product, 0);
     $beforeSheet = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE destination_id={$store}")->fetchColumn();
-    $sheetCode = '';
+    $sheetResult = [];
     $sheetMessage = '';
     try {
-        dl_recordDailySheetBranchEntry($user, [
+        $sheetResult = dl_recordDailySheetBranchEntry($user, [
             'date' => $today, 'commissary_branch_id' => $comm, 'destination_branch_id' => $store,
             'product_id' => $product, 'quantity' => 3, 'shift' => 'AM',
-            'submission_id' => 'g2-sheet-unassigned',
+            'submission_id' => 'g2-sheet-revive',
+            // The cell already carries the D2 delivery, so this is the signed
+            // correction shape the modal posts.
+            'type' => 'correction', 'reason_code' => 'encoder_omission',
         ]);
     } catch (\Throwable $e) {
-        $sheetCode = $e instanceof DlProductNotAssignedException ? $e->errorCode() : '';
         $sheetMessage = $e->getMessage();
     }
     $afterSheet = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE destination_id={$store}")->fetchColumn();
-    $h->test('D6b sheet dispatch to unassigned destination is refused with PRODUCT_NOT_ASSIGNED and writes nothing',
-        $sheetCode === 'PRODUCT_NOT_ASSIGNED' && str_contains($sheetMessage, 'G2 Hidden Product') && str_contains($sheetMessage, 'G2 Store') && $afterSheet === $beforeSheet,
-        "code={$sheetCode} msg={$sheetMessage} before={$beforeSheet} after={$afterSheet}");
+    $pairAfterSheet = (int)$db->query("SELECT is_active FROM dl_branch_products WHERE branch_id={$store} AND product_id={$product}")->fetchColumn();
+    $reviveAudit = (int)$db->query("SELECT COUNT(*) FROM audit_logs WHERE module='daily-ledger' AND action='branch_product_assigned' AND branch_id={$store} AND entity_id='{$store}-{$product}'")->fetchColumn();
+    $reviveFinding = (int)$db->query("SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key='branch-link-revived:{$store}:{$product}:{$today}'")->fetchColumn();
+    // The COUNT alone is not evidence: dl_raiseIntegrityNotification uses INSERT
+    // IGNORE, so an unextended ENUM stores an EMPTY finding_type and the row still
+    // counts. Assert the type the admin surface actually filters on.
+    $reviveFindingType = (string)$db->query("SELECT finding_type FROM dl_integrity_notifications WHERE aggregate_key='branch-link-revived:{$store}:{$product}:{$today}' LIMIT 1")->fetchColumn();
+    $h->test('D6b sheet entry to an unassigned destination is recorded, revives the branch link and notifies the admin',
+        $afterSheet === $beforeSheet + 1
+        && $pairAfterSheet === 1
+        && $reviveAudit === 1
+        && $reviveFinding === 1
+        && $reviveFindingType === 'product_branch_link_revived'
+        && !empty($sheetResult['branch_link_revived'])
+        && ($sheetResult['branch_name'] ?? '') === 'G2 Store',
+        "msg={$sheetMessage} before={$beforeSheet} after={$afterSheet} pair={$pairAfterSheet} audit={$reviveAudit} finding={$reviveFinding} type='{$reviveFindingType}' result=" . json_encode($sheetResult));
 
     $assign($store, $product, 1);
     $normal = dl_processProductionMovement($user, 'output', [
@@ -196,6 +224,45 @@ try {
         "SELECT p.id FROM dl_products p INNER JOIN dl_branch_products bp ON bp.product_id=p.id AND bp.branch_id={$store} AND bp.is_active=1 WHERE p.is_active=1 ORDER BY p.id"
     )->fetchAll(PDO::FETCH_COLUMN) ?: []);
     $h->test('D8 Usage omits unassigned products and lists every assigned active product', !in_array($product, $actualUsageIds, true) && $actualUsageIds === $expectedUsageIds, 'actual=' . json_encode($actualUsageIds) . ' expected=' . json_encode($expectedUsageIds));
+
+    $h->section('C4 the product itself is never revived by a sheet entry');
+    // Reviving one branch's link is bookkeeping. Reviving a discontinued PRODUCT
+    // would put it back into every list at once, so that stays refused - and the
+    // refusal must leave the branch link exactly as it found it.
+    $db->execute("UPDATE dl_products SET is_active = 0 WHERE id = {$product}");
+    $assign($store, $product, 0);
+    $beforeInactive = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE destination_id={$store}")->fetchColumn();
+    $inactiveMessage = '';
+    try {
+        dl_recordDailySheetBranchEntry($user, [
+            'date' => $today, 'commissary_branch_id' => $comm, 'destination_branch_id' => $store,
+            'product_id' => $product, 'quantity' => 3, 'shift' => 'AM',
+            'submission_id' => 'g2-sheet-inactive',
+        ]);
+    } catch (\Throwable $e) {
+        $inactiveMessage = $e->getMessage();
+    }
+    $afterInactive = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE destination_id={$store}")->fetchColumn();
+    $pairAfterInactive = (int)$db->query("SELECT is_active FROM dl_branch_products WHERE branch_id={$store} AND product_id={$product}")->fetchColumn();
+    $h->test('D9 a discontinued product is still refused and its branch link is never revived',
+        $inactiveMessage !== '' && $afterInactive === $beforeInactive && $pairAfterInactive === 0,
+        "msg={$inactiveMessage} before={$beforeInactive} after={$afterInactive} pair={$pairAfterInactive}");
+    $db->execute("UPDATE dl_products SET is_active = 1 WHERE id = {$product}");
+
+    $h->section('C5 the finding_type 078 introduces is deployable');
+    // The revival is only observable to an admin if its finding_type exists.
+    // An unregistered migration silently never runs, which is exactly how this
+    // feature would ship looking finished while notifying nobody.
+    $migrationRel = 'modules/daily-ledger/database/migrations/078_sheet_entry_branch_link_finding_type.sql';
+    $migrationSql = is_file($base . '/' . $migrationRel) ? (string)file_get_contents($base . '/' . $migrationRel) : '';
+    $manifest078 = json_decode((string)file_get_contents($base . '/modules/daily-ledger/module.json'), true);
+    $h->test('D10 migration 078 exists, is registered, and appends the new value after 076\'s six',
+        $migrationSql !== ''
+        && in_array('database/migrations/' . basename($migrationRel), $manifest078['migrations'] ?? [], true)
+        && str_contains($migrationSql, "'closed_without_pm_finalize'',''product_branch_link_revived'")
+        && preg_match('/LOCATE\s*\(/i', $migrationSql) === 1
+        && preg_match('/\bPREPARE\b/i', $migrationSql) === 1,
+        'registered=' . var_export(in_array('database/migrations/' . basename($migrationRel), $manifest078['migrations'] ?? [], true), true));
 } finally {
     $cleanup();
     @unlink($payloadFile);

@@ -532,11 +532,18 @@
         justify-content: center;
         white-space: nowrap;
     }
-    #tab-daily-sheet .production-branch-cell .production-branch-trigger[aria-disabled="true"] {
-        color: #9ca3af;
-        background: #f3f4f6;
-        border-color: #d1d5db;
-        cursor: not-allowed;
+    /* A destination the branch does not list is a WARNING, not a wall: the amber
+       tint says "this branch has not been given this product", while the control
+       stays fully enterable. Recording here gives the product back to the branch
+       and notifies the admin, so the encoder never waits on a list update. No
+       cursor:not-allowed and no aria-disabled, because neither is true: the cell
+       really does accept the entry. The full explanation lives in the modal
+       rather than in this tooltip, because this tooltip is emitted once per
+       unassigned cell on a 180x18 grid. */
+    #tab-daily-sheet .production-branch-cell .production-branch-trigger[data-unassigned="1"] {
+        color: #92400e;
+        background: #fffbeb;
+        border-color: #fcd34d;
     }
     /* ONE control box for all four entry controls. width:100% inside the shared
        6px cell padding makes every control exactly its column's content box,
@@ -1479,10 +1486,10 @@
                                     data-branch="{cell.branch_id}"
                                     data-branch-name="{cell.branch_name}"
                                     data-exists="{if cell.has_entry}1{else}0{/if}"
-                                    {if shift_status == 'finalized' || !cell.is_assigned}disabled{/if}
-                                    {if !cell.is_assigned}aria-disabled="true"{/if}
+                                    {if shift_status == 'finalized'}disabled{/if}
+                                    {if !cell.is_assigned}data-unassigned="1"{/if}
                                     onclick="openBranchCellModal({row.product_id}, {cell.branch_id})"
-                                    title="{if !cell.is_assigned}Not available: {row.sheet_label} is not assigned to {cell.branch_name}{else}Record a delivery for {row.sheet_label} to {cell.branch_name}{/if}">
+                                    title="{if !cell.is_assigned}{row.sheet_label} is not in {cell.branch_name}'s product list - you can still record it{else}Record a delivery for {row.sheet_label} to {cell.branch_name}{/if}">
                                 <span class="production-branch-value" data-product="{row.product_id}" data-branch-id="{cell.branch_id}">{cell.quantity}</span>
                                 <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
                             </button>
@@ -1669,6 +1676,11 @@
                     <span class="font-semibold">reduce</span> an amount recorded too high, put a minus sign first
                     (e.g. <span class="font-mono font-semibold">-3</span>). Each adjustment is logged as its own row,
                     so the trail reads: original entry → correction.
+                </div>
+                <div id="branch-cell-unassigned-note" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                    This branch does not list this product. Recording it here still works: the product is given
+                    back to this branch and the admin is notified, so nobody waits for a list update. If this was
+                    a mistake, reverse the entry and an admin can hide the product again.
                 </div>
                 <div id="branch-cell-edit-fields" class="space-y-3 hidden">
                     <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
@@ -2062,6 +2074,11 @@
         if (!modal) return;
         var trigger = branchCellTrigger(productId, branchId);
         var hasEntry = trigger && trigger.getAttribute('data-exists') === '1';
+        // The amber cell means "this branch has not been given this product".
+        // Say what that means once, here, instead of in a tooltip repeated on
+        // every unassigned cell of the sheet.
+        var unassignedNote = document.getElementById('branch-cell-unassigned-note');
+        if (unassignedNote) unassignedNote.classList.toggle('hidden', !(trigger && trigger.getAttribute('data-unassigned') === '1'));
         var productEl = document.getElementById('branch-cell-product');
         if (productEl) productEl.value = String(productId);
         document.getElementById('branch-cell-branch-id').value = String(branchId);
@@ -2126,6 +2143,12 @@
         productionJson('{base_url}/api/v1/commissary/dispatch', payload).then(function(res) {
             closeBranchCellModal();
             showToast(res.duplicate ? 'Entry was already recorded' : (isEdit ? 'Correction recorded' : 'Branch delivery recorded'), 'success');
+            // Recording is never blocked by the branch list, so the list change it
+            // caused has to be said out loud - the encoder is the only person who
+            // knows whether the entry was right, and the admin has been told too.
+            if (res.branch_link_revived) {
+                showToast((res.product_name || 'This product') + ' was added back to ' + (res.branch_name || 'that branch') + ' and the admin was notified', 'warning');
+            }
             setTimeout(function() { window.refreshMainContent(); }, 500);
         }).catch(function(error) {
             if (status) status.textContent = error.message || 'Save failed';
