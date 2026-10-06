@@ -154,7 +154,8 @@
     "database/migrations/073_audit_logs_module_created_index.sql",
     "database/migrations/074_add_ending_provenance.sql",
     "database/migrations/075_offline_refusal_visibility.sql",
-    "database/migrations/076_closed_without_pm_finalize_finding_type.sql"
+    "database/migrations/076_closed_without_pm_finalize_finding_type.sql",
+    "database/migrations/077_branch_product_assignment_mode.sql"
   ],
   "capabilities": {
     "exposes": [

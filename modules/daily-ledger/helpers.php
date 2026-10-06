@@ -17,6 +17,28 @@ class DlDuplicateWithdrawalException extends \RuntimeException
 }
 
 /**
+ * Raised when a ledger write names a (branch, product) pair that is not
+ * currently assigned — the product is globally inactive, or the
+ * dl_branch_products link is absent/inactive. Carries HTTP 422 and a stable
+ * machine-readable code so the held-save queue and the offline sync loop can
+ * label the refusal instead of retrying it as a transient failure.
+ */
+class DlProductNotAssignedException extends \RuntimeException
+{
+    public const ERROR_CODE = 'PRODUCT_NOT_ASSIGNED';
+
+    public function __construct(string $message)
+    {
+        parent::__construct($message, 422);
+    }
+
+    public function errorCode(): string
+    {
+        return self::ERROR_CODE;
+    }
+}
+
+/**
  * True when a PDOException is a duplicate-entry (unique key) violation.
  * SQLSTATE 23000 with driver code 1062 (InnoDB).
  */

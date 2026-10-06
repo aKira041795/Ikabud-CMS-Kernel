@@ -4343,6 +4343,20 @@ function dl_fetchProductionLedgerLog($db, int $commissaryBranchId, string $ledge
     return $log;
 }
 
+/**
+ * Shape a production-movement failure for the JSON surface. The
+ * assignment refusal keeps its machine-readable code; every other failure
+ * keeps the existing human-only shape.
+ */
+function dl_productionMovementErrorPayload(\Throwable $e): array
+{
+    $payload = ['error' => $e->getMessage()];
+    if ($e instanceof DlProductNotAssignedException) {
+        $payload['code'] = $e->errorCode();
+    }
+    return $payload;
+}
+
 function dl_processProductionMovement(array $user, string $movementType, array $input): array
 {
     $ctx = module();
@@ -4564,6 +4578,11 @@ function dl_processProductionMovement(array $user, string $movementType, array $
     } else {
         $ledgerColumn = $movementType === 'withdrawal' ? 'withdraw' : 'addtl';
     }
+
+    // Assignment guard: the destination branch must still list this product.
+    // Throws DlProductNotAssignedException (code PRODUCT_NOT_ASSIGNED) before
+    // any movement row, ledger delta, or auto-delivery is written.
+    dl_assertBranchProductAssigned($ctx->db(), $destinationBranchId, $productId);
 
     $ownsTransaction = !$ctx->db()->inTransaction();
     if ($ownsTransaction) {
@@ -5007,6 +5026,252 @@ function dl_shiftMissingEndings($db, int $branchId, string $date, string $shift)
     );
     $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * Every activity-bearing, ending-less ledger row that would be STRANDED by
+ * hiding a product: one that still sits on an ACTIONABLE date. A row blocks
+ * while its date is the current business date or an earlier date whose
+ * dl_ledger_day_status is absent/'open'. A CLOSED day never blocks — it is not
+ * actionable and its rows cannot be edited anyway; a no-activity row and a row
+ * with a recorded ending never block, so a long-discontinued product can be
+ * unassigned immediately.
+ *
+ * Read-only: it selects and returns, it never writes. Returns every blocking
+ * date+shift (never just a count) across BOTH ledgers, because a branch may be
+ * a store (cashier ledger) or a commissary (commissary product ledger).
+ *
+ * @return array<int,array{branch_id:int,ledger:string,date:string,shift:?string,product_id:int}>
+ */
+function dl_productUnfinishedEndingBlockers($db, int $productId, ?int $branchId = null): array
+{
+    if ($productId <= 0) {
+        return [];
+    }
+    $today = dl_businessDate();
+    $blockers = [];
+
+    // Cashier ledger: bal_end NULL with a real movement.
+    $cashierSql =
+        'SELECT dl.branch_id, dl.ledger_date, dl.shift
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_ledger_day_status ds
+             ON ds.branch_id = dl.branch_id AND ds.ledger_date = dl.ledger_date
+          WHERE dl.product_id = :pid
+            AND dl.bal_end IS NULL
+            AND (dl.beg_bal <> 0 OR dl.addtl <> 0 OR dl.withdraw <> 0)
+            AND dl.ledger_date <= :today
+            AND COALESCE(ds.status, \'open\') <> \'closed\'';
+    $cashierBind = [':pid' => $productId, ':today' => $today];
+    if ($branchId !== null) {
+        $cashierSql .= ' AND dl.branch_id = :bid';
+        $cashierBind[':bid'] = $branchId;
+    }
+    $cashierSql .= ' ORDER BY dl.ledger_date, dl.shift';
+    $stmt = $db->prepare($cashierSql);
+    $stmt->execute($cashierBind);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $blockers[] = [
+            'branch_id' => (int)$row['branch_id'],
+            'ledger' => 'cashier',
+            'date' => (string)$row['ledger_date'],
+            'shift' => $row['shift'] !== null ? (string)$row['shift'] : null,
+            'product_id' => $productId,
+        ];
+    }
+
+    // Commissary ledger: actual_end_qty NULL with a real movement.
+    $commissarySql =
+        'SELECT cpl.commissary_branch_id AS branch_id, cpl.ledger_date, cpl.shift
+           FROM dl_commissary_product_ledger cpl
+           LEFT JOIN dl_ledger_day_status ds
+             ON ds.branch_id = cpl.commissary_branch_id AND ds.ledger_date = cpl.ledger_date
+          WHERE cpl.product_id = :pid
+            AND cpl.actual_end_qty IS NULL
+            AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)
+            AND cpl.ledger_date <= :today
+            AND COALESCE(ds.status, \'open\') <> \'closed\'';
+    $commissaryBind = [':pid' => $productId, ':today' => $today];
+    if ($branchId !== null) {
+        $commissarySql .= ' AND cpl.commissary_branch_id = :bid';
+        $commissaryBind[':bid'] = $branchId;
+    }
+    $commissarySql .= ' ORDER BY cpl.ledger_date, cpl.shift';
+    $stmt = $db->prepare($commissarySql);
+    $stmt->execute($commissaryBind);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $blockers[] = [
+            'branch_id' => (int)$row['branch_id'],
+            'ledger' => 'commissary',
+            'date' => (string)$row['ledger_date'],
+            'shift' => $row['shift'] !== null ? (string)$row['shift'] : null,
+            'product_id' => $productId,
+        ];
+    }
+
+    usort($blockers, static function (array $a, array $b): int {
+        return [$a['date'], (string)$a['shift'], $a['ledger'], $a['branch_id']]
+            <=> [$b['date'], (string)$b['shift'], $b['ledger'], $b['branch_id']];
+    });
+
+    return $blockers;
+}
+
+/**
+ * Blockers for hiding ONE (branch, product) pair. Empty means the pair may be
+ * unassigned immediately.
+ *
+ * @return array<int,array{branch_id:int,ledger:string,date:string,shift:?string,product_id:int}>
+ */
+function dl_branchProductUnassignmentBlockers($db, int $branchId, int $productId): array
+{
+    return dl_productUnfinishedEndingBlockers($db, $productId, $branchId);
+}
+
+/**
+ * Blockers for the GLOBAL dl_products.is_active = 0 transition: the same check
+ * across ALL branches.
+ *
+ * @return array<int,array{branch_id:int,ledger:string,date:string,shift:?string,product_id:int}>
+ */
+function dl_productDeactivationBlockers($db, int $productId): array
+{
+    return dl_productUnfinishedEndingBlockers($db, $productId, null);
+}
+
+/**
+ * The human refusal when a (branch, product) pair is not currently assigned,
+ * or null when a ledger write may proceed. A pair is assigned only when the
+ * product is globally active AND the branch-product link exists with
+ * is_active = 1. Names both the product and the branch so the held-save /
+ * offline queue can show a specific reason instead of a generic error.
+ */
+function dl_branchProductAssignmentRefusal($db, int $branchId, int $productId): ?string
+{
+    if ($branchId <= 0 || $productId <= 0) {
+        return null; // invalid ids are the caller's own validation error, not an assignment one
+    }
+    $stmt = $db->prepare(
+        'SELECT p.name AS product_name, p.is_active AS product_active,
+                b.name AS branch_name, bp.is_active AS pair_active
+           FROM dl_products p
+           LEFT JOIN dl_branches b ON b.id = :bid
+           LEFT JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid2
+          WHERE p.id = :pid
+          LIMIT 1'
+    );
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':pid' => $productId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return "Cannot save: product #{$productId} is not assigned to branch #{$branchId}.";
+    }
+    $pairActive = $row['pair_active'] !== null && (int)$row['pair_active'] === 1;
+    $productActive = (int)($row['product_active'] ?? 0) === 1;
+    if ($pairActive && $productActive) {
+        return null;
+    }
+    $productName = (string)($row['product_name'] ?? ('#' . $productId));
+    $branchName = (string)($row['branch_name'] ?? ('#' . $branchId));
+    $reason = !$productActive
+        ? 'the product is inactive'
+        : 'it is not assigned to this branch';
+    return "Cannot save {$productName}: {$reason} at {$branchName}. Refresh the page to pick up the current product list.";
+}
+
+/**
+ * Throw DlProductNotAssignedException when the pair is not assigned. The
+ * machine-readable code lets the caller/queue label the refusal.
+ */
+function dl_assertBranchProductAssigned($db, int $branchId, int $productId): void
+{
+    $refusal = dl_branchProductAssignmentRefusal($db, $branchId, $productId);
+    if ($refusal !== null) {
+        throw new DlProductNotAssignedException($refusal);
+    }
+}
+
+/**
+ * The audited, guarded branch-product assignment primitive. Slice B's picker
+ * must call this (never a bare UPDATE) so an attempt is always recorded.
+ * Re-assignment is always allowed; unassignment refuses when an actionable
+ * unfinished row would be stranded. Returns every blocker, never a count.
+ *
+ * @return array{ok:bool,code?:string,blockers?:array,is_active?:int}
+ */
+function dl_setBranchProductActive($db, int $branchId, int $productId, bool $active, ?int $actorId = null): array
+{
+    if ($active) {
+        $db->prepare(
+            'INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:bid, :pid, 1)
+             ON DUPLICATE KEY UPDATE is_active = 1'
+        )->execute([':bid' => $branchId, ':pid' => $productId]);
+        dl_auditLog('branch_product_assigned', $branchId, 'dl_branch_products', "{$branchId}-{$productId}", null, [
+            'is_active' => 1,
+            'refused' => false,
+            'actor_id' => $actorId,
+        ], 'product assigned to branch');
+        return ['ok' => true, 'is_active' => 1];
+    }
+
+    $blockers = dl_branchProductUnassignmentBlockers($db, $branchId, $productId);
+    if ($blockers !== []) {
+        dl_auditLog('branch_product_unassignment_refused', $branchId, 'dl_branch_products', "{$branchId}-{$productId}", ['is_active' => 1], [
+            'is_active' => 1,
+            'refused' => true,
+            'actor_id' => $actorId,
+            'blockers' => $blockers,
+        ], 'unassignment refused: activity-bearing rows with a missing ending on an actionable day');
+        return ['ok' => false, 'code' => 'PRODUCT_UNASSIGNMENT_BLOCKED', 'blockers' => $blockers];
+    }
+
+    $db->prepare(
+        'INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:bid, :pid, 0)
+         ON DUPLICATE KEY UPDATE is_active = 0'
+    )->execute([':bid' => $branchId, ':pid' => $productId]);
+    dl_auditLog('branch_product_unassigned', $branchId, 'dl_branch_products', "{$branchId}-{$productId}", ['is_active' => 1], [
+        'is_active' => 0,
+        'refused' => false,
+        'actor_id' => $actorId,
+    ], 'product unassigned from branch');
+    return ['ok' => true, 'is_active' => 0];
+}
+
+/**
+ * The audited, guarded global dl_products.is_active toggle. Returns the
+ * blockers (all branches) when a deactivation is refused.
+ *
+ * @return array{ok:bool,code?:string,blockers?:array,is_active?:int}
+ */
+function dl_setProductActive($db, int $productId, bool $active, ?int $actorId = null): array
+{
+    if ($active) {
+        $db->prepare('UPDATE dl_products SET is_active = 1 WHERE id = :id')->execute([':id' => $productId]);
+        dl_auditLog('product_activated', null, 'product', (string)$productId, ['is_active' => 0], [
+            'is_active' => 1,
+            'refused' => false,
+            'actor_id' => $actorId,
+        ], 'product activated');
+        return ['ok' => true, 'is_active' => 1];
+    }
+
+    $blockers = dl_productDeactivationBlockers($db, $productId);
+    if ($blockers !== []) {
+        dl_auditLog('product_deactivation_refused', null, 'product', (string)$productId, ['is_active' => 1], [
+            'is_active' => 1,
+            'refused' => true,
+            'actor_id' => $actorId,
+            'blockers' => $blockers,
+        ], 'deactivation refused: activity-bearing rows with a missing ending on an actionable day');
+        return ['ok' => false, 'code' => 'PRODUCT_DEACTIVATION_BLOCKED', 'blockers' => $blockers];
+    }
+
+    $db->prepare('UPDATE dl_products SET is_active = 0 WHERE id = :id')->execute([':id' => $productId]);
+    dl_auditLog('product_deactivated', null, 'product', (string)$productId, ['is_active' => 1], [
+        'is_active' => 0,
+        'refused' => false,
+        'actor_id' => $actorId,
+    ], 'product deactivated');
+    return ['ok' => true, 'is_active' => 0];
 }
 
 /**
@@ -7058,6 +7323,17 @@ function apiSaveCashierWithdrawals(array $params = []): void
         return;
     }
 
+    // Assignment guard (all-or-nothing): refuse the whole withdrawal before any
+    // cashier row or ledger delta is written when a line names a pair that is
+    // no longer assigned to this branch. Nothing is silently dropped.
+    foreach ($validLines as $assignmentLine) {
+        $assignmentRefusal = dl_branchProductAssignmentRefusal($ctx->db(), $branchId, (int)$assignmentLine['product_id']);
+        if ($assignmentRefusal !== null) {
+            $ctx->json(['ok' => false, 'error' => $assignmentRefusal, 'code' => DlProductNotAssignedException::ERROR_CODE], 422);
+            return;
+        }
+    }
+
     $role = (string)($user['role'] ?? '');
     $dayStatus = dl_getDayStatus($branchId, $date);
     if ($role === 'cashier' && $dayStatus === 'closed') {
@@ -8822,6 +9098,16 @@ function apiSaveLedgerField(array $params = []): void
         return;
     }
 
+    // Assignment guard: a stale tab or a crafted request must not create a
+    // ledger row for a pair that is no longer listed. Reject loudly; the
+    // cashier sheet's held-save queue retains the refused value and shows it.
+    $assignmentRefusal = dl_branchProductAssignmentRefusal($ctx->db(), $branchId, $productId);
+    if ($assignmentRefusal !== null) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $assignmentRefusal, 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => $assignmentRefusal, 'code' => DlProductNotAssignedException::ERROR_CODE], 422);
+        return;
+    }
+
     // Production-lock guard: cashier cannot overwrite addtl/withdraw set by a production movement
     if ($role === 'cashier' && in_array($field, ['addtl', 'withdraw'], true)) {
         $movementType = $field === 'addtl' ? 'output' : 'withdrawal';
@@ -9217,6 +9503,18 @@ function apiSaveLedgerBatch(array $params = []): void
         return;
     }
 
+    // Assignment guard (all-or-nothing): a batch that names even one pair that
+    // is not currently assigned is refused whole, before the transaction, so no
+    // row is created. Existing held saves surface the refusal to the cashier.
+    foreach ($normalized as $assignmentRow) {
+        $assignmentRefusal = dl_branchProductAssignmentRefusal($ctx->db(), $branchId, (int)$assignmentRow['product_id']);
+        if ($assignmentRefusal !== null) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $assignmentRefusal, 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => $assignmentRefusal, 'code' => DlProductNotAssignedException::ERROR_CODE], 422);
+            return;
+        }
+    }
+
     try {
         $dayStatus = dl_getDayStatus($branchId, $date);
         if (!$isReadOnly) {
@@ -9604,7 +9902,7 @@ function apiProductionWithdrawal(array $params = []): void
         $result = dl_processProductionMovement($user, 'withdrawal', $input);
         $ctx->json(['ok' => true, 'result' => $result]);
     } catch (\Throwable $e) {
-        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        $ctx->json(dl_productionMovementErrorPayload($e), 422);
     }
 }
 
@@ -9628,7 +9926,7 @@ function apiProductionOutput(array $params = []): void
         $result = dl_processProductionMovement($user, 'output', $input);
         $ctx->json(['ok' => true, 'result' => $result]);
     } catch (\Throwable $e) {
-        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        $ctx->json(dl_productionMovementErrorPayload($e), 422);
     }
 }
 
@@ -9653,7 +9951,7 @@ function apiProductionReverse(array $params = []): void
         $result = dl_processProductionMovement($user, 'reverse', $input);
         $ctx->json(['ok' => true, 'result' => $result]);
     } catch (\Throwable $e) {
-        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        $ctx->json(dl_productionMovementErrorPayload($e), 422);
     }
 }
 
@@ -9703,7 +10001,7 @@ function apiProductionSyncBatch(array $params = []): void
         try {
             $results[] = ['index' => $idx, 'ok' => true, 'result' => dl_processProductionMovement($user, $type, $op)];
         } catch (\Throwable $e) {
-            $results[] = ['index' => $idx, 'ok' => false, 'error' => $e->getMessage()];
+            $results[] = array_merge(['index' => $idx, 'ok' => false], dl_productionMovementErrorPayload($e));
         }
     }
 
@@ -14989,6 +15287,29 @@ function apiUpdateProduct(array $params = []): void
             return;
         }
 
+        // Global deactivation guard: the SAME actionable-unfinished-row check as
+        // per-branch unassignment, across ALL branches. Refuse before any write
+        // and audit the refused attempt. Re-activation is always allowed.
+        if ((int)($old['is_active'] ?? 1) === 1 && $isActive === 0) {
+            $deactivationBlockers = dl_productDeactivationBlockers($ctx->db(), $productId);
+            if ($deactivationBlockers !== []) {
+                $ctx->db()->rollBack();
+                dl_auditLog('product_deactivation_refused', null, 'product', (string)$productId, ['is_active' => 1], [
+                    'is_active' => 1,
+                    'refused' => true,
+                    'actor_id' => $userId,
+                    'blockers' => $deactivationBlockers,
+                ], 'deactivation refused: activity-bearing rows with a missing ending on an actionable day');
+                $ctx->json([
+                    'ok' => false,
+                    'code' => 'PRODUCT_DEACTIVATION_BLOCKED',
+                    'error' => 'Cannot deactivate this product: it has activity-bearing ledger rows with a missing ending on an actionable day. Complete those endings first.',
+                    'blockers' => $deactivationBlockers,
+                ], 409);
+                return;
+            }
+        }
+
         $reprice = ['updated_rows' => 0, 'unchanged_rows' => 0, 'skipped_rows' => 0, 'skipped_days' => []];
         $priceChanged = abs(dl_resolveBaseProductPrice($productId, $effectiveFrom) - $price) >= 0.00001;
         if ($priceChanged) {
@@ -15022,6 +15343,14 @@ function apiUpdateProduct(array $params = []): void
             'output_unit_label' => $outputUnitLabel,
             'pcs_per_pack' => $pcsPerPack,
         ]);
+
+        if ((int)($old['is_active'] ?? 1) === 1 && $isActive === 0) {
+            dl_auditLog('product_deactivated', null, 'product', (string)$productId, ['is_active' => 1], [
+                'is_active' => 0,
+                'refused' => false,
+                'actor_id' => $userId,
+            ], 'product deactivated');
+        }
 
         $ctx->db()->commit();
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);
@@ -15231,8 +15560,10 @@ function apiCreateBranch(array $params = []): void
 
         $branchId = (int)$ctx->db()->lastInsertId();
 
-        // Assign all active products to new branch
-        $pStmt = $ctx->db()->query('SELECT id FROM dl_products WHERE is_active = 1');
+        // Assign active products that opted into "all active branches" only.
+        // Products explicitly set to 'specific' are assigned by the picker
+        // (Slice B), never auto-assigned to a branch created later.
+        $pStmt = $ctx->db()->query("SELECT id FROM dl_products WHERE is_active = 1 AND assignment_mode = 'all_active'");
         foreach ($pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
             $ctx->db()->prepare(
                 'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'

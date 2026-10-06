@@ -442,6 +442,12 @@ function dl_offlineApplyLedgerSave(array $user, array $op, bool $inTx = false): 
         throw new RuntimeException('Value out of bounds', 422);
     }
 
+    // Assignment guard: a queued save from a stale device must be refused, not
+    // replayed into a hidden ledger row. DlProductNotAssignedException carries
+    // PRODUCT_NOT_ASSIGNED so the reconcile records a deterministic rejection
+    // (retained on the server) instead of retrying forever.
+    dl_assertBranchProductAssigned($ctx->db(), $branchId, $productId);
+
     if ($role === 'cashier' && in_array($field, ['addtl', 'withdraw'], true)) {
         $movementType = $field === 'addtl' ? 'output' : 'withdrawal';
         $lockStmt = $ctx->db()->prepare(
@@ -650,6 +656,9 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         if ($resolved['quantity'] === 0) {
             continue;
         }
+        // Assignment guard: a queued withdrawal line for a pair that is no
+        // longer assigned is refused before any row is written.
+        dl_assertBranchProductAssigned($ctx->db(), $branchId, $pid);
         $validLines[] = [
             'product_id' => $pid,
             'quantity' => $resolved['quantity'],
@@ -1714,13 +1723,18 @@ function apiOfflineReconcile(array $params = []): void
             $statusCode = (int)$e->getCode();
             $isClientError = $statusCode >= 400 && $statusCode < 500;
             $message = $e->getMessage();
+            $errorCode = $e instanceof DlProductNotAssignedException ? $e->errorCode() : null;
             if ($isClientError) {
                 // Deterministic rejection: record a rejected receipt so the op is
                 // not retried blindly. Conflict (409) is recorded as conflict.
                 $receiptStatus = $statusCode === 409 ? 'conflict' : 'rejected';
+                $refusalPayload = ['ok' => false, 'error' => $message];
+                if ($errorCode !== null) {
+                    $refusalPayload['code'] = $errorCode;
+                }
                 try {
                     $ctx->db()->beginTransaction();
-                    dl_offlineRecordReceipt($enrollmentId, $clientOpId, $type, $receiptStatus, ['ok' => false, 'error' => $message]);
+                    dl_offlineRecordReceipt($enrollmentId, $clientOpId, $type, $receiptStatus, $refusalPayload);
                     $ctx->db()->commit();
                 } catch (Throwable $e2) {
                     if ($ctx->db()->inTransaction()) {
@@ -1730,7 +1744,11 @@ function apiOfflineReconcile(array $params = []): void
                     $results[] = ['client_op_id' => $clientOpId, 'ok' => false, 'error' => 'Receipt storage failed.', 'status' => 'server_error'];
                     continue;
                 }
-                $results[] = ['client_op_id' => $clientOpId, 'ok' => false, 'error' => $message, 'status' => $receiptStatus];
+                $result = ['client_op_id' => $clientOpId, 'ok' => false, 'error' => $message, 'status' => $receiptStatus];
+                if ($errorCode !== null) {
+                    $result['code'] = $errorCode;
+                }
+                $results[] = $result;
             } else {
                 // Transport/server failure: no receipt so the client retries later.
                 $failed = true;
