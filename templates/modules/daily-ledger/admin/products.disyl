@@ -54,15 +54,25 @@
         }
     }
     .picker-row.is-hidden { display: none; }
+    .picker-table-wrap { max-height: 60vh; overflow-y: auto; }
+    #picker-table thead th { position: sticky; top: 0; z-index: 1; }
+    #picker-table tbody td { padding-top: .55rem; padding-bottom: .55rem; }
+    .picker-check { width: 1.15rem; height: 1.15rem; }
+    .picker-empty { border-top: 1px solid rgb(226 232 240); padding: 2rem 1rem; text-align: center; color: rgb(71 85 105); }
+    .picker-refusal-item { margin-top: .75rem; border-left: 3px solid rgb(225 29 72); padding-left: .75rem; }
+    .picker-blocker { display: grid; grid-template-columns: 7rem 4rem minmax(0, 1fr); gap: .5rem; margin-top: .25rem; font-size: .75rem; }
+    @media (max-width: 639px) {
+        .picker-blocker { grid-template-columns: 1fr; gap: 0; }
+    }
 </style>
 {/block}
 
 {block content}
 <div class="mb-4 border-b border-gray-200">
     <nav class="flex gap-1" aria-label="Products sections" data-products-tabs>
-        <a href="{base_url}/admin/products" data-tab-products
+        <a href="{base_url}/admin/products" data-tab-products {if tab == 'assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
            class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment'}text-gray-500 hover:text-gray-700{else}border-b-2 border-indigo-600 text-indigo-700{/if}">Products</a>
-        <a href="{base_url}/admin/products?tab=assignment" data-tab-assignment
+        <a href="{base_url}/admin/products?tab=assignment" data-tab-assignment {if tab == 'assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
            class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment'}border-b-2 border-indigo-600 text-indigo-700{else}text-gray-500 hover:text-gray-700{/if}">Show in Branches</a>
     </nav>
 </div>
@@ -74,7 +84,7 @@
             <form method="GET" action="{base_url}/admin/products" onsubmit="return window.dlLoadForm(this)" data-picker-branch-form>
                 <input type="hidden" name="tab" value="assignment">
                 <label class="form-label" for="picker-branch">Branch being edited</label>
-                <select class="form-input sm:w-80" id="picker-branch" name="branch_id" onchange="window.dlLoadForm(this.form)" data-picker-branch>
+                <select class="form-input sm:w-80" id="picker-branch" name="branch_id" onchange="changePickerBranch(this)" data-picker-branch>
                     {foreach branches as b}
                     <option value="{b.id}" {if b.id == branch_id}selected{/if}>{b.code} — {b.name}{if b.is_commissary == 1} (commissary){/if}</option>
                     {/foreach}
@@ -82,14 +92,22 @@
             </form>
             <div>
                 <label class="form-label" for="picker-search">Search name or SKU</label>
-                <input type="text" class="form-input sm:w-72" id="picker-search" placeholder="Type to filter..." autocomplete="off" oninput="filterPicker()" data-picker-search>
+                <input type="search" class="form-input sm:w-72" id="picker-search" placeholder="e.g. product name or SKU" autocomplete="off" oninput="filterPicker()" data-picker-search>
+            </div>
+            <div>
+                <label class="form-label" for="picker-state">State</label>
+                <select class="form-input" id="picker-state" onchange="filterPicker()" data-picker-state>
+                    <option value="all">All</option>
+                    <option value="shown">Shown here</option>
+                    <option value="hidden">Hidden here</option>
+                </select>
             </div>
         </div>
-        <div class="text-sm text-gray-600">
+        <div class="text-sm text-gray-600" aria-live="polite" aria-atomic="true">
             <span class="font-semibold text-gray-900" id="picker-visible-count">{assignment_products | length}</span>
-            product(s) shown
-            <span class="mx-2 text-gray-300">|</span>
-            <span id="picker-checked-count">0</span> ticked
+            matching
+            <span class="mx-2 text-gray-300" aria-hidden="true">|</span>
+            <span id="picker-checked-count">0</span> shown in branch
         </div>
     </div>
 </div>
@@ -104,8 +122,8 @@
 
 {if warning_groups | length > 0}
 <div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-picker-warning-info>
-    <div class="font-semibold">Information: older unfinished days</div>
-    <p class="mt-1">These days are already stalled and <span class="font-semibold">do not block saving</span>. You may want to look at them later.</p>
+    <div class="font-semibold"><i class="fas fa-circle-info" aria-hidden="true"></i> Information: older unfinished days</div>
+    <p class="mt-1">These records <span class="font-semibold">do not block this save</span>. When convenient, review the listed days in the Ledger and complete any missing ending balances that should be recorded.</p>
     <details class="mt-2">
         <summary class="cursor-pointer font-medium">{warning_groups | length} product(s) with older unfinished days</summary>
         <div class="mt-2 space-y-1">
@@ -123,43 +141,62 @@
 {/if}
 
 <div class="mb-3 flex flex-wrap items-center gap-2">
-    <button type="button" class="btn btn-outline btn-sm" onclick="pickerCheckAll(true)">Tick all shown</button>
-    <button type="button" class="btn btn-outline btn-sm" onclick="pickerCheckAll(false)">Untick all shown</button>
+    <span class="text-sm font-medium text-gray-700">Bulk change:</span>
+    <button type="button" class="btn btn-outline btn-sm" id="picker-show-matching" onclick="pickerCheckAll(true)">Show all matching</button>
+    <button type="button" class="btn btn-outline btn-sm" id="picker-hide-matching" onclick="pickerCheckAll(false)">Hide all matching</button>
+    <span class="text-xs text-gray-600">Only the products currently matching search + state are changed.</span>
+</div>
+<div id="picker-change-summary" class="mb-3 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" role="status" aria-live="polite" tabindex="-1">
+    No unsaved changes. Choose products, then save once.
 </div>
 
 <div class="card">
-    <div class="table-wrap" style="max-height: 60vh; overflow-y: auto;">
+    <div class="table-wrap picker-table-wrap">
         <table id="picker-table" data-picker-table>
             <thead>
                 <tr>
-                    <th style="width:3rem;">Show</th>
+                    <th style="width:4.5rem;">Show</th>
                     <th>SKU</th>
                     <th>Product</th>
                     <th>Category</th>
+                    <th class="text-right">Product view</th>
                 </tr>
             </thead>
             <tbody>
                 {foreach assignment_products as p}
                 <tr class="picker-row" data-product-id="{p.id}">
                     <td>
-                        <input type="checkbox" class="picker-check" value="{p.id}" {if p.assigned == 1}checked{/if} onchange="updatePickerCheckedCount()" data-product-check>
+                        <input type="checkbox" id="picker-product-{p.id}" class="picker-check" value="{p.id}" data-initial="{p.assigned}" {if p.assigned == 1}checked{/if} onchange="pickerSelectionChanged()" aria-label="Show {p.name} in this branch" data-product-check>
                     </td>
                     <td class="picker-sku font-mono text-xs text-gray-500">{p.sku}</td>
-                    <td class="picker-name font-medium text-gray-900">{p.name}</td>
+                    <td class="picker-name font-medium text-gray-900"><label for="picker-product-{p.id}">{p.name}</label></td>
                     <td class="text-xs uppercase tracking-wider text-gray-600">{p.product_category}</td>
+                    <td class="text-right">
+                        <button type="button" class="btn btn-sm btn-outline" aria-label="Open {p.name} product view" title="View details and all branch assignments"
+                            data-price="{p.current_price}" data-sort="{p.sort_order}" data-active="{p.is_active}"
+                            data-output-pieces="{p.output_pieces_per_batch | default:0}" data-output-unit="{p.output_unit_label | default:pcs}"
+                            data-batch-kilo="{p.batch_input_qty | default:0}" data-batch-eggs="{p.batch_egg_qty | default:0}" data-pack="{p.pcs_per_pack | default:0}"
+                            data-effective="{p.current_price_effective_from | default:''}" data-assignment-mode="{p.assignment_mode | default:'all_active'}"
+                            data-branches="{p.assigned_branch_ids | default:''}" onclick="openPickerProduct(this)">View product</button>
+                    </td>
                 </tr>
                 {/foreach}
             </tbody>
         </table>
+        <div id="picker-empty" class="picker-empty hidden" role="status">
+            <p class="font-semibold text-gray-900">No matching products</p>
+            <p class="mt-1 text-sm" id="picker-empty-help">Clear the search or choose another state.</p>
+        </div>
     </div>
 </div>
 
-<div id="picker-refusal" class="hidden mt-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900" data-picker-refusal></div>
-<div id="picker-warning" class="hidden mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-picker-save-warning></div>
+<div id="picker-refusal" class="hidden mt-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert" aria-live="assertive" tabindex="-1" data-picker-refusal></div>
+<div id="picker-warning" class="hidden mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status" aria-live="polite" tabindex="-1" data-picker-save-warning></div>
 
-<div class="mt-4 flex items-center justify-end gap-2">
-    <a href="{base_url}/admin/branches" class="btn btn-outline">Cancel</a>
-    <button type="button" class="btn btn-primary" id="picker-save" onclick="submitPicker()" data-picker-save>Save changes</button>
+<div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+    <a href="{base_url}/admin/branches" class="btn btn-outline" onclick="return pickerLeaveAssignment(event, this.href)">Back to branches</a>
+    <button type="button" class="btn btn-outline" id="picker-discard" onclick="discardPickerChanges()" disabled>Discard changes</button>
+    <button type="button" class="btn btn-primary" id="picker-save" onclick="submitPicker()" disabled data-picker-save>Save changes</button>
 </div>
 {else}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -635,37 +672,152 @@
         });
     }
 
+    var pickerDirty = false;
+
     function updatePickerCheckedCount() {
         var el = document.getElementById('picker-checked-count');
         if (!el) { return; }
-        el.textContent = String(document.querySelectorAll('.picker-check:checked').length);
+        el.textContent = String(document.querySelectorAll('#picker-table .picker-check:checked').length);
+    }
+
+    function pickerChangeCounts() {
+        var counts = { shown: 0, hidden: 0 };
+        Array.prototype.forEach.call(document.querySelectorAll('#picker-table .picker-check'), function (cb) {
+            var initiallyChecked = cb.getAttribute('data-initial') === '1';
+            if (cb.checked !== initiallyChecked) {
+                counts[cb.checked ? 'shown' : 'hidden']++;
+            }
+        });
+        return counts;
+    }
+
+    function updatePickerChangeSummary() {
+        var counts = pickerChangeCounts();
+        var total = counts.shown + counts.hidden;
+        pickerDirty = total > 0;
+        var summary = document.getElementById('picker-change-summary');
+        var save = document.getElementById('picker-save');
+        var discard = document.getElementById('picker-discard');
+        if (summary) {
+            summary.innerHTML = pickerDirty
+                ? '<span class="font-semibold">Unsaved:</span> ' + counts.shown + ' product(s) will be shown and '
+                    + counts.hidden + ' product(s) will be hidden. Nothing changes until you save.'
+                : 'No unsaved changes. Choose products, then save once.';
+        }
+        if (save) {
+            save.disabled = !pickerDirty;
+            save.textContent = pickerDirty ? 'Save ' + total + ' change' + (total === 1 ? '' : 's') : 'Save changes';
+        }
+        if (discard) { discard.disabled = !pickerDirty; }
     }
 
     function filterPicker() {
         var search = document.getElementById('picker-search');
         if (!search) { return; }
+        var state = document.getElementById('picker-state');
+        var stateValue = state ? state.value : 'all';
         var q = (search.value || '').toLowerCase().trim();
         var rows = document.querySelectorAll('#picker-table tbody tr.picker-row');
         var visible = 0;
         Array.prototype.forEach.call(rows, function (row) {
             var nameCell = row.querySelector('.picker-name');
             var skuCell = row.querySelector('.picker-sku');
+            var cb = row.querySelector('.picker-check');
             var text = ((nameCell ? nameCell.textContent : '') + ' ' + (skuCell ? skuCell.textContent : '')).toLowerCase();
-            var show = q === '' || text.indexOf(q) !== -1;
+            var matchesText = q === '' || text.indexOf(q) !== -1;
+            var matchesState = stateValue === 'all' || (stateValue === 'shown' ? cb.checked : !cb.checked);
+            var show = matchesText && matchesState;
             row.classList.toggle('is-hidden', !show);
             if (show) { visible++; }
         });
         var count = document.getElementById('picker-visible-count');
+        var empty = document.getElementById('picker-empty');
+        var emptyHelp = document.getElementById('picker-empty-help');
+        var showMatching = document.getElementById('picker-show-matching');
+        var hideMatching = document.getElementById('picker-hide-matching');
         if (count) { count.textContent = String(visible); }
+        if (empty) { empty.classList.toggle('hidden', visible !== 0); }
+        if (emptyHelp) {
+            emptyHelp.textContent = rows.length === 0
+                ? 'There are no active products to assign.'
+                : 'Clear the search or choose another state.';
+        }
+        if (showMatching) {
+            showMatching.disabled = visible === 0;
+            showMatching.textContent = 'Show all ' + visible + ' matching';
+        }
+        if (hideMatching) {
+            hideMatching.disabled = visible === 0;
+            hideMatching.textContent = 'Hide all ' + visible + ' matching';
+        }
+    }
+
+    function pickerSelectionChanged() {
+        updatePickerCheckedCount();
+        updatePickerChangeSummary();
+        filterPicker();
     }
 
     function pickerCheckAll(checked) {
+        var matched = [];
         Array.prototype.forEach.call(document.querySelectorAll('#picker-table tbody tr.picker-row'), function (row) {
-            if (row.classList.contains('is-hidden')) { return; }
+            if (!row.classList.contains('is-hidden')) { matched.push(row); }
+        });
+        Array.prototype.forEach.call(matched, function (row) {
             var cb = row.querySelector('.picker-check');
             if (cb) { cb.checked = checked; }
         });
-        updatePickerCheckedCount();
+        pickerSelectionChanged();
+    }
+
+    function changePickerBranch(select) {
+        if (pickerDirty && !window.confirm('Discard the unsaved product changes and switch branches?')) {
+            select.value = String(PICKER_BRANCH_ID);
+            return;
+        }
+        pickerDirty = false;
+        window.dlLoadForm(select.form);
+    }
+
+    function pickerLeaveAssignment(event, href) {
+        if (pickerDirty && !window.confirm('Discard the unsaved product changes and leave this page?')) {
+            if (event) { event.preventDefault(); }
+            return false;
+        }
+        pickerDirty = false;
+        return true;
+    }
+
+    function discardPickerChanges() {
+        Array.prototype.forEach.call(document.querySelectorAll('#picker-table .picker-check'), function (cb) {
+            cb.checked = cb.getAttribute('data-initial') === '1';
+        });
+        pickerSelectionChanged();
+    }
+
+    function openPickerProduct(button) {
+        if (pickerDirty) {
+            showToast('Save or discard this branch’s changes before opening a product.', 'warning');
+            document.getElementById('picker-change-summary').focus();
+            return;
+        }
+        var row = button.closest('tr');
+        openEditProduct(
+            parseInt(row.getAttribute('data-product-id'), 10),
+            row.querySelector('.picker-name').textContent.trim(),
+            row.querySelector('td:nth-child(4)').textContent.trim().toLowerCase(),
+            parseFloat(button.getAttribute('data-price')) || 0,
+            parseInt(button.getAttribute('data-sort'), 10) || 0,
+            parseInt(button.getAttribute('data-active'), 10),
+            parseInt(button.getAttribute('data-output-pieces'), 10) || 0,
+            button.getAttribute('data-output-unit') || 'pcs',
+            parseFloat(button.getAttribute('data-batch-kilo')) || 0,
+            parseFloat(button.getAttribute('data-batch-eggs')) || 0,
+            parseInt(button.getAttribute('data-pack'), 10) || 0,
+            button.getAttribute('data-effective') || '',
+            button.getAttribute('data-assignment-mode') || 'all_active',
+            button.getAttribute('data-branches') || ''
+        );
     }
 
     function renderPickerRefusals(res) {
@@ -677,18 +829,21 @@
             box.innerHTML = '';
             return;
         }
-        var html = '<p class="font-semibold text-rose-900">Nothing was saved. These products could not be removed:</p>';
-        html += '<ul class="mt-1 list-disc pl-5 text-rose-800">';
+        var html = '<p class="font-semibold text-rose-900"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Nothing was saved</p>';
+        html += '<p class="mt-1">Enter the missing ending balance for each date and shift below, then try this all-or-nothing save again.</p>';
         refused.forEach(function (item) {
-            var parts = (item.blockers || []).map(function (b) {
-                return b.date + ' ' + (b.shift || '') + ' (' + b.ledger + ')';
+            html += '<section class="picker-refusal-item"><h3 class="font-semibold">'
+                + pickerEscape(item.name || ('Product #' + item.product_id)) + '</h3>';
+            (item.blockers || []).forEach(function (b) {
+                html += '<div class="picker-blocker"><span><span class="sr-only">Date: </span>' + pickerEscape(b.date || '')
+                    + '</span><span><span class="sr-only">Shift: </span>' + pickerEscape(b.shift || 'shift not named')
+                    + '</span><span><span class="sr-only">Ledger: </span>' + pickerEscape(b.ledger || '') + '</span></div>';
             });
-            html += '<li><span class="font-medium">' + pickerEscape(item.name || ('#' + item.product_id)) + '</span>: '
-                + pickerEscape(parts.join(', ')) + '</li>';
+            html += '</section>';
         });
-        html += '</ul>';
         box.innerHTML = html;
         box.classList.remove('hidden');
+        box.focus();
     }
 
     function renderPickerWarnings(warnings) {
@@ -700,14 +855,15 @@
             box.innerHTML = '';
             return;
         }
-        var html = '<p class="font-semibold">Information: older unfinished days (these do not block saving)</p>';
-        html += '<ul class="mt-1 list-disc pl-5">';
+        var html = '<p class="font-semibold"><i class="fas fa-circle-info" aria-hidden="true"></i> Information: older unfinished days (these do not block saving)</p>';
+        html += '<p class="mt-1">When convenient, review these days in the Ledger and complete any missing ending balances that should be recorded.</p><ul class="mt-1 list-disc pl-5">';
         warnings.forEach(function (w) {
             html += '<li>' + pickerEscape(((w.product_name || '') + ' — ' + w.ledger + ' ' + w.date + ' ' + (w.shift || '')).trim()) + '</li>';
         });
         html += '</ul>';
         box.innerHTML = html;
         box.classList.remove('hidden');
+        box.focus();
     }
 
     function submitPicker() {
@@ -730,6 +886,7 @@
             if (res && res.ok) {
                 renderPickerRefusals(null);
                 renderPickerWarnings(res.warnings || []);
+                pickerDirty = false;
                 showToast('Saved: ' + (res.added || 0) + ' shown, ' + (res.removed || 0) + ' hidden');
                 btn.disabled = false;
                 btn.textContent = original;
@@ -750,6 +907,11 @@
     }
 
     updatePickerCheckedCount();
+    updatePickerChangeSummary();
+    filterPicker();
+    window.onbeforeunload = function () {
+        if (pickerDirty) { return 'You have unsaved branch product changes.'; }
+    };
 
     // Clicking the overlay background closes the modal (delegated so it survives
     // the in-place #main-content refresh).

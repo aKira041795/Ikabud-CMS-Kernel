@@ -14970,14 +14970,20 @@ function handleAdminProducts(array $params = []): void
         }
         if ($assignmentBranch !== null) {
             $pStmt = $ctx->db()->prepare(
-                'SELECT p.id, p.sku, p.name, p.product_category, p.sort_order,
-                        CASE WHEN bp.is_active = 1 THEN 1 ELSE 0 END AS assigned
+                'SELECT p.*,
+                        CASE WHEN bp.is_active = 1 THEN 1 ELSE 0 END AS assigned,
+                        (SELECT GROUP_CONCAT(all_bp.branch_id ORDER BY all_bp.branch_id)
+                           FROM dl_branch_products all_bp
+                          WHERE all_bp.product_id = p.id AND all_bp.is_active = 1) AS assigned_branch_ids,
+                        (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
+                          WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
+                          ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
                    FROM dl_products p
                    LEFT JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid
                   WHERE p.is_active = 1
                   ORDER BY p.sort_order, p.name'
             );
-            $pStmt->execute([':bid' => $selectedBranchId]);
+            $pStmt->execute([':bid' => $selectedBranchId, ':product_label_at' => $today]);
             $assignmentProducts = $pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
             // INFORMATIONAL only: older unfinished days the admin may look at
