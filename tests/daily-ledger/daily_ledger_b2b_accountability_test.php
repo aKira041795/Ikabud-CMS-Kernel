@@ -239,6 +239,12 @@ try {
         && str_contains($logWritten, 'b2b_probe_absent_action'),
         'threw=' . var_export($guardThrew, true) . ' logged=' . substr($logWritten, 0, 160));
 
+    // Leave NO residue. This probe writes a genuine [error] line into the real app.log, and a stray
+    // unexplained error there is exactly the wrong evidence an admin would chase during a live
+    // incident. The assertion above has already proven the line was written, so restore the log to
+    // its pre-probe bytes.
+    file_put_contents($appLogPath, $logBefore);
+
     // The other half: a row that IS present must stay completely silent, or the guard becomes
     // noise and the real gap stops standing out.
     $logBeforeOk = (string)file_get_contents($appLogPath);
