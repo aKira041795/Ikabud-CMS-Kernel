@@ -280,73 +280,91 @@
 
 <!-- Add Product Modal -->
 <div class="modal-overlay" id="add-modal">
-    <div class="modal">
-        <h3>Add Product</h3>
-        <div class="form-group">
-            <label class="form-label">Product Name</label>
-            <input class="form-input" type="text" id="add-name" placeholder="e.g. BDAY CAKE 1 LAYER">
+    <div class="modal product-modal">
+        <div class="product-modal__header">
+            <h3 class="mb-1">Add Product</h3>
+            <p class="text-sm text-gray-500">Create a catalog product and choose where it appears.</p>
         </div>
+        <div class="product-modal__body">
+            <div class="product-modal__grid">
+                <div class="product-modal__section">
+                    <div class="product-modal__section-title">Catalog</div>
+                    <div class="form-group">
+                        <label class="form-label">Product Name</label>
+                        <input class="form-input" type="text" id="add-name" placeholder="e.g. BDAY CAKE 1 LAYER">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Product Category</label>
+                        <select class="form-input" id="add-category">
+                            <option value="bread">Bread</option>
+                            <option value="cake">Cake</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label class="form-label">Price (PHP)</label>
+                            <input class="form-input" type="number" id="add-price" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Sort Order</label>
+                            <input class="form-input" type="number" id="add-sort" value="0" min="0">
+                        </div>
+                    </div>
+                </div>
 
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Product Category</label>
-            <select class="form-input" id="add-category">
-                <option value="bread">Bread</option>
-                <option value="cake">Cake</option>
-                <option value="other">Other</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label class="form-label">Price (PHP)</label>
-            <input class="form-input" type="number" id="add-price" step="0.01" min="0" placeholder="0.00">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Sort Order</label>
-            <input class="form-input" type="number" id="add-sort" value="0" min="0">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Output Pieces per Batch</label>
-            <input class="form-input" type="number" id="add-output-pieces" value="0" min="0" step="1" placeholder="0 = not set">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Output Unit Label</label>
-            <input class="form-input" type="text" id="add-output-unit" value="pcs" maxlength="20" placeholder="pcs">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Box size (pcs per box)</label>
-            <input class="form-input" type="number" id="add-pcs-per-pack" value="" min="0" step="1" placeholder="Blank = not sold by box">
-            <p class="text-xs text-gray-400 mt-1">Leave blank unless this item is also sold by whole box (e.g. crinkles 24/box). Cashiers can then withdraw in boxes.</p>
-        </div>
-        <div class="form-group">
-            <label class="form-label">Kilo per Batch</label>
-            <input class="form-input" type="number" id="add-batch-kilo-qty" value="" min="0" step="0.001" placeholder="e.g. 5 = 5 kg per batch">
-            <p class="text-xs text-gray-400 mt-1">Kilograms of dough/flour that make up one batch. Leave blank if not applicable.</p>
-        </div>
-        <div class="form-group">
-            <label class="form-label">Egg per Batch</label>
-            <input class="form-input" type="number" id="add-batch-egg-qty" value="" min="0" step="1" placeholder="e.g. 12 = 12 eggs per batch">
-            <p class="text-xs text-gray-400 mt-1">Number of eggs that make up one batch. Leave blank if not applicable.</p>
-        </div>
-        <p class="text-sm text-muted">SKU will be generated automatically.</p>
-        <div class="form-group" data-add-assignment>
-            <label class="form-label">Show in branches</label>
-            <label class="flex items-center gap-2 text-sm text-gray-700">
-                <input type="radio" name="add-assignment-mode" value="all_active" checked onchange="toggleAddBranchPicker()">
-                All active branches
-            </label>
-            <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
-                <input type="radio" name="add-assignment-mode" value="specific" onchange="toggleAddBranchPicker()">
-                Only selected branches
-            </label>
-            <div id="add-branch-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
-                {foreach branches as b}
-                <label class="flex items-center gap-2 text-sm text-gray-700">
-                    <input type="checkbox" class="add-branch-check" value="{b.id}">
-                    {b.code} — {b.name}
-                </label>
-                {/foreach}
+                <div class="product-modal__section">
+                    <div class="product-modal__section-title">Production Profile</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label class="form-label">Output Pieces per Batch</label>
+                            <input class="form-input" type="number" id="add-output-pieces" value="0" min="0" step="1" placeholder="0 = not set">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Output Unit Label</label>
+                            <input class="form-input" type="text" id="add-output-unit" value="pcs" maxlength="20" placeholder="pcs">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Box size (pcs per box)</label>
+                        <input class="form-input" type="number" id="add-pcs-per-pack" value="" min="0" step="1" placeholder="Blank = not sold by box">
+                        <p class="text-xs text-gray-400 mt-1">Leave blank unless this item is also sold by whole box (e.g. crinkles 24/box). Cashiers can then withdraw in boxes.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Kilo per Batch</label>
+                        <input class="form-input" type="number" id="add-batch-kilo-qty" value="" min="0" step="0.001" placeholder="e.g. 5 = 5 kg per batch">
+                        <p class="text-xs text-gray-400 mt-1">Kilograms of dough/flour that make up one batch. Leave blank if not applicable.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Egg per Batch</label>
+                        <input class="form-input" type="number" id="add-batch-egg-qty" value="" min="0" step="1" placeholder="e.g. 12 = 12 eggs per batch">
+                        <p class="text-xs text-gray-400 mt-1">Number of eggs that make up one batch. Leave blank if not applicable.</p>
+                    </div>
+                </div>
+
+                <div class="product-modal__section col-span-full" data-add-assignment>
+                    <div class="product-modal__section-title">Show in branches</div>
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="radio" name="add-assignment-mode" value="all_active" checked onchange="toggleAddBranchPicker()">
+                        All active branches
+                    </label>
+                    <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                        <input type="radio" name="add-assignment-mode" value="specific" onchange="toggleAddBranchPicker()">
+                        Only selected branches
+                    </label>
+                    <div id="add-branch-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
+                        {foreach branches as b}
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" class="add-branch-check" value="{b.id}">
+                            {b.code} — {b.name}
+                        </label>
+                        {/foreach}
+                    </div>
+                </div>
             </div>
+            <p class="text-sm text-muted mt-4">SKU will be generated automatically.</p>
         </div>
-        <div class="modal-actions">
+        <div class="modal-actions product-modal__actions">
             <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
             <button class="btn btn-primary" id="add-submit" onclick="submitAddProduct()">Add Product</button>
         </div>

@@ -29,6 +29,139 @@ async function login(page) {
     await page.waitForSelector('#wb-sidebar', { timeout: 60000 });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Add-product modal DOM contract.
+//
+// The add modal's JavaScript looks elements up BY id / name / class. A relayout
+// that renames or drops one silently breaks CREATING PRODUCTS, so we DERIVE the
+// contract from the shipped JS itself (never a hand-copied list) and then check
+// it against the rendered markup.
+// ─────────────────────────────────────────────────────────────────────────────
+const fs = require('fs');
+const path = require('path');
+
+const PRODUCTS_TEMPLATE = path.join(__dirname, '../../templates/modules/daily-ledger/admin/products.disyl');
+
+function extractFunctionBody(source, name) {
+    const sig = 'function ' + name + '(';
+    const start = source.indexOf(sig);
+    if (start === -1) { throw new Error('add-modal JS function not found: ' + name); }
+    const open = source.indexOf('{', start);
+    let depth = 0;
+    for (let i = open; i < source.length; i++) {
+        const ch = source[i];
+        if (ch === '{') { depth++; }
+        else if (ch === '}') {
+            depth--;
+            if (depth === 0) { return source.slice(open, i + 1); }
+        }
+    }
+    throw new Error('unbalanced braces in ' + name);
+}
+
+function isWhitespaceChar(code) {
+    return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
+}
+
+// Return the first string-literal argument of every `callName(` call in `js`.
+function stringArgs(js, callName) {
+    const out = [];
+    const marker = callName + '(';
+    let idx = js.indexOf(marker);
+    while (idx !== -1) {
+        let i = idx + marker.length;
+        while (i < js.length && isWhitespaceChar(js.charCodeAt(i))) { i++; }
+        const quote = js[i];
+        if (quote === "'" || quote === '"') {
+            const end = js.indexOf(quote, i + 1);
+            if (end !== -1) { out.push(js.slice(i + 1, end)); }
+        }
+        idx = js.indexOf(marker, idx + marker.length);
+    }
+    return out;
+}
+
+function isIdentifierStart(ch) { return !!ch && /[A-Za-z_]/.test(ch); }
+function isIdentifierChar(ch) { return !!ch && /[A-Za-z0-9_-]/.test(ch); }
+
+function splitWhitespace(text) {
+    const out = [];
+    let current = '';
+    for (let i = 0; i < text.length; i++) {
+        if (isWhitespaceChar(text.charCodeAt(i))) {
+            if (current) { out.push(current); current = ''; }
+        } else {
+            current += text[i];
+        }
+    }
+    if (current) { out.push(current); }
+    return out;
+}
+
+// Derive the id / name / class contract from the add-modal JavaScript itself.
+function deriveAddModalContract(source) {
+    const js = ['openAddProduct', 'toggleAddBranchPicker', 'submitAddProduct']
+        .map((fn) => extractFunctionBody(source, fn))
+        .join(';');
+
+    const ids = new Set();
+    const names = new Set();
+    const classes = new Set();
+
+    stringArgs(js, 'getElementById').forEach((id) => ids.add(id));
+    stringArgs(js, 'closeModal').forEach((id) => ids.add(id));
+    stringArgs(js, 'getElementsByName').forEach((n) => names.add(n));
+    stringArgs(js, 'selectedAssignmentMode').forEach((n) => names.add(n));
+    stringArgs(js, 'collectCheckedBranches').forEach((sel) => {
+        if (sel.charAt(0) === '.') { classes.add(sel.slice(1)); }
+    });
+
+    stringArgs(js, 'querySelector').concat(stringArgs(js, 'querySelectorAll')).forEach((sel) => {
+        ['"', "'"].forEach((q) => {
+            let i = sel.indexOf('name=' + q);
+            while (i !== -1) {
+                const end = sel.indexOf(q, i + 6);
+                if (end === -1) { break; }
+                names.add(sel.slice(i + 6, end));
+                i = sel.indexOf('name=' + q, end + 1);
+            }
+        });
+        for (let i = 0; i < sel.length; i++) {
+            const ch = sel[i];
+            if ((ch === '.' || ch === '#') && isIdentifierStart(sel[i + 1])) {
+                let j = i + 1;
+                while (j < sel.length && isIdentifierChar(sel[j])) { j++; }
+                if (ch === '.') { classes.add(sel.slice(i + 1, j)); } else { ids.add(sel.slice(i + 1, j)); }
+            }
+        }
+    });
+
+    // Delegated overlay/Escape close reads the shared modal-overlay class.
+    if (source.indexOf("contains('modal-overlay')") !== -1 || source.indexOf('contains("modal-overlay")') !== -1) {
+        classes.add('modal-overlay');
+    }
+
+    return { ids: [...ids].sort(), names: [...names].sort(), classes: [...classes].sort() };
+}
+
+function addModalContractIssues(addModalMarkup, contract) {
+    const issues = [];
+    const hasAttr = (attr, value) =>
+        addModalMarkup.indexOf(attr + '="' + value + '"') !== -1 ||
+        addModalMarkup.indexOf(attr + "='" + value + "'") !== -1;
+    contract.ids.forEach((id) => { if (!hasAttr('id', id)) { issues.push('missing id="' + id + '"'); } });
+    contract.names.forEach((name) => { if (!hasAttr('name', name)) { issues.push('missing name="' + name + '"'); } });
+
+    const classTokens = new Set();
+    const classRe = /class=["']([^"']*)["']/g;
+    let cm;
+    while ((cm = classRe.exec(addModalMarkup))) {
+        splitWhitespace(cm[1]).forEach((token) => classTokens.add(token));
+    }
+    contract.classes.forEach((cls) => { if (!classTokens.has(cls)) { issues.push('missing class "' + cls + '"'); } });
+    return issues;
+}
+
 test('baseline: products admin page renders for the owner account', async ({ page }) => {
     await login(page);
 
@@ -228,4 +361,100 @@ test('picker: checkboxes reflect the real assignments for the branch', async ({ 
     expect(checked, 'all 182 are assigned to every branch (0 hidden pairs) so all must be checked').toBe(182);
     // The counter must be truthful on first paint; a stale "0" would mislead the admin.
     expect(counter, 'the ticked counter must be correct before any interaction').toBe(String(checked));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Add product modal — READ-ONLY. It is only ever OPENED; "Add Product" is never
+// clicked because that endpoint writes a REAL product to the live tenant.
+// ─────────────────────────────────────────────────────────────────────────────
+test('add product modal: DOM contract derived from the JS is present in the rendered markup', async ({ page }) => {
+    const contract = deriveAddModalContract(fs.readFileSync(PRODUCTS_TEMPLATE, 'utf8'));
+    console.log('--- ADD MODAL JS-DERIVED DOM CONTRACT ----------------------');
+    console.log('ids     :', contract.ids.join(', '));
+    console.log('names   :', contract.names.join(', '));
+    console.log('classes :', contract.classes.join(', '));
+
+    await login(page);
+    await page.goto('/daily-ledger/admin/products', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#add-modal', { state: 'attached', timeout: 60000 });
+
+    const html = await page.content();
+    const start = html.indexOf('id="add-modal"');
+    const end = html.indexOf('id="edit-modal"');
+    expect(start, 'the add modal must render').toBeGreaterThan(-1);
+    const addMarkup = html.slice(start, end > start ? end : undefined);
+
+    const issues = addModalContractIssues(addMarkup, contract);
+    console.log('contract check :', issues.length === 0 ? 'PASS (all present)' : 'FAIL ' + JSON.stringify(issues));
+    expect(issues, 'add-modal JS reads elements that are missing from the rendered add-modal markup').toEqual([]);
+});
+
+test('add product modal: horizontal grid — two columns desktop, one mobile (read-only)', async ({ page }) => {
+    await login(page);
+    await page.goto('/daily-ledger/admin/products', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('table tbody tr', { timeout: 60000 });
+
+    // Open the modal only. NEVER click "Add Product".
+    await page.locator('button:has-text("+ Add")').first().click();
+    await expect(page.locator('#add-modal')).toHaveClass(/show/);
+    await expect(page.locator('#add-modal .product-modal__grid')).toBeVisible();
+
+    // Focus behaviour preserved: openAddProduct() focuses #add-name.
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).toBe('add-name');
+
+    // Same structure as the edit modal: three titled sections in the grid.
+    const sectionTitles = await page.locator('#add-modal .product-modal__section-title').evaluateAll((els) => els.map((el) => el.textContent.trim()));
+    console.log('add modal sections          :', JSON.stringify(sectionTitles));
+    expect(await page.locator('#add-modal .product-modal__section').count()).toBe(3);
+    expect(sectionTitles).toContain('Catalog');
+    expect(sectionTitles).toContain('Production Profile');
+    expect(sectionTitles).toContain('Show in branches');
+
+    // The nine submitted fields submitAddProduct() reads are all present.
+    const fields = page.locator('#add-modal input:not([type="radio"]):not([type="checkbox"]), #add-modal select');
+    const fieldCount = await fields.count();
+    console.log('add modal submitted fields  :', fieldCount);
+    expect(fieldCount, 'the add form must still submit exactly its nine fields').toBe(9);
+
+    // Assignment defaults preserved.
+    expect(await page.locator('#add-modal input[name="add-assignment-mode"]').count()).toBe(2);
+    expect(await page.locator('#add-modal input[name="add-assignment-mode"][value="all_active"]').isChecked()).toBe(true);
+    await expect(page.locator('#add-modal #add-branch-picker')).toBeHidden();
+
+    // Branch checklist is present, scrollable, and NOT squeezed into a column.
+    const branchCount = await page.locator('#add-modal .add-branch-check').count();
+    console.log('add modal branch checkboxes :', branchCount);
+    expect(branchCount).toBeGreaterThan(0);
+    const overflowY = await page.locator('#add-modal #add-branch-picker').evaluate((el) => getComputedStyle(el).overflowY);
+    expect(['auto', 'scroll']).toContain(overflowY);
+
+    await expect.poll(async () => page.locator('#add-modal [data-add-assignment]').evaluate((el) => {
+        const s = getComputedStyle(el);
+        return s.gridColumnStart + '/' + s.gridColumnEnd;
+    }), { message: 'the Show in branches section must span the full grid width', timeout: 10000 }).toBe('1/-1');
+
+    const gridBox = await page.locator('#add-modal .product-modal__grid').boundingBox();
+    const assignBox = await page.locator('#add-modal [data-add-assignment]').boundingBox();
+    console.log('grid width / assignment width:', Math.round(gridBox.width), '/', Math.round(assignBox.width));
+    expect(assignBox.width).toBeGreaterThan(gridBox.width * 0.95);
+
+    // The inline onchange handler still reveals the picker.
+    await page.locator('#add-modal input[name="add-assignment-mode"][value="specific"]').check();
+    await expect(page.locator('#add-modal #add-branch-picker')).toBeVisible();
+    await page.locator('#add-modal input[name="add-assignment-mode"][value="all_active"]').check();
+    await expect(page.locator('#add-modal #add-branch-picker')).toBeHidden();
+
+    const columnsAtViewport = async (width, height) => {
+        await page.setViewportSize({ width, height });
+        return page.locator('#add-modal .product-modal__grid').evaluate((el) =>
+            getComputedStyle(el).gridTemplateColumns.trim().split(' ').filter(Boolean).length
+        );
+    };
+    const desktopColumns = await columnsAtViewport(1280, 900);
+    const mobileColumns = await columnsAtViewport(375, 800);
+    console.log('grid columns desktop/mobile :', desktopColumns, '/', mobileColumns);
+    expect(desktopColumns, 'desktop must lay the add modal out horizontally (2 columns)').toBe(2);
+    expect(mobileColumns, 'the existing breakpoint must collapse the grid to 1 column').toBe(1);
+
+    await page.screenshot({ path: '/tmp/add-product-modal-horizontal.png', fullPage: false });
 });
