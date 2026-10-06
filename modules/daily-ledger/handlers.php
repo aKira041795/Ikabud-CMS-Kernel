@@ -5376,6 +5376,235 @@ function dl_setProductActive($db, int $productId, bool $active, ?int $actorId = 
 }
 
 /**
+ * Resolve the requested branch-assignment intent from product API input.
+ *
+ * A MISSING assignment_mode defaults to 'all_active' — today's behaviour and
+ * the backward-compatible contract for existing API callers/imports. Returns
+ * the normalised mode plus the de-duplicated, positive branch ids.
+ *
+ * @return array{0:string,1:array<int,int>}
+ */
+function dl_normalizeAssignmentMode($input): array
+{
+    $mode = 'all_active';
+    if (is_array($input) && array_key_exists('assignment_mode', $input)) {
+        $raw = strtolower(trim((string)$input['assignment_mode']));
+        if (in_array($raw, ['all_active', 'specific'], true)) {
+            $mode = $raw;
+        }
+    }
+    $ids = [];
+    if (is_array($input) && isset($input['branch_ids']) && is_array($input['branch_ids'])) {
+        foreach ($input['branch_ids'] as $id) {
+            $id = (int)$id;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+    }
+    return [$mode, array_values($ids)];
+}
+
+/**
+ * The branch ids a product should be assigned to for the given intent.
+ * 'all_active' -> every ACTIVE branch; 'specific' -> the requested ACTIVE
+ * branches. Unknown/inactive branch ids are ignored.
+ *
+ * @param array<int,int> $branchIds
+ * @return array<int,int>
+ */
+function dl_targetBranchIdsForAssignmentMode($db, string $mode, array $branchIds): array
+{
+    if ($mode === 'all_active') {
+        $rows = $db->query('SELECT id FROM dl_branches WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return array_map(static fn($r) => (int)$r['id'], $rows);
+    }
+    if ($branchIds === []) {
+        return [];
+    }
+    $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
+    $stmt = $db->prepare("SELECT id FROM dl_branches WHERE is_active = 1 AND id IN ({$placeholders})");
+    $stmt->execute(array_values($branchIds));
+    return array_map(static fn($r) => (int)$r['id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+}
+
+/**
+ * INFORMATIONAL collector: flatten dl_productOlderOpenDayWarnings() for a set
+ * of branches of one product. Never used to refuse a write.
+ *
+ * @param array<int,int> $branchIds
+ * @return array<int,array>
+ */
+function dl_assignmentOlderOpenDayWarnings($db, int $productId, array $branchIds): array
+{
+    $out = [];
+    foreach ($branchIds as $bid) {
+        foreach (dl_productOlderOpenDayWarnings($db, $productId, (int)$bid) as $w) {
+            $out[] = $w;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Apply a product's persisted assignment intent (the Slice B product modal).
+ *
+ * ALL-OR-NOTHING: every removal is checked with the same Option A guard the
+ * per-branch picker uses; when ANY removal would strand an actionable
+ * unfinished row the call refuses and writes NOTHING. The caller must run this
+ * inside a transaction so a mid-flight guard refusal rolls back cleanly.
+ *
+ * 'all_active' is ADDITIVE — it never strips an existing pair. 'specific'
+ * removes pairs for branches that are no longer selected.
+ *
+ * @param array<int,int> $branchIds
+ * @return array{ok:bool,code?:string,mode?:string,added?:array,removed?:array,warnings?:array,refused?:array,blockers?:array}
+ */
+function dl_applyProductAssignmentMode($db, int $productId, string $mode, array $branchIds, ?int $actorId = null): array
+{
+    $target = dl_targetBranchIdsForAssignmentMode($db, $mode, $branchIds);
+    $stmt = $db->prepare('SELECT branch_id FROM dl_branch_products WHERE product_id = :pid AND is_active = 1');
+    $stmt->execute([':pid' => $productId]);
+    $current = array_map(static fn($r) => (int)$r['branch_id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+    $toAdd = array_values(array_diff($target, $current));
+    $toRemove = $mode === 'all_active' ? [] : array_values(array_diff($current, $target));
+
+    // Pre-flight every removal BEFORE writing anything (all-or-nothing).
+    $refused = [];
+    foreach ($toRemove as $bid) {
+        $blockers = dl_branchProductUnassignmentBlockers($db, $bid, $productId);
+        if ($blockers !== []) {
+            $refused[] = ['branch_id' => $bid, 'blockers' => $blockers];
+        }
+    }
+    if ($refused !== []) {
+        return [
+            'ok' => false,
+            'code' => 'PRODUCT_UNASSIGNMENT_BLOCKED',
+            'refused' => $refused,
+            'warnings' => dl_assignmentOlderOpenDayWarnings($db, $productId, $toRemove),
+        ];
+    }
+
+    $db->prepare('UPDATE dl_products SET assignment_mode = :mode WHERE id = :id')
+        ->execute([':mode' => $mode, ':id' => $productId]);
+    foreach ($toAdd as $bid) {
+        $r = dl_setBranchProductActive($db, (int)$bid, $productId, true, $actorId);
+        if (($r['ok'] ?? false) !== true) {
+            return ['ok' => false, 'code' => (string)($r['code'] ?? 'PRODUCT_ASSIGNMENT_FAILED'), 'blockers' => $r['blockers'] ?? []];
+        }
+    }
+    foreach ($toRemove as $bid) {
+        $r = dl_setBranchProductActive($db, (int)$bid, $productId, false, $actorId);
+        if (($r['ok'] ?? false) !== true) {
+            return [
+                'ok' => false,
+                'code' => (string)($r['code'] ?? 'PRODUCT_UNASSIGNMENT_BLOCKED'),
+                'refused' => [['branch_id' => (int)$bid, 'blockers' => $r['blockers'] ?? []]],
+                'warnings' => [],
+            ];
+        }
+    }
+
+    return [
+        'ok' => true,
+        'mode' => $mode,
+        'added' => $toAdd,
+        'removed' => $toRemove,
+        'warnings' => dl_assignmentOlderOpenDayWarnings($db, $productId, $toRemove),
+    ];
+}
+
+/**
+ * ALL-OR-NOTHING bulk reassignment of ONE branch's product checklist (the
+ * Slice B picker). $desiredProductIds is the complete set the admin ticked;
+ * every removal is pre-flighted with the Option A guard. If ANY removal is
+ * refused nothing is written and the exact blockers are returned. Additions go
+ * through the audited primitive. The caller must wrap this in a transaction.
+ *
+ * The picker's universe is the globally active catalog, so both the desired
+ * and the current set are restricted to active products; an inactive product's
+ * pair is never silently stripped by a checklist save.
+ *
+ * @param array<int,int> $desiredProductIds
+ * @return array{ok:bool,code?:string,added?:array,removed?:array,refused?:array,warnings?:array,blockers?:array}
+ */
+function dl_bulkAssignBranchProductsCore($db, int $branchId, array $desiredProductIds, ?int $actorId = null): array
+{
+    $desired = [];
+    foreach ($desiredProductIds as $pid) {
+        $pid = (int)$pid;
+        if ($pid > 0) {
+            $desired[$pid] = $pid;
+        }
+    }
+    $desired = array_values($desired);
+
+    $activeProducts = [];
+    foreach ($db->query('SELECT id FROM dl_products WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        $activeProducts[(int)$r['id']] = true;
+    }
+    $desired = array_values(array_filter($desired, static fn($pid) => isset($activeProducts[$pid])));
+
+    $stmt = $db->prepare(
+        'SELECT bp.product_id, p.name FROM dl_branch_products bp
+           INNER JOIN dl_products p ON p.id = bp.product_id AND p.is_active = 1
+          WHERE bp.branch_id = :bid AND bp.is_active = 1'
+    );
+    $stmt->execute([':bid' => $branchId]);
+    $currentRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $current = array_map(static fn($r) => (int)$r['product_id'], $currentRows);
+    $names = [];
+    foreach ($currentRows as $r) {
+        $names[(int)$r['product_id']] = (string)$r['name'];
+    }
+
+    $toAdd = array_values(array_diff($desired, $current));
+    $toRemove = array_values(array_diff($current, $desired));
+
+    $refused = [];
+    $warnings = [];
+    foreach ($toRemove as $pid) {
+        $blockers = dl_branchProductUnassignmentBlockers($db, $branchId, (int)$pid);
+        $name = $names[(int)$pid] ?? ('#' . $pid);
+        if ($blockers !== []) {
+            $refused[] = ['product_id' => (int)$pid, 'name' => $name, 'blockers' => $blockers];
+        }
+        foreach (dl_productOlderOpenDayWarnings($db, (int)$pid, $branchId) as $w) {
+            $w['product_id'] = (int)$pid;
+            $w['product_name'] = $name;
+            $warnings[] = $w;
+        }
+    }
+
+    if ($refused !== []) {
+        return ['ok' => false, 'code' => 'PRODUCT_UNASSIGNMENT_BLOCKED', 'refused' => $refused, 'warnings' => $warnings];
+    }
+
+    foreach ($toAdd as $pid) {
+        $r = dl_setBranchProductActive($db, $branchId, (int)$pid, true, $actorId);
+        if (($r['ok'] ?? false) !== true) {
+            return ['ok' => false, 'code' => (string)($r['code'] ?? 'PRODUCT_ASSIGNMENT_FAILED'), 'blockers' => $r['blockers'] ?? []];
+        }
+    }
+    foreach ($toRemove as $pid) {
+        $r = dl_setBranchProductActive($db, $branchId, (int)$pid, false, $actorId);
+        if (($r['ok'] ?? false) !== true) {
+            $name = $names[(int)$pid] ?? ('#' . $pid);
+            return [
+                'ok' => false,
+                'code' => (string)($r['code'] ?? 'PRODUCT_UNASSIGNMENT_BLOCKED'),
+                'refused' => [['product_id' => (int)$pid, 'name' => $name, 'blockers' => $r['blockers'] ?? []]],
+                'warnings' => [],
+            ];
+        }
+    }
+
+    return ['ok' => true, 'added' => $toAdd, 'removed' => $toRemove, 'warnings' => $warnings];
+}
+
+/**
  * The immediately previous business date when it is still open with an unfinalized PM
  * shift, else null. Ported from the cashier gate (handlers.php:6007-6015) so the
  * production user is told a prior PM day is still pending instead of silently finding a
@@ -14693,6 +14922,7 @@ function handleAdminProducts(array $params = []): void
 
     $sql = 'SELECT p.*, ' . $effectivePrice . ' AS current_price,
                    (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS branch_count,
+                   (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS assigned_branch_ids,
                    (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
                      WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
                      ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
@@ -14723,6 +14953,174 @@ function handleAdminProducts(array $params = []): void
         'search' => $search,
         'today' => $today,
     ]);
+}
+
+function handleAdminBranchProducts(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $branchId = isset($input['branch_id']) && $input['branch_id'] !== '' ? (int)$input['branch_id'] : 0;
+
+    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')
+        ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($branchId <= 0 && $branches !== []) {
+        $branchId = (int)$branches[0]['id'];
+    }
+    $branch = null;
+    foreach ($branches as $b) {
+        if ((int)$b['id'] === $branchId) {
+            $branch = $b;
+            break;
+        }
+    }
+    if ($branch === null && $branches !== []) {
+        // An inactive/unknown branch id falls back to the first active branch so
+        // the page always shows a real branch instead of an empty editor.
+        $branch = $branches[0];
+        $branchId = (int)$branch['id'];
+    }
+
+    $products = [];
+    $warningGroups = [];
+    if ($branch !== null) {
+        $pStmt = $ctx->db()->prepare(
+            'SELECT p.id, p.sku, p.name, p.product_category, p.sort_order,
+                    CASE WHEN bp.is_active = 1 THEN 1 ELSE 0 END AS assigned
+               FROM dl_products p
+               LEFT JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid
+              WHERE p.is_active = 1
+              ORDER BY p.sort_order, p.name'
+        );
+        $pStmt->execute([':bid' => $branchId]);
+        $products = $pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        // INFORMATIONAL only (Option A): older unfinished days the admin may
+        // want to look at later. Never a refusal — this must not block a save.
+        // Only currently assigned products can be removed by this editor, so
+        // only those are scanned.
+        foreach ($products as $product) {
+            if ((int)($product['assigned'] ?? 0) !== 1) {
+                continue;
+            }
+            $warnings = dl_productOlderOpenDayWarnings($ctx->db(), (int)$product['id'], $branchId);
+            if ($warnings === []) {
+                continue;
+            }
+            $warningGroups[] = [
+                'product_id' => (int)$product['id'],
+                'product_name' => (string)$product['name'],
+                'items' => $warnings,
+            ];
+        }
+    }
+
+    $role = (string)($user['role'] ?? '');
+    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    echo dlRender('modules/daily-ledger/admin/branch-products.disyl', [
+        'page_title' => 'Branch Products',
+        'user_name' => $userName,
+        'user_role' => $role,
+        'current_page' => 'branches',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'branches' => $branches,
+        'branch' => $branch,
+        'branch_id' => $branchId,
+        'products' => $products,
+        'warning_groups' => $warningGroups,
+        'today' => dl_businessDate(),
+    ]);
+}
+
+/**
+ * POST /daily-ledger/api/v1/admin/branches/products
+ *
+ * Slice B picker save. The body carries the branch and the COMPLETE set of
+ * product ids the admin ticked. The whole save is ALL-OR-NOTHING: if any
+ * removal is refused by the Option A guard, nothing is applied and the exact
+ * blocking date+shift is returned for every refused product. Older unfinished
+ * days are returned as informational warnings, never as refusals.
+ */
+function apiBulkAssignBranchProducts(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $branchId = (int)($input['branch_id'] ?? 0);
+    $productIds = isset($input['product_ids']) && is_array($input['product_ids']) ? $input['product_ids'] : [];
+
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'branch_id is required'], 422);
+        return;
+    }
+
+    $branchStmt = $ctx->db()->prepare('SELECT id, name FROM dl_branches WHERE id = :id LIMIT 1');
+    $branchStmt->execute([':id' => $branchId]);
+    $branch = $branchStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$branch) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not found'], 404);
+        return;
+    }
+
+    $actorId = dl_getActorUserId($user);
+
+    try {
+        $ctx->db()->beginTransaction();
+        $result = dl_bulkAssignBranchProductsCore($ctx->db(), $branchId, $productIds, $actorId);
+
+        if (($result['ok'] ?? false) !== true) {
+            $ctx->db()->rollBack();
+            // The refused attempt is audited OUTSIDE the rolled-back transaction
+            // so it survives, exactly like the single-pair primitive.
+            dl_auditLog('branch_products_bulk_unassignment_refused', $branchId, 'dl_branch_products', (string)$branchId, null, [
+                'refused' => true,
+                'actor_id' => $actorId,
+                'refused_products' => $result['refused'] ?? [],
+            ], 'bulk assignment refused: at least one removal would strand an actionable unfinished row; nothing saved');
+            $ctx->json([
+                'ok' => false,
+                'code' => (string)($result['code'] ?? 'PRODUCT_UNASSIGNMENT_BLOCKED'),
+                'error' => 'Nothing was saved. One or more products could not be removed from ' . (string)$branch['name'] . ' because they have unfinished endings on an actionable day.',
+                'refused' => $result['refused'] ?? [],
+                'warnings' => $result['warnings'] ?? [],
+            ], 409);
+            return;
+        }
+
+        $ctx->db()->commit();
+        app()->cache()->clearByTags('daily-ledger', ['dl_products']);
+        $ctx->json([
+            'ok' => true,
+            'added' => count($result['added'] ?? []),
+            'removed' => count($result['removed'] ?? []),
+            'warnings' => $result['warnings'] ?? [],
+        ]);
+    } catch (\Throwable $e) {
+        try {
+            if ($ctx->db()->inTransaction()) {
+                $ctx->db()->rollBack();
+            }
+        } catch (\Throwable $ignored) {
+        }
+        write_log('daily-ledger apiBulkAssignBranchProducts failed', 'error', [
+            'error' => $e->getMessage(),
+            'branch_id' => $branchId,
+        ]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to save branch products'], 500);
+    }
 }
 
 function apiUpdateVarianceStatus(array $params = []): void
@@ -15236,6 +15634,10 @@ function apiCreateProduct(array $params = []): void
     $pcsPerPack = isset($input['pcs_per_pack']) && $input['pcs_per_pack'] !== '' && $input['pcs_per_pack'] !== null
         ? (int)$input['pcs_per_pack'] : null;
     if ($pcsPerPack !== null && $pcsPerPack <= 0) $pcsPerPack = null;
+    // Branch assignment intent (Slice B). A MISSING assignment_mode defaults
+    // to 'all_active' — today's behaviour, backward compatible for existing
+    // API callers and CSV imports.
+    [$assignmentMode, $assignmentBranchIds] = dl_normalizeAssignmentMode($input);
 
     if ($name === '' || $price <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Name and price are required', 'type' => 'error']]));
@@ -15255,8 +15657,8 @@ function apiCreateProduct(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit, :ppp)'
-        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack]);
+            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack, assignment_mode) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit, :ppp, :mode)'
+        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':mode' => $assignmentMode]);
 
         $productId = (int)$ctx->db()->lastInsertId();
 
@@ -15265,16 +15667,19 @@ function apiCreateProduct(array $params = []): void
             'INSERT INTO dl_product_price_history (product_id, price, changed_by) VALUES (:pid, :price, :uid)'
         )->execute([':pid' => $productId, ':price' => $price, ':uid' => $kernelActorUserId]);
 
-        // Assign to all active branches by default
-        $branches = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        if ($branches !== []) {
+        // Apply the requested assignment intent. 'all_active' assigns every
+        // active branch (today's behaviour); 'specific' assigns exactly the
+        // selected active branches. A new product has no prior pairs, so there
+        // is nothing to remove and the removal guard cannot apply.
+        $targetBranches = dl_targetBranchIdsForAssignmentMode($ctx->db(), $assignmentMode, $assignmentBranchIds);
+        if ($targetBranches !== []) {
             $values = [];
             $params = [];
-            foreach ($branches as $index => $br) {
+            foreach ($targetBranches as $index => $branchId) {
                 // Unique named placeholders per row: PDO native prepared
                 // statements cannot reuse a named marker more than once.
                 $values[] = "(:bid_{$index}, :pid_{$index})";
-                $params[":bid_{$index}"] = (int)$br['id'];
+                $params[":bid_{$index}"] = (int)$branchId;
                 $params[":pid_{$index}"] = $productId;
             }
             $ctx->db()->prepare(
@@ -15289,6 +15694,8 @@ function apiCreateProduct(array $params = []): void
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
             'pcs_per_pack' => $pcsPerPack,
+            'assignment_mode' => $assignmentMode,
+            'assigned_branch_ids' => $targetBranches,
         ]);
 
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);
@@ -15301,6 +15708,7 @@ function apiCreateProduct(array $params = []): void
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
             'pcs_per_pack' => $pcsPerPack,
+            'assignment_mode' => $assignmentMode,
         ]);
     } catch (\Throwable $e) {
         write_log('apiCreateProduct error: ' . $e->getMessage(), 'error', ['trace' => substr((string)$e->getTraceAsString(), 0, 800)]);
@@ -15343,6 +15751,12 @@ function apiUpdateProduct(array $params = []): void
     $pcsPerPack = isset($input['pcs_per_pack']) && $input['pcs_per_pack'] !== '' && $input['pcs_per_pack'] !== null
         ? (int)$input['pcs_per_pack'] : null;
     if ($pcsPerPack !== null && $pcsPerPack <= 0) $pcsPerPack = null;
+    // Branch assignment intent (Slice B). The key is OPTIONAL on update: when
+    // it is absent the stored mode and pairs are left untouched, so a
+    // price/status-only edit can never silently rewrite assignments (the
+    // loadiness guard). When present it is applied all-or-nothing.
+    $assignmentModePresent = is_array($input) && array_key_exists('assignment_mode', $input);
+    [$assignmentMode, $assignmentBranchIds] = dl_normalizeAssignmentMode($input);
     $userId = 0;
     if (isset($user['id']) && is_numeric($user['id'])) {
         $userId = (int)$user['id'];
@@ -15377,7 +15791,7 @@ function apiUpdateProduct(array $params = []): void
         $ctx->db()->beginTransaction();
 
         // Lock the product so history insertion, current-price sync and repricing are atomic.
-        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id FOR UPDATE');
+        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, assignment_mode, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id FOR UPDATE');
         $oldStmt->execute([':id' => $productId]);
         $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -15406,6 +15820,31 @@ function apiUpdateProduct(array $params = []): void
                     'code' => 'PRODUCT_DEACTIVATION_BLOCKED',
                     'error' => 'Cannot deactivate this product: it has activity-bearing ledger rows with a missing ending on an actionable day. Complete those endings first.',
                     'blockers' => $deactivationBlockers,
+                ], 409);
+                return;
+            }
+        }
+
+        // Apply the branch assignment intent when supplied. All-or-nothing: a
+        // refused removal rolls back the WHOLE update, including the price.
+        $assignmentResult = null;
+        if ($assignmentModePresent) {
+            $assignmentResult = dl_applyProductAssignmentMode($ctx->db(), $productId, $assignmentMode, $assignmentBranchIds, $userId);
+            if (($assignmentResult['ok'] ?? false) !== true) {
+                $ctx->db()->rollBack();
+                dl_auditLog('branch_product_assignment_refused', null, 'product', (string)$productId, null, [
+                    'refused' => true,
+                    'actor_id' => $userId,
+                    'refused_branches' => $assignmentResult['refused'] ?? [],
+                    'blockers' => $assignmentResult['blockers'] ?? [],
+                ], 'product assignment change refused: a removal would strand an actionable unfinished row');
+                $ctx->json([
+                    'ok' => false,
+                    'code' => (string)($assignmentResult['code'] ?? 'PRODUCT_UNASSIGNMENT_BLOCKED'),
+                    'error' => 'Cannot change the branch assignment: one or more branches would strand an activity-bearing ledger row with a missing ending on an actionable day.',
+                    'refused' => $assignmentResult['refused'] ?? [],
+                    'blockers' => $assignmentResult['blockers'] ?? [],
+                    'warnings' => $assignmentResult['warnings'] ?? [],
                 ], 409);
                 return;
             }
@@ -15443,6 +15882,8 @@ function apiUpdateProduct(array $params = []): void
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
             'pcs_per_pack' => $pcsPerPack,
+            'assignment_mode' => $assignmentModePresent ? $assignmentMode : ($old['assignment_mode'] ?? 'all_active'),
+            'assignment' => $assignmentResult,
         ]);
 
         if ((int)($old['is_active'] ?? 1) === 1 && $isActive === 0) {
@@ -15457,7 +15898,7 @@ function apiUpdateProduct(array $params = []): void
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Product updated', 'type' => 'success']]));
-        $ctx->json(['ok' => true, 'effective_from' => $effectiveFrom, 'current_price' => $currentPrice, 'reprice' => $reprice]);
+        $ctx->json(['ok' => true, 'effective_from' => $effectiveFrom, 'current_price' => $currentPrice, 'reprice' => $reprice, 'warnings' => $assignmentResult['warnings'] ?? []]);
     } catch (\Throwable $e) {
         try {
             if ($ctx->db()->inTransaction()) {
