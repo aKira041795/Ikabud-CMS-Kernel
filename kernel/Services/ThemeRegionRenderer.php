@@ -134,6 +134,7 @@ class ThemeRegionRenderer
             }
 
             $props = is_array($widget['props'] ?? null) ? $widget['props'] : [];
+            $props = self::normalizeWidgetProps($props);
             if (function_exists('cmsBuilderMergeDefaults')) {
                 $props = cmsBuilderMergeDefaults($props, $type);
             }
@@ -162,5 +163,34 @@ class ThemeRegionRenderer
         }
 
         return $html;
+    }
+
+    /**
+     * Bridge the Customizer's widget contract onto the page-builder's.
+     *
+     * The Customizer writes widget props in snake_case (`menu_id`) and its own previews read
+     * them that way, while the builder renderers this method dispatches to read camelCase
+     * (`menuId`). Without this, a saved Navigation widget resolves menu 0 and silently renders
+     * "Select a menu to display here." even though the menu is set and populated.
+     *
+     * Aliases are added, never renamed, and an explicit camelCase value always wins - so props a
+     * renderer already reads in either spelling keep working.
+     *
+     * @param array<string, mixed> $props
+     * @return array<string, mixed>
+     */
+    private static function normalizeWidgetProps(array $props): array
+    {
+        foreach ($props as $key => $value) {
+            if (!is_string($key) || !str_contains($key, '_')) {
+                continue;
+            }
+            $camel = lcfirst(str_replace(' ', '', ucwords(str_replace('_', ' ', $key))));
+            if ($camel !== $key && !array_key_exists($camel, $props)) {
+                $props[$camel] = $value;
+            }
+        }
+
+        return $props;
     }
 }

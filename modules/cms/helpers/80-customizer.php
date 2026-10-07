@@ -23,6 +23,7 @@ function cmsFooterSettingsDefaults(): array
 {
     return [
         'columns'                 => 3,
+        'container_width'         => 'contained',
         'widget_container_width'  => 'contained',
         'widget_inner_width_mode' => 'contained',
         'widget_inner_custom_width' => '960px',
@@ -2996,7 +2997,7 @@ function cmsValidateFooterSettings(array $input): array
     $validated['show_admin_link'] = (int)(bool)($input['show_admin_link'] ?? $defaults['show_admin_link']);
 
     // String settings
-    foreach (['inner_width', 'copyright_text', 'padding_top', 'padding_bottom'] as $key) {
+    foreach (['container_width', 'inner_width', 'copyright_text', 'padding_top', 'padding_bottom'] as $key) {
         $validated[$key] = trim((string)($input[$key] ?? $defaults[$key]));
     }
 
@@ -3033,6 +3034,14 @@ function cmsValidateFooterSettings(array $input): array
     // Constrain inner_width
     if (!in_array($validated['inner_width'], ['contained', 'full-width'], true)) {
         $validated['inner_width'] = 'contained';
+    }
+
+    // Constrain container_width. This is the footer's OUTER band, and it is a declared control
+    // in the theme schema, so it has to survive this whitelist. Omitting it here dropped the
+    // value on every save while the read-time default merge reported it back as 'contained',
+    // which made the control look wired and do nothing.
+    if (!in_array($validated['container_width'], ['contained', 'full'], true)) {
+        $validated['container_width'] = $defaults['container_width'];
     }
 
     if (!in_array($validated['widget_container_width'], ['contained', 'full'], true)) {
