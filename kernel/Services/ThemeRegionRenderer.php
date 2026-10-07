@@ -48,6 +48,14 @@ class ThemeRegionRenderer
         // Templates are rendered from the theme's perspective
         $relativePath = '_cms_active_theme/' . ltrim($templatePath, '/');
 
+        $sectionWidgets = $context->widgetsFor($region);
+        $mainWidgets = $region === 'header'
+            ? self::headerWidgetsAt($sectionWidgets, 'header')
+            : $sectionWidgets;
+        $topbarWidgets = $region === 'header'
+            ? self::headerWidgetsAt($sectionWidgets, 'topbar')
+            : [];
+
         // Template variables available in DiSyL region templates
         $templateVars = [
             'region' => $region,
@@ -65,8 +73,11 @@ class ThemeRegionRenderer
             // HTML. The HTML is produced by the CMS's own widget renderers (which
             // escape their own output), so templates emit it with |raw.
             'widgets' => $context->widgets,
-            'section_widgets' => $context->widgetsFor($region),
-            'widgets_html' => self::renderWidgets($context->widgetsFor($region)),
+            'section_widgets' => $sectionWidgets,
+            // Keep the established key as the main/header-row collection. A missing location is
+            // deliberately "header" so existing persisted widgets do not move.
+            'widgets_html' => self::renderWidgets($mainWidgets, $region),
+            'widgets_topbar_html' => self::renderWidgets($topbarWidgets, $region),
         ];
 
         // Try to render via the CMS template engine
@@ -100,6 +111,23 @@ class ThemeRegionRenderer
     }
 
     /**
+     * @param array<int, array<string, mixed>> $widgets
+     * @return array<int, array<string, mixed>>
+     */
+    private static function headerWidgetsAt(array $widgets, string $location): array
+    {
+        return array_values(array_filter(
+            $widgets,
+            static function (mixed $widget) use ($location): bool {
+                if (!is_array($widget)) {
+                    return $location === 'header';
+                }
+                return ($widget['location'] ?? 'header') === $location;
+            }
+        ));
+    }
+
+    /**
      * Pre-render a region's configured widgets to HTML.
      *
      * The CMS owns every widget renderer; the kernel must not re-implement them
@@ -110,7 +138,7 @@ class ThemeRegionRenderer
      *
      * @param array<int, array<string, mixed>> $widgets
      */
-    private static function renderWidgets(array $widgets): string
+    private static function renderWidgets(array $widgets, string $region): string
     {
         if ($widgets === [] || !function_exists('cmsBuilderWidgetRenderers')) {
             return '';
@@ -134,15 +162,22 @@ class ThemeRegionRenderer
             }
 
             $props = is_array($widget['props'] ?? null) ? $widget['props'] : [];
-            $props = self::normalizeWidgetProps($props);
+            $props = self::normalizeWidgetProps($props, $type);
             if (function_exists('cmsBuilderMergeDefaults')) {
                 $props = cmsBuilderMergeDefaults($props, $type);
             }
 
             $style = is_array($widget['style'] ?? null) ? $widget['style'] : [];
             if (function_exists('cmsBuilderDefaultStyle')) {
+                $defaultStyle = cmsBuilderDefaultStyle($type);
+                $hasExplicitWidth = array_key_exists('width', $style)
+                    && $style['width'] !== null
+                    && $style['width'] !== '';
+                if ($region === 'header' && !$hasExplicitWidth) {
+                    unset($defaultStyle['width']);
+                }
                 $style = array_merge(
-                    cmsBuilderDefaultStyle($type),
+                    $defaultStyle,
                     array_filter($style, static fn ($value): bool => $value !== null && $value !== '')
                 );
             }
@@ -179,16 +214,27 @@ class ThemeRegionRenderer
      * @param array<string, mixed> $props
      * @return array<string, mixed>
      */
-    private static function normalizeWidgetProps(array $props): array
+    private static function normalizeWidgetProps(array $props, string $type): array
     {
         foreach ($props as $key => $value) {
-            if (!is_string($key) || !str_contains($key, '_')) {
+            if (!is_string($key) || !str_contains($key, '_') || in_array($key, ['font_size', 'font_weight'], true)) {
                 continue;
             }
             $camel = lcfirst(str_replace(' ', '', ucwords(str_replace('_', ' ', $key))));
             if ($camel !== $key && !array_key_exists($camel, $props)) {
                 $props[$camel] = $value;
             }
+        }
+
+        // Semantic aliases that cannot be represented by snake_case -> camelCase conversion.
+        if (array_key_exists('button_label', $props) && !array_key_exists('buttonText', $props)) {
+            $props['buttonText'] = $props['button_label'];
+        }
+        if ($type === 'opening_hours' && array_key_exists('icon', $props) && !array_key_exists('showIcon', $props)) {
+            $props['showIcon'] = !empty($props['icon']);
+        }
+        if (array_key_exists('new_tab', $props) && !array_key_exists('target', $props) && !empty($props['new_tab'])) {
+            $props['target'] = '_blank';
         }
 
         return $props;

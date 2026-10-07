@@ -38,11 +38,17 @@ function widgetBridgeAssert(string $label, bool $condition, string $detail = '')
 }
 
 /** Invoke the private pre-render bridge directly, avoiding template rendering. */
-function widgetBridgeRender(array $widgets): string
+function widgetBridgeRender(array $widgets, string $region = 'sidebar'): string
 {
     $method = new ReflectionMethod(ThemeRegionRenderer::class, 'renderWidgets');
-    $method->setAccessible(true);
-    return (string)$method->invoke(null, $widgets);
+    return (string)$method->invoke(null, $widgets, $region);
+}
+
+/** @return array<int, array<string, mixed>> */
+function widgetBridgeHeaderWidgetsAt(array $widgets, string $location): array
+{
+    $method = new ReflectionMethod(ThemeRegionRenderer::class, 'headerWidgetsAt');
+    return (array)$method->invoke(null, $widgets, $location);
 }
 
 $scope = new ThemeCustomizationScope(themeSlug: 'ark');
@@ -81,12 +87,29 @@ widgetBridgeAssert('no widgets renders an empty string', widgetBridgeRender([]) 
 // re-implement escaping. These needles are markup, not bare words.
 $search = widgetBridgeRender([[
     'type' => 'search_box',
-    'props' => ['placeholder' => 'Search…', 'button_label' => 'Search'],
+    'props' => ['placeholder' => 'Search…', 'button_label' => 'Find'],
 ]]);
 widgetBridgeAssert(
     'search_box renders through the CMS widget renderer',
     str_contains($search, 'type="search" name="q"'),
     $search
+);
+widgetBridgeAssert('button_label aliases to buttonText', str_contains($search, '>Find</button>'), $search);
+
+$openingHours = widgetBridgeRender([[
+    'type' => 'opening_hours',
+    'props' => ['text' => 'Always open', 'icon' => 0],
+]]);
+widgetBridgeAssert('opening_hours icon aliases to boolean showIcon', !str_contains($openingHours, '<svg'), $openingHours);
+
+$button = widgetBridgeRender([[
+    'type' => 'button',
+    'props' => ['text' => 'Visit', 'url' => '/visit', 'new_tab' => 1],
+]]);
+widgetBridgeAssert(
+    'truthy new_tab translates to the target contract',
+    str_contains($button, 'target="_blank"') && str_contains($button, 'rel="noopener noreferrer"'),
+    $button
 );
 
 $nav = widgetBridgeRender([[
@@ -99,14 +122,46 @@ widgetBridgeAssert(
     $nav
 );
 
+$headerDefaultWidth = widgetBridgeRender([['type' => 'opening_hours', 'props' => ['text' => 'Open']]], 'header');
+$headerExplicitWidth = widgetBridgeRender([[
+    'type' => 'opening_hours',
+    'props' => ['text' => 'Open'],
+    'style' => ['width' => '50%'],
+]], 'header');
+$sidebarDefaultWidth = widgetBridgeRender([['type' => 'opening_hours', 'props' => ['text' => 'Open']]], 'sidebar');
+widgetBridgeAssert('header drops only the shared default width', !str_contains($headerDefaultWidth, 'width:100%'), $headerDefaultWidth);
+widgetBridgeAssert('header preserves explicit widget width', str_contains($headerExplicitWidth, 'width:50%'), $headerExplicitWidth);
+widgetBridgeAssert('non-header regions retain shared default width', str_contains($sidebarDefaultWidth, 'width:100%'), $sidebarDefaultWidth);
+
+$locatedWidgets = [
+    ['id' => 'legacy', 'type' => 'text', 'props' => ['content' => 'Legacy']],
+    ['id' => 'top', 'type' => 'text', 'location' => 'topbar', 'props' => ['content' => 'Top']],
+];
+widgetBridgeAssert(
+    'missing location remains in the header-row collection',
+    array_column(widgetBridgeHeaderWidgetsAt($locatedWidgets, 'header'), 'id') === ['legacy']
+);
+widgetBridgeAssert(
+    'topbar location moves only that widget to the topbar collection',
+    array_column(widgetBridgeHeaderWidgetsAt($locatedWidgets, 'topbar'), 'id') === ['top']
+);
+
 // The ARK templates must consume the bridge output, and the safety policy must
 // allowlist the raw key.
 $sidebar = (string)file_get_contents($root . '/storage/cms-themes/ark/templates/regions/sidebar.disyl');
 widgetBridgeAssert('ARK sidebar emits widgets_html', str_contains($sidebar, '{widgets_html|raw}'));
 widgetBridgeAssert('ARK sidebar placeholder is gone', !str_contains($sidebar, 'Configure sidebar widgets in Appearance'));
 
+$header = (string)file_get_contents($root . '/storage/cms-themes/ark/templates/regions/header.disyl');
+widgetBridgeAssert(
+    'ARK topbar conditionally emits widgets_topbar_html in its right column',
+    str_contains($header, '{if widgets_topbar_html}')
+        && str_contains($header, '<div class="ark-topbar__right">{widgets_topbar_html|raw}</div>')
+);
+
 $policy = (string)file_get_contents($root . '/storage/cms-themes/ark/safety-policy.json');
 widgetBridgeAssert('safety policy allowlists widgets_html', str_contains($policy, '"widgets_html"'));
+widgetBridgeAssert('safety policy allowlists widgets_topbar_html', str_contains($policy, '"widgets_topbar_html"'));
 
 // S3, at the template level: an enabled region with no widgets must not emit
 // a stray widget container, while widgets must render inside it when present.

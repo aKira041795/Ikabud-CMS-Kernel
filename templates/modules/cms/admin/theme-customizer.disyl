@@ -4700,7 +4700,7 @@ function themeCustomizer() {
             if (type === 'nav_menu') { props.menu_id = 0; }
             if (type === 'button') { props.text = 'Click'; props.url = '#'; props.style = 'primary'; props.new_tab = 0; }
             if (type === 'opening_hours') { props.text = 'Mon-Fri: 9AM - 5PM'; props.icon = 1; }
-            this.headerWidgets.push({ id, type, props });
+            this.headerWidgets.push({ id, type, props, location: 'topbar' });
             this.expandedHeaderWidgets[id] = true;
         },
 

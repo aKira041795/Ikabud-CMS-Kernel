@@ -28,6 +28,7 @@
    lets favicon_url remain part of the same independently-renderable header contract. #}
 {if section_settings.favicon_url}<link rel="icon" href="{section_settings.favicon_url}">{/if}
 
+{# data-topbar-* attributes are currently unconsumed and retained as stable external hooks. #}
 <div class="ark-customized-region ark-region-header ark-region-header--{header_container} ark-region-header--mobile-{mobile_style} ark-region-header--canvas-{mobile_direction}{if section_settings.transparent_home == '1' and entity_context.kind == 'front-page'} ark-region-header--transparent{/if}"
      data-region="header"
      data-theme="{theme}"
@@ -101,7 +102,9 @@
             <div class="ark-topbar__left">
                 {if site.tagline}<a href="{site.url}" class="ark-topbar__tagline">{site.tagline}</a>{else}<a href="{site.url}">{site.title}</a>{/if}
             </div>
-            <div class="ark-topbar__right" aria-hidden="true"></div>
+            {if widgets_topbar_html}
+            <div class="ark-topbar__right">{widgets_topbar_html|raw}</div>
+            {/if}
         </div>
     </div>
     {/if}
