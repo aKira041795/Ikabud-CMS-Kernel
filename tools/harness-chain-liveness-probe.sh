@@ -29,8 +29,10 @@
 #                    model and must NAME the timeout, not blame credentials
 #   L5 (must-hold)   THE WHOLE RUN must finish inside its budget - this is the direction the
 #                    "remove the division" mutation actually falsifies (see the note at L2)
+#   L6 (must-hold)   a DEGENERATE budget (floor x attempts > budget) must be clamped AND announced,
+#                    not absorbed silently - found by the adversarial review 2026-10-07
 #
-# Cost: the stub sleeps 12s (30s for L5), so the unfixed tree takes ~70s and the fixed tree ~25s.
+# Cost: the stub sleeps 12s (30s for L5), so the unfixed tree takes ~80s and the fixed tree ~25s.
 # That is deliberately under the gate's 300s ceiling.
 #
 # Exit 0 = the chain is hang-resilient. Non-zero = one hang can still eat the budget.
@@ -107,6 +109,27 @@ case "$out5" in
     fi;;
   *) bad "L5 two hangs starved the third model: $(printf '%s' "$out5" | tail -2 | tr '\n' ' ')";;
 esac
+
+# L6 - A DEGENERATE CONFIGURATION MUST NOT OVERSPEND SILENTLY. Found by the adversarial review
+# 2026-10-07: LANE_MODEL_BUDGET=1 with LANE_MODEL_TIMEOUT_MIN=2 ran 2s, because the floor was
+# applied AFTER the division with no reference to what was actually left. On any budget that can
+# accommodate the floor this clamp is a no-op, so it is the degenerate case that needs pinning.
+# The honest bound is the budget plus ONE SECOND PER ATTEMPT - an attempt is never given 0s, because
+# `timeout 0` means NO timeout, which is the opposite of what a spent budget should do - and the
+# configuration must be ANNOUNCED rather than absorbed.
+out6=$(LANE_MODEL_CMD="$STUB" LANE_MODEL_BUDGET=1 LANE_MODEL_TIMEOUT_MIN=2 \
+       LANE_MODEL_TIMEOUT="" LANE_MODEL_CHAIN="hang,ok" \
+       bash -c 'source tools/lane-model.sh; t0=$SECONDS; lane_model_run "$LANE_MODEL_CHAIN" "p" /tmp/lm-live-l6 1>/dev/null; echo "elapsed=$((SECONDS-t0))"' 2>&1)
+e6=$(printf '%s' "$out6" | grep -o 'elapsed=[0-9]*' | cut -d= -f2)
+if [ -n "$e6" ] && [ "$e6" -le 3 ]; then
+  if printf '%s' "$out6" | grep -qi 'cannot honour'; then
+    ok "L6 a degenerate budget is clamped and announced (elapsed=${e6}s for a 1s budget over 2 attempts)"
+  else
+    bad "L6 a degenerate budget was absorbed silently instead of announced"
+  fi
+else
+  bad "L6 a degenerate budget overspent: elapsed=${e6:-?}s for a 1s budget"
+fi
 
 # L3 - PIN (passes on the base tree too, by design): an explicit per-attempt cap wins over the
 # derived budget, or the existing lane-model-selftest would be silently rewritten.

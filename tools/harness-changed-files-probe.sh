@@ -26,9 +26,9 @@
 #        The reader can SEE the ambiguity (tree dirty, lane credited with nothing) instead of the
 #        harness inventing an attribution it cannot know.
 #   D3 (must-allow)  clean tree, lane changes nothing -> changed_files == 0; tree_dirty == 0
-#   D4 (PIN, backward compatibility)  `record` with no baseline captured -> the basis is "tree" and
-#        the marker is still VALID JSON. Passes on the base tree; protects the self-hosting path
-#        where the generated runner calls record with the legacy argument count.
+#   D4 (backward compatibility)  `record` with no baseline captured -> the basis is "tree" AND
+#        the marker is VALID JSON. Was labelled a PIN; the adversarial review showed its assertion
+#        was decorative, so it now asserts the basis and is a discriminator in its own right.
 #
 # Exit 0 = the record describes the lane. Non-zero = it describes the repository.
 #
@@ -127,9 +127,16 @@ else
   bad "D3 an idle lane was credited (changed_files='${cfD3:-}' basis='$(mstr "$mD3" changed_files_basis)')"
 fi
 
-# ── D4: PIN - the legacy record path must still produce valid JSON ───────────
+# ── D4: the legacy record path must still produce valid JSON, AND say so honestly ──
 # The generated runner that records THIS lane's landing was written before the change and calls
 # record with four arguments. That path must keep working.
+#
+# THE BASIS IS ASSERTED, NOT MERELY PRINTED. Found by the adversarial review 2026-10-07: this
+# direction CLAIMED to pin the no-baseline basis but checked only the exit status and JSON
+# validity, so a record that LIED about its basis (ATTR_BASIS="delta" installed in the legacy
+# branch) stayed green - it passed all four directions while claiming a delta it never had. A field
+# that is printed but not asserted is documentation, not a guard. S14c did catch that mutation; a
+# sibling catching it does not make this direction honest.
 #
 # The commit lock MUST be cleared first, and this was a real defect in this probe: commit_landing
 # deliberately keeps `$RUNS/<name>.commit.lock` as proof that a dispatch already committed, so on
@@ -143,8 +150,9 @@ bash tools/lane.sh record probe-changed-d4 "$RUNS/probe-changed-d4.log" 0 > "$P/
 rcD4=$?
 mD4="$RUNS/probe-changed-d4.landed.json"
 basisD4=$(mstr "$mD4" changed_files_basis)
-if [ "$rcD4" -eq 0 ] && php -r 'exit(json_decode(file_get_contents($argv[1]))===null?1:0);' "$mD4" 2>/dev/null; then
-  ok "D4 PIN: a legacy record with no baseline is valid JSON (basis='${basisD4:-unset}')"
+if [ "$rcD4" -eq 0 ] && [ "${basisD4:-}" = "tree" ] \
+   && php -r 'exit(json_decode(file_get_contents($argv[1]))===null?1:0);' "$mD4" 2>/dev/null; then
+  ok "D4 a legacy record with no baseline is valid JSON and honestly says basis=tree"
 else
   bad "D4 the legacy record path broke (rc=$rcD4 basis='${basisD4:-unset}')"
 fi

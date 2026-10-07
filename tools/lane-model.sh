@@ -149,6 +149,17 @@ lane_model_run() {
   local model safe log rc attempt=0 total="${#list[@]}"
   local saw_unavailable=0 saw_timeout=0 started=$SECONDS
   local elapsed remaining attempts_left attempt_cap
+
+  # A configuration that cannot honour BOTH the floor and the budget is announced rather than
+  # silently absorbed. Measured by the adversarial review 2026-10-07: LANE_MODEL_TIMEOUT_MIN=2
+  # against LANE_MODEL_BUDGET=1 ran 2s, because the floor was applied with no reference to what was
+  # actually left. This is a configuration error, so say so once, up front, where it can be fixed.
+  if [ -z "$LANE_MODEL_TIMEOUT" ] && [ "$((LANE_MODEL_TIMEOUT_MIN * total))" -gt "$LANE_MODEL_BUDGET" ]; then
+    echo "lane_model_run: WARNING: budget ${LANE_MODEL_BUDGET}s cannot honour a ${LANE_MODEL_TIMEOUT_MIN}s floor" >&2
+    echo "  for ${total} attempts - later attempts are clamped to what is left, so the run may" >&2
+    echo "  exceed its budget. Raise LANE_MODEL_BUDGET or lower LANE_MODEL_TIMEOUT_MIN." >&2
+  fi
+
   for model in "${list[@]}"; do
     # trim surrounding whitespace
     model="$(printf '%s' "$model" | tr -d '[:space:]')"
@@ -168,6 +179,13 @@ lane_model_run() {
       attempts_left=$((total - attempt + 1))
       attempt_cap=$((remaining / attempts_left))
       [ "$attempt_cap" -ge "$LANE_MODEL_TIMEOUT_MIN" ] || attempt_cap="$LANE_MODEL_TIMEOUT_MIN"
+      # THE FLOOR MUST NOT LET THE WHOLE RUN EXCEED THE BUDGET IT ADVERTISES. On any budget that can
+      # accommodate the floor this is a NO-OP, because remaining/attempts_left is already <=
+      # remaining; it only bites on the degenerate configuration the warning above names.
+      # Never clamp below 1s: `timeout 0` DISABLES the timeout, which is the last thing a spent
+      # budget should do.
+      [ "$attempt_cap" -gt "$remaining" ] && attempt_cap="$remaining"
+      [ "$attempt_cap" -ge 1 ] || attempt_cap=1
       echo "--- attempt ${attempt}/${total}: ${model}; cap=${attempt_cap}s (budget ${LANE_MODEL_BUDGET}s, ${attempts_left} attempts left) ---"
     fi
     # shellcheck disable=SC2086
