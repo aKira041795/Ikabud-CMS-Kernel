@@ -1,0 +1,110 @@
+LANE HARNESS - WINDOWS QUICKSTART
+=================================
+
+Short version: use WSL2. It is one command, VS Code supports it natively, and it is the only
+Windows option that gives the harness full behaviour.
+
+
+WHY
+---
+The harness needs two things from the operating system:
+
+  * a pty (util-linux `script -qec`), so a lane has a terminal - several model CLIs behave
+    differently, or refuse, without one;
+  * `setsid`, to detach the watchdog and the wrapper so they outlive the editor's terminal.
+
+Windows' own POSIX layer (Git Bash / MSYS2) has neither. The harness still runs there - it has
+tested fallbacks - but every lane is started WITHOUT a terminal.
+
+WSL2 is a real Linux kernel. Nothing is degraded and it is what the harness is measured on.
+
+
+SET UP (ONCE, ~10 MINUTES)
+--------------------------
+1. Open PowerShell as Administrator and run:
+
+       wsl --install
+
+2. Reboot if it asks. Ubuntu opens and asks for a username and password.
+
+3. In that Ubuntu shell:
+
+       sudo apt-get update && sudo apt-get install -y git
+
+4. Keep your code in the LINUX filesystem, not in /mnt/c - file access is far faster and file
+   watching actually works:
+
+       mkdir -p ~/code && cd ~/code
+       git clone <your-repo> && cd <your-repo>
+
+   If you do not have the repo in WSL yet, copy the package you are reading this in:
+
+       mkdir -p ~/lane-harness && cd ~/lane-harness
+       tar xzf /mnt/c/Users/You/Downloads/lane-harness-0.1.0.tar.gz
+
+   Path translation: C:\Users\You\Downloads  ->  /mnt/c/Users/You/Downloads
+   (drive letter lower-cased, backslashes become forward slashes)
+
+5. Install the harness into your repo:
+
+       cd ~/lane-harness/lane-harness-0.1.0
+       bash preflight.sh                 # expect: preflight: OK - full mode
+       bash install.sh ~/code/<your-repo>
+
+6. Open it in VS Code. Install the "WSL" extension first (VS Code will offer it), then:
+
+       cd ~/code/<your-repo>
+       code .
+
+   VS Code reopens attached to WSL. The bottom-left corner says "WSL: Ubuntu". The integrated
+   terminal is now Linux, and every task runs there.
+
+7. Prove it works - two numbers, do not skip them:
+
+       bash tools/lane-platform-selftest.sh     # expect: 22 passed, 0 failed
+       bash tools/lane.sh selftest              # expect: 29 passed, 0 failed
+
+Then read docs/00-START-HERE.md.
+
+
+IF YOU USE GIT BASH INSTEAD
+---------------------------
+It refuses on purpose, because a silent downgrade is the thing this harness exists to prevent.
+If you want it anyway:
+
+       bash install.sh /path/to/repo --allow-degraded
+
+You get: lanes that run without a terminal. The acceptance verdict is unaffected - the part that
+matters still works. Read docs/01-WINDOWS-AND-WSL.md, section "Git Bash".
+
+
+TROUBLE
+-------
+"$'\r': command not found", or a shebang that cannot find bash
+    CRLF line endings - a Windows checkout with core.autocrlf=true. It is the most common Windows
+    failure and it looks like a broken harness. Fix:
+
+        git config core.autocrlf false
+        printf '*.sh text eol=lf\n' >> .gitattributes
+        sed -i 's/\r$//' tools/*.sh
+
+    install.sh already appends that .gitattributes line, and preflight.sh detects stray carriage
+    returns and tells you the fix.
+
+"pty: NONE" but I am on Windows
+    You are not inside WSL. Check the bottom-left corner of the VS Code window: it must say
+    "WSL: Ubuntu". Open the folder from the Ubuntu shell with `code .`.
+
+"wsl --install" says the feature is disabled / needs a reboot
+    Reboot, then run it again. If your machine is managed and blocks it, use the Dev Container
+    instead: open the repo in VS Code and pick "Dev Containers: Reopen in Container".
+    See docs/01-WINDOWS-AND-WSL.md, section "Option B".
+
+Slow file operations, or file watching misses changes
+    Your repo is under /mnt/c. Move it into the Linux filesystem (~/code).
+
+
+NO API KEYS ARE IN THIS PACKAGE
+-------------------------------
+None, by design, and the build refuses to produce an archive containing one. Your credentials stay
+in your own model CLI's config on your machine. See SECURITY.md and docs/03-PROVIDERS-AND-KEYS.md.

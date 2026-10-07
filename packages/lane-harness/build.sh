@@ -201,6 +201,9 @@ cp "$PKG_DIR/preflight.sh"           "$dest/preflight.sh"
 # reviewing the build script.
 cp "$PKG_DIR/preflight.sh"           "$dest/tools/preflight.sh"
 cp "$PKG_DIR/README.md"              "$dest/README.md"
+# The Windows quickstart sits at the archive ROOT on purpose: it is the first thing a Windows user
+# should see, before they get as far as docs/.
+cp "$PKG_DIR/WINDOWS-QUICKSTART.txt" "$dest/WINDOWS-QUICKSTART.txt"
 cp "$PKG_DIR/SECURITY.md"            "$dest/SECURITY.md"
 cp "$REPO/LICENSE-MIT"               "$dest/LICENSE"
 cp "$PKG_DIR/gitignore.fragment"     "$dest/gitignore.fragment"

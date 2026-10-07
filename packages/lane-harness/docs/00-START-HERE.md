@@ -22,6 +22,10 @@ model's summary you have to take on faith.
 
 ## 2. Install
 
+**On Windows: open `WINDOWS-QUICKSTART.txt` at the archive root first.** It is the WSL2 setup as a
+copy-paste block, and `install.sh` will refuse to run from Git Bash unless you pass
+`--allow-degraded` — deliberately, because a silent downgrade is what this harness exists to stop.
+
 ```bash
 tar xzf lane-harness-0.1.0.tar.gz
 cd lane-harness-0.1.0

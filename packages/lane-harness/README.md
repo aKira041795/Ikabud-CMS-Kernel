@@ -71,6 +71,10 @@ bash preflight.sh --check-only          # see what your machine is missing, firs
 bash install.sh /path/to/your/repo      # copies tools/, adds .ai/ to .gitignore, writes .vscode/
 ```
 
+**On Windows, read `WINDOWS-QUICKSTART.txt` first.** `install.sh` refuses to run from Git Bash
+unless you pass `--allow-degraded`, because WSL2 is the supported path and a silent downgrade is the
+thing this harness exists to prevent.
+
 Then, in that repo:
 
 ```bash

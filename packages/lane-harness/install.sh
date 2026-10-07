@@ -26,23 +26,65 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$HERE"
 [ -d "$SRC/tools" ] || { echo "install.sh: no tools/ next to this script — unzip the package first" >&2; exit 2; }
 
-target=""; force=0; vscode=1; verify=1
+target=""; force=0; vscode=1; verify=1; allow_degraded=0
 for arg in "$@"; do
   case "$arg" in
-    --force)     force=1;;
-    --no-vscode) vscode=0;;
-    --no-verify) verify=0;;
-    -h|--help)   sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0;;
-    -*)          echo "install.sh: unknown flag '$arg'" >&2; exit 2;;
-    *)           target="$arg";;
+    --force)           force=1;;
+    --no-vscode)       vscode=0;;
+    --no-verify)       verify=0;;
+    --allow-degraded)  allow_degraded=1;;
+    -h|--help)         sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0;;
+    -*)                echo "install.sh: unknown flag '$arg'" >&2; exit 2;;
+    *)                 target="$arg";;
   esac
 done
+[ "${LANE_ALLOW_DEGRADED:-0}" = "1" ] && allow_degraded=1
 
 [ -n "$target" ] || { echo "usage: bash install.sh /path/to/your/repo [--force] [--no-vscode]" >&2; exit 2; }
 [ -d "$target" ] || { echo "install.sh: '$target' is not a directory" >&2; exit 2; }
 target="$(cd "$target" && pwd)"
 
 [ "$target" != "$SRC" ] || { echo "install.sh: refusing to install the package into itself" >&2; exit 2; }
+
+# ── Windows: WSL2 is the SUPPORTED path, and this says so at the point of decision ──────────────
+# Git Bash / MSYS2 / Cygwin can run the harness, but without a pty - so every lane starts with no
+# terminal, and several model CLIs behave differently or refuse without one. That is a degradation,
+# not a detail, and the whole point of this harness is not to let a real limitation pass silently.
+platform_is_windows_posix() {
+  case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) return 0;; esac
+  return 1
+}
+if platform_is_windows_posix && [ "$allow_degraded" -eq 0 ]; then
+  cat >&2 <<'WINDOWS_EOF'
+REFUSING: this is bash from Windows (Git Bash / MSYS2 / Cygwin), not from WSL2.
+
+The harness needs a pty and process-group detachment, which the Windows POSIX layer does not
+provide. It will RUN here, but every lane is started WITHOUT a terminal, and some model CLIs
+behave differently or refuse without one.
+
+Use WSL2. The setup is one command in an Administrator PowerShell:
+
+    wsl --install
+
+then, INSIDE the Ubuntu shell it installs:
+
+    sudo apt-get update && sudo apt-get install -y git
+    mkdir -p ~/code && cd ~/code && git clone <your-repo> && cd <your-repo>
+    bash /mnt/c/path/to/lane-harness-0.1.0/install.sh "$PWD"
+    code .          # VS Code reopens attached to WSL (bottom-left says "WSL: Ubuntu")
+
+Read WINDOWS-QUICKSTART.txt next to this script for the copy-paste version, and
+ docs/01-WINDOWS-AND-WSL.md for the full walkthrough (including the CRLF trap that breaks bash
+ scripts on a Windows checkout).
+
+If you want the degraded Windows build anyway: re-run with --allow-degraded.
+WINDOWS_EOF
+  exit 2
+fi
+if platform_is_windows_posix; then
+  echo "WARNING: installing into a Windows POSIX layer (Git Bash/MSYS) with --allow-degraded."
+  echo "         Lanes will run WITHOUT a terminal. WSL2 is the supported path."
+fi
 if [ ! -d "$target/.git" ]; then
   echo "install.sh: WARNING: '$target' is not a git repository."
   echo "            The landing record reads 'git status' to attribute changed files, so without git"

@@ -47,7 +47,12 @@ if [ -r /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then is
 
 case "$os" in
   linux)         say "   platform: Linux$([ "$is_wsl" -eq 1 ] && echo ' (WSL2 inside Windows)') — fully supported";;
-  windows-posix) say "   platform: Windows via MSYS/Git Bash — runs WITHOUT a pty (degraded). WSL2 is recommended.";;
+  windows-posix)
+    say "   platform: Windows via MSYS/Git Bash — runs WITHOUT a pty (degraded)."
+    say "             WSL2 is the SUPPORTED path, and it is one command in an Administrator"
+    say "             PowerShell:   wsl --install     (then reopen the repo from inside Ubuntu)"
+    say "             See WINDOWS-QUICKSTART.txt, or docs/01-WINDOWS-AND-WSL.md for the walkthrough."
+    ;;
   macos)         say "   platform: macOS — runs WITHOUT a pty unless util-linux is installed (degraded).";;
   *)             say "   platform: unrecognised — the harness will try to run and may degrade.";;
 esac
