@@ -198,7 +198,15 @@ commit_landing() {
 }
 
 # ── classify why a lane ended, from its log content ────────────────────────────
-# echoes one of: report_present | quota | crash | timeout | fatal | empty | unknown
+# echoes one of: report_present | no_report | quota | crash | timeout | fatal | empty
+#
+# THE ORDER IS THE POINT. The exit status decides SUCCESS; log content only CLASSIFIES a
+# FAILURE. Measured 2026-10-07: the content-first order announced a lane's CORRECT work as
+# "VERDICT: CRASHED on quota" while the same call returned exit 0, because the lane's own log
+# quoted "rate limit". That is the identical false red lane-model.sh had already been fixed
+# for ("success is decided by the exit status ALONE; content only CLASSIFIES a failure"), and
+# a lane implementing the unavailability detector writes those words by definition. A guard
+# that contradicts its own evidence is worse than none, because it is trusted.
 #
 # $2 is the lane's real process exit status, when known. A non-zero exit is NEVER
 # a successful report: a lane that prints "status: PASS" and then exits 7 used to be
@@ -209,29 +217,37 @@ classify_log() {
   local bytes
   bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
   if [ "$bytes" -eq 0 ]; then echo "empty"; return; fi
-  if grep -qiE -f "$MODEL_UNAVAILABLE_PATTERNS" "$log" 2>/dev/null; then
-    echo "quota"; return
-  fi
-  # 124 = timeout(1) itself, 137 = SIGKILL, 143 = SIGTERM. A lane killed by its own budget
-  # is a timeout rather than a generic crash, and naming it makes the report actionable.
-  case "$rc" in
-    124|137|143) echo "timeout"; return;;
-  esac
-  # A non-zero process exit (including timeout's 124) is a crash, whatever the log says.
+
+  # ── FAILURE: only here may log content decide the classification ─────────────
   if [ -n "$rc" ] && [ "$rc" != "0" ]; then
+    if grep -qiE -f "$MODEL_UNAVAILABLE_PATTERNS" "$log" 2>/dev/null; then
+      echo "quota"; return
+    fi
+    # 124 = timeout(1) itself, 137 = SIGKILL, 143 = SIGTERM. A lane killed by its own budget
+    # is a timeout rather than a generic crash, and naming it makes the report actionable.
+    case "$rc" in
+      124|137|143) echo "timeout"; return;;
+    esac
+    # A FAILURE whose opening lines name an error died at startup rather than late. That is a
+    # diagnostic subdivision of a failure - which is what content is allowed to do.
+    if printf '%s' "$(head -3 "$log" 2>/dev/null)" | grep -qiE "error|fatal"; then
+      echo "fatal"; return
+    fi
     echo "crash"; return
   fi
-  # Reuse status_line() so the two can never drift apart again. They DID drift: this used a
-  # stricter pattern than status_line(), so a lane reporting "## Status: Complete" was announced
-  # to the owner as "ended without a recognisable status line" while its marker held the status.
-  # A guard that cries wolf is worse than none, because it teaches the reader to ignore it.
+
+  # ── SUCCESS: the process exited 0 (or its exit status was never captured) ─────
+  # Nothing below may report a failure. Reuse status_line() so the two can never drift apart
+  # again. They DID drift: this used a stricter pattern than status_line(), so a lane reporting
+  # "## Status: Complete" was announced to the owner as "ended without a recognisable status
+  # line" while its marker held the status. A guard that cries wolf is worse than none.
   if [ -n "$(status_line "$log")" ]; then
     echo "report_present"; return
   fi
-  if printf '%s' "$(head -3 "$log" 2>/dev/null)" | grep -qiE "error|fatal"; then
-    echo "fatal"; return
-  fi
-  echo "unknown"
+  # A clean exit with NO Status line is a lane that did not say - not a failure. This used to
+  # echo "unknown", whose verdict read like an error: measured 2026-10-03, 9 of 25 real
+  # landings were in this bucket. Absence of an OPTIONAL convention is not evidence of failure.
+  echo "no_report"
 }
 
 # extract the status line wherever the lane chose to put it
@@ -607,12 +623,13 @@ cmd_run() {
   else
     case "$reason" in
       report_present) echo "   VERDICT: landed with a report - verify it, do not trust it";;
+      no_report)      echo "   VERDICT: landed cleanly (exit 0), no Status line - nothing was claimed, so nothing to disbelieve";;
       quota)          echo "   VERDICT: CRASHED on quota - partial edits may exist, check the tree";;
       timeout)        echo "   VERDICT: KILLED by its own timeout - partial edits may exist, check the tree";;
       crash)          echo "   VERDICT: CRASHED (non-zero exit) - partial edits may exist, check the tree";;
       fatal)          echo "   VERDICT: CRASHED - partial edits may exist, check the tree";;
       empty)          echo "   VERDICT: CRASHED with no output - nothing landed";;
-      *)              echo "   VERDICT: ended without a recognisable status line - read the log";;
+      *)              echo "   VERDICT: pre-2026-10-07 record with an unclassified reason - read the log";;
     esac
   fi
 
@@ -861,6 +878,45 @@ EOS
     ok "S3 a crash after 'status: PASS' returns non-zero (rc=$rc3, reason=$r3)"
   else
     bad "S3 a crash was certified as a landing (rc=$rc3, reason=$r3)"
+  fi
+
+  # S13 (must-refuse) - A SUCCESSFUL RUN MUST NOT BE RE-CLASSIFIED BY ITS OWN LOG CONTENT.
+  # Measured 2026-10-07: a log quoting "rate limit" on an exit-0 run was classified `quota`, so
+  # cmd_run printed "VERDICT: CRASHED on quota" while the same call returned 0 — a verdict that
+  # contradicted its own evidence. Content may only CLASSIFY a failure; it must never overrule a
+  # success. A lane implementing the unavailability detector quotes these words BY DEFINITION.
+  { echo '#!/usr/bin/env bash'
+    echo 'echo "previous attempt hit rate limit - retrying with the next model"'
+    echo 'echo "status: PASS"'
+    echo 'exit 0'
+  } > "$P/lane-st13.sh"
+  chmod +x "$P/lane-st13.sh"
+  local rc13 r13
+  bash "$SELF" run st13 "$P/lane-st13.sh" --timeout=60 --wait-grace=2 "${GATE[@]}" > "$P/st13.mon.log" 2>&1
+  rc13=$?
+  r13=$(marker_field "$RUNS/st13.landed.json" reason)
+  if [ "$rc13" -eq 0 ] && [ "$r13" = "report_present" ]; then
+    ok "S13 a success quoting 'rate limit' stays a success (rc=$rc13, reason=$r13)"
+  else
+    bad "S13 a successful run was re-classified by its log content (rc=$rc13, reason=$r13)"
+  fi
+
+  # S13b (must-allow the other direction) - the same rule must NOT stop a real quota failure from
+  # being NAMED. Without this half, "never classify quota" would pass S13 just as well, and the
+  # classifier would have been silenced rather than corrected.
+  { echo '#!/usr/bin/env bash'
+    echo 'echo "rate limit exceeded"'
+    echo 'exit 1'
+  } > "$P/lane-st13b.sh"
+  chmod +x "$P/lane-st13b.sh"
+  local rc13b r13b
+  bash "$SELF" run st13b "$P/lane-st13b.sh" --timeout=60 --wait-grace=2 "${GATE[@]}" > "$P/st13b.mon.log" 2>&1
+  rc13b=$?
+  r13b=$(marker_field "$RUNS/st13b.landed.json" reason)
+  if [ "$rc13b" -ne 0 ] && [ "$r13b" = "quota" ]; then
+    ok "S13b a real quota failure is still named (rc=$rc13b, reason=$r13b)"
+  else
+    bad "S13b a real quota failure was not named (rc=$rc13b, reason=$r13b)"
   fi
 
   # S4 (must-refuse) - a lane the monitor gave up on must not be green.
