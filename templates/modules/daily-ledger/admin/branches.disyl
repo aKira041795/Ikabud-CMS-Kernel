@@ -57,6 +57,11 @@
 {/block}
 
 {block content}
+<div class="mb-5 flex gap-2 border-b border-gray-200">
+    <button id="tab-branches" class="px-4 py-2 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-700" onclick="showDestinationTab('branches')">Branches</button>
+    <button id="tab-consignees" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-gray-500" onclick="showDestinationTab('consignees')">Consignees</button>
+</div>
+<div id="branches-panel">
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Branches</h2>
@@ -318,14 +323,76 @@
         </div>
     </div>
 </div>
+</div>
+
+<div id="consignees-panel" class="hidden">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div><h2 class="text-lg font-semibold text-gray-900">Consignees</h2><p class="text-sm text-gray-500">Third-party destinations supplied by a commissary. They are not branches and have no Receive Stock step.</p></div>
+        <button class="btn btn-primary" onclick="openConsignee()">+ Add Consignee</button>
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Code</th><th>Name</th><th>Assigned Commissary</th><th>Status</th><th></th></tr></thead>
+        <tbody>{foreach consignees as c}<tr>
+            <td class="font-mono text-sm font-semibold">{c.code}</td><td>{c.name}</td>
+            <td>{c.commissary_code} — {c.commissary_name}</td>
+            <td>{if c.is_active == 1}<span class="text-emerald-700">Active</span>{else}<span class="text-rose-700">Inactive</span>{/if}</td>
+            <td class="text-right"><button class="btn btn-sm btn-outline" onclick='openConsignee({c.id}, {c.code | json}, {c.name | json}, {c.assigned_commissary_id}, {c.is_active})'>Edit</button></td>
+        </tr>{/foreach}</tbody>
+    </table></div></div>
+</div>
+
+<div class="modal-overlay" id="consignee-modal">
+    <div class="modal branch-modal">
+        <div class="branch-modal__header"><h3 id="consignee-title">Add Consignee</h3></div>
+        <div class="branch-modal__body">
+            <input type="hidden" id="consignee-id">
+            <div class="form-group"><label class="form-label">Code</label><input class="form-input uppercase" id="consignee-code"></div>
+            <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="consignee-name"></div>
+            <div class="form-group"><label class="form-label">Assigned Commissary</label><select class="form-input" id="consignee-commissary"><option value="">— Select commissary —</option>{foreach commissaries as c}<option value="{c.id}">{c.code} — {c.name}</option>{/foreach}</select></div>
+            <div class="form-group"><label class="inline-flex items-center gap-2"><input type="checkbox" id="consignee-active" checked> Active</label></div>
+        </div>
+        <div class="modal-actions branch-modal__actions"><button class="btn btn-outline" onclick="closeModal('consignee-modal')">Cancel</button><button class="btn btn-primary" id="consignee-submit" onclick="saveConsignee()">Save</button></div>
+    </div>
+</div>
 {/block}
 
 {block scripts}
 <script>
     var BASE = '{base_url}';
 
+    function showDestinationTab(tab) {
+        var consignee = tab === 'consignees';
+        document.getElementById('branches-panel').classList.toggle('hidden', consignee);
+        document.getElementById('consignees-panel').classList.toggle('hidden', !consignee);
+        document.getElementById('tab-branches').className = 'px-4 py-2 text-sm font-semibold border-b-2 ' + (!consignee ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500');
+        document.getElementById('tab-consignees').className = 'px-4 py-2 text-sm font-semibold border-b-2 ' + (consignee ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500');
+    }
+
     function openAddBranch() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-code').focus(); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+    function openConsignee(id, code, name, commissaryId, active) {
+        document.getElementById('consignee-id').value = id || '';
+        document.getElementById('consignee-code').value = code || '';
+        document.getElementById('consignee-name').value = name || '';
+        document.getElementById('consignee-commissary').value = commissaryId ? String(commissaryId) : '';
+        document.getElementById('consignee-active').checked = id ? !!active : true;
+        document.getElementById('consignee-title').textContent = id ? 'Edit Consignee' : 'Add Consignee';
+        document.getElementById('consignee-modal').classList.add('show');
+        document.getElementById('consignee-code').focus();
+    }
+    function saveConsignee() {
+        var btn = document.getElementById('consignee-submit');
+        var id = parseInt(document.getElementById('consignee-id').value, 10) || 0;
+        btn.disabled = true;
+        fetch(BASE + '/api/v1/admin/consignees', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({consignee_id: id, code: document.getElementById('consignee-code').value.toUpperCase(), name: document.getElementById('consignee-name').value, assigned_commissary_id: parseInt(document.getElementById('consignee-commissary').value, 10) || 0, is_active: document.getElementById('consignee-active').checked ? 1 : 0})
+        }).then(function(r) { return r.json(); }).then(function(res) {
+            if (!res.ok) { throw new Error(res.error || 'Failed'); }
+            closeModal('consignee-modal'); showToast(id ? 'Consignee updated' : 'Consignee added');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function(e) { showToast(e.message || 'Failed'); btn.disabled = false; });
+    }
 
     function openEditBranch(id, name, address, area, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder) {
         document.getElementById('edit-id').value = id;

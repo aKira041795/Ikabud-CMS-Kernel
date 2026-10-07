@@ -1177,7 +1177,7 @@ function apiVoidDelivery(array $params = []): void
 
     $ctx->db()->beginTransaction();
     try {
-        $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, delivery_date, remarks, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
+        $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, consignee_id, delivery_date, production_shift, remarks, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
         $stmt->execute([':id' => $deliveryId]);
         $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if (!$delivery) {
@@ -1217,20 +1217,22 @@ function apiVoidDelivery(array $params = []): void
                     (string)$delivery['delivery_date'],
                     -((int)$item['quantity']),
                     $userId,
-                    'withdraw'
+                    'withdraw',
+                    (string)($delivery['production_shift'] ?? 'AM')
                 );
             }
         }
 
         $ledgerReversal = dl_reversePostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $userId);
+        $consigneeReversal = dl_reverseConsigneeDeliveryCredits($ctx->db(), $deliveryId, $userId);
         $ctx->db()->prepare(
             'UPDATE dl_deliveries SET status = "voided", voided_by = :u, voided_at = NOW() WHERE id = :id AND status <> "voided"'
         )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
 
         $ctx->db()->commit();
         dl_auditLog('delivery_voided', null, 'dl_deliveries', (string)$deliveryId,
-            ['status' => $status], ['status' => 'voided', 'ledger_reversal' => $ledgerReversal], $reason ?: null);
-        $ctx->json(['ok' => true, 'ledger_reversal' => $ledgerReversal]);
+            ['status' => $status], ['status' => 'voided', 'ledger_reversal' => $ledgerReversal, 'consignee_reversal' => $consigneeReversal], $reason ?: null);
+        $ctx->json(['ok' => true, 'ledger_reversal' => $ledgerReversal, 'consignee_reversal' => $consigneeReversal]);
     } catch (\Throwable $e) {
         if ($ctx->db()->inTransaction()) {
             $ctx->db()->rollBack();
@@ -1392,6 +1394,7 @@ function apiListDeliveries(array $params = []): void
         $bind[':s'] = $status;
     }
     $allowedDestinationTypes = array_values(array_map(static fn(array $row): string => (string)$row['value'], dlDeliveryDestinationTypeOptions()));
+    $allowedDestinationTypes[] = 'consignee';
     if ($destType !== '') {
         if (!in_array($destType, $allowedDestinationTypes, true)) {
             $ctx->json(['ok' => false, 'error' => 'Invalid destination type.'], 422);
@@ -1423,7 +1426,7 @@ function apiListDeliveries(array $params = []): void
         $where[] = 'd.provenance_status = :ps';
         $bind[':ps'] = $provenanceStatus;
     }
-    $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.destination_type, d.destination_id, d.dr_number,
+    $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.destination_type, d.destination_id, d.consignee_id, d.dr_number,
                    d.delivery_date, d.production_shift, d.legacy_cashier_withdrawal_id,
                    CASE WHEN ' . $hasReceivingSql . ' THEN "received" ELSE d.status END AS status,
                    d.status AS delivery_status,
@@ -1440,12 +1443,14 @@ function apiListDeliveries(array $params = []): void
                    END AS origin_label,
                    CASE
                        WHEN d.destination_type = "branch" THEN COALESCE(db.name, CONCAT("Branch #", d.destination_id))
+                       WHEN d.destination_type = "consignee" THEN COALESCE(CONCAT(dc.name, " (", dc.code, ")"), CONCAT("Consignee #", d.consignee_id))
                        WHEN d.destination_id IS NOT NULL AND d.destination_id > 0 THEN CONCAT(REPLACE(d.destination_type, "_", " "), " #", d.destination_id)
                        ELSE REPLACE(d.destination_type, "_", " ")
                    END AS destination_label
               FROM dl_deliveries d
               LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type = "branch"
               LEFT JOIN dl_branches db ON db.id = d.destination_id AND d.destination_type = "branch"
+              LEFT JOIN dl_consignees dc ON dc.id = d.consignee_id AND d.destination_type = "consignee"
               LEFT JOIN dl_users ru ON ru.id = d.provenance_reviewed_by'
          . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '')
          . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 200';

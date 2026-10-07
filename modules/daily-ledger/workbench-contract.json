@@ -83,6 +83,7 @@
                 "/daily-ledger/api/v1/admin/branch-supply-rules",
                 "/daily-ledger/api/v1/admin/branches",
                 "/daily-ledger/api/v1/admin/branches/update",
+                "/daily-ledger/api/v1/admin/consignees",
                 "/daily-ledger/api/v1/admin/branches/products",
                 "/daily-ledger/api/v1/admin/deliveries/change-destination",
                 "/daily-ledger/api/v1/admin/deliveries/resolve-origin",
@@ -658,6 +659,21 @@
                     "step": "http.response",
                     "category": "http"
                 }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-consignees",
+            "route": "/daily-ledger/api/v1/admin/consignees",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {"step": "http.request", "category": "http"},
+                {"step": "authorization.checked", "category": "capability"},
+                {"step": "state.changed-or-rejected", "category": "service"},
+                {"step": "http.response", "category": "http"}
             ]
         },
         {

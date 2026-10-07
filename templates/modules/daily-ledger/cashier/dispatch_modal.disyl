@@ -51,14 +51,16 @@
                             <input type="text" x-model="form.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-emerald-300 bg-emerald-50 font-mono text-base font-semibold uppercase tracking-[0.18em]">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Receiving Branch <span class="text-rose-500">*</span></label>
-                            <select x-model="form.destination_id" class="form-input mt-0 w-full" @change="onDestinationChange($event)">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Destination <span class="text-rose-500">*</span></label>
+                            <select x-model="form.destination_key" class="form-input mt-0 w-full" @change="onDestinationChange($event)">
                                 <option value="">-- Select destination --</option>
-                                 {foreach all_branches as b}
-                                 {if b.id != branch_id}
-                                 <option value="{b.id}" data-type="branch">{b.code} — {b.name}</option>
-                                 {/if}
-                                 {/foreach}                             </select>
+                                <optgroup label="Branches">
+                                    {foreach all_branches as b}{if b.id != branch_id}<option value="branch:{b.id}" data-type="branch" data-id="{b.id}">{b.code} — {b.name}</option>{/if}{/foreach}
+                                </optgroup>
+                                <optgroup label="Consignees">
+                                    {foreach consignees as c}<option value="consignee:{c.id}" data-type="consignee" data-id="{c.id}">{c.code} — {c.name}</option>{/foreach}
+                                </optgroup>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-700 mb-1">Receiving shift <span class="font-normal text-gray-500">(expected)</span></label>
@@ -139,13 +141,13 @@ function dispatchModal() {
         isOpen: false,
         saving: false,
         errorMsg: '',
-        form: { delivery_date: '', dr_number: '', destination_type: 'branch', destination_id: '', receiving_shift: (window.SHIFT || '') },
+        form: { delivery_date: '', dr_number: '', destination_type: 'branch', destination_key: '', destination_id: '', consignee_id: '', receiving_shift: (window.SHIFT || '') },
         lines: [],
         products: [],
 
         openModal() {
             this.errorMsg = '';
-            this.form = { delivery_date: LEDGER_DATE, dr_number: '', destination_type: 'branch', destination_id: '', receiving_shift: (window.SHIFT || '') };
+            this.form = { delivery_date: LEDGER_DATE, dr_number: '', destination_type: 'branch', destination_key: '', destination_id: '', consignee_id: '', receiving_shift: (window.SHIFT || '') };
             this.lines = [{ product_id: '', quantity: '' }];
             this.loadProducts();
             this.isOpen = true;
@@ -156,7 +158,11 @@ function dispatchModal() {
         addEmptyLine() { this.lines.push({ product_id: '', quantity: '' }); },
         onDestinationChange(event) {
             var sel = event.target.selectedOptions[0];
-            this.form.destination_type = sel ? (sel.getAttribute('data-type') || 'branch') : 'branch';
+            var type = sel ? (sel.getAttribute('data-type') || 'branch') : 'branch';
+            var id = sel ? (parseInt(sel.getAttribute('data-id'), 10) || '') : '';
+            this.form.destination_type = type;
+            this.form.destination_id = type === 'branch' ? id : '';
+            this.form.consignee_id = type === 'consignee' ? id : '';
         },
 
         loadProducts() {
@@ -190,7 +196,7 @@ function dispatchModal() {
                 this.errorMsg = 'Paper DR number is required.';
                 return false;
             }
-            if (!this.form.destination_id) {
+            if (!this.form.destination_id && !this.form.consignee_id) {
                 this.errorMsg = 'Receiving destination is required.';
                 return false;
             }
@@ -227,7 +233,8 @@ function dispatchModal() {
                 delivery_date: this.form.delivery_date,
                 dr_number: this.form.dr_number,
                 destination_type: this.form.destination_type || 'branch',
-                destination_id: parseInt(this.form.destination_id, 10),
+                destination_id: this.form.destination_type === 'branch' ? parseInt(this.form.destination_id, 10) : null,
+                consignee_id: this.form.destination_type === 'consignee' ? parseInt(this.form.consignee_id, 10) : null,
                 // Optional sender declaration; the receiving cashier still confirms
                 // the ledger shift and a bound cashier's lock always wins.
                 receiving_shift: this.form.receiving_shift || null,

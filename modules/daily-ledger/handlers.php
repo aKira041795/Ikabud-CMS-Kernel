@@ -2809,6 +2809,24 @@ function dl_revertSettledEndingsForShift($db, int $branchId, string $date, strin
     }
 }
 
+/** One guard shared by branch and consignee ledger writers; it must not drift. */
+function dl_assertLedgerMutationMutable($db, int $guardBranchId, string $ledgerDate, string $shift): void
+{
+    // Finalized shifts are immutable to every domain mutation. Admin/supervisor
+    // must explicitly reopen the shift before correcting locked sales. For the
+    // PM shift (the only finalizable shift) lock the shift-status row so a
+    // concurrent finalize cannot interleave with this mutation — consistent
+    // lock order with apiFinalizePmShift (day-status → shift-status).
+    if ($shift === 'PM') {
+        $shiftLock = dl_lockShiftStatusRow($db, $guardBranchId, $ledgerDate, 'PM');
+        if ((string)$shiftLock['status'] === 'finalized') {
+            throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
+        }
+        return;
+    }
+    dl_assertShiftMutable($db, $guardBranchId, $ledgerDate, 'AM');
+}
+
 function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, int $delta, int $actorId, string $column = 'addtl', string $shift = 'AM'): array
 {
     if (!in_array($column, ['addtl', 'withdraw'], true)) {
@@ -2820,20 +2838,7 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
     if (!$ctx) {
         throw new \RuntimeException('Module context unavailable');
     }
-
-    // Finalized shifts are immutable to every domain mutation. Admin/supervisor
-    // must explicitly reopen the shift before correcting locked sales. For the
-    // PM shift (the only finalizable shift) lock the shift-status row so a
-    // concurrent finalize cannot interleave with this mutation — consistent
-    // lock order with apiFinalizePmShift (day-status → shift-status).
-    if ($shift === 'PM') {
-        $shiftLock = dl_lockShiftStatusRow($ctx->db(), $branchId, $ledgerDate, 'PM');
-        if ((string)$shiftLock['status'] === 'finalized') {
-            throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
-        }
-    } else {
-        dl_assertShiftMutable($ctx->db(), $branchId, $ledgerDate, 'AM');
-    }
+    dl_assertLedgerMutationMutable($ctx->db(), $branchId, $ledgerDate, $shift);
 
     $select = $ctx->db()->prepare(
         'SELECT id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1 FOR UPDATE'
@@ -2891,6 +2896,64 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
     dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId), $shift);
     dl_recomputeVariancesForDay($branchId, $ledgerDate);
     return [$column => $newVal];
+}
+
+/** Apply a custody movement while using the source branch's exact ledger lock. */
+function dl_applyConsigneeLedgerDelta($db, int $guardBranchId, int $consigneeId, int $productId, string $ledgerDate, int $delta, int $actorId, string $shift = 'AM'): array
+{
+    $shift = $shift === 'PM' ? 'PM' : 'AM';
+    dl_assertLedgerMutationMutable($db, $guardBranchId, $ledgerDate, $shift);
+    $select = $db->prepare('SELECT id, addtl, withdraw FROM dl_consignee_ledger WHERE consignee_id = :c AND product_id = :p AND ledger_date = :d AND shift = :s LIMIT 1 FOR UPDATE');
+    $select->execute([':c' => $consigneeId, ':p' => $productId, ':d' => $ledgerDate, ':s' => $shift]);
+    $row = $select->fetch(PDO::FETCH_ASSOC) ?: null;
+    $before = $row ? ((int)$row['addtl'] - (int)$row['withdraw']) : 0;
+    $after = $before + $delta;
+    if ($after < 0) {
+        throw new \RuntimeException('Reverse quantity exceeds consignee custody stock.');
+    }
+    if (!$row) {
+        $db->prepare('INSERT INTO dl_consignee_ledger (consignee_id, product_id, ledger_date, shift, price_snapshot, addtl, withdraw, encoded_by, updated_by) VALUES (:c, :p, :d, :s, :price, :a, :w, :u, :u2)')->execute([
+            ':c' => $consigneeId, ':p' => $productId, ':d' => $ledgerDate, ':s' => $shift,
+            ':price' => dl_resolveProductPrice($productId, dl_defaultPriceGroupId(), $ledgerDate),
+            ':a' => max(0, $delta), ':w' => max(0, -$delta),
+            ':u' => $actorId > 0 ? $actorId : null, ':u2' => $actorId > 0 ? $actorId : null,
+        ]);
+    } elseif ($delta >= 0) {
+        $db->prepare('UPDATE dl_consignee_ledger SET addtl = addtl + :q, updated_by = :u WHERE id = :id')->execute([':q' => $delta, ':u' => $actorId ?: null, ':id' => (int)$row['id']]);
+    } else {
+        $db->prepare('UPDATE dl_consignee_ledger SET withdraw = withdraw + :q, updated_by = :u WHERE id = :id')->execute([':q' => -$delta, ':u' => $actorId ?: null, ':id' => (int)$row['id']]);
+    }
+    return ['before_qty' => $before, 'after_qty' => $after];
+}
+
+function dl_applyConsigneeDeliveryCredit($db, int $deliveryId, int $deliveryItemId, int $sourceBranchId, int $consigneeId, int $productId, string $ledgerDate, int $quantity, int $actorId, string $shift): bool
+{
+    $exists = $db->prepare('SELECT effect_status FROM dl_consignee_ledger_effects WHERE delivery_item_id = :id FOR UPDATE');
+    $exists->execute([':id' => $deliveryItemId]);
+    if ($exists->fetchColumn() !== false) return false;
+    $state = dl_applyConsigneeLedgerDelta($db, $sourceBranchId, $consigneeId, $productId, $ledgerDate, $quantity, $actorId, $shift);
+    $db->prepare('INSERT INTO dl_consignee_ledger_effects (delivery_id, delivery_item_id, consignee_id, source_branch_id, product_id, ledger_date, shift, quantity, effect_status, applied_by, applied_at, before_qty, after_qty) VALUES (:d, :di, :c, :b, :p, :dt, :s, :q, "applied", :u, NOW(), :before, :after)')->execute([
+        ':d' => $deliveryId, ':di' => $deliveryItemId, ':c' => $consigneeId, ':b' => $sourceBranchId,
+        ':p' => $productId, ':dt' => $ledgerDate, ':s' => $shift, ':q' => $quantity,
+        ':u' => $actorId ?: null, ':before' => $state['before_qty'], ':after' => $state['after_qty'],
+    ]);
+    dl_auditLog('consignee_ledger_applied', $sourceBranchId, 'dl_consignee_ledger_effects', (string)$db->lastInsertId(), ['quantity' => $state['before_qty']], ['quantity' => $state['after_qty'], 'delivery_id' => $deliveryId]);
+    return true;
+}
+
+function dl_reverseConsigneeDeliveryCredits($db, int $deliveryId, int $actorId): int
+{
+    $stmt = $db->prepare('SELECT * FROM dl_consignee_ledger_effects WHERE delivery_id = :id ORDER BY id FOR UPDATE');
+    $stmt->execute([':id' => $deliveryId]);
+    $reversed = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $effect) {
+        if ((string)$effect['effect_status'] !== 'applied') continue;
+        $state = dl_applyConsigneeLedgerDelta($db, (int)$effect['source_branch_id'], (int)$effect['consignee_id'], (int)$effect['product_id'], (string)$effect['ledger_date'], -((int)$effect['quantity']), $actorId, (string)$effect['shift']);
+        $db->prepare('UPDATE dl_consignee_ledger_effects SET effect_status = "reversed", reversed_by = :u, reversed_at = NOW(), reverse_before_qty = :before, reverse_after_qty = :after WHERE id = :id AND effect_status = "applied"')->execute([':u' => $actorId ?: null, ':before' => $state['before_qty'], ':after' => $state['after_qty'], ':id' => (int)$effect['id']]);
+        dl_auditLog('consignee_ledger_reversed', (int)$effect['source_branch_id'], 'dl_consignee_ledger_effects', (string)$effect['id'], ['quantity' => $state['before_qty']], ['quantity' => $state['after_qty'], 'delivery_id' => $deliveryId]);
+        $reversed++;
+    }
+    return $reversed;
 }
 
 /**
@@ -7403,6 +7466,20 @@ function handleCashierLedger(array $params = []): void
     // to the actor's accessible set — a cashier is locked to a single branch and
     // would otherwise see an empty destination list and be unable to send stock.
     $allBranches = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $consignees = [];
+    if ($branchId > 0) {
+        $consigneeStmt = $ctx->db()->prepare(
+            'SELECT c.id, c.code, c.name
+               FROM dl_consignees c
+               INNER JOIN dl_branches cb ON cb.id = c.assigned_commissary_id AND cb.is_commissary = 1 AND cb.is_active = 1
+               INNER JOIN dl_branches src ON src.id = :source
+              WHERE c.is_active = 1
+                AND c.assigned_commissary_id = IF(src.is_commissary = 1, src.id, src.assigned_commissary_id)
+              ORDER BY c.name'
+        );
+        $consigneeStmt->execute([':source' => $branchId]);
+        $consignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
     $incomingCount = 0;
@@ -7508,6 +7585,7 @@ function handleCashierLedger(array $params = []): void
         'server_now_offset' => $clockLabel['server_now_offset'],
         'server_epoch_ms' => $clockLabel['server_epoch_ms'],
         'all_branches' => $allBranches,
+        'consignees' => $consignees,
         'incoming_count' => $incomingCount,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'commissary_branch_id' => $commissaryBranchId,
@@ -8678,7 +8756,8 @@ function apiCreateCashierDispatch(array $params = []): void
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $drNumber = trim((string)($input['dr_number'] ?? ''));
     $destType = (string)($input['destination_type'] ?? 'branch');
-    $destId = (int)($input['destination_id'] ?? $input['target_branch_id'] ?? 0);
+    $destId = $destType === 'branch' ? (int)($input['destination_id'] ?? $input['target_branch_id'] ?? 0) : 0;
+    $consigneeId = $destType === 'consignee' ? (int)($input['consignee_id'] ?? 0) : 0;
     $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
     $role = (string)($user['role'] ?? '');
     $actorId = dl_getActorUserId($user);
@@ -8696,20 +8775,40 @@ function apiCreateCashierDispatch(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
         return;
     }
-    if ($destType !== 'branch') {
+    if (!in_array($destType, ['branch', 'consignee'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid destination type.'], 422);
         return;
     }
-    if ($destId <= 0) {
-        $ctx->json(['ok' => false, 'error' => 'A destination is required.'], 422);
+    if (($destType === 'branch' && ($destId <= 0 || $consigneeId !== 0))
+        || ($destType === 'consignee' && ($destId !== 0 || $consigneeId <= 0))) {
+        $ctx->json(['ok' => false, 'error' => 'The selected destination does not match its destination type.'], 422);
         return;
     }
-    $destBranchStmt = $ctx->db()->prepare('SELECT id, is_active FROM dl_branches WHERE id = :id LIMIT 1');
-    $destBranchStmt->execute([':id' => $destId]);
-    $destBranch = $destBranchStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    if (!$destBranch || (int)($destBranch['is_active'] ?? 0) !== 1) {
-        $ctx->json(['ok' => false, 'error' => 'Destination branch no longer exists or is inactive. Refresh the page and choose a current branch.'], 422);
-        return;
+    if ($destType === 'branch') {
+        $destBranchStmt = $ctx->db()->prepare('SELECT id, is_active FROM dl_branches WHERE id = :id LIMIT 1');
+        $destBranchStmt->execute([':id' => $destId]);
+        $destBranch = $destBranchStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$destBranch || (int)($destBranch['is_active'] ?? 0) !== 1) {
+            $ctx->json(['ok' => false, 'error' => 'Destination branch no longer exists or is inactive. Refresh the page and choose a current branch.'], 422);
+            return;
+        }
+    } else {
+        // A branch may dispatch only to consignees supplied by its own
+        // commissary. A commissary branch is its own supply scope.
+        $consigneeStmt = $ctx->db()->prepare(
+            'SELECT c.id
+               FROM dl_consignees c
+               INNER JOIN dl_branches cb ON cb.id = c.assigned_commissary_id AND cb.is_commissary = 1 AND cb.is_active = 1
+               INNER JOIN dl_branches src ON src.id = :source
+              WHERE c.id = :consignee AND c.is_active = 1
+                AND c.assigned_commissary_id = IF(src.is_commissary = 1, src.id, src.assigned_commissary_id)
+              LIMIT 1'
+        );
+        $consigneeStmt->execute([':source' => $originBranchId, ':consignee' => $consigneeId]);
+        if (!$consigneeStmt->fetchColumn()) {
+            $ctx->json(['ok' => false, 'error' => 'Consignee is inactive or is not supplied by this branch commissary.'], 422);
+            return;
+        }
     }
     if ($destType === 'branch' && $destId === $originBranchId) {
         $ctx->json(['ok' => false, 'error' => 'A different destination branch is required.'], 422);
@@ -8736,7 +8835,8 @@ function apiCreateCashierDispatch(array $params = []): void
           WHERE origin_type = :origin_type
             AND origin_id = :origin_id
             AND destination_type = :destination_type
-            AND destination_id = :destination_id
+            AND destination_id <=> :destination_id
+            AND consignee_id <=> :consignee_id
             AND dr_number = :dr_number
             AND status <> "voided"
           ORDER BY id DESC
@@ -8746,11 +8846,16 @@ function apiCreateCashierDispatch(array $params = []): void
         ':origin_type' => 'branch',
         ':origin_id' => $originBranchId,
         ':destination_type' => $destType,
-        ':destination_id' => $destId,
+        ':destination_id' => $destType === 'branch' ? $destId : null,
+        ':consignee_id' => $destType === 'consignee' ? $consigneeId : null,
         ':dr_number' => $drNumber,
     ]);
     $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($dup) {
+        if ($destType === 'consignee') {
+            $ctx->json(['ok' => true, 'delivery_id' => (int)$dup['id'], 'replayed' => true]);
+            return;
+        }
         $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Stock on the destination branch.'], 422);
         return;
     }
@@ -8759,17 +8864,41 @@ function apiCreateCashierDispatch(array $params = []): void
 
     $ctx->db()->beginTransaction();
     try {
+        // Serialize same-source dispatch creation, then repeat the DR lookup
+        // inside the transaction. The preflight above is only a fast path; this
+        // lock is what makes simultaneous retries exactly-once.
+        $sourceLock = $ctx->db()->prepare('SELECT id FROM dl_branches WHERE id = :id FOR UPDATE');
+        $sourceLock->execute([':id' => $originBranchId]);
+        $dupStmt->execute([
+            ':origin_type' => 'branch',
+            ':origin_id' => $originBranchId,
+            ':destination_type' => $destType,
+            ':destination_id' => $destType === 'branch' ? $destId : null,
+            ':consignee_id' => $destType === 'consignee' ? $consigneeId : null,
+            ':dr_number' => $drNumber,
+        ]);
+        $lockedDup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($lockedDup) {
+            $ctx->db()->commit();
+            if ($destType === 'consignee') {
+                $ctx->json(['ok' => true, 'delivery_id' => (int)$lockedDup['id'], 'replayed' => true]);
+            } else {
+                $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Stock on the destination branch.'], 422);
+            }
+            return;
+        }
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_deliveries
-                (origin_type, origin_id, destination_type, destination_id, dr_number,
-                 delivery_date, production_shift, declared_receiving_shift, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks)
-             VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, :declared_receiving_shift, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks)'
+                (origin_type, origin_id, destination_type, destination_id, consignee_id, dr_number,
+                 delivery_date, production_shift, declared_receiving_shift, receipt_required, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks)
+             VALUES (:ot, :oid, :dt, :did, :cid, :dr, :dd, :production_shift, :declared_receiving_shift, :receipt_required, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks)'
         );
         $ins->execute([
             ':ot' => 'branch',
             ':oid' => $originBranchId,
             ':dt' => $destType,
-            ':did' => $destId,
+            ':did' => $destType === 'branch' ? $destId : null,
+            ':cid' => $destType === 'consignee' ? $consigneeId : null,
             ':dr' => $drNumber,
             ':dd' => $deliveryDate,
             // The SOURCE CASHIER'S SHIFT travels with the delivery. Owner relayed the client:
@@ -8786,7 +8915,8 @@ function apiCreateCashierDispatch(array $params = []): void
             ':production_shift' => $shift,
             // Sender expectation only: a bound receiver's shift lock remains the
             // accountability control; for an unbound receiver this is the default.
-            ':declared_receiving_shift' => $declaredReceivingShift,
+            ':declared_receiving_shift' => $destType === 'branch' ? $declaredReceivingShift : null,
+            ':receipt_required' => $destType === 'branch' ? 1 : 0,
             ':created_by' => $actorId ?: null,
             ':created_by_name_snapshot' => $dispatchingCashierName,
             ':posted_by' => $actorId ?: null,
@@ -8810,7 +8940,11 @@ function apiCreateCashierDispatch(array $params = []): void
                 ':price_group_id' => $priceGroupId,
                 ':remarks' => $item['remarks'],
             ]);
+            $deliveryItemId = (int)$ctx->db()->lastInsertId();
             dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw', $shift);
+            if ($destType === 'consignee') {
+                dl_applyConsigneeDeliveryCredit($ctx->db(), $deliveryId, $deliveryItemId, $originBranchId, $consigneeId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, $shift);
+            }
         }
 
         $dispatchTimeStmt = $ctx->db()->prepare('SELECT posted_at FROM dl_deliveries WHERE id = :id');
@@ -8818,7 +8952,8 @@ function apiCreateCashierDispatch(array $params = []): void
         $dispatchedAt = (string)$dispatchTimeStmt->fetchColumn();
         dl_auditLog('create_delivery', $originBranchId, 'dl_deliveries', (string)$deliveryId, null, [
             'destination_type' => $destType,
-            'destination_id' => $destId,
+            'destination_id' => $destType === 'branch' ? $destId : null,
+            'consignee_id' => $destType === 'consignee' ? $consigneeId : null,
             'items' => count($items),
             'dr_number' => $drNumber,
             'status' => 'posted',
@@ -8827,7 +8962,7 @@ function apiCreateCashierDispatch(array $params = []): void
             'dispatching_cashier_name' => $dispatchingCashierName,
             'dispatch_shift' => $shift,
             'origin_branch_id' => $originBranchId,
-            'destination_branch_id' => $destId,
+            'destination_branch_id' => $destType === 'branch' ? $destId : null,
             'dispatched_at' => $dispatchedAt,
             'line_count' => count($items),
         ]);
@@ -10446,7 +10581,7 @@ function apiProductionDestinations(array $params = []): void
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $allowedBranchIds = dl_accessibleBranchIds($user);
     if (count($allowedBranchIds) === 0) {
-        $ctx->json(['ok' => true, 'destinations' => []]);
+        $ctx->json(['ok' => true, 'destinations' => [], 'consignees' => []]);
         return;
     }
 
@@ -10458,8 +10593,18 @@ function apiProductionDestinations(array $params = []): void
          ORDER BY name"
     );
     $stmt->execute($allowedBranchIds);
+    $destinations = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $consigneeStmt = $ctx->db()->prepare(
+        "SELECT c.id, c.code, c.name, c.assigned_commissary_id
+           FROM dl_consignees c
+           INNER JOIN dl_branches cb ON cb.id = c.assigned_commissary_id AND cb.is_commissary = 1
+          WHERE c.is_active = 1 AND c.assigned_commissary_id IN ({$placeholders})
+          ORDER BY c.name"
+    );
+    $consigneeStmt->execute($allowedBranchIds);
 
-    $ctx->json(['ok' => true, 'destinations' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+    // `destinations` remains byte-shape compatible for existing consumers.
+    $ctx->json(['ok' => true, 'destinations' => $destinations, 'consignees' => $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
 }
 
 function apiProductionProducts(array $params = []): void
@@ -16358,6 +16503,16 @@ function handleAdminBranches(array $params = []): void
     // Commissary candidates for the supply-mode picker (any active branch flagged as commissary).
     $commStmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name');
     $commissaries = $commStmt ? ($commStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    $consigneeSql = 'SELECT c.id, c.code, c.name, c.assigned_commissary_id, c.is_active, b.code AS commissary_code, b.name AS commissary_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id WHERE 1=1';
+    $consigneeBind = [];
+    if ($search !== '') {
+        $consigneeSql .= ' AND (c.name LIKE :cq OR c.code LIKE :cq2)';
+        $consigneeBind = [':cq' => "%{$search}%", ':cq2' => "%{$search}%"];
+    }
+    $consigneeSql .= ' ORDER BY c.name';
+    $consigneeStmt = $ctx->db()->prepare($consigneeSql);
+    $consigneeStmt->execute($consigneeBind);
+    $consignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $priceGroupsStmt = $ctx->db()->query('SELECT id, name, type, is_default FROM dl_price_groups WHERE is_active = 1 ORDER BY is_default DESC, name');
     $priceGroups = $priceGroupsStmt ? ($priceGroupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     $selectedPriceGroupName = null;
@@ -16379,11 +16534,57 @@ function handleAdminBranches(array $params = []): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'branches' => $branches,
         'commissaries' => $commissaries,
+        'consignees' => $consignees,
         'price_groups' => $priceGroups,
         'search' => $search,
         'selected_price_group_id' => $selectedPriceGroupId,
         'selected_price_group_name' => $selectedPriceGroupName,
     ]);
+}
+
+function apiSaveConsignee(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $id = (int)($input['consignee_id'] ?? 0);
+    $code = strtoupper(trim((string)($input['code'] ?? '')));
+    $name = trim((string)($input['name'] ?? ''));
+    $commissaryId = (int)($input['assigned_commissary_id'] ?? 0);
+    $active = !empty($input['is_active']) ? 1 : 0;
+    if ($code === '' || $name === '' || $commissaryId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Code, name, and assigned commissary are required.'], 422);
+        return;
+    }
+    $commissary = $ctx->db()->prepare('SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1');
+    $commissary->execute([':id' => $commissaryId]);
+    if (!$commissary->fetchColumn()) {
+        $ctx->json(['ok' => false, 'error' => 'Assigned commissary must be an active commissary branch.'], 422);
+        return;
+    }
+    try {
+        if ($id > 0) {
+            $stmt = $ctx->db()->prepare('UPDATE dl_consignees SET code = :code, name = :name, assigned_commissary_id = :commissary, is_active = :active WHERE id = :id');
+            $stmt->execute([':code' => $code, ':name' => $name, ':commissary' => $commissaryId, ':active' => $active, ':id' => $id]);
+            if ($stmt->rowCount() === 0) {
+                $found = $ctx->db()->prepare('SELECT id FROM dl_consignees WHERE id = :id');
+                $found->execute([':id' => $id]);
+                if (!$found->fetchColumn()) throw new \RuntimeException('Consignee not found.', 404);
+            }
+            $action = 'consignee_updated';
+        } else {
+            $stmt = $ctx->db()->prepare('INSERT INTO dl_consignees (code, name, assigned_commissary_id, is_active) VALUES (:code, :name, :commissary, :active)');
+            $stmt->execute([':code' => $code, ':name' => $name, ':commissary' => $commissaryId, ':active' => $active]);
+            $id = (int)$ctx->db()->lastInsertId();
+            $action = 'consignee_created';
+        }
+        dl_auditLog($action, $commissaryId, 'dl_consignees', (string)$id, null, ['code' => $code, 'name' => $name, 'assigned_commissary_id' => $commissaryId, 'is_active' => $active, 'actor_id' => dl_getActorUserId($user)]);
+        $ctx->json(['ok' => true, 'consignee_id' => $id]);
+    } catch (\Throwable $e) {
+        $status = $e instanceof \RuntimeException && in_array($e->getCode(), [404, 422], true) ? $e->getCode() : 422;
+        $ctx->json(['ok' => false, 'error' => str_contains(strtolower($e->getMessage()), 'duplicate') ? 'Consignee code already exists.' : $e->getMessage()], $status);
+    }
 }
 
 function apiCreateBranch(array $params = []): void

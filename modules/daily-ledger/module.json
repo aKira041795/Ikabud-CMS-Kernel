@@ -52,6 +52,9 @@
     "dl_delivery_variance_flags",
     "dl_commissary_product_ledger",
     "dl_delivery_ledger_effects",
+    "dl_consignees",
+    "dl_consignee_ledger",
+    "dl_consignee_ledger_effects",
     "dl_integrity_notifications",
     "dl_integrity_notification_recipients",
     "dl_selling_accounts",
@@ -158,7 +161,8 @@
     "database/migrations/077_branch_product_assignment_mode.sql",
     "database/migrations/078_sheet_entry_branch_link_finding_type.sql",
     "database/migrations/079_snapshot_withdrawal_encoder_name.sql",
-    "database/migrations/080_declared_receiving_shift.sql"
+    "database/migrations/080_declared_receiving_shift.sql",
+    "database/migrations/081_consignee_destinations.sql"
   ],
   "capabilities": {
     "exposes": [
