@@ -26,19 +26,20 @@
      style="background:{section_settings.bg_color|default:'#1e293b'};color:{footer_text};
             padding:{section_settings.padding_top|default:'40'}px 0 {section_settings.padding_bottom|default:'40'}px;
             margin-top:3rem;
-            {if footer_container == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
+            {if footer_container == 'contained'}max-width:var(--ark-max-width);margin-left:auto;margin-right:auto;{/if}
             --footer-link-hover:{footer_link_hover};--footer-link:{footer_link};
             --footer-title:{footer_title};--footer-columns:{footer_columns};
             --footer-widget-custom-width:{widget_custom_width|replace:'px':''}px;">
     {# Only the widget band's own controls decide its inner width. The footer bar keeps its
        own shell, so inner_width must not reach in here as well. #}
     <div class="ark-region-footer__inner ark-region-footer__inner--{widget_container} ark-region-footer__inner-mode--{widget_inner_mode}"
-         style="{if widget_container == 'full'}max-width:none;{elseif widget_container == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'full'}max-width:none;{elseif widget_inner_mode == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'contained'}max-width:var(--ark-max-width,1280px);{/if}">
+         style="{if widget_container == 'full'}max-width:none;{elseif widget_container == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'full'}max-width:none;{elseif widget_inner_mode == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'contained'}max-width:var(--ark-max-width);{/if}
+                {if footer_container == 'full'}padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));{/if}">
         {if navigation.footer}
         <nav class="ark-region-footer__nav" aria-label="Footer navigation">{navigation.footer|raw}</nav>
         {/if}
         {if widgets_html}
-        <div class="ark-region-footer__widgets" style="display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+        <div class="ark-region-footer__widgets" style="display:grid;width:100%;gap:1.5rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
             {widgets_html|raw}
         </div>
         {/if}
@@ -61,9 +62,9 @@
      data-region="footer-bar"
      data-theme="{theme}"
      style="background:{bar_bg};color:{bar_text};padding:1rem 0;font-size:0.875rem;
-            {if bar_shell == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
+            {if bar_shell == 'contained'}max-width:var(--ark-max-width);margin-left:auto;margin-right:auto;{/if}
             --footer-bar-link:{bar_link};--footer-bar-link-hover:{bar_link_hover};">
-    <div class="ark-region-footer-bar__inner" style="{if bar_shell == 'full-width'}max-width:none;{elseif bar_shell == 'contained'}max-width:var(--ark-max-width,1280px);{elseif bar_shell != '0'}max-width:{bar_shell}px;{/if}">
+    <div class="ark-region-footer-bar__inner" style="{if bar_shell == 'full-width'}max-width:none;padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));{elseif bar_shell == 'contained'}max-width:var(--ark-max-width);{elseif bar_shell != '0'}max-width:{bar_shell}px;{/if}">
         <span>{copyright}</span>
         {if section_settings.show_admin_link|default:'1'}<a href="/cms/admin">Admin</a>{/if}
     </div>

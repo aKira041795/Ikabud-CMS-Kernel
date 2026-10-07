@@ -62,7 +62,7 @@
             border-bottom:1px solid {if section_settings.transparent_home == '1' and entity_context.kind == 'front-page'}transparent{else}{header_border}{/if};
             min-height:{header_height};
             {if header_sticky == '1'}position:sticky;top:0;z-index:100;{/if}
-            {if header_container == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
+            {if header_container == 'contained'}max-width:var(--ark-max-width);margin-left:auto;margin-right:auto;{/if}
             color:{if section_settings.transparent_home == '1' and entity_context.kind == 'front-page'}{section_settings.transparent_text_color|default:'#ffffff'}{else}{header_text}{/if};
             --header-link:{if section_settings.transparent_home == '1' and entity_context.kind == 'front-page'}{section_settings.transparent_text_color|default:'#ffffff'}{else}{header_link}{/if};
             --header-link-hover:{header_link_hover};
@@ -94,10 +94,11 @@
                 padding:{section_settings.topbar_padding_y|default:'8'}px 0;
                 --topbar-link:{section_settings.topbar_link_color|default:'#cbd5e1'};
                 --topbar-link-hover:{section_settings.topbar_link_hover_color|default:'#ffffff'};
-                {if section_settings.topbar_container_width|default:'contained' == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}">
+                {if section_settings.topbar_container_width|default:'contained' == 'contained'}max-width:var(--ark-max-width);margin-left:auto;margin-right:auto;{/if}">
         <div class="ark-topbar__inner ark-topbar__inner--{section_settings.topbar_inner_width_mode|default:'inherit'}"
              data-topbar-inner-width="{section_settings.topbar_inner_width|default:'0'}"
-             style="{if section_settings.topbar_inner_width_mode == 'full'}max-width:none;{elseif section_settings.topbar_inner_width_mode == 'custom'}max-width:{section_settings.topbar_inner_custom_width|default:'1200'}px;{elseif section_settings.topbar_inner_width_mode == 'contained'}max-width:var(--ark-max-width,1280px);{/if}
+             style="{if section_settings.topbar_inner_width_mode == 'full'}max-width:none;{elseif section_settings.topbar_inner_width_mode == 'custom'}max-width:{section_settings.topbar_inner_custom_width|default:'1200'}px;{elseif section_settings.topbar_inner_width_mode == 'contained'}max-width:var(--ark-max-width);{/if}
+                    {if section_settings.topbar_container_width == 'full'}padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));{/if}
                     justify-content:{if section_settings.topbar_align == 'left'}flex-start{elseif section_settings.topbar_align == 'center'}center{elseif section_settings.topbar_align == 'right'}flex-end{else}space-between{/if};">
             <div class="ark-topbar__left">
                 {if site.tagline}<a href="{site.url}" class="ark-topbar__tagline">{site.tagline}</a>{else}<a href="{site.url}">{site.title}</a>{/if}
@@ -111,8 +112,8 @@
 
     <div class="ark-region-header__inner ark-region-header__inner--{header_inner_mode}"
          style="{if header_layout == 'logo-center'}justify-content:center;{else}justify-content:space-between;{/if}
-                flex-wrap:wrap;padding:{header_pt}px 1rem {header_pb}px;
-                {if header_inner_mode == 'full'}max-width:none;{elseif header_inner_mode == 'custom'}max-width:{header_inner_custom}px;{elseif header_inner_mode == 'contained'}max-width:var(--ark-max-width,1280px);{else}max-width:var(--ark-max-width,1280px);{/if}
+                flex-wrap:wrap;padding:{header_pt}px {if header_container == 'full'}max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md))){else}var(--ark-spacing-md){/if} {header_pb}px;
+                {if header_inner_mode == 'full'}max-width:none;{elseif header_inner_mode == 'custom'}max-width:{header_inner_custom}px;{elseif header_inner_mode == 'contained'}max-width:var(--ark-max-width);{else}max-width:var(--ark-max-width);{/if}
                 margin:0 auto;
                 {if header_layout == 'stacked'}flex-direction:column;text-align:center;{/if}">
         <div class="ark-region-header__brand">

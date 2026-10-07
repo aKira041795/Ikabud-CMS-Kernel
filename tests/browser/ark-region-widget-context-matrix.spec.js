@@ -73,4 +73,31 @@ test('every widget offered by every ARK region preserves that region layout', as
     for (const offender of offenders) console.log(`  ${offender}`);
 
     expect(offenders, `Full offender list:\n${offenders.join('\n')}`).toEqual([]);
+
+    for (const width of [1303, 1920]) {
+        await page.setViewportSize({ width, height: 720 });
+        await page.setContent(`<!doctype html><style>*{box-sizing:border-box}html,body{margin:0;width:100%}${payload.css}</style>${payload.alignment.header}${payload.alignment.footer}<div class="ark-content-area"><main class="ark-main ark-main--content"><span class="matrix-content-left">Content</span></main></div>`);
+        const alignment = await page.evaluate(() => {
+            const left = selector => Math.round(document.querySelector(selector).getBoundingClientRect().left * 100) / 100;
+            const contentLeft = left('.matrix-content-left');
+            return {
+                contentLeft,
+                headerLeft: left('.ark-region-header__brand'),
+                topbarLeft: left('.ark-topbar__left'),
+                footerLeft: left('.ark-region-footer__widgets'),
+                pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+            };
+        });
+        console.log(`ALIGNMENT ${width}px: content=${alignment.contentLeft} header=${alignment.headerLeft} topbar=${alignment.topbarLeft} footer=${alignment.footerLeft} pageOverflow=${alignment.pageOverflow}`);
+        expect(Math.abs(alignment.headerLeft - alignment.contentLeft), `header content-left at ${width}px`).toBeLessThanOrEqual(1);
+        expect(Math.abs(alignment.topbarLeft - alignment.contentLeft), `topbar content-left at ${width}px`).toBeLessThanOrEqual(1);
+        expect(Math.abs(alignment.footerLeft - alignment.contentLeft), `footer content-left at ${width}px`).toBeLessThanOrEqual(1);
+        expect(alignment.pageOverflow, `no page scrollbar at ${width}px`).toBe(false);
+    }
+
+    // Expected before this screenshot: at 1920px all three full-bleed bands retain their
+    // backgrounds while header, topbar, footer and page content begin on the same 340px line.
+    await testInfo.attach('expected-full-width-side-gutter-alignment.png', {
+        body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
+    });
 });

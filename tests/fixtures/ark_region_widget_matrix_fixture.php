@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
+// Use the CMS integration tenant so data-backed offered widgets exercise their real query path.
+$_SERVER['HTTP_HOST'] = 'cmsnew.test';
 require_once $root . '/bootstrap.php';
 require_once $root . '/src/helpers/module-manager.php';
 require_once $root . '/modules/cms/helpers.php';
 
+use Ikabud\Kernel\DiSyL\TemplateEngine;
 use Ikabud\Kernel\Services\ThemeRegionRenderer;
 
 $panel = (string) file_get_contents($root . '/templates/modules/cms/admin/theme-customizer.disyl');
@@ -58,7 +61,31 @@ foreach ($regions as $region => $types) {
     }
 }
 
+$engine = new TemplateEngine($root . '/templates', sys_get_temp_dir() . '/ark_widget_matrix_' . getmypid(), false);
+$common = [
+    'theme' => 'ark',
+    'site' => ['url' => '/', 'title' => 'ARK', 'tagline' => 'A useful tagline'],
+    'navigation' => ['primary' => '<a href="/">Home</a>', 'footer' => ''],
+    'entity_context' => ['kind' => 'page'],
+    'widgets_html' => '<div class="matrix-footer-content">Footer content</div>',
+    'widgets_topbar_html' => '<span>Topbar item</span>',
+    'current_year' => '2026',
+];
+$headerTemplate = (string) file_get_contents($root . '/storage/cms-themes/ark/templates/regions/header.disyl');
+$footerTemplate = (string) file_get_contents($root . '/storage/cms-themes/ark/templates/regions/footer.disyl');
+$alignment = [
+    'header' => $engine->renderString($headerTemplate, $common + ['section_settings' => [
+        'header_container_width' => 'full', 'header_inner_width_mode' => 'full',
+        'show_topbar' => '1', 'topbar_container_width' => 'full', 'topbar_inner_width_mode' => 'full',
+    ]]),
+    'footer' => $engine->renderString($footerTemplate, $common + ['section_settings' => [
+        'container_width' => 'full', 'widget_container_width' => 'full', 'widget_inner_width_mode' => 'full',
+        'show_footer_bar' => '0', 'columns' => '1',
+    ]]),
+];
+
 echo json_encode([
     'cases' => $cases,
+    'alignment' => $alignment,
     'css' => (string) file_get_contents($root . '/storage/cms-themes/ark/style.css'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
