@@ -2966,6 +2966,24 @@ function cmsCustomizerGet(object $db, string $section, ?string $scope = null): a
         if (is_array($row)) {
             $settings = json_decode($row['settings_json'] ?? '{}', true) ?: [];
             $widgets  = json_decode($row['widgets_json'] ?? '[]', true) ?: [];
+
+            // Footer storage is canonically the CMS spelling. Read the former ARK
+            // spellings additively for imported/early rows, without overriding an
+            // explicitly persisted canonical value or writing aliases back.
+            if ($section === 'footer') {
+                foreach ([
+                    'footer_bg_color' => 'bg_color',
+                    'footer_text_color' => 'text_color',
+                    'footer_link_color' => 'link_color',
+                    'footer_link_hover_color' => 'link_hover_color',
+                    'footer_title_color' => 'title_color',
+                ] as $alias => $canonical) {
+                    if (!array_key_exists($canonical, $settings) && array_key_exists($alias, $settings)) {
+                        $settings[$canonical] = $settings[$alias];
+                    }
+                }
+            }
+
             $mergedSettings = array_merge($defaults, $settings);
             if ($section === 'sidebar') {
                 $mergedSettings = cmsValidateSidebarSettings($mergedSettings, $scope);

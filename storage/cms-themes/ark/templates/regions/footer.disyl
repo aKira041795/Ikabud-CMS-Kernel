@@ -1,10 +1,10 @@
 {# ARK Region Template: Footer #}
 {# Receives from ThemeRenderContext: settings.footer.*, tokens, site, navigation #}
 {# NOTE: DiSyL does NOT parse expressions inside <style> tags. Dynamic values are CSS variables. #}
-{set footer_link = section_settings.footer_link_color|default:'#94a3b8'}
-{set footer_link_hover = section_settings.footer_link_hover_color|default:'#ffffff'}
-{set footer_text = section_settings.footer_text_color|default:'#cbd5e1'}
-{set footer_title = section_settings.footer_title_color|default:'#f1f5f9'}
+{set footer_link = section_settings.link_color|default:'#94a3b8'}
+{set footer_link_hover = section_settings.link_hover_color|default:'#ffffff'}
+{set footer_text = section_settings.text_color|default:'#cbd5e1'}
+{set footer_title = section_settings.title_color|default:'#f1f5f9'}
 {set footer_columns = section_settings.columns|default:'3'}
 {# The outer band is driven by the schema's container_width. It is a declared control and the
    declared-vs-honoured ratchet asserts it changes the render, so the wiring stays here; what
@@ -23,7 +23,7 @@
      data-theme="{theme}"
      data-inner-width="{footer_inner_width}"
      data-widget-container-width="{widget_container}"
-     style="background:{section_settings.footer_bg_color|default:'#1e293b'};color:{footer_text};
+     style="background:{section_settings.bg_color|default:'#1e293b'};color:{footer_text};
             padding:{section_settings.padding_top|default:'40'}px 0 {section_settings.padding_bottom|default:'40'}px;
             margin-top:3rem;
             {if footer_container == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}

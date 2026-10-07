@@ -110,6 +110,28 @@ class ArkCustomizerProvider implements ThemeCustomizerProvider
         }
 
         $settings = $context->settings;
+
+        // Footer persistence is canonically the CMS vocabulary (bg_color, etc.).
+        // Continue to read the former ARK-prefixed spellings additively so any
+        // pre-existing/imported payload keeps rendering; canonical values win on
+        // conflict and the CMS validator continues to persist canonical keys only.
+        $footerAliases = [
+            'footer_bg_color' => 'bg_color',
+            'footer_text_color' => 'text_color',
+            'footer_link_color' => 'link_color',
+            'footer_link_hover_color' => 'link_hover_color',
+            'footer_title_color' => 'title_color',
+        ];
+        $footer = $settings['footer'] ?? [];
+        if (is_array($footer)) {
+            foreach ($footerAliases as $alias => $canonical) {
+                if (!array_key_exists($canonical, $footer) && array_key_exists($alias, $footer)) {
+                    $footer[$canonical] = $footer[$alias];
+                }
+            }
+            $settings['footer'] = $footer;
+        }
+
         if (function_exists('cmsSidebarTemplateMatchesScope')) {
             $templateKey = (string)($context->entityContext['kind'] ?? 'generic');
             $legacyScope = $context->scope->toLegacyString();

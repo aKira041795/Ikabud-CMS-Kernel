@@ -138,7 +138,7 @@ $regionPairs = [
     // Transparent mode uses this dark scrim in header.disyl so white text has a known surface.
     'transparent header text' => [$headerDefaults['transparent_text_color'], '#0f172a'],
     'transparent logo text' => [$headerDefaults['transparent_logo_color'], '#0f172a'],
-    'footer title' => [$footerDefaults['footer_title_color'], $footerDefaults['footer_bg_color']],
+    'footer title' => [$footerDefaults['title_color'], $footerDefaults['bg_color']],
     'sidebar link' => [$sidebarDefaults['widget_link_color'], $sidebarDefaults['widget_bg_color']],
     'sidebar link hover' => [$sidebarDefaults['widget_link_hover_color'], $sidebarDefaults['widget_bg_color']],
 ];
@@ -169,9 +169,9 @@ foreach ($regionFallbackKeys as $key) {
     );
 }
 footerContrastAssert(
-    str_contains($region, "section_settings.footer_title_color|default:'{$footerDefaults['footer_title_color']}'"),
+    str_contains($region, "section_settings.title_color|default:'{$footerDefaults['title_color']}'"),
     'ARK footer title fallback matches its schema default',
-    (string)$footerDefaults['footer_title_color']
+    (string)$footerDefaults['title_color']
 );
 
 echo "\n{$passed} passed, {$failed} failed\n";

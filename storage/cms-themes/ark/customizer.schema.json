@@ -667,31 +667,31 @@
           "description": "Number of widget columns",
           "audience": "user"
         },
-        "footer_bg_color": {
+        "bg_color": {
           "type": "color",
           "label": "Background Color",
           "default": "#1e293b",
           "audience": "user"
         },
-        "footer_text_color": {
+        "text_color": {
           "type": "color",
           "label": "Text Color",
           "default": "#cbd5e1",
           "audience": "user"
         },
-        "footer_link_color": {
+        "link_color": {
           "type": "color",
           "label": "Link Color",
           "default": "#94a3b8",
           "audience": "user"
         },
-        "footer_link_hover_color": {
+        "link_hover_color": {
           "type": "color",
           "label": "Link Hover Color",
           "default": "#ffffff",
           "audience": "user"
         },
-        "footer_title_color": {
+        "title_color": {
           "type": "color",
           "label": "Title Color",
           "default": "#f1f5f9",
