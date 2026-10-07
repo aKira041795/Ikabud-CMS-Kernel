@@ -687,3 +687,105 @@ route and a bridge GET route containing "attachment" — not the route strings, 
 dictates the path is the false-red class this repo has already paid for repeatedly. Measured both ways
 before dispatch: `attachment` -> exit 1 (0 owner / 0 bridge routes), `message` -> exit 0 (both sides
 found). Migration `020` was checked free (019 was highest) before it was named in the contract.
+
+---
+
+# STATE OF PLAY — 2026-10-07
+
+Owner brief: *"review our harness and find out areas we can optimize, enhance and make it better. i am
+not keen on making it mechanical but more into an intuitive performance."* The chair consulted ChatGPT
+through `tools/harpp-bridge/chair_consult.py` first (grounded by default), then planned, then
+delegated to Sol lanes.
+
+## 1. Five defects, each measured before it was touched
+
+| # | defect | the probe that proves it |
+|---|---|---|
+| 1 | **No post-landing verification.** The gate proves the criterion FAILS before dispatch; nothing re-ran it after. The only post-landing evidence was the lane's own `Status:` line. | `harness-acceptance-verify-probe.sh` — 0/4 before |
+| 2 | **`classify_log` read log CONTENT before the EXIT STATUS.** A log quoting `rate limit` with `rc=0` was classified `quota`, so `run` printed `VERDICT: CRASHED on quota` while returning 0. | `classify-log` on a fixture log |
+| 3 | **A clean exit-0 with no `Status:` line was `unknown`**, with a verdict that read like an error. 9 of 25 real landings (2026-10-03). | same |
+| 4 | **`changed_files` was the whole tree's dirty count.** A lane that lived 9 seconds reported `11`. The scope check cannot use it. | `harness-changed-files-probe.sh` — 1/4 before |
+| 5 | **The chain handles unavailability, never a HANG.** Caps 4500s x 3 models against a 7200s lane budget, so model 3 could be unreachable. Cost a full 40-minute budget on 2026-10-04. | `harness-chain-liveness-probe.sh` — 1/4 before |
+
+## 2. What landed
+
+- **`classify_log` branches on the exit status first.** Content may only CLASSIFY a failure. A clean
+  exit-0 with no `Status:` is `no_report`. Selftest `S13`/`S13b`.
+- **Post-landing acceptance verification.** `record` takes the criterion as a 5th argument; the
+  EXIT trap re-runs it bounded by `LANE_ACCEPTANCE_TIMEOUT` (300). The marker and journal gain
+  `acceptance`, `acceptance_exit`, `acceptance_cmd`, `acceptance_log`, `verdict`. Rules: PASS ->
+  `VERIFIED`; FAIL/TIMEOUT/ERROR -> `NOT_VERIFIED`; SKIPPED -> `EXECUTION_ONLY` (never VERIFIED).
+  **`Status:` does not participate.** `run`'s exit code is unchanged — the verdict is REPORTED, not
+  encoded (`S3`/`S4b`/`S7`/`S9c` depend on it). Selftest `S12`/`S12b`/`S12c`.
+- **Two verdict axes, never one.** An early implementation replaced the execution warnings with the
+  governed verdict, so a crash under a recorded override read only *"EXECUTION ONLY - nothing was
+  checked"* and the reader lost *"partial edits may exist, check the tree"*. `S3`/`S4` stayed green
+  throughout — they assert the marker and the return code, never the text a human reads. Fixed, and
+  pinned by `S15`/`S15b`. **A guard that does not cover the artefact the reader uses is not a guard
+  on it.**
+- **Budget-aware model chain.** No attempt may consume enough of the remaining budget to starve the
+  fallback: cap = remaining / attempts left, floored at `LANE_MODEL_TIMEOUT_MIN` (300) under
+  `LANE_MODEL_BUDGET` (6600). An explicit `LANE_MODEL_TIMEOUT` still wins. A cap kill is named a
+  timeout, not blamed on credentials.
+- **Lane-scoped `changed_files`.** Delta of two sorted snapshots, plus `git diff --name-only` when
+  HEAD moved. New marker fields `changed_paths`, `tree_dirty`, `dirty_before`,
+  `changed_files_basis`. A path already dirty at dispatch is **never claimed** — the ambiguity is
+  REPORTED (`dirty_before`) rather than guessed at. No worktrees, no hashing, no registries.
+
+## 3. The three criterion defects, all found by the lanes, all the chair's
+
+This is the headline, not a footnote. Each lane reported `BLOCKED`/`PARTIAL` with a precise reason
+instead of working around a criterion it could see was wrong:
+
+1. **L2 was not falsified by the named mutation** (chain-liveness lane). With budget 9 over 3
+   attempts, handing every attempt the whole remaining budget still reaches model 3 because the MIN
+   floor caps the later attempts. The criterion gained **L5** (the whole run finishes inside its
+   budget), which IS falsified by that mutation — proven: forcing `attempts_left=1` makes L5 red at
+   `elapsed=17s > 15s` while L2 stays green.
+2. **D2 was UNSATISFIABLE** (changed-files lane): D1 left its own fixture dirty and D2 did not reset,
+   so D2 saw two dirty paths while asserting one. The only way to satisfy it would be to hide prior
+   dirty paths — which the contract forbids.
+3. **D4 was state-dependent**: `commit.lock` is deliberately persistent, so `record` refuses on the
+   second and every later run and writes no marker, and the JSON check then reads a file that does
+   not exist. It passed on the first ever run and failed 60 seconds later on the gate's run.
+
+Plus a fourth the chair found while thinking about the lane's report: the absolute `tree_dirty == 2`
+assertion was meaningless on a shared tree — these are governed lanes sharing ONE working tree. Now
+path-specific and basis-bound; proven on a genuinely dirty tree (`dirty_before=3`, `changed_files=1`).
+
+**A probe whose directions are not independent is not four probes — it is one probe with three
+aliases.** Sixth occurrence of "the criterion is the defect" in this repository, and the first time
+the implementing lane caught all of it before the chair did.
+
+## 4. Instruments you can run right now
+
+    bash tools/harness-acceptance-verify-probe.sh   # 4 passed, 0 failed
+    bash tools/harness-changed-files-probe.sh       # 4 passed, 0 failed
+    bash tools/harness-chain-liveness-probe.sh      # 5 passed, 0 failed
+    bash tools/harness-review-probe.sh              # completeness only, by design
+    bash tools/lane.sh selftest                     # 28 passed, 0 failed
+    bash tools/lane-model-selftest.sh               # 19 passed, 0 failed
+
+## 5. The self-hosting hazard, measured — do not re-discover it
+
+`bash` re-reads a script file as it executes, so **a lane that edits `tools/lane.sh` kills the
+running monitor** (syntax error at a bogus line number, `rc=2`, no landing recorded). The generated
+runner still records, so nothing is lost — but the dispatch looks broken. Second-order: the runner is
+written BEFORE the edit and calls `record` with the **legacy 4-argument form**, so `record` must treat
+a missing criterion as `SKIPPED`, never an error. Both contracts require it and the markers prove it.
+
+Residual risk, not fixed here: the acceptance re-run happens inside the EXIT trap, so a lane whose
+process ends within ~210s of its own `--timeout` can still be preceded by the deadline watchdog,
+which commits `unverified` and (by design) makes `commit_landing` refuse the real record. Narrow, and
+unfixed rather than papered over.
+
+## 6. What was deliberately NOT built
+
+A richer verdict state machine, NLP `Status:` parsing, a second verification framework, a per-model
+watchdog service, Git worktrees or ownership registries for `changed_files`, or log-content heuristics
+for successful processes. The whole architecture is four lines:
+
+    process exit code   -> did the runner execute
+    log classifier      -> only CLASSIFIES a failure
+    acceptance command  -> is the requested criterion true NOW
+    everything else     -> diagnostic metadata
