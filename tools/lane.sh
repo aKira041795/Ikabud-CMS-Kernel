@@ -36,7 +36,10 @@
 #   tools/lane.sh run      <name> <lane-script> [--timeout=7200] [--slice=90] [--wait-grace=120]
 #                          [--require-clean]
 #                          --acceptance="<cmd>" --pass-looks-like="<what PASS looks like>"
-#                          [--no-acceptance-gate="<reason>"] [--touches="<path,path>"] [--notify]
+#                          [--required-level=<unit|http|browser|corpus>]
+#                          [--criterion-level=<unit|http|browser|corpus>]
+#                          [--no-level-gate="<reason>"] [--no-acceptance-gate="<reason>"]
+#                          [--touches="<path,path>"] [--notify]
 #   tools/lane.sh status   <name>
 #   tools/lane.sh list
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
@@ -240,7 +243,7 @@ commit_landing() {
   local name="$1" state="$2" reason="$3" log="$4" bytes="$5" mtime="$6" \
         status="$7" changed="$8" exitCode="${9:-}" runId="${10:-}" \
         acceptance="${11:-SKIPPED}" acceptanceExit="${12:-}" acceptanceCmd="${13:-}" \
-        acceptanceLog="${14:-}"
+        acceptanceLog="${14:-}" requiredLevel="${15:-}" criterionLevel="${16:-}"
   local verdict
   compute_changed "$name" || {
     ATTR_CHANGED="${changed:-0}"; ATTR_TREE_DIRTY="${changed:-0}"; ATTR_DIRTY_BEFORE=0
@@ -260,7 +263,7 @@ commit_landing() {
   fi
   write_marker "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
     "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog" "$ATTR_PATHS_JSON" "$ATTR_TREE_DIRTY" \
-    "$ATTR_DIRTY_BEFORE" "$ATTR_BASIS"
+    "$ATTR_DIRTY_BEFORE" "$ATTR_BASIS" "$requiredLevel" "$criterionLevel"
 
   # append the machine-readable queue line; every free-text field is JSON-escaped
   local jname jstatus jrunid ec
@@ -268,8 +271,8 @@ commit_landing() {
   jstatus=$(json_escape "$status")
   jrunid=$(json_escape "$runId")
   if [ -n "$exitCode" ] && [ "$exitCode" -eq "$exitCode" ] 2>/dev/null; then ec="$exitCode"; else ec="null"; fi
-  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"changed_files_basis":"%s","dirty_before":%s,"run_id":"%s","acceptance":"%s","verdict":"%s"}\n' \
-    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$ATTR_BASIS" "$ATTR_DIRTY_BEFORE" "$jrunid" "$acceptance" "$verdict" \
+  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"changed_files_basis":"%s","dirty_before":%s,"run_id":"%s","acceptance":"%s","required_level":"%s","criterion_level":"%s","verdict":"%s"}\n' \
+    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$ATTR_BASIS" "$ATTR_DIRTY_BEFORE" "$jrunid" "$acceptance" "$requiredLevel" "$criterionLevel" "$verdict" \
     >> "$JOURNAL" 2>/dev/null || true
 
   notify_landing "$name" "$reason" "$state" "${status:-no status line | exit=${exitCode:-?} | files=${changed:-?}}"
@@ -361,6 +364,7 @@ write_marker() {
   local name="$1" state="$2" reason="$3" log="$4" bytes="$5" mtime="$6" status="$7" changed="$8" exitCode="${9:-}" runId="${10:-}"
   local acceptance="${11:-SKIPPED}" acceptanceExit="${12:-}" acceptanceCmd="${13:-}" acceptanceLog="${14:-}" verdict
   local changedPaths="${15:-[]}" treeDirty="${16:-${changed:-0}}" dirtyBefore="${17:-0}" changedBasis="${18:-tree}"
+  local requiredLevel="${19:-}" criterionLevel="${20:-}"
   [ -n "$acceptance" ] || acceptance="SKIPPED"
   case "$acceptance" in
     PASS) verdict="VERIFIED";;
@@ -406,6 +410,8 @@ write_marker() {
     fi
     printf '  "acceptance_cmd": "%s",\n' "$acceptanceCmd"
     printf '  "acceptance_log": "%s",\n' "$acceptanceLog"
+    printf '  "required_level": "%s",\n' "$requiredLevel"
+    printf '  "criterion_level": "%s",\n' "$criterionLevel"
     printf '  "verdict": "%s"\n' "$verdict"
     printf '}\n'
   } > "$tmp"
@@ -468,6 +474,9 @@ cmd_run() {
   local acceptanceCmd=""
   local passLooksLike=""
   local gateOverride=""
+  local requiredLevel=""
+  local criterionLevel=""
+  local levelOverride=""
   local touches=""
   for arg in "$@"; do
     case "$arg" in
@@ -479,6 +488,9 @@ cmd_run() {
       --acceptance=*) acceptanceCmd="${arg#*=}";;
       --pass-looks-like=*) passLooksLike="${arg#*=}";;
       --no-acceptance-gate=*) gateOverride="${arg#*=}";;
+      --required-level=*) requiredLevel="${arg#*=}";;
+      --criterion-level=*) criterionLevel="${arg#*=}";;
+      --no-level-gate=*) levelOverride="${arg#*=}";;
       --touches=*) touches="${arg#*=}";;
       --notify) LANE_NOTIFY=1;;
     esac
@@ -486,9 +498,44 @@ cmd_run() {
 
   [ -n "$name" ] && [ -n "$laneScript" ] || {
     echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=N] [--require-clean]" >&2
-    echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"] [--touches=\"<path,path>\"] [--notify]" >&2
+    echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"]" >&2
+    echo "       [--required-level=<unit|http|browser|corpus>] [--criterion-level=<unit|http|browser|corpus>] [--no-level-gate=\"<reason>\"] [--touches=\"<path,path>\"] [--notify]" >&2
     exit 2
   }
+
+  # ── criterion-level gate ───────────────────────────────────────────────────
+  # This MUST run before the acceptance gate: otherwise "no criterion" or "already
+  # passes" could hide that the submitted evidence cannot observe the obligation.
+  local level rankRequired rankCriterion
+  for level in "$requiredLevel" "$criterionLevel"; do
+    [ -z "$level" ] && continue
+    case "$level" in unit|http|browser|corpus) :;;
+      *) echo "REFUSING TO DISPATCH: invalid criterion level '$level' (expected unit, http, browser, or corpus)." >&2; exit 2;;
+    esac
+  done
+  if [ -n "$levelOverride" ]; then
+    echo "== criterion level gate BYPASSED: $levelOverride =="
+    printf '%s  %-24s LEVEL_BYPASSED  required_level=%s criterion_level=%s | %s\n' \
+      "$(iso)" "$name" "${requiredLevel:-none}" "${criterionLevel:-undeclared}" "$levelOverride" \
+      >> "$RUNS/acceptance-gate.log" 2>/dev/null || true
+  elif [ -n "$requiredLevel" ]; then
+    if [ -z "$criterionLevel" ]; then
+      echo "REFUSING TO DISPATCH: required level '$requiredLevel', but criterion level is undeclared." >&2
+      printf '%s  %-24s LEVEL_REFUSED  required_level=%s criterion_level=undeclared\n' \
+        "$(iso)" "$name" "$requiredLevel" >> "$RUNS/acceptance-gate.log" 2>/dev/null || true
+      exit 2
+    fi
+    case "$requiredLevel" in unit) rankRequired=1;; http) rankRequired=2;; browser) rankRequired=3;; corpus) rankRequired=4;; esac
+    case "$criterionLevel" in unit) rankCriterion=1;; http) rankCriterion=2;; browser) rankCriterion=3;; corpus) rankCriterion=4;; esac
+    if [ "$rankCriterion" -lt "$rankRequired" ]; then
+      echo "REFUSING TO DISPATCH: criterion level '$criterionLevel' is below required level '$requiredLevel'." >&2
+      printf '%s  %-24s LEVEL_REFUSED  required_level=%s criterion_level=%s\n' \
+        "$(iso)" "$name" "$requiredLevel" "$criterionLevel" >> "$RUNS/acceptance-gate.log" 2>/dev/null || true
+      exit 2
+    fi
+    printf '%s  %-24s LEVEL_ALLOWED  required_level=%s criterion_level=%s\n' \
+      "$(iso)" "$name" "$requiredLevel" "$criterionLevel" >> "$RUNS/acceptance-gate.log" 2>/dev/null || true
+  fi
 
   # ── pre-dispatch acceptance gate ───────────────────────────────────────────
   # Runs BEFORE --require-clean so any artifact the criterion writes is caught by that
@@ -611,9 +658,11 @@ cmd_run() {
     printf 'lane_finish() {\n'
     printf '  rc=$?\n'
     if [ -n "$acceptanceCmd" ]; then
-      printf '  bash %q record %q %q "$rc" %q %q\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId" "$acceptanceCmd"
+      printf '  LANE_REQUIRED_LEVEL=%q LANE_CRITERION_LEVEL=%q bash %q record %q %q "$rc" %q %q\n' \
+        "$requiredLevel" "$criterionLevel" "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId" "$acceptanceCmd"
     else
-      printf '  bash %q record %q %q "$rc" %q\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId"
+      printf '  LANE_REQUIRED_LEVEL=%q LANE_CRITERION_LEVEL=%q bash %q record %q %q "$rc" %q\n' \
+        "$requiredLevel" "$criterionLevel" "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId"
     fi
     printf '  echo "%s=$rc"\n' "$sentinel"
     printf '}\n'
@@ -642,7 +691,7 @@ cmd_run() {
   # way. This process is detached, so it survives, and it commits `unverified` only if
   # nothing else has recorded by the time the lane's budget is certainly over.
   local deadlineSecs=$((timeoutSecs + deadlineGrace))
-  lane_detach_background bash "$ROOT/tools/lane.sh" watchdog "$name" "$deadlineSecs"
+  lane_detach_background bash "$ROOT/tools/lane.sh" watchdog "$name" "$deadlineSecs" "$requiredLevel" "$criterionLevel"
   disown 2>/dev/null || true
 
   echo "   wrapper=$wrapperPid"
@@ -726,7 +775,8 @@ cmd_run() {
     exitCode=$(grep -o "${sentinel}=[0-9]*" "$log" 2>/dev/null | tail -1 | cut -d= -f2 || echo "")
     reason=$(classify_log "$log" "$exitCode")
     status=$(status_line "$log")
-    commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" >&2
+    commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
+      "" "" "" "" "$requiredLevel" "$criterionLevel" >&2
     acceptance="SKIPPED"; verdict="EXECUTION_ONLY"; acceptanceLog=""
     changed=$(marker_number "$marker" changed_files); treeDirty=$(marker_number "$marker" tree_dirty)
     dirtyBefore=$(marker_number "$marker" dirty_before); changedBasis=$(marker_field "$marker" changed_files_basis)
@@ -738,7 +788,8 @@ cmd_run() {
     reason="timeout"
     status=$(status_line "$log")
     exitCode=""
-    commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" >&2
+    commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
+      "" "" "" "" "$requiredLevel" "$criterionLevel" >&2
     acceptance="SKIPPED"; verdict="EXECUTION_ONLY"; acceptanceLog=""
     changed=$(marker_number "$marker" changed_files); treeDirty=$(marker_number "$marker" tree_dirty)
     dirtyBefore=$(marker_number "$marker" dirty_before); changedBasis=$(marker_field "$marker" changed_files_basis)
@@ -813,7 +864,7 @@ cmd_run() {
 # A deadline recorder, spawned detached at dispatch. It exists because the record must not
 # depend on anything inside the tree `timeout` kills.
 cmd_watchdog() {
-  local name="${1:-}" secs="${2:-}"
+  local name="${1:-}" secs="${2:-}" requiredLevel="${3:-}" criterionLevel="${4:-}"
   [ -n "$name" ] && [ -n "$secs" ] || exit 2
 
   # POLL, do not sleep the whole deadline in one call.
@@ -864,7 +915,8 @@ cmd_watchdog() {
     exit 0
   fi
 
-  commit_landing "$name" "unverified" "timeout" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "deadline" >&2
+  commit_landing "$name" "unverified" "timeout" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "deadline" \
+    "" "" "" "" "$requiredLevel" "$criterionLevel" >&2
   echo "[lane watchdog] $name: nothing recorded within ${secs}s - committed unverified/timeout" >&2
 }
 
@@ -913,6 +965,7 @@ cmd_list() {
 cmd_record() {
   local name="${1:-}" log="${2:-}" exitCode="${3:-}" runId="${4:-}"
   local acceptanceCmd="${5:-}" acceptanceSupplied=0
+  local requiredLevel="${LANE_REQUIRED_LEVEL:-}" criterionLevel="${LANE_CRITERION_LEVEL:-}"
   [ "$#" -ge 5 ] && acceptanceSupplied=1
   [ -n "$name" ] || { echo "usage: tools/lane.sh record <name> <log> <exit-code> [run-id] [acceptance-command]" >&2; exit 2; }
   [ -n "$log" ] || log="$RUNS/$name.log"
@@ -947,7 +1000,7 @@ cmd_record() {
   # state=landed: this process held the lane's exit status at the instant it existed.
   # That is the only place a verdict may come from.
   commit_landing "$name" "landed" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
-    "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog"
+    "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog" "$requiredLevel" "$criterionLevel"
 
   echo "[lane record] $name: state=landed reason=$reason exit=$exitCode acceptance=$acceptance bytes=$bytes files=$changed"
 }
@@ -1223,6 +1276,68 @@ EOS
     ok "S9c must-allow: a failing criterion plus a stated PASS dispatches and lands"
   else
     bad "S9c the gate refused a valid dispatch (rc=$rc9c state=$s9c)"
+  fi
+
+  # S9d (must-refuse) - the level gate runs FIRST: even an already-passing criterion is
+  # refused specifically because unit evidence cannot satisfy an http obligation.
+  local rc9d out9d
+  bash "$SELF" run st9d "$P/lane-st9.sh" --wait-grace=2 \
+    --required-level=http --criterion-level=unit \
+    --acceptance='exit 0' --pass-looks-like='irrelevant: level must decide first' > "$P/st9d.mon.log" 2>&1
+  rc9d=$?; out9d=$(<"$P/st9d.mon.log")
+  if [ "$rc9d" -eq 2 ] && [[ "$out9d" == *"criterion level 'unit'"* ]] && [[ "$out9d" == *"required level 'http'"* ]] \
+      && [[ "$out9d" != *"ALREADY PASSES"* ]]; then
+    ok "S9d must-refuse: unit evidence is refused for an http obligation before acceptance"
+  else
+    bad "S9d level mismatch was not attributable to the level gate (rc=$rc9d)"
+  fi
+
+  # S9e (must-refuse) - a required level with no declared criterion level is unknown evidence.
+  local rc9e
+  bash "$SELF" run st9e "$P/lane-st9.sh" --wait-grace=2 --required-level=http \
+    --acceptance='exit 1' --pass-looks-like='fixture' > "$P/st9e.mon.log" 2>&1
+  rc9e=$?
+  if [ "$rc9e" -eq 2 ] && grep -q "criterion level is undeclared" "$P/st9e.mon.log"; then
+    ok "S9e must-refuse: undeclared evidence is refused for an http obligation"
+  else
+    bad "S9e undeclared criterion level was accepted (rc=$rc9e)"
+  fi
+
+  # S9f (must-allow) - matching evidence dispatches and both declarations reach the marker.
+  local rc9f s9f rl9f cl9f
+  bash "$SELF" run st9f "$P/lane-st9.sh" --timeout=60 --wait-grace=2 \
+    --required-level=http --criterion-level=http \
+    --acceptance='exit 1' --pass-looks-like='fixture lane lands' > "$P/st9f.mon.log" 2>&1
+  rc9f=$?; s9f=$(marker_field "$RUNS/st9f.landed.json" state)
+  rl9f=$(marker_field "$RUNS/st9f.landed.json" required_level)
+  cl9f=$(marker_field "$RUNS/st9f.landed.json" criterion_level)
+  if [ "$rc9f" -eq 0 ] && [ "$s9f" = "landed" ] && [ "$rl9f" = "http" ] && [ "$cl9f" = "http" ]; then
+    ok "S9f must-allow: matching http evidence dispatches, lands, and is recorded"
+  else
+    bad "S9f matching levels did not land correctly (rc=$rc9f state=$s9f levels=$rl9f/$cl9f)"
+  fi
+
+  # S9g (must-allow) - stronger evidence is admissible.
+  local rc9g s9g
+  bash "$SELF" run st9g "$P/lane-st9.sh" --timeout=60 --wait-grace=2 \
+    --required-level=unit --criterion-level=corpus \
+    --acceptance='exit 1' --pass-looks-like='fixture lane lands' > "$P/st9g.mon.log" 2>&1
+  rc9g=$?; s9g=$(marker_field "$RUNS/st9g.landed.json" state)
+  if [ "$rc9g" -eq 0 ] && [ "$s9g" = "landed" ]; then
+    ok "S9g must-allow: corpus evidence satisfies a unit obligation"
+  else
+    bad "S9g stronger evidence was refused (rc=$rc9g state=$s9g)"
+  fi
+
+  # S9h (must-allow back-compat) - no level declarations preserve existing dispatch.
+  local rc9h s9h
+  bash "$SELF" run st9h "$P/lane-st9.sh" --timeout=60 --wait-grace=2 \
+    --acceptance='exit 1' --pass-looks-like='fixture lane lands' > "$P/st9h.mon.log" 2>&1
+  rc9h=$?; s9h=$(marker_field "$RUNS/st9h.landed.json" state)
+  if [ "$rc9h" -eq 0 ] && [ "$s9h" = "landed" ]; then
+    ok "S9h must-allow back-compat: an existing no-level dispatch still lands"
+  else
+    bad "S9h no-level backward compatibility changed (rc=$rc9h state=$s9h)"
   fi
 
   # S12 (must-refuse) - a lane's own PASS is advisory: only the post-landing criterion governs.
