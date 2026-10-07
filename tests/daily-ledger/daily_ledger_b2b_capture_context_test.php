@@ -163,6 +163,15 @@ try {
         && str_contains($receive, 'Production shift (from paper DR) *')
         && str_contains($receive, '<select x-model="paperForm.production_shift"')
         && str_contains($receive, '<template x-if="window.SHIFT_LOCKED">'));
+    // The group selector's shift now arrives ON the delivery, so only the paper-DR panel may claim the
+    // shift comes from the paper. Two labels, one provenance each: if the per-group label reverts to
+    // "(from paper DR)" the receiver is told to read a value the system already supplied.
+    $h->test('D5b discriminating: only the paper-DR panel claims the shift comes from the paper DR; the per-group selector is plain (fails if the dispatch-sourced shift is mislabelled)',
+        substr_count($receive, 'Production shift (from paper DR) *') === 1
+        && str_contains($receive, 'Production shift *')
+        && str_contains($receive, '<select x-model="g.production_shift"'),
+        'paper-DR-labelled shifts=' . substr_count($receive, 'Production shift (from paper DR) *')
+        . ', plain shift labels=' . substr_count($receive, 'Production shift *'));
 
     $db->prepare('INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status, finalized_at) VALUES (?, ?, "AM", "finalized", NOW())')
         ->execute([$origin, $date]);

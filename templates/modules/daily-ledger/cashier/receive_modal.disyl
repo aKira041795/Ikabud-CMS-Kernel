@@ -90,7 +90,7 @@
                                 <p class="mt-1 text-[11px] text-gray-500">This is the ledger row that receives the stock.</p>
                             </div>
                             <div class="text-xs leading-5 text-slate-600">
-                                The <span class="font-semibold">production shift</span> is recorded separately from the paper DR on each transfer below.
+                                The <span class="font-semibold">production shift</span> is the shift that sent the stock. It comes from the dispatch when the transfer was encoded in the system, otherwise from the paper DR below.
                             </div>
                         </div>
                     </div>
@@ -145,7 +145,7 @@
                                     </div>
                                 </div>
                                 <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
-                                    <label class="block text-xs font-semibold text-amber-900 mb-1">Production shift (from paper DR) *</label>
+                                    <label class="block text-xs font-semibold text-amber-900 mb-1">Production shift *</label>
                                     <select x-model="g.production_shift" class="form-input mt-0 w-full sm:w-40">
                                         <option value="">-- Select --</option>
                                         <option value="AM">AM</option>
