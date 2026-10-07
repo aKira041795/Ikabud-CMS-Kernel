@@ -27,7 +27,7 @@ bad() { echo "   FAIL  $1"; fail=$((fail+1)); }
 # Every guard added by the 2026-10-07 harness work. Each must be named, given a mutation, and
 # given the OBSERVED result - "READ" is an acceptable observed result only when a mutation genuinely
 # cannot be run, and it must say why.
-GUARDS="probe-A probe-B probe-C probe-D S12 S12b S12c S13 S13b S14 S14b S14c L1 L2 L3 L4 D1 D2 D3 D4"
+GUARDS="probe-A probe-B probe-C probe-D S12 S12b S12c S13 S13b S14 S14b S14c L1 L2 L3 L4 L5 D1 D2 D3 D4"
 
 echo "== is the adversarial review complete enough to judge? =="
 echo "   artifact: $ART"
@@ -52,7 +52,7 @@ for g in $GUARDS; do
   grep -q "$g" "$ART" || missing="$missing $g"
 done
 if [ -z "$missing" ]; then
-  ok "every guard is named (20 expected)"
+  ok "every guard is named (21 expected)"
 else
   bad "these guards are not named at all:$missing"
 fi

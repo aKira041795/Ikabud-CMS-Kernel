@@ -48,7 +48,7 @@ Four things landed / are landing:
 The two probes ARE the specs; read them first, they are short and they state the requirement:
   tools/harness-acceptance-verify-probe.sh     -> directions probe-A, probe-B, probe-C, probe-D
   tools/harness-changed-files-probe.sh         -> directions D1, D2, D3, D4
-  tools/harness-chain-liveness-probe.sh        -> directions L1, L2, L3, L4
+  tools/harness-chain-liveness-probe.sh        -> directions L1, L2, L3, L4, L5
 and the harness's own selftest cases added today:
   S12, S12b, S12c    (acceptance verification)
   S13, S13b          (exit-status-authoritative classification)
@@ -84,8 +84,11 @@ RUN it or only READ it; and the OBSERVED result (red/green, with the actual outp
   `git status --porcelain -- tools/lane.sh tools/lane-model.sh tools/lane-watch.sh` MUST be empty.
   A left-behind mutation silently corrupts the thing under review, and the probe fails on it.
 - Do NOT edit any probe, contract or lane script. Do NOT "fix" anything. You are reviewing.
-- Do NOT run `bash tools/lane.sh selftest` while another lane is running: check
-  `pgrep -af '[l]ane-harness-'` first. If a lane is running, use the probes and read the code.
+- Do NOT run `bash tools/lane.sh selftest` while another lane is running. Check with
+  `pgrep -af '[l]ane-harness-'` FIRST - and note that the only match will be YOUR OWN process
+  (`bash tools/lane-harness-review.sh`), which you must ignore. A match naming any OTHER
+  lane-harness-* script means a lane is running: skip the selftest then and read the code instead.
+  The selftest takes fixture names st1..st15b in .ai/runs and would collide.
 - Your own opus is not evidence. Every claim needs a command and its output.
 
 ## REPORT (in the artifact, and in your final message)
