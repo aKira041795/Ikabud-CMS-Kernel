@@ -1440,6 +1440,13 @@
                                 </div>
                                 <!-- Widget body -->
                                 <div x-show="expandedHeaderWidgets[hw.id]" class="px-3 py-3 space-y-3 border-t border-gray-100">
+                                    <div>
+                                        <label class="cz-label">Placement</label>
+                                        <select class="cz-select" x-model="hw.location">
+                                            <option value="topbar">Top bar</option>
+                                            <option value="header">Header row</option>
+                                        </select>
+                                    </div>
                                     <!-- Text widget -->
                                     <template x-if="hw.type === 'text'">
                                         <div class="space-y-3">
@@ -1508,7 +1515,7 @@
                                                     </template>
                                                 </select>
                                             </div>
-                                            <p class="text-[10px] text-gray-400">Displays a compact inline menu in the header bar.</p>
+                                            <p class="text-[10px] text-gray-400">Displays a compact inline menu in the selected placement.</p>
                                         </div>
                                     </template>
                                     <!-- Button / Link widget -->
@@ -1739,13 +1746,13 @@
                             <span x-show="headerSettings.show_topbar == 1" class="inline-flex items-center rounded-full bg-white/80 px-2 py-1">Top Bar: <span class="ml-1 font-medium text-gray-700" x-text="headerPreviewContainerLabel(headerSettings.topbar_container_width) + ' / ' + headerPreviewHolderLabel(headerSettings.topbar_inner_width_mode, headerSettings.topbar_inner_custom_width)"></span></span>
                         </div>
                         <!-- Preview top bar -->
-                        <div x-show="headerSettings.show_topbar == 1 && headerWidgets.length > 0"
+                        <div x-show="headerSettings.show_topbar == 1 && headerWidgetsAt('topbar').length > 0"
                              :style="'background:' + headerSettings.topbar_bg_color + ';color:' + headerSettings.topbar_text_color + ';font-size:' + (headerSettings.topbar_font_size || 13) + 'px;font-weight:' + (headerSettings.topbar_font_weight || 'normal') + ';padding:' + (headerSettings.topbar_padding_y || 6) + 'px 0;' + (headerSettings.topbar_border_bottom == 1 ? 'border-bottom:1px solid rgba(255,255,255,0.1);' : '') + headerPreviewContainerStyle(headerSettings.topbar_container_width)"
                              class="w-full">
                             <div class="w-full" :style="headerPreviewHolderStyle(headerSettings.topbar_inner_width_mode, headerSettings.topbar_inner_custom_width)">
                                 <div class="flex items-center gap-3"
                                      :class="{'justify-start': headerSettings.topbar_align === 'left', 'justify-center': headerSettings.topbar_align === 'center', 'justify-end': headerSettings.topbar_align === 'right', 'justify-between': headerSettings.topbar_align === 'space-between'}">
-                                    <template x-for="hw in headerWidgets" :key="hw.id">
+                                    <template x-for="hw in headerWidgetsAt('topbar')" :key="hw.id">
                                         <span class="truncate max-w-[140px]"
                                               :style="(hw.type === 'contact_info' || hw.type === 'social_links' || hw.type === 'nav_menu' || hw.type === 'button') ? 'color:' + headerSettings.topbar_link_color : ''"
                                               x-text="hw.props.content || hw.props.text || hw.props.phone || hw.props.email || headerWidgetTypeLabel(hw.type)"></span>
@@ -1765,6 +1772,14 @@
                                              :style="'max-height:' + (headerSettings.logo_max_height || 40) + 'px;width:auto;'" class="object-contain">
                                         <span x-show="!headerSettings.logo_image_url" x-text="siteTitle || 'Site Name'"></span>
                                         <span x-show="headerSettings.show_tagline == 1" :style="'color:' + headerSettings.text_color + ';font-weight:400;font-size:10px;opacity:0.7'" x-text="siteTagline || 'Tagline'"></span>
+                                    </div>
+                                    <!-- Header-row widgets -->
+                                    <div x-show="headerWidgetsAt('header').length > 0" class="flex items-center gap-2 ml-3" :style="'color:' + headerSettings.text_color + ';font-size:11px;'">
+                                        <template x-for="hw in headerWidgetsAt('header')" :key="hw.id">
+                                            <span class="truncate max-w-[140px]"
+                                                  :style="(hw.type === 'contact_info' || hw.type === 'social_links' || hw.type === 'nav_menu' || hw.type === 'button') ? 'color:' + headerSettings.link_color : ''"
+                                                  x-text="hw.props.content || hw.props.text || hw.props.phone || hw.props.email || headerWidgetTypeLabel(hw.type)"></span>
+                                        </template>
                                     </div>
                                     <!-- Nav links (mock) -->
                                     <div class="flex-1 flex justify-end items-center gap-3" :style="'font-size:11px;'">
@@ -4265,6 +4280,12 @@ function themeCustomizer() {
             try {
                 this.headerWidgets = JSON.parse(document.getElementById('cz-header-widgets').textContent);
                 if (!Array.isArray(this.headerWidgets)) this.headerWidgets = [];
+                this.headerWidgets = this.headerWidgets.map(hw => {
+                    if (hw && typeof hw === 'object' && (hw.location === undefined || hw.location === null)) {
+                        hw.location = 'header';
+                    }
+                    return hw;
+                });
             } catch (e) {
                 this.headerWidgets = [];
             }
@@ -4691,6 +4712,15 @@ function themeCustomizer() {
         },
 
         // --- Header widget helpers ---
+        headerWidgetsAt(location) {
+            return this.headerWidgets.filter(hw => {
+                const effectiveLocation = hw && typeof hw === 'object'
+                    ? (hw.location ?? 'header')
+                    : 'header';
+                return effectiveLocation === location;
+            });
+        },
+
         addHeaderWidget(type) {
             const id = 'hw_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
             const props = {};
