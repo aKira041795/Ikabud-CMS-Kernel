@@ -386,7 +386,20 @@
         btn.disabled = true;
         fetch(BASE + '/api/v1/admin/consignees', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({consignee_id: id, code: document.getElementById('consignee-code').value.toUpperCase(), name: document.getElementById('consignee-name').value, assigned_commissary_id: parseInt(document.getElementById('consignee-commissary').value, 10) || 0, is_active: document.getElementById('consignee-active').checked ? 1 : 0})
+            // Keep this object literal multi-line, exactly like submitAddBranch and
+            // submitEditBranch below. DiSyL scans a <script> body for {tag} output and its
+            // tags do not span newlines: a SINGLE-LINE literal whose first key is a bare
+            // identifier (not a quoted string) is consumed as a tag. That silently emitted
+            // `JSON.stringify(0)`, so the save posted the body `0`, the handler could not
+            // parse it, and the kernel returned a 500 error page. The one-line form looked
+            // correct in the template and failed only in the browser.
+            body: JSON.stringify({
+                consignee_id: id,
+                code: document.getElementById('consignee-code').value.toUpperCase(),
+                name: document.getElementById('consignee-name').value,
+                assigned_commissary_id: parseInt(document.getElementById('consignee-commissary').value, 10) || 0,
+                is_active: document.getElementById('consignee-active').checked ? 1 : 0
+            })
         }).then(function(r) { return r.json(); }).then(function(res) {
             if (!res.ok) { throw new Error(res.error || 'Failed'); }
             closeModal('consignee-modal'); showToast(id ? 'Consignee updated' : 'Consignee added');
