@@ -2276,9 +2276,12 @@ function cmsBuilderRenderMenuWidgetItems(array $items, ?string $scope = null, in
 
 function cmsRenderWidget_nav_menu(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title     = trim((string)($props['title']   ?? ''));
+    $compact = ($context['presentation'] ?? '') === 'compact-inline';
+    $title     = $compact ? '' : trim((string)($props['title']   ?? ''));
     $menuId    = (int)($props['menuId'] ?? 0);
-    $orientation = in_array((string)($props['orientation'] ?? ''), ['horizontal', 'vertical'], true) ? (string)$props['orientation'] : 'vertical';
+    $orientation = $compact
+        ? 'horizontal'
+        : (in_array((string)($props['orientation'] ?? ''), ['horizontal', 'vertical'], true) ? (string)$props['orientation'] : 'vertical');
     $menuStyle   = in_array((string)($props['menuStyle']   ?? ''), ['plain', 'underline', 'button'], true) ? (string)$props['menuStyle'] : 'plain';
 
     if ($menuId <= 0 || !function_exists('cmsGetMenuItemsTree')) {
@@ -2351,8 +2354,9 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
 
 function cmsRenderWidget_social_links_widget(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title        = trim((string)($props['title'] ?? ''));
-    $displayStyle = (string)($props['displayStyle'] ?? 'icons');
+    $compact      = ($context['presentation'] ?? '') === 'compact-inline';
+    $title        = $compact ? '' : trim((string)($props['title'] ?? ''));
+    $displayStyle = $compact ? 'icons' : (string)($props['displayStyle'] ?? 'icons');
     $iconSize     = max(16, min(64, (int)($props['iconSize'] ?? 40)));
     $targetBlank  = ($props['targetBlank'] ?? true) !== false;
     $targetAttr   = $targetBlank ? ' target="_blank" rel="noopener noreferrer"' : '';
@@ -2417,6 +2421,24 @@ function cmsRenderWidget_contact_info(array $props, array $style, array $attrs, 
     $email      = trim((string)($props['email']   ?? ''));
     $website    = trim((string)($props['website'] ?? ''));
     $showMapLink = ($props['showMapLink'] ?? false) !== false;
+
+    if (($context['presentation'] ?? '') === 'compact-inline') {
+        $items = [];
+        if ($phone !== '') {
+            $phoneHref = preg_replace('/[^0-9+]/', '', $phone) ?? '';
+            $items[] = $phoneHref !== ''
+                ? '<a href="tel:' . cmsBuilderEsc($phoneHref) . '" style="color:inherit;text-decoration:none">' . cmsBuilderEsc($phone) . '</a>'
+                : cmsBuilderEsc($phone);
+        }
+        if ($email !== '') {
+            $items[] = '<a href="mailto:' . cmsBuilderEsc($email) . '" style="color:inherit;text-decoration:none">' . cmsBuilderEsc($email) . '</a>';
+        }
+        $body = $items === []
+            ? cmsBuilderRenderThemeWidgetEmpty('Add a phone number or email to populate this widget.')
+            : implode('<span aria-hidden="true">·</span>', $items);
+        $compactStyle = array_merge(['display' => 'inline-flex', 'alignItems' => 'center', 'flexWrap' => 'wrap', 'gap' => '6px 10px', 'fontSize' => '14px', 'lineHeight' => '1.4'], $style);
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($compactStyle) . '>' . $body . '</div>';
+    }
 
     $rows = [];
     if ($address !== '') {
@@ -2559,8 +2581,9 @@ function cmsRenderWidget_archives(array $props, array $style, array $attrs, stri
 
 function cmsRenderWidget_opening_hours(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title       = trim((string)($props['title'] ?? ''));
-    $displayMode = (string)($props['displayMode'] ?? 'text');
+    $compact     = ($context['presentation'] ?? '') === 'compact-inline';
+    $title       = $compact ? '' : trim((string)($props['title'] ?? ''));
+    $displayMode = $compact ? 'text' : (string)($props['displayMode'] ?? 'text');
     $showIcon    = ($props['showIcon'] ?? true) !== false;
 
     $icon = '';
@@ -2601,7 +2624,10 @@ function cmsRenderWidget_opening_hours(array $props, array $style, array $attrs,
     if ($text === '') {
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Add your opening hours text to display this widget.'));
     }
-    $body = '<div style="display:flex;align-items:flex-start;gap:12px;font-size:14px;line-height:1.6;color:#0f172a">' . $icon . '<div>' . cmsBuilderEsc($text) . '</div></div>';
+    $body = '<div style="display:flex;align-items:' . ($compact ? 'center' : 'flex-start') . ';gap:12px;font-size:14px;line-height:1.6;color:#0f172a">' . $icon . '<div>' . cmsBuilderEsc($text) . '</div></div>';
+    if ($compact) {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . $body . '</div>';
+    }
     return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
 }
 

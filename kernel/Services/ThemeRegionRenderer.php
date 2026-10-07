@@ -76,8 +76,8 @@ class ThemeRegionRenderer
             'section_widgets' => $sectionWidgets,
             // Keep the established key as the main/header-row collection. A missing location is
             // deliberately "header" so existing persisted widgets do not move.
-            'widgets_html' => self::renderWidgets($mainWidgets, $region),
-            'widgets_topbar_html' => self::renderWidgets($topbarWidgets, $region),
+            'widgets_html' => self::renderWidgets($mainWidgets, $region, $region),
+            'widgets_topbar_html' => self::renderWidgets($topbarWidgets, $region, 'topbar'),
         ];
 
         // Try to render via the CMS template engine
@@ -138,7 +138,7 @@ class ThemeRegionRenderer
      *
      * @param array<int, array<string, mixed>> $widgets
      */
-    private static function renderWidgets(array $widgets, string $region): string
+    private static function renderWidgets(array $widgets, string $region, ?string $location = null): string
     {
         if ($widgets === [] || !function_exists('cmsBuilderWidgetRenderers')) {
             return '';
@@ -168,13 +168,21 @@ class ThemeRegionRenderer
             }
 
             $style = is_array($widget['style'] ?? null) ? $widget['style'] : [];
+            $location ??= $region;
+            $horizontal = $region === 'header' || $location === 'topbar';
             if (function_exists('cmsBuilderDefaultStyle')) {
                 $defaultStyle = cmsBuilderDefaultStyle($type);
-                $hasExplicitWidth = array_key_exists('width', $style)
-                    && $style['width'] !== null
-                    && $style['width'] !== '';
-                if ($region === 'header' && !$hasExplicitWidth) {
-                    unset($defaultStyle['width']);
+                // These shared types have card defaults for vertical regions. A horizontal band
+                // supplies its own compact presentation; persisted per-widget styles still win.
+                if ($horizontal && in_array($type, ['contact_info', 'opening_hours', 'nav_menu', 'social_links'], true)) {
+                    $defaultStyle = [];
+                } else {
+                    $hasExplicitWidth = array_key_exists('width', $style)
+                        && $style['width'] !== null
+                        && $style['width'] !== '';
+                    if ($region === 'header' && !$hasExplicitWidth) {
+                        unset($defaultStyle['width']);
+                    }
                 }
                 $style = array_merge(
                     $defaultStyle,
@@ -190,8 +198,15 @@ class ThemeRegionRenderer
                 $attrs['data-widget-id'] = (string)$widget['id'];
             }
 
+            $rendererContext = [
+                'region' => $region,
+                'location' => $location,
+                'orientation' => $horizontal ? 'horizontal' : 'vertical',
+                'presentation' => $horizontal ? 'compact-inline' : 'card',
+            ];
+
             try {
-                $html .= (string)$renderer($props, $style, $attrs, '', $widget, []);
+                $html .= (string)$renderer($props, $style, $attrs, '', $widget, $rendererContext);
             } catch (\Throwable $e) {
                 // A single malformed widget must not take down the whole region.
             }

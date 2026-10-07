@@ -38,10 +38,10 @@ function widgetBridgeAssert(string $label, bool $condition, string $detail = '')
 }
 
 /** Invoke the private pre-render bridge directly, avoiding template rendering. */
-function widgetBridgeRender(array $widgets, string $region = 'sidebar'): string
+function widgetBridgeRender(array $widgets, string $region = 'sidebar', ?string $location = null): string
 {
     $method = new ReflectionMethod(ThemeRegionRenderer::class, 'renderWidgets');
-    return (string)$method->invoke(null, $widgets, $region);
+    return (string)$method->invoke(null, $widgets, $region, $location);
 }
 
 /** @return array<int, array<string, mixed>> */
@@ -132,6 +132,27 @@ $sidebarDefaultWidth = widgetBridgeRender([['type' => 'opening_hours', 'props' =
 widgetBridgeAssert('header drops only the shared default width', !str_contains($headerDefaultWidth, 'width:100%'), $headerDefaultWidth);
 widgetBridgeAssert('header preserves explicit widget width', str_contains($headerExplicitWidth, 'width:50%'), $headerExplicitWidth);
 widgetBridgeAssert('non-header regions retain shared default width', str_contains($sidebarDefaultWidth, 'width:100%'), $sidebarDefaultWidth);
+
+$contactWidget = [[
+    'type' => 'contact_info',
+    'props' => ['title' => 'Contact Info', 'address' => '123 Market Street', 'phone' => '+63 900 000 0000', 'email' => 'hello@example.com'],
+]];
+$headerContact = widgetBridgeRender($contactWidget, 'header');
+$topbarContact = widgetBridgeRender($contactWidget, 'header', 'topbar');
+$sidebarContact = widgetBridgeRender($contactWidget, 'sidebar');
+$footerContact = widgetBridgeRender($contactWidget, 'footer');
+foreach (['header' => $headerContact, 'topbar' => $topbarContact] as $band => $html) {
+    widgetBridgeAssert("{$band} contact_info is compact phone + email", str_contains($html, 'tel:') && str_contains($html, 'mailto:'), $html);
+    widgetBridgeAssert("{$band} contact_info omits card-only address/title/labels", !str_contains($html, '123 Market Street') && !str_contains($html, '>Contact Info<') && !str_contains($html, '>Phone<') && !str_contains($html, '>Email<'), $html);
+    widgetBridgeAssert("{$band} contact_info omits shared card chrome", !str_contains($html, 'border:1px solid #e5e7eb') && !str_contains($html, 'padding:20px'), $html);
+}
+widgetBridgeAssert('sidebar contact_info remains the full card', str_contains($sidebarContact, '123 Market Street') && str_contains($sidebarContact, '>Contact Info<') && str_contains($sidebarContact, '>Phone<'), $sidebarContact);
+widgetBridgeAssert('footer contact_info remains the full card', str_contains($footerContact, '123 Market Street') && str_contains($footerContact, '>Contact Info<') && str_contains($footerContact, '>Phone<'), $footerContact);
+
+foreach (['social_links', 'nav_menu', 'opening_hours'] as $compactType) {
+    $compactHtml = widgetBridgeRender([['type' => $compactType, 'props' => []]], 'header');
+    widgetBridgeAssert("header {$compactType} omits shared card chrome", !str_contains($compactHtml, 'border:1px solid #e5e7eb') && !str_contains($compactHtml, 'padding:20px'), $compactHtml);
+}
 
 $locatedWidgets = [
     ['id' => 'legacy', 'type' => 'text', 'props' => ['content' => 'Legacy']],
