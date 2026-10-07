@@ -432,6 +432,7 @@ function cmsPublicContext(array $extra = []): array
         $forceShowSidebar = !empty($sidebarCtx['force_customized_sidebar']) || !empty($sidebarCtx['cms_global_sidebar_force']);
         $sidebarPosition = (string)($sidebarSettings['placement'] ?? 'right');
         $sidebarWidth = (string)($sidebarSettings['width'] ?? '300');
+        $sidebarGap = (string)($sidebarSettings['gap'] ?? '32');
         $sidebarEnabled = !$forceHideSidebar && (((int)($sidebarSettings['enabled'] ?? 0) === 1) || $forceShowSidebar);
 
         $sidebarResult = cmsDispatchThemeCustomizer('sidebar', $db, $sidebarCtx);
@@ -445,6 +446,7 @@ function cmsPublicContext(array $extra = []): array
             'html' => $sidebarHtml,
             'position' => $sidebarPosition,
             'width' => $sidebarWidth,
+            'gap' => $sidebarGap,
             'source' => $sidebarHtml !== '' ? 'theme_region' : 'none',
         ];
     } catch (Throwable $e) {
@@ -454,6 +456,7 @@ function cmsPublicContext(array $extra = []): array
             'html' => '',
             'position' => 'right',
             'width' => '300',
+            'gap' => '32',
             'source' => 'error',
         ];
     }
@@ -465,6 +468,7 @@ function cmsPublicContext(array $extra = []): array
     $ctx['has_customized_sidebar'] = !empty($ctx['sidebar_region']['present']);
     $ctx['sidebar_position'] = (string)($ctx['sidebar_region']['position'] ?? 'right');
     $ctx['sidebar_width'] = (string)($ctx['sidebar_region']['width'] ?? '300');
+    $ctx['sidebar_gap'] = (string)($ctx['sidebar_region']['gap'] ?? '32');
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('customized_sidebar', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }

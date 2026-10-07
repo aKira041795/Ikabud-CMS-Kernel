@@ -216,11 +216,18 @@ button:disabled {
 
 /* ── Main content ── */
 .ark-content-area {
+    width: 100%;
     max-width: var(--ark-max-width);
     margin: 0 auto;
     display: flex;
     gap: var(--ark-spacing-lg);
     align-items: flex-start;
+}
+
+/* A governed sidebar owns its configured width and content gap. The semantic
+ * shell and renderer wrappers must not add a second fixed width/card around it. */
+.ark-content-area:has(.ark-region-sidebar) {
+    gap: 0;
 }
 
 /*
@@ -484,12 +491,41 @@ button:disabled {
     padding-top: var(--ark-spacing-lg);
 }
 
+.ark-sidebar-region:has(.ark-region-sidebar) {
+    width: auto;
+}
+
 .ark-sidebar-region>* {
     background: var(--ark-surface-muted);
     border-radius: var(--ark-radius-md);
     padding: var(--ark-spacing-md);
     font-size: 0.875rem;
     margin-bottom: var(--ark-spacing-md);
+}
+
+.ark-sidebar-region>.ark-sidebar:has(>.ark-region-sidebar) {
+    width: var(--sidebar-width, 300px);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.ark-sidebar-region>.ark-sidebar--right:has(>.ark-region-sidebar) {
+    margin-left: var(--sidebar-gap, var(--ark-spacing-lg));
+}
+
+.ark-sidebar-region>.ark-sidebar--left:has(>.ark-region-sidebar) {
+    margin-right: var(--sidebar-gap, var(--ark-spacing-lg));
+}
+
+.ark-content-area>.ark-sidebar-region:has(.ark-sidebar--left) {
+    order: -1;
+}
+
+.ark-region-sidebar .ark-region-widget--search_box input {
+    min-width: 0;
 }
 
 .ark-sidebar-region h3 {
@@ -503,9 +539,17 @@ button:disabled {
         flex-direction: column;
     }
 
+    .ark-main {
+        width: 100%;
+    }
+
     .ark-sidebar-region {
         width: 100%;
         padding-top: 0;
+    }
+
+    .ark-sidebar-region>.ark-sidebar:has(>.ark-region-sidebar) {
+        max-width: calc(100% - var(--sidebar-gap, var(--ark-spacing-lg)));
     }
 }
 

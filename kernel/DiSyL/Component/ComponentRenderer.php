@@ -943,6 +943,7 @@ final class ComponentRenderer
      *   name     — Region identifier (required, e.g. "header", "footer", "sidebar")
      *   position — Sidebar position override ("left" or "right", sidebar only)
      *   width    — Sidebar width override (sidebar only, e.g. "300")
+     *   gap      — Sidebar/content gap override (sidebar only, e.g. "32")
      *
      * At render time, checks the render context for {name}_region.present and
      * {name}_region.html. If present and non-empty, renders the region HTML.
@@ -976,8 +977,13 @@ final class ComponentRenderer
                     ?? $context['sidebar_region_width']
                     ?? $context['sidebar_width']
                     ?? '300';
+                $gap = $attrs['gap']
+                    ?? $context['sidebar_region_gap']
+                    ?? $context['sidebar_gap']
+                    ?? '32';
                 $html = '<aside class="ark-sidebar ark-sidebar--' . htmlspecialchars($position, ENT_QUOTES, 'UTF-8')
-                    . '" style="--sidebar-width:' . htmlspecialchars($width, ENT_QUOTES, 'UTF-8') . 'px;">'
+                    . '" style="--sidebar-width:' . htmlspecialchars($width, ENT_QUOTES, 'UTF-8')
+                    . 'px;--sidebar-gap:' . htmlspecialchars($gap, ENT_QUOTES, 'UTF-8') . 'px;">'
                     . $html . '</aside>';
             }
 

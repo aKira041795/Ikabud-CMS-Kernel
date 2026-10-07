@@ -2,9 +2,6 @@
     ThemeCustomizerOrchestrator resolves this region from persisted CMS settings
     and renders it through ThemeRenderContext.
     Receives settings as section_settings.* (scope prefix stripped by orchestrator). #}
-{set position = section_settings.placement|default:'right'}
-{set sidebar_width = section_settings.width|default:'300'}
-{set visible_gap = section_settings.gap|default:'32'}
 {set sticky_enabled = section_settings.sticky|default:'0'}
 {set widget_bg = section_settings.widget_bg_color|default:'#ffffff'}
 {set widget_text = section_settings.widget_text_color|default:'#334155'}
@@ -19,11 +16,13 @@
      data-region="sidebar"
      data-theme="{theme}"
      data-sidebar-scope-mode="{section_settings.scope_mode|default:'general'}"
+     data-sidebar-placement="{section_settings.placement|default:'right'}"
+     data-sidebar-width="{section_settings.width|default:'300'}"
+     data-sidebar-gap="{section_settings.gap|default:'32'}"
      data-sidebar-template-scope="{section_settings.template_scope|default:'home'}"
      data-sidebar-template-rules="{section_settings.template_rules|json}"
      data-sidebar-link-hover="{section_settings.widget_link_hover_color|default:'#1d4ed8'}"
-     style="width:{sidebar_width}px;flex-shrink:0;
-            margin-{if position == 'left'}right{else}left{/if}:{visible_gap}px;
+     style="width:100%;min-width:0;
             {if sticky_enabled == '1'}position:sticky;top:1.5rem;{/if}
             --sidebar-widget-bg:{widget_bg};
             --sidebar-widget-text:{widget_text};
