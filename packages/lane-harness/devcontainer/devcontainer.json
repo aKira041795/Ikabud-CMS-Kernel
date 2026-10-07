@@ -1,0 +1,29 @@
+{
+  // lane-harness dev container — the option for Windows users who would rather not set up WSL.
+  //
+  // A container is a real Linux, which is what the harness is verified on: `script` and `setsid`
+  // from util-linux, GNU `date`, and process-group semantics that behave. Open the folder with
+  // "Dev Containers: Reopen in Container" and the integrated terminal is inside this image.
+  "name": "lane-harness",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  // php-cli is optional and only used by the harness self-test's JSON validity check. Remove this
+  // line if you do not want PHP in your container; the harness reports the check as absent.
+  "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y -qq php-cli util-linux",
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "timonwong.shellcheck",
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+      ],
+      "settings": {
+        "files.watcherExclude": { "**/.ai/runs/**": true },
+        "search.exclude": { "**/.ai/runs/**": true }
+      }
+    }
+  }
+}

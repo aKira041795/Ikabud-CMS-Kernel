@@ -125,3 +125,6 @@ harpp-deploy-*.zip
 # reasoning instead of re-deriving it, and re-deriving it worse.
 !.ai/chair/
 !.ai/chair/ledger.md
+
+# Generated lane-harness packages (never commit build output)
+packages/lane-harness/dist/

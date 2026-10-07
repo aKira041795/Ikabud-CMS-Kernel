@@ -31,7 +31,8 @@ const os = require("os");
 const path = require("path");
 const { chromium } = require("playwright");
 
-const DEFAULT_PROFILE = path.join(os.homedir(), ".config", "harpp", "chatgpt-profile");
+const DEFAULT_PROFILE = process.env.CHAIR_CONSULT_PROFILE
+  || path.join(os.homedir(), ".config", "chair-consult", "chatgpt-profile");
 const HOME_URL = "https://chatgpt.com/";
 
 function argValue(args, name, fallback) {
@@ -238,7 +239,7 @@ async function cmdRun(args) {
         const page = ctx.pages()[0] || (await ctx.newPage());
         await page.goto(HOME_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
         if (!(await waitForLoggedIn(page, 30000))) {
-            out({ ok: false, error: "not logged in to ChatGPT (or Cloudflare did not clear); run: harpp advisor login" });
+            out({ ok: false, error: "not logged in to ChatGPT (or Cloudflare did not clear); run the 'login' subcommand - see extras/chatgpt-advisor/README.md" });
             return 1;
         }
         await startFreshChat(page);

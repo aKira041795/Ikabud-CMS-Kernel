@@ -1,0 +1,7 @@
+# ── lane-harness working state ───────────────────────────────────────────────────────────────────
+# Lane logs, landing markers, the journal and acceptance output. These contain your PROMPT and the
+# model's FULL OUTPUT, so they must never be committed. Read SECURITY.md §3 before removing this.
+.ai/
+
+# Generated package output, if you build the package from source.
+packages/lane-harness/dist/

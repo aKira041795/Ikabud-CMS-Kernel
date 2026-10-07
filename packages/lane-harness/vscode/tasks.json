@@ -1,0 +1,172 @@
+{
+  // lane-harness — VS Code tasks.
+  //
+  // Run with:  Ctrl/Cmd+Shift+P -> "Tasks: Run Task" -> "harness: ..."
+  //
+  // HOW THE NOTIFICATION WORKS, and why it is built this way: a task only tells you it finished if
+  // it actually finishes. `lane.sh run` deliberately hands the wait back after ~90s (exit 3) rather
+  // than blocking past the terminal cap, and `lane-watch.sh` is a ONE-SHOT watcher that exits on the
+  // next landing. So the loop is: dispatch -> the task ends -> arm the watcher -> the watcher ends
+  // when the lane lands -> VS Code tells you. A watcher that looped forever would never notify,
+  // which is the flaw every earlier attempt at this had.
+  //
+  // The problem matcher below is what lets VS Code treat these as BACKGROUND tasks: it knows when
+  // the task is running and when it has ended, so you are not left with a spinner and no result.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "harness: selftest (29 checks)",
+      "detail": "Proves the harness detects its own failure modes — must-refuse and must-allow.",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/lane.sh", "selftest"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "dedicated", "clear": false, "echo": true }
+    },
+    {
+      "label": "harness: selftest (platform, both OS branches)",
+      "detail": "Runs the pty and detach fallbacks, including the no-pty path Windows/macOS uses.",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/lane-platform-selftest.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "dedicated", "clear": false, "echo": true }
+    },
+    {
+      "label": "harness: selftest (model chain)",
+      "detail": "Proves the budget division, the unavailability fallback and the refusal paths.",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/lane-model-selftest.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "dedicated", "clear": false, "echo": true }
+    },
+    {
+      "label": "harness: all checks",
+      "detail": "preflight + platform + lane + model selftests. Run this first on a new machine.",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "harness: preflight",
+        "harness: selftest (platform, both OS branches)",
+        "harness: selftest (29 checks)",
+        "harness: selftest (model chain)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: preflight (what is my machine missing?)",
+      "detail": "Reports required and optional gaps, and which pty/detach mode you will run in.",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/preflight.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "echo": true }
+    },
+    {
+      "label": "harness: watch for the next landing (arm, then leave it)",
+      "detail": "One-shot: exits as soon as a lane lands, which is what raises the notification.",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/lane-watch.sh", "--timeout=90"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "lane-harness-watch",
+          "pattern": [{ "regexp": "^(.*)$", "message": 1 }],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^lane-watch armed",
+            "endsPattern": "^(== LANDING\\(S\\) DETECTED|lane-watch: no landing yet)"
+          }
+        }
+      ],
+      "presentation": { "reveal": "silent", "panel": "dedicated", "clear": false, "echo": true }
+    },
+    {
+      "label": "harness: dispatch a lane",
+      "detail": "Asks for the lane name, script, acceptance command and what PASS looks like.",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "tools/lane.sh", "run", "${input:laneName}", "${input:laneScript}",
+        "--acceptance=${input:acceptanceCmd}",
+        "--pass-looks-like=${input:passLooksLike}"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "lane-harness-dispatch",
+          "pattern": [{ "regexp": "^(.*)$", "message": 1 }],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^== dispatching ",
+            "endsPattern": "^(== .* (LANDED|STILL RUNNING) ==|REFUSING TO DISPATCH)"
+          }
+        }
+      ],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "echo": true }
+    },
+    {
+      "label": "harness: landings (pending, not yet reported)",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/lane.sh", "pending"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "echo": true }
+    },
+    {
+      "label": "harness: landings (recent, with acceptance verdict)",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/lane.sh", "list"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "echo": true }
+    },
+    {
+      "label": "harness: status of a lane",
+      "type": "shell",
+      "command": "bash",
+      "args": ["tools/lane.sh", "status", "${input:laneName}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "echo": true }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "laneName",
+      "type": "promptString",
+      "description": "Lane name (no spaces). This is the key for its log, marker and journal entry.",
+      "default": "my-task"
+    },
+    {
+      "id": "laneScript",
+      "type": "promptString",
+      "description": "Path to the lane script, e.g. tools/lane-my-task.sh (copy examples/lane-example.sh)",
+      "default": "tools/lane-my-task.sh"
+    },
+    {
+      "id": "acceptanceCmd",
+      "type": "promptString",
+      "description": "A command that FAILS right now and PASSES when the task is done. The harness runs it before dispatch and REFUSES if it already passes.",
+      "default": "bash tests/run.sh 2>&1 | grep -qx '  12/12 passed'"
+    },
+    {
+      "id": "passLooksLike",
+      "type": "promptString",
+      "description": "What PASS looks like on the target, in words. Recorded beside the criterion for the reviewer.",
+      "default": "12/12 passed and exit status 0"
+    }
+  ]
+}

@@ -103,7 +103,14 @@ def main(argv=None) -> int:
 
         script = Path(__file__).resolve().parent / "chatgpt_page.js"
         node = shutil.which("node") or str(Path.home() / ".local/node-v22.23.2-linux-x64/bin/node")
-        profile = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "harpp/chatgpt-profile"
+        # This is the browser profile holding the ChatGPT SUBSCRIPTION login (cookies) - not an API
+        # key, and no key is ever written here. Overridable so an existing profile can be reused
+        # without a fresh login:  CHAIR_CONSULT_PROFILE=/path/to/profile
+        profile = Path(
+            os.environ.get("CHAIR_CONSULT_PROFILE")
+            or Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+            / "chair-consult" / "chatgpt-profile"
+        )
         proc = subprocess.run(
             [node, str(script), "run", "--prompt", str(out_path), "--profile", str(profile)],
             capture_output=True, text=True, timeout=340, check=False,

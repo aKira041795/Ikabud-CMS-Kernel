@@ -1,0 +1,7 @@
+# lane-harness — line endings for shell scripts.
+#
+# Add this to .gitattributes. Without it, a Windows checkout with core.autocrlf=true rewrites every
+# .sh with CRLF, and bash then fails with things like:
+#     tools/lane.sh: line 95: $'\r': command not found
+# which looks like a broken harness rather than a line-ending problem. install.sh appends this.
+*.sh text eol=lf
