@@ -178,6 +178,12 @@ marker_number() {
   grep -o "\"$key\": [0-9]*" "$marker" 2>/dev/null | head -1 | grep -o '[0-9]*'
 }
 
+# Is this workspace a git repository at all? Anything that reads `git status` or `git rev-parse`
+# must ask FIRST, because outside a repository git prints nothing and exits 128 - which is
+# indistinguishable from "nothing changed". A harness that answers "0 files changed" for a lane
+# that rewrote twenty is the silent wrong answer this tool exists to remove.
+git_available() { git rev-parse --git-dir > /dev/null 2>&1; }
+
 # Compute the lane-attributable path set from the dispatch snapshot. Files already dirty at
 # dispatch are deliberately excluded: status alone cannot tell whether the lane touched them
 # again. When no snapshot exists (legacy runners), preserve the old whole-tree behaviour.
@@ -188,6 +194,15 @@ dirty_paths() {
 compute_changed() {
   local name="$1" before="$RUNS/$1.tree.before" headBefore="$RUNS/$1.head.before"
   local now delta combined currentHead p json="" sep=""
+  # Not a repository -> attribution is impossible, and saying so is the only honest answer. This
+  # makes the harness usable in ANY workspace rather than only in a git checkout: lanes still run,
+  # still record, still verify by acceptance - only this one field is unavailable, and it says so.
+  if ! git_available; then
+    ATTR_CHANGED=0; ATTR_TREE_DIRTY=0; ATTR_DIRTY_BEFORE=0
+    ATTR_BASIS="unavailable"; ATTR_PATHS_JSON="[]"
+    echo "   [lane] not a git repository - changed-file attribution is OFF for this landing" >&2
+    return 0
+  fi
   now=$(mktemp "$RUNS/.changed-now.XXXXXX") || return 1
   delta=$(mktemp "$RUNS/.changed-delta.XXXXXX") || { rm -f "$now"; return 1; }
   combined=$(mktemp "$RUNS/.changed-all.XXXXXX") || { rm -f "$now" "$delta"; return 1; }
@@ -515,6 +530,12 @@ cmd_run() {
   fi
 
   if [ "$requireClean" = "1" ]; then
+    if ! git_available; then
+      echo "REFUSING: --require-clean needs a git repository, and this workspace is not one." >&2
+      echo "  Without git the cleanliness check would read zero entries and PASS on a dirty tree," >&2
+      echo "  which is a false pass rather than a check." >&2
+      exit 1
+    fi
     local dirty
     dirty=$(git status --porcelain | wc -l)
     if [ "$dirty" != "0" ]; then
@@ -527,6 +548,16 @@ cmd_run() {
   # Tooling advisory. Deliberately at the moment the decision is made rather than after it is
   # missed - the same reasoning as the chain-length warning.
   mcp_advice "$touches" "$name"
+
+  # Say it BEFORE the lane runs, not in a field nobody reads afterwards. The harness works in any
+  # workspace: without git it still dispatches, still records, and still verifies by acceptance -
+  # it simply cannot attribute changed files, and it refuses to pretend otherwise.
+  if ! git_available; then
+    echo "   NOTE: this workspace is not a git repository."
+    echo "         Lanes still run, record and verify by acceptance command, but changed-file"
+    echo "         attribution is OFF (the record will say basis=unavailable) and --require-clean"
+    echo "         cannot be used. Install the harness inside the folder you actually open."
+  fi
 
   local log="$RUNS/$name.log"
   rm -f "$log" "$RUNS/$name.landed.json" "$RUNS/$name.pid" \
@@ -720,9 +751,13 @@ cmd_run() {
   echo "   reason:        ${reason:-unknown}"
   echo "   log bytes:     $bytes"
   echo "   log mtime:     $mtime"
-  echo "   changed files: $changed (basis=${changedBasis:-tree}, tree_dirty=${treeDirty:-$changed}, dirty_before=${dirtyBefore:-0})"
-  if [ "${changedBasis:-tree}" = "delta" ] && [ "${dirtyBefore:-0}" -gt 0 ]; then
-    echo "                  ${dirtyBefore} file(s) were already dirty and may or may not have been touched"
+  if [ "${changedBasis:-tree}" = "unavailable" ]; then
+    echo "   changed files: UNKNOWN - this workspace is not a git repository, so attribution is OFF"
+  else
+    echo "   changed files: $changed (basis=${changedBasis:-tree}, tree_dirty=${treeDirty:-$changed}, dirty_before=${dirtyBefore:-0})"
+    if [ "${changedBasis:-tree}" = "delta" ] && [ "${dirtyBefore:-0}" -gt 0 ]; then
+      echo "                  ${dirtyBefore} file(s) were already dirty and may or may not have been touched"
+    fi
   fi
   echo "   lane exit:     ${exitCode:-unknown}"
   echo "   status:        ${status:-<none found>}"
@@ -1370,6 +1405,29 @@ EOS
     ok "S14c legacy record without a baseline writes valid tree-basis JSON"
   else
     bad "S14c legacy record without a baseline broke"
+  fi
+
+  # S16 (must-refuse) - OUTSIDE A GIT REPOSITORY, attribution is UNAVAILABLE, never a silent zero.
+  # The harness is meant to work in ANY workspace, and a workspace that is not a repository is the
+  # case that would otherwise report "0 files changed" for a lane that rewrote twenty - a wrong
+  # answer, silently delivered. A stub `git` that fails the way git does outside a repository
+  # reproduces it exactly, and the landing record must SAY SO.
+  mkdir -p "$P/nogit"
+  printf '#!/usr/bin/env bash\necho "fatal: not a git repository (or any of the parent directories)" >&2\nexit 128\n' > "$P/nogit/git"
+  chmod +x "$P/nogit/git"
+  mklane "$P/lane-st16.sh" 0 0
+  rm -f "$RUNS/st16.landed.json" "$RUNS/st16.log" "$RUNS/st16.tree.before"
+  rmdir "$RUNS/st16.commit.lock" 2>/dev/null || true
+  PATH="$P/nogit:$PATH" bash "$SELF" run st16 "$P/lane-st16.sh" --timeout=60 --wait-grace=2 \
+    "${GATE[@]}" > "$P/st16.mon.log" 2>&1
+  local b16
+  b16=$(marker_field "$RUNS/st16.landed.json" changed_files_basis)
+  if [ "$b16" = "unavailable" ] \
+     && grep -q 'not a git repository' "$P/st16.mon.log" \
+     && grep -q 'attribution is OFF' "$P/st16.mon.log"; then
+    ok "S16 outside git: attribution is reported UNAVAILABLE and disclosed, not a silent zero"
+  else
+    bad "S16 a non-git workspace was silently mis-reported (basis='$b16')"
   fi
 
   # S6 (must-refuse) - a lane name containing a quote must still yield valid JSON
