@@ -836,6 +836,12 @@ cmd_watchdog() {
   local waited=0
   while [ "$waited" -lt "$secs" ]; do
     [ -f "$RUNS/$name.landed.json" ] && exit 0
+    # The lane's whole world can disappear while this polls: a test kit deletes its scratch repo,
+    # and a person may clear .ai/runs. There is then nothing to wait for and nowhere a verdict
+    # could be written, so stop rather than sleeping out a deadline that can be hours long.
+    # Measured 2026-10-07: without this, two watchdogs from a test run sat for their full 150s
+    # polling a directory that had already been deleted.
+    [ -d "$RUNS" ] || exit 0
     sleep 5
     waited=$((waited + 5))
   done
