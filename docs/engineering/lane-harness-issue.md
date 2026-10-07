@@ -761,8 +761,8 @@ the implementing lane caught all of it before the chair did.
 
     bash tools/harness-acceptance-verify-probe.sh   # 4 passed, 0 failed
     bash tools/harness-changed-files-probe.sh       # 4 passed, 0 failed
-    bash tools/harness-chain-liveness-probe.sh      # 5 passed, 0 failed
-    bash tools/harness-review-probe.sh              # completeness only, by design
+    bash tools/harness-chain-liveness-probe.sh      # 6 passed, 0 failed
+    bash tools/harness-review-probe.sh              # 9 passed, 0 failed (completeness only, by design)
     bash tools/lane.sh selftest                     # 28 passed, 0 failed
     bash tools/lane-model-selftest.sh               # 19 passed, 0 failed
 
@@ -789,3 +789,23 @@ for successful processes. The whole architecture is four lines:
     log classifier      -> only CLASSIFIES a failure
     acceptance command  -> is the requested criterion true NOW
     everything else     -> diagnostic metadata
+
+## 7. The adversarial review — 21 guards, 21 mutations RUN, 20 red, 2 findings
+
+`docs/reviews/harness-v2-adversarial-review-2026-10-07.md` (Sol, independent, read-only). Every
+guard in the batch was attacked with the mutation that should turn it red, the mutation was **RUN**,
+and the observed output recorded — 20 of 21 turned red. The one that did not was a real finding, and
+gave rise to a second one.
+
+| finding | what | fix |
+|---|---|---|
+| `D4` asserted only JSON validity | its `basis=tree` field was **printed but never asserted**, so a record that LIED about its basis stayed green across all four directions while claiming a delta it never had. **A field that is printed but not asserted is documentation, not a guard.** | assert the basis; falsified — installing `ATTR_BASIS="delta"` in the legacy branch now gives `FAIL D4 the legacy record path broke (rc=0 basis=delta)`. `D4` is no longer a PIN. |
+| the floor could overspend the budget | on the **unmodified** implementation, `LANE_MODEL_BUDGET=1` with `LANE_MODEL_TIMEOUT_MIN=2` ran **2s against a 1s budget**: the floor was applied after the division with no reference to what was actually left. The comment claimed an invariant the arithmetic did not hold. | clamp the cap to what is left, never below 1s (`timeout 0` **disables** the timeout, which is the last thing a spent budget should do), and announce a configuration that cannot honour both. New direction `L6` pins it: `elapsed=1s for a 1s budget over 2 attempts`. |
+
+The clamp is a no-op on any budget that can accommodate the floor, so the normal path is untouched —
+it only bites on the degenerate configuration, which is now named instead of absorbed.
+
+And one more chair defect, found only because the probe said so: the first `L6` sent
+`lane_model_run`'s stderr to `/dev/null`, so the warning it asserts was discarded and `L6` failed on
+a **correct** implementation. **The probe caught its own capture bug** — chair defect #4 of the day,
+and the sixth-plus time the criterion rather than the code was the defect.
