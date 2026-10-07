@@ -165,6 +165,50 @@ marker_field() {
   grep -o "\"$key\": \"[^\"]*\"" "$marker" 2>/dev/null | head -1 | cut -d'"' -f4
 }
 
+marker_number() {
+  local marker="$1" key="$2"
+  grep -o "\"$key\": [0-9]*" "$marker" 2>/dev/null | head -1 | grep -o '[0-9]*'
+}
+
+# Compute the lane-attributable path set from the dispatch snapshot. Files already dirty at
+# dispatch are deliberately excluded: status alone cannot tell whether the lane touched them
+# again. When no snapshot exists (legacy runners), preserve the old whole-tree behaviour.
+dirty_paths() {
+  git status --porcelain 2>/dev/null | cut -c4- | sort -u
+}
+
+compute_changed() {
+  local name="$1" before="$RUNS/$1.tree.before" headBefore="$RUNS/$1.head.before"
+  local now delta combined currentHead p json="" sep=""
+  now=$(mktemp "$RUNS/.changed-now.XXXXXX") || return 1
+  delta=$(mktemp "$RUNS/.changed-delta.XXXXXX") || { rm -f "$now"; return 1; }
+  combined=$(mktemp "$RUNS/.changed-all.XXXXXX") || { rm -f "$now" "$delta"; return 1; }
+  dirty_paths > "$now"
+  ATTR_TREE_DIRTY=$(wc -l < "$now" | tr -d ' ')
+  if [ -f "$before" ]; then
+    ATTR_BASIS="delta"
+    ATTR_DIRTY_BEFORE=$(wc -l < "$before" | tr -d ' ')
+    comm -13 "$before" "$now" > "$delta"
+    currentHead=$(git rev-parse HEAD 2>/dev/null || echo "")
+    if [ -s "$headBefore" ] && [ "$(cat "$headBefore" 2>/dev/null)" != "$currentHead" ]; then
+      { cat "$delta"; git diff --name-only "$(cat "$headBefore")" 2>/dev/null; } | sort -u > "$combined"
+    else
+      cp "$delta" "$combined"
+    fi
+  else
+    ATTR_BASIS="tree"
+    ATTR_DIRTY_BEFORE=0
+    cp "$now" "$combined"
+  fi
+  ATTR_CHANGED=$(wc -l < "$combined" | tr -d ' ')
+  while IFS= read -r p; do
+    json="${json}${sep}\"$(json_escape "$p")\""
+    sep=", "
+  done < <(head -12 "$combined")
+  ATTR_PATHS_JSON="[$json]"
+  rm -f "$now" "$delta" "$combined"
+}
+
 # Commit a landing EXACTLY ONCE: marker (atomic) + journal (append) + human channels.
 # An atomic mkdir lock makes the commit single-owner, so two processes racing to record
 # the same landing cannot produce two journal lines or two notifications - every
@@ -175,6 +219,11 @@ commit_landing() {
         acceptance="${11:-SKIPPED}" acceptanceExit="${12:-}" acceptanceCmd="${13:-}" \
         acceptanceLog="${14:-}"
   local verdict
+  compute_changed "$name" || {
+    ATTR_CHANGED="${changed:-0}"; ATTR_TREE_DIRTY="${changed:-0}"; ATTR_DIRTY_BEFORE=0
+    ATTR_BASIS="tree"; ATTR_PATHS_JSON="[]"
+  }
+  changed="$ATTR_CHANGED"
   [ -n "$acceptance" ] || acceptance="SKIPPED"
   case "$acceptance" in
     PASS) verdict="VERIFIED";;
@@ -187,7 +236,8 @@ commit_landing() {
     return 1
   fi
   write_marker "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
-    "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog"
+    "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog" "$ATTR_PATHS_JSON" "$ATTR_TREE_DIRTY" \
+    "$ATTR_DIRTY_BEFORE" "$ATTR_BASIS"
 
   # append the machine-readable queue line; every free-text field is JSON-escaped
   local jname jstatus jrunid ec
@@ -195,8 +245,8 @@ commit_landing() {
   jstatus=$(json_escape "$status")
   jrunid=$(json_escape "$runId")
   if [ -n "$exitCode" ] && [ "$exitCode" -eq "$exitCode" ] 2>/dev/null; then ec="$exitCode"; else ec="null"; fi
-  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"run_id":"%s","acceptance":"%s","verdict":"%s"}\n' \
-    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$jrunid" "$acceptance" "$verdict" \
+  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"changed_files_basis":"%s","dirty_before":%s,"run_id":"%s","acceptance":"%s","verdict":"%s"}\n' \
+    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$ATTR_BASIS" "$ATTR_DIRTY_BEFORE" "$jrunid" "$acceptance" "$verdict" \
     >> "$JOURNAL" 2>/dev/null || true
 
   notify_landing "$name" "$reason" "$state" "${status:-no status line | exit=${exitCode:-?} | files=${changed:-?}}"
@@ -287,6 +337,7 @@ json_escape() {
 write_marker() {
   local name="$1" state="$2" reason="$3" log="$4" bytes="$5" mtime="$6" status="$7" changed="$8" exitCode="${9:-}" runId="${10:-}"
   local acceptance="${11:-SKIPPED}" acceptanceExit="${12:-}" acceptanceCmd="${13:-}" acceptanceLog="${14:-}" verdict
+  local changedPaths="${15:-[]}" treeDirty="${16:-${changed:-0}}" dirtyBefore="${17:-0}" changedBasis="${18:-tree}"
   [ -n "$acceptance" ] || acceptance="SKIPPED"
   case "$acceptance" in
     PASS) verdict="VERIFIED";;
@@ -318,6 +369,10 @@ write_marker() {
     printf '  "log_mtime": "%s",\n' "${mtime:-}"
     printf '  "status_line": "%s",\n' "$status"
     printf '  "changed_files": %s,\n' "${changed:-0}"
+    printf '  "changed_paths": %s,\n' "$changedPaths"
+    printf '  "tree_dirty": %s,\n' "$treeDirty"
+    printf '  "dirty_before": %s,\n' "$dirtyBefore"
+    printf '  "changed_files_basis": "%s",\n' "$changedBasis"
     printf '  "run_id": "%s",\n' "$runId"
     printf '  "detected_by": "tools/lane.sh",\n'
     printf '  "acceptance": "%s",\n' "$acceptance"
@@ -466,8 +521,11 @@ cmd_run() {
   mcp_advice "$touches" "$name"
 
   local log="$RUNS/$name.log"
-  rm -f "$log" "$RUNS/$name.landed.json" "$RUNS/$name.pid"
+  rm -f "$log" "$RUNS/$name.landed.json" "$RUNS/$name.pid" \
+    "$RUNS/$name.tree.before" "$RUNS/$name.head.before"
   rmdir "$RUNS/$name.commit.lock" 2>/dev/null || true
+  dirty_paths > "$RUNS/$name.tree.before"
+  git rev-parse HEAD > "$RUNS/$name.head.before" 2>/dev/null || : > "$RUNS/$name.head.before"
 
   # NOTE: landing detection is deliberately NOT scoped by matching the lane script's
   # process name. `pgrep -f <lane-script>` matches THIS command line, because the lane
@@ -601,6 +659,7 @@ cmd_run() {
   fi
 
   local bytes mtime reason status changed exitCode state marker acceptance verdict acceptanceLog
+  local treeDirty dirtyBefore changedBasis
   marker="$RUNS/$name.landed.json"
   bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
   mtime=$(date -r "$log" -Iseconds 2>/dev/null || echo "")
@@ -617,6 +676,10 @@ cmd_run() {
     acceptance=$(marker_field "$marker" acceptance)
     verdict=$(marker_field "$marker" verdict)
     acceptanceLog=$(marker_field "$marker" acceptance_log)
+    changed=$(marker_number "$marker" changed_files)
+    treeDirty=$(marker_number "$marker" tree_dirty)
+    dirtyBefore=$(marker_number "$marker" dirty_before)
+    changedBasis=$(marker_field "$marker" changed_files_basis)
     echo "   (committed by the runner - reporting its record verbatim, not a re-guess)"
   elif [ "$saw" = "1" ]; then
     # Sentinel seen but no marker: the runner was killed between recording and echoing.
@@ -627,6 +690,8 @@ cmd_run() {
     status=$(status_line "$log")
     commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" >&2
     acceptance="SKIPPED"; verdict="EXECUTION_ONLY"; acceptanceLog=""
+    changed=$(marker_number "$marker" changed_files); treeDirty=$(marker_number "$marker" tree_dirty)
+    dirtyBefore=$(marker_number "$marker" dirty_before); changedBasis=$(marker_field "$marker" changed_files_basis)
   else
     # The monitor gave up and the lane never recorded itself. Its outcome is UNKNOWN.
     # Committing `report_present` here is precisely what turned a lane killed mid-work
@@ -637,6 +702,8 @@ cmd_run() {
     exitCode=""
     commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" >&2
     acceptance="SKIPPED"; verdict="EXECUTION_ONLY"; acceptanceLog=""
+    changed=$(marker_number "$marker" changed_files); treeDirty=$(marker_number "$marker" tree_dirty)
+    dirtyBefore=$(marker_number "$marker" dirty_before); changedBasis=$(marker_field "$marker" changed_files_basis)
   fi
 
   echo
@@ -646,7 +713,10 @@ cmd_run() {
   echo "   reason:        ${reason:-unknown}"
   echo "   log bytes:     $bytes"
   echo "   log mtime:     $mtime"
-  echo "   changed files: $changed"
+  echo "   changed files: $changed (basis=${changedBasis:-tree}, tree_dirty=${treeDirty:-$changed}, dirty_before=${dirtyBefore:-0})"
+  if [ "${changedBasis:-tree}" = "delta" ] && [ "${dirtyBefore:-0}" -gt 0 ]; then
+    echo "                  ${dirtyBefore} file(s) were already dirty and may or may not have been touched"
+  fi
   echo "   lane exit:     ${exitCode:-unknown}"
   echo "   status:        ${status:-<none found>}"
   echo "   acceptance:    ${acceptance:-SKIPPED}${acceptanceLog:+ (log: $acceptanceLog)}"
@@ -1253,6 +1323,47 @@ EOS
   n5b=$(tail -n +$((lbase + 1)) "$RUNS/LANDINGS.log" 2>/dev/null | grep -c "  st4b "); n5b=${n5b:-0}
   [ "$n5b" = "1" ] && ok "S5b exactly one human log line per landing" \
                    || bad "S5b landing announced $n5b times (expected 1)"
+
+  # S14 (must-allow, DISCRIMINATING) - a pre-existing stray belongs to the baseline, while a
+  # different path written by the lane belongs to the lane. Keep the assertion path-specific:
+  # this shared tree may contain unrelated work from other governed lanes.
+  local f14pre="$ROOT/.lane-selftest-14-pre.txt" f14own="$ROOT/.lane-selftest-14-own.txt" m14
+  printf 'already dirty\n' > "$f14pre"
+  { echo '#!/usr/bin/env bash'
+    printf 'printf own\\n > %q\n' "$f14own"
+    echo 'echo "status: PASS"'
+  } > "$P/lane-st14.sh"
+  chmod +x "$P/lane-st14.sh"
+  bash "$SELF" run st14 "$P/lane-st14.sh" --timeout=60 --wait-grace=2 "${GATE[@]}" > "$P/st14.mon.log" 2>&1
+  m14="$RUNS/st14.landed.json"
+  if grep -q 'lane-selftest-14-own' "$m14" && ! grep -q 'lane-selftest-14-pre' "$m14" \
+     && [ "$(marker_field "$m14" changed_files_basis)" = "delta" ]; then
+    ok "S14 only the lane's own path is attributed, not the pre-existing stray"
+  else
+    bad "S14 attributed the pre-existing stray or lost the lane's own path"
+  fi
+  rm -f "$f14pre" "$f14own"
+
+  # S14b (must-allow) - with no path added after dispatch, the attributable set is empty.
+  { echo '#!/usr/bin/env bash'; echo 'echo "status: PASS"'; } > "$P/lane-st14b.sh"
+  chmod +x "$P/lane-st14b.sh"
+  bash "$SELF" run st14b "$P/lane-st14b.sh" --timeout=60 --wait-grace=2 "${GATE[@]}" > "$P/st14b.mon.log" 2>&1
+  if [ "$(marker_number "$RUNS/st14b.landed.json" changed_files)" = "0" ]; then
+    ok "S14b a lane that changes nothing is credited with nothing"
+  else
+    bad "S14b an idle lane was credited with changed paths"
+  fi
+
+  # S14c (PIN) - old generated runners have no baseline and use the four-argument form.
+  rm -f "$RUNS/st14c.landed.json" "$RUNS/st14c.tree.before" "$RUNS/st14c.head.before"
+  rmdir "$RUNS/st14c.commit.lock" 2>/dev/null || true
+  bash "$SELF" record st14c "$RUNS/st14c.log" 0 legacy > "$P/st14c.rec.log" 2>&1
+  if [ "$(marker_field "$RUNS/st14c.landed.json" changed_files_basis)" = "tree" ] \
+     && php -r 'exit(json_decode(file_get_contents($argv[1]))===null?1:0);' "$RUNS/st14c.landed.json" 2>/dev/null; then
+    ok "S14c legacy record without a baseline writes valid tree-basis JSON"
+  else
+    bad "S14c legacy record without a baseline broke"
+  fi
 
   # S6 (must-refuse) - a lane name containing a quote must still yield valid JSON
   bash "$SELF" record 'st6"q' "$RUNS/st6q.log" 0 > /dev/null 2>&1

@@ -64,6 +64,13 @@ run_fixture() { # run_fixture <name> <lane-path>
 echo "== does the landing record describe the LANE, or the whole tree? =="
 
 # ── D1: pre-dirty unrelated file must NOT be attributed to the lane ───────────
+# EACH DIRECTION STARTS FROM THE SAME KNOWN BASELINE. Measured 2026-10-07: D1 leaves the file its
+# fixture created dirty, so without this reset D2 saw TWO dirty paths and its 1/1 expectation was
+# UNSATISFIABLE - the only way to satisfy it would be to hide prior dirty paths, which is precisely
+# what R8 forbids. The implementing lane reported BLOCKED with exactly that analysis and the chair's
+# criterion was the defect, for the sixth time in this repository. A probe whose directions are not
+# independent is not three probes, it is one probe with two aliases.
+cleanup
 printf 'pre-existing stray\n' > "$F_PRE"
 { echo '#!/usr/bin/env bash'
   echo "echo own > '$F_OWN'"
@@ -72,14 +79,21 @@ printf 'pre-existing stray\n' > "$F_PRE"
 run_fixture probe-changed-d1 "$P/lane-d1.sh"
 mD1="$RUNS/probe-changed-d1.landed.json"
 cfD1=$(mnum "$mD1" changed_files); treeD1=$(mnum "$mD1" tree_dirty); beforeD1=$(mnum "$mD1" dirty_before)
+# PATH-SPECIFIC, with the dirty counts only lower-bounded. These are governed lanes sharing ONE
+# working tree, so other lanes' uncommitted work is normal and an absolute `tree_dirty == 2` would
+# make this direction wrong more often than right - a wrong guard is worse than none. The
+# discrimination now rests on the DELTA being exactly the lane's own path, and on the basis being
+# "delta" at all (it does not exist on the unfixed tree, so the direction stays discriminating).
 if grep -q 'probe-changed-owned' "$mD1" && ! grep -q 'probe-changed-preexisting' "$mD1" \
-   && [ "${cfD1:-x}" = "1" ] && [ "${treeD1:-x}" = "2" ] && [ "${beforeD1:-x}" = "1" ]; then
+   && [ "${cfD1:-x}" = "1" ] && [ "$(mstr "$mD1" changed_files_basis)" = "delta" ] \
+   && [ "${beforeD1:-0}" -ge 1 ]; then
   ok "D1 only the lane's own file is attributed (changed_files=$cfD1 tree_dirty=$treeD1 dirty_before=$beforeD1)"
 else
-  bad "D1 attribution is wrong (changed_files='${cfD1:-}' tree_dirty='${treeD1:-}' dirty_before='${beforeD1:-}', claims_preexisting=$(grep -c 'probe-changed-preexisting' "$mD1" 2>/dev/null))"
+  bad "D1 attribution is wrong (changed_files='${cfD1:-}' basis='$(mstr "$mD1" changed_files_basis)' dirty_before='${beforeD1:-}', claims_preexisting=$(grep -c 'probe-changed-preexisting' "$mD1" 2>/dev/null))"
 fi
 
 # ── D2: the ambiguous case, DEFINED - dirty before AND touched by the lane ────
+cleanup
 printf 'pre-existing stray\n' > "$F_PRE"
 { echo '#!/usr/bin/env bash'
   echo "echo also-touched >> '$F_PRE'"
@@ -88,11 +102,15 @@ printf 'pre-existing stray\n' > "$F_PRE"
 run_fixture probe-changed-d2 "$P/lane-d2.sh"
 mD2="$RUNS/probe-changed-d2.landed.json"
 cfD2=$(mnum "$mD2" changed_files); treeD2=$(mnum "$mD2" tree_dirty); beforeD2=$(mnum "$mD2" dirty_before)
+# The observable claim is: a path that was ALREADY dirty is never claimed as the lane's work, and
+# the run still reports a delta basis with the ambiguity visible (dirty_before >= 1, and tree_dirty
+# exceeding changed_files). Not invented, not hidden.
 if ! grep -q 'probe-changed-preexisting' "$mD2" && [ "${cfD2:-x}" = "0" ] \
-   && [ "${treeD2:-x}" = "1" ] && [ "${beforeD2:-x}" = "1" ]; then
+   && [ "$(mstr "$mD2" changed_files_basis)" = "delta" ] && [ "${beforeD2:-0}" -ge 1 ] \
+   && [ "${treeD2:-0}" -ge "${beforeD2:-0}" ]; then
   ok "D2 the ambiguous case is reported, not invented (changed_files=$cfD2 tree_dirty=$treeD2 dirty_before=$beforeD2)"
 else
-  bad "D2 the ambiguous case was mis-attributed (changed_files='${cfD2:-}' tree_dirty='${treeD2:-}' dirty_before='${beforeD2:-}')"
+  bad "D2 the ambiguous case was mis-attributed (changed_files='${cfD2:-}' basis='$(mstr "$mD2" changed_files_basis)' tree_dirty='${treeD2:-}' dirty_before='${beforeD2:-}')"
 fi
 
 # ── D3: a lane that changes nothing, from a clean tree ───────────────────────
@@ -102,17 +120,25 @@ cleanup
 } > "$P/lane-d3.sh"; chmod +x "$P/lane-d3.sh"
 run_fixture probe-changed-d3 "$P/lane-d3.sh"
 mD3="$RUNS/probe-changed-d3.landed.json"
-cfD3=$(mnum "$mD3" changed_files); treeD3=$(mnum "$mD3" tree_dirty)
-if [ "${cfD3:-x}" = "0" ] && [ "${treeD3:-x}" = "0" ]; then
+cfD3=$(mnum "$mD3" changed_files)
+if [ "${cfD3:-x}" = "0" ] && [ "$(mstr "$mD3" changed_files_basis)" = "delta" ]; then
   ok "D3 a lane that changed nothing is credited with nothing (changed_files=$cfD3)"
 else
-  bad "D3 an idle lane was credited (changed_files='${cfD3:-}' tree_dirty='${treeD3:-}')"
+  bad "D3 an idle lane was credited (changed_files='${cfD3:-}' basis='$(mstr "$mD3" changed_files_basis)')"
 fi
 
 # ── D4: PIN - the legacy record path must still produce valid JSON ───────────
 # The generated runner that records THIS lane's landing was written before the change and calls
 # record with four arguments. That path must keep working.
+#
+# The commit lock MUST be cleared first, and this was a real defect in this probe: commit_landing
+# deliberately keeps `$RUNS/<name>.commit.lock` as proof that a dispatch already committed, so on
+# the SECOND and every later run it refuses and writes NO marker - and D4 then fails because
+# `php json_decode` reads a file that does not exist. Measured 2026-10-07: D4 passed on the first
+# ever run and failed on the gate's run 60 seconds later, which is the signature of a guard that is
+# wrong more often than it is right. It would have reported a FALSE RED on correct work.
 rm -f "$RUNS/probe-changed-d4.landed.json"
+rmdir "$RUNS/probe-changed-d4.commit.lock" 2>/dev/null || true
 bash tools/lane.sh record probe-changed-d4 "$RUNS/probe-changed-d4.log" 0 > "$P/d4.rec.log" 2>&1
 rcD4=$?
 mD4="$RUNS/probe-changed-d4.landed.json"
