@@ -98,7 +98,11 @@
         <div class="ark-topbar__inner ark-topbar__inner--{section_settings.topbar_inner_width_mode|default:'inherit'}"
              data-topbar-inner-width="{section_settings.topbar_inner_width|default:'0'}"
              style="{if section_settings.topbar_inner_width_mode == 'full'}max-width:none;{elseif section_settings.topbar_inner_width_mode == 'custom'}max-width:{section_settings.topbar_inner_custom_width|default:'1200'}px;{elseif section_settings.topbar_inner_width_mode == 'contained'}max-width:var(--ark-max-width);{/if}
-                    {if section_settings.topbar_container_width == 'full'}padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));{/if}
+                    {# The gutter reserves the centring space, so it is only correct when the inner is
+                       itself full-bleed. When the inner is capped it is already centred by its own
+                       margin:auto, and applying the gutter on top insets the content twice --
+                       measured 472px instead of the intended 226px at a 1732px window. #}
+                    {if section_settings.topbar_container_width == 'full' and section_settings.topbar_inner_width_mode == 'full'}padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));{elseif section_settings.topbar_container_width == 'full'}padding-left:var(--ark-spacing-md);padding-right:var(--ark-spacing-md);{/if}
                     justify-content:{if section_settings.topbar_align == 'left'}flex-start{elseif section_settings.topbar_align == 'center'}center{elseif section_settings.topbar_align == 'right'}flex-end{else}space-between{/if};">
             <div class="ark-topbar__left">
                 {if site.tagline}<a href="{site.url}" class="ark-topbar__tagline">{site.tagline}</a>{else}<a href="{site.url}">{site.title}</a>{/if}
@@ -112,7 +116,8 @@
 
     <div class="ark-region-header__inner ark-region-header__inner--{header_inner_mode}"
          style="{if header_layout == 'logo-center'}justify-content:center;{else}justify-content:space-between;{/if}
-                flex-wrap:wrap;padding:{header_pt}px {if header_container == 'full'}max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md))){else}var(--ark-spacing-md){/if} {header_pb}px;
+                flex-wrap:wrap;padding:{header_pt}px {# Gutter only when the inner is full-bleed; a capped inner is already centred, and
+                   applying the gutter too insets the content twice (measured 472px vs 226px). #}{if header_container == 'full' and header_inner_mode == 'full'}max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md))){else}var(--ark-spacing-md){/if} {header_pb}px;
                 {if header_inner_mode == 'full'}max-width:none;{elseif header_inner_mode == 'custom'}max-width:{header_inner_custom}px;{elseif header_inner_mode == 'contained'}max-width:var(--ark-max-width);{else}max-width:var(--ark-max-width);{/if}
                 margin:0 auto;
                 {if header_layout == 'stacked'}flex-direction:column;text-align:center;{/if}">

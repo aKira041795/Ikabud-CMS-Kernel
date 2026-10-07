@@ -34,7 +34,14 @@
        own shell, so inner_width must not reach in here as well. #}
     <div class="ark-region-footer__inner ark-region-footer__inner--{widget_container} ark-region-footer__inner-mode--{widget_inner_mode}"
          style="{if widget_container == 'full'}max-width:none;{elseif widget_container == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'full'}max-width:none;{elseif widget_inner_mode == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'contained'}max-width:var(--ark-max-width);{/if}
-                {if footer_container == 'full'}padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));{/if}">
+                {# Gutter only when this inner is actually full-bleed, matching the max-width
+                   chain above. A capped inner is already centred by margin:auto, so applying
+                   the gutter too insets the content twice -- measured 472px where the content
+                   column starts at 226px. Branches are explicit: a compound {set} expression
+                   silently evaluated false here and dropped the gutter. #}
+                {if footer_container == 'full' and widget_container == 'full'}padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));
+                {elseif footer_container == 'full' and widget_inner_mode == 'full'}padding-left:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));padding-right:max(var(--ark-spacing-md),calc((100% - var(--ark-max-width))/2 + var(--ark-spacing-md)));
+                {elseif footer_container == 'full'}padding-left:var(--ark-spacing-md);padding-right:var(--ark-spacing-md);{/if}">
         {if navigation.footer}
         <nav class="ark-region-footer__nav" aria-label="Footer navigation">{navigation.footer|raw}</nav>
         {/if}
