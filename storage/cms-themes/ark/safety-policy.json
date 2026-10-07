@@ -20,6 +20,7 @@
                 "header_region.html",
                 "footer_region.html",
                 "sidebar_region.html",
+                "widgets_html",
                 "customized_header",
                 "customized_sidebar",
                 "customized_footer",

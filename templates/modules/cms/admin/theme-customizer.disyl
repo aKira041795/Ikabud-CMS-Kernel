@@ -2573,6 +2573,36 @@
     <div x-show="activeTab === 'theme'" class="grid grid-cols-1 xl:grid-cols-12 gap-6 cz-tab-grid">
         <div class="xl:col-span-8 space-y-5">
             <div class="cz-panel">
+                <div class="cz-panel-header" @click="tlPanels.presets = !tlPanels.presets">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        Presets
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.presets ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="tlPanels.presets" x-collapse class="cz-panel-body space-y-3">
+                    <p class="cz-hint">Start with a Theme Studio design preset. Applying one updates the covered colors, typography, and shell settings immediately.</p>
+                    <p x-show="themePresetsLoading" class="text-sm text-slate-500">Loading presets…</p>
+                    <p x-show="themePresetsError" class="text-sm text-red-600" x-text="themePresetsError"></p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <template x-for="preset in themePresets" :key="preset.slug">
+                            <div class="rounded-xl border p-4" :class="preset.active ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="font-semibold text-slate-800" x-text="preset.label"></div>
+                                        <p class="mt-1 text-xs text-slate-500" x-text="preset.description"></p>
+                                    </div>
+                                    <span x-show="preset.active" class="rounded-full bg-sky-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-700">Active</span>
+                                </div>
+                                <button type="button" class="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-sky-400 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    :disabled="preset.active || themePresetApplying !== ''" @click="applyThemePreset(preset.slug)"
+                                    x-text="themePresetApplying === preset.slug ? 'Applying…' : (preset.active ? 'Applied' : 'Apply preset')"></button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <div class="cz-panel">
                 <div class="cz-panel-header" @click="tlPanels.site = !tlPanels.site">
                     <h3>
                         <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/></svg>
@@ -2840,7 +2870,7 @@
                             <div class="flex flex-wrap gap-2">
                                 <template x-for="exampleId in entityContextExampleIds()" :key="'entity-example-' + exampleId">
                                     <button type="button"
-                                        @click="entityContextExampleId = exampleId"
+                                        @click="selectEntityContextExample(exampleId)"
                                         class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
                                         :class="entityContextExampleId === exampleId ? 'border-sky-500 bg-sky-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700'">
                                         <span x-text="entityContextExampleLabel(exampleId)"></span>
@@ -2861,6 +2891,14 @@
                                 <div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Extensions</div>
                                 <div class="mt-1 text-sm font-semibold text-slate-800" x-text="entityContextActiveExtensionSummary()"></div>
                             </div>
+                        </div>
+                        <div class="max-w-sm">
+                            <label class="cz-label" for="cz-entity-presentation-scope">Presentation Scope</label>
+                            <select id="cz-entity-presentation-scope" class="cz-select" :value="entityPresentationScope" @change="setEntityPresentationScope($event.target.value)">
+                                <option value="">All types (global)</option>
+                                <option :value="entityContextActiveEntityType()" x-text="'Only ' + entityPreviewVariantLabel(entityContextActiveEntityType())"></option>
+                            </select>
+                            <p class="cz-hint">Choose the active entity type to override the global presentation values only for that type.</p>
                         </div>
                         <p class="text-xs text-slate-500" x-text="entityContextActiveDescription()"></p>
                         <div class="flex flex-wrap gap-2">
@@ -3113,14 +3151,22 @@ function themeCustomizer() {
         sPanels: { layout: true, appearance: false, widgets: true },
         cPanels: { brand: true, body: false, typo: false, layout: false, storefront: true },
         ccPanels: { css: true, head: false, body: false, enhancements: true },
-        tlPanels: { site: true, blog: true, single: false, entity: true, commerceGuide: true, commerceEntity: true },
+        tlPanels: { presets: true, site: true, blog: true, single: false, entity: true, commerceGuide: true, commerceEntity: true },
         tlPreviewMode: 'page',
+        themePresets: [],
+        themePresetsLoading: false,
+        themePresetsError: '',
+        themePresetApplying: '',
 
         // Theme layout settings (hydrated from server)
         themeLayoutSettings: {},
 
         // Canonical entity presentation settings (hydrated from server)
         entityPresentationSettings: {},
+        entityPresentationGlobalSettings: {},
+        entityPresentationByType: {},
+        entityPresentationScope: '',
+        entityPresentationHydrating: true,
         themeManifestBlockVariants: {},
         entityContextCatalog: {},
         entityContextExamples: {},
@@ -3352,6 +3398,59 @@ function themeCustomizer() {
             const example = (this.entityContextExamples || {})[exampleId] || {};
             const explicit = ((example.label || '') + '').trim();
             return explicit !== '' ? explicit : this.entityPreviewVariantLabel(exampleId);
+        },
+
+        selectEntityContextExample(exampleId) {
+            this.commitEntityPresentationScope();
+            this.entityContextExampleId = exampleId;
+            this.entityPresentationScope = this.entityContextActiveEntityType();
+            this.hydrateEntityPresentationScope();
+        },
+
+        setEntityPresentationScope(scope) {
+            this.commitEntityPresentationScope();
+            this.entityPresentationScope = ((scope || '') + '').trim();
+            this.hydrateEntityPresentationScope();
+        },
+
+        hydrateEntityPresentationScope() {
+            const override = this.entityPresentationScope !== ''
+                ? (this.entityPresentationByType[this.entityPresentationScope] || {})
+                : {};
+            this.entityPresentationHydrating = true;
+            this.entityPresentationSettings = Object.assign({}, this.entityPresentationGlobalSettings, override);
+            this.$nextTick(() => { this.entityPresentationHydrating = false; });
+        },
+
+        commitEntityPresentationScope() {
+            if (this.entityPresentationHydrating) {
+                return;
+            }
+            const current = Object.assign({}, this.entityPresentationSettings || {});
+            delete current.by_type;
+            if (this.entityPresentationScope === '') {
+                this.entityPresentationGlobalSettings = current;
+                return;
+            }
+
+            const override = {};
+            Object.keys(current).forEach((key) => {
+                if (JSON.stringify(current[key]) !== JSON.stringify(this.entityPresentationGlobalSettings[key])) {
+                    override[key] = current[key];
+                }
+            });
+            if (Object.keys(override).length > 0) {
+                this.entityPresentationByType[this.entityPresentationScope] = override;
+            } else {
+                delete this.entityPresentationByType[this.entityPresentationScope];
+            }
+        },
+
+        entityPresentationPayloadSettings() {
+            this.commitEntityPresentationScope();
+            return Object.assign({}, this.entityPresentationGlobalSettings, {
+                by_type: Object.assign({}, this.entityPresentationByType),
+            });
         },
 
         entityContextActiveExample() {
@@ -3942,7 +4041,7 @@ function themeCustomizer() {
                 return { settings: this.customCodeSettings };
             }
             if (section === 'entity_presentation') {
-                return { settings: this.entityPresentationSettings };
+                return { settings: this.entityPresentationPayloadSettings() };
             }
             // Theme-declared section: settings come straight from its own state.
             if (this.themeSectionSettings[section] !== undefined) {
@@ -3962,7 +4061,50 @@ function themeCustomizer() {
             return { section, ok: !!data.ok, error: data.error || '', data };
         },
 
+        async loadThemePresets() {
+            this.themePresetsLoading = true;
+            this.themePresetsError = '';
+            try {
+                const res = await fetch('{base_url}/api/v1/cms/customizer/presets', { credentials: 'same-origin' });
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.error || 'Unable to load presets');
+                this.themePresets = Array.isArray(data.presets) ? data.presets : [];
+            } catch (error) {
+                this.themePresetsError = error.message || 'Unable to load presets';
+            } finally {
+                this.themePresetsLoading = false;
+            }
+        },
+
+        async applyThemePreset(slug) {
+            this.themePresetApplying = slug;
+            this.themePresetsError = '';
+            try {
+                const res = await fetch('{base_url}/api/v1/cms/customizer/presets/apply', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({ _token: CMS_CSRF, slug }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.error || 'Unable to apply preset');
+                this.colorsSettings = Object.assign({}, data.colors || {});
+                this.themeLayoutSettings = Object.assign({}, data.theme || {});
+                this.themePresets = this.themePresets.map((preset) => Object.assign({}, preset, { active: preset.slug === data.active_slug }));
+                this.$nextTick(() => {
+                    this.dirtySections.colors = false;
+                    this.dirtySections.theme = false;
+                    this.syncDirtyState();
+                });
+            } catch (error) {
+                this.themePresetsError = error.message || 'Unable to apply preset';
+            } finally {
+                this.themePresetApplying = '';
+            }
+        },
+
         init() {
+            this.loadThemePresets();
             // Hydrate from server-rendered JSON
             // Theme-declared sections hydrate generically from the theme schema.
             try {
@@ -4316,12 +4458,19 @@ function themeCustomizer() {
                 single_show_tags: 1,
                 single_show_nav: 1,
             };
+            let hydratedEntityPresentation = {};
             try {
-                this.entityPresentationSettings = JSON.parse(document.getElementById('cz-entity-presentation-settings').textContent) || {};
+                hydratedEntityPresentation = JSON.parse(document.getElementById('cz-entity-presentation-settings').textContent) || {};
             } catch (e) {
-                this.entityPresentationSettings = {};
+                hydratedEntityPresentation = {};
             }
-            this.entityPresentationSettings = Object.assign({}, entityPresentationDefaults, legacyThemePresentation, this.entityPresentationSettings || {});
+            this.entityPresentationByType = hydratedEntityPresentation.by_type && typeof hydratedEntityPresentation.by_type === 'object'
+                ? JSON.parse(JSON.stringify(hydratedEntityPresentation.by_type))
+                : {};
+            delete hydratedEntityPresentation.by_type;
+            this.entityPresentationGlobalSettings = Object.assign({}, entityPresentationDefaults, legacyThemePresentation, hydratedEntityPresentation);
+            this.entityPresentationScope = '';
+            this.entityPresentationSettings = Object.assign({}, this.entityPresentationGlobalSettings);
 
             // Watch for changes
             this.$watch('footerSettings', () => { this.markSectionDirty('footer'); }, { deep: true });
@@ -4333,7 +4482,11 @@ function themeCustomizer() {
             this.$watch('colorsSettings', () => { this.markSectionDirty('colors'); }, { deep: true });
             this.$watch('customCodeSettings', () => { this.markSectionDirty('custom_code'); }, { deep: true });
             this.$watch('themeLayoutSettings', () => { this.markSectionDirty('theme'); }, { deep: true });
-            this.$watch('entityPresentationSettings', () => { this.markSectionDirty('entity_presentation'); }, { deep: true });
+            this.$watch('entityPresentationSettings', () => {
+                if (this.entityPresentationHydrating) return;
+                this.commitEntityPresentationScope();
+                this.markSectionDirty('entity_presentation');
+            }, { deep: true });
 
             // Registering the deep watchers above fires them once off the initial
             // hydration flush, which marked every CMS section dirty on page load.
@@ -4341,6 +4494,7 @@ function themeCustomizer() {
             // unchanged sections (each ~1-2s, serialised on the session lock).
             // Drop the flags after the watchers settle so only real edits save.
             this.$nextTick(() => {
+                this.entityPresentationHydrating = false;
                 Object.keys(this.dirtySections).forEach((key) => { this.dirtySections[key] = false; });
                 this.dirty = false;
             });

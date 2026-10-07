@@ -182,10 +182,10 @@ button:disabled {
 
 /* ── Top bar (above header) ── */
 .ark-topbar {
-    background: var(--color-primary, #6366f1);
-    color: #fff;
+    background: #0f172a;
+    color: #e2e8f0;
     font-size: 0.8125rem;
-    padding: 0.375rem 0;
+    padding: 0.5rem 0;
 }
 
 .ark-topbar__inner {
@@ -205,13 +205,12 @@ button:disabled {
 }
 
 .ark-topbar a {
-    color: inherit;
+    color: var(--topbar-link, #cbd5e1);
     text-decoration: none;
-    opacity: 0.85;
 }
 
 .ark-topbar a:hover {
-    opacity: 1;
+    color: var(--topbar-link-hover, #ffffff);
     text-decoration: underline;
 }
 
@@ -250,16 +249,16 @@ button:disabled {
     max-width: none;
 }
 
-.ark-content-area:has(.cms-builder-document) > .ark-main {
+.ark-content-area:has(.cms-builder-document)>.ark-main {
     max-width: none;
 }
 
-.cms-builder-document > .cms-builder-node--section {
+.cms-builder-document>.cms-builder-node--section {
     max-width: var(--ark-max-width, 1280px);
     margin-inline: auto;
 }
 
-.cms-builder-document > .cms-builder-node--section:has([style*="--ikb-fullbleed-width"]) {
+.cms-builder-document>.cms-builder-node--section:has([style*="--ikb-fullbleed-width"]) {
     max-width: none;
 }
 
@@ -947,8 +946,22 @@ button:disabled {
    does not reuse — without them the region chrome renders unstyled. */
 
 /* Header region */
+.ark-region-header {
+    position: relative;
+    width: 100%;
+}
+
+.ark-region-header a {
+    color: var(--header-link);
+}
+
+.ark-region-header a:hover {
+    color: var(--header-link-hover);
+}
+
 .ark-region-header__inner {
     display: flex;
+    width: 100%;
     align-items: center;
     gap: var(--ark-spacing-md);
 }
@@ -963,7 +976,7 @@ button:disabled {
     display: inline-flex;
     min-height: 40px;
     align-items: center;
-    color: inherit;
+    color: var(--header-logo);
     text-decoration: none;
     font-size: 1.125rem;
     font-weight: 700;
@@ -972,6 +985,7 @@ button:disabled {
 
 .ark-region-header__logo {
     display: block;
+    width: auto;
     height: auto;
 }
 
@@ -991,8 +1005,7 @@ button:disabled {
     align-items: center;
 }
 
-/* The CMS menu walker emits <nav class="cms-nav"><ul class="cms-menu">.
-   Lay that out horizontally, since a bare ul renders as a vertical list. */
+/* The CMS menu walker emits <nav class="cms-nav"><ul class="cms-menu">. */
 .ark-region-header__nav-links .cms-nav {
     display: block;
 }
@@ -1016,6 +1029,7 @@ button:disabled {
     align-items: center;
     padding: 0.35rem 0.75rem;
     border-radius: var(--ark-radius-sm);
+    color: var(--header-link);
     font-size: 0.875rem;
     font-weight: 500;
     text-decoration: none;
@@ -1023,37 +1037,59 @@ button:disabled {
 }
 
 .ark-region-header__nav-links .cms-menu a:hover {
+    color: var(--header-link-hover);
     background: var(--ark-surface-muted);
 }
 
 .ark-region-header__nav-links .cms-menu a[aria-current="page"] {
-    color: var(--ark-primary);
+    color: var(--header-link-hover);
     background: var(--ark-primary-light);
     font-weight: 600;
 }
 
-.ark-region-header__nav-links .cms-submenu {
+.ark-region-header__nav-links .cms-menu .current-menu-item>a {
+    color: var(--header-link-hover);
+    background: var(--ark-primary-light);
+    font-weight: 600;
+}
+
+.ark-region-header__nav-links .cms-submenu,
+.ark-region-header__nav-links .sub-menu {
     position: absolute;
     top: 100%;
     left: 0;
     z-index: 50;
     display: none;
-    min-width: 12rem;
+    min-width: var(--dropdown-min-width, 220px);
     margin: 0;
-    padding: 0.25rem;
+    padding: 0.25rem 0;
     list-style: none;
-    background: var(--ark-surface);
-    border: 1px solid var(--ark-border);
-    border-radius: var(--ark-radius-md);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+    color: var(--dropdown-text, #1f2937);
+    background: var(--dropdown-bg, #ffffff);
+    border: 1px solid var(--dropdown-border, #e5e7eb);
+    border-radius: var(--dropdown-radius, 8px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
 }
 
-.ark-region-header__nav-links .cms-menu>li:hover>.cms-submenu {
+.ark-region-header__nav-links .cms-menu>li:hover>.cms-submenu,
+.ark-region-header__nav-links .cms-menu>li:hover>.sub-menu {
     display: block;
 }
 
-.ark-region-header__nav-links .cms-submenu a {
+.ark-region-header__nav-links .cms-submenu a,
+.ark-region-header__nav-links .sub-menu a {
     display: block;
+    width: 100%;
+    padding: var(--dropdown-item-padding-y, 10px) 1rem;
+    color: var(--dropdown-text, #1f2937);
+}
+
+.ark-region-header__nav-links .cms-submenu a:hover,
+.ark-region-header__nav-links .sub-menu a:hover,
+.ark-region-header__nav-links .cms-submenu .current-menu-item>a,
+.ark-region-header__nav-links .sub-menu .current-menu-item>a {
+    color: var(--dropdown-hover-text, #111827);
+    background: var(--dropdown-hover-bg, #f1f5f9);
 }
 
 .ark-region-header__search {
@@ -1070,9 +1106,113 @@ button:disabled {
     padding: 0.45rem 0.95rem;
     border-radius: var(--ark-radius-sm);
     color: #fff;
+    background: var(--color-primary-dark, #4f46e5);
     font-size: 0.875rem;
     font-weight: 600;
     text-decoration: none;
+}
+
+.ark-region-header__cta--secondary {
+    background: #334155;
+}
+
+.ark-region-header__cta--outline {
+    color: var(--header-link);
+    background: transparent;
+    border: 1px solid currentColor;
+}
+
+.ark-region-header__mobile-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 198;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    opacity: 0.72;
+    cursor: pointer;
+}
+
+.ark-region-header__mobile-panel {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    z-index: 199;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    border: 1px solid var(--dropdown-border, #e5e7eb);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+}
+
+.ark-region-header__mobile-panel--canvas {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    max-width: 85vw;
+    max-height: none;
+}
+
+.ark-region-header__mobile-panel--canvas.ark-region-header__mobile-panel--left {
+    right: auto;
+    left: 0;
+}
+
+.ark-region-header__mobile-panel--canvas.ark-region-header__mobile-panel--top {
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    max-width: none;
+}
+
+.ark-region-header__mobile-brand {
+    display: flex;
+    min-height: 64px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--dropdown-border, #e5e7eb);
+}
+
+.ark-region-header__mobile-close {
+    border: 0;
+    color: var(--mobile-text, #1f2937);
+    background: transparent;
+    font-size: 1.75rem;
+    cursor: pointer;
+}
+
+.ark-region-header__mobile-nav .cms-menu {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0.75rem;
+    list-style: none;
+}
+
+.ark-region-header__mobile-nav a {
+    display: block;
+    min-height: 44px;
+    padding: 0.75rem;
+    color: var(--mobile-text, #1f2937);
+    text-decoration: none;
+    border-radius: var(--ark-radius-sm);
+}
+
+.ark-region-header__mobile-nav a:hover {
+    color: var(--mobile-text, #1f2937);
+    background: var(--mobile-hover-bg, #f1f5f9);
+}
+
+.ark-region-header__mobile-nav a[aria-current="page"],
+.ark-region-header__mobile-nav .current-menu-item>a {
+    color: var(--mobile-text, #1f2937);
+    background: var(--mobile-active-bg, #eef2ff);
 }
 
 @media (max-width: 768px) {
@@ -1080,15 +1220,16 @@ button:disabled {
         width: 100%;
         flex-wrap: wrap;
     }
+}
 
-    .ark-region-header__nav-links {
-        width: 100%;
-    }
+.ark-region-header--mobile-active .ark-region-header__nav {
+    width: 100%;
+    flex-wrap: wrap;
+}
 
-    .ark-region-header__nav-links .cms-menu {
-        flex-direction: column;
-        align-items: stretch;
-    }
+.ark-region-header:not(.ark-region-header--mobile-active) .ark-region-header__nav {
+    width: auto;
+    flex-wrap: nowrap;
 }
 
 /* Footer region */
@@ -1103,10 +1244,14 @@ button:disabled {
     padding: 1.5rem 1rem;
 }
 
+.ark-region-footer__nav {
+    width: 100%;
+}
+
 .ark-region-footer__nav .cms-menu {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1rem;
+    display: grid;
+    grid-template-columns: repeat(var(--footer-columns, 3), minmax(0, 1fr));
+    gap: 0.75rem 1rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -1115,6 +1260,13 @@ button:disabled {
 .ark-region-footer__nav .cms-menu a {
     font-size: 0.875rem;
     text-decoration: none;
+}
+
+.ark-region-footer__inner h2,
+.ark-region-footer__inner h3,
+.ark-region-footer__inner h4,
+.ark-region-footer__inner .widget-title {
+    color: var(--footer-title, #f1f5f9);
 }
 
 .ark-region-footer__copy,
@@ -1150,6 +1302,14 @@ button:disabled {
     display: flex;
     flex-direction: column;
     gap: var(--ark-spacing-md);
+}
+
+.ark-region-sidebar a {
+    color: var(--sidebar-link);
+}
+
+.ark-region-sidebar a:hover {
+    color: var(--sidebar-link-hover);
 }
 
 /* An empty sidebar region must not reserve layout width. */

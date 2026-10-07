@@ -61,6 +61,12 @@ class ThemeRegionRenderer
             'slot_contributions' => $context->slotContributions,
             'scope' => $context->scope->toLegacyString(),
             'scope_type' => $context->scope->scopeType,
+            // Persisted customizer widgets for this region, plus their CMS-rendered
+            // HTML. The HTML is produced by the CMS's own widget renderers (which
+            // escape their own output), so templates emit it with |raw.
+            'widgets' => $context->widgets,
+            'section_widgets' => $context->widgetsFor($region),
+            'widgets_html' => self::renderWidgets($context->widgetsFor($region)),
         ];
 
         // Try to render via the CMS template engine
@@ -91,5 +97,70 @@ class ThemeRegionRenderer
             $results[$region] = self::render($provider, $region, $context, $themePath);
         }
         return $results;
+    }
+
+    /**
+     * Pre-render a region's configured widgets to HTML.
+     *
+     * The CMS owns every widget renderer; the kernel must not re-implement them
+     * or their escaping. This dispatches through the same
+     * cmsBuilderWidgetRenderers() map the public builder uses, mirroring that
+     * pipeline's default-prop/style resolution. When the CMS helper is absent
+     * (a bare theme render), no widgets are emitted and the theme still renders.
+     *
+     * @param array<int, array<string, mixed>> $widgets
+     */
+    private static function renderWidgets(array $widgets): string
+    {
+        if ($widgets === [] || !function_exists('cmsBuilderWidgetRenderers')) {
+            return '';
+        }
+
+        $renderers = cmsBuilderWidgetRenderers();
+        if (!is_array($renderers)) {
+            return '';
+        }
+
+        $html = '';
+        foreach ($widgets as $widget) {
+            if (!is_array($widget)) {
+                continue;
+            }
+
+            $type = trim((string)($widget['type'] ?? ''));
+            $renderer = $type !== '' ? ($renderers[$type] ?? null) : null;
+            if (!is_callable($renderer)) {
+                continue;
+            }
+
+            $props = is_array($widget['props'] ?? null) ? $widget['props'] : [];
+            if (function_exists('cmsBuilderMergeDefaults')) {
+                $props = cmsBuilderMergeDefaults($props, $type);
+            }
+
+            $style = is_array($widget['style'] ?? null) ? $widget['style'] : [];
+            if (function_exists('cmsBuilderDefaultStyle')) {
+                $style = array_merge(
+                    cmsBuilderDefaultStyle($type),
+                    array_filter($style, static fn ($value): bool => $value !== null && $value !== '')
+                );
+            }
+
+            $attrs = [
+                'class' => 'ark-region-widget ark-region-widget--' . preg_replace('/[^a-z0-9_-]/i', '-', $type),
+                'data-widget-type' => $type,
+            ];
+            if (!empty($widget['id'])) {
+                $attrs['data-widget-id'] = (string)$widget['id'];
+            }
+
+            try {
+                $html .= (string)$renderer($props, $style, $attrs, '', $widget, []);
+            } catch (\Throwable $e) {
+                // A single malformed widget must not take down the whole region.
+            }
+        }
+
+        return $html;
     }
 }

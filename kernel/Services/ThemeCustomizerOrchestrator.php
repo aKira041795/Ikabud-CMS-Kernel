@@ -251,6 +251,7 @@ class ThemeCustomizerOrchestrator
         // Build settings from persisted values merged with defaults
         $definition = $provider->definition();
         $settings = [];
+        $widgets = [];
         foreach ($definition->sectionNames() as $section) {
             $defaults = [];
             $sectionDef = $definition->section($section);
@@ -260,16 +261,22 @@ class ThemeCustomizerOrchestrator
 
             // Try to load persisted settings from CMS
             $persisted = [];
+            $sectionWidgets = [];
             if ($db !== null && function_exists('cmsCustomizerGet')) {
                 try {
                     $data = cmsCustomizerGet($db, $section, $scopeString);
                     $persisted = (array)($data['settings'] ?? []);
+                    // Widgets are persisted alongside settings in cms_theme_customizer.
+                    // They must travel with the context so region templates can render
+                    // them through the CMS's existing widget renderers.
+                    $sectionWidgets = is_array($data['widgets'] ?? null) ? $data['widgets'] : [];
                 } catch (\Throwable $e) {
                     // Persistence unavailable, use defaults only
                 }
             }
 
             $settings[$section] = array_merge($defaults, $persisted);
+            $widgets[$section] = $sectionWidgets;
         }
 
         // Build tokens — merge defaults with any color overrides
@@ -327,10 +334,33 @@ class ThemeCustomizerOrchestrator
             navigation: $navigation,
             entityContext: $entityContext,
             slotContributions: $slotContributions,
+            widgets: $widgets,
         );
 
-        // Allow provider to transform context
-        return $provider->transformContext($context);
+        // Allow provider to transform context.
+        //
+        // Providers construct a fresh immutable context and predate the widgets
+        // field, so a provider that rebuilds the context (ARK does, to apply
+        // token/sidebar transformations) would silently drop widgets. Re-attach
+        // them afterwards: providers transform settings/tokens, never widget
+        // instances. A provider that returns the context unchanged already
+        // carries them and is left untouched.
+        $transformed = $provider->transformContext($context);
+        if ($transformed->widgets !== $widgets) {
+            $transformed = new ThemeRenderContext(
+                theme: $transformed->theme,
+                scope: $transformed->scope,
+                settings: $transformed->settings,
+                tokens: $transformed->tokens,
+                site: $transformed->site,
+                navigation: $transformed->navigation,
+                entityContext: $transformed->entityContext,
+                slotContributions: $transformed->slotContributions,
+                widgets: $widgets,
+            );
+        }
+
+        return $transformed;
     }
 
     /**

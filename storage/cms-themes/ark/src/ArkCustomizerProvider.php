@@ -109,10 +109,23 @@ class ArkCustomizerProvider implements ThemeCustomizerProvider
             }
         }
 
+        $settings = $context->settings;
+        if (function_exists('cmsSidebarTemplateMatchesScope')) {
+            $templateKey = (string)($context->entityContext['kind'] ?? 'generic');
+            $legacyScope = $context->scope->toLegacyString();
+            $scope = function_exists('cmsNormalizeCustomizerScope')
+                ? cmsNormalizeCustomizerScope($legacyScope)
+                : $legacyScope;
+
+            if (!cmsSidebarTemplateMatchesScope($settings['sidebar'] ?? [], $templateKey, $scope)) {
+                $settings['sidebar'] = array_merge($settings['sidebar'] ?? [], ['enabled' => 0]);
+            }
+        }
+
         return new ThemeRenderContext(
             theme: $context->theme,
             scope: $context->scope,
-            settings: $context->settings,
+            settings: $settings,
             tokens: $tokens,
             site: $context->site,
             navigation: $context->navigation,

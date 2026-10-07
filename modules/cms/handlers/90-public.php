@@ -2431,6 +2431,37 @@ function cmsPublicCanonicalEntityPresentationContext(
     ];
 }
 
+/**
+ * Apply a type-resolved entity presentation consistently to canonical template data,
+ * canonical config, and the CSS emitted for that canonical request.
+ */
+function cmsPublicCanonicalApplyEntityPresentation(array &$context, string $entityType, array $renderContext = []): void
+{
+    $storedSettings = is_array($context['entity_presentation_settings'] ?? null)
+        ? $context['entity_presentation_settings']
+        : (is_array($context['theme_settings'] ?? null) ? $context['theme_settings'] : []);
+    $globalSettings = cmsEntityPresentationResolveForType($storedSettings, '');
+    $resolvedSettings = cmsEntityPresentationResolveForType($storedSettings, $entityType);
+
+    $context['entity_presentation_settings'] = $resolvedSettings;
+    $themeSettings = is_array($context['theme_settings'] ?? null) ? $context['theme_settings'] : [];
+    unset($themeSettings['by_type']);
+    $context['theme_settings'] = array_merge($themeSettings, $resolvedSettings);
+
+    $renderContext['content_type'] = trim((string)($renderContext['content_type'] ?? $entityType));
+    $context['entity_presentation'] = cmsCanonicalEntityPresentationConfig($resolvedSettings, $renderContext);
+
+    // Preserve the no-override response byte-for-byte. Only a type whose resolved
+    // values differ receives a final CSS layer, scoped by the canonical render path.
+    if ($resolvedSettings !== $globalSettings) {
+        $styleId = 'cz-entity-presentation-' . cmsShellEntityToken($entityType, 'generic') . '-override';
+        $context['theme_layout_style'] = (string)($context['theme_layout_style'] ?? '')
+            . '<style id="' . htmlspecialchars($styleId, ENT_QUOTES) . '">'
+            . cmsRenderEntityPresentationCss($resolvedSettings)
+            . '</style>';
+    }
+}
+
 function cmsPublicCanonicalEntityUrl(array $entity, string $defaultType = ''): string
 {
     $type = trim((string)($entity['type'] ?? $defaultType));
@@ -2774,17 +2805,11 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
             'public_presentation_mode' => $publicPresentationMode,
         ], $templateContext));
 
-        $viewContext['entity_render_family'] = cmsCanonicalEntityRenderFamily(array_merge($entityRenderContext, [
+        $resolvedRenderContext = array_merge($entityRenderContext, [
             'capabilities' => is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [],
-        ]));
-        $viewContext['entity_presentation'] = cmsCanonicalEntityPresentationConfig(
-            is_array($viewContext['entity_presentation_settings'] ?? null)
-                ? $viewContext['entity_presentation_settings']
-                : (is_array($viewContext['theme_settings'] ?? null) ? $viewContext['theme_settings'] : []),
-            array_merge($entityRenderContext, [
-                'capabilities' => is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [],
-            ])
-        );
+        ]);
+        $viewContext['entity_render_family'] = cmsCanonicalEntityRenderFamily($resolvedRenderContext);
+        cmsPublicCanonicalApplyEntityPresentation($viewContext, $type, $resolvedRenderContext);
         $viewContext['show_entity_categories'] = $hasEntityCategories
             && !empty($viewContext['entity_presentation_settings']['single_show_categories']);
         $viewContext['show_entity_tags'] = $hasEntityTags
@@ -2939,12 +2964,7 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
         ], $templateContext));
 
         $pageContext['entity_render_family'] = cmsCanonicalEntityRenderFamily($entityRenderContext);
-        $pageContext['entity_presentation'] = cmsCanonicalEntityPresentationConfig(
-            is_array($pageContext['entity_presentation_settings'] ?? null)
-                ? $pageContext['entity_presentation_settings']
-                : (is_array($pageContext['theme_settings'] ?? null) ? $pageContext['theme_settings'] : []),
-            $entityRenderContext
-        );
+        cmsPublicCanonicalApplyEntityPresentation($pageContext, $defaultType, $entityRenderContext);
 
         $normalizedItems = [];
         foreach ($items as $item) {

@@ -1027,6 +1027,12 @@ function cmsShouldRenderCustomizerPresentationCss(string $section, array $settin
 
     $current = cmsValidateCustomizerSectionSettings($section, $settings, $scope);
     $themeDefaults = cmsThemeManifestCustomizerDefaults($section, $manifest, $scope);
+    if ($section === 'entity_presentation') {
+        // by_type is resolved only by canonical entity list/detail handlers. It must
+        // not make deferred global/blog/storefront presentation CSS appear changed.
+        $current = cmsEntityPresentationResolveForType($current, '');
+        $themeDefaults = cmsEntityPresentationResolveForType($themeDefaults, '');
+    }
     return !cmsCustomizerSettingsEqual($current, $themeDefaults);
 }
 
@@ -1767,6 +1773,7 @@ function cmsEntityPresentationSettingsDefaults(): array
         'single_show_categories' => '1',
         'single_show_tags' => '1',
         'single_show_nav' => '1',
+        'by_type' => [],
     ];
 }
 
@@ -1904,7 +1911,61 @@ function cmsValidateEntityPresentationSettings(array $input, ?array $defaults = 
         $validated['blog_readmore_text'] = $defaults['blog_readmore_text'];
     }
 
+    $validated['by_type'] = [];
+    $byType = is_array($input['by_type'] ?? null) ? array_slice($input['by_type'], 0, 64, true) : [];
+    $globalDefaults = $defaults;
+    unset($globalDefaults['by_type']);
+    $knownKeys = array_fill_keys(array_keys($globalDefaults), true);
+    foreach ($byType as $entityType => $overrides) {
+        $entityType = (string)$entityType;
+        if (
+            strlen($entityType) > 64
+            || preg_match('/^[a-z0-9-]+$/D', $entityType) !== 1
+            || !is_array($overrides)
+        ) {
+            continue;
+        }
+
+        // Keep an override sparse while reusing the global validator for every value.
+        // A sparse map is what lets unspecified keys continue to inherit the global level.
+        $recognized = array_intersect_key($overrides, $knownKeys);
+        if ($recognized === []) {
+            continue;
+        }
+        $entry = cmsValidateEntityPresentationSettings($recognized, $globalDefaults);
+        $entry = array_intersect_key($entry, $recognized);
+        unset($entry['by_type']);
+        if ($entry !== []) {
+            $validated['by_type'][$entityType] = $entry;
+        }
+    }
+
     return $validated;
+}
+
+/**
+ * Resolve entity presentation settings for one canonical content type.
+ * The by_type map is storage metadata and is never exposed as a presentation setting.
+ */
+function cmsEntityPresentationResolveForType(array $settings, string $entityType): array
+{
+    $byType = is_array($settings['by_type'] ?? null) ? $settings['by_type'] : [];
+    unset($settings['by_type']);
+
+    $entityType = trim($entityType);
+    if (
+        $entityType === ''
+        || strlen($entityType) > 64
+        || preg_match('/^[a-z0-9-]+$/D', $entityType) !== 1
+        || !isset($byType[$entityType])
+        || !is_array($byType[$entityType])
+    ) {
+        return $settings;
+    }
+
+    $overrides = $byType[$entityType];
+    unset($overrides['by_type']);
+    return array_replace($settings, $overrides);
 }
 
 /**
@@ -2513,6 +2574,8 @@ function cmsEntityPresentationConfig(array $themeSettings): array
 function cmsCanonicalEntityPresentationConfig(array $themeSettings, array $context = []): array
 {
     $presentationSettings = cmsValidateEntityPresentationSettings($themeSettings);
+    $entityType = trim((string)($context['content_type'] ?? $context['entity_type'] ?? ''));
+    $presentationSettings = cmsEntityPresentationResolveForType($presentationSettings, $entityType);
     if (function_exists('cmsCanonicalEntityRenderFamily') && cmsCanonicalEntityRenderFamily($context) === 'content') {
         $presentationSettings['entity_layout_profile'] = 'content';
     }

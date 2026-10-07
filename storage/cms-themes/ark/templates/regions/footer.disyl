@@ -1,31 +1,43 @@
 {# ARK Region Template: Footer #}
 {# Receives from ThemeRenderContext: settings.footer.*, tokens, site, navigation #}
-{# NOTE: DiSyL does NOT parse expressions inside <style> tags. Use inline styles. #}
+{# NOTE: DiSyL does NOT parse expressions inside <style> tags. Dynamic values are CSS variables. #}
 {set footer_link = section_settings.footer_link_color|default:'#94a3b8'}
 {set footer_link_hover = section_settings.footer_link_hover_color|default:'#ffffff'}
 {set footer_text = section_settings.footer_text_color|default:'#cbd5e1'}
-<div class="ark-customized-region ark-region-footer"
+{set footer_title = section_settings.footer_title_color|default:'#f1f5f9'}
+{set footer_columns = section_settings.columns|default:'3'}
+{set footer_container = section_settings.container_width|default:'contained'}
+{set footer_inner_width = section_settings.inner_width|default:'0'}
+{set widget_container = section_settings.widget_container_width|default:'contained'}
+{set widget_inner_mode = section_settings.widget_inner_width_mode|default:'inherit'}
+{set widget_custom_width = section_settings.widget_inner_custom_width|default:'1200'}
+{set copyright = section_settings.copyright_text|default:'© {current_year} {site_title}. All rights reserved.'|replace:'{current_year}':current_year|replace:'{site_title}':site.title}
+
+<div class="ark-customized-region ark-region-footer ark-region-footer--{footer_container} ark-region-footer--columns-{footer_columns}"
      data-region="footer"
      data-theme="{theme}"
+     data-inner-width="{footer_inner_width}"
+     data-widget-container-width="{widget_container}"
      style="background:{section_settings.footer_bg_color|default:'#1e293b'};color:{footer_text};
             padding:{section_settings.padding_top|default:'40'}px 0 {section_settings.padding_bottom|default:'40'}px;
             margin-top:3rem;
-            --footer-link-hover:{footer_link_hover};--footer-link:{footer_link};">
-    <style>
-        .ark-region-footer a { color: var(--footer-link); }
-        .ark-region-footer a:hover { color: var(--footer-link-hover); }
-    </style>
-    <div class="ark-region-footer__inner">
+            {if footer_container == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
+            --footer-link-hover:{footer_link_hover};--footer-link:{footer_link};
+            --footer-title:{footer_title};--footer-columns:{footer_columns};
+            --footer-widget-custom-width:{widget_custom_width}px;">
+    <div class="ark-region-footer__inner ark-region-footer__inner--{widget_container} ark-region-footer__inner-mode--{widget_inner_mode}"
+         style="{if widget_container == 'full'}max-width:none;{elseif widget_container == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'full'}max-width:none;{elseif widget_inner_mode == 'custom'}max-width:var(--footer-widget-custom-width);{elseif footer_inner_width == 'full-width'}max-width:none;{elseif footer_inner_width == 'contained'}max-width:var(--ark-max-width,1280px);{elseif footer_inner_width != '0'}max-width:{footer_inner_width}px;{/if}">
         {if navigation.footer}
-        <nav class="ark-region-footer__nav">{navigation.footer|raw}</nav>
+        <nav class="ark-region-footer__nav" aria-label="Footer navigation">{navigation.footer|raw}</nav>
         {/if}
-        {# The footer bar below already carries the copyright and the admin link,
-           so the body only repeats them when the bar is switched off. Emitting
-           both unconditionally printed each of them twice. #}
-        {if section_settings.show_footer_bar|default:'1' == '0'}
-        <div class="ark-region-footer__copy" style="color:{footer_text};">
-            &copy; {current_year|default:'2026'} {site.title|default:''}. All rights reserved.
+        {if widgets_html}
+        <div class="ark-region-footer__widgets" style="display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+            {widgets_html|raw}
         </div>
+        {/if}
+        {# The footer bar carries the copyright and admin link when enabled. #}
+        {if section_settings.show_footer_bar|default:'1' == '0'}
+        <div class="ark-region-footer__copy" style="color:{footer_text};">{copyright}</div>
         {if section_settings.show_admin_link|default:'1'}
         <div class="ark-region-footer__admin"><a href="/cms/admin">Admin</a></div>
         {/if}
@@ -34,27 +46,18 @@
 </div>
 {if section_settings.show_footer_bar|default:'1'}
 {set bar_bg = section_settings.bar_bg_color|default:'#0f172a'}
-{# Default bar text must clear the contrast floor this theme declares in its own
-   manifest (accessibility.contrast_ratio = "4.5:1"). The previous default,
-   #64748b (secondary-500), measures only 3.75:1 on the #0f172a bar — the theme
-   was failing the contract it publishes. #94a3b8 (secondary-400, the same value
-   as the theme's text_muted token) measures 6.96:1. This fallback mirrors the
-   control default in customizer.schema.json; that declaration is what normally
-   supplies the value, so keep the two in step. #}
+{# #94a3b8 on #0f172a measures 6.96:1. Keep these fallbacks aligned with the schema. #}
 {set bar_text = section_settings.bar_text_color|default:'#94a3b8'}
 {set bar_link = section_settings.bar_link_color|default:'#94a3b8'}
 {set bar_link_hover = section_settings.bar_link_hover_color|default:'#ffffff'}
-<div class="ark-customized-region ark-region-footer-bar"
+<div class="ark-customized-region ark-region-footer-bar ark-region-footer-bar--{footer_container}"
      data-region="footer-bar"
      data-theme="{theme}"
      style="background:{bar_bg};color:{bar_text};padding:1rem 0;font-size:0.875rem;
+            {if footer_container == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
             --footer-bar-link:{bar_link};--footer-bar-link-hover:{bar_link_hover};">
-    <style>
-        .ark-region-footer-bar a { color: var(--footer-bar-link); }
-        .ark-region-footer-bar a:hover { color: var(--footer-bar-link-hover); }
-    </style>
-    <div class="ark-region-footer-bar__inner">
-        <span>&copy; {current_year|default:'2026'} {site.title|default:''}. All rights reserved.</span>
+    <div class="ark-region-footer-bar__inner" style="{if footer_inner_width == 'full-width'}max-width:none;{elseif footer_inner_width == 'contained'}max-width:var(--ark-max-width,1280px);{elseif footer_inner_width != '0'}max-width:{footer_inner_width}px;{/if}">
+        <span>{copyright}</span>
         {if section_settings.show_admin_link|default:'1'}<a href="/cms/admin">Admin</a>{/if}
     </div>
 </div>

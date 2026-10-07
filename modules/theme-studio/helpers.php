@@ -31,6 +31,8 @@ function theme_studio_capability_handlers(): array
         'theme.presets@1'   => 'theme_studio_cap_guard_noop',
         'theme.elements@1'  => 'theme_studio_cap_guard_noop',
         'theme.token.apply@1' => 'theme_studio_cap_apply_tokens_1',
+        'theme.presets.list@1' => 'theme_studio_cap_presets_list_1',
+        'theme.preset.apply@1' => 'theme_studio_cap_preset_apply_1',
     ];
 }
 
@@ -78,6 +80,92 @@ function theme_studio_cap_apply_tokens_1(mixed $payload, string $capId = '', str
         'preset_tokens' => $presetTokens,
         'preset_slug' => $activePreset,
     ];
+}
+
+/**
+ * Return the Theme Studio preset catalogue without exposing its storage.
+ */
+function theme_studio_cap_presets_list_1(mixed $payload = null, string $capId = '', string $providerId = ''): array
+{
+    $activeSlug = trim((string)(getModuleSettings('theme-studio')['active_preset'] ?? ''));
+    $items = [];
+
+    foreach (themeStudioPresets() as $slug => $preset) {
+        $items[] = [
+            'slug' => (string)$slug,
+            'label' => (string)($preset['label'] ?? $slug),
+            'description' => (string)($preset['description'] ?? ''),
+            'source' => (string)($preset['source'] ?? 'custom'),
+            'active' => hash_equals($activeSlug, (string)$slug),
+        ];
+    }
+
+    return ['ok' => true, 'presets' => $items, 'active_slug' => $activeSlug];
+}
+
+/**
+ * Validate and apply a catalogue preset through the existing Theme Studio action.
+ */
+function theme_studio_cap_preset_apply_1(mixed $payload, string $capId = '', string $providerId = ''): array
+{
+    if (!is_array($payload) || !is_string($payload['slug'] ?? null)) {
+        return ['ok' => false, 'error' => 'A preset slug is required', 'code' => 'invalid_slug'];
+    }
+
+    $slug = trim($payload['slug']);
+    $presets = themeStudioPresets();
+    if ($slug === '' || !array_key_exists($slug, $presets)) {
+        return ['ok' => false, 'error' => 'Unknown theme preset', 'code' => 'unknown_preset'];
+    }
+
+    if (!themeStudioApplyPreset($slug)) {
+        return ['ok' => false, 'error' => 'Theme preset could not be applied', 'code' => 'apply_failed'];
+    }
+
+    return [
+        'ok' => true,
+        'active_slug' => $slug,
+        // The CMS owns cms_theme_customizer, so Theme Studio resolves the
+        // covered tokens and returns them for the CMS caller to persist.
+        'customizer' => themeStudioPresetCustomizerPayload($slug),
+    ];
+}
+
+/**
+ * Map the CMS-customizer settings a preset's covered tokens produce.
+ * Storage stays with the CMS; this only translates Theme Studio's catalogue.
+ *
+ * @return array{colors?: array<string,string>, theme?: array<string,string>}
+ */
+function themeStudioPresetCustomizerPayload(string $slug): array
+{
+    $presets = themeStudioPresets();
+    $tokens = is_array($presets[$slug]['data']['tokens'] ?? null) ? $presets[$slug]['data']['tokens'] : [];
+    $map = themeStudioTokenToCustomizerMap();
+    $covered = themeStudioCustomizerCoveredTokens();
+    $payload = ['colors' => [], 'theme' => []];
+
+    foreach ($covered as $tokenKey) {
+        if (!isset($tokens[$tokenKey]) || !isset($map[$tokenKey])) {
+            continue;
+        }
+        foreach ($map[$tokenKey] as $settingKey) {
+            if ($settingKey === 'site_max_width' || $settingKey === 'content_max_width') {
+                $payload['theme'][$settingKey] = (string)$tokens[$tokenKey];
+            } else {
+                $payload['colors'][$settingKey] = (string)$tokens[$tokenKey];
+            }
+        }
+    }
+
+    if ($payload['colors'] === []) {
+        unset($payload['colors']);
+    }
+    if ($payload['theme'] === []) {
+        unset($payload['theme']);
+    }
+
+    return $payload;
 }
 
 // ── Preset Management ────────────────────────────────────────────

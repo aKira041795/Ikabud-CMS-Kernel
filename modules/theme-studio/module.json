@@ -127,10 +127,40 @@
                     "first"
                 ],
                 "description": "Apply token overrides to theme rendering at runtime"
+            },
+            {
+                "id": "theme.presets.list@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "List Theme Studio presets and identify the active preset"
+            },
+            {
+                "id": "theme.preset.apply@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Validate and apply a Theme Studio preset"
             }
         ],
         "depends": [
             "cms.content.get@1"
-        ]
+        ],
+        "policy": {
+            "capabilities": {
+                "theme.presets.list@1": {
+                    "allow_callers": [
+                        "cms"
+                    ]
+                },
+                "theme.preset.apply@1": {
+                    "allow_callers": [
+                        "cms"
+                    ]
+                }
+            }
+        }
     }
 }

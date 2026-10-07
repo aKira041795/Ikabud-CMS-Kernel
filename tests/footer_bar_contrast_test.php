@@ -113,5 +113,66 @@ footerContrastAssert(
     number_format($seedRatio, 2) . ':1'
 );
 
+// Every colour surface introduced by the governed ARK regions must meet the theme's 4.5:1 floor.
+$headerDefaults = array_map(
+    static fn(array $control): mixed => $control['default'] ?? null,
+    $schema['sections']['header']['controls']
+);
+$footerDefaults = array_map(
+    static fn(array $control): mixed => $control['default'] ?? null,
+    $schema['sections']['footer']['controls']
+);
+$sidebarDefaults = array_map(
+    static fn(array $control): mixed => $control['default'] ?? null,
+    $schema['sections']['sidebar']['controls']
+);
+$regionPairs = [
+    'top bar text' => [$headerDefaults['topbar_text_color'], $headerDefaults['topbar_bg_color']],
+    'top bar link' => [$headerDefaults['topbar_link_color'], $headerDefaults['topbar_bg_color']],
+    'top bar link hover' => [$headerDefaults['topbar_link_hover_color'], $headerDefaults['topbar_bg_color']],
+    'dropdown text' => [$headerDefaults['dropdown_text_color'], $headerDefaults['dropdown_bg_color']],
+    'dropdown hover text' => [$headerDefaults['dropdown_hover_text_color'], $headerDefaults['dropdown_hover_bg_color']],
+    'mobile panel text' => [$headerDefaults['mobile_text_color'], $headerDefaults['mobile_bg_color']],
+    'mobile hover text' => [$headerDefaults['mobile_text_color'], $headerDefaults['mobile_hover_bg_color']],
+    'mobile active text' => [$headerDefaults['mobile_text_color'], $headerDefaults['mobile_active_bg_color']],
+    // Transparent mode uses this dark scrim in header.disyl so white text has a known surface.
+    'transparent header text' => [$headerDefaults['transparent_text_color'], '#0f172a'],
+    'transparent logo text' => [$headerDefaults['transparent_logo_color'], '#0f172a'],
+    'footer title' => [$footerDefaults['footer_title_color'], $footerDefaults['footer_bg_color']],
+    'sidebar link' => [$sidebarDefaults['widget_link_color'], $sidebarDefaults['widget_bg_color']],
+    'sidebar link hover' => [$sidebarDefaults['widget_link_hover_color'], $sidebarDefaults['widget_bg_color']],
+];
+foreach ($regionPairs as $label => [$foreground, $background]) {
+    $pairRatio = footerContrastRatio((string)$foreground, (string)$background);
+    footerContrastAssert(
+        $pairRatio >= 4.5,
+        "ARK {$label} defaults clear the WCAG AA 4.5:1 floor",
+        number_format($pairRatio, 2) . ':1'
+    );
+}
+
+// Region-template fallbacks are the final styling layer when settings are absent. Keep them in
+// lockstep with customizer.schema.json rather than allowing a second, divergent default palette.
+$headerRegion = (string)file_get_contents($themeDir . '/templates/regions/header.disyl');
+$regionFallbackKeys = [
+    'topbar_bg_color', 'topbar_text_color', 'topbar_link_color', 'topbar_link_hover_color',
+    'dropdown_bg_color', 'dropdown_text_color', 'dropdown_hover_bg_color', 'dropdown_hover_text_color',
+    'mobile_bg_color', 'mobile_text_color', 'mobile_hover_bg_color', 'mobile_active_bg_color',
+    'transparent_text_color', 'transparent_logo_color',
+];
+foreach ($regionFallbackKeys as $key) {
+    $expected = (string)$headerDefaults[$key];
+    footerContrastAssert(
+        str_contains($headerRegion, "section_settings.{$key}|default:'{$expected}'"),
+        "ARK header fallback for {$key} matches its schema default",
+        $expected
+    );
+}
+footerContrastAssert(
+    str_contains($region, "section_settings.footer_title_color|default:'{$footerDefaults['footer_title_color']}'"),
+    'ARK footer title fallback matches its schema default',
+    (string)$footerDefaults['footer_title_color']
+);
+
 echo "\n{$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);

@@ -11,17 +11,30 @@
 {set widget_title_c = section_settings.widget_title_color|default:'#0f172a'}
 {set widget_border = section_settings.widget_border_color|default:'#e2e8f0'}
 {set widget_link = section_settings.widget_link_color|default:'#2563eb'}
+{set widget_link_hover = section_settings.widget_link_hover_color|default:'#1d4ed8'}
 {set widget_radius = section_settings.widget_radius|default:'10'}
 {set widget_padding = section_settings.widget_padding|default:'16'}
 {if section_settings.enabled|default:'0'}
 <aside class="ark-region-sidebar"
      data-region="sidebar"
      data-theme="{theme}"
+     data-sidebar-scope-mode="{section_settings.scope_mode|default:'general'}"
+     data-sidebar-template-scope="{section_settings.template_scope|default:'home'}"
+     data-sidebar-template-rules="{section_settings.template_rules|json}"
+     data-sidebar-link-hover="{section_settings.widget_link_hover_color|default:'#1d4ed8'}"
      style="width:{sidebar_width}px;flex-shrink:0;
             margin-{if position == 'left'}right{else}left{/if}:{visible_gap}px;
-            {if sticky_enabled == '1'}position:sticky;top:1.5rem;{/if}">
-     {# This template is the canonical ARK fallback surface when no richer
-         widget composition is available for the current sidebar scope. #}
+            {if sticky_enabled == '1'}position:sticky;top:1.5rem;{/if}
+            --sidebar-widget-bg:{widget_bg};
+            --sidebar-widget-text:{widget_text};
+            --sidebar-widget-title:{widget_title_c};
+            --sidebar-widget-border:{widget_border};
+            --sidebar-widget-link:{widget_link};
+            --sidebar-widget-radius:{widget_radius}px;
+            --sidebar-widget-padding:{widget_padding}px;">
+     {# Persisted sidebar widgets are pre-rendered by the CMS's own widget
+         renderers and exposed as widgets_html. No widgets means no empty shell. #}
+    {if widgets_html}
     <div class="ark-region-sidebar__widget"
          style="background:{widget_bg};
                 border:1px solid {widget_border};
@@ -29,10 +42,10 @@
                 padding:{widget_padding}px;
                 color:{widget_text};
                 --sidebar-link:{widget_link};
+                --sidebar-link-hover:{widget_link_hover};
                 --sidebar-title:{widget_title_c};">
-        <p style="margin:0;font-size:0.8rem;opacity:0.6;text-align:center;">
-            Configure sidebar widgets in Appearance → Customize
-        </p>
+        {widgets_html|raw}
     </div>
+    {/if}
 </aside>
 {/if}

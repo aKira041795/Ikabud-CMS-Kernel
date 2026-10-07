@@ -122,6 +122,7 @@ return [
         '/api/v1/cms/saved-blocks'        => 'cms:cmsApiSavedBlockList',
 
         // ── Theme Customizer API (GET) ──────────────────────────
+        '/api/v1/cms/customizer/presets' => 'cms:cmsApiThemePresets',
         '/api/v1/cms/customizer/footer/preview' => 'cms:cmsApiCustomizerFooterPreview',
         '/api/v1/cms/customizer/{scope}/{section}' => 'cms:cmsApiCustomizerGet',
         '/api/v1/cms/customizer/{section}' => 'cms:cmsApiCustomizerGet',
@@ -213,6 +214,7 @@ return [
         '/api/v1/cms/saved-blocks/{id}/delete' => 'cms:cmsApiSavedBlockDelete',
 
         // ── Theme Customizer API ─────────────────────────────────
+        '/api/v1/cms/customizer/presets/apply' => 'cms:cmsApiThemePresetApply',
         '/api/v1/cms/customizer/{scope}/{section}' => 'cms:cmsApiCustomizerSave',
         '/api/v1/cms/customizer/{section}'     => 'cms:cmsApiCustomizerSave',
 

@@ -175,6 +175,99 @@ function cmsAdminCustomizer(array $params = []): void
 }
 
 /**
+ * GET API: List Theme Studio presets through its capability boundary.
+ */
+function cmsApiThemePresets(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('customizer.manage');
+
+    try {
+        $result = app()->cap()->call('theme.presets.list@1', [], [
+            'caller' => ['module' => 'cms', 'user' => $user],
+            'caller_module' => 'cms',
+            'caller_user' => $user,
+            'mode' => 'first',
+        ]);
+        echo json_encode($result);
+    } catch (Throwable $e) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'Theme presets are unavailable']);
+    }
+    exit;
+}
+
+/**
+ * POST API: Apply a Theme Studio preset, then re-read CMS-owned customizer state.
+ */
+function cmsApiThemePresetApply(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('customizer.manage');
+    app()->csrfEnforce();
+
+    $input = cmsInput();
+    $slug = $input['slug'] ?? null;
+    if (!is_string($slug) || trim($slug) === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'A preset slug is required']);
+        exit;
+    }
+
+    try {
+        $result = app()->cap()->call('theme.preset.apply@1', ['slug' => $slug], [
+            'caller' => ['module' => 'cms', 'user' => $user],
+            'caller_module' => 'cms',
+            'caller_user' => $user,
+            'mode' => 'first',
+        ]);
+    } catch (Throwable $e) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'Theme presets are unavailable']);
+        exit;
+    }
+
+    if (empty($result['ok'])) {
+        http_response_code(($result['code'] ?? '') === 'unknown_preset' ? 404 : 422);
+        echo json_encode($result);
+        exit;
+    }
+
+    // Theme Studio owns the preset catalogue and resolves the covered tokens;
+    // the CMS owns cms_theme_customizer and persists them here. This keeps the
+    // module boundary: theme-studio never writes a table it does not own.
+    $scope = cmsActiveCustomizerScope();
+    $db = cmsDb();
+    $presetPayload = is_array($result['customizer'] ?? null) ? $result['customizer'] : [];
+    if (!empty($presetPayload['colors'])) {
+        $colors = cmsCustomizerGet($db, 'colors', $scope);
+        $mergedColors = array_merge($colors['settings'] ?? [], $presetPayload['colors']);
+        cmsUpsertCustomizerSection($db, 'colors', $mergedColors, $colors['widgets'] ?? [], null, $scope);
+    }
+    if (!empty($presetPayload['theme'])) {
+        $theme = cmsCustomizerGet($db, 'theme', $scope);
+        $mergedTheme = array_merge($theme['settings'] ?? [], $presetPayload['theme']);
+        cmsUpsertCustomizerSection($db, 'theme', $mergedTheme, $theme['widgets'] ?? [], null, $scope);
+    }
+
+    $colors = cmsCustomizerGet($db, 'colors', $scope);
+    $theme = cmsCustomizerGet($db, 'theme', $scope);
+    adminViewCacheInvalidate(['cms:admin']);
+    cmsCacheFlushAll();
+    if (function_exists('pageCacheInvalidateModule')) {
+        pageCacheInvalidateModule('cms');
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'active_slug' => (string)($result['active_slug'] ?? trim($slug)),
+        'colors' => $colors['settings'] ?? [],
+        'theme' => $theme['settings'] ?? [],
+    ]);
+    exit;
+}
+
+/**
  * GET API: Retrieve customizer section data
  */
 

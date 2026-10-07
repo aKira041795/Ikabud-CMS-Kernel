@@ -28,6 +28,7 @@ final class ThemeRenderContext
      * @param array<string, array<array{href: string, label: string, children?: array}>> $navigation Navigation trees per location
      * @param array{entity?: array, route?: array, origin?: string, kind?: string} $entityContext Current entity context
      * @param array<string, array{href: string, label: string, html: string}> $slotContributions Pre-resolved slot contributions
+     * @param array<string, array<int, array<string, mixed>>> $widgets Persisted customizer widgets per section
      */
     public function __construct(
         public readonly string $theme,
@@ -38,6 +39,7 @@ final class ThemeRenderContext
         public readonly array $navigation,
         public readonly array $entityContext,
         public readonly array $slotContributions,
+        public readonly array $widgets = [],
     ) {}
 
     /**
@@ -46,6 +48,16 @@ final class ThemeRenderContext
     public function settingsFor(string $section, mixed $default = null): array
     {
         return (array)($this->settings[$section] ?? $default ?? []);
+    }
+
+    /**
+     * Get the persisted widgets configured for a specific region.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function widgetsFor(string $section): array
+    {
+        return (array)($this->widgets[$section] ?? []);
     }
 
     /**
