@@ -96,7 +96,12 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
     private function doRenderList(array $rows, array $view, array $attrs, array $context = []): string
     {
-        $this->renderContext = array_merge($attrs, $context, ['_view' => $view]);
+        [$presentation, $presentationType] = $this->resolveEntityPresentation($context, (string)($attrs['source'] ?? ''));
+        $this->renderContext = array_merge($attrs, $context, [
+            '_view' => $view,
+            '_entity_presentation' => $presentation,
+            '_entity_presentation_type' => $presentationType,
+        ]);
         $this->beforeRenderList($attrs, $context);
 
         $use = (string)($attrs['use'] ?? 'tailwind');
@@ -235,8 +240,15 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         }
 
         $wrapperClass = $this->style('wrapper', $viewMode, $use);
+        $density = (string)($presentation['entity_list_card_density'] ?? '');
+        if (in_array($density, ['compact', 'comfortable', 'airy'], true)) {
+            $wrapperClass .= ' ikb-entity-list--density-' . $density;
+        }
         $entityClass = $this->entitySourceClass($source);
         $entityDataAttr = 'data-ikb-entity="' . htmlspecialchars($this->entityTypeFromSource($source), ENT_QUOTES, 'UTF-8') . '"';
+        $presentationDataAttr = $presentationType !== ''
+            ? ' data-ikb-presentation-type="' . htmlspecialchars($presentationType, ENT_QUOTES, 'UTF-8') . '"'
+            : '';
         $sourceDataAttr = 'data-ikb-source="' . htmlspecialchars(str_replace('.', '-', $source), ENT_QUOTES, 'UTF-8') . '"';
         $viewDataAttr = 'data-ikb-view="' . htmlspecialchars($viewMode, ENT_QUOTES, 'UTF-8') . '"';
         $listDataAttr = $listId !== '' ? ' data-ikb-list="' . htmlspecialchars($listId, ENT_QUOTES, 'UTF-8') . '"' : '';
@@ -247,14 +259,19 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             $tableHeader = $this->renderTableHeader($fields, $actions, $use, $hasBulk, $sortable, $sortableFields, $queryState, $listId);
             $bulkCol = $hasBulk ? '<colgroup><col style="width:40px"></colgroup>' : '';
             $alpine = $search ? ' x-data="{ q:\'\' }"' : '';
-            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $alpine . '>'
+            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . $presentationDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $alpine . '>'
                 . $searchHtml . $bulkHtml
                 . '<table class="' . ($use === 'workbench' ? 'wb-table wb-table--sticky' : 'w-full text-sm') . '">' . $bulkCol . $tableHeader . '<tbody>' . $out . '</tbody></table>'
                 . ($paginated ? $this->renderPagination($total, $queryState) : '')
                 . '</div>';
         } else {
-            $styleAttr = isset($attrs['style']) ? ' style="' . htmlspecialchars((string)$attrs['style'], ENT_QUOTES, 'UTF-8') . '"' : '';
-            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $styleAttr . '>'
+            $inlineStyle = trim((string)($attrs['style'] ?? ''));
+            $presentationStyle = $this->entityPresentationListStyle($presentation);
+            if ($presentationStyle !== '') {
+                $inlineStyle = rtrim($inlineStyle, ';') . ($inlineStyle !== '' ? ';' : '') . $presentationStyle;
+            }
+            $styleAttr = $inlineStyle !== '' ? ' style="' . htmlspecialchars($inlineStyle, ENT_QUOTES, 'UTF-8') . '"' : '';
+            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . $presentationDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $styleAttr . '>'
                 . $searchHtml . $out . '</div>';
         }
 
@@ -291,7 +308,12 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
     public function renderDetail(array $entity, array $view, array $attrs, array $context = []): string
     {
+        [$presentation, $presentationType] = $this->resolveEntityPresentation($context, (string)($attrs['source'] ?? ''));
         $class = (string)($attrs['class'] ?? '');
+        $profile = (string)($presentation['entity_layout_profile'] ?? '');
+        if (in_array($profile, ['content', 'commerce', 'service'], true)) {
+            $class .= ' ikb-entity-detail--profile-' . $profile;
+        }
         $rawFields = $attrs['fields'] ?? ($view['fields'] ?? '*');
         $fields = is_array($rawFields) ? $rawFields : array_map('trim', explode(',', (string)$rawFields));
         if ($fields === ['*'] || $fields === '*') {
@@ -321,8 +343,13 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         }
 
         $entityClass = $this->entitySourceClass($attrs['source'] ?? '');
+        $presentationAttr = $presentationType !== ''
+            ? ' data-ikb-presentation-type="' . htmlspecialchars($presentationType, ENT_QUOTES, 'UTF-8') . '"'
+            : '';
+        $detailStyle = $this->entityPresentationDetailStyle($presentation);
+        $styleAttr = $detailStyle !== '' ? ' style="' . htmlspecialchars($detailStyle, ENT_QUOTES, 'UTF-8') . '"' : '';
         return <<<HTML
-        <div class="ikb-entity-detail divide-y divide-gray-100 px-4 py-2 {$entityClass} {$class}">
+        <div class="ikb-entity-detail divide-y divide-gray-100 px-4 py-2 {$entityClass} {$class}"{$presentationAttr}{$styleAttr}>
             {$rows}
         </div>
         HTML;
@@ -517,7 +544,11 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $title = htmlspecialchars((string)($ctx->row[$titleField] ?? ''), ENT_QUOTES, 'UTF-8');
         $subRaw = $subField ? (string)($ctx->row[$subField] ?? '') : '';
         $viewContract = is_array($this->renderContext['_view'] ?? null) ? $this->renderContext['_view'] : [];
-        $excerptLength = (int)($this->renderContext['excerptLength'] ?? $this->renderContext['excerpt-length'] ?? $this->renderContext['excerpt_length'] ?? $viewContract['excerpt_length'] ?? 0);
+        $presentation = is_array($this->renderContext['_entity_presentation'] ?? null) ? $this->renderContext['_entity_presentation'] : [];
+        if (array_key_exists('entity_list_show_excerpt', $presentation) && empty($presentation['entity_list_show_excerpt'])) {
+            $subRaw = '';
+        }
+        $excerptLength = (int)($this->renderContext['excerptLength'] ?? $this->renderContext['excerpt-length'] ?? $this->renderContext['excerpt_length'] ?? $presentation['entity_list_excerpt_length'] ?? $viewContract['excerpt_length'] ?? 0);
         if ($excerptLength > 0 && $subRaw !== '') {
             $subRaw = mb_strlen($subRaw) > $excerptLength ? mb_substr($subRaw, 0, max(0, $excerptLength - 1)) . '...' : $subRaw;
         }
@@ -530,7 +561,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         }
 
         $actionHtml = $this->renderRowActions($ctx);
-        $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
+        $subHtml = $sub !== '' ? "<p class=\"{$subClass} ikb-entity-card__excerpt\">{$sub}</p>" : '';
         $detailHtml = '';
         foreach ($ctx->fields as $field) {
             if ($field === $titleField || $field === $subField || $field === $imageField || $field === 'id') {
@@ -549,8 +580,8 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         return <<<HTML
         <div class="{$cardClass}{$clickAttrs['class']}"{$clickAttrs['attrs']}>
             {$imageHtml}
-            <div class="p-4">
-                <h3 class="{$titleClass}">{$title}</h3>
+            <div class="p-4 ikb-entity-card__body">
+                <h3 class="{$titleClass} ikb-entity-card__title">{$title}</h3>
                 {$subHtml}
                 {$detailHtml}
                 <div class="mt-3 flex gap-2">{$actionHtml}</div>
@@ -1081,6 +1112,105 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     }
 
     // ── Private helpers ────────────────────────────────────────────
+
+    /**
+     * Resolve canonical presentation settings without coupling the kernel to CMS helpers.
+     * Explicit context type hints win; source-derived aliases cover namespaced sources such
+     * as cms.post and cms.post.recent while preserving the sparse by_type contract.
+     *
+     * @return array{0: array<string, mixed>, 1: string}
+     */
+    private function resolveEntityPresentation(array $context, string $source): array
+    {
+        $settings = is_array($context['entity_presentation_settings'] ?? null)
+            ? $context['entity_presentation_settings']
+            : [];
+        if ($settings === []) {
+            return [[], ''];
+        }
+
+        $byType = is_array($settings['by_type'] ?? null) ? $settings['by_type'] : [];
+        unset($settings['by_type']);
+
+        $candidates = [];
+        foreach ([
+            $context['entity_view_context']['content_type'] ?? null,
+            $context['entity_view_context']['entity_type'] ?? null,
+            $context['content_type'] ?? null,
+            $context['entity_type'] ?? null,
+        ] as $candidate) {
+            if (is_scalar($candidate) && trim((string)$candidate) !== '') {
+                $candidates[] = trim((string)$candidate);
+            }
+        }
+
+        $parts = array_values(array_filter(explode('.', trim($source)), static fn(string $part): bool => $part !== ''));
+        if (count($parts) >= 2 && in_array($parts[0], ['cms', 'ecommerce'], true)) {
+            $candidates[] = $parts[1];
+        }
+        [$sourceType] = $this->parseSourceParts($source);
+        if ($sourceType !== '') {
+            $candidates[] = $sourceType;
+            $underscored = explode('_', $sourceType);
+            if (count($underscored) > 1) {
+                $candidates[] = (string)end($underscored);
+            }
+        }
+
+        foreach (array_values(array_unique($candidates)) as $candidate) {
+            if (isset($byType[$candidate]) && is_array($byType[$candidate])) {
+                return [array_replace($settings, $byType[$candidate]), $candidate];
+            }
+        }
+
+        return [$settings, $candidates[0] ?? $sourceType];
+    }
+
+    /** @param array<string, mixed> $presentation */
+    private function entityPresentationListStyle(array $presentation): string
+    {
+        if ($presentation === []) {
+            return '';
+        }
+
+        $declarations = [];
+        $density = (string)($presentation['entity_list_card_density'] ?? '');
+        $densityValues = [
+            'compact' => ['1rem', '0.875rem', '0.84rem'],
+            'comfortable' => ['1.5rem', '1rem', '0.9rem'],
+            'airy' => ['2rem', '1.25rem', '0.96rem'],
+        ];
+        if (isset($densityValues[$density])) {
+            [$gap, $padding, $excerptSize] = $densityValues[$density];
+            $declarations[] = '--theme-entity-list-gap:' . $gap;
+            $declarations[] = '--theme-entity-list-card-padding:' . $padding;
+            $declarations[] = '--theme-entity-list-excerpt-size:' . $excerptSize;
+        }
+
+        foreach ([
+            'entity_list_card_min_width' => ['--theme-entity-list-card-min-width', 200, 340],
+            'entity_list_title_size' => ['--theme-entity-list-title-size', 16, 32],
+            'entity_list_price_size' => ['--theme-entity-list-price-size', 14, 28],
+        ] as $key => [$property, $min, $max]) {
+            if (isset($presentation[$key]) && is_numeric($presentation[$key])) {
+                $declarations[] = $property . ':' . max($min, min($max, (int)$presentation[$key])) . 'px';
+            }
+        }
+        if (isset($presentation['entity_list_title_lines']) && is_numeric($presentation['entity_list_title_lines'])) {
+            $declarations[] = '--theme-entity-list-title-lines:' . max(1, min(4, (int)$presentation['entity_list_title_lines']));
+        }
+
+        return implode(';', $declarations) . ($declarations !== [] ? ';' : '');
+    }
+
+    /** @param array<string, mixed> $presentation */
+    private function entityPresentationDetailStyle(array $presentation): string
+    {
+        if (!isset($presentation['single_max_width']) || !is_numeric($presentation['single_max_width'])) {
+            return '';
+        }
+        return 'max-width:' . max(480, min(1200, (int)$presentation['single_max_width'])) . 'px;';
+    }
 
     private function registerBuiltinRenderers(): void
     {

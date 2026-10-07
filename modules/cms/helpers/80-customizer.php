@@ -2815,11 +2815,16 @@ function cmsRenderEntityPresentationCss(array $settings): string
         $css .= '.cms-entity-hero img{width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0;}';
     }
     $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:var(--theme-entity-action-pad-y) var(--theme-entity-action-pad-x);font-size:var(--theme-entity-action-font-size);min-height:var(--theme-entity-action-min-height);border-radius:var(--radius-md);}';
-    $css .= '.cms-entity-list__grid{gap:var(--theme-entity-list-gap);grid-template-columns:repeat(auto-fit,minmax(min(100%, var(--theme-entity-list-card-min-width)),1fr));}';
-    $css .= '.cms-entity-card__body{display:flex;flex-direction:column;gap:calc(var(--theme-entity-list-gap) * 0.5);padding:var(--theme-entity-list-card-padding);font-family:var(--theme-entity-list-text-font);}';
-    $css .= '.cms-entity-card__title{margin:0;font-family:var(--theme-entity-list-title-font);font-size:var(--theme-entity-list-title-size);line-height:1.12;letter-spacing:-0.02em;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:var(--theme-entity-list-title-lines);-webkit-box-orient:vertical;overflow:hidden;min-height:calc(1.12em * var(--theme-entity-list-title-lines));}';
-    $css .= '.cms-entity-card__excerpt{margin:0;font-size:var(--theme-entity-list-excerpt-size);font-family:var(--theme-entity-list-text-font);}';
-    $css .= '.cms-entity-card .cms-price-current{font-size:var(--theme-entity-list-price-size);}';
+    $listGridRule = 'gap:var(--theme-entity-list-gap);grid-template-columns:repeat(auto-fit,minmax(min(100%, var(--theme-entity-list-card-min-width)),1fr));';
+    $cardBodyRule = 'display:flex;flex-direction:column;gap:calc(var(--theme-entity-list-gap) * 0.5);padding:var(--theme-entity-list-card-padding);font-family:var(--theme-entity-list-text-font);';
+    $cardTitleRule = 'margin:0;font-family:var(--theme-entity-list-title-font);font-size:var(--theme-entity-list-title-size);line-height:1.12;letter-spacing:-0.02em;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:var(--theme-entity-list-title-lines);-webkit-box-orient:vertical;overflow:hidden;min-height:calc(1.12em * var(--theme-entity-list-title-lines));';
+    $cardExcerptRule = 'margin:0;font-size:var(--theme-entity-list-excerpt-size);font-family:var(--theme-entity-list-text-font);';
+    $cardPriceRule = 'font-size:var(--theme-entity-list-price-size);';
+    $css .= '.cms-entity-list__grid{' . $listGridRule . '}.ikb-entity-list--grid{' . $listGridRule . '}';
+    $css .= '.cms-entity-card__body{' . $cardBodyRule . '}.ikb-entity-card__body{' . $cardBodyRule . '}';
+    $css .= '.cms-entity-card__title{' . $cardTitleRule . '}.ikb-entity-card__title{' . $cardTitleRule . '}';
+    $css .= '.cms-entity-card__excerpt{' . $cardExcerptRule . '}.ikb-entity-card__excerpt{' . $cardExcerptRule . '}';
+    $css .= '.cms-entity-card .cms-price-current{' . $cardPriceRule . '}.ikb-entity-card .cms-price-current{' . $cardPriceRule . '}';
     $css .= '@media(max-width:1024px){.cms-entity-profile-commerce .cms-entity-layout{grid-template-columns:1fr;}.cms-entity-profile-commerce .cms-entity-summary{position:static;}}';
 
     return $css;
