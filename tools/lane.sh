@@ -42,7 +42,7 @@
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
 #   tools/lane.sh ack                          # mark everything reported
 #   tools/lane.sh selftest                     # prove this harness detects its own failures
-#   tools/lane.sh record   <name> <log> <exit> [run-id]   # called by the generated runner
+#   tools/lane.sh record   <name> <log> <exit> [run-id] [acceptance-command]   # generated runner
 #
 # THE PRE-DISPATCH ACCEPTANCE GATE. `run` REFUSES to dispatch unless:
 #   (a) --acceptance="<cmd>" has been run against THIS tree and shown to FAIL, and
@@ -171,13 +171,23 @@ marker_field() {
 # landing previously appeared twice in LANDINGS.log.
 commit_landing() {
   local name="$1" state="$2" reason="$3" log="$4" bytes="$5" mtime="$6" \
-        status="$7" changed="$8" exitCode="${9:-}" runId="${10:-}"
+        status="$7" changed="$8" exitCode="${9:-}" runId="${10:-}" \
+        acceptance="${11:-SKIPPED}" acceptanceExit="${12:-}" acceptanceCmd="${13:-}" \
+        acceptanceLog="${14:-}"
+  local verdict
+  [ -n "$acceptance" ] || acceptance="SKIPPED"
+  case "$acceptance" in
+    PASS) verdict="VERIFIED";;
+    SKIPPED) verdict="EXECUTION_ONLY";;
+    *) verdict="NOT_VERIFIED";;
+  esac
   local lock="$RUNS/$name.commit.lock"
   if ! mkdir "$lock" 2>/dev/null; then
     echo "   (landing already committed by another process - not duplicating)" >&2
     return 1
   fi
-  write_marker "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId"
+  write_marker "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
+    "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog"
 
   # append the machine-readable queue line; every free-text field is JSON-escaped
   local jname jstatus jrunid ec
@@ -185,8 +195,8 @@ commit_landing() {
   jstatus=$(json_escape "$status")
   jrunid=$(json_escape "$runId")
   if [ -n "$exitCode" ] && [ "$exitCode" -eq "$exitCode" ] 2>/dev/null; then ec="$exitCode"; else ec="null"; fi
-  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"run_id":"%s"}\n' \
-    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$jrunid" \
+  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"run_id":"%s","acceptance":"%s","verdict":"%s"}\n' \
+    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$jrunid" "$acceptance" "$verdict" \
     >> "$JOURNAL" 2>/dev/null || true
 
   notify_landing "$name" "$reason" "$state" "${status:-no status line | exit=${exitCode:-?} | files=${changed:-?}}"
@@ -276,12 +286,21 @@ json_escape() {
 
 write_marker() {
   local name="$1" state="$2" reason="$3" log="$4" bytes="$5" mtime="$6" status="$7" changed="$8" exitCode="${9:-}" runId="${10:-}"
+  local acceptance="${11:-SKIPPED}" acceptanceExit="${12:-}" acceptanceCmd="${13:-}" acceptanceLog="${14:-}" verdict
+  [ -n "$acceptance" ] || acceptance="SKIPPED"
+  case "$acceptance" in
+    PASS) verdict="VERIFIED";;
+    SKIPPED) verdict="EXECUTION_ONLY";;
+    *) verdict="NOT_VERIFIED";;
+  esac
   local marker="$RUNS/$name.landed.json"
   local tmp="$marker.tmp"
   # sanitise every free-text field for JSON: no CR/control chars, quotes/backslashes escaped
   name=$(json_escape "$name")
   status=$(json_escape "$status")
   runId=$(json_escape "$runId")
+  acceptanceCmd=$(json_escape "$acceptanceCmd")
+  acceptanceLog=$(json_escape "$acceptanceLog")
   {
     printf '{\n'
     printf '  "name": "%s",\n' "$name"
@@ -300,7 +319,16 @@ write_marker() {
     printf '  "status_line": "%s",\n' "$status"
     printf '  "changed_files": %s,\n' "${changed:-0}"
     printf '  "run_id": "%s",\n' "$runId"
-    printf '  "detected_by": "tools/lane.sh"\n'
+    printf '  "detected_by": "tools/lane.sh",\n'
+    printf '  "acceptance": "%s",\n' "$acceptance"
+    if [ -n "$acceptanceExit" ] && [ "$acceptanceExit" -eq "$acceptanceExit" ] 2>/dev/null; then
+      printf '  "acceptance_exit": %s,\n' "$acceptanceExit"
+    else
+      printf '  "acceptance_exit": null,\n'
+    fi
+    printf '  "acceptance_cmd": "%s",\n' "$acceptanceCmd"
+    printf '  "acceptance_log": "%s",\n' "$acceptanceLog"
+    printf '  "verdict": "%s"\n' "$verdict"
     printf '}\n'
   } > "$tmp"
   mv "$tmp" "$marker"          # atomic: a reader never sees a half-written marker
@@ -485,7 +513,11 @@ cmd_run() {
     # after SIGKILL, which is what --wait-grace exists to cover.)
     printf 'lane_finish() {\n'
     printf '  rc=$?\n'
-    printf '  bash %q record %q %q "$rc" %q\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId"
+    if [ -n "$acceptanceCmd" ]; then
+      printf '  bash %q record %q %q "$rc" %q %q\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId" "$acceptanceCmd"
+    else
+      printf '  bash %q record %q %q "$rc" %q\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId"
+    fi
     printf '  echo "%s=$rc"\n' "$sentinel"
     printf '}\n'
     # EXIT alone is not enough: bash runs an EXIT trap on a signal only if that signal is
@@ -568,7 +600,7 @@ cmd_run() {
     return 3
   fi
 
-  local bytes mtime reason status changed exitCode state marker
+  local bytes mtime reason status changed exitCode state marker acceptance verdict acceptanceLog
   marker="$RUNS/$name.landed.json"
   bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
   mtime=$(date -r "$log" -Iseconds 2>/dev/null || echo "")
@@ -582,6 +614,9 @@ cmd_run() {
     reason=$(marker_field "$marker" reason)
     status=$(marker_field "$marker" status_line)
     exitCode=$(grep -o '"exit_code": [0-9]*' "$marker" 2>/dev/null | grep -o '[0-9]*' | head -1 || echo "")
+    acceptance=$(marker_field "$marker" acceptance)
+    verdict=$(marker_field "$marker" verdict)
+    acceptanceLog=$(marker_field "$marker" acceptance_log)
     echo "   (committed by the runner - reporting its record verbatim, not a re-guess)"
   elif [ "$saw" = "1" ]; then
     # Sentinel seen but no marker: the runner was killed between recording and echoing.
@@ -591,6 +626,7 @@ cmd_run() {
     reason=$(classify_log "$log" "$exitCode")
     status=$(status_line "$log")
     commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" >&2
+    acceptance="SKIPPED"; verdict="EXECUTION_ONLY"; acceptanceLog=""
   else
     # The monitor gave up and the lane never recorded itself. Its outcome is UNKNOWN.
     # Committing `report_present` here is precisely what turned a lane killed mid-work
@@ -600,6 +636,7 @@ cmd_run() {
     status=$(status_line "$log")
     exitCode=""
     commit_landing "$name" "$state" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" >&2
+    acceptance="SKIPPED"; verdict="EXECUTION_ONLY"; acceptanceLog=""
   fi
 
   echo
@@ -612,24 +649,36 @@ cmd_run() {
   echo "   changed files: $changed"
   echo "   lane exit:     ${exitCode:-unknown}"
   echo "   status:        ${status:-<none found>}"
+  echo "   acceptance:    ${acceptance:-SKIPPED}${acceptanceLog:+ (log: $acceptanceLog)}"
   echo "   --- first 3 lines ---"
   head -3 "$log" 2>/dev/null | sed 's/^/   /'
   echo "   marker:  $marker"
   echo "   journal: $JOURNAL (now $(journal_total) entries)"
 
+  case "${verdict:-EXECUTION_ONLY}" in
+    VERIFIED)       echo "   VERDICT: VERIFIED";;
+    NOT_VERIFIED)   echo "   VERDICT: NOT VERIFIED - the acceptance criterion did not pass";;
+    EXECUTION_ONLY) echo "   VERDICT: EXECUTION ONLY - nothing was checked";;
+  esac
+  # THE GOVERNED VERDICT IS ABOUT THE OBJECTIVE; THE LINE BELOW IS ABOUT THE EXECUTION. They are
+  # two axes and neither may be dropped to make room for the other. An earlier version of this
+  # block REPLACED the outcome warnings with the acceptance verdict, so a lane that crashed under a
+  # recorded override printed only "EXECUTION ONLY - nothing was checked" and the reader lost
+  # "partial edits may exist, check the tree". Nothing asserted the text, so the selftest stayed
+  # green while the warning vanished - a silent regression is exactly what a guard exists to stop.
   if [ "$state" = "unverified" ]; then
-    echo "   VERDICT: NOT VERIFIED - the lane never recorded an exit status, so this is"
-    echo "            not evidence of success. Treat as a crash: partial edits may exist."
+    echo "   EXECUTION: NOT RECORDED - the lane never recorded an exit status, so this is not"
+    echo "              evidence of success. Treat as a crash: partial edits may exist."
   else
     case "$reason" in
-      report_present) echo "   VERDICT: landed with a report - verify it, do not trust it";;
-      no_report)      echo "   VERDICT: landed cleanly (exit 0), no Status line - nothing was claimed, so nothing to disbelieve";;
-      quota)          echo "   VERDICT: CRASHED on quota - partial edits may exist, check the tree";;
-      timeout)        echo "   VERDICT: KILLED by its own timeout - partial edits may exist, check the tree";;
-      crash)          echo "   VERDICT: CRASHED (non-zero exit) - partial edits may exist, check the tree";;
-      fatal)          echo "   VERDICT: CRASHED - partial edits may exist, check the tree";;
-      empty)          echo "   VERDICT: CRASHED with no output - nothing landed";;
-      *)              echo "   VERDICT: pre-2026-10-07 record with an unclassified reason - read the log";;
+      report_present) echo "   EXECUTION: landed with a report - verify it, do not trust it";;
+      no_report)      echo "   EXECUTION: landed cleanly (exit 0), no Status line - nothing was claimed, so nothing to disbelieve";;
+      quota)          echo "   EXECUTION: CRASHED on quota - partial edits may exist, check the tree";;
+      timeout)        echo "   EXECUTION: KILLED by its own timeout - partial edits may exist, check the tree";;
+      crash)          echo "   EXECUTION: CRASHED (non-zero exit) - partial edits may exist, check the tree";;
+      fatal)          echo "   EXECUTION: CRASHED - partial edits may exist, check the tree";;
+      empty)          echo "   EXECUTION: CRASHED with no output - nothing landed";;
+      *)              echo "   EXECUTION: pre-2026-10-07 record with an unclassified reason - read the log";;
     esac
   fi
 
@@ -709,7 +758,9 @@ cmd_status() {
 
   echo "== $name =="
   if [ -f "$marker" ]; then
-    echo "   state:    LANDED (recorded)"
+    echo "   state:      LANDED (recorded)"
+    echo "   acceptance: $(marker_field "$marker" acceptance)"
+    echo "   verdict:    $(marker_field "$marker" verdict)"
     sed 's/^/   /' "$marker"
   else
     echo "   state:    no landing recorded"
@@ -727,12 +778,13 @@ cmd_list() {
   echo "== recent landings =="
   for m in "$RUNS"/*.landed.json; do
     [ -f "$m" ] || continue
-    local name reason state landed
+    local name reason state landed acceptance
     name=$(marker_field "$m" name)
     state=$(marker_field "$m" state)
     reason=$(marker_field "$m" reason)
     landed=$(marker_field "$m" landed_at)
-    printf '   %-28s %-11s %-16s %s\n' "$name" "${state:-pre-journal}" "$reason" "$landed"
+    acceptance=$(marker_field "$m" acceptance)
+    printf '   %-28s %-11s %-16s %-8s %s\n' "$name" "${state:-pre-journal}" "$reason" "${acceptance:--}" "$landed"
   done
   echo "   journal: $total entries, $((total - cursor)) not yet reported to the agent"
   echo "   (tools/lane.sh pending shows them; tools/lane.sh ack clears them)"
@@ -742,10 +794,32 @@ cmd_list() {
 # monitor has been killed. Safe to call twice: it simply rewrites the same record.
 cmd_record() {
   local name="${1:-}" log="${2:-}" exitCode="${3:-}" runId="${4:-}"
-  [ -n "$name" ] || { echo "usage: tools/lane.sh record <name> <log> <exit-code> [run-id]" >&2; exit 2; }
+  local acceptanceCmd="${5:-}" acceptanceSupplied=0
+  [ "$#" -ge 5 ] && acceptanceSupplied=1
+  [ -n "$name" ] || { echo "usage: tools/lane.sh record <name> <log> <exit-code> [run-id] [acceptance-command]" >&2; exit 2; }
   [ -n "$log" ] || log="$RUNS/$name.log"
 
-  local bytes mtime reason status changed
+  local bytes mtime reason status changed acceptance acceptanceExit acceptanceLog
+  acceptance="SKIPPED"; acceptanceExit=""; acceptanceLog=""
+  if [ "$acceptanceSupplied" = "1" ]; then
+    acceptanceLog="$RUNS/$name.acceptance.log"
+    if [ -z "$acceptanceCmd" ]; then
+      : > "$acceptanceLog"
+      acceptance="ERROR"
+    else
+      timeout "${LANE_ACCEPTANCE_TIMEOUT:-300}" bash -c "$acceptanceCmd" > "$acceptanceLog" 2>&1
+      acceptanceExit=$?
+      case "$acceptanceExit" in
+        0) acceptance="PASS";;
+        124|137|143) acceptance="TIMEOUT";;
+        125|126|127) acceptance="ERROR";;
+        *) acceptance="FAIL";;
+      esac
+    fi
+  fi
+  printf '[lane acceptance] %s: acceptance=%s exit=%s command=%s\n' \
+    "$name" "$acceptance" "${acceptanceExit:-n/a}" "${acceptanceCmd:-<none>}" >> "$log" 2>/dev/null || true
+
   bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
   mtime=$(date -r "$log" -Iseconds 2>/dev/null || echo "")
   reason=$(classify_log "$log" "$exitCode")
@@ -754,9 +828,10 @@ cmd_record() {
 
   # state=landed: this process held the lane's exit status at the instant it existed.
   # That is the only place a verdict may come from.
-  commit_landing "$name" "landed" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId"
+  commit_landing "$name" "landed" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
+    "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog"
 
-  echo "[lane record] $name: state=landed reason=$reason exit=$exitCode bytes=$bytes files=$changed"
+  echo "[lane record] $name: state=landed reason=$reason exit=$exitCode acceptance=$acceptance bytes=$bytes files=$changed"
 }
 
 # Landings in the journal that the agent has not yet been told about. This is the
@@ -1030,6 +1105,91 @@ EOS
     ok "S9c must-allow: a failing criterion plus a stated PASS dispatches and lands"
   else
     bad "S9c the gate refused a valid dispatch (rc=$rc9c state=$s9c)"
+  fi
+
+  # S12 (must-refuse) - a lane's own PASS is advisory: only the post-landing criterion governs.
+  local flag12="$P/st12.flag"
+  rm -f "$flag12"
+  mklane "$P/lane-st12.sh" 0 0
+  bash "$SELF" run st12 "$P/lane-st12.sh" --timeout=60 --wait-grace=2 \
+    --acceptance="test -f $flag12" --pass-looks-like='the fixture flag exists' > "$P/st12.mon.log" 2>&1
+  local a12 v12
+  a12=$(marker_field "$RUNS/st12.landed.json" acceptance)
+  v12=$(marker_field "$RUNS/st12.landed.json" verdict)
+  if [ "$a12" = "FAIL" ] && [ "$v12" = "NOT_VERIFIED" ]; then
+    ok "S12 a claimed PASS without satisfying the criterion is NOT_VERIFIED"
+  else
+    bad "S12 a claimed PASS overrode the criterion (acceptance=$a12 verdict=$v12)"
+  fi
+
+  # S12b (must-allow) - the opposite direction pins Status: as advisory only.
+  local flag12b="$P/st12b.flag"
+  rm -f "$flag12b"
+  { echo '#!/usr/bin/env bash'
+    printf ': > %q\n' "$flag12b"
+    echo 'echo "status: FAIL"'
+  } > "$P/lane-st12b.sh"
+  chmod +x "$P/lane-st12b.sh"
+  bash "$SELF" run st12b "$P/lane-st12b.sh" --timeout=60 --wait-grace=2 \
+    --acceptance="test -f $flag12b" --pass-looks-like='the fixture flag exists' > "$P/st12b.mon.log" 2>&1
+  local a12b v12b
+  a12b=$(marker_field "$RUNS/st12b.landed.json" acceptance)
+  v12b=$(marker_field "$RUNS/st12b.landed.json" verdict)
+  if [ "$a12b" = "PASS" ] && [ "$v12b" = "VERIFIED" ]; then
+    ok "S12b satisfying the criterion is VERIFIED despite status: FAIL"
+  else
+    bad "S12b advisory status overrode acceptance (acceptance=$a12b verdict=$v12b)"
+  fi
+
+  # S12c (must-allow skip) - an explicit gate override lands, but claims only execution.
+  mklane "$P/lane-st12c.sh" 0 0
+  local rc12c a12c v12c
+  bash "$SELF" run st12c "$P/lane-st12c.sh" --timeout=60 --wait-grace=2 \
+    --no-acceptance-gate='selftest deliberate skip' > "$P/st12c.mon.log" 2>&1
+  rc12c=$?
+  a12c=$(marker_field "$RUNS/st12c.landed.json" acceptance)
+  v12c=$(marker_field "$RUNS/st12c.landed.json" verdict)
+  if [ "$rc12c" -eq 0 ] && [ "$a12c" = "SKIPPED" ] && [ "$v12c" = "EXECUTION_ONLY" ]; then
+    ok "S12c an overridden criterion lands as EXECUTION_ONLY"
+  else
+    bad "S12c skip path was mishandled (rc=$rc12c acceptance=$a12c verdict=$v12c)"
+  fi
+
+  # S15 (must-refuse) - THE TWO VERDICT AXES MUST NOT COLLAPSE INTO ONE. This is the guard for a
+  # measured regression: the acceptance verdict REPLACED the execution-outcome warnings, so a lane
+  # that crashed under a recorded override printed only "EXECUTION ONLY - nothing was checked" and
+  # the reader lost "partial edits may exist, check the tree". S3/S4 stayed green throughout because
+  # they assert the marker and the return code, never the text a human reads - which is why the
+  # warning could vanish unobserved. Pin the text.
+  mklane "$P/lane-st15.sh" 0 7
+  local rc15
+  bash "$SELF" run st15 "$P/lane-st15.sh" --timeout=60 --wait-grace=2 \
+    --no-acceptance-gate='selftest: pin the execution-outcome warning' > "$P/st15.mon.log" 2>&1
+  rc15=$?
+  if [ "$rc15" -ne 0 ] && grep -q 'EXECUTION: CRASHED' "$P/st15.mon.log"; then
+    ok "S15 a crash still warns about partial edits even with no criterion (rc=$rc15)"
+  else
+    bad "S15 the execution-outcome warning was LOST (rc=$rc15, warns=$(grep -c 'EXECUTION: CRASHED' "$P/st15.mon.log"))"
+  fi
+
+  # S15b (must-allow) - the same block must still print BOTH axes when the criterion passes. One
+  # direction alone would pass just as well against an implementation that dropped the execution
+  # line entirely.
+  local flag15b="$P/st15b.flag" a15b v15b
+  rm -f "$flag15b"
+  { echo '#!/usr/bin/env bash'
+    printf ': > %q\n' "$flag15b"
+    echo 'echo "status: PASS"'
+  } > "$P/lane-st15b.sh"
+  chmod +x "$P/lane-st15b.sh"
+  bash "$SELF" run st15b "$P/lane-st15b.sh" --timeout=60 --wait-grace=2 \
+    --acceptance="test -f $flag15b" --pass-looks-like='the fixture flag exists' > "$P/st15b.mon.log" 2>&1
+  a15b=$(marker_field "$RUNS/st15b.landed.json" acceptance)
+  v15b=$(marker_field "$RUNS/st15b.landed.json" verdict)
+  if [ "$a15b" = "PASS" ] && [ "$v15b" = "VERIFIED" ] && grep -q 'EXECUTION: landed with a report' "$P/st15b.mon.log"; then
+    ok "S15b both axes are reported when the criterion passes"
+  else
+    bad "S15b an axis was dropped (acceptance=$a15b verdict=$v15b)"
   fi
 
   # S10/S10b - the TOOLING ADVISORY. It only ever prints, so both directions are asserted: a
