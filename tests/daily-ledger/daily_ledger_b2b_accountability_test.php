@@ -105,6 +105,7 @@ try {
         'dr_number' => $dr . '-DISPATCH',
         'destination_type' => 'branch',
         'destination_id' => $destination,
+        'receiving_shift' => 'PM',
         'items' => [['product_id' => $productA, 'quantity' => 4, 'unit' => 'pcs']],
     ], $dispatcher);
     $dispatchId = (int)($dispatchApi['body']['delivery_id'] ?? 0);
@@ -131,10 +132,35 @@ try {
     // wrong dispatch when a branch handles many transfers. The UI already reads the field; this
     // asserts the DATA arrives. Same delivery as D2, so it also pins that a bound cashier's
     // assignment wins over the requested shift.
-    $travelShift = $db->query('SELECT production_shift FROM dl_deliveries WHERE id = ' . (int)$dispatchId)->fetchColumn();
+    $dispatchShifts = $db->query('SELECT production_shift, declared_receiving_shift FROM dl_deliveries WHERE id = ' . (int)$dispatchId)->fetch(PDO::FETCH_ASSOC) ?: [];
+    $travelShift = $dispatchShifts['production_shift'] ?? null;
     $h->test('D2b discriminating: the resolved dispatch shift is stored on the delivery row so the receiving side needs no manual choice (fails on base: the dispatch INSERT omits production_shift)',
         (string)$travelShift === 'AM',
         'production_shift=' . var_export($travelShift, true) . ' (requested PM; dispatcher is bound to AM)');
+
+    $h->section('A2/A3 — discriminating receiving-shift declaration');
+    $h->test('A2 discriminating: requested receiving PM is stored while the bound dispatcher production shift stays AM (fails on base: dispatch INSERT has no declaration column)',
+        ($dispatchApi['body']['ok'] ?? false) === true
+        && ($dispatchShifts['production_shift'] ?? null) === 'AM'
+        && ($dispatchShifts['declared_receiving_shift'] ?? null) === 'PM',
+        json_encode($dispatchShifts));
+
+    $defaultDispatchApi = $runApi('dispatch', [
+        'branch_id' => $origin,
+        'shift' => 'PM',
+        'delivery_date' => $date,
+        'dr_number' => $dr . '-DEFAULT-DECLARATION',
+        'destination_type' => 'branch',
+        'destination_id' => $destination,
+        'items' => [['product_id' => $productB, 'quantity' => 1, 'unit' => 'pcs']],
+    ], $dispatcher);
+    $defaultDispatchId = (int)($defaultDispatchApi['body']['delivery_id'] ?? 0);
+    $defaultDeclaration = $defaultDispatchId > 0
+        ? $db->query('SELECT declared_receiving_shift FROM dl_deliveries WHERE id = ' . $defaultDispatchId)->fetchColumn()
+        : false;
+    $h->test('A3 discriminating: omitted receiving shift defaults to the dispatcher resolved AM shift (fails on base: dispatch INSERT has no declaration column)',
+        ($defaultDispatchApi['body']['ok'] ?? false) === true && $defaultDeclaration === 'AM',
+        json_encode([$defaultDispatchApi, 'declared_receiving_shift' => $defaultDeclaration], JSON_UNESCAPED_SLASHES));
 
     $db->prepare('INSERT INTO dl_cashier_withdrawals
         (id, branch_id, product_id, ledger_date, shift, withdrawal_type, dr_number, target_branch_id, quantity, unit, dedup_hash)

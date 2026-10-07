@@ -144,6 +144,16 @@
                                         </button>
                                     </div>
                                 </div>
+                                <template x-if="declaredReceivingShiftFor(g)">
+                                    <div class="mb-3 rounded-md border p-2 text-xs leading-5"
+                                         :class="receiptShiftMismatch(g) ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-indigo-200 bg-indigo-50 text-indigo-900'">
+                                        <div><span class="font-semibold">Sender expected receiving shift:</span> <span x-text="declaredReceivingShiftFor(g)"></span></div>
+                                        <div><span class="font-semibold">This receipt posts to:</span> <span x-text="receivingShift || 'not selected'"></span><span x-show="receivingShift"> shift</span></div>
+                                        <p x-show="receiptShiftMismatch(g)" class="mt-1 font-semibold">
+                                            Note: the sender expected <span x-text="declaredReceivingShiftFor(g)"></span>; this receipt posts to <span x-text="receivingShift"></span>. You can still receive it.
+                                        </p>
+                                    </div>
+                                </template>
                                 <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
                                     <label class="block text-xs font-semibold text-amber-900 mb-1">Production shift *</label>
                                     <select x-model="g.production_shift" class="form-input mt-0 w-full sm:w-40">
@@ -425,6 +435,29 @@ function receiveModal() {
             return value === 'AM' || value === 'PM';
         },
 
+        declaredReceivingShiftFor(g) {
+            return this.validShift(g && g.declared_receiving_shift) ? g.declared_receiving_shift : '';
+        },
+
+        receiptShiftMismatch(g) {
+            var declared = this.declaredReceivingShiftFor(g);
+            return declared !== '' && this.validShift(this.receivingShift) && declared !== this.receivingShift;
+        },
+
+        prefillReceivingShift(groups) {
+            // The declaration is only an expectation. For a bound cashier it cannot
+            // change the outcome: SHIFT_LOCKED is the accountability control. For an
+            // unbound admin/supervisor it supplies the useful default and stays editable.
+            if (window.SHIFT_LOCKED) {
+                this.receivingShift = (window.SHIFT || '');
+                return;
+            }
+            var declared = (groups || []).map(function(g) {
+                return this.declaredReceivingShiftFor(g);
+            }.bind(this)).find(function(value) { return value !== ''; });
+            this.receivingShift = declared || (window.SHIFT || '');
+        },
+
         productionShiftFor(g) {
             // Incoming API groups always carry this key, including null for a
             // historical unknown. The fallback only preserves compatibility for
@@ -644,6 +677,7 @@ function receiveModal() {
             .then(function(data) {
                 this.loading = false;
                 this.deliveries = (data && data.ok) ? (data.deliveries || []) : [];
+                this.prefillReceivingShift(this.deliveries);
                 if (data && !data.ok) this.errorMsg = data.error || 'Failed to load deliveries.';
             }.bind(this))
             .catch(function() {

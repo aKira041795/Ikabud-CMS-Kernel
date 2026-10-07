@@ -41,7 +41,7 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
                         <div>
                             <label class="block text-xs font-medium text-gray-700 mb-1">Date Sent *</label>
                             <input type="date" x-model="form.delivery_date" class="form-input mt-0 w-full">
@@ -59,6 +59,15 @@
                                  <option value="{b.id}" data-type="branch">{b.code} — {b.name}</option>
                                  {/if}
                                  {/foreach}                             </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Receiving shift <span class="font-normal text-gray-500">(expected)</span></label>
+                            <select x-model="form.receiving_shift" class="form-input mt-0 w-full">
+                                <option value="">-- No declaration --</option>
+                                <option value="AM">AM</option>
+                                <option value="PM">PM</option>
+                            </select>
+                            <p class="mt-1 text-[11px] leading-4 text-gray-500">The shift you expect will receive it; the receiver confirms the actual shift.</p>
                         </div>
                     </div>
                     <div class="mb-3 bg-gray-50 rounded-lg p-3">
@@ -130,13 +139,13 @@ function dispatchModal() {
         isOpen: false,
         saving: false,
         errorMsg: '',
-        form: { delivery_date: '', dr_number: '', destination_type: 'branch', destination_id: '' },
+        form: { delivery_date: '', dr_number: '', destination_type: 'branch', destination_id: '', receiving_shift: (window.SHIFT || '') },
         lines: [],
         products: [],
 
         openModal() {
             this.errorMsg = '';
-            this.form = { delivery_date: LEDGER_DATE, dr_number: '', destination_type: 'branch', destination_id: '' };
+            this.form = { delivery_date: LEDGER_DATE, dr_number: '', destination_type: 'branch', destination_id: '', receiving_shift: (window.SHIFT || '') };
             this.lines = [{ product_id: '', quantity: '' }];
             this.loadProducts();
             this.isOpen = true;
@@ -219,6 +228,9 @@ function dispatchModal() {
                 dr_number: this.form.dr_number,
                 destination_type: this.form.destination_type || 'branch',
                 destination_id: parseInt(this.form.destination_id, 10),
+                // Optional sender declaration; the receiving cashier still confirms
+                // the ledger shift and a bound cashier's lock always wins.
+                receiving_shift: this.form.receiving_shift || null,
                 items: validLines.map(function(l) {
                     return { product_id: parseInt(l.product_id, 10), quantity: parseInt(l.quantity, 10), unit: 'pcs' };
                 })

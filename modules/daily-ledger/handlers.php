@@ -8671,6 +8671,10 @@ function apiCreateCashierDispatch(array $params = []): void
     $originBranchId = $authResult['branch_id'];
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
+    $requestedReceivingShift = $input['receiving_shift'] ?? null;
+    $declaredReceivingShift = in_array($requestedReceivingShift, ['AM', 'PM'], true)
+        ? $requestedReceivingShift
+        : $shift;
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $drNumber = trim((string)($input['dr_number'] ?? ''));
     $destType = (string)($input['destination_type'] ?? 'branch');
@@ -8758,8 +8762,8 @@ function apiCreateCashierDispatch(array $params = []): void
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
-                 delivery_date, production_shift, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks)
-             VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks)'
+                 delivery_date, production_shift, declared_receiving_shift, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks)
+             VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, :declared_receiving_shift, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks)'
         );
         $ins->execute([
             ':ot' => 'branch',
@@ -8780,6 +8784,9 @@ function apiCreateCashierDispatch(array $params = []): void
             // missing DATA, not missing UI. The value is the resolved shift, so a shift-bound
             // cashier's assignment still wins - the same one the ledger debit below uses.
             ':production_shift' => $shift,
+            // Sender expectation only: a bound receiver's shift lock remains the
+            // accountability control; for an unbound receiver this is the default.
+            ':declared_receiving_shift' => $declaredReceivingShift,
             ':created_by' => $actorId ?: null,
             ':created_by_name_snapshot' => $dispatchingCashierName,
             ':posted_by' => $actorId ?: null,
@@ -8848,7 +8855,8 @@ function apiGetIncomingDeliveries(array $params = []): void
 
     $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
 
-    $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.shift AS production_shift, cw.quantity, cw.branch_id AS origin_branch_id,
+    $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.shift AS production_shift, NULL AS declared_receiving_shift,
+                   cw.quantity, cw.branch_id AS origin_branch_id,
                    ob.name AS origin_branch_name, cw.product_id, p.name AS product_name,
                    cw.encoded_by AS dispatching_cashier_id,
                    COALESCE(NULLIF(cw.encoded_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name
@@ -8881,6 +8889,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                 'origin_branch_name' => $r['origin_branch_name'],
                 'ledger_date' => $r['ledger_date'],
                 'production_shift' => in_array(($r['production_shift'] ?? null), ['AM', 'PM'], true) ? $r['production_shift'] : null,
+                'declared_receiving_shift' => null,
                 'provenance_status' => 'none',
                 'dispatching_cashier_id' => $r['dispatching_cashier_id'] !== null ? (int)$r['dispatching_cashier_id'] : null,
                 'dispatching_cashier_name' => $r['dispatching_cashier_name'] !== '' ? $r['dispatching_cashier_name'] : null,
@@ -8900,7 +8909,7 @@ function apiGetIncomingDeliveries(array $params = []): void
 
     if (dl_isFormalDeliveryEnabled()) {
         $formalSql = 'SELECT d.id AS delivery_id, d.dr_number, d.delivery_date, d.production_shift,
-                             d.origin_id AS origin_branch_id,
+                             d.declared_receiving_shift, d.origin_id AS origin_branch_id,
                              COALESCE(ob.name, cb.name, d.origin_type) AS origin_branch_name,
                              d.provenance_status,
                              d.created_by AS dispatching_cashier_id,
@@ -8937,6 +8946,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                     'origin_branch_name' => $row['origin_branch_name'],
                     'ledger_date' => $row['delivery_date'],
                     'production_shift' => in_array(($row['production_shift'] ?? null), ['AM', 'PM'], true) ? $row['production_shift'] : null,
+                    'declared_receiving_shift' => in_array(($row['declared_receiving_shift'] ?? null), ['AM', 'PM'], true) ? $row['declared_receiving_shift'] : null,
                     'provenance_status' => (string)($row['provenance_status'] ?? 'none'),
                     'dispatching_cashier_id' => $row['dispatching_cashier_id'] !== null ? (int)$row['dispatching_cashier_id'] : null,
                     'dispatching_cashier_name' => $row['dispatching_cashier_name'] !== '' ? $row['dispatching_cashier_name'] : null,
