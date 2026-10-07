@@ -3,7 +3,10 @@
 #
 # The stub receives: <stub> --model <name> <prompt>
 set -uo pipefail
-cd /var/www/html/applicationostest
+# Work from the repository this script lives in, so the harness is portable and does not depend on
+# an absolute checkout path.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT" || exit 1
 
 STUB=/tmp/lane-model-stub.sh
 cat > "$STUB" <<'STUBEOF'

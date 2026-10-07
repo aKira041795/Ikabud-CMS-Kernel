@@ -9,8 +9,8 @@
 # primary model became unavailable.
 #
 # The signature is the part that matters and the part that is easy to get subtly wrong.
-# It is therefore loaded from the same data file as lane.sh and HARPP rather than being
-# repeated here. Unsupported models use the same fallback path as temporary exhaustion.
+# It is therefore loaded from the same data file as lane.sh rather than being repeated here.
+# Unsupported models use the same fallback path as temporary exhaustion.
 #
 # Usage, from a lane script:
 #

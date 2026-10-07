@@ -97,6 +97,12 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 
+# OS primitives (pty + detach) live in ONE place, each with a fallback that can be forced and
+# therefore tested. A missing `script` used to fail inside a background job, where the error only
+# ever reached the lane's own log - the lane looked hung and was recorded `unverified`.
+# shellcheck source=tools/lane-platform.sh
+. "$ROOT/tools/lane-platform.sh"
+
 RUNS="$ROOT/.ai/runs"
 MODEL_UNAVAILABLE_PATTERNS="$ROOT/tools/model-unavailable.patterns"
 mkdir -p "$RUNS"
@@ -124,7 +130,9 @@ JOURNAL="$RUNS/landings.jsonl"
 CURSOR="$RUNS/.reported.cursor"
 [ -f "$JOURNAL" ] || : > "$JOURNAL"
 
-iso() { date -Iseconds; }
+# GNU `date -Iseconds` does not exist on BSD/macOS; fall back to a POSIX format so the landing
+# marker stays valid JSON instead of carrying an empty timestamp.
+iso() { date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S%z; }
 
 journal_total() { [ -f "$JOURNAL" ] && wc -l < "$JOURNAL" 2>/dev/null || echo 0; }
 
@@ -592,9 +600,8 @@ cmd_run() {
   # invoke it directly, with no intervening `bash -c` string to re-parse.
   local scriptCmd
   printf -v scriptCmd 'bash %q' "$runner"
-  setsid timeout --signal=TERM --kill-after=60 "$timeoutSecs" script -qec "$scriptCmd" /dev/null \
-    > "$log" 2>&1 < /dev/null &
-  local wrapperPid=$!
+  lane_spawn "$timeoutSecs" "$scriptCmd" "$log"
+  local wrapperPid="${LANE_SPAWN_PID:-}"
   disown 2>/dev/null || true
 
   # A DEADLINE RECORDER, living outside the process tree that `timeout` kills. The runner
@@ -604,11 +611,11 @@ cmd_run() {
   # way. This process is detached, so it survives, and it commits `unverified` only if
   # nothing else has recorded by the time the lane's budget is certainly over.
   local deadlineSecs=$((timeoutSecs + deadlineGrace))
-  setsid bash "$ROOT/tools/lane.sh" watchdog "$name" "$deadlineSecs" \
-    </dev/null >/dev/null 2>&1 &
+  lane_detach_background bash "$ROOT/tools/lane.sh" watchdog "$name" "$deadlineSecs"
   disown 2>/dev/null || true
 
   echo "   wrapper=$wrapperPid"
+  lane_spawn_note
   echo "   deadline recorder: ${deadlineSecs}s (commits 'unverified' if the lane dies silent)"
   echo "   log=$log"
   echo "   run_id=$runId"
@@ -1278,7 +1285,7 @@ EOS
   mklane "$P/lane-st10b.sh" 1 0
   bash "$SELF" run st10b "$P/lane-st10b.sh" --timeout=60 --wait-grace=2 \
     --acceptance='exit 1' --pass-looks-like='fixture' \
-    --touches='modules/cms/handlers.php,templates/x.disyl' > "$P/st10b.mon.log" 2>&1
+    --touches='src/handlers.php,views/page.disyl' > "$P/st10b.mon.log" 2>&1
   if grep -q 'tooling advisory' "$P/st10b.mon.log"; then
     bad "S10b a php/disyl lane was given a python advisory (it must not be)"
   else
