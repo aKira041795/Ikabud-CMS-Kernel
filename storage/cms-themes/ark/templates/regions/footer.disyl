@@ -6,8 +6,13 @@
 {set footer_text = section_settings.footer_text_color|default:'#cbd5e1'}
 {set footer_title = section_settings.footer_title_color|default:'#f1f5f9'}
 {set footer_columns = section_settings.columns|default:'3'}
+{# The outer band is driven by the schema's container_width. It is a declared control and the
+   declared-vs-honoured ratchet asserts it changes the render, so the wiring stays here; what
+   was missing was the editor control that sets it (see the Footer panel's "Footer Container"). #}
 {set footer_container = section_settings.container_width|default:'contained'}
 {set footer_inner_width = section_settings.inner_width|default:'0'}
+{# The footer bar owns its own shell, so it follows its own control rather than the widget band's. #}
+{set bar_shell = section_settings.inner_width|default:'contained'}
 {set widget_container = section_settings.widget_container_width|default:'contained'}
 {set widget_inner_mode = section_settings.widget_inner_width_mode|default:'inherit'}
 {set widget_custom_width = section_settings.widget_inner_custom_width|default:'1200'}
@@ -24,9 +29,11 @@
             {if footer_container == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
             --footer-link-hover:{footer_link_hover};--footer-link:{footer_link};
             --footer-title:{footer_title};--footer-columns:{footer_columns};
-            --footer-widget-custom-width:{widget_custom_width}px;">
+            --footer-widget-custom-width:{widget_custom_width|replace:'px':''}px;">
+    {# Only the widget band's own controls decide its inner width. The footer bar keeps its
+       own shell, so inner_width must not reach in here as well. #}
     <div class="ark-region-footer__inner ark-region-footer__inner--{widget_container} ark-region-footer__inner-mode--{widget_inner_mode}"
-         style="{if widget_container == 'full'}max-width:none;{elseif widget_container == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'full'}max-width:none;{elseif widget_inner_mode == 'custom'}max-width:var(--footer-widget-custom-width);{elseif footer_inner_width == 'full-width'}max-width:none;{elseif footer_inner_width == 'contained'}max-width:var(--ark-max-width,1280px);{elseif footer_inner_width != '0'}max-width:{footer_inner_width}px;{/if}">
+         style="{if widget_container == 'full'}max-width:none;{elseif widget_container == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'full'}max-width:none;{elseif widget_inner_mode == 'custom'}max-width:var(--footer-widget-custom-width);{elseif widget_inner_mode == 'contained'}max-width:var(--ark-max-width,1280px);{/if}">
         {if navigation.footer}
         <nav class="ark-region-footer__nav" aria-label="Footer navigation">{navigation.footer|raw}</nav>
         {/if}
@@ -50,13 +57,13 @@
 {set bar_text = section_settings.bar_text_color|default:'#94a3b8'}
 {set bar_link = section_settings.bar_link_color|default:'#94a3b8'}
 {set bar_link_hover = section_settings.bar_link_hover_color|default:'#ffffff'}
-<div class="ark-customized-region ark-region-footer-bar ark-region-footer-bar--{footer_container}"
+<div class="ark-customized-region ark-region-footer-bar ark-region-footer-bar--{bar_shell}"
      data-region="footer-bar"
      data-theme="{theme}"
      style="background:{bar_bg};color:{bar_text};padding:1rem 0;font-size:0.875rem;
-            {if footer_container == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
+            {if bar_shell == 'contained'}max-width:var(--ark-max-width,1280px);margin-left:auto;margin-right:auto;{/if}
             --footer-bar-link:{bar_link};--footer-bar-link-hover:{bar_link_hover};">
-    <div class="ark-region-footer-bar__inner" style="{if footer_inner_width == 'full-width'}max-width:none;{elseif footer_inner_width == 'contained'}max-width:var(--ark-max-width,1280px);{elseif footer_inner_width != '0'}max-width:{footer_inner_width}px;{/if}">
+    <div class="ark-region-footer-bar__inner" style="{if bar_shell == 'full-width'}max-width:none;{elseif bar_shell == 'contained'}max-width:var(--ark-max-width,1280px);{elseif bar_shell != '0'}max-width:{bar_shell}px;{/if}">
         <span>{copyright}</span>
         {if section_settings.show_admin_link|default:'1'}<a href="/cms/admin">Admin</a>{/if}
     </div>

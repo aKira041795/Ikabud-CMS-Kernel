@@ -298,12 +298,20 @@
                             </div>
                         </div>
                         <div>
+                            <label class="cz-label">Footer Container</label>
+                            <select class="cz-select" x-model="footerSettings.container_width">
+                                <option value="contained">Contained</option>
+                                <option value="full">Full Width + Side Gutters</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Controls the outer footer band that carries the widget background color.</p>
+                        </div>
+                        <div>
                             <label class="cz-label">Widget Container</label>
                             <select class="cz-select" x-model="footerSettings.widget_container_width">
                                 <option value="contained">Contained</option>
                                 <option value="full">Full Width + Side Gutters</option>
                             </select>
-                            <p class="text-[10px] text-gray-400 mt-1">Controls the outer footer band that carries the widget background color.</p>
+                            <p class="text-[10px] text-gray-400 mt-1">Controls the widget area inside the footer container.</p>
                         </div>
                         <div>
                             <label class="cz-label">Widget Holder Width</label>
@@ -4128,9 +4136,10 @@ function themeCustomizer() {
                 if (this.footerSettings.widget_inner_width_mode === undefined) this.footerSettings.widget_inner_width_mode = this.footerSettings.inner_width === 'full-width' ? 'full' : 'contained';
                 if (this.footerSettings.widget_inner_custom_width === undefined || this.footerSettings.widget_inner_custom_width === '') this.footerSettings.widget_inner_custom_width = '960px';
                 if (this.footerSettings.inner_width === undefined) this.footerSettings.inner_width = 'contained';
+                if (this.footerSettings.container_width === undefined) this.footerSettings.container_width = 'contained';
             } catch (e) {
                 this.footerSettings = {
-                    columns: 3, widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
+                    columns: 3, container_width: 'contained', widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
                     bg_color: '#1e293b', text_color: '#cbd5e1', link_color: '#94a3b8', link_hover_color: '#ffffff', title_color: '#f1f5f9',
                     // bar_text_color must clear 4.5:1 against bar_bg_color; #94a3b8 is 6.96:1 on #0f172a.
                     bar_bg_color: '#0f172a', bar_text_color: '#94a3b8', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',
@@ -4580,7 +4589,7 @@ function themeCustomizer() {
         },
 
         footerPreviewWidgetContainerLabel() {
-            return (this.footerSettings.widget_container_width || 'contained') === 'full'
+            return (this.footerSettings.container_width || 'contained') === 'full'
                 ? 'Full + gutters'
                 : 'Contained';
         },
@@ -4630,7 +4639,7 @@ function themeCustomizer() {
 
         footerPreviewWidgetContainerStyle() {
             let style = 'color:' + this.footerSettings.text_color + ';padding:' + this.footerSettings.padding_top + 'px 0 ' + this.footerSettings.padding_bottom + 'px;';
-            if ((this.footerSettings.widget_container_width || 'contained') === 'full') {
+            if ((this.footerSettings.container_width || 'contained') === 'full') {
                 style += 'padding-left:16px;padding-right:16px;box-sizing:border-box;';
             } else {
                 style += 'max-width:88%;margin:0 auto;';
@@ -4976,7 +4985,7 @@ function themeCustomizer() {
             } else {
                 if (!confirm('Reset all footer settings to defaults? This cannot be undone.')) return;
                 this.footerSettings = {
-                    columns: 3, widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
+                    columns: 3, container_width: 'contained', widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
                     bg_color: '#1e293b', text_color: '#cbd5e1', link_color: '#94a3b8', link_hover_color: '#ffffff', title_color: '#f1f5f9',
                     // bar_text_color must clear 4.5:1 against bar_bg_color; #94a3b8 is 6.96:1 on #0f172a.
                     bar_bg_color: '#0f172a', bar_text_color: '#94a3b8', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',

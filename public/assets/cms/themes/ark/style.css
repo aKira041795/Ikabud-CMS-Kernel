@@ -966,6 +966,18 @@ button:disabled {
     gap: var(--ark-spacing-md);
 }
 
+/* The header is a horizontal bar, but the shared widget types (contact_info,
+ * nav_menu, social_links, text, opening_hours) are authored as vertical cards
+ * with width:100% - correct in the sidebar and footer, wrong here, where one
+ * widget claims a whole row and pushes the header apart. Sizing header widgets
+ * to their content keeps them inline. Scoped to the header row so the vertical
+ * containers keep their card behaviour. */
+.ark-region-header__widgets > .ark-region-widget {
+    width: auto !important;
+    max-width: 100%;
+    flex: 0 1 auto;
+}
+
 .ark-region-header__brand {
     display: flex;
     flex-direction: column;
