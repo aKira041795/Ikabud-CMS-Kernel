@@ -1,15 +1,15 @@
 {
-  // lane-harness — recommended settings. Paste into .vscode/settings.json if that file already
-  // exists (install.sh writes this as settings.lane-harness.snippet.json in that case).
-  //
-  // WHY ONLY TWO THINGS: the harness writes a marker, a log, a runner script and an acceptance log
-  // per lane, plus an append-only journal. Under the editor's file watcher that is constant churn
-  // and constant git status refreshes, and the results are noise in search. Everything else is left
-  // to your own preferences — a harness that rewrites your editor settings is not a guest.
-  "files.watcherExclude": {
-    "**/.ai/runs/**": true
-  },
-  "search.exclude": {
-    "**/.ai/runs/**": true
-  }
+    // lane-harness — recommended settings. Paste into .vscode/settings.json if that file already
+    // exists (install.sh writes this as settings.lane-harness.snippet.json in that case).
+    //
+    // WHY ONLY TWO THINGS: the harness writes a marker, a log, a runner script and an acceptance log
+    // per lane, plus an append-only journal. Under the editor's file watcher that is constant churn
+    // and constant git status refreshes, and the results are noise in search. Everything else is left
+    // to your own preferences — a harness that rewrites your editor settings is not a guest.
+    "files.watcherExclude": {
+        "**/.ai/runs/**": true
+    },
+    "search.exclude": {
+        "**/.ai/runs/**": true
+    }
 }

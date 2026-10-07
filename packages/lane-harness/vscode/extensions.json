@@ -1,15 +1,15 @@
 {
-  // lane-harness — recommended extensions. VS Code offers these when the folder is opened.
-  "recommendations": [
-    // On Windows, this is the integration that makes the whole thing work in full mode: it puts the
-    // editor AND the integrated terminal inside WSL2, so the harness sees a real Linux.
-    "ms-vscode-remote.remote-wsl",
-    // The alternative if you prefer a container over WSL.
-    "ms-vscode-remote.remote-containers",
-    // The harness is bash; shellcheck catches the class of bug it is most exposed to.
-    "timonwong.shellcheck",
-    // They are how the work is written. The harness verifies their output; it does not replace them.
-    "GitHub.copilot",
-    "GitHub.copilot-chat"
-  ]
+    // lane-harness — recommended extensions. VS Code offers these when the folder is opened.
+    "recommendations": [
+        // On Windows, this is the integration that makes the whole thing work in full mode: it puts the
+        // editor AND the integrated terminal inside WSL2, so the harness sees a real Linux.
+        "ms-vscode-remote.remote-wsl",
+        // The alternative if you prefer a container over WSL.
+        "ms-vscode-remote.remote-containers",
+        // The harness is bash; shellcheck catches the class of bug it is most exposed to.
+        "timonwong.shellcheck",
+        // They are how the work is written. The harness verifies their output; it does not replace them.
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+    ]
 }

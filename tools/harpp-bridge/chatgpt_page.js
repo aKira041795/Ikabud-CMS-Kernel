@@ -32,7 +32,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const DEFAULT_PROFILE = process.env.CHAIR_CONSULT_PROFILE
-  || path.join(os.homedir(), ".config", "chair-consult", "chatgpt-profile");
+    || path.join(os.homedir(), ".config", "chair-consult", "chatgpt-profile");
 const HOME_URL = "https://chatgpt.com/";
 
 function argValue(args, name, fallback) {
