@@ -537,6 +537,13 @@ button:disabled {
 @media (max-width: 768px) {
     .ark-content-area {
         flex-direction: column;
+        /* Stacked layout: children must span the column. The governed sidebar
+         * region is width:auto (it owns its own geometry), so with the base
+         * align-items:flex-start it shrink-wraps to sidebar + gap instead of
+         * filling the shell. That is invisible to headless tests, which reserve
+         * no scrollbar space, but a real classic scrollbar narrows the shell and
+         * the over-wide region then creates horizontal page scroll. */
+        align-items: stretch;
     }
 
     .ark-main {
