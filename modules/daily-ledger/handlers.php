@@ -8758,8 +8758,8 @@ function apiCreateCashierDispatch(array $params = []): void
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
-                 delivery_date, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks)
-             VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks)'
+                 delivery_date, production_shift, status, created_by, created_by_name_snapshot, posted_by, posted_at, remarks)
+             VALUES (:ot, :oid, :dt, :did, :dr, :dd, :production_shift, "posted", :created_by, :created_by_name_snapshot, :posted_by, NOW(), :remarks)'
         );
         $ins->execute([
             ':ot' => 'branch',
@@ -8768,6 +8768,18 @@ function apiCreateCashierDispatch(array $params = []): void
             ':did' => $destId,
             ':dr' => $drNumber,
             ':dd' => $deliveryDate,
+            // The SOURCE CASHIER'S SHIFT travels with the delivery. Owner relayed the client:
+            // "ang mgdelivery (source cashier) na moset ug asa ngabranch with shift niya ipadeliver"
+            // and "pra d na masagol ky ubay2 raba ang branch".
+            // Without this the receiving branch has no electronic source for the production shift,
+            // so productionShiftFor() returns '' and canAcceptGroup() stays FALSE: the receiving
+            // cashier is forced to choose the shift by hand for every electronically dispatched
+            // transfer. That manual choice is exactly how a shift gets attached to the wrong
+            // dispatch when a branch handles many transfers. apiGetIncomingDeliveries already
+            // returns dl_deliveries.production_shift and the modal already reads it, so this was
+            // missing DATA, not missing UI. The value is the resolved shift, so a shift-bound
+            // cashier's assignment still wins - the same one the ledger debit below uses.
+            ':production_shift' => $shift,
             ':created_by' => $actorId ?: null,
             ':created_by_name_snapshot' => $dispatchingCashierName,
             ':posted_by' => $actorId ?: null,

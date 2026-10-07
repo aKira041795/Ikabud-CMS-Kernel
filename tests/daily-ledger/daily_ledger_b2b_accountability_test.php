@@ -122,6 +122,20 @@ try {
         && ($dispatchAudit['line_count'] ?? 0) === 1,
         json_encode([$dispatchApi, $dispatchAudit], JSON_UNESCAPED_SLASHES));
 
+    // The shift the SOURCE cashier dispatched in must TRAVEL with the delivery, not only live in the
+    // audit. Owner relayed the client: "ang mgdelivery (source cashier) na moset ug asa ngabranch with
+    // shift niya ipadeliver" and "pra d na masagol ky ubay2 raba ang branch".
+    // Without it apiGetIncomingDeliveries returns null, productionShiftFor() yields '', and
+    // canAcceptGroup() stays FALSE - so the RECEIVING cashier is forced to choose the shift by hand
+    // for every electronically dispatched transfer, which is exactly how a shift gets attached to the
+    // wrong dispatch when a branch handles many transfers. The UI already reads the field; this
+    // asserts the DATA arrives. Same delivery as D2, so it also pins that a bound cashier's
+    // assignment wins over the requested shift.
+    $travelShift = $db->query('SELECT production_shift FROM dl_deliveries WHERE id = ' . (int)$dispatchId)->fetchColumn();
+    $h->test('D2b discriminating: the resolved dispatch shift is stored on the delivery row so the receiving side needs no manual choice (fails on base: the dispatch INSERT omits production_shift)',
+        (string)$travelShift === 'AM',
+        'production_shift=' . var_export($travelShift, true) . ' (requested PM; dispatcher is bound to AM)');
+
     $db->prepare('INSERT INTO dl_cashier_withdrawals
         (id, branch_id, product_id, ledger_date, shift, withdrawal_type, dr_number, target_branch_id, quantity, unit, dedup_hash)
         VALUES (?, ?, ?, ?, "AM", "delivery", ?, ?, 5, "pcs", ?),
