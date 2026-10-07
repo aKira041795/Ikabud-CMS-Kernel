@@ -27,9 +27,11 @@
 #                    on the base tree too; it is labelled a pin, not a discriminator.
 #   L4 (must-refuse) when every attempt is killed by the cap, the run must report NO completed
 #                    model and must NAME the timeout, not blame credentials
+#   L5 (must-hold)   THE WHOLE RUN must finish inside its budget - this is the direction the
+#                    "remove the division" mutation actually falsifies (see the note at L2)
 #
-# Cost: the stub sleeps 12s, so the unfixed tree takes ~50s and the fixed tree ~15s. That is
-# deliberately under the gate's 300s ceiling.
+# Cost: the stub sleeps 12s (30s for L5), so the unfixed tree takes ~70s and the fixed tree ~25s.
+# That is deliberately under the gate's 300s ceiling.
 #
 # Exit 0 = the chain is hang-resilient. Non-zero = one hang can still eat the budget.
 #
@@ -42,8 +44,9 @@ cat > "$STUB" <<'STUBEOF'
 #!/usr/bin/env bash
 model="$2"
 case "$model" in
-  hang) echo "starting $model"; sleep 12; echo "worked: $model"; exit 0;;
-  *)    echo "worked: $model"; exit 0;;
+  hang)  echo "starting $model"; sleep 12; echo "worked: $model"; exit 0;;
+  stuck) echo "starting $model"; sleep 30; echo "worked: $model"; exit 0;;
+  *)     echo "worked: $model"; exit 0;;
 esac
 STUBEOF
 chmod +x "$STUB"
@@ -64,14 +67,45 @@ case "$out1" in
   *) bad "L1 the chain did not survive a hang: $(printf '%s' "$out1" | tail -2 | tr '\n' ' ')";;
 esac
 
-# L2 - the discriminating case. Three models, two of which hang: the invariant is that no attempt
-# may take more than the remaining budget divided by the attempts left, so model 3 stays reachable.
+# L2 - model 3 stays REACHABLE after two hangs. This discriminates against the unfixed tree, which
+# has no budget concept at all (cap 4500s, so the stub simply exits 0 and the chain "succeeds" at
+# model 1 for the wrong reason).
+#
+# IT IS NOT FALSIFIED BY THE 'remove the division' MUTATION, and that is recorded rather than
+# quietly reworded. Found by the implementing lane on 2026-10-07: with budget 9 / 3 attempts, a
+# mutated implementation that hands each attempt the whole remaining budget still reaches model 3,
+# because the MIN floor caps the later attempts (9s, then 2s, then 2s) and the stub only sleeps 12s.
+# The lane reported PARTIAL rather than claiming a pass - correct behaviour. L5 is the direction
+# that the division mutation actually falsifies. Lesson, which this repo has now paid for five
+# times: a named mutation is an ASSUMPTION until it has been measured against the implementation.
+# (The criterion is also deliberately NOT asserting "elapsed <= budget" here: a single hung attempt
+# legitimately is allowed its share, and only the whole three-attempt run is bounded.)
 out2=$(LANE_MODEL_CMD="$STUB" LANE_MODEL_BUDGET=9 LANE_MODEL_TIMEOUT_MIN=2 \
        LANE_MODEL_TIMEOUT="" LANE_MODEL_CHAIN="hang,hang,ok" \
        bash -c 'source tools/lane-model.sh; lane_model_run "$LANE_MODEL_CHAIN" "p" /tmp/lm-live-l2; echo "used=${LANE_MODEL_USED} rc=$?"' 2>&1)
 case "$out2" in
   *"used=ok rc=0"*) ok "L2 model 3 is still reachable after two hangs";;
   *) bad "L2 two hangs starved the third model: $(printf '%s' "$out2" | tail -2 | tr '\n' ' ')";;
+esac
+
+# L5 - THE DIRECTION THE DIVISION MUTATION FALSIFIES. The invariant is a bound on the WHOLE run, not
+# just on reachability: the chain must finish inside its budget instead of spending the first
+# attempt's whole share on a hang.
+#   correct  (cap = remaining/attempts_left, floor 2)  15/3=5, then 10/2=5, then instant  ~10s
+#   mutated  (cap = the whole remaining budget)        15,  then floor 2,  then floor 2    ~17s
+# Measured threshold: elapsed <= LANE_MODEL_BUDGET. The gap is ~5s, so a slow machine cannot blur it.
+out5=$(LANE_MODEL_CMD="$STUB" LANE_MODEL_BUDGET=15 LANE_MODEL_TIMEOUT_MIN=2 \
+       LANE_MODEL_TIMEOUT="" LANE_MODEL_CHAIN="stuck,stuck,ok" \
+       bash -c 'source tools/lane-model.sh; t0=$SECONDS; lane_model_run "$LANE_MODEL_CHAIN" "p" /tmp/lm-live-l5 >/dev/null 2>&1; echo "used=${LANE_MODEL_USED} elapsed=$((SECONDS-t0))"' 2>&1)
+e5=$(printf '%s' "$out5" | grep -o 'elapsed=[0-9]*' | cut -d= -f2)
+case "$out5" in
+  *"used=ok"*)
+    if [ -n "$e5" ] && [ "$e5" -le 15 ]; then
+      ok "L5 the whole chain finishes inside its budget (elapsed=${e5}s of 15s)"
+    else
+      bad "L5 the run overspent its budget: elapsed=${e5:-?}s > 15s"
+    fi;;
+  *) bad "L5 two hangs starved the third model: $(printf '%s' "$out5" | tail -2 | tr '\n' ' ')";;
 esac
 
 # L3 - PIN (passes on the base tree too, by design): an explicit per-attempt cap wins over the

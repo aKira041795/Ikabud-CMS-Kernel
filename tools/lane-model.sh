@@ -75,9 +75,22 @@ lane_model_chain_ok() {
   [ "$n" -ge "$LANE_MODEL_CHAIN_MIN" ]
 }
 
-# One second per unit; kept deliberately below common dispatcher timeouts so a stalled
-# model returns control to the caller rather than dying at the caller's own cap.
-LANE_MODEL_TIMEOUT="${LANE_MODEL_TIMEOUT:-4500}"
+# Unless a per-attempt timeout is explicitly supplied, divide the remaining run budget
+# among the attempts still available. Keep the run budget below lane.sh's 7200s default
+# so the lane has time to record the result and run its acceptance command.
+LANE_MODEL_TIMEOUT="${LANE_MODEL_TIMEOUT-}"
+LANE_MODEL_BUDGET="${LANE_MODEL_BUDGET:-6600}"
+LANE_MODEL_TIMEOUT_MIN="${LANE_MODEL_TIMEOUT_MIN:-300}"
+if ! [[ "$LANE_MODEL_BUDGET" =~ ^[0-9]+$ ]] || [ "$((10#$LANE_MODEL_BUDGET))" -le 0 ]; then
+  LANE_MODEL_BUDGET=6600
+else
+  LANE_MODEL_BUDGET="$((10#$LANE_MODEL_BUDGET))"
+fi
+if ! [[ "$LANE_MODEL_TIMEOUT_MIN" =~ ^[0-9]+$ ]] || [ "$((10#$LANE_MODEL_TIMEOUT_MIN))" -le 0 ]; then
+  LANE_MODEL_TIMEOUT_MIN=300
+else
+  LANE_MODEL_TIMEOUT_MIN="$((10#$LANE_MODEL_TIMEOUT_MIN))"
+fi
 
 # Signatures that mean "this model cannot serve this request - try the next one".
 # Matched case-insensitively against the model's own log.
@@ -134,7 +147,8 @@ lane_model_run() {
   IFS="$oldifs"
 
   local model safe log rc attempt=0 total="${#list[@]}"
-  local saw_unavailable=0
+  local saw_unavailable=0 saw_timeout=0 started=$SECONDS
+  local elapsed remaining attempts_left attempt_cap
   for model in "${list[@]}"; do
     # trim surrounding whitespace
     model="$(printf '%s' "$model" | tr -d '[:space:]')"
@@ -145,9 +159,19 @@ lane_model_run() {
     safe="$(printf '%s' "$model" | tr '/:' '__')"
     log="${prefix}-${safe}.log"
 
-    echo "--- attempt ${attempt}/${total}: ${model} ---"
+    if [ -n "$LANE_MODEL_TIMEOUT" ]; then
+      attempt_cap="$LANE_MODEL_TIMEOUT"
+      echo "--- attempt ${attempt}/${total}: ${model}; cap=${attempt_cap}s (explicit override) ---"
+    else
+      elapsed=$((SECONDS - started))
+      remaining=$((LANE_MODEL_BUDGET - elapsed))
+      attempts_left=$((total - attempt + 1))
+      attempt_cap=$((remaining / attempts_left))
+      [ "$attempt_cap" -ge "$LANE_MODEL_TIMEOUT_MIN" ] || attempt_cap="$LANE_MODEL_TIMEOUT_MIN"
+      echo "--- attempt ${attempt}/${total}: ${model}; cap=${attempt_cap}s (budget ${LANE_MODEL_BUDGET}s, ${attempts_left} attempts left) ---"
+    fi
     # shellcheck disable=SC2086
-    timeout --signal=TERM --kill-after=60 "$LANE_MODEL_TIMEOUT" \
+    timeout --signal=TERM --kill-after=60 "$attempt_cap" \
       $LANE_MODEL_CMD --model "$model" "$prompt" > "$log" 2>&1
     rc=$?
     echo "    exit=${rc} log=$(wc -c < "$log" 2>/dev/null || echo 0)b"
@@ -172,13 +196,21 @@ lane_model_run() {
     fi
 
     # The run failed. Report WHY, so the next attempt is an informed choice.
-    if lane_model_unavailable "$log"; then
-      saw_unavailable=1
-      echo "    unavailable signature:"
-      lane_model_unavailable_line "$log" | head -3
-    else
-      echo "    (failed without an unavailability signature - treating as a crash)"
-    fi
+    case "$rc" in
+      124|137|143)
+        saw_timeout=1
+        echo "    timeout: attempt was cut by its ${attempt_cap}s cap"
+        ;;
+      *)
+        if lane_model_unavailable "$log"; then
+          saw_unavailable=1
+          echo "    unavailable signature:"
+          lane_model_unavailable_line "$log" | head -3
+        else
+          echo "    (failed without an unavailability signature - treating as a crash)"
+        fi
+        ;;
+    esac
   done
 
   # Distinguish the two very different outcomes. This line used to assert "was unavailable"
@@ -186,7 +218,10 @@ lane_model_run() {
   # duly reported a quota story to the owner while the log contradicted it, and the real cause
   # (a SIGTERM, exit=143, zero-byte logs) was nearly missed. A verdict that contradicts its own
   # evidence is worse than no verdict.
-  if [ "$saw_unavailable" -eq 1 ]; then
+  if [ "$saw_timeout" -eq 1 ]; then
+    echo "=== MODEL THAT COMPLETED: none — one or more attempts hit their timeout ==="
+    echo "=== This is NOT a quota result — read the timeout and exit details above. ==="
+  elif [ "$saw_unavailable" -eq 1 ]; then
     echo "=== MODEL THAT COMPLETED: none — every model in '${models}' was unavailable ==="
   else
     echo "=== MODEL THAT COMPLETED: none — NO unavailability signature seen. Every attempt ==="
