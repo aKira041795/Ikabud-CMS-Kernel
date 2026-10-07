@@ -223,6 +223,15 @@ if [ -d "$PKG_DIR/extras/chatgpt-advisor" ]; then
   cp "$REPO/tools/harpp-bridge/context_pack.py"  "$dest/extras/chatgpt-advisor/" 2>/dev/null || true
 fi
 chmod +x "$dest/tools/"*.sh "$dest/install.sh" "$dest/uninstall.sh" "$dest/preflight.sh" 2>/dev/null || true
+chmod +x "$dest/examples/"*.sh 2>/dev/null || true
+
+# A .txt opened on Windows should have Windows line endings: modern Notepad copes with LF, older
+# viewers and `type` do not, and this file is the FIRST thing a Windows recipient opens. The shell
+# scripts stay LF - converting those would break bash outright, which is precisely what check #1 of
+# the test kit looks for.
+find "$dest" -type f -name '*.txt' -print0 | while IFS= read -r -d '' f; do
+  sed -i 's/\r*$/\r/' "$f"
+done
 
 # ── gates on the ASSEMBLED output ────────────────────────────────────────────────────────────────
 echo

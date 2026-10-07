@@ -64,6 +64,11 @@ SET UP (ONCE, ~10 MINUTES)
        bash tools/lane-platform-selftest.sh     # expect: 22 passed, 0 failed
        bash tools/lane.sh selftest              # expect: 29 passed, 0 failed
 
+   Or run the whole check in one go - it prints PASS/FAIL against the EXPECTED output and ends
+   with a block you can send back verbatim:
+
+       bash examples/windows-test-kit.sh
+
 Then read docs/00-START-HERE.md.
 
 

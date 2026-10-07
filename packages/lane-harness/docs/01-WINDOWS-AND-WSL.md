@@ -88,6 +88,19 @@ bash tools/lane.sh selftest            # expect 29 passed, 0 failed
 The platform suite reports `pty mode: util-linux` and `detach: setsid` on WSL2. If it says
 `pty: NONE`, you are not running inside WSL — check the bottom-left corner of the VS Code window.
 
+### Or let the package test itself
+
+```bash
+bash examples/windows-test-kit.sh
+```
+
+It checks the line endings of every shipped script (the failure a Windows unzip causes), exercises
+the Git Bash refusal and the `--allow-degraded` path, runs preflight and the three self-tests, and
+then runs **two lanes with the same `status: PASS` self-report** — one that delivers and one that
+only claims to. It prints `[PASS]`/`[FAIL]` against the expected output, says `[SKIP]` for anything
+it cannot test on your platform, and ends with a block you can send back verbatim. `--fast` skips
+the two long suites.
+
 ## Option B — Dev Containers (no WSL setup)
 
 If you would rather not enable WSL, a container is also a real Linux. The package ships

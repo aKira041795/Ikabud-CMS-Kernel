@@ -58,6 +58,7 @@ The full reasoning, with the measurements, is in `docs/04-DOCTRINE.md`.
 | `tools/model-unavailable.patterns` | the one signature list shared by every consumer |
 | `tools/*-selftest.sh`, `tools/harness-*-probe.sh` | the harness's own verification suite (see below) |
 | `examples/lane-example.sh` | a short, copyable lane script |
+| `examples/windows-test-kit.sh` | runs the whole check on the machine in front of you and prints PASS/FAIL against the expected output |
 | `.vscode/`, `.devcontainer/` | editor tasks and a container definition for Windows users |
 | `docs/` | start here, Windows/WSL, VS Code integration, providers and keys, doctrine, troubleshooting |
 | `extras/chatgpt-advisor/` | **optional** — consult your own ChatGPT subscription as a second opinion |
@@ -85,6 +86,13 @@ bash tools/lane-platform-selftest.sh     # 22 passed, 0 failed
 
 If those two numbers come out, your install works — including the parts that only fail on your
 machine's platform.
+
+To check the whole package on the machine in front of you (line endings, the Windows guard,
+preflight, all three suites, and two lanes with the same self-report and opposite verdicts):
+
+```bash
+bash examples/windows-test-kit.sh
+```
 
 ## What you must supply
 
