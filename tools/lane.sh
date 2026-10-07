@@ -620,6 +620,23 @@ cmd_run() {
   # this monitor's own. Detection uses the runner's own record instead; see below.
 
   echo "== dispatching $name =="
+  # Model availability, printed AT DISPATCH so the chair does not have to remember or ask.
+  #
+  # A model that ran out earlier is skipped by lane_model_run for its recorded cooldown, so the
+  # lane silently runs on a fallback model. Silent is the problem: the owner should not have to
+  # wonder which model is serving, or re-derive that Sol is spent. Say it here, once, where the
+  # dispatch decision is made.
+  if [ -r "$ROOT/tools/model-availability.sh" ]; then
+    # shellcheck source=/dev/null
+    . "$ROOT/tools/model-availability.sh"
+    _avail_line="$(model_availability_line)"
+    if [ -n "$_avail_line" ]; then
+      echo "   ${_avail_line}"
+      echo "   (skipped models fall through to the next in tools/model-chain.txt)"
+    else
+      echo "   models: all available"
+    fi
+  fi
   echo "   This call waits up to ${sliceSecs}s, then hands the wait back instead of blocking"
   echo "   past the terminal cap. If the lane is still running it returns 3 and says to"
   echo "   re-arm. The runner records the landing itself, so nothing is lost either way."

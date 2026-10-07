@@ -9,6 +9,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 
 STUB=/tmp/lane-model-stub.sh
+
+# THE LEDGER MUST BE ISOLATED FROM PRODUCTION.
+#
+# This selftest deliberately fails the REAL model names in the canonical chain with a rate-limit
+# message (see CHAINSTUB below). Once lane-model.sh records exhaustion in a ledger, running this
+# file against the default ledger would mark `openai-codex/gpt-5.6-sol` and `deepseek-v4-flash`
+# exhausted, and the next real dispatch would SKIP them for the whole cooldown. A test that poisons
+# the state of the system it tests is worse than no test.
+export MODEL_AVAIL_LEDGER="$(mktemp -d)/model-availability.json"
 cat > "$STUB" <<'STUBEOF'
 #!/usr/bin/env bash
 model="$2"

@@ -37,6 +37,15 @@ LANE_MODEL_CMD="${LANE_MODEL_CMD:-pi --print --approve}"
 _LANE_MODEL_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_UNAVAILABLE_PATTERNS="$_LANE_MODEL_TOOLS_DIR/model-unavailable.patterns"
 
+# Remember exhausted models ACROSS runs. Without this, every dispatch rediscovers exhaustion by
+# burning an attempt: lane `st13b` retried 8 times in 40 minutes on 2026-10-07, every one
+# `reason=quota`, `exit=1`, `files=0`.
+#
+# Optional on purpose. If the file is missing the lane behaves exactly as it did before, so a
+# harness checkout without it still works.
+# shellcheck source=/dev/null
+[ -r "$_LANE_MODEL_TOOLS_DIR/model-availability.sh" ] && . "$_LANE_MODEL_TOOLS_DIR/model-availability.sh"
+
 # ── the canonical model chain ─────────────────────────────────────────────────────────
 # Read, not hard-coded per lane. A chain shorter than LANE_MODEL_CHAIN_MIN is the exact
 # defect this exists to remove (a single exhausted provider ending the work), so it is
@@ -150,6 +159,19 @@ lane_model_run() {
   local saw_unavailable=0 saw_timeout=0 started=$SECONDS
   local elapsed remaining attempts_left attempt_cap
 
+  # How many models are OUTSIDE a recorded cooldown. This decides whether skipping is SAFE:
+  # a ledger that skipped every model would stall the program exactly as badly as having no
+  # ledger, and a stale ledger is far more likely than a genuine total outage. So skipping is
+  # only permitted while at least one model remains viable.
+  local viable=0 _m
+  if command -v model_is_available >/dev/null 2>&1; then
+    for _m in "${list[@]}"; do
+      _m="$(printf '%s' "$_m" | tr -d '[:space:]')"
+      [ -n "$_m" ] || continue
+      if model_is_available "$_m"; then viable=$((viable + 1)); fi
+    done
+  fi
+
   # A configuration that cannot honour BOTH the floor and the budget is announced rather than
   # silently absorbed. Measured by the adversarial review 2026-10-07: LANE_MODEL_TIMEOUT_MIN=2
   # against LANE_MODEL_BUDGET=1 ran 2s, because the floor was applied with no reference to what was
@@ -169,6 +191,12 @@ lane_model_run() {
     # A model name contains '/', which is not usable in a filename.
     safe="$(printf '%s' "$model" | tr '/:' '__')"
     log="${prefix}-${safe}.log"
+
+    # Skip a model still inside its recorded cooldown - but only while something else can serve.
+    if [ "$viable" -gt 0 ] && command -v model_is_available >/dev/null 2>&1 && ! model_is_available "$model"; then
+      echo "--- attempt ${attempt}/${total}: ${model} SKIPPED (recorded exhausted until $(model_reset_hint "$model")) ---"
+      continue
+    fi
 
     if [ -n "$LANE_MODEL_TIMEOUT" ]; then
       attempt_cap="$LANE_MODEL_TIMEOUT"
@@ -209,6 +237,9 @@ lane_model_run() {
       LANE_MODEL_USED="$model"
       LANE_MODEL_LOG="$log"
       echo "=== MODEL THAT COMPLETED: ${model} ==="
+      # Clear any recorded outage, and learn how long the last one actually lasted, so the cooldown
+      # converges on the provider's real window instead of a hard-coded guess.
+      command -v model_mark_ok >/dev/null 2>&1 && model_mark_ok "$model"
       cat "$log"
       return 0
     fi
@@ -224,6 +255,10 @@ lane_model_run() {
           saw_unavailable=1
           echo "    unavailable signature:"
           lane_model_unavailable_line "$log" | head -3
+          if command -v model_mark_exhausted >/dev/null 2>&1; then
+            model_mark_exhausted "$model" "$(lane_model_unavailable_line "$log" | head -1)"
+            echo "    recorded: ${model} is exhausted; it will be skipped until $(model_reset_hint "$model")"
+          fi
         else
           echo "    (failed without an unavailability signature - treating as a crash)"
         fi
