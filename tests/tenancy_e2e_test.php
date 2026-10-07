@@ -265,7 +265,13 @@ ok($rewritten3 === '/admin/content', '"/admin/content" is NOT rewritten (admin r
 $resolver->reset();
 $_SERVER['HTTP_HOST'] = 'cmsnew.test';
 $rewrittenForgot = $router->rewriteUri('/forgot-password');
-ok($rewrittenForgot === '/forgot-password', '"/forgot-password" is NOT rewritten (kernel auth endpoint skip) (got: ' . $rewrittenForgot . ')');
+// SUPERSEDED 2026-10-07 - /forgot-password is the same dead-end class as /login: a kernel recovery
+// page cannot help anyone on a tenant whose database has no kernel users. When the entry module OWNS
+// auth AND exposes its own recovery route, that route wins. Verified over real HTTP for all 12 tenant
+// hosts: each reaches a module "Forgot Password" page, zero redirects, no loop. The guard still holds
+// in both directions - a module WITHOUT the route keeps the kernel page (see /reset-password directly
+// below, which stays put), and the kernel host is pinned further down.
+ok($rewrittenForgot === '/cms/forgot-password', 'CMS tenant "/forgot-password" resolves to the auth-owned module recovery route (got: ' . $rewrittenForgot . ')');
 
 $resolver->reset();
 $_SERVER['HTTP_HOST'] = 'cmsnew.test';
@@ -293,6 +299,18 @@ $resolver->reset();
 $_SERVER['HTTP_HOST'] = 'applicationkernel.test';
 $rewritten6 = $router->rewriteUri('/');
 ok($rewritten6 === '/', 'Kernel URL "/" is NOT rewritten (no domain mapping) (got: ' . $rewritten6 . ')');
+
+// The kernel auth endpoints must survive on a host where no tenant resolves. This is the intent the
+// auth-owned-tenant rewrite was required NOT to break, so it is pinned here explicitly.
+$resolver->reset();
+$_SERVER['HTTP_HOST'] = 'applicationkernel.test';
+$kernelLogin = $router->rewriteUri('/login');
+ok($kernelLogin === '/login', 'Kernel URL "/login" stays the kernel sign-in (got: ' . $kernelLogin . ')');
+
+$resolver->reset();
+$_SERVER['HTTP_HOST'] = 'applicationkernel.test';
+$kernelForgot = $router->rewriteUri('/forgot-password');
+ok($kernelForgot === '/forgot-password', 'Kernel URL "/forgot-password" stays the kernel page (got: ' . $kernelForgot . ')');
 
 // Restore
 $_SERVER['HTTP_HOST'] = $origHost;

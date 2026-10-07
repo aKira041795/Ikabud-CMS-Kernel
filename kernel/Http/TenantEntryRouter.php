@@ -60,6 +60,11 @@ class TenantEntryRouter
                 return $uri;
             }
 
+            $entryAuthPath = $this->entryOwnedAuthPath($uri, $entry);
+            if ($entryAuthPath !== null) {
+                return $entryAuthPath;
+            }
+
             if ($this->shouldSkipRewrite($uri, $entry)) {
                 return $uri;
             }
@@ -92,11 +97,40 @@ class TenantEntryRouter
         }
     }
 
-    private function entryLandingPath(string $entry): string
+    private function entryOwnedAuthPath(string $uri, string $entry): ?string
+    {
+        if ($uri !== '/login' && $uri !== '/forgot-password') {
+            return null;
+        }
+
+        if (!$this->entryModuleAvailable($entry)) {
+            return null;
+        }
+
+        $authOwned = function_exists('kernelAuthOwnedSpecFromDisk')
+            ? kernelAuthOwnedSpecFromDisk($entry)
+            : (function_exists('kernelAuthOwnedSpecForModule') ? kernelAuthOwnedSpecForModule($entry) : null);
+        if (!is_array($authOwned) && defined('BASE_PATH')) {
+            $modulePath = function_exists('modulePathForId') ? modulePathForId($entry) : null;
+            $manifestPath = rtrim(is_string($modulePath) && $modulePath !== '' ? $modulePath : (string)BASE_PATH . '/modules/' . $entry, '/') . '/module.json';
+            if (is_file($manifestPath)) {
+                $manifest = json_decode((string)file_get_contents($manifestPath), true);
+                $authOwned = is_array($manifest) ? ($manifest['auth_owned'] ?? null) : null;
+            }
+        }
+        if (!is_array($authOwned)) {
+            return null;
+        }
+
+        $resolved = $this->entryLandingPath($entry, $uri, true);
+        return $resolved !== $uri ? $resolved : null;
+    }
+
+    private function entryLandingPath(string $entry, string $authPath = '/login', bool $requireExposedAuthRoute = false): string
     {
         $entry = trim($entry);
         if ($entry === '') {
-            return '/';
+            return $authPath === '/login' ? '/' : $authPath;
         }
 
         // Resolve the auth/login surface from the manifest. A profile entry
@@ -112,24 +146,26 @@ class TenantEntryRouter
         }
 
         static $landingCache = [];
-        if (isset($landingCache[$delegate])) {
-            return $landingCache[$delegate];
+        $cacheKey = $delegate . ':' . $authPath . ':' . ($requireExposedAuthRoute ? 'required' : 'landing');
+        if (isset($landingCache[$cacheKey])) {
+            return $landingCache[$cacheKey];
         }
 
         // Check APCu for cross-process cache before expensive routes.php load
         $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
-        $apcuKey = 'ikabud:entry_landing:v4:' . sha1($delegate);
+        $apcuKey = 'ikabud:entry_landing:v6:' . sha1($cacheKey);
         if ($apcuEnabled) {
             $cached = apcu_fetch($apcuKey, $success);
             if ($success && is_string($cached)) {
-                $landingCache[$delegate] = $cached;
+                $landingCache[$cacheKey] = $cached;
                 return $cached;
             }
         }
 
         $delegateRoot = '/' . $delegate;
-        $delegateLogin = '/' . $delegate . '/login';
-        $result = '/login';
+        $delegateAuthPath = '/' . $delegate . $authPath;
+        $result = $authPath;
+        $hasAuthRoute = false;
         // When the entry module delegates its auth surface to another module,
         // an unauthenticated visitor must be sent to the delegate's LOGIN page
         // (never the delegate's public root). When the module owns its own auth
@@ -152,14 +188,23 @@ class TenantEntryRouter
                     $routes = require $routesFile;
                     $get = is_array($routes) ? ($routes['GET'] ?? []) : [];
                     if (is_array($get)) {
-                        if ($delegatesAuth) {
-                            if (array_key_exists($delegateLogin, $get)) {
-                                $result = $delegateLogin;
+                        $hasAuthRoute = array_key_exists($delegateAuthPath, $get);
+                        if ($requireExposedAuthRoute && $hasAuthRoute) {
+                            // An explicit auth request must use the auth route even
+                            // when the module also exposes a public/root route.
+                            $result = $delegateAuthPath;
+                        } elseif ($authPath !== '/login') {
+                            if ($hasAuthRoute) {
+                                $result = $delegateAuthPath;
+                            }
+                        } elseif ($delegatesAuth) {
+                            if (array_key_exists($delegateAuthPath, $get)) {
+                                $result = $delegateAuthPath;
                             }
                         } elseif (array_key_exists($delegateRoot, $get)) {
                             $result = $delegateRoot;
-                        } elseif (array_key_exists($delegateLogin, $get)) {
-                            $result = $delegateLogin;
+                        } elseif (array_key_exists($delegateAuthPath, $get)) {
+                            $result = $delegateAuthPath;
                         }
                     }
                 }
@@ -172,8 +217,12 @@ class TenantEntryRouter
             ]);
         }
 
+        if ($requireExposedAuthRoute && !$hasAuthRoute) {
+            $result = $authPath;
+        }
+
         // Store in both caches for future lookups
-        $landingCache[$delegate] = $result;
+        $landingCache[$cacheKey] = $result;
         if ($apcuEnabled) {
             apcu_store($apcuKey, $result, 3600); // 1 hour TTL
         }
@@ -219,8 +268,8 @@ class TenantEntryRouter
             return true;
         }
 
-        // Never rewrite kernel auth endpoints.
-        // These must remain stable across all hosts/tenants.
+        // Keep kernel auth endpoints stable unless entryOwnedAuthPath() has
+        // already resolved an auth-owned module's declared login surface.
         if (
             $uri === '/login'
             || $uri === '/auth/login'

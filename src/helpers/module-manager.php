@@ -1967,6 +1967,7 @@ function validateModuleCapabilities(array $manifest): array
  *     "default_admin_role":         "admin",                     // optional, default first admin_roles entry
  *     "requires_named_admin_on_provision": true,                 // optional, default false
  *     "blocked_password_hashes":    ["..."],                     // optional, sentinel hashes the auth provider must reject
+ *     "login_context_callable":     "moduleLoginPageContext",    // optional, login-page context function
  *     "touch_updated_at":           true                         // optional, default true (adds updated_at = NOW())
  *   }
  */
@@ -2030,6 +2031,13 @@ function validateAuthOwnedSpec(mixed $raw, bool $strictReservedRoles = false): a
         }
     }
 
+    if (array_key_exists('login_context_callable', $raw)) {
+        $callable = $raw['login_context_callable'];
+        if (!is_string($callable) || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', trim($callable)) !== 1) {
+            return ['ok' => false, 'error' => 'module.json field auth_owned.login_context_callable must be a valid function name'];
+        }
+    }
+
     return ['ok' => true];
 }
 
@@ -2078,6 +2086,7 @@ function kernelNormalizeAuthOwnedSpec(string $moduleId, array $raw): array
         'default_admin_role'                 => $defaultRole,
         'requires_named_admin_on_provision'  => !empty($raw['requires_named_admin_on_provision']),
         'blocked_password_hashes'            => $blocked,
+        'login_context_callable'             => isset($raw['login_context_callable']) ? trim((string)$raw['login_context_callable']) : null,
         'touch_updated_at'                   => array_key_exists('touch_updated_at', $raw) ? (bool)$raw['touch_updated_at'] : true,
     ];
 }
@@ -3437,6 +3446,29 @@ function validateModuleManifest(string $path, array $context = []): array
                 'error' => (string)($authOwnedValidation['error'] ?? 'module.json field auth_owned is invalid'),
                 'error_code' => 'manifest_invalid_auth_owned',
             ];
+        }
+
+        $loginContextCallable = $manifest['auth_owned']['login_context_callable'] ?? null;
+        if (is_string($loginContextCallable) && $loginContextCallable !== '' && !function_exists($loginContextCallable)) {
+            $helpersFile = dirname($path) . '/helpers.php';
+            if (is_file($helpersFile)) {
+                try {
+                    require_once $helpersFile;
+                } catch (Throwable $e) {
+                    return [
+                        'ok' => false,
+                        'error' => 'module.json field auth_owned.login_context_callable could not be loaded: ' . $e->getMessage(),
+                        'error_code' => 'manifest_invalid_auth_owned',
+                    ];
+                }
+            }
+            if (!function_exists($loginContextCallable)) {
+                return [
+                    'ok' => false,
+                    'error' => "module.json field auth_owned.login_context_callable names missing function {$loginContextCallable}",
+                    'error_code' => 'manifest_invalid_auth_owned',
+                ];
+            }
         }
     }
 

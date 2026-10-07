@@ -44,16 +44,37 @@ if (!function_exists('kernelHandlePageLogin')) {
         }
 
         $enabledModules = getEnabledModules();
-        if (isset($enabledModules[$entryModuleId]) && is_array($enabledModules[$entryModuleId])) {
-            loadModuleHelpers($enabledModules[$entryModuleId]);
+        $entryManifest = isset($enabledModules[$entryModuleId]) && is_array($enabledModules[$entryModuleId])
+            ? $enabledModules[$entryModuleId]
+            : null;
+        if (is_array($entryManifest)) {
+            loadModuleHelpers($entryManifest);
         }
 
-        $contextFunction = preg_replace('/[^a-z0-9]+/i', '_', $entryModuleId) . 'LoginPageContext';
+        $declaredContextFunction = is_array($entryManifest)
+            ? ($entryManifest['auth_owned']['login_context_callable'] ?? null)
+            : null;
+        $contextFunction = is_string($declaredContextFunction) && trim($declaredContextFunction) !== ''
+            ? trim($declaredContextFunction)
+            : preg_replace('/[^a-z0-9]+/i', '_', $entryModuleId) . 'LoginPageContext';
         if (is_string($contextFunction) && function_exists($contextFunction)) {
             $context = $contextFunction($overrides);
             if (is_array($context)) {
                 return $context;
             }
+        }
+
+        if (is_array($entryManifest['auth_owned'] ?? null) && function_exists('write_log')) {
+            $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+            if (class_exists(\Ikabud\Kernel\TenantResolver::class)) {
+                $host = \Ikabud\Kernel\TenantResolver::normalizeHost($host);
+            }
+            write_log('Auth-owned entry module login context could not be resolved', 'warning', [
+                'host' => $host,
+                'tenant_id' => app()->tenant()->current(),
+                'entry_module_id' => $entryModuleId,
+                'login_context_callable' => is_string($contextFunction) ? $contextFunction : '',
+            ]);
         }
 
         return $defaultContext;
