@@ -156,7 +156,13 @@ class ThemeRegionRenderer
             }
 
             $type = trim((string)($widget['type'] ?? ''));
-            $renderer = $type !== '' ? ($renderers[$type] ?? null) : null;
+            // Customizer vocabulary predates the builder names for these equivalent widgets.
+            $rendererType = match ($type) {
+                'custom_html' => 'text',
+                'cta_button' => 'button',
+                default => $type,
+            };
+            $renderer = $rendererType !== '' ? ($renderers[$rendererType] ?? null) : null;
             if (!is_callable($renderer)) {
                 continue;
             }
@@ -171,7 +177,7 @@ class ThemeRegionRenderer
             $location ??= $region;
             $horizontal = $region === 'header' || $location === 'topbar';
             if (function_exists('cmsBuilderDefaultStyle')) {
-                $defaultStyle = cmsBuilderDefaultStyle($type);
+                $defaultStyle = cmsBuilderDefaultStyle($rendererType);
                 // These shared types have card defaults for vertical regions. A horizontal band
                 // supplies its own compact presentation; persisted per-widget styles still win.
                 if ($horizontal && in_array($type, ['contact_info', 'opening_hours', 'nav_menu', 'social_links'], true)) {

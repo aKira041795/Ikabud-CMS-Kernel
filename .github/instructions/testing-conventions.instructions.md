@@ -145,6 +145,12 @@ php scripts/generate-module-test.php <module-id> [--playwright]
 ```
 Auto-generates stub files: manifest contract, state machine, integration, and Playwright specs.
 
+## UI Verification for Regions
+- Presence or one geometry metric is not UI verification; match each visual claim to its property (band height, row count, alignment, or overlap).
+- Before inspecting any region change, state the expected appearance and capture a screenshot; looking first invites post-hoc acceptance.
+- A visual `REFUTED` verdict must name the property tested **and** the properties deliberately not tested.
+- Example: two agents measured width/overflow and refuted a real header defect whose failing property was height.
+
 ## Playwright Browser Tests
 Fixture at `tests/browser/WorkbenchFixture.js` — provides pre-authenticated page + component harnesses.
 

@@ -96,6 +96,11 @@ widgetBridgeAssert(
 );
 widgetBridgeAssert('button_label aliases to buttonText', str_contains($search, '>Find</button>'), $search);
 
+$customHtml = widgetBridgeRender([['type' => 'custom_html', 'props' => ['content' => '<strong>Open</strong>']]]);
+$ctaButton = widgetBridgeRender([['type' => 'cta_button', 'props' => ['text' => 'Learn More', 'url' => '/learn']]]);
+widgetBridgeAssert('customizer custom_html maps to the builder text renderer', str_contains($customHtml, '<strong>Open</strong>'), $customHtml);
+widgetBridgeAssert('customizer cta_button maps to the builder button renderer', str_contains($ctaButton, 'href="/learn"') && str_contains($ctaButton, '>Learn More</a>'), $ctaButton);
+
 $openingHours = widgetBridgeRender([[
     'type' => 'opening_hours',
     'props' => ['text' => 'Always open', 'icon' => 0],
