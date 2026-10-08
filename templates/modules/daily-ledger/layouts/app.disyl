@@ -653,6 +653,15 @@
                 </a>
                 {/if}
 
+                {if feature_branch_products && (user_role == 'cashier' || user_role == 'supervisor' || user_role == 'production_in_charge' || user_role == 'admin')}
+                <a href="{base_url}/products"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branch-products'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Branch Products">
+                    <i class="fas fa-boxes-stacked w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branch Products</span>
+                </a>
+                {/if}
+
                 {if user_role == 'admin'}
                 <a href="{base_url}/admin/products"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'products'}bg-white/10 ring-1 ring-white/10{/if}"

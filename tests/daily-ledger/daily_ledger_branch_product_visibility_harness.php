@@ -12,7 +12,7 @@ declare(strict_types=1);
  *
  *   { "role": "admin", "get": {...}, "body": {...} }
  *
- * Modes: batch | field | withdrawal | update_product | create_branch | create_product | bulk_assign
+ * Modes: batch | field | withdrawal | update_product | create_branch | create_product | bulk_assign | self_toggle
  *
  * stdout is the JSON the endpoint would have returned, so the caller asserts
  * on what actually happened rather than on a helper's decision.
@@ -22,7 +22,7 @@ $basePath = dirname(__DIR__, 2);
 require_once $basePath . '/src/helpers/cli-bootstrap.php';
 $mode = (string)($argv[1] ?? '');
 $payloadFile = (string)($argv[2] ?? '');
-$modes = ['batch', 'field', 'withdrawal', 'update_product', 'create_branch', 'create_product', 'bulk_assign'];
+$modes = ['batch', 'field', 'withdrawal', 'update_product', 'create_branch', 'create_product', 'bulk_assign', 'self_toggle'];
 if (!in_array($mode, $modes, true) || !is_file($payloadFile)) {
     exit(2);
 }
@@ -48,9 +48,10 @@ $role = in_array((string)($payload['role'] ?? 'admin'), ['admin', 'supervisor', 
 $_GET = is_array($payload['get'] ?? null) ? $payload['get'] : [];
 $body = is_array($payload['body'] ?? null) ? $payload['body'] : [];
 
+$actorId = max(1, (int)($payload['user_id'] ?? 1));
 $_COOKIE[dlCookieName()] = app()->jwt()->generate([
-    'sub' => $role . ':1',
-    'id' => 1,
+    'sub' => $role . ':' . $actorId,
+    'id' => $actorId,
     'username' => $role . '-harness',
     'name' => ucfirst($role) . ' Harness',
     'role' => $role,
@@ -84,6 +85,9 @@ if ($mode === 'batch') {
     apiUpdateProduct();
 } elseif ($mode === 'create_product') {
     apiCreateProduct();
+} elseif ($mode === 'self_toggle') {
+    $_SERVER['REQUEST_URI'] = '/daily-ledger/api/v1/products/toggle';
+    apiToggleBranchProduct();
 } elseif ($mode === 'bulk_assign') {
     if (function_exists('apiBulkAssignBranchProducts')) {
         apiBulkAssignBranchProducts();

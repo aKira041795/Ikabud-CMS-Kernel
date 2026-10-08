@@ -3103,6 +3103,7 @@ function dl_layoutFlags(): array
         'feature_formal_delivery'   => dl_settingToBool($s['formal_delivery_workflow_enabled'] ?? false),
         'feature_price_groups'      => dl_settingToBool($s['price_groups_enabled'] ?? true),
         'feature_pos'               => dl_settingToBool($s['pos_enabled'] ?? false),
+        'feature_branch_products'   => dl_settingToBool($s['branch_product_self_management'] ?? '0'),
     ];
 }
 

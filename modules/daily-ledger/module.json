@@ -374,6 +374,13 @@
       "description": "Show the Production Output page and allow production output entries to be recorded."
     },
     {
+      "key": "branch_product_self_management",
+      "type": "checkbox",
+      "label": "Allow Branch Users to Manage Products",
+      "default": "0",
+      "description": "Allow cashier, supervisor, and production in-charge users to show or hide products for their own assigned branch."
+    },
+    {
       "key": "formal_delivery_workflow_enabled",
       "type": "checkbox",
       "label": "Enable Formal Delivery / Receiving Workflow",

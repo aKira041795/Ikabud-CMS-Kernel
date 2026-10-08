@@ -1,0 +1,114 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block content}
+<div class="flex flex-col gap-2 mb-6 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Branch Products</h2>
+        <p class="text-sm text-gray-500">Choose which globally active products are shown at <span class="font-semibold text-gray-700">{branch.name}</span>.</p>
+    </div>
+    <div class="text-sm text-gray-500">Branch: {branch.code}</div>
+</div>
+
+<div id="branch-product-message" class="hidden mb-4 rounded-xl border p-3 text-sm" role="alert" aria-live="polite"></div>
+
+<div class="card">
+    <div class="card-header">
+        <span>Products</span>
+        <span class="text-sm text-muted">Branch visibility only</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th>Current state</th>
+                        <th class="text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach products as product}
+                    <tr data-product-row="{product.id}">
+                        <td class="font-medium text-gray-900">{product.name}</td>
+                        <td class="text-gray-500">{product.sku | default:—}</td>
+                        <td>
+                            <span data-product-state="{product.id}" class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {if product.branch_is_active == 1}bg-emerald-100 text-emerald-800{/if}{if product.branch_is_active != 1}bg-gray-100 text-gray-700{/if}">
+                                {if product.branch_is_active == 1}Shown{/if}{if product.branch_is_active != 1}Hidden{/if}
+                            </span>
+                        </td>
+                        <td class="text-right">
+                            <button type="button" class="btn btn-outline" data-product-toggle="{product.id}" data-active="{product.branch_is_active}">
+                                {if product.branch_is_active == 1}Hide{/if}{if product.branch_is_active != 1}Show{/if}
+                            </button>
+                        </td>
+                    </tr>
+                    {/foreach}
+                    {if products | length == 0}
+                    <tr><td colspan="4" class="py-10 text-center text-sm text-gray-500">No globally active products are available.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    var message = document.getElementById('branch-product-message');
+
+    function showMessage(text, isError) {
+        message.textContent = text;
+        message.className = 'mb-4 rounded-xl border p-3 text-sm ' + (isError
+            ? 'border-rose-200 bg-rose-50 text-rose-800'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-800');
+    }
+
+    document.querySelectorAll('[data-product-toggle]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var productId = parseInt(button.getAttribute('data-product-toggle'), 10);
+            var nextActive = button.getAttribute('data-active') !== '1';
+            button.disabled = true;
+
+            fetch('{base_url}/api/v1/products/toggle', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': window.DL_CSRF || '',
+                    'Authorization': window.DL_TOKEN ? 'Bearer ' + window.DL_TOKEN : ''
+                },
+                body: JSON.stringify({ product_id: productId, is_active: nextActive })
+            })
+            .then(function (response) {
+                return response.json().then(function (body) {
+                    if (!response.ok || !body.ok) {
+                        throw new Error(body.error || 'Unable to update this product.');
+                    }
+                    return body;
+                });
+            })
+            .then(function (body) {
+                var active = Number(body.is_active) === 1;
+                var state = document.querySelector('[data-product-state="' + productId + '"]');
+                button.setAttribute('data-active', active ? '1' : '0');
+                button.textContent = active ? 'Hide' : 'Show';
+                state.textContent = active ? 'Shown' : 'Hidden';
+                state.className = 'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ' + (active
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-gray-100 text-gray-700');
+                showMessage(active ? 'Product is now shown at this branch.' : 'Product is now hidden at this branch.', false);
+            })
+            .catch(function (error) {
+                showMessage(error.message || 'Unable to update this product.', true);
+            })
+            .finally(function () {
+                button.disabled = false;
+            });
+        });
+    });
+}());
+</script>
+{/block}

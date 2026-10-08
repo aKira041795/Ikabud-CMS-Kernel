@@ -13,6 +13,7 @@ return [
         // Namespaced pages
         '/daily-ledger/ledger'                     => 'daily-ledger:handleCashierLedger',
         '/daily-ledger/ledger/rows'                => 'daily-ledger:handleCashierRows',
+        '/daily-ledger/products'                   => 'daily-ledger:handleBranchProducts',
         '/daily-ledger/admin/dashboard'            => 'daily-ledger:handleAdminDashboard',
         '/daily-ledger/admin/overview'             => 'daily-ledger:handleAdminOverview',
         '/daily-ledger/admin/usage'                => 'daily-ledger:handleAdminUsage',
@@ -110,6 +111,9 @@ return [
         '/daily-ledger/auth/refresh'              => 'daily-ledger:dailyLedgerAuthRefresh',
         '/daily-ledger/api/v1/auth/forgot-password' => 'daily-ledger:dailyLedgerForgotPassword',
         '/daily-ledger/api/v1/auth/reset-password' => 'daily-ledger:dailyLedgerResetPassword',
+
+        // Branch-scoped product visibility (branch is always resolved server-side)
+        '/daily-ledger/api/v1/products/toggle'            => 'daily-ledger:apiToggleBranchProduct',
 
         // Cashier: auto-save single field
         '/daily-ledger/api/v1/cashier/ledger/save'       => 'daily-ledger:apiSaveLedgerField',

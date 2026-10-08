@@ -235,6 +235,25 @@
 
         <div class="mt-6 border-t border-gray-200 pt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
+                <p class="text-sm text-gray-700 font-medium">Branch Product Self-Management</p>
+                <p class="mt-1 text-sm text-gray-500">Lets cashier, supervisor, and production in-charge users show or hide products only for their own assigned branch.</p>
+            </div>
+            <div>
+                {if can_manage_feature_activation}
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="feature-branch-products" {if branch_product_self_management}checked{/if}>
+                    Allow branch users to manage their products
+                </label>
+                <p class="mt-2 text-sm text-gray-500">Off by default. This changes branch visibility only; it never deactivates a product globally.</p>
+                {/if}
+                {if !can_manage_feature_activation}
+                <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if branch_product_self_management}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !branch_product_self_management}bg-gray-100 text-gray-700 ring-gray-300{/if}">
+                    Branch product self-management is {if branch_product_self_management}Enabled{/if}{if !branch_product_self_management}Disabled{/if}
+                </div>
+                {/if}
+            </div>
+
+            <div>
                 <p class="text-sm text-gray-700 font-medium">Formal Delivery Workflow (Phase B)</p>
                 <p class="mt-1 text-sm text-gray-500">Two-step commissary → branch deliveries with receivings + variance flags. When OFF, deliveries fall back to the legacy direct-push behavior.</p>
             </div>
@@ -952,6 +971,10 @@
         var featureOutputToggle = document.getElementById('feature-production-output');
         if (featureOutputToggle) {
             payload.production_output_enabled = featureOutputToggle.checked;
+        }
+        var featureBranchProducts = document.getElementById('feature-branch-products');
+        if (featureBranchProducts) {
+            payload.branch_product_self_management = featureBranchProducts.checked;
         }
         var featureFormalDelivery = document.getElementById('feature-formal-delivery');
         if (featureFormalDelivery) {

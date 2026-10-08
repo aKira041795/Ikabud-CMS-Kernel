@@ -475,6 +475,7 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
         $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
         $allowed = $method === 'GET' && in_array($path, [
             '/daily-ledger/admin/commissary',
+            '/daily-ledger/products',
             '/daily-ledger/api/v1/me',
         ], true);
         if ($method === 'POST') {
@@ -485,7 +486,8 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
                 || $path === '/daily-ledger/api/v1/commissary/carry-beginnings'
                 || ($path === '/daily-ledger/api/v1/commissary/dispatch' && (!empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet'))
                 || $path === '/daily-ledger/api/v1/commissary/finalize-pm'
-                || $path === '/daily-ledger/api/v1/commissary/settle-endings';
+                || $path === '/daily-ledger/api/v1/commissary/settle-endings'
+                || $path === '/daily-ledger/api/v1/products/toggle';
         }
         if (!$allowed) {
             http_response_code(403);
@@ -13110,6 +13112,7 @@ function handleAdminSettings(array $params = []): void
         'consignee_enabled' => $featureSettings['consignee_enabled'],
         'pos_enabled' => $featureSettings['pos_enabled'],
         'pos_sort_by_sales' => $featureSettings['pos_sort_by_sales'],
+        'branch_product_self_management' => dl_branchProductSelfManagementEnabled(),
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
         'logo_url' => dlLogoUrl(),
         'favicon_url' => dlFaviconUrl(),
@@ -13388,6 +13391,7 @@ function apiSaveRolePermissions(array $params = []): void
     $consigneeEnabled = $featureSettings['consignee_enabled'];
     $posEnabled = $featureSettings['pos_enabled'];
     $posSortBySales = $featureSettings['pos_sort_by_sales'];
+    $branchProductSelfManagement = dl_branchProductSelfManagementEnabled();
     $backupBeforeResetEnabled = $backupSettings['backup_before_reset_enabled'];
     $backupIncludeUsers = $backupSettings['backup_include_users'];
     $backupRetentionDays = $backupSettings['backup_retention_days'];
@@ -13412,6 +13416,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => &$consigneeEnabled,
         'pos_enabled' => &$posEnabled,
         'pos_sort_by_sales' => &$posSortBySales,
+        'branch_product_self_management' => &$branchProductSelfManagement,
     ] as $key => &$ref) {
         if (array_key_exists($key, $input)) {
             if (!$canManageFeatureActivation) {
@@ -13497,6 +13502,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => $consigneeEnabled ? '1' : '0',
         'pos_enabled' => $posEnabled ? '1' : '0',
         'pos_sort_by_sales' => $posSortBySales ? '1' : '0',
+        'branch_product_self_management' => $branchProductSelfManagement ? '1' : '0',
         'backup_before_reset_enabled' => $backupBeforeResetEnabled ? '1' : '0',
         'backup_include_users' => $backupIncludeUsers ? '1' : '0',
         'backup_retention_days' => (string)$backupRetentionDays,
@@ -13528,6 +13534,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => $consigneeEnabled,
         'pos_enabled' => $posEnabled,
         'pos_sort_by_sales' => $posSortBySales,
+        'branch_product_self_management' => $branchProductSelfManagement,
         'backup_before_reset_enabled' => $backupBeforeResetEnabled,
         'backup_include_users' => $backupIncludeUsers,
         'backup_retention_days' => $backupRetentionDays,
@@ -13559,6 +13566,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => $consigneeEnabled,
         'pos_enabled' => $posEnabled,
         'pos_sort_by_sales' => $posSortBySales,
+        'branch_product_self_management' => $branchProductSelfManagement,
         'consignee_sales_mode' => $consigneeSalesMode,
     ]);
 }
@@ -16364,6 +16372,153 @@ function handleAdminActivity(array $params = []): void
         'consignees' => $consignees,
         'search' => $search,
         'dr_number' => $drNumber,
+    ]);
+}
+
+// ─── Branch-scoped Products ────────────────────────────────────────────
+
+/** The feature is deliberately fail-closed; absent and unrecognised values are OFF. */
+function dl_branchProductSelfManagementEnabled(): bool
+{
+    $settings = getModuleSettings('daily-ledger');
+    $allowed = (string)($settings['branch_product_self_management'] ?? '0');
+    return in_array(strtolower($allowed), ['1', 'true', 'yes', 'on'], true);
+}
+
+/**
+ * Resolve the actor's own active branch without consulting request input.
+ * The first assigned branch is the module's existing deterministic convention
+ * for supervisor/production users with more than one assignment.
+ */
+function dl_branchProductOwnBranch($db, array $user): ?array
+{
+    // A kernel-admin id is from a different identity namespace and must never
+    // accidentally match a dl_users row with the same integer id.
+    if (($user['source'] ?? '') !== 'daily-ledger') {
+        return null;
+    }
+    $actorId = dl_getActorUserId($user);
+    if ($actorId <= 0) {
+        return null;
+    }
+    $stmt = $db->prepare(
+        'SELECT b.id, b.code, b.name, b.is_commissary
+           FROM dl_user_branches ub
+           INNER JOIN dl_branches b ON b.id = ub.branch_id AND b.is_active = 1
+           INNER JOIN dl_users u ON u.id = ub.user_id AND u.is_active = 1 AND u.deleted_at IS NULL
+          WHERE ub.user_id = :uid
+          ORDER BY b.id
+          LIMIT 1'
+    );
+    $stmt->execute([':uid' => $actorId]);
+    $branch = $stmt->fetch(PDO::FETCH_ASSOC);
+    return is_array($branch) ? $branch : null;
+}
+
+function dl_requireBranchProductSelfManagement($ctx, array $user, bool $json): ?array
+{
+    if (!dl_branchProductSelfManagementEnabled()) {
+        if ($json) {
+            $ctx->json(['ok' => false, 'error' => 'Branch product self-management is disabled.'], 404);
+        } else {
+            http_response_code(404);
+            echo 'Branch product self-management is disabled.';
+        }
+        return null;
+    }
+    $branch = dl_branchProductOwnBranch($ctx->db(), $user);
+    if ($branch === null) {
+        if ($json) {
+            $ctx->json(['ok' => false, 'error' => 'Your user account has no active branch assignment.'], 422);
+        } else {
+            http_response_code(422);
+            echo 'Your user account has no active branch assignment.';
+        }
+        return null;
+    }
+    return $branch;
+}
+
+function handleBranchProducts(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'production_in_charge', 'admin']);
+    $branch = dl_requireBranchProductSelfManagement($ctx, $user, false);
+    if ($branch === null) {
+        return;
+    }
+
+    $stmt = $ctx->db()->prepare(
+        'SELECT p.id, p.name, p.sku,
+                CASE WHEN bp.is_active = 1 THEN 1 ELSE 0 END AS branch_is_active
+           FROM dl_products p
+           LEFT JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid
+          WHERE p.is_active = 1
+          ORDER BY p.sort_order, p.name'
+    );
+    $stmt->execute([':bid' => (int)$branch['id']]);
+    $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    echo dlRender('modules/daily-ledger/products.disyl', [
+        'page_title' => 'Branch Products',
+        'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
+        'user_role' => (string)($user['role'] ?? ''),
+        'current_page' => 'branch-products',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'branch' => $branch,
+        'products' => $products,
+    ]);
+}
+
+function apiToggleBranchProduct(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'production_in_charge', 'admin']);
+    $branch = dl_requireBranchProductSelfManagement($ctx, $user, true);
+    if ($branch === null) {
+        return;
+    }
+
+    $input = $ctx->input();
+    $productId = (int)($input['product_id'] ?? 0);
+    if ($productId <= 0 || !array_key_exists('is_active', $input)) {
+        $ctx->json(['ok' => false, 'error' => 'product_id and is_active are required.'], 422);
+        return;
+    }
+    $productStmt = $ctx->db()->prepare('SELECT id, name FROM dl_products WHERE id = :id AND is_active = 1 LIMIT 1');
+    $productStmt->execute([':id' => $productId]);
+    $product = $productStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$product) {
+        $ctx->json(['ok' => false, 'error' => 'Active product not found.'], 404);
+        return;
+    }
+    $active = dl_settingToBool($input['is_active']);
+    $result = dl_setBranchProductActive($ctx->db(), (int)$branch['id'], $productId, $active, dl_getActorUserId($user));
+    if (($result['ok'] ?? false) !== true) {
+        $ctx->json([
+            'ok' => false,
+            'code' => (string)($result['code'] ?? 'PRODUCT_UNASSIGNMENT_BLOCKED'),
+            'error' => 'Cannot hide ' . (string)$product['name'] . ': an actionable unfinished row would be left without a product. Complete its ending first.',
+            'blockers' => $result['blockers'] ?? [],
+        ], 409);
+        return;
+    }
+    app()->cache()->clearByTags('daily-ledger', ['dl_products']);
+    $ctx->json([
+        'ok' => true,
+        'product_id' => $productId,
+        'is_active' => (int)($result['is_active'] ?? ($active ? 1 : 0)),
     ]);
 }
 
