@@ -6293,8 +6293,8 @@ function dl_assignmentOlderOpenDayWarnings($db, int $productId, array $branchIds
  * unfinished row the call refuses and writes NOTHING. The caller must run this
  * inside a transaction so a mid-flight guard refusal rolls back cleanly.
  *
- * 'all_active' is ADDITIVE — it never strips an existing pair. 'specific'
- * removes pairs for branches that are no longer selected.
+ * 'all_active' is ADDITIVE — it never strips an existing pair, and it never REVIVES one either.
+ * 'specific' removes pairs for branches that are no longer selected.
  *
  * @param array<int,int> $branchIds
  * @return array{ok:bool,code?:string,mode?:string,added?:array,removed?:array,warnings?:array,refused?:array,blockers?:array}
@@ -6302,11 +6302,29 @@ function dl_assignmentOlderOpenDayWarnings($db, int $productId, array $branchIds
 function dl_applyProductAssignmentMode($db, int $productId, string $mode, array $branchIds, ?int $actorId = null): array
 {
     $target = dl_targetBranchIdsForAssignmentMode($db, $mode, $branchIds);
-    $stmt = $db->prepare('SELECT branch_id FROM dl_branch_products WHERE product_id = :pid AND is_active = 1');
+    // Read EVERY pair, active or not, because "no pair row" and "a pair row an admin switched
+    // off" are different facts. They used to be treated as one: selecting only is_active = 1
+    // meant a deliberately hidden branch landed in $toAdd and was silently reactivated, so a
+    // later unrelated product edit undid a hide made in the branch picker. The branch picker
+    // writes is_active = 0 through dl_setBranchProductActive() and nothing else records the
+    // admin's intent, so that row IS the intent.
+    $stmt = $db->prepare('SELECT branch_id, is_active FROM dl_branch_products WHERE product_id = :pid');
     $stmt->execute([':pid' => $productId]);
-    $current = array_map(static fn($r) => (int)$r['branch_id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    $current = [];
+    $everPaired = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $bid = (int)$row['branch_id'];
+        $everPaired[] = $bid;
+        if ((int)$row['is_active'] === 1) {
+            $current[] = $bid;
+        }
+    }
 
-    $toAdd = array_values(array_diff($target, $current));
+    // 'specific' names the branches the admin ticked, so it may revive a pair on purpose.
+    // 'all_active' only means "branches this product has never been paired with" — usually a
+    // branch created after the product. It must not overturn a hide someone made deliberately.
+    $addable = $mode === 'all_active' ? $everPaired : $current;
+    $toAdd = array_values(array_diff($target, $addable));
     $toRemove = $mode === 'all_active' ? [] : array_values(array_diff($current, $target));
 
     // Pre-flight every removal BEFORE writing anything (all-or-nothing).
