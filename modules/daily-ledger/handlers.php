@@ -854,6 +854,71 @@ function dl_unresolvedProductionSheetLabels(): array
     return ['BDAY CAKE ORD', 'BDAY CAKE ORD HALF', 'UBE CAKE HALF', 'CUSTARD BIG'];
 }
 
+/**
+ * THE single owner of "what left this commissary" for a date/shift.
+ *
+ * A departure is any POSTED delivery line attributable to the commissary:
+ *   - a destination whose origin resolves to this commissary (a commissary-
+ *     originated dispatch: branch, and any other destination type), OR
+ *   - a CONSIGNEE destination whose consignee is supplied by this commissary.
+ *     The cashier performs that dispatch, so its origin_type is 'branch' and
+ *     must NOT be filtered out.
+ *
+ * There is deliberately NO destination_type filter: branches AND consignees
+ * (and every other destination) are departures. The Daily Sheet TOTAL/ACTUAL BAL
+ * read THIS helper directly; the Inventory projection
+ * (dl_commissary_product_ledger.dispatched_qty) is kept equal to it by the same
+ * posted-delivery effect path (dl_applyPostedDeliveryCommissaryLedger, now
+ * consignee-aware) plus backfill 086; calc_variance follows through those inputs.
+ *
+ * @param PDO|\Ikabud\Kernel\Contracts\ModuleDB $db Module gateway or raw PDO.
+ * @return array<int,int> [product_id => qty]
+ */
+function dl_commissaryDepartedQtyByProduct($db, int $commissaryId, string $date, ?string $shift): array
+{
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
+    $sql = "SELECT di.product_id, SUM(di.quantity) AS quantity
+              FROM dl_deliveries d
+              INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+              LEFT JOIN dl_branches sheet_dst
+                     ON sheet_dst.id = d.destination_id AND d.destination_type = 'branch'
+              LEFT JOIN dl_consignees dep_consignee
+                     ON dep_consignee.id = d.consignee_id AND d.destination_type = 'consignee'
+             WHERE d.status = 'posted'
+               AND d.delivery_date = :date
+               AND (:shift IS NULL OR d.production_shift = :shift_value)";
+    $bind = [':date' => $date, ':shift' => $shift, ':shift_value' => $shift];
+    if ($commissaryId > 0) {
+        // Origin attribution covers commissary-originated dispatches. Historical
+        // rows with no origin stay visible through the destination branch's own
+        // assignment (exactly as the branch matrix did). The consignee branch is
+        // a scope match, never an origin restriction: the cashier dispatches.
+        $sql .= ' AND ('
+            . " (d.destination_type <> 'consignee' AND COALESCE(d.resolved_origin_id, d.origin_id) = :dep_cid)"
+            . " OR (d.destination_type <> 'consignee' AND d.origin_id IS NULL AND d.resolved_origin_id IS NULL AND sheet_dst.assigned_commissary_id = :dep_unresolved_cid)"
+            . " OR (d.destination_type = 'consignee' AND dep_consignee.assigned_commissary_id = :dep_consignee_cid)"
+            . ' )';
+        $bind[':dep_cid'] = $commissaryId;
+        $bind[':dep_unresolved_cid'] = $commissaryId;
+        $bind[':dep_consignee_cid'] = $commissaryId;
+    }
+    $sql .= ' GROUP BY di.product_id';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+    $departed = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $departed[(int)$row['product_id']] = (int)$row['quantity'];
+    }
+    return $departed;
+}
+
+/**
+ * Per-DESTINATION breakdown of what left the commissary, for the sheet's
+ * destination columns only. It is NOT a second owner of the departure total:
+ * dl_commissaryDepartedQtyByProduct() owns the number, and this matrix only
+ * splits it across destination branches for display. The Branches sub-tab is
+ * branch-keyed by contract (see the slice-10 branchflow oracle).
+ */
 function dl_fetchProductionSheetDispatchMatrix($db, string $ledgerDate, int $commissaryBranchId = 0, ?string $shift = null): array
 {
     $shift = $shift === null ? null : dl_normalizeShift($shift);
@@ -3526,16 +3591,29 @@ function dl_commissaryLedgerSnapshot($db, int $branchId, int $productId, string 
 /**
  * Apply the commissary debit represented by a posted delivery exactly once per item.
  * The unique delivery_item_id is the retry/offline-replay idempotency boundary.
+ *
+ * R2: a CONSIGNEE dispatch is a commissary movement even though the cashier
+ * performs it (origin_type='branch'). Its supplying commissary is resolved from
+ * the consignee, and the SAME effect path debits the projection. No destination
+ * type is excluded: any origin-resolved commissary departure is debited.
  */
 function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actorId): array
 {
-    $headStmt = $db->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, delivery_date, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
+    $headStmt = $db->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, consignee_id, delivery_date, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
     $headStmt->execute([':id' => $deliveryId]);
     $head = $headStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    if (!$head || (string)$head['status'] !== 'posted' || (string)$head['origin_type'] !== 'commissary' || (string)$head['destination_type'] !== 'branch') {
+    if (!$head || (string)$head['status'] !== 'posted') {
         return ['status' => 'not_applicable', 'applied' => 0];
     }
-    $originId = (int)($head['resolved_origin_id'] ?? $head['origin_id'] ?? 0);
+    if ((string)$head['destination_type'] === 'consignee') {
+        $scopeStmt = $db->prepare('SELECT assigned_commissary_id FROM dl_consignees WHERE id = :id LIMIT 1');
+        $scopeStmt->execute([':id' => (int)($head['consignee_id'] ?? 0)]);
+        $originId = (int)($scopeStmt->fetchColumn() ?: 0);
+    } elseif ((string)$head['origin_type'] === 'commissary') {
+        $originId = (int)($head['resolved_origin_id'] ?? $head['origin_id'] ?? 0);
+    } else {
+        return ['status' => 'not_applicable', 'applied' => 0];
+    }
     if ($originId <= 0) {
         dl_raiseIntegrityNotification($db, 'delivery-origin-' . $deliveryId, 'unresolved_origin', (int)$head['destination_id'], 'dl_deliveries', $deliveryId,
             'Dispatch origin must be resolved', 'Delivery #' . $deliveryId . ' is posted but has no attributable commissary; no ledger debit was guessed.', true);
@@ -9279,6 +9357,13 @@ function apiCreateCashierDispatch(array $params = []): void
             if ($destType === 'consignee') {
                 dl_applyConsigneeDeliveryCredit($ctx->db(), $deliveryId, $deliveryItemId, $originBranchId, $consigneeId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, $shift);
             }
+        }
+        // R2: the consignee movement is the COMMISSARY's. The cashier performed the
+        // dispatch (origin_type='branch'), but the supplying commissary's projection
+        // must deplete exactly once per item. Same idempotent effect path as a branch
+        // dispatch; the consignee's supply scope resolves the commissary.
+        if ($destType === 'consignee') {
+            dl_applyPostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $actorId);
         }
 
         $dispatchTimeStmt = $ctx->db()->prepare('SELECT posted_at FROM dl_deliveries WHERE id = :id');
@@ -19033,6 +19118,13 @@ function handleAdminCommissary(): void
         : (isset($input['shift']) && (string)$input['shift'] !== ''
             ? dl_normalizeShift((string)$input['shift'])
             : null);
+    // R5: the Daily Sheet is ONE table. The destination filter only selects which
+    // destination COLUMNS are shown; TOTAL and ACTUAL BAL are the same on every
+    // filter because both read the single departure derivation.
+    $destinationFilter = (string)($input['destination'] ?? 'branches');
+    if (!in_array($destinationFilter, ['branches', 'consignees', 'all'], true)) {
+        $destinationFilter = 'branches';
+    }
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
@@ -19292,6 +19384,11 @@ function handleAdminCommissary(): void
     );
 
     $sheetDispatch = dl_fetchProductionSheetDispatchMatrix($db, $rawDate, $selectedCommissaryId, $shift);
+    // THE one owner of "what left this commissary" on this date/shift. The branch
+    // matrix above only supplies the per-branch display cells; TOTAL and ACTUAL BAL
+    // (and, through the projection, the Inventory tab) read this single derivation,
+    // so a consignee departure cannot be omitted from one place and counted in another.
+    $commissaryDeparted = dl_commissaryDepartedQtyByProduct($db, $selectedCommissaryId, $rawDate, $shift);
     $sheetDispatchEntries = dl_fetchProductionSheetDispatchEntryFlags($db, $rawDate, $selectedCommissaryId, $shift);
     $sheetReceiving = dl_fetchProductionSheetReceivingMatrix($db, $rawDate, $selectedCommissaryId, $shift);
 
@@ -19386,10 +19483,12 @@ function handleAdminCommissary(): void
         $productId = (int)$product['id'];
         $ledgerRow = $sheetLedger[$productId] ?? [];
         $branchCells = [];
-        $total = 0;
+        // The single derivation owns TOTAL. It is deliberately NOT the sum of the
+        // visible branch cells: a consignee dispatch is a departure too, and must
+        // reduce the commissary balance even when the consignee columns are hidden.
+        $total = (int)($commissaryDeparted[$productId] ?? 0);
         foreach ($sheetBranches as $sheetBranch) {
             $quantity = (int)($sheetDispatch[$productId][(int)$sheetBranch['id']] ?? 0);
-            $total += $quantity;
             $branchId = (int)$sheetBranch['id'];
             // S12: the received side is read from the delivery/receiving ITEMS, never
             // from the exception-only dl_delivery_variance_flags and never through a
@@ -19485,6 +19584,20 @@ function handleAdminCommissary(): void
             'name' => (string)($consigneeMeta['name'] ?? ''),
         ];
     }
+    // Attach the consignee cells to the SAME rows the Branches columns use, so
+    // the one table can render either destination set without a second row model.
+    foreach ($dailySheetRows as &$sheetRowRef) {
+        $refProductId = (int)$sheetRowRef['product_id'];
+        $refConsigneeCells = [];
+        foreach ($consigneeSheetColumns as $consigneeColumn) {
+            $refConsigneeCells[] = [
+                'consignee_id' => (int)$consigneeColumn['id'],
+                'quantity' => (int)($consigneeCellPayload['cells'][$refProductId][(int)$consigneeColumn['id']] ?? 0),
+            ];
+        }
+        $sheetRowRef['consignee_cells'] = $refConsigneeCells;
+    }
+    unset($sheetRowRef);
     $consigneeSheetRows = [];
     $consigneeRowProductIds = [];
     foreach ($dailySheetRows as $sheetRow) {
@@ -19500,6 +19613,11 @@ function handleAdminCommissary(): void
         $begQty = (int)($sheetRow['beg_qty'] ?? 0);
         $addtlQty = (int)($sheetRow['addtl_qty'] ?? 0);
         $wastageQty = (int)($sheetRow['wastage_qty'] ?? 0);
+        // R5: ACTUAL BAL is ONE figure with ONE meaning on both sub-tabs. TOTAL is
+        // the SAME single derivation the Branches sub-tab uses - every departure
+        // (branch AND consignee), never this filter's column sum - so the printed
+        // identity and the balance cannot differ between the two views.
+        $departedTotal = (int)($sheetRow['total_qty'] ?? 0);
         $consigneeSheetRows[] = [
             'product_id' => $productId,
             'sheet_label' => (string)($sheetRow['sheet_label'] ?? ''),
@@ -19508,10 +19626,8 @@ function handleAdminCommissary(): void
             'addtl_qty' => $addtlQty,
             'wastage_qty' => $wastageQty,
             'cells' => $consigneeCells,
-            'total_qty' => $consigneeTotal,
-            // R10.4: THIS sub-tab's own destination-column sum, so the same
-            // printed formula holds: BEG + ADDTL - TOTAL - WASTAGE = ACTUAL BAL.
-            'book_balance' => $begQty + $addtlQty - $consigneeTotal - $wastageQty,
+            'total_qty' => $departedTotal,
+            'book_balance' => $begQty + $addtlQty - $departedTotal - $wastageQty,
         ];
     }
     // A consignee dispatch can name a product outside the production product
@@ -19531,6 +19647,7 @@ function handleAdminCommissary(): void
             }
             $begQty = (int)($consigneeCellPayload['beg_addtl'][$productId]['beg'] ?? 0);
             $addtlQty = (int)($consigneeCellPayload['beg_addtl'][$productId]['addtl'] ?? 0);
+            $departedTotal = (int)($commissaryDeparted[$productId] ?? 0);
             $consigneeSheetRows[] = [
                 'product_id' => $productId,
                 'sheet_label' => (string)($extraProduct['name'] ?? ''),
@@ -19539,8 +19656,33 @@ function handleAdminCommissary(): void
                 'addtl_qty' => $addtlQty,
                 'wastage_qty' => 0,
                 'cells' => $consigneeCells,
-                'total_qty' => $consigneeTotal,
-                'book_balance' => $begQty + $addtlQty - $consigneeTotal,
+                'total_qty' => $departedTotal,
+                'book_balance' => $begQty + $addtlQty - $departedTotal,
+            ];
+            // R5: the ONE Daily Sheet table's row universe is the union of the two
+            // old views, so a consignee-only movement stays visible when the
+            // consignee columns are shown.
+            $dailySheetRows[] = [
+                'product_id' => $productId,
+                'sheet_label' => (string)($extraProduct['name'] ?? ''),
+                'sku' => (string)($extraProduct['sku'] ?? ''),
+                'beg_qty' => $begQty,
+                'beg_suggestion' => 0,
+                'beg_is_recorded' => false,
+                'addtl_qty' => $addtlQty,
+                'addtl_movement_id' => 0,
+                'output_pieces_per_batch' => 0,
+                'output_unit_label' => 'pcs',
+                'batch_count' => null,
+                'branch_cells' => [],
+                'consignee_cells' => $consigneeCells,
+                'total_qty' => $departedTotal,
+                'book_balance' => $begQty + $addtlQty - $departedTotal,
+                'wastage_qty' => 0,
+                'actual_end_qty' => null,
+                'actual_input_value' => $begQty + $addtlQty - $departedTotal,
+                'calc_variance' => null,
+                'calc_variance_present' => false,
             ];
         }
     }
@@ -19694,6 +19836,7 @@ function handleAdminCommissary(): void
         'pullout_rows' => $pulloutRows,
         'summary_rows' => $summaryRows,
         'daily_sheet_rows' => $dailySheetRows,
+        'destination_filter' => $destinationFilter,
         'consignee_sheet_rows' => $consigneeSheetRows,
         'consignee_sheet_columns' => $consigneeSheetColumns,
         'consignee_sheet_numeric_column_count' => $consigneeSheetNumericColumnCount,

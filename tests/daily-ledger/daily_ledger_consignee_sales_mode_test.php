@@ -144,7 +144,9 @@ try {
     $consignmentSnapshot = $snapshot();
     $h->test('G pin: consignee ledger and effects are byte-identical in both modes (defends lens-only behaviour and the single posting path)', $orderSnapshot === $consignmentSnapshot);
 
-    $h->test('H pin: branch production sheet remains present and unchanged beside consignee treatment (defends the branch sheet)', str_contains($sheetTemplate, 'id="production-ledger-table"') && str_contains($sheetTemplate, 'id="consignee-production-ledger-table"'));
+    // H REPOINTED (commissary-consignee-depletion, R5): one table, one destination
+    // filter — the separate consignee table is deliberately gone.
+    $h->test('H pin: the branch sheet and the consignee destination filter share ONE Daily Sheet table (defends R5)', str_contains($sheetTemplate, 'id="production-ledger-table"') && str_contains($sheetTemplate, 'production-destination-filter-consignees') && !str_contains($sheetTemplate, 'id="consignee-production-ledger-table"'));
 
     // J pin: the feature toggle withholds NEW work, never recorded history.
     // Both the custody sheet and the commercial report must stay readable and

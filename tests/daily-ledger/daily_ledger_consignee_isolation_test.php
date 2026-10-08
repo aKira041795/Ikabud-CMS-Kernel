@@ -58,6 +58,11 @@ $cleanup = static function () use ($db, $source, $overlap, $commissary, $product
     }
     $db->prepare('DELETE FROM audit_logs WHERE module = "daily-ledger" AND branch_id IN (?, ?, ?)')->execute([$source, $overlap, $commissary]);
     $db->prepare('DELETE FROM dl_consignee_ledger WHERE consignee_id = ? OR product_id = ?')->execute([$overlap, $product]);
+    // Since the consignee-depletion slice, a consignee dispatch also debits the
+    // supplying commissary's projection. Delete the fixture's projection row too,
+    // otherwise the FK from dl_commissary_product_ledger.product_id blocks the
+    // product delete below (fixture cleanup, not a weakened assertion).
+    $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id IN (?, ?, ?) OR product_id = ?')->execute([$source, $overlap, $commissary, $product]);
     $db->prepare('DELETE FROM dl_daily_ledger WHERE branch_id IN (?, ?) OR product_id = ?')->execute([$source, $overlap, $product]);
     $db->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id IN (?, ?, ?)')->execute([$source, $overlap, $commissary]);
     $db->prepare('DELETE FROM dl_ledger_day_status WHERE branch_id IN (?, ?, ?)')->execute([$source, $overlap, $commissary]);

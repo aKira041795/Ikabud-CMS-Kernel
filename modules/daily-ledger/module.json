@@ -51,6 +51,7 @@
     "dl_branch_product_supply_rules",
     "dl_delivery_variance_flags",
     "dl_commissary_product_ledger",
+    "dl_commissary_depletion_backfill",
     "dl_delivery_ledger_effects",
     "dl_consignees",
     "dl_consignee_products",
@@ -167,7 +168,8 @@
     "database/migrations/082_consignee_discrepancy_effects.sql",
     "database/migrations/083_consignee_products.sql",
     "database/migrations/084_consignee_destination_details.sql",
-    "database/migrations/085_add_consignee_assignment_mode.sql"
+    "database/migrations/085_add_consignee_assignment_mode.sql",
+    "database/migrations/086_backfill_commissary_consignee_depletion.sql"
   ],
   "capabilities": {
     "exposes": [

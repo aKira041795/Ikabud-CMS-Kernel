@@ -1303,9 +1303,17 @@
 {/if}
 <!-- Tab 1: Daily Sheet -->
 <div id="tab-daily-sheet" class="tab-panel">
-    <div class="mb-5 flex gap-2 border-b border-gray-200 print-hidden">
-        <button type="button" id="production-destination-tab-branches" class="px-4 py-2 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-700" onclick="switchProductionDestinationTab('branches')">Branches</button>
-        {if consignee_enabled}<button type="button" id="production-destination-tab-consignees" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-gray-500" onclick="switchProductionDestinationTab('consignees')">Consignees</button>{/if}
+    {* R5: ONE Daily Sheet table. The destination filter only selects which
+       destination COLUMNS are itemised; TOTAL and ACTUAL BAL are the single
+       commissary departure figure on every filter, so there is one balance to
+       reconcile instead of two sub-tab labels. *}
+    <div class="mb-5 flex flex-wrap items-center gap-2 border-b border-gray-200 print-hidden">
+        <span class="text-sm font-semibold text-gray-600">Destinations</span>
+        <div class="inline-flex items-center rounded-full bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-300" role="group" aria-label="Destination filter">
+            <a id="production-destination-filter-branches" class="rounded-full px-3 py-1 text-xs font-semibold {if destination_filter != 'consignees' && destination_filter != 'all'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}" href="{base_url}/admin/commissary?date={date}&commissary_id={commissary_id}&branch_id={branch_id}{if shift}&shift={shift}{/if}&destination=branches">Branches</a>
+            {if consignee_enabled}<a id="production-destination-filter-consignees" class="rounded-full px-3 py-1 text-xs font-semibold {if destination_filter == 'consignees'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}" href="{base_url}/admin/commissary?date={date}&commissary_id={commissary_id}&branch_id={branch_id}{if shift}&shift={shift}{/if}&destination=consignees">Consignees</a>{/if}
+            <a id="production-destination-filter-all" class="rounded-full px-3 py-1 text-xs font-semibold {if destination_filter == 'all'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}" href="{base_url}/admin/commissary?date={date}&commissary_id={commissary_id}&branch_id={branch_id}{if shift}&shift={shift}{/if}&destination=all">All</a>
+        </div>
     </div>
     <div id="production-destination-panel-branches">
     <!-- Print-only identity header. Hidden on screen (.hidden); the print stylesheet
@@ -1437,19 +1445,32 @@
                            text's right edge sits over the cell content it labels (S7c). *}
                         <th class="text-right pr-1">BEG</th>
                         <th class="text-right pr-2">ADDTL</th>
+                        {if destination_filter == 'branches' || destination_filter == 'all'}
                         {foreach sheet_branches as br}
                         {if br.id != sheet_source_branch_id}
                         <th class="text-right daily-sheet-branch-column" data-branch-id="{br.id}">{br.name}</th>
                         {/if}
                         {/foreach}
+                        {/if}
+                        {if destination_filter == 'consignees' || destination_filter == 'all'}
+                        {foreach consignee_sheet_columns as cc}
+                        <th class="text-right consignee-sheet-column" data-consignee-id="{cc.id}">{cc.name}</th>
+                        {/foreach}
+                        {/if}
                         <th class="text-right">TOTAL</th>
-                        <th class="text-right pr-1">ACTUAL BAL</th>
+                        <th title="Commissary balance after all dispatch (branches and consignees): BEG + ADDTL - TOTAL - WASTAGE" class="text-right pr-1">ACTUAL BAL</th>
                         {if can_view_production_variance}<th class="text-right">VARIANCE</th>{/if}
                     </tr>
                 </thead>
                 <tbody>
                     {if daily_sheet_rows | count == 0}
                     <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No cashier-assigned products are available for this production branch.</td></tr>
+                    {/if}
+                    {if destination_filter == 'consignees' && consignee_sheet_columns | count == 0 && consignee_assignment_count == 0}
+                    <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No products are assigned to active consignees for this commissary. Use Products → Show in Consignees to choose what appears here.</td></tr>
+                    {/if}
+                    {if destination_filter == 'consignees' && consignee_sheet_columns | count == 0 && consignee_assignment_count > 0}
+                    <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
                     {/if}
                     {foreach daily_sheet_rows as row}
                     <tr class="daily-sheet-product-row" data-product-id="{row.product_id}" data-produced="{row.addtl_qty}">
@@ -1486,6 +1507,7 @@
                                 <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
                             </button>
                         </td>
+                        {if destination_filter == 'branches' || destination_filter == 'all'}
                         {foreach row.branch_cells as cell}
                         {if cell.branch_id != sheet_source_branch_id}
                         <td class="text-right production-branch-cell" data-branch-id="{cell.branch_id}">
@@ -1544,7 +1566,13 @@
                         </td>
                         {/if}
                         {/foreach}
-                        <td class="text-right font-semibold production-total">{row.total_qty}</td>
+                        {/if}
+                        {if destination_filter == 'consignees' || destination_filter == 'all'}
+                        {foreach row.consignee_cells as cell}
+                        <td class="text-right consignee-sheet-cell" data-consignee-id="{cell.consignee_id}">{cell.quantity}</td>
+                        {/foreach}
+                        {/if}
+                        <td class="text-right font-semibold production-total consignee-sheet-total">{row.total_qty}</td>
                         <td class="px-1 py-1 text-right">
                             <input type="number" step="1" class="form-input w-24 ml-auto text-right production-actual-input"
                                 id="production-actual-{row.product_id}"
@@ -1742,58 +1770,6 @@
     </div>
 </div>
 
-    <div id="production-destination-panel-consignees" class="hidden">
-        <div class="card mb-6">
-            <div class="card-header">
-                <div>
-                    <span>Consignee Daily Sheet — {date}{if shift} · {shift}{else} · All shifts{/if}</span>
-                    <div class="text-xs text-gray-500">Only consignees supplied by {sheet_source_branch_name} with ledger activity on this date are shown.</div>
-                    <div class="text-xs text-gray-500">BEG + ADDTL &minus; TOTAL &minus; WASTAGE = ACTUAL BAL. Here ACTUAL BAL is the <span class="font-semibold">commissary balance after consignee dispatch</span> &mdash; it is not the Branches tab's on-hand figure.</div>
-                </div>
-            </div>
-            <div class="card-body border-b border-slate-200">
-                <p class="text-xs text-gray-500">This is a stock (production destination) view. Quantities only — dispatched value belongs on Sales &rarr; Consignee Dispatch Report.</p>
-            </div>
-            <div class="table-wrap">
-                <table class="production-ledger-table" id="consignee-production-ledger-table" style="--sheet-numeric-cols: {consignee_sheet_numeric_column_count}">
-                    <thead>
-                        <tr>
-                            <th>Product</th>
-                            <th class="text-right pr-1">BEG</th>
-                            <th class="text-right pr-2">ADDTL</th>
-                            {foreach consignee_sheet_columns as cc}
-                            <th class="text-right consignee-sheet-column" data-consignee-id="{cc.id}">{cc.name}</th>
-                            {/foreach}
-                            <th class="text-right">TOTAL</th>
-                            <th class="text-right pr-1" title="Commissary balance after consignee dispatch">ACTUAL BAL</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {if consignee_sheet_columns | count == 0 && consignee_assignment_count == 0}
-                        <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No products are assigned to active consignees for this commissary. Use Products → Show in Consignees to choose what appears here.</td></tr>
-                        {/if}
-                        {if consignee_sheet_columns | count == 0 && consignee_assignment_count > 0}
-                        <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
-                        {/if}
-                        {if consignee_sheet_columns | count > 0}
-                        {foreach consignee_sheet_rows as row}
-                        <tr class="consignee-sheet-product-row" data-product-id="{row.product_id}">
-                            <td class="font-medium">{row.sheet_label}</td>
-                            <td class="text-right">{row.beg_qty}</td>
-                            <td class="text-right font-semibold text-emerald-700">{row.addtl_qty}</td>
-                            {foreach row.cells as cell}
-                            <td class="text-right consignee-sheet-cell" data-consignee-id="{cell.consignee_id}">{cell.quantity}</td>
-                            {/foreach}
-                            <td class="text-right font-semibold consignee-sheet-total">{row.total_qty}</td>
-                            <td class="text-right">{row.book_balance}</td>
-                        </tr>
-                        {/foreach}
-                        {/if}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
 </div>
 
 {if can_view_production_management}
@@ -1880,22 +1856,6 @@
 
 
 <script>
-    function switchProductionDestinationTab(tab) {
-        var active = tab === 'consignees' ? 'consignees' : 'branches';
-        ['branches', 'consignees'].forEach(function(kind) {
-            var panel = document.getElementById('production-destination-panel-' + kind);
-            var button = document.getElementById('production-destination-tab-' + kind);
-            var selected = kind === active;
-            if (panel) panel.classList.toggle('hidden', !selected);
-            if (button) {
-                button.classList.toggle('border-indigo-600', selected);
-                button.classList.toggle('text-indigo-700', selected);
-                button.classList.toggle('border-transparent', !selected);
-                button.classList.toggle('text-gray-500', !selected);
-            }
-        });
-    }
-
     function switchCommissaryTab(tab) {
         var tabs = ['inventory', 'deliveries', 'pullouts', 'summary', 'daily-sheet'];
         tabs.forEach(function(t) {

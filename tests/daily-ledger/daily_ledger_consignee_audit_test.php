@@ -117,7 +117,9 @@ try {
     $h->test('E discriminating: discrepancy is corrected once by a reversing movement (guards append-only and exactly-once correction)', ($discrepant['json']['ok'] ?? false) === true && ($retry['json']['ok'] ?? false) === true && $flags === 1 && $adjustments === 1 && $net === 0);
 
     $sheet = $runApi('commissary', ['date' => $date, 'commissary_id' => $commissary, 'shift' => 'AM']);
-    $h->test('F pin: branch production sheet still renders beside the consignee sheet (defends additive UI)', $sheet['exit'] === 0 && str_contains($sheet['raw'], 'id="production-ledger-table"') && str_contains($sheet['raw'], 'id="consignee-production-ledger-table"'));
+    // F REPOINTED (commissary-consignee-depletion, R5): the consignee view is now a
+    // destination filter on the one Daily Sheet table, not a second table.
+    $h->test('F pin: the one Daily Sheet table renders with its destination filter (defends additive UI)', $sheet['exit'] === 0 && str_contains($sheet['raw'], 'id="production-ledger-table"') && str_contains($sheet['raw'], 'production-destination-filter-branches') && !str_contains($sheet['raw'], 'id="consignee-production-ledger-table"'));
 } finally {
     $cleanup();
     @unlink($payloadFile);

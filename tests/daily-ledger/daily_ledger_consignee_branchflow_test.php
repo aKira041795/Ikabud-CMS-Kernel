@@ -218,13 +218,19 @@ try {
         && !str_contains($tpl, 'row.withdraw_qty')
         && !str_contains($tpl, 'row.ending_qty')
     );
+    // F2 REPOINTED (commissary-consignee-depletion, R5): the Branches and Consignees
+    // sub-tabs became ONE Daily Sheet table with a destination filter, so the old
+    // separate consignee table id is deliberately gone. The pin keeps its strength:
+    // the one table still carries the Branches column shape for consignee columns and
+    // exactly one ACTUAL BAL, and there is no second table.
     $h->test(
-        'F2 pin: the Consignees sub-tab carries the Branches shape (Product/BEG/ADDTL/{consignee}/TOTAL/ACTUAL BAL)',
-        str_contains($tpl, 'id="consignee-production-ledger-table"')
+        'F2 pin: the ONE Daily Sheet table carries a consignee destination filter and the Branches shape (defends R5)',
+        str_contains($tpl, 'id="production-ledger-table"')
+        && str_contains($tpl, 'id="production-destination-filter-consignees"')
         && str_contains($tpl, 'consignee-sheet-column')
         && str_contains($tpl, 'consignee-sheet-cell')
         && str_contains($tpl, 'consignee-sheet-total')
-        && str_contains($tpl, 'Commissary balance after consignee dispatch')
+        && !str_contains($tpl, 'id="consignee-production-ledger-table"')
     );
 
     // H — pin: the feature toggle and sales mode are untouched by the seam (R10.7).
