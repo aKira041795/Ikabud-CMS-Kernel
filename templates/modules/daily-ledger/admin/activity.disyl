@@ -26,12 +26,19 @@
         <input type="date" class="form-input" name="date_to" value="{date_to}">
     </div>
     <div class="form-group">
-        <label class="form-label">Branch</label>
+        <label class="form-label">Destination</label>
         <select class="form-input" name="branch_id">
-            <option value="">All Branches</option>
-            {foreach branches as br}
-            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
-            {/foreach}
+            <option value="">All Destinations</option>
+            <optgroup label="Branches">
+                {foreach branches as br}
+                <option value="{br.filter_value}" {if br.selected}selected{/if}>{br.code} — {br.name}</option>
+                {/foreach}
+            </optgroup>
+            <optgroup label="Consignees">
+                {foreach consignees as consignee}
+                <option value="{consignee.filter_value}" {if consignee.selected}selected{/if}>{consignee.code} — {consignee.name}</option>
+                {/foreach}
+            </optgroup>
         </select>
     </div>
     <div class="form-group">
@@ -80,6 +87,7 @@
                     <tr>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">When</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Branch</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Consignee</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Actor</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Action</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Details</th>
@@ -97,6 +105,7 @@
                             {/if}
                         </td>
                         <td class="px-4 py-3 align-top text-slate-800">{if act.branch_name}{act.branch_name}{else}<span class="text-slate-400">All / None</span>{/if}</td>
+                        <td class="px-4 py-3 align-top text-slate-800">{if act.consignee_name}<div class="font-semibold text-slate-900">{act.consignee_name}</div><div class="mt-1 text-xs text-slate-500">{act.consignee_code}</div>{/if}</td>
                         <td class="px-4 py-3 align-top text-slate-700">
                             <div class="font-semibold text-slate-900">{if act.actor_username}@{act.actor_username}{else}{act.actor_name}{/if}</div>
                             {if act.actor_username && act.actor_name}
@@ -130,6 +139,9 @@
                             {if act.is_grouped}
                             <div class="mt-1 text-xs text-slate-500">Grouped batch entry</div>
                             {/if}
+                            <div class="mt-2 text-xs">
+                                <a class="text-indigo-700 hover:underline" href="{act.raw_payload_url}" download="activity-payload.json">Download raw payload</a>
+                            </div>
                         </td>
                     </tr>
                     {/foreach}

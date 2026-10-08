@@ -14461,7 +14461,26 @@ function handleAdminActivity(array $params = []): void
     if ($dateFrom > $dateTo) {
         [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
-    $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
+    $destinationFilter = trim((string)($input['branch_id'] ?? ''));
+    $branchId = null;
+    $consigneeFilterId = null;
+    if (str_starts_with($destinationFilter, 'consignee:')) {
+        $consigneeFilterId = (int)substr($destinationFilter, strlen('consignee:'));
+        if ($consigneeFilterId <= 0) {
+            $consigneeFilterId = null;
+            $destinationFilter = '';
+        }
+    } elseif ($destinationFilter !== '') {
+        // Keep old numeric activity URLs working while emitting explicit typed
+        // values for new submissions (branch and consignee ids may overlap).
+        $branchId = (int)str_replace('branch:', '', $destinationFilter);
+        if ($branchId <= 0) {
+            $branchId = null;
+            $destinationFilter = '';
+        } else {
+            $destinationFilter = 'branch:' . $branchId;
+        }
+    }
     $actionFilter = trim((string)($input['action_filter'] ?? ''));
     $search   = trim((string)($input['q'] ?? ''));
     $drNumber = trim((string)($input['dr_number'] ?? ''));
@@ -14477,6 +14496,15 @@ function handleAdminActivity(array $params = []): void
         'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
         'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day'],
         'variance' => ['variance_status'],
+        // Actual writers include adjusted as well as applied/reversed. Keep the
+        // assignment names here too so this family remains complete when those
+        // action paths are deployed.
+        'consignee' => [
+            'consignee_created', 'consignee_updated',
+            'consignee_ledger_applied', 'consignee_ledger_adjusted', 'consignee_ledger_reversed',
+            'consignee_product_assigned', 'consignee_product_unassigned',
+            'review_delivery_provenance',
+        ],
     ];
     if ($actionFilter !== '' && !isset($actionFilterMap[$actionFilter])) {
         $actionFilter = '';
@@ -14490,6 +14518,7 @@ function handleAdminActivity(array $params = []): void
         ['value' => 'product', 'label' => 'Product'],
         ['value' => 'user', 'label' => 'User'],
         ['value' => 'variance', 'label' => 'Variance'],
+        ['value' => 'consignee', 'label' => 'Consignee Activities'],
     ];
 
     $accessibleBranchIds = dl_accessibleBranchIds($user);
@@ -14498,6 +14527,26 @@ function handleAdminActivity(array $params = []): void
     $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($branches as &$branchOption) {
+        $branchOption['filter_value'] = 'branch:' . (int)$branchOption['id'];
+        $branchOption['selected'] = $branchOption['filter_value'] === $destinationFilter;
+    }
+    unset($branchOption);
+
+    $consigneesStmt = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 ORDER BY name');
+    $consignees = $consigneesStmt ? ($consigneesStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    foreach ($consignees as &$consigneeOption) {
+        $consigneeOption['filter_value'] = 'consignee:' . (int)$consigneeOption['id'];
+        $consigneeOption['selected'] = $consigneeOption['filter_value'] === $destinationFilter;
+    }
+    unset($consigneeOption);
+    $consigneeLookup = [];
+    foreach ($ctx->db()->query('SELECT id, code, name FROM dl_consignees')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $consigneeRow) {
+        $id = (int)$consigneeRow['id'];
+        $name = trim((string)$consigneeRow['name']);
+        $code = trim((string)$consigneeRow['code']);
+        $consigneeLookup[$id] = $name . ($code !== '' ? ' (' . $code . ')' : '');
+    }
 
     $productLookup = [];
     foreach ($ctx->db()->query('SELECT id, name FROM dl_products')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $productRow) {
@@ -14655,11 +14704,19 @@ function handleAdminActivity(array $params = []): void
                    a.actor_user_id, '
         . ($hasActorModuleUserId ? 'a.actor_module_user_id' : 'NULL') . ' AS actor_module_user_id,
                    b.name AS branch_name,
+                   c.id AS consignee_id, c.name AS consignee_name, c.code AS consignee_code,
                    ' . ($hasUsersTable ? 'ku.full_name AS kernel_actor_name' : 'NULL AS kernel_actor_name') . ',
                    ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name,
                    ' . ($hasMetadataColumn ? 'a.metadata_json' : 'NULL') . ' AS metadata_json
             FROM audit_logs a
             LEFT JOIN dl_branches b ON b.id = a.branch_id
+            LEFT JOIN dl_deliveries ad ON a.entity_type = "dl_deliveries" AND ad.id = CAST(a.entity_id AS UNSIGNED)
+            LEFT JOIN dl_consignee_ledger_effects ace ON a.entity_type = "dl_consignee_ledger_effects" AND ace.id = CAST(a.entity_id AS UNSIGNED)
+            LEFT JOIN dl_consignees c ON c.id = CASE
+                WHEN a.entity_type = "dl_consignees" THEN CAST(a.entity_id AS UNSIGNED)
+                WHEN a.entity_type = "dl_deliveries" THEN ad.consignee_id
+                WHEN a.entity_type = "dl_consignee_ledger_effects" THEN ace.consignee_id
+                ELSE NULL END
             ' . ($hasUsersTable ? 'LEFT JOIN users ku ON ku.id = a.actor_user_id' : '') . '
             ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0');
     $where = "a.module = 'daily-ledger'
@@ -14669,6 +14726,10 @@ function handleAdminActivity(array $params = []): void
     if ($branchId) {
         $where .= ' AND a.branch_id = :bid';
         $bind[':bid'] = $branchId;
+    }
+    if ($consigneeFilterId) {
+        $where .= ' AND c.id = :cid';
+        $bind[':cid'] = $consigneeFilterId;
     }
     $filterActions = [];
     if ($actionFilter !== '') {
@@ -14686,8 +14747,11 @@ function handleAdminActivity(array $params = []): void
         $where .= ' AND a.action IN (' . implode(', ', $placeholders) . ')';
     }
     if ($search !== '') {
-        $where .= ' AND (a.action LIKE :q OR b.name LIKE :q2)';
-        $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
+        $where .= ' AND (a.action LIKE :q OR b.name LIKE :q2 OR c.name LIKE :q3 OR c.code LIKE :q4)';
+        $bind[':q'] = "%{$search}%";
+        $bind[':q2'] = "%{$search}%";
+        $bind[':q3'] = "%{$search}%";
+        $bind[':q4'] = "%{$search}%";
     }
     if ($drNumber !== '') {
         $where .= ' AND (a.new_data LIKE :drq OR a.old_data LIKE :drq2)';
@@ -14702,10 +14766,20 @@ function handleAdminActivity(array $params = []): void
     // created_at) index from migration 073 serves both this predicate and the
     // ORDER BY ... LIMIT ordering (no filesort).
     $activityLimit = 200;
-    // The count only needs the branch join when the free-text search matches on the
-    // branch name; otherwise a PK join over every matching row is pure overhead.
-    $countBranchJoin = ($search !== '') ? ' LEFT JOIN dl_branches b ON b.id = a.branch_id' : '';
-    $countStmt = $ctx->db()->prepare('SELECT COUNT(*) FROM audit_logs a' . $countBranchJoin . ' WHERE ' . $where);
+    // The count uses the same one-to-one joins whenever consignee filtering or
+    // search needs them, so pagination and rendered results cannot disagree.
+    $countJoins = '';
+    if ($search !== '' || $consigneeFilterId) {
+        $countJoins = ' LEFT JOIN dl_branches b ON b.id = a.branch_id
+            LEFT JOIN dl_deliveries ad ON a.entity_type = "dl_deliveries" AND ad.id = CAST(a.entity_id AS UNSIGNED)
+            LEFT JOIN dl_consignee_ledger_effects ace ON a.entity_type = "dl_consignee_ledger_effects" AND ace.id = CAST(a.entity_id AS UNSIGNED)
+            LEFT JOIN dl_consignees c ON c.id = CASE
+                WHEN a.entity_type = "dl_consignees" THEN CAST(a.entity_id AS UNSIGNED)
+                WHEN a.entity_type = "dl_deliveries" THEN ad.consignee_id
+                WHEN a.entity_type = "dl_consignee_ledger_effects" THEN ace.consignee_id
+                ELSE NULL END';
+    }
+    $countStmt = $ctx->db()->prepare('SELECT COUNT(*) FROM audit_logs a' . $countJoins . ' WHERE ' . $where);
     $countStmt->execute($bind);
     $totalMatching = (int)$countStmt->fetchColumn();
 
@@ -14724,6 +14798,11 @@ function handleAdminActivity(array $params = []): void
         'raw_material_id' => 'Material',
         'destination_branch_id' => 'Destination Branch',
         'branch_id' => 'Branch',
+        'consignee_id' => 'Consignee',
+        'assigned_commissary_id' => 'Assigned Commissary',
+        'source_branch_id' => 'Source Branch',
+        'consignee_reversal' => 'Consignee Reversal',
+        'ledger_reversal' => 'Ledger Reversal',
         'dr_number' => 'DR Number',
         'ledger_date' => 'Ledger Date',
         'flow_mode' => 'Flow',
@@ -14748,7 +14827,7 @@ function handleAdminActivity(array $params = []): void
         'liable_user_id' => 'Charged To',
     ];
     $skipKeys = ['movement_uuid', 'reference_movement_id', 'client_op_id', 'source_payload', 'role_permissions'];
-    $priorityKeys = ['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id', 'dr_number', 'ledger_date', 'quantity', 'yield_qty', 'kilo_qty', 'egg_qty', 'flow_mode', 'status', 'role', 'reason', 'resulting_addtl'];
+    $priorityKeys = ['name', 'full_name', 'username', 'consignee_id', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id', 'dr_number', 'ledger_date', 'quantity', 'yield_qty', 'kilo_qty', 'egg_qty', 'flow_mode', 'status', 'role', 'reason', 'resulting_addtl'];
 
     $formatFieldLabel = static function (string $key) use ($fieldLabels): string {
         return $fieldLabels[$key] ?? ucwords(str_replace('_', ' ', $key));
@@ -14769,30 +14848,48 @@ function handleAdminActivity(array $params = []): void
         return implode('; ', $parts);
     };
 
-    $formatValue = static function (string $key, $value) use ($productLookup, $materialLookup, $branchLookup): string {
+    $formatValue = null;
+    $formatValue = static function (string $key, $value) use (&$formatValue, $formatFieldLabel, $productLookup, $materialLookup, $branchLookup, $consigneeLookup): string {
+        if (is_object($value)) {
+            $value = (array)$value;
+        }
         if (is_array($value)) {
-            // Format items arrays with product names
-            if ($key === 'items' || (array_keys($value) === range(0, count($value) - 1) && count($value) > 0 && isset($value[0]['product_id']))) {
+            // Preserve the established compact product-item wording.
+            if ($key === 'items' || (array_is_list($value) && $value !== [] && is_array($value[0] ?? null) && isset($value[0]['product_id']))) {
                 $parts = [];
-                foreach ($value as $item) {
+                foreach ($value as $index => $item) {
                     if (!is_array($item)) {
-                        $parts[] = json_encode($item, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                        $parts[] = 'Item ' . ($index + 1) . ': ' . $formatValue('item', $item);
                         continue;
                     }
                     $pid = (int)($item['product_id'] ?? 0);
                     $pname = $pid > 0 ? ($productLookup[$pid] ?? 'Product #' . $pid) : '?';
                     $qty = $item['quantity'] ?? $item['qty'] ?? '?';
-                    $parts[] = $pname . ' ×' . $qty;
+                    $parts[] = $pname . ' ×' . $formatValue('quantity', $qty);
                 }
-                return implode('; ', $parts);
+                return $parts !== [] ? implode('; ', $parts) : 'None';
             }
-            return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]';
+
+            // Generic recursive prose is the safety net for every present and
+            // future payload shape. JSON remains available separately as a raw
+            // download, never as the operator-facing default.
+            $parts = [];
+            foreach ($value as $nestedKey => $nestedValue) {
+                $label = array_is_list($value)
+                    ? 'Item ' . ((int)$nestedKey + 1)
+                    : $formatFieldLabel((string)$nestedKey);
+                $parts[] = $label . ': ' . $formatValue((string)$nestedKey, $nestedValue);
+            }
+            return $parts !== [] ? implode('; ', $parts) : 'None';
         }
         if ($value === null) {
             return 'None';
         }
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
 
-        if (in_array($key, ['product_id'], true)) {
+        if ($key === 'product_id') {
             $id = (int)$value;
             $name = $productLookup[$id] ?? '';
             return $name !== '' ? $name . ' (#' . $id . ')' : ('#' . $id);
@@ -14802,7 +14899,12 @@ function handleAdminActivity(array $params = []): void
             $name = $materialLookup[$id] ?? '';
             return $name !== '' ? $name . ' (#' . $id . ')' : ('#' . $id);
         }
-        if (in_array($key, ['destination_branch_id', 'branch_id'], true)) {
+        if ($key === 'consignee_id') {
+            $id = (int)$value;
+            $name = $consigneeLookup[$id] ?? '';
+            return $name !== '' ? $name : ($id > 0 ? 'Consignee #' . $id : 'None');
+        }
+        if (in_array($key, ['destination_branch_id', 'branch_id', 'assigned_commissary_id', 'source_branch_id'], true)) {
             $id = (int)$value;
             $name = $branchLookup[$id] ?? '';
             return $name !== '' ? $name . ' (#' . $id . ')' : ($id > 0 ? ('#' . $id) : 'Commissary');
@@ -14829,9 +14931,6 @@ function handleAdminActivity(array $params = []): void
         if (in_array($key, ['role', 'flow_mode', 'status', 'primary_input_type', 'reviewed_by_role'], true)) {
             $text = trim((string)$value);
             return $text === '' ? 'None' : ucwords(str_replace('_', ' ', $text));
-        }
-        if (is_bool($value)) {
-            return $value ? 'Yes' : 'No';
         }
         if (is_numeric($value)) {
             $number = (float)$value;
@@ -14979,6 +15078,8 @@ function handleAdminActivity(array $params = []): void
         'product' => 'product',
         'user' => 'user',
         'branch' => 'branch',
+        'dl_consignees' => 'consignee',
+        'dl_consignee_ledger_effects' => 'consignee ledger entry',
         'dl_deliveries' => 'delivery',
         'dl_branch_receivings' => 'receiving',
         'dl_production_movements' => 'production movement',
@@ -15144,12 +15245,21 @@ function handleAdminActivity(array $params = []): void
 
     $pickTarget = static function (array $newPayload, array $oldPayload) use ($formatValue): string {
         $source = $newPayload !== [] ? $newPayload : $oldPayload;
-        foreach (['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id'] as $key) {
+        foreach (['name', 'full_name', 'username', 'consignee_id', 'product_id', 'material_id', 'raw_material_id'] as $key) {
             if (!array_key_exists($key, $source)) {
                 continue;
             }
             $formatted = $formatValue($key, $source[$key]);
-            if ($formatted !== 'None') {
+            if (in_array($key, ['product_id', 'material_id', 'raw_material_id'], true)) {
+                // Action is a sentence, not a second record/details display.
+                // Keep a known human name but leave numeric identity to those
+                // dedicated cells; an unresolved bare #id is not useful prose.
+                if (preg_match('/^#\d+$/', $formatted)) {
+                    continue;
+                }
+                $formatted = (string)preg_replace('/\s*\(#\d+\)$/', '', $formatted);
+            }
+            if ($formatted !== 'None' && $formatted !== '') {
                 return $formatted;
             }
         }
@@ -15173,7 +15283,7 @@ function handleAdminActivity(array $params = []): void
         }
 
         $sourcePayload = $newPayload !== [] ? $newPayload : $oldPayload;
-        foreach (['dr_number', 'name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id'] as $key) {
+        foreach (['dr_number', 'name', 'full_name', 'username', 'consignee_id', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id'] as $key) {
             if (!array_key_exists($key, $sourcePayload)) {
                 continue;
             }
@@ -15198,11 +15308,9 @@ function handleAdminActivity(array $params = []): void
         $summary = $meta['summary'];
         if ($target !== '') {
             $summary .= ' - ' . $target;
-        } elseif ($recordLabel !== '') {
-            // Fall back to the resolved record (user name, DR number, product,
-            // etc.) so the action is never a generic "Updated user #N".
-            $summary .= ' - ' . $recordLabel;
         }
+        // The record has its own line/cell. Appending the fallback here printed
+        // the exact same label twice inside Action (for example Deliveries #N).
 
         $actorSource = strtolower(trim((string)($row['actor_source'] ?? '')));
         $actorModuleUserId = (int)($row['actor_module_user_id'] ?? 0);
@@ -15249,6 +15357,10 @@ function handleAdminActivity(array $params = []): void
         }
 
         $detailSource = $newPayload !== [] ? $newPayload : $oldPayload;
+        $rowConsigneeId = (int)($row['consignee_id'] ?? 0);
+        if ($rowConsigneeId > 0 && !array_key_exists('consignee_id', $detailSource)) {
+            $detailSource['consignee_id'] = $rowConsigneeId;
+        }
         // A withdrawal records the person the stock is charged to. Prefer the name
         // captured when the charge was written (migration 060) so a later rename of
         // that account cannot re-label history; fall back to the live user row for
@@ -15271,6 +15383,8 @@ function handleAdminActivity(array $params = []): void
             'created_at' => (string)$row['created_at'],
             'relative_time' => $formatRelativeTime((string)$row['created_at']),
             'branch_name' => (string)($row['branch_name'] ?? ''),
+            'consignee_name' => (string)($row['consignee_name'] ?? ''),
+            'consignee_code' => (string)($row['consignee_code'] ?? ''),
             'entity_type' => (string)($row['entity_type'] ?? ''),
             'entity_id' => (string)($row['entity_id'] ?? ''),
             'record_label' => $recordLabel,
@@ -15281,6 +15395,12 @@ function handleAdminActivity(array $params = []): void
             'change_items' => $buildChangeItems($oldPayload, $newPayload),
             'grouped_items' => [],
             'is_grouped' => false,
+            // Machine-readable data remains available without placing JSON syntax
+            // in the readable DOM. The data URL downloads both decoded payloads.
+            'raw_payload_url' => 'data:application/json;base64,' . base64_encode((string)json_encode([
+                'old_data' => $oldPayload,
+                'new_data' => $newPayload,
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)),
         ];
 
         foreach ($overrides as $key => $value) {
@@ -15475,10 +15595,11 @@ function handleAdminActivity(array $params = []): void
         'activity_limit' => $activityLimit,
         'total_matching' => $totalMatching,
         'omitted' => $omitted,
-        'branch_id' => $branchId,
+        'branch_id' => $destinationFilter,
         'action_filter' => $actionFilter,
         'action_filter_options' => $actionFilterOptions,
         'branches' => $branches,
+        'consignees' => $consignees,
         'search' => $search,
         'dr_number' => $drNumber,
     ]);

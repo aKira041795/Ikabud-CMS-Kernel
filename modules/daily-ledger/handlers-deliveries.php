@@ -1285,7 +1285,7 @@ function apiReviewDeliveryProvenance(array $params = []): void
     }
 
     $stmt = $ctx->db()->prepare(
-        'SELECT id, origin_type, origin_id, destination_type, destination_id, consignee_id,
+        'SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, consignee_id,
                 delivery_date, production_shift, remarks, provenance_status, provenance_review_note
            FROM dl_deliveries
           WHERE id = :id
@@ -1331,7 +1331,13 @@ function apiReviewDeliveryProvenance(array $params = []): void
         );
     }
 
-    dl_auditLog('review_delivery_provenance', (int)($delivery['destination_id'] ?? 0) ?: null, 'dl_deliveries', (string)$deliveryId, [
+    // Consignee deliveries have no destination_id. Scope only those reviews to
+    // the real sending branch so branch-filtered Activity retains the evidence.
+    // Branch deliveries deliberately keep their existing destination scope.
+    $auditBranchId = (string)($delivery['destination_type'] ?? '') === 'consignee'
+        ? dl_deliveryResolvedOriginId($delivery)
+        : ((int)($delivery['destination_id'] ?? 0) ?: null);
+    dl_auditLog('review_delivery_provenance', $auditBranchId, 'dl_deliveries', (string)$deliveryId, [
         'provenance_status' => (string)($delivery['provenance_status'] ?? 'none'),
         'provenance_review_note' => (string)($delivery['provenance_review_note'] ?? ''),
     ], [
