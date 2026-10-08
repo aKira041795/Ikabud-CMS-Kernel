@@ -188,3 +188,64 @@ relying on existing data.
 - The full read path of *Pullouts* and *Summary* (their tables were not traced).
 - Whether `dl_variance_flags` (`addtl`/`withdraw` columns) shadows or duplicates the variance concept.
 - MySQL 5.7 behaviour of any proposed reconciliation query — INSPECTION-ONLY (no local 5.7 server).
+
+---
+
+## 7. Addendum — corrections after the reconciliation was actually built (2026-10-08)
+
+Item 1 (the reconciliation assertion) was built and the audit's own claims were tested against
+**data** rather than **schema**. Two of them were wrong. Both errors had the same cause: reading
+a table's *shape* and inferring its *role*.
+
+### 7.1 Correction — tables named as write models are EMPTY
+
+| table | this audit called it | actual rows (tenant 207) |
+|---|---|---|
+| `dl_production_movements` | "the production write model" (§1.3) | **0** |
+| `dl_commissary_ledger` | owns the raw-materials `calc_variance` (§3) | **0** |
+| `dl_production_runs` | — | **0** |
+
+The live dispatch write model is `dl_deliveries` (**132**) + `dl_delivery_items` (**2195**).
+
+**Consequence for the audit's recommended order:** a four-input reconciliation is *impossible*.
+`beg`, `produced` and `wastage` have **no populated write model**, so they cannot be derived
+independently. **Only `dispatched_qty` is reconcilable.** Item 1 was therefore delivered for
+`dispatched_qty` alone, not for the whole balance.
+
+Also settled: no `dl_production_movements` withdrawal row is written alongside a dispatch — that
+table is empty, so the double-count risk flagged in §5a does not exist in this data.
+
+### 7.2 Correction — item 4 (rename the raw-material `calc_variance`) is DROPPED
+
+§3 said it was "worth renaming, not rewriting". It is not worth doing at all: the column lives on
+`dl_commissary_ledger`, an **empty table nothing writes to**. Renaming a generated column on
+MySQL 5.7, with no local 5.7 server to test against, is pure risk for a naming concern that does
+not manifest (call sites already qualify it, e.g. `cpl.calc_variance`). The two names are
+distinguishable by their table. **Item 4 is withdrawn.**
+
+### 7.3 The projection is essentially EMPTY for this tenant's history
+
+Measured while building item 1:
+
+- 43 dates carry posted deliveries; **only 1 has a projection row** (2026-10-07)
+- **42 dates carry 95,437 units of departures with no projection row at all**
+- only **1 of 132** posted deliveries ever produced a `dl_delivery_ledger_effects` row, so
+  `dl_applyPostedDeliveryCommissaryLedger()` (6 call sites) is newly wired and the rest predate it
+
+This is expected history, not corruption — which is exactly why the reconciliation must **not**
+report it as disagreement. It is reported in a separate `unrecorded` bucket.
+
+**Open, and deliberately NOT decided here:** whether the projection should be **backfilled** for
+those 42 dates. The Inventory tab can only read the projection, so 95,437 units of committed
+history are invisible there, while the Daily Sheet reads the derivation directly and shows them
+correctly. Backfilling alters historical figures, so it is the **owner's decision**.
+
+### 7.4 §1.2 restated — the formula was in three places; the *consequence* was narrower
+
+§1.2 counted `beg + produced − dispatched − wastage` in three places. Building item 1 showed the
+third place (the Daily Sheet) is **not** a duplicate of the projection: the Sheet reads
+`dl_commissaryDepartedQtyByProduct()` directly, so it is already correct even where the
+projection is absent. Collapsing the three (recommended order item 3) is therefore a
+**maintainability** change, not a correctness one — and it remains the lowest-value remaining
+item.
+
