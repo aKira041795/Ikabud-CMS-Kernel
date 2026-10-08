@@ -499,8 +499,12 @@
     }
     /* Branch columns are FLUID like every other numeric column; the vertical
        writing-mode and fixed height keep the rotated header readable while the
-       width gives the trigger its equal share of the row. */
-    #tab-daily-sheet .daily-sheet-branch-column {
+       width gives the trigger its equal share of the row.
+       CONSIGNEE columns are the same destination shape, so they take the SAME
+       rule: a consignee name rendered vertically saves the horizontal cell width
+       a long outlet name would otherwise claim (owner, 2026-10-08). */
+    #tab-daily-sheet .daily-sheet-branch-column,
+    #tab-daily-sheet .consignee-sheet-column {
         box-sizing: border-box;
         width: auto;
         min-width: 0;
@@ -629,12 +633,14 @@
         /* Repeat the column header on every printed page and never split a row. */
         #tab-daily-sheet thead { display: table-header-group; }
         #tab-daily-sheet tr { break-inside: avoid; page-break-inside: avoid; }
-        #tab-daily-sheet .daily-sheet-branch-column {
+        #tab-daily-sheet .daily-sheet-branch-column,
+        #tab-daily-sheet .consignee-sheet-column {
             /* The screen fluid rule `#tab-daily-sheet thead th:nth-child(n+2)`
                (specificity 1,1,2) otherwise outranks this rule (1,1,0) on paper,
                so the paper branch width is re-asserted with !important. Without
                it every numeric column keeps its equal 77px share and the nowrap
-               "ACTUAL BAL" header overflows the table by 8px. */
+               "ACTUAL BAL" header overflows the table by 8px.
+               CONSIGNEE columns take the same paper width for the same reason. */
             width: 24px !important;
             min-width: 24px !important;
             max-width: 24px !important;
