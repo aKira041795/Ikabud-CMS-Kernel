@@ -1748,40 +1748,47 @@
                 <div>
                     <span>Consignee Daily Sheet — {date}{if shift} · {shift}{else} · All shifts{/if}</span>
                     <div class="text-xs text-gray-500">Only consignees supplied by {sheet_source_branch_name} with ledger activity on this date are shown.</div>
+                    <div class="text-xs text-gray-500">BEG + ADDTL &minus; TOTAL &minus; WASTAGE = ACTUAL BAL. Here ACTUAL BAL is the <span class="font-semibold">commissary balance after consignee dispatch</span> &mdash; it is not the Branches tab's on-hand figure.</div>
                 </div>
             </div>
             <div class="card-body border-b border-slate-200">
-                <p class="text-xs text-gray-500">This is a stock (custody) view. Quantities only — dispatched value belongs on Sales &rarr; Consignee Dispatch Report.</p>
+                <p class="text-xs text-gray-500">This is a stock (production destination) view. Quantities only — dispatched value belongs on Sales &rarr; Consignee Dispatch Report.</p>
             </div>
             <div class="table-wrap">
-                <table id="consignee-production-ledger-table">
+                <table class="production-ledger-table" id="consignee-production-ledger-table" style="--sheet-numeric-cols: {consignee_sheet_numeric_column_count}">
                     <thead>
                         <tr>
-                            <th>Consignee</th>
                             <th>Product</th>
-                            <th class="text-right">BEG</th>
-                            <th class="text-right">ADDTL</th>
-                            <th class="text-right">WITHDRAWALS</th>
-                            <th class="text-right">ENDING</th>
+                            <th class="text-right pr-1">BEG</th>
+                            <th class="text-right pr-2">ADDTL</th>
+                            {foreach consignee_sheet_columns as cc}
+                            <th class="text-right consignee-sheet-column" data-consignee-id="{cc.id}">{cc.name}</th>
+                            {/foreach}
+                            <th class="text-right">TOTAL</th>
+                            <th class="text-right pr-1" title="Commissary balance after consignee dispatch">ACTUAL BAL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {if consignee_sheet_rows | count == 0 && consignee_assignment_count == 0}
-                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No products are assigned to active consignees for this commissary. Use Products → Show in Consignees to choose what appears here.</td></tr>
+                        {if consignee_sheet_columns | count == 0 && consignee_assignment_count == 0}
+                        <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No products are assigned to active consignees for this commissary. Use Products → Show in Consignees to choose what appears here.</td></tr>
                         {/if}
-                        {if consignee_sheet_rows | count == 0 && consignee_assignment_count > 0}
-                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
+                        {if consignee_sheet_columns | count == 0 && consignee_assignment_count > 0}
+                        <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
                         {/if}
+                        {if consignee_sheet_columns | count > 0}
                         {foreach consignee_sheet_rows as row}
-                        <tr>
-                            <td><div class="font-medium">{row.consignee_name}</div><div class="text-xs font-mono text-gray-500">{row.consignee_code}</div></td>
-                            <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
-                            <td class="text-right">{row.beg_bal}</td>
-                            <td class="text-right font-semibold text-emerald-700">{row.addtl}</td>
-                            <td class="text-right font-semibold text-amber-700">{row.withdraw_qty}</td>
-                            <td class="text-right font-semibold">{row.ending_qty}</td>
+                        <tr class="consignee-sheet-product-row" data-product-id="{row.product_id}">
+                            <td class="font-medium">{row.sheet_label}</td>
+                            <td class="text-right">{row.beg_qty}</td>
+                            <td class="text-right font-semibold text-emerald-700">{row.addtl_qty}</td>
+                            {foreach row.cells as cell}
+                            <td class="text-right consignee-sheet-cell" data-consignee-id="{cell.consignee_id}">{cell.quantity}</td>
+                            {/foreach}
+                            <td class="text-right font-semibold consignee-sheet-total">{row.total_qty}</td>
+                            <td class="text-right">{row.book_balance}</td>
                         </tr>
                         {/foreach}
+                        {/if}
                     </tbody>
                 </table>
             </div>

@@ -18719,6 +18719,135 @@ function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?strin
 }
 
 /**
+ * Slice 10: the Consignees SUB-TAB of the production Daily Sheet takes the
+ * Branches shape — one shared commissary BEG/ADDTL per product row and one
+ * COLUMN per consignee.
+ *
+ * BEG/ADDTL are the COMMISSARY's, read from the same source the Branches
+ * sub-tab uses for those two columns (dl_commissary_product_ledger, the ledger
+ * behind dl_fetchCommissaryBeginningSuggestions): beg_qty and produced_qty,
+ * one value per product for the commissary/date/shift. They are deliberately
+ * NOT the consignee's own beg_bal/addtl custody balances.
+ *
+ * Consignee cells are keyed [product_id][consignee_id] and carry the
+ * consignee's dispatched quantity (dl_consignee_ledger.addtl). Dispatch
+ * legitimately originates at a BRANCH — the cashier ledger credits the
+ * consignee (handlers.php apiCreateCashierDispatch) — so there is deliberately
+ * NO origin_type filter here. A consignee column is only produced when that
+ * consignee has a ledger row on the date, so width is bounded by activity, not
+ * by the consignee count.
+ *
+ * MySQL 5.7-safe: plain GROUP BY aggregates only (no CTE, no window function,
+ * no JSON_TABLE).
+ *
+ * @param PDO|\Ikabud\Kernel\Contracts\ModuleDB $db Module gateway; the handler passes
+ *        the module-scoped ModuleDB while the acceptance probe passes a raw PDO,
+ *        so the parameter is intentionally untyped (as the other dl_fetch helpers are).
+ * @return array{beg_addtl:array<int,array{beg:int,addtl:int}>,cells:array<int,array<int,int>>,consignees:array<int,array{code:string,name:string}>}
+ */
+function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissaryId, ?string $shift): array
+{
+    $shift = $shift === null ? null : dl_normalizeShift($shift);
+
+    // ── Shared commissary BEG/ADDTL: the exact ledger the Branches sub-tab
+    //    reads for its BEG and ADDTL columns. ──
+    $begSql = 'SELECT product_id, SUM(beg_qty) AS beg_qty, SUM(produced_qty) AS addtl_qty
+                 FROM dl_commissary_product_ledger
+                WHERE ledger_date = :date';
+    $begBind = [':date' => $date];
+    if ($shift !== null) {
+        $begSql .= ' AND shift = :shift';
+        $begBind[':shift'] = $shift;
+    }
+    if ($commissaryId > 0) {
+        $begSql .= ' AND commissary_branch_id = :cid';
+        $begBind[':cid'] = $commissaryId;
+    }
+    $begSql .= ' GROUP BY product_id';
+    $begStmt = $db->prepare($begSql);
+    $begStmt->execute($begBind);
+    $ledgerByProduct = [];
+    foreach ($begStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $ledgerRow) {
+        $ledgerByProduct[(int)$ledgerRow['product_id']] = [
+            'beg' => (int)$ledgerRow['beg_qty'],
+            'addtl' => (int)$ledgerRow['addtl_qty'],
+        ];
+    }
+
+    // The product universe is the Branches sub-tab's universe, so a product
+    // with no ledger row still carries the shared (zero) BEG/ADDTL rather than
+    // being absent from the map.
+    $begAddtl = [];
+    foreach (dl_fetchProductionSheetProducts($db, $commissaryId) as $product) {
+        $productId = (int)$product['id'];
+        $begAddtl[$productId] = $ledgerByProduct[$productId] ?? ['beg' => 0, 'addtl' => 0];
+    }
+    // A ledger row can exist for a product outside the current assignment set;
+    // surface its shared value rather than dropping the row silently.
+    foreach ($ledgerByProduct as $productId => $values) {
+        if (!array_key_exists($productId, $begAddtl)) {
+            $begAddtl[$productId] = $values;
+        }
+    }
+
+    // ── Consignee cells: one COLUMN per consignee WITH LEDGER ACTIVITY that
+    //    date. addtl is the dispatched/received quantity. No origin_type
+    //    filter: a branch-originated cashier dispatch is normal. ──
+    $cellSql = 'SELECT l.product_id, l.consignee_id, SUM(l.addtl) AS dispatched_qty
+                  FROM dl_consignee_ledger l
+                  INNER JOIN dl_consignees c ON c.id = l.consignee_id
+                  INNER JOIN dl_consignee_products cp
+                          ON cp.consignee_id = c.id AND cp.product_id = l.product_id AND cp.is_active = 1
+                 WHERE l.ledger_date = :date
+                   AND c.is_active = 1';
+    $cellBind = [':date' => $date];
+    if ($shift !== null) {
+        $cellSql .= ' AND l.shift = :shift';
+        $cellBind[':shift'] = $shift;
+    }
+    if ($commissaryId > 0) {
+        $cellSql .= ' AND c.assigned_commissary_id = :cid';
+        $cellBind[':cid'] = $commissaryId;
+    }
+    $cellSql .= ' GROUP BY l.product_id, l.consignee_id';
+    $cellStmt = $db->prepare($cellSql);
+    $cellStmt->execute($cellBind);
+
+    $cells = [];
+    $consigneeIds = [];
+    foreach ($cellStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $cellRow) {
+        $productId = (int)$cellRow['product_id'];
+        $consigneeId = (int)$cellRow['consignee_id'];
+        $cells[$productId][$consigneeId] = (int)$cellRow['dispatched_qty'];
+        $consigneeIds[$consigneeId] = true;
+    }
+
+    $consignees = [];
+    if ($consigneeIds !== []) {
+        // The id list is int-cast, so it is safe to inline; this avoids a
+        // variable-length IN() placeholder expansion on 5.7.
+        $idList = implode(',', array_map('intval', array_keys($consigneeIds)));
+        $metaStmt = $db->query(
+            'SELECT id, code, name FROM dl_consignees'
+            . ' WHERE id IN (' . $idList . ') AND is_active = 1'
+            . ' ORDER BY name ASC, id ASC'
+        );
+        foreach ($metaStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $metaRow) {
+            $consignees[(int)$metaRow['id']] = [
+                'code' => (string)$metaRow['code'],
+                'name' => (string)$metaRow['name'],
+            ];
+        }
+    }
+
+    return [
+        'beg_addtl' => $begAddtl,
+        'cells' => $cells,
+        'consignees' => $consignees,
+    ];
+}
+
+/**
  * Build the Sales -> Consignee Dispatch Report.
  *
  * Commercial subject, never a stock or custody one. Each row is a dispatch
@@ -19340,10 +19469,82 @@ function handleAdminCommissary(): void
         ];
     }
 
-    // Consignee custody is a separate, read-only sheet. Only active consignees
-    // supplied by this commissary, assigned this product, and carrying a row on
-    // the selected date are shown.
-    $consigneeSheetRows = dl_fetchConsigneeSheetRows($db, $rawDate, $sheetSourceBranchId, $shift);
+    // Slice 10: the Consignees sub-tab takes the Branches shape. BEG/ADDTL are
+    // the SAME commissary-level values the Branches sub-tab shows (reused
+    // verbatim from $dailySheetRows, which is built from the commissary's
+    // ledger), and each consignee with ledger activity that date becomes a
+    // COLUMN. The custody columns (WITHDRAWALS / ENDING) are gone from this
+    // sub-tab. Dispatch legitimately originates at a branch (the cashier
+    // ledger credits the consignee), so no origin_type filter applies here.
+    $consigneeCellPayload = dl_fetchProductionSheetConsigneeCells($db, $rawDate, $sheetSourceBranchId, $shift);
+    $consigneeSheetColumns = [];
+    foreach (($consigneeCellPayload['consignees'] ?? []) as $consigneeId => $consigneeMeta) {
+        $consigneeSheetColumns[] = [
+            'id' => (int)$consigneeId,
+            'code' => (string)($consigneeMeta['code'] ?? ''),
+            'name' => (string)($consigneeMeta['name'] ?? ''),
+        ];
+    }
+    $consigneeSheetRows = [];
+    $consigneeRowProductIds = [];
+    foreach ($dailySheetRows as $sheetRow) {
+        $productId = (int)$sheetRow['product_id'];
+        $consigneeRowProductIds[$productId] = true;
+        $consigneeCells = [];
+        $consigneeTotal = 0;
+        foreach ($consigneeSheetColumns as $column) {
+            $quantity = (int)($consigneeCellPayload['cells'][$productId][$column['id']] ?? 0);
+            $consigneeTotal += $quantity;
+            $consigneeCells[] = ['consignee_id' => $column['id'], 'quantity' => $quantity];
+        }
+        $begQty = (int)($sheetRow['beg_qty'] ?? 0);
+        $addtlQty = (int)($sheetRow['addtl_qty'] ?? 0);
+        $wastageQty = (int)($sheetRow['wastage_qty'] ?? 0);
+        $consigneeSheetRows[] = [
+            'product_id' => $productId,
+            'sheet_label' => (string)($sheetRow['sheet_label'] ?? ''),
+            'sku' => (string)($sheetRow['sku'] ?? ''),
+            'beg_qty' => $begQty,
+            'addtl_qty' => $addtlQty,
+            'wastage_qty' => $wastageQty,
+            'cells' => $consigneeCells,
+            'total_qty' => $consigneeTotal,
+            // R10.4: THIS sub-tab's own destination-column sum, so the same
+            // printed formula holds: BEG + ADDTL - TOTAL - WASTAGE = ACTUAL BAL.
+            'book_balance' => $begQty + $addtlQty - $consigneeTotal - $wastageQty,
+        ];
+    }
+    // A consignee dispatch can name a product outside the production product
+    // universe; keep the movement visible on the tab rather than dropping it.
+    $extraProductIds = array_diff(array_keys($consigneeCellPayload['cells'] ?? []), array_keys($consigneeRowProductIds));
+    if ($extraProductIds !== []) {
+        $extraIdList = implode(',', array_map('intval', $extraProductIds));
+        $extraStmt = $db->query('SELECT id, name, sku FROM dl_products WHERE id IN (' . $extraIdList . ')');
+        foreach ($extraStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $extraProduct) {
+            $productId = (int)$extraProduct['id'];
+            $consigneeCells = [];
+            $consigneeTotal = 0;
+            foreach ($consigneeSheetColumns as $column) {
+                $quantity = (int)($consigneeCellPayload['cells'][$productId][$column['id']] ?? 0);
+                $consigneeTotal += $quantity;
+                $consigneeCells[] = ['consignee_id' => $column['id'], 'quantity' => $quantity];
+            }
+            $begQty = (int)($consigneeCellPayload['beg_addtl'][$productId]['beg'] ?? 0);
+            $addtlQty = (int)($consigneeCellPayload['beg_addtl'][$productId]['addtl'] ?? 0);
+            $consigneeSheetRows[] = [
+                'product_id' => $productId,
+                'sheet_label' => (string)($extraProduct['name'] ?? ''),
+                'sku' => (string)($extraProduct['sku'] ?? ''),
+                'beg_qty' => $begQty,
+                'addtl_qty' => $addtlQty,
+                'wastage_qty' => 0,
+                'cells' => $consigneeCells,
+                'total_qty' => $consigneeTotal,
+                'book_balance' => $begQty + $addtlQty - $consigneeTotal,
+            ];
+        }
+    }
+    $consigneeSheetNumericColumnCount = count($consigneeSheetColumns) + 3;
     $consigneeSalesMode = dl_normalizeConsigneeSalesMode(dlModuleSettings()['consignee_sales_mode'] ?? null);
     $consigneeAssignmentStmt = $db->prepare('SELECT COUNT(*) FROM dl_consignee_products cp INNER JOIN dl_consignees c ON c.id = cp.consignee_id AND c.is_active = 1 INNER JOIN dl_products p ON p.id = cp.product_id AND p.is_active = 1 WHERE c.assigned_commissary_id = :commissary AND cp.is_active = 1');
     $consigneeAssignmentStmt->execute([':commissary' => $sheetSourceBranchId]);
@@ -19494,6 +19695,8 @@ function handleAdminCommissary(): void
         'summary_rows' => $summaryRows,
         'daily_sheet_rows' => $dailySheetRows,
         'consignee_sheet_rows' => $consigneeSheetRows,
+        'consignee_sheet_columns' => $consigneeSheetColumns,
+        'consignee_sheet_numeric_column_count' => $consigneeSheetNumericColumnCount,
         'consignee_assignment_count' => $consigneeAssignmentCount,
         'consignee_sales_mode' => $consigneeSalesMode,
         'consignee_enabled' => dl_isConsigneeEnabled(),
