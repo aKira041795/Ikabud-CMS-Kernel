@@ -322,9 +322,13 @@ test('picker: branches page links to the SAME assignment tab preselecting the br
 /**
  * CHAIR VISUAL/TRUTHFULNESS CHECK.
  *
- * Measured invariant (tenant 207): 182 products x 19 branches = 3458 active pairs, 0 hidden. So for branch 8
- * every one of its 182 products is assigned and every checkbox MUST render checked. This asserts the UI
- * reflects REAL assignments rather than merely rendering.
+ * The UI must reflect REAL assignments rather than merely rendering. That is asserted against the
+ * server's own truth, which the template stamps on every row as data-initial="{p.assigned}".
+ *
+ * This deliberately does NOT assert a product count. It previously froze "182 products x 19 branches,
+ * 0 hidden" and went red when the live tenant legitimately changed: the catalogue is 178 products
+ * (0 inactive, so four transient ones were deleted) and 11 branches, with 107 hidden pairs. A frozen
+ * count can only ever pass on one exact dataset, and it says nothing about truthfulness.
  */
 test('picker: checkboxes reflect the real assignments for the branch', async ({ page }) => {
     await login(page);
@@ -333,17 +337,20 @@ test('picker: checkboxes reflect the real assignments for the branch', async ({ 
 
     const boxes = page.locator('input[data-product-check]');
     const total = await boxes.count();
-    let checked = 0;
-    for (let i = 0; i < total; i++) {
-        if (await boxes.nth(i).isChecked()) { checked++; }
-    }
+    // One round-trip per attribute instead of one per checkbox.
+    const serverTruth = await boxes.evaluateAll((els) => els.map((el) => el.getAttribute('data-initial')));
+    const domState = await boxes.evaluateAll((els) => els.map((el) => el.checked));
+    const assignedByServer = serverTruth.filter((v) => v === '1').length;
+    const checked = domState.filter(Boolean).length;
+    const mismatches = serverTruth.filter((v, i) => (v === '1') !== domState[i]).length;
 
     // Is the on-screen "ticked" counter correct on FIRST render, before any interaction?
     const counter = (await page.locator('#picker-checked-count').innerText()).trim();
 
     console.log('--- PICKER TRUTHFULNESS -------------------------------------');
     console.log('checkboxes        :', total);
-    console.log('checked           :', checked);
+    console.log('assigned (server) :', assignedByServer);
+    console.log('checked  (render) :', checked, mismatches === 0 ? '(agrees with server)' : `(MISMATCH on ${mismatches} rows)`);
     console.log('counter on load   :', JSON.stringify(counter), '(should equal checked, not 0)');
     console.log('branch selector   :', await page.locator('select').first().inputValue().catch(() => 'n/a'));
 
@@ -357,8 +364,13 @@ test('picker: checkboxes reflect the real assignments for the branch', async ({ 
         console.log('rendered HTML     : could not dump ->', String(e).slice(0, 80));
     }
 
-    expect(total, 'the branch must list its 182 assigned products').toBe(182);
-    expect(checked, 'all 182 are assigned to every branch (0 hidden pairs) so all must be checked').toBe(182);
+    // Guard against a vacuous pass first: if the picker rendered nothing, or the server assigned
+    // nothing, then "no mismatches" would be trivially true and prove nothing at all.
+    expect(total, 'the picker must list at least one product, or the check below cannot discriminate')
+        .toBeGreaterThan(0);
+    expect(assignedByServer, 'at least one product must be assigned to this branch, or the check below cannot discriminate')
+        .toBeGreaterThan(0);
+    expect(mismatches, 'every checkbox must render the assignment the server sent (data-initial)').toBe(0);
     // The counter must be truthful on first paint; a stale "0" would mislead the admin.
     expect(counter, 'the ticked counter must be correct before any interaction').toBe(String(checked));
 });
@@ -408,7 +420,14 @@ test('add product modal: horizontal grid — two columns desktop, one mobile (re
     expect(await page.locator('#add-modal .product-modal__section').count()).toBe(3);
     expect(sectionTitles).toContain('Catalog');
     expect(sectionTitles).toContain('Production Profile');
-    expect(sectionTitles).toContain('Show in branches');
+    // The assignment section covers BOTH scopes since f5d9c215 gave products a consignee scope, so its
+    // title must name both -- and the modal must genuinely offer both, or the title would be promising
+    // control that is not there. Asserting the exact copy froze this on the pre-consignee title and it
+    // stayed red after the UI legitimately changed.
+    expect(sectionTitles.some((t) => /branches/i.test(t) && /consignees/i.test(t)),
+        'the assignment section title must name both scopes it controls').toBe(true);
+    expect(await page.locator('#add-modal .add-consignee-check').count(),
+        'the title names consignees, so the add modal must offer consignee selection').toBeGreaterThan(0);
 
     // The nine submitted fields submitAddProduct() reads are all present.
     const fields = page.locator('#add-modal input:not([type="radio"]):not([type="checkbox"]), #add-modal select');
