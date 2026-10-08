@@ -537,6 +537,11 @@ function dlSettingsDefaults(): array
     return $defaults;
 }
 
+function dl_normalizeConsigneeSalesMode(mixed $value): string
+{
+    return in_array($value, ['consignment', 'order'], true) ? $value : 'consignment';
+}
+
 function dlModuleSettings(bool $refresh = false): array
 {
     static $cache = null;
@@ -544,6 +549,7 @@ function dlModuleSettings(bool $refresh = false): array
         return $cache;
     }
     $cache = array_merge(dlSettingsDefaults(), getModuleSettings('daily-ledger'));
+    $cache['consignee_sales_mode'] = dl_normalizeConsigneeSalesMode($cache['consignee_sales_mode'] ?? null);
     return $cache;
 }
 
@@ -551,6 +557,10 @@ function dlPersistModuleSettings(array $settings): bool
 {
     if ($settings === []) {
         return true;
+    }
+
+    if (array_key_exists('consignee_sales_mode', $settings)) {
+        $settings['consignee_sales_mode'] = dl_normalizeConsigneeSalesMode($settings['consignee_sales_mode']);
     }
 
     saveModuleSettings('daily-ledger', $settings);
@@ -12421,6 +12431,7 @@ function handleAdminSettings(array $params = []): void
         'reset_second_phrase_enabled' => $resetSafeguardSettings['reset_second_phrase_enabled'],
         'reset_second_phrase' => $resetSafeguardSettings['reset_second_phrase'],
         'max_offline_days' => dl_offlineMaxDays(),
+        'consignee_sales_mode' => dl_normalizeConsigneeSalesMode(dlModuleSettings()['consignee_sales_mode'] ?? null),
     ]);
 }
 
@@ -12692,6 +12703,9 @@ function apiSaveRolePermissions(array $params = []): void
     $backupIncludeUsers = $backupSettings['backup_include_users'];
     $backupRetentionDays = $backupSettings['backup_retention_days'];
     $resetSecondPhraseEnabled = $resetSafeguardSettings['reset_second_phrase_enabled'];
+    $consigneeSalesMode = dl_normalizeConsigneeSalesMode(
+        $input['consignee_sales_mode'] ?? (dlModuleSettings()['consignee_sales_mode'] ?? null)
+    );
 
     if (array_key_exists('production_output_enabled', $input)) {
         if (!$canManageFeatureActivation) {
@@ -12797,6 +12811,7 @@ function apiSaveRolePermissions(array $params = []): void
         'backup_retention_days' => (string)$backupRetentionDays,
         'reset_second_phrase_enabled' => $resetSecondPhraseEnabled ? '1' : '0',
         'max_offline_days' => (string)$maxOfflineDays,
+        'consignee_sales_mode' => $consigneeSalesMode,
     ];
 
     if (!dlPersistModuleSettings($settingsToSave)) {
@@ -12825,6 +12840,7 @@ function apiSaveRolePermissions(array $params = []): void
         'backup_include_users' => $backupIncludeUsers,
         'backup_retention_days' => $backupRetentionDays,
         'reset_second_phrase_enabled' => $resetSecondPhraseEnabled,
+        'consignee_sales_mode' => $consigneeSalesMode,
         'is_kernel_admin' => $isKernelAdmin,
         'updated_by_role' => (string)($user['role'] ?? ''),
     ]);
@@ -12850,6 +12866,7 @@ function apiSaveRolePermissions(array $params = []): void
         'price_groups_enabled' => $priceGroupsEnabled,
         'pos_enabled' => $posEnabled,
         'pos_sort_by_sales' => $posSortBySales,
+        'consignee_sales_mode' => $consigneeSalesMode,
     ]);
 }
 
@@ -18336,6 +18353,40 @@ function handleAdminUsage(): void
     ] + $pageData);
 }
 
+/**
+ * Read the consignee custody sheet and its order-mode monetary lens.
+ *
+ * sold_qty deliberately means dispatched ADDTL pieces, and for_collection uses
+ * each ledger row's immutable price_snapshot. The selected sales mode never
+ * enters this query and therefore cannot alter custody or posting.
+ */
+function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?string $shift): array
+{
+    $sql = 'SELECT c.id AS consignee_id, c.code AS consignee_code, c.name AS consignee_name,
+                   l.product_id, p.name AS product_name, p.sku,
+                   SUM(l.beg_bal) AS beg_bal, SUM(l.addtl) AS addtl,
+                   SUM(l.withdraw) AS withdraw_qty,
+                   SUM(l.beg_bal + l.addtl - l.withdraw) AS ending_qty,
+                   SUM(l.addtl) AS sold_qty,
+                   SUM(l.addtl * COALESCE(l.price_snapshot, 0)) AS for_collection
+              FROM dl_consignee_ledger l
+              INNER JOIN dl_consignees c ON c.id = l.consignee_id
+              INNER JOIN dl_products p ON p.id = l.product_id
+              INNER JOIN dl_consignee_products cp ON cp.consignee_id = c.id AND cp.product_id = p.id AND cp.is_active = 1
+             WHERE l.ledger_date = :date
+               AND c.assigned_commissary_id = :commissary
+               AND c.is_active = 1';
+    $bind = [':date' => $date, ':commissary' => $commissaryId];
+    if ($shift !== null) {
+        $sql .= ' AND l.shift = :shift';
+        $bind[':shift'] = $shift;
+    }
+    $sql .= ' GROUP BY c.id, c.code, c.name, l.product_id, p.name, p.sku ORDER BY c.name, p.name';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 function handleAdminCommissary(): void
 {
     $ctx = module();
@@ -18816,27 +18867,8 @@ function handleAdminCommissary(): void
     // Consignee custody is a separate, read-only sheet. Only active consignees
     // supplied by this commissary, assigned this product, and carrying a row on
     // the selected date are shown.
-    $consigneeSheetSql = 'SELECT c.id AS consignee_id, c.code AS consignee_code, c.name AS consignee_name,
-                                l.product_id, p.name AS product_name, p.sku,
-                                SUM(l.beg_bal) AS beg_bal, SUM(l.addtl) AS addtl,
-                                SUM(l.withdraw) AS withdraw_qty,
-                                SUM(l.beg_bal + l.addtl - l.withdraw) AS ending_qty
-                           FROM dl_consignee_ledger l
-                           INNER JOIN dl_consignees c ON c.id = l.consignee_id
-                           INNER JOIN dl_products p ON p.id = l.product_id
-                           INNER JOIN dl_consignee_products cp ON cp.consignee_id = c.id AND cp.product_id = p.id AND cp.is_active = 1
-                          WHERE l.ledger_date = :date
-                            AND c.assigned_commissary_id = :commissary
-                            AND c.is_active = 1';
-    $consigneeSheetBind = [':date' => $rawDate, ':commissary' => $sheetSourceBranchId];
-    if ($shift !== null) {
-        $consigneeSheetSql .= ' AND l.shift = :shift';
-        $consigneeSheetBind[':shift'] = $shift;
-    }
-    $consigneeSheetSql .= ' GROUP BY c.id, c.code, c.name, l.product_id, p.name, p.sku ORDER BY c.name, p.name';
-    $consigneeSheetStmt = $db->prepare($consigneeSheetSql);
-    $consigneeSheetStmt->execute($consigneeSheetBind);
-    $consigneeSheetRows = $consigneeSheetStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $consigneeSheetRows = dl_fetchConsigneeSheetRows($db, $rawDate, $sheetSourceBranchId, $shift);
+    $consigneeSalesMode = dl_normalizeConsigneeSalesMode(dlModuleSettings()['consignee_sales_mode'] ?? null);
     $consigneeAssignmentStmt = $db->prepare('SELECT COUNT(*) FROM dl_consignee_products cp INNER JOIN dl_consignees c ON c.id = cp.consignee_id AND c.is_active = 1 INNER JOIN dl_products p ON p.id = cp.product_id AND p.is_active = 1 WHERE c.assigned_commissary_id = :commissary AND cp.is_active = 1');
     $consigneeAssignmentStmt->execute([':commissary' => $sheetSourceBranchId]);
     $consigneeAssignmentCount = (int)$consigneeAssignmentStmt->fetchColumn();
@@ -18987,6 +19019,7 @@ function handleAdminCommissary(): void
         'daily_sheet_rows' => $dailySheetRows,
         'consignee_sheet_rows' => $consigneeSheetRows,
         'consignee_assignment_count' => $consigneeAssignmentCount,
+        'consignee_sales_mode' => $consigneeSalesMode,
         'sheet_branches' => $sheetBranches,
         'sheet_source_branch_id' => $sheetSourceBranchId,
         'sheet_source_branch_name' => $sheetSourceBranchName,

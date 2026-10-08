@@ -390,6 +390,13 @@
       "description": "Expose the selling-account management UI and APIs. Existing data is unaffected when off."
     },
     {
+      "key": "consignee_sales_mode",
+      "type": "select",
+      "label": "Consignee Sales Treatment",
+      "default": "consignment",
+      "description": "Choose whether dispatches remain in consignee custody until reported sold or are treated as bought in full."
+    },
+    {
       "key": "backup_before_reset_enabled",
       "type": "checkbox",
       "label": "Auto Backup Before Deployment Reset",

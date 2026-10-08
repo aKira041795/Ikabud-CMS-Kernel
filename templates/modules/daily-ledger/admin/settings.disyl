@@ -127,6 +127,36 @@
     </div>
 </div>
 
+<div class="card mb-6" id="consignee-sales-mode-settings">
+    <div class="card-header">
+        <span>Consignee Sales Treatment</span>
+        <span class="text-sm text-muted">Custody or Full Order</span>
+    </div>
+    <div class="card-body">
+        <fieldset class="space-y-3">
+            <legend class="text-sm font-semibold text-gray-900">How should a dispatch to a consignee be treated?</legend>
+            <label class="block rounded-xl border border-slate-200 p-4">
+                <span class="flex items-start gap-3">
+                    <input type="radio" name="consignee-sales-mode" value="consignment" {if consignee_sales_mode == 'consignment'}checked{/if}>
+                    <span>
+                        <span class="block text-sm font-semibold text-slate-900">Consignment — sold pieces only</span>
+                        <span class="mt-1 block text-sm text-slate-600">Consignment: goods stay with the consignee until sold; only reported sold pieces count.</span>
+                    </span>
+                </span>
+            </label>
+            <label class="block rounded-xl border border-slate-200 p-4">
+                <span class="flex items-start gap-3">
+                    <input type="radio" name="consignee-sales-mode" value="order" {if consignee_sales_mode == 'order'}checked{/if}>
+                    <span>
+                        <span class="block text-sm font-semibold text-slate-900">Order — all items considered sold</span>
+                        <span class="mt-1 block text-sm text-slate-600">Order: the consignee is treated as having bought everything sent, so the full quantity is sold.</span>
+                    </span>
+                </span>
+            </label>
+        </fieldset>
+    </div>
+</div>
+
 <div class="card mb-6">
     <div class="card-header">
         <span>Close of Day</span>
@@ -884,6 +914,7 @@
             backup_retention_days: parseInt(document.getElementById('backup-retention-days').value, 10) || 14,
             max_offline_days: parseInt(document.getElementById('max-offline-days').value, 10) || 14,
             reset_second_phrase_enabled: document.getElementById('reset-second-phrase-enabled').checked,
+            consignee_sales_mode: ((document.querySelector('input[name="consignee-sales-mode"]:checked') || {}).value || 'consignment'),
             supervisor_ledger_override: document.getElementById('perm-supervisor-ledger').checked,
             supervisor_production_override: document.getElementById('perm-supervisor-production').checked,
             supervisor_delivery_edit: document.getElementById('perm-supervisor-delivery-edit').checked,
