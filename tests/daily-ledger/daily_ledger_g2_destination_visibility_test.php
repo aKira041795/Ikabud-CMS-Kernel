@@ -164,45 +164,40 @@ try {
     $error = (string)($deliveryResult['body']['error'] ?? '');
     $h->test('D6 delivery to unassigned destination is refused and writes nothing', ($deliveryResult['body']['code'] ?? '') === 'PRODUCT_NOT_ASSIGNED' && str_contains($error, 'G2 Hidden Product') && str_contains($error, 'G2 Store') && $afterDeliveries === $beforeDeliveries, $deliveryResult['raw'] . " before={$beforeDeliveries} after={$afterDeliveries}");
 
-    // D6b: THE POLICY (owner, 2026-10-06). The Daily Sheet cell's own write path
-    // (api/v1/commissary/dispatch -> dl_recordDailySheetBranchEntry) no longer
-    // refuses an unassigned destination. The encoder's data is authoritative,
-    // the branch link is revived in the same transaction, and the admin is
-    // notified. D5 and D6 above stay refused on purpose: the formal movement
-    // path and the admin recovery page are different surfaces, unchanged here.
+    // D6b: owner reversal (2026-10-08). A hide is authoritative until the
+    // operator explicitly confirms the unassigned-destination override.
     $assign($store, $product, 0);
     $beforeSheet = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE destination_id={$store}")->fetchColumn();
-    $sheetResult = [];
     $sheetMessage = '';
     try {
-        $sheetResult = dl_recordDailySheetBranchEntry($user, [
+        dl_recordDailySheetBranchEntry($user, [
             'date' => $today, 'commissary_branch_id' => $comm, 'destination_branch_id' => $store,
             'product_id' => $product, 'quantity' => 3, 'shift' => 'AM',
-            'submission_id' => 'g2-sheet-revive',
-            // The cell already carries the D2 delivery, so this is the signed
-            // correction shape the modal posts.
-            'type' => 'correction', 'reason_code' => 'encoder_omission',
+            'submission_id' => 'g2-sheet-no-override', 'type' => 'correction', 'reason_code' => 'encoder_omission',
         ]);
     } catch (\Throwable $e) {
         $sheetMessage = $e->getMessage();
     }
+    $afterRefusal = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE destination_id={$store}")->fetchColumn();
+    $pairAfterRefusal = (int)$db->query("SELECT is_active FROM dl_branch_products WHERE branch_id={$store} AND product_id={$product}")->fetchColumn();
+    $h->test('D6b sheet entry without override is refused and preserves the admin hide',
+        str_contains($sheetMessage, 'Confirm the unassigned-destination override')
+        && $afterRefusal === $beforeSheet && $pairAfterRefusal === 0,
+        "msg={$sheetMessage} before={$beforeSheet} after={$afterRefusal} pair={$pairAfterRefusal}");
+
+    $sheetResult = dl_recordDailySheetBranchEntry($user, [
+        'date' => $today, 'commissary_branch_id' => $comm, 'destination_branch_id' => $store,
+        'product_id' => $product, 'quantity' => 3, 'shift' => 'AM',
+        'submission_id' => 'g2-sheet-with-override', 'type' => 'correction',
+        'reason_code' => 'encoder_omission', 'unassigned_override' => '1',
+    ]);
     $afterSheet = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE destination_id={$store}")->fetchColumn();
     $pairAfterSheet = (int)$db->query("SELECT is_active FROM dl_branch_products WHERE branch_id={$store} AND product_id={$product}")->fetchColumn();
-    $reviveAudit = (int)$db->query("SELECT COUNT(*) FROM audit_logs WHERE module='daily-ledger' AND action='branch_product_assigned' AND branch_id={$store} AND entity_id='{$store}-{$product}'")->fetchColumn();
-    $reviveFinding = (int)$db->query("SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key='branch-link-revived:{$store}:{$product}:{$today}'")->fetchColumn();
-    // The COUNT alone is not evidence: dl_raiseIntegrityNotification uses INSERT
-    // IGNORE, so an unextended ENUM stores an EMPTY finding_type and the row still
-    // counts. Assert the type the admin surface actually filters on.
-    $reviveFindingType = (string)$db->query("SELECT finding_type FROM dl_integrity_notifications WHERE aggregate_key='branch-link-revived:{$store}:{$product}:{$today}' LIMIT 1")->fetchColumn();
-    $h->test('D6b sheet entry to an unassigned destination is recorded, revives the branch link and notifies the admin',
-        $afterSheet === $beforeSheet + 1
-        && $pairAfterSheet === 1
-        && $reviveAudit === 1
-        && $reviveFinding === 1
-        && $reviveFindingType === 'product_branch_link_revived'
+    $h->test('D6c the same sheet entry with explicit override succeeds and revives the pair',
+        $afterSheet === $beforeSheet + 1 && $pairAfterSheet === 1
         && !empty($sheetResult['branch_link_revived'])
         && ($sheetResult['branch_name'] ?? '') === 'G2 Store',
-        "msg={$sheetMessage} before={$beforeSheet} after={$afterSheet} pair={$pairAfterSheet} audit={$reviveAudit} finding={$reviveFinding} type='{$reviveFindingType}' result=" . json_encode($sheetResult));
+        "before={$beforeSheet} after={$afterSheet} pair={$pairAfterSheet} result=" . json_encode($sheetResult));
 
     $assign($store, $product, 1);
     $normal = dl_processProductionMovement($user, 'output', [

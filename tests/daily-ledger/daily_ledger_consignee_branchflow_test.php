@@ -13,7 +13,7 @@ declare(strict_types=1);
  * contract; pins defend a property that must hold after the slice.
  *
  *   A discriminating  cells are keyed [product_id][consignee_id] (a COLUMN dimension)
- *   B discriminating  a consignee with no ledger activity that date gets no column
+ *   B discriminating  an assigned consignee gets an entry column before first activity
  *   C discriminating  BEG/ADDTL are the COMMISSARY's shared values, never the
  *                     consignee's own beg_bal/addtl (fixture makes them differ)
  *   D discriminating  a BRANCH-originated consignee dispatch is included (no
@@ -151,12 +151,13 @@ try {
         && (string)($consignees[$consigneeActive]['name'] ?? '') === 'S10B Active Consignee'
     );
 
-    // B — discriminating: width is bounded by ledger activity that date.
+    // B — discriminating: a zero cell must exist as an entry point before activity.
     $h->test(
-        'B discriminating: a consignee with no ledger activity that date gets no column',
+        'B discriminating: an assigned consignee with no activity still gets an entry column',
         isset($consignees[$consigneeActive])
-        && !isset($consignees[$consigneeIdle])
+        && isset($consignees[$consigneeIdle])
         && !isset($cells[$product][$consigneeIdle])
+        && isset($payload['assignments'][$product][$consigneeIdle])
     );
 
     // C — discriminating: BEG/ADDTL are the COMMISSARY's, not the consignee's custody.

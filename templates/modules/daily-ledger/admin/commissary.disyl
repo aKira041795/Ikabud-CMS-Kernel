@@ -589,7 +589,8 @@
        uses the SAME cell padding as every other cell (the shared rule above);
        the old 3px/2px override is gone. Separation between neighbouring branch
        entries comes from that shared padding, not from shrinking one control. */
-    #tab-daily-sheet .production-branch-cell .production-branch-trigger {
+    #tab-daily-sheet .production-branch-cell .production-branch-trigger,
+    #tab-daily-sheet .consignee-sheet-cell .consignee-sheet-trigger {
         box-sizing: border-box;
         width: 100%;
         min-width: 52px;
@@ -603,15 +604,16 @@
         justify-content: center;
         white-space: nowrap;
     }
-    /* A destination the branch does not list is a WARNING, not a wall: the amber
-       tint says "this branch has not been given this product", while the control
-       stays fully enterable. Recording here gives the product back to the branch
-       and notifies the admin, so the encoder never waits on a list update. No
-       cursor:not-allowed and no aria-disabled, because neither is true: the cell
-       really does accept the entry. The full explanation lives in the modal
+    /* A destination the branch does not list is a WARNING, not a dead control:
+       the amber tint says "this destination has not been given this product".
+       The modal requires an explicit override confirmation before it can revive
+       the pair, so an admin hide is never silently undone. No cursor:not-allowed
+       and no aria-disabled: the operator may confirm goods that really moved.
+       The full explanation lives in the modal
        rather than in this tooltip, because this tooltip is emitted once per
        unassigned cell on a 180x18 grid. */
-    #tab-daily-sheet .production-branch-cell .production-branch-trigger[data-unassigned="1"] {
+    #tab-daily-sheet .production-branch-cell .production-branch-trigger[data-unassigned="1"],
+    #tab-daily-sheet .consignee-sheet-cell .consignee-sheet-trigger[data-unassigned="1"] {
         color: #92400e;
         background: #fffbeb;
         border-color: #fcd34d;
@@ -625,6 +627,7 @@
     #tab-daily-sheet .production-beg-input,
     #tab-daily-sheet .addtl-trigger,
     #tab-daily-sheet .production-branch-trigger,
+    #tab-daily-sheet .consignee-sheet-trigger,
     #tab-daily-sheet .production-actual-input {
         box-sizing: border-box;
         width: 100%;
@@ -726,16 +729,19 @@
         }
         /* Printing must stay compact: the screen hit area is deliberately large,
            the paper form only needs the number. */
-        #tab-daily-sheet .production-branch-cell {
+        #tab-daily-sheet .production-branch-cell,
+        #tab-daily-sheet .consignee-sheet-cell {
             padding: 2px 1px;
         }
-        #tab-daily-sheet .production-branch-cell .production-branch-trigger {
+        #tab-daily-sheet .production-branch-cell .production-branch-trigger,
+        #tab-daily-sheet .consignee-sheet-cell .consignee-sheet-trigger {
             width: 100%;
             height: auto;
             padding: 0;
             font-size: 9px;
         }
-        #tab-daily-sheet .production-branch-cell .production-branch-trigger i {
+        #tab-daily-sheet .production-branch-cell .production-branch-trigger i,
+        #tab-daily-sheet .consignee-sheet-cell .consignee-sheet-trigger i {
             display: none;
         }
         #tab-daily-sheet .production-branch-receipt,
@@ -1519,7 +1525,13 @@
            table declares this as --sheet-numeric-cols so its min-width scales with
            the branch count instead of being one hard-coded width. *}
         {set sheet_branch_column_count = sheet_branches | count}
+        {if destination_filter == 'consignees'}
+        {set sheet_numeric_column_count = consignee_sheet_columns | count + 4}
+        {elseif destination_filter == 'all'}
+        {set sheet_numeric_column_count = sheet_branch_column_count + consignee_sheet_columns | count + 3}
+        {else}
         {set sheet_numeric_column_count = sheet_branch_column_count + 3}
+        {/if}
         <div class="table-wrap">
             <table class="production-ledger-table" id="production-ledger-table" style="--sheet-numeric-cols: {sheet_numeric_column_count}">
                 <thead>
@@ -1653,7 +1665,21 @@
                         {/if}
                         {if destination_filter == 'consignees' || destination_filter == 'all'}
                         {foreach row.consignee_cells as cell}
-                        <td class="text-right consignee-sheet-cell" data-consignee-id="{cell.consignee_id}">{cell.quantity}</td>
+                        <td class="text-right consignee-sheet-cell" data-consignee-id="{cell.consignee_id}">
+                            <button type="button"
+                                    class="ledger-trigger ledger-trigger-add consignee-sheet-trigger"
+                                    data-product="{row.product_id}"
+                                    data-consignee="{cell.consignee_id}"
+                                    data-consignee-name="{cell.consignee_name}"
+                                    data-exists="{if cell.has_entry}1{else}0{/if}"
+                                    {if shift_status == 'finalized'}disabled{/if}
+                                    {if !cell.is_assigned}data-unassigned="1"{/if}
+                                    onclick="openConsigneeCellModal({row.product_id}, {cell.consignee_id})"
+                                    title="{if !cell.is_assigned}{row.sheet_label} is not in {cell.consignee_name}'s product list - confirm before recording it{else}Record a dispatch for {row.sheet_label} to {cell.consignee_name}{/if}">
+                                <span class="consignee-sheet-value" data-product="{row.product_id}" data-consignee-id="{cell.consignee_id}">{cell.quantity}</span>
+                                <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
+                            </button>
+                        </td>
                         {/foreach}
                         {/if}
                         <td class="text-right font-semibold production-total consignee-sheet-total">{row.total_qty}</td>
@@ -1802,9 +1828,11 @@
                     so the trail reads: original entry → correction.
                 </div>
                 <div id="branch-cell-unassigned-note" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                    This branch does not list this product. Recording it here still works: the product is given
-                    back to this branch and the admin is notified, so nobody waits for a list update. If this was
-                    a mistake, reverse the entry and an admin can hide the product again.
+                    <p>This branch does not list this product. The admin's hidden state stays authoritative unless you explicitly confirm that goods really moved.</p>
+                    <label class="mt-2 flex items-start gap-2 font-semibold">
+                        <input type="checkbox" id="branch-cell-unassigned-confirm" class="mt-1">
+                        <span>Confirm this delivery and add the product back to the branch.</span>
+                    </label>
                 </div>
                 <div id="branch-cell-edit-fields" class="space-y-3 hidden">
                     <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
@@ -1849,6 +1877,32 @@
                     <button type="button" class="btn btn-outline" onclick="closeBranchCellModal()">Cancel</button>
                     <button type="button" class="btn btn-primary" id="branch-cell-submit" onclick="submitBranchCellEntry()">Save Entry</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Uses the existing consignee dispatch custody path; this is only a Daily Sheet entry surface. -->
+    <div id="consignee-cell-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="consignee-cell-title">
+        <div class="w-full max-w-lg rounded-lg bg-white shadow-xl">
+            <div class="card-header"><span id="consignee-cell-title">Record Consignee Dispatch</span></div>
+            <div class="card-body space-y-3">
+                <input type="hidden" id="consignee-cell-consignee-id" value="">
+                <div class="form-group mb-0"><label class="form-label">Product</label><select id="consignee-cell-product" class="form-input"><option value="">-- Select Product --</option>{foreach daily_sheet_rows as row}<option value="{row.product_id}">{row.sheet_label}</option>{/foreach}</select></div>
+                <div class="form-group mb-0"><label class="form-label">Consignee <span class="text-gray-400">(destination)</span></label><input type="text" id="consignee-cell-consignee-name" class="form-input bg-gray-100" value="" readonly></div>
+                <div class="form-group mb-0"><label class="form-label">Quantity</label><input type="number" step="1" id="consignee-cell-qty" class="form-input text-right" value=""></div>
+                <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">A positive quantity adds to consignee custody. Use a minus sign to correct an amount recorded too high. Every change is appended; history is never erased.</div>
+                <div id="consignee-cell-unassigned-note" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                    <p>This consignee does not list this product. The hidden state stays authoritative unless you explicitly confirm that goods really moved.</p>
+                    <label class="mt-2 flex items-start gap-2 font-semibold"><input type="checkbox" id="consignee-cell-unassigned-confirm" class="mt-1"><span>Confirm this dispatch and add the product back to the consignee.</span></label>
+                </div>
+                <div id="consignee-cell-edit-fields" class="space-y-3 hidden">
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">This cell already has an entry. The correction is appended and requires a type and reason.</div>
+                    <div class="form-group mb-0"><label class="form-label">Type <span class="text-rose-500">*</span></label><select id="consignee-cell-type" class="form-input"><option value="charge">Charge</option><option value="pullout">Pullout</option><option value="used">Used (for a product/order)</option><option value="correction">Correction — wrong entry</option><option value="adjustment_add">Add Stock (missed entry / variance)</option><option value="correction_addtl">Correction — Additional (wrong entry)</option></select></div>
+                    <div class="form-group mb-0"><label class="form-label">Reason Code <span class="text-rose-500">*</span></label><select id="consignee-cell-reason" class="form-input" onchange="syncConsigneeCellAdjustmentFields()"><option value="manual_adjustment">Manual adjustment</option><option value="encoder_omission">Encoder omission (nothing lost)</option><option value="spoilage">Spoilage</option><option value="staff_meal">Staff meal</option><option value="sampling">Sampling</option><option value="testing">Testing</option><option value="promo">Promo</option><option value="donation">Donation</option><option value="damage">Damage</option><option value="other">Other</option></select></div>
+                    <div class="form-group mb-0 hidden" id="consignee-cell-custom-reason-wrap"><label class="form-label">Custom Reason <span class="text-rose-500">*</span></label><input type="text" id="consignee-cell-custom-reason" class="form-input" maxlength="255"></div>
+                </div>
+                <div id="consignee-cell-status" class="text-sm text-rose-600" aria-live="polite"></div>
+                <div class="flex justify-end gap-2"><button type="button" class="btn btn-outline" onclick="closeConsigneeCellModal()">Cancel</button><button type="button" class="btn btn-primary" id="consignee-cell-submit" onclick="submitConsigneeCellEntry()">Save Entry</button></div>
             </div>
         </div>
     </div>
@@ -2204,7 +2258,10 @@
         // Say what that means once, here, instead of in a tooltip repeated on
         // every unassigned cell of the sheet.
         var unassignedNote = document.getElementById('branch-cell-unassigned-note');
-        if (unassignedNote) unassignedNote.classList.toggle('hidden', !(trigger && trigger.getAttribute('data-unassigned') === '1'));
+        var unassigned = !!(trigger && trigger.getAttribute('data-unassigned') === '1');
+        if (unassignedNote) unassignedNote.classList.toggle('hidden', !unassigned);
+        var unassignedConfirm = document.getElementById('branch-cell-unassigned-confirm');
+        if (unassignedConfirm) unassignedConfirm.checked = false;
         var productEl = document.getElementById('branch-cell-product');
         if (productEl) productEl.value = String(productId);
         document.getElementById('branch-cell-branch-id').value = String(branchId);
@@ -2239,8 +2296,11 @@
         var bid = parseInt(branchEl.value || '0', 10) || 0;
         var qty = parseInt(qtyEl.value || '0', 10);
         var isEdit = !document.getElementById('branch-cell-edit-fields').classList.contains('hidden');
+        var unassignedVisible = !document.getElementById('branch-cell-unassigned-note').classList.contains('hidden');
+        var unassignedConfirmed = document.getElementById('branch-cell-unassigned-confirm').checked;
         if (!pid || !bid) { if (status) status.textContent = 'Select a product and branch.'; return; }
         if (isNaN(qty) || qty === 0) { if (status) status.textContent = 'Quantity must be a non-zero whole number (use -3 to reduce).'; return; }
+        if (unassignedVisible && !unassignedConfirmed) { if (status) status.textContent = 'Confirm the unassigned destination before saving.'; return; }
 
         var payload = {
             // A sheet entry is a real delivery without a paper DR. The server keeps
@@ -2250,7 +2310,8 @@
             shift: '{shift}',
             destination_branch_id: bid,
             items: [{ commissary_branch_id: {sheet_source_branch_id}, product_id: pid, quantity: qty }],
-            submission_id: dlNewSubmissionId()
+            submission_id: dlNewSubmissionId(),
+            unassigned_override: unassignedVisible && unassignedConfirmed ? 1 : 0
         };
         if (isEdit) {
             var type = document.getElementById('branch-cell-type').value;
@@ -2269,15 +2330,93 @@
         productionJson('{base_url}/api/v1/commissary/dispatch', payload).then(function(res) {
             closeBranchCellModal();
             showToast(res.duplicate ? 'Entry was already recorded' : (isEdit ? 'Correction recorded' : 'Branch delivery recorded'), 'success');
-            // Recording is never blocked by the branch list, so the list change it
-            // caused has to be said out loud - the encoder is the only person who
-            // knows whether the entry was right, and the admin has been told too.
+            // An explicitly confirmed override may revive the pair; say that list
+            // change out loud so it can never look like a silent admin-state change.
             if (res.branch_link_revived) {
                 showToast((res.product_name || 'This product') + ' was added back to ' + (res.branch_name || 'that branch') + ' and the admin was notified', 'warning');
             }
             setTimeout(function() { window.refreshMainContent(); }, 500);
         }).catch(function(error) {
             if (status) status.textContent = error.message || 'Save failed';
+            showToast(error.message || 'Save failed', 'error');
+        }).finally(function() { btn.disabled = false; });
+    }
+
+    function consigneeCellTrigger(productId, consigneeId) {
+        return document.querySelector('.consignee-sheet-cell[data-consignee-id="' + consigneeId + '"] button[data-product="' + productId + '"]');
+    }
+
+    function syncConsigneeCellAdjustmentFields() {
+        var reason = document.getElementById('consignee-cell-reason');
+        var wrap = document.getElementById('consignee-cell-custom-reason-wrap');
+        if (reason && wrap) wrap.classList.toggle('hidden', reason.value !== 'other');
+    }
+
+    function openConsigneeCellModal(productId, consigneeId) {
+        var modal = document.getElementById('consignee-cell-modal');
+        var trigger = consigneeCellTrigger(productId, consigneeId);
+        if (!modal || !trigger) return;
+        var unassigned = trigger.getAttribute('data-unassigned') === '1';
+        document.getElementById('consignee-cell-product').value = String(productId);
+        document.getElementById('consignee-cell-consignee-id').value = String(consigneeId);
+        document.getElementById('consignee-cell-consignee-name').value = trigger.getAttribute('data-consignee-name') || '';
+        document.getElementById('consignee-cell-qty').value = '';
+        document.getElementById('consignee-cell-status').textContent = '';
+        document.getElementById('consignee-cell-edit-fields').classList.toggle('hidden', trigger.getAttribute('data-exists') !== '1');
+        document.getElementById('consignee-cell-unassigned-note').classList.toggle('hidden', !unassigned);
+        document.getElementById('consignee-cell-unassigned-confirm').checked = false;
+        document.getElementById('consignee-cell-type').value = 'correction';
+        document.getElementById('consignee-cell-reason').value = 'encoder_omission';
+        document.getElementById('consignee-cell-custom-reason').value = '';
+        syncConsigneeCellAdjustmentFields();
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeConsigneeCellModal() {
+        var modal = document.getElementById('consignee-cell-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function submitConsigneeCellEntry() {
+        var pid = parseInt(document.getElementById('consignee-cell-product').value || '0', 10) || 0;
+        var cid = parseInt(document.getElementById('consignee-cell-consignee-id').value || '0', 10) || 0;
+        var qty = parseInt(document.getElementById('consignee-cell-qty').value || '0', 10);
+        var status = document.getElementById('consignee-cell-status');
+        var btn = document.getElementById('consignee-cell-submit');
+        var isEdit = !document.getElementById('consignee-cell-edit-fields').classList.contains('hidden');
+        var unassigned = !document.getElementById('consignee-cell-unassigned-note').classList.contains('hidden');
+        var confirmed = document.getElementById('consignee-cell-unassigned-confirm').checked;
+        if (!pid || !cid) { status.textContent = 'Select a product and consignee.'; return; }
+        if (isNaN(qty) || qty === 0) { status.textContent = 'Quantity must be a non-zero whole number.'; return; }
+        if (unassigned && !confirmed) { status.textContent = 'Confirm the unassigned destination before saving.'; return; }
+        var payload = {
+            sheet_entry: true,
+            destination_type: 'consignee',
+            consignee_id: cid,
+            ledger_date: '{date}',
+            shift: '{shift}',
+            items: [{ commissary_branch_id: {sheet_source_branch_id}, product_id: pid, quantity: qty }],
+            submission_id: dlNewSubmissionId(),
+            unassigned_override: unassigned && confirmed ? 1 : 0
+        };
+        if (isEdit) {
+            payload.type = document.getElementById('consignee-cell-type').value;
+            payload.reason_code = document.getElementById('consignee-cell-reason').value;
+            payload.custom_reason = (document.getElementById('consignee-cell-custom-reason').value || '').trim();
+            if (payload.reason_code === 'other' && payload.custom_reason === '') { status.textContent = 'A custom reason is required when Reason is Other.'; return; }
+        }
+        btn.disabled = true;
+        status.textContent = '';
+        productionJson('{base_url}/api/v1/commissary/dispatch', payload).then(function(res) {
+            closeConsigneeCellModal();
+            showToast(res.duplicate ? 'Entry was already recorded' : (isEdit ? 'Correction recorded' : 'Consignee dispatch recorded'), 'success');
+            if (res.consignee_link_revived) showToast((res.product_name || 'This product') + ' was added back to ' + (res.consignee_name || 'that consignee'), 'warning');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function(error) {
+            status.textContent = error.message || 'Save failed';
             showToast(error.message || 'Save failed', 'error');
         }).finally(function() { btn.disabled = false; });
     }

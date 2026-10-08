@@ -4545,33 +4545,26 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         throw new \RuntimeException('Product is not active for this commissary.');
     }
 
-    // Destination assignment. Owner decision (2026-10-06): the encoder's data is
-    // authoritative and the branch's product list is bookkeeping that may simply
-    // be behind, so a destination that branch does not currently list is no
-    // longer a wall. "once production user enters data on a supposed
-    // hidden/deactivated product in a branch, the upstream flow is it's
-    // included/activated auto. admin is notified."
+    // Destination assignment. Owner reversal (2026-10-08): an admin's hide is
+    // authoritative. The former automatic revival silently undid a hide the admin
+    // had just made. Goods that really moved can still be recorded, but only after
+    // the operator explicitly confirms the unassigned-destination override.
     //
-    // The entry is recorded, the branch link is switched back on in the SAME
-    // transaction, and the admin is notified. The operator never waits for an
-    // admin to update a list before recording goods that really moved, and the
-    // admin still gets the diagnosis. If the entry was a mistake the encoder
-    // reverses it back to zero (the correction path below), and the link can
-    // then be hidden again from Show in Branches.
-    //
-    // The PRODUCT is deliberately the exception. Reviving a branch link is
-    // bookkeeping for one branch, but reviving a discontinued product from a
-    // sheet entry would resurrect it in every list at once, so an inactive
-    // product is still refused. In practice the source check above already
-    // requires an active product, so this branch is a second line of defence:
-    // if that check is ever relaxed, this is what stops a sheet entry from
-    // reviving a product the catalogue retired.
+    // An inactive PRODUCT is still refused. That second line of defence remains:
+    // an entry may revive one explicitly confirmed destination pair, never a
+    // discontinued catalogue product everywhere.
+    $unassignedOverride = in_array((string)($input['unassigned_override'] ?? ''), ['1', 'true', 'yes', 'on'], true);
     $reviveBranchLink = false;
     $assignmentState = dl_branchProductAssignmentState($db, $branchId, $productId);
     if (!$assignmentState['pair_active']) {
         if (!$assignmentState['product_active']) {
             throw new DlProductNotAssignedException(
                 "Cannot save {$assignmentState['product_name']}: the product is inactive at {$assignmentState['branch_name']}."
+            );
+        }
+        if (!$unassignedOverride) {
+            throw new DlProductNotAssignedException(
+                "{$assignmentState['product_name']} is hidden at {$assignmentState['branch_name']}. Confirm the unassigned-destination override, or assign the product to that branch first."
             );
         }
         $reviveBranchLink = true;
@@ -4675,8 +4668,8 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
                     'Product added back to ' . (string)($destination['name'] ?? ('branch #' . $branchId)),
                     'A daily sheet entry on ' . $date . ' recorded ' . (string)($product['name'] ?? ('product #' . $productId))
                         . ' for a branch that did not list it, so the branch link was switched back on.'
-                        . ' The entry is the authority, not the list. If this was an error, reverse the entry'
-                        . ' and hide the product again from Show in Branches.'
+                        . ' The operator explicitly confirmed that goods moved despite the hidden pair.'
+                        . ' If this was an error, reverse the entry and hide the product again from Show in Branches.'
                 );
                 // Read the type back. dl_raiseIntegrityNotification uses INSERT
                 // IGNORE, which downgrades an unknown ENUM value to a warning, so a
@@ -4837,6 +4830,126 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         'branch_link_revived' => $reviveBranchLink,
         'branch_name' => (string)($destination['name'] ?? ''),
         'product_name' => (string)($product['name'] ?? ''),
+    ];
+}
+
+/**
+ * Record one Daily Sheet consignee cell through the existing dispatch custody
+ * primitives. Like the branch-cell core above, this appends a posted delivery;
+ * it never edits or deletes historical movement.
+ */
+function dl_recordDailySheetConsigneeEntry(array $user, array $input): array
+{
+    $ctx = module();
+    if (!$ctx) throw new \RuntimeException('Module context unavailable');
+    $db = $ctx->db();
+    $date = (string)($input['date'] ?? $input['ledger_date'] ?? '');
+    $shift = isset($input['shift']) ? dl_normalizeShift((string)$input['shift']) : null;
+    $item = [];
+    foreach ((array)($input['items'] ?? []) as $candidate) {
+        if (is_array($candidate)) { $item = $candidate; break; }
+    }
+    $commissaryId = (int)($input['commissary_branch_id'] ?? $item['commissary_branch_id'] ?? 0);
+    $consigneeId = (int)($input['consignee_id'] ?? 0);
+    $productId = (int)($input['product_id'] ?? $item['product_id'] ?? 0);
+    $quantity = (int)($input['quantity'] ?? $item['quantity'] ?? 0);
+    $submissionId = dl_withdrawalSubmissionId((string)($input['submission_id'] ?? ''));
+    $actorId = dl_getActorUserId($user);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $shift === null || $commissaryId <= 0 || $consigneeId <= 0 || $productId <= 0 || $quantity === 0) {
+        throw new \RuntimeException('A valid date, shift, commissary, consignee, product and non-zero whole quantity are required.');
+    }
+    if (!in_array($commissaryId, dl_accessibleBranchIds($user), true)) {
+        throw new \RuntimeException('Commissary is not allowed for this user.');
+    }
+
+    $commStmt = $db->prepare('SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1');
+    $commStmt->execute([':id' => $commissaryId]);
+    if (!$commStmt->fetchColumn()) throw new \RuntimeException('The selected source is not an active commissary.');
+    $consigneeStmt = $db->prepare('SELECT id, name FROM dl_consignees WHERE id = :id AND assigned_commissary_id = :cid AND is_active = 1 LIMIT 1');
+    $consigneeStmt->execute([':id' => $consigneeId, ':cid' => $commissaryId]);
+    $consignee = $consigneeStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$consignee) throw new \RuntimeException('Consignee is inactive or is not supplied by this commissary.');
+    $productStmt = $db->prepare('SELECT p.id, p.name, p.is_active FROM dl_products p INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :cid AND bp.is_active = 1 WHERE p.id = :pid LIMIT 1');
+    $productStmt->execute([':cid' => $commissaryId, ':pid' => $productId]);
+    $product = $productStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$product || (int)$product['is_active'] !== 1) throw new DlProductNotAssignedException('Product is not active for this commissary.');
+
+    $assignedStmt = $db->prepare('SELECT is_active FROM dl_consignee_products WHERE consignee_id = :cid AND product_id = :pid LIMIT 1');
+    $assignedStmt->execute([':cid' => $consigneeId, ':pid' => $productId]);
+    $pairActive = (int)($assignedStmt->fetchColumn() ?: 0) === 1;
+    $unassignedOverride = in_array((string)($input['unassigned_override'] ?? ''), ['1', 'true', 'yes', 'on'], true);
+    if (!$pairActive && !$unassignedOverride) {
+        throw new DlProductNotAssignedException((string)$product['name'] . ' is hidden for ' . (string)$consignee['name'] . '. Confirm the unassigned-destination override, or assign the product to that consignee first.');
+    }
+
+    $entryStmt = $db->prepare('SELECT COUNT(*) FROM dl_consignee_ledger WHERE consignee_id = :c AND product_id = :p AND ledger_date = :d AND shift = :s');
+    $entryStmt->execute([':c' => $consigneeId, ':p' => $productId, ':d' => $date, ':s' => $shift]);
+    $hasEntry = (int)$entryStmt->fetchColumn() > 0;
+    $type = trim((string)($input['type'] ?? ''));
+    $reasonCode = trim((string)($input['reason_code'] ?? ''));
+    $customReason = trim((string)($input['custom_reason'] ?? ''));
+    if ($hasEntry) {
+        if (!isset(dl_dailySheetAdjustmentTypes()[$type])) throw new \RuntimeException('Type is required to change a recorded entry.');
+        if (!isset(dl_dailySheetAdjustmentReasons()[$reasonCode])) throw new \RuntimeException('Reason code is required to change a recorded entry.');
+        if ($reasonCode === 'other' && $customReason === '') throw new \RuntimeException('A custom reason is required when Reason is Other.');
+    }
+
+    if ($submissionId !== '') {
+        $dup = $db->prepare("SELECT id FROM audit_logs WHERE module = 'daily-ledger' AND action = 'production_ledger_change' AND branch_id = :b AND (new_data LIKE :tight OR new_data LIKE :spaced) LIMIT 1");
+        $dup->execute([':b' => $commissaryId, ':tight' => '%"submission_id":"' . $submissionId . '"%', ':spaced' => '%"submission_id": "' . $submissionId . '"%']);
+        if ((int)$dup->fetchColumn() > 0) return ['duplicate' => true, 'submission_id' => $submissionId, 'has_previous_entry' => $hasEntry];
+    }
+
+    $db->beginTransaction();
+    try {
+        // Both guards are intentional: the shift lock serializes finalization and
+        // dl_applyConsigneeLedgerDelta() enforces the same lock plus custody floor.
+        $shiftStatus = dl_lockShiftStatusRow($db, $commissaryId, $date, $shift);
+        if ((string)$shiftStatus['status'] === 'finalized') throw new \RuntimeException('This shift is finalized and locked. Reopen the shift before editing.', 403);
+        if (!$pairActive) dl_setConsigneeProductActive($db, $consigneeId, $productId, true, $actorId);
+
+        dl_ensureCommissaryProductLedgerRow($db, $commissaryId, $productId, $date, $actorId, $shift);
+        $beforeStmt = $db->prepare('SELECT COALESCE(SUM(addtl - withdraw), 0) FROM dl_consignee_ledger WHERE consignee_id = :c AND product_id = :p AND ledger_date = :d AND shift = :s');
+        $beforeStmt->execute([':c' => $consigneeId, ':p' => $productId, ':d' => $date, ':s' => $shift]);
+        $before = (int)$beforeStmt->fetchColumn();
+
+        $deliveryStmt = $db->prepare('INSERT INTO dl_deliveries (origin_type, origin_id, destination_type, destination_id, consignee_id, dr_number, delivery_date, production_shift, receipt_required, status, created_by, posted_by, posted_at, remarks) VALUES ("commissary", :origin, "consignee", NULL, :consignee, NULL, :date, :shift, 0, "posted", :created, :posted, NOW(), :remarks)');
+        $deliveryStmt->execute([':origin' => $commissaryId, ':consignee' => $consigneeId, ':date' => $date, ':shift' => $shift, ':created' => $actorId ?: null, ':posted' => $actorId ?: null, ':remarks' => $hasEntry ? '[daily-sheet-consignee-entry] correction' : '[daily-sheet-consignee-entry] new']);
+        $deliveryId = (int)$db->lastInsertId();
+        $itemStmt = $db->prepare('INSERT INTO dl_delivery_items (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks) VALUES (:d, :p, :q, "pcs", 0, :price, :pg, :remarks)');
+        $priceGroupId = dl_defaultPriceGroupId();
+        $itemStmt->execute([':d' => $deliveryId, ':p' => $productId, ':q' => $quantity, ':price' => dl_resolveProductPrice($productId, $priceGroupId, $date), ':pg' => $priceGroupId, ':remarks' => $hasEntry ? 'daily_sheet_consignee_correction' : 'daily_sheet_consignee_entry']);
+        $itemId = (int)$db->lastInsertId();
+
+        // This is the existing cashier-consignee dispatch write path. It calls
+        // dl_applyConsigneeLedgerDelta(), preserving finalized-shift and custody guards.
+        dl_applyConsigneeDeliveryCredit($db, $deliveryId, $itemId, $commissaryId, $consigneeId, $productId, $date, $quantity, $actorId, $shift);
+        // Same commissary movement primitive used by the branch-cell core.
+        dl_applyCommissaryProductLedgerDelta($db, $commissaryId, $productId, $date, 0, $quantity, $actorId, 0, true, $shift);
+        $after = $before + $quantity;
+        $reasonDisplay = $hasEntry ? ($reasonCode === 'other' ? $customReason : $reasonCode) : 'new entry';
+        dl_auditLog('production_ledger_change', $commissaryId, 'dl_deliveries', "{$commissaryId}-consignee-{$consigneeId}-{$productId}-{$date}", ['field' => 'consignee_qty', 'value' => $before], [
+            'field' => 'consignee_qty', 'value' => $after, 'quantity' => $quantity,
+            'signed_display' => ($quantity > 0 ? '+' : '') . $quantity,
+            'type' => $hasEntry ? $type : null, 'reason_code' => $hasEntry ? $reasonCode : null,
+            'reason' => $reasonDisplay, 'custom_reason' => $customReason,
+            'consignee_id' => $consigneeId, 'consignee_name' => (string)$consignee['name'],
+            'commissary_branch_id' => $commissaryId, 'product_id' => $productId,
+            'product_name' => (string)$product['name'], 'ledger_date' => $date,
+            'delivery_id' => $deliveryId, 'item_id' => $itemId, 'submission_id' => $submissionId,
+        ], $reasonDisplay);
+        $db->commit();
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+
+    return [
+        'delivery_id' => $deliveryId, 'item_id' => $itemId, 'quantity' => $quantity,
+        'cell_quantity' => $after, 'has_previous_entry' => $hasEntry,
+        'submission_id' => $submissionId, 'duplicate' => false,
+        'consignee_link_revived' => !$pairActive,
+        'consignee_name' => (string)$consignee['name'], 'product_name' => (string)$product['name'],
     ];
 }
 
@@ -19329,13 +19442,13 @@ function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?strin
  * one value per product for the commissary/date/shift. They are deliberately
  * NOT the consignee's own beg_bal/addtl custody balances.
  *
- * Consignee cells are keyed [product_id][consignee_id] and carry the
- * consignee's dispatched quantity (dl_consignee_ledger.addtl). Dispatch
- * legitimately originates at a BRANCH — the cashier ledger credits the
+ * Consignee cells are keyed [product_id][consignee_id] and carry dispatched
+ * quantity. Gross addtl remains the source (ordinary custody returns must not
+ * rewrite dispatch history); signed Daily Sheet corrections are folded in.
+ * Dispatch legitimately originates at a BRANCH — the cashier ledger credits the
  * consignee (handlers.php apiCreateCashierDispatch) — so there is deliberately
- * NO origin_type filter here. A consignee column is only produced when that
- * consignee has a ledger row on the date, so width is bounded by activity, not
- * by the consignee count.
+ * NO origin_type filter here. Active assigned consignees are columns even before
+ * their first dispatch, while historical activity remains visible after a hide.
  *
  * MySQL 5.7-safe: plain GROUP BY aggregates only (no CTE, no window function,
  * no JSON_TABLE).
@@ -19343,7 +19456,7 @@ function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?strin
  * @param PDO|\Ikabud\Kernel\Contracts\ModuleDB $db Module gateway; the handler passes
  *        the module-scoped ModuleDB while the acceptance probe passes a raw PDO,
  *        so the parameter is intentionally untyped (as the other dl_fetch helpers are).
- * @return array{beg_addtl:array<int,array{beg:int,addtl:int}>,cells:array<int,array<int,int>>,consignees:array<int,array{code:string,name:string}>}
+ * @return array{beg_addtl:array<int,array{beg:int,addtl:int}>,cells:array<int,array<int,int>>,entries:array<int,array<int,bool>>,assignments:array<int,array<int,bool>>,consignees:array<int,array{code:string,name:string}>}
  */
 function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissaryId, ?string $shift): array
 {
@@ -19390,17 +19503,27 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
         }
     }
 
-    // ── Consignee cells: one COLUMN per consignee WITH LEDGER ACTIVITY that
-    //    date. addtl is the dispatched/received quantity. No origin_type
-    //    filter: a branch-originated cashier dispatch is normal. ──
-    $cellSql = 'SELECT l.product_id, l.consignee_id, SUM(l.addtl) AS dispatched_qty
+    // ── Consignee cells: history is ledger-owned, not assignment-owned. A hide
+    //    therefore never erases prior movement from the sheet. ──
+    $cellSql = 'SELECT l.product_id, l.consignee_id,
+                       SUM(l.addtl) + COALESCE((
+                           SELECT SUM(di.quantity)
+                             FROM dl_deliveries d
+                             INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                            WHERE d.destination_type = "consignee"
+                              AND d.consignee_id = l.consignee_id
+                              AND d.delivery_date = l.ledger_date
+                              AND (:correction_shift IS NULL OR d.production_shift = :correction_shift_value)
+                              AND d.status <> "voided"
+                              AND di.product_id = l.product_id
+                              AND di.quantity < 0
+                              AND di.remarks = "daily_sheet_consignee_correction"
+                       ), 0) AS dispatched_qty
                   FROM dl_consignee_ledger l
                   INNER JOIN dl_consignees c ON c.id = l.consignee_id
-                  INNER JOIN dl_consignee_products cp
-                          ON cp.consignee_id = c.id AND cp.product_id = l.product_id AND cp.is_active = 1
                  WHERE l.ledger_date = :date
                    AND c.is_active = 1';
-    $cellBind = [':date' => $date];
+    $cellBind = [':date' => $date, ':correction_shift' => $shift, ':correction_shift_value' => $shift];
     if ($shift !== null) {
         $cellSql .= ' AND l.shift = :shift';
         $cellBind[':shift'] = $shift;
@@ -19409,40 +19532,55 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
         $cellSql .= ' AND c.assigned_commissary_id = :cid';
         $cellBind[':cid'] = $commissaryId;
     }
-    $cellSql .= ' GROUP BY l.product_id, l.consignee_id';
+    $cellSql .= ' GROUP BY l.product_id, l.consignee_id, l.ledger_date';
     $cellStmt = $db->prepare($cellSql);
     $cellStmt->execute($cellBind);
 
     $cells = [];
+    $entries = [];
     $consigneeIds = [];
     foreach ($cellStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $cellRow) {
         $productId = (int)$cellRow['product_id'];
         $consigneeId = (int)$cellRow['consignee_id'];
         $cells[$productId][$consigneeId] = (int)$cellRow['dispatched_qty'];
+        $entries[$productId][$consigneeId] = true;
+        $consigneeIds[$consigneeId] = true;
+    }
+
+    $assignmentSql = 'SELECT cp.product_id, cp.consignee_id
+        FROM dl_consignee_products cp
+        INNER JOIN dl_consignees c ON c.id = cp.consignee_id AND c.is_active = 1
+        INNER JOIN dl_products p ON p.id = cp.product_id AND p.is_active = 1
+        WHERE cp.is_active = 1';
+    $assignmentBind = [];
+    if ($commissaryId > 0) {
+        $assignmentSql .= ' AND c.assigned_commissary_id = :cid';
+        $assignmentBind[':cid'] = $commissaryId;
+    }
+    $assignmentStmt = $db->prepare($assignmentSql);
+    $assignmentStmt->execute($assignmentBind);
+    $assignments = [];
+    foreach ($assignmentStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $assignmentRow) {
+        $productId = (int)$assignmentRow['product_id'];
+        $consigneeId = (int)$assignmentRow['consignee_id'];
+        $assignments[$productId][$consigneeId] = true;
         $consigneeIds[$consigneeId] = true;
     }
 
     $consignees = [];
     if ($consigneeIds !== []) {
-        // The id list is int-cast, so it is safe to inline; this avoids a
-        // variable-length IN() placeholder expansion on 5.7.
         $idList = implode(',', array_map('intval', array_keys($consigneeIds)));
-        $metaStmt = $db->query(
-            'SELECT id, code, name FROM dl_consignees'
-            . ' WHERE id IN (' . $idList . ') AND is_active = 1'
-            . ' ORDER BY ' . dl_entityOrderBySql()
-        );
+        $metaStmt = $db->query('SELECT id, code, name FROM dl_consignees WHERE id IN (' . $idList . ') AND is_active = 1 ORDER BY ' . dl_entityOrderBySql());
         foreach ($metaStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $metaRow) {
-            $consignees[(int)$metaRow['id']] = [
-                'code' => (string)$metaRow['code'],
-                'name' => (string)$metaRow['name'],
-            ];
+            $consignees[(int)$metaRow['id']] = ['code' => (string)$metaRow['code'], 'name' => (string)$metaRow['name']];
         }
     }
 
     return [
         'beg_addtl' => $begAddtl,
         'cells' => $cells,
+        'entries' => $entries,
+        'assignments' => $assignments,
         'consignees' => $consignees,
     ];
 }
@@ -20149,9 +20287,13 @@ function handleAdminCommissary(): void
         $refProductId = (int)$sheetRowRef['product_id'];
         $refConsigneeCells = [];
         foreach ($consigneeSheetColumns as $consigneeColumn) {
+            $refConsigneeId = (int)$consigneeColumn['id'];
             $refConsigneeCells[] = [
-                'consignee_id' => (int)$consigneeColumn['id'],
-                'quantity' => (int)($consigneeCellPayload['cells'][$refProductId][(int)$consigneeColumn['id']] ?? 0),
+                'consignee_id' => $refConsigneeId,
+                'consignee_name' => (string)$consigneeColumn['name'],
+                'quantity' => (int)($consigneeCellPayload['cells'][$refProductId][$refConsigneeId] ?? 0),
+                'has_entry' => isset($consigneeCellPayload['entries'][$refProductId][$refConsigneeId]),
+                'is_assigned' => isset($consigneeCellPayload['assignments'][$refProductId][$refConsigneeId]),
             ];
         }
         $sheetRowRef['consignee_cells'] = $refConsigneeCells;
@@ -20167,7 +20309,11 @@ function handleAdminCommissary(): void
         foreach ($consigneeSheetColumns as $column) {
             $quantity = (int)($consigneeCellPayload['cells'][$productId][$column['id']] ?? 0);
             $consigneeTotal += $quantity;
-            $consigneeCells[] = ['consignee_id' => $column['id'], 'quantity' => $quantity];
+            $consigneeCells[] = [
+                'consignee_id' => $column['id'], 'consignee_name' => $column['name'], 'quantity' => $quantity,
+                'has_entry' => isset($consigneeCellPayload['entries'][$productId][$column['id']]),
+                'is_assigned' => isset($consigneeCellPayload['assignments'][$productId][$column['id']]),
+            ];
         }
         $begQty = (int)($sheetRow['beg_qty'] ?? 0);
         $addtlQty = (int)($sheetRow['addtl_qty'] ?? 0);
@@ -20202,7 +20348,11 @@ function handleAdminCommissary(): void
             foreach ($consigneeSheetColumns as $column) {
                 $quantity = (int)($consigneeCellPayload['cells'][$productId][$column['id']] ?? 0);
                 $consigneeTotal += $quantity;
-                $consigneeCells[] = ['consignee_id' => $column['id'], 'quantity' => $quantity];
+                $consigneeCells[] = [
+                    'consignee_id' => $column['id'], 'consignee_name' => $column['name'], 'quantity' => $quantity,
+                    'has_entry' => isset($consigneeCellPayload['entries'][$productId][$column['id']]),
+                    'is_assigned' => isset($consigneeCellPayload['assignments'][$productId][$column['id']]),
+                ];
             }
             $begQty = (int)($consigneeCellPayload['beg_addtl'][$productId]['beg'] ?? 0);
             $addtlQty = (int)($consigneeCellPayload['beg_addtl'][$productId]['addtl'] ?? 0);
@@ -21154,15 +21304,14 @@ function apiCommissaryDispatch(): void
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $input = $ctx->input();
 
-    // S10: the Daily Sheet's branch cells and the ADDTL modal both post through
-    // the existing dispatch endpoint. A sheet entry is a real delivery but is NOT a
-    // formal paper dispatch: it carries no DR, it may be a signed correction, and
-    // it is logged in the sheet's own bottom log. Delegating here keeps the formal
-    // dispatch path (and its DR guard) byte-for-byte intact for every other caller.
+    // Daily Sheet branch and consignee cells post through the existing dispatch
+    // endpoint. They are real, append-only deliveries without a paper DR.
     $isSheetEntry = !empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet';
     if ($isSheetEntry) {
         try {
-            $result = dl_recordDailySheetBranchEntry($user, $input);
+            $result = (string)($input['destination_type'] ?? 'branch') === 'consignee'
+                ? dl_recordDailySheetConsigneeEntry($user, $input)
+                : dl_recordDailySheetBranchEntry($user, $input);
             $ctx->json(['ok' => true] + $result);
         } catch (Throwable $e) {
             write_log('apiCommissaryDispatch sheet entry error: ' . $e->getMessage(), 'error');

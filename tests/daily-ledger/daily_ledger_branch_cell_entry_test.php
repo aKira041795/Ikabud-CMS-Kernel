@@ -99,7 +99,7 @@ $h->test(
     && str_contains($tpl, '<option value="encoder_omission">Encoder omission (nothing lost)</option>')
     && str_contains($cashierModal, '<option value="correction">Correction — W/Draw (wrong entry)</option>')
     && str_contains($cashierModal, '<option value="encoder_omission">Encoder omission (nothing lost)</option>')
-    && substr_count($tpl, '<option value="manual_adjustment">') === 1
+    && substr_count($tpl, '<option value="manual_adjustment">') === 2
     && str_contains($tpl, 'id="branch-cell-custom-reason-wrap"')
 );
 $h->test(
