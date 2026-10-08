@@ -166,7 +166,8 @@
     "database/migrations/081_consignee_destinations.sql",
     "database/migrations/082_consignee_discrepancy_effects.sql",
     "database/migrations/083_consignee_products.sql",
-    "database/migrations/084_consignee_destination_details.sql"
+    "database/migrations/084_consignee_destination_details.sql",
+    "database/migrations/085_add_consignee_assignment_mode.sql"
   ],
   "capabilities": {
     "exposes": [

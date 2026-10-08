@@ -184,7 +184,7 @@
                             data-output-pieces="{p.output_pieces_per_batch | default:0}" data-output-unit="{p.output_unit_label | default:pcs}"
                             data-batch-kilo="{p.batch_input_qty | default:0}" data-batch-eggs="{p.batch_egg_qty | default:0}" data-pack="{p.pcs_per_pack | default:0}"
                             data-effective="{p.current_price_effective_from | default:''}" data-assignment-mode="{p.assignment_mode | default:'all_active'}"
-                            data-branches="{p.assigned_branch_ids | default:''}" onclick="openPickerProduct(this)">View product</button>
+                            data-branches="{p.assigned_branch_ids | default:''}" data-consignee-mode="{p.consignee_assignment_mode | default:'all_active'}" data-consignees="{p.assigned_consignee_ids | default:''}" onclick="openPickerProduct(this)">View product</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -275,7 +275,7 @@
                         {if p.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}', '{p.assignment_mode | default:'all_active'}', '{p.assigned_branch_ids | default:''}')">Edit</button>
+                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}', '{p.assignment_mode | default:'all_active'}', '{p.assigned_branch_ids | default:''}', '{p.consignee_assignment_mode | default:'all_active'}', '{p.assigned_consignee_ids | default:''}')">Edit</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -350,20 +350,27 @@
                 </div>
 
                 <div class="product-modal__section col-span-full" data-add-assignment>
-                    <div class="product-modal__section-title">Show in branches</div>
+                    <div class="product-modal__section-title">Show in branches and consignees</div>
                     <label class="flex items-center gap-2 text-sm text-gray-700">
                         <input type="radio" name="add-assignment-mode" value="all_active" checked onchange="toggleAddBranchPicker()">
-                        All active branches
+                        All active branches and consignees
                     </label>
                     <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
                         <input type="radio" name="add-assignment-mode" value="specific" onchange="toggleAddBranchPicker()">
-                        Only selected branches
+                        Only selected branches and consignees
                     </label>
                     <div id="add-branch-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
                         {foreach branches as b}
                         <label class="flex items-center gap-2 text-sm text-gray-700">
                             <input type="checkbox" class="add-branch-check" value="{b.id}">
                             {b.code} — {b.name}
+                        </label>
+                        {/foreach}
+                        <div class="mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Consignees</div>
+                        {foreach consignees as c}
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" class="add-consignee-check" value="{c.id}">
+                            {c.code} — {c.name}
                         </label>
                         {/foreach}
                     </div>
@@ -426,20 +433,27 @@
                         </select>
                     </div>
                     <div class="form-group" data-edit-assignment>
-                        <label class="form-label">Show in branches</label>
+                        <label class="form-label">Show in branches and consignees</label>
                         <label class="flex items-center gap-2 text-sm text-gray-700">
                             <input type="radio" name="edit-assignment-mode" value="all_active" checked onchange="toggleEditBranchPicker()">
-                            All active branches
+                            All active branches and consignees
                         </label>
                         <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
                             <input type="radio" name="edit-assignment-mode" value="specific" onchange="toggleEditBranchPicker()">
-                            Only selected branches
+                            Only selected branches and consignees
                         </label>
                         <div id="edit-branch-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
                             {foreach branches as b}
                             <label class="flex items-center gap-2 text-sm text-gray-700">
                                 <input type="checkbox" class="edit-branch-check" value="{b.id}">
                                 {b.code} — {b.name}
+                            </label>
+                            {/foreach}
+                            <div class="mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Consignees</div>
+                            {foreach consignees as c}
+                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" class="edit-consignee-check" value="{c.id}">
+                                {c.code} — {c.name}
                             </label>
                             {/foreach}
                         </div>
@@ -518,7 +532,7 @@
     function openImportProduct() { document.getElementById('import-modal').classList.add('show'); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack, currentPriceEffectiveFrom, assignmentMode, assignedBranchIdsCsv) {
+    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack, currentPriceEffectiveFrom, assignmentMode, assignedBranchIdsCsv, consigneeAssignmentMode, assignedConsigneeIdsCsv) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name;
         document.getElementById('edit-category').value = category || 'bread';
@@ -533,8 +547,9 @@
         document.getElementById('edit-effective-from').value = TODAY;
         document.getElementById('edit-current-price-effective').textContent = currentPriceEffectiveFrom || 'Not recorded';
         // Load the CURRENT assignment intent into the modal so opening and saving an
-        // edit cannot silently rewrite assignments (the loadiness guard).
-        var mode = assignmentMode || 'all_active';
+        // edit cannot silently rewrite assignments (the loadiness guard). Branches and
+        // consignees share ONE mode control (chair decision 1).
+        var mode = assignmentMode || consigneeAssignmentMode || 'all_active';
         Array.prototype.forEach.call(document.getElementsByName('edit-assignment-mode'), function (radio) {
             radio.checked = (radio.value === mode);
         });
@@ -544,6 +559,13 @@
         });
         Array.prototype.forEach.call(document.querySelectorAll('.edit-branch-check'), function (cb) {
             cb.checked = !!assignedSet[parseInt(cb.value, 10)];
+        });
+        var assignedConsigneeSet = {};
+        String(assignedConsigneeIdsCsv || '').split(',').forEach(function (value) {
+            if (value !== '') { assignedConsigneeSet[parseInt(value, 10)] = true; }
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('.edit-consignee-check'), function (cb) {
+            cb.checked = !!assignedConsigneeSet[parseInt(cb.value, 10)];
         });
         toggleEditBranchPicker();
         updateEffectiveFromWarning();
@@ -574,6 +596,10 @@
         return ids;
     }
 
+    function collectCheckedConsignees(selector) {
+        return collectCheckedBranches(selector);
+    }
+
     function updateEffectiveFromWarning() {
         var selected = document.getElementById('edit-effective-from').value;
         document.getElementById('edit-effective-warning').classList.toggle('hidden', !selected || selected >= TODAY);
@@ -596,7 +622,9 @@
                 batch_egg_qty: parseFloat(document.getElementById('add-batch-egg-qty').value) || null,
                 pcs_per_pack: parseInt(document.getElementById('add-pcs-per-pack').value, 10) || null,
                 assignment_mode: selectedAssignmentMode('add-assignment-mode'),
-                branch_ids: (selectedAssignmentMode('add-assignment-mode') === 'specific') ? collectCheckedBranches('.add-branch-check') : []
+                branch_ids: (selectedAssignmentMode('add-assignment-mode') === 'specific') ? collectCheckedBranches('.add-branch-check') : [],
+                consignee_assignment_mode: selectedAssignmentMode('add-assignment-mode'),
+                consignee_ids: (selectedAssignmentMode('add-assignment-mode') === 'specific') ? collectCheckedConsignees('.add-consignee-check') : []
             })
         })
         .then(function(r) { return r.json(); })
@@ -633,7 +661,9 @@
                 batch_egg_qty: parseFloat(document.getElementById('edit-batch-egg-qty').value) || null,
                 pcs_per_pack: parseInt(document.getElementById('edit-pcs-per-pack').value, 10) || null,
                 assignment_mode: selectedAssignmentMode('edit-assignment-mode'),
-                branch_ids: (selectedAssignmentMode('edit-assignment-mode') === 'specific') ? collectCheckedBranches('.edit-branch-check') : []
+                branch_ids: (selectedAssignmentMode('edit-assignment-mode') === 'specific') ? collectCheckedBranches('.edit-branch-check') : [],
+                consignee_assignment_mode: selectedAssignmentMode('edit-assignment-mode'),
+                consignee_ids: (selectedAssignmentMode('edit-assignment-mode') === 'specific') ? collectCheckedConsignees('.edit-consignee-check') : []
             })
         })
         .then(function(r) { return r.json(); })
@@ -842,7 +872,9 @@
             parseInt(button.getAttribute('data-pack'), 10) || 0,
             button.getAttribute('data-effective') || '',
             button.getAttribute('data-assignment-mode') || 'all_active',
-            button.getAttribute('data-branches') || ''
+            button.getAttribute('data-branches') || '',
+            button.getAttribute('data-consignee-mode') || 'all_active',
+            button.getAttribute('data-consignees') || ''
         );
     }
 

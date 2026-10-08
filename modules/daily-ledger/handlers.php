@@ -6124,6 +6124,154 @@ function dl_bulkAssignConsigneeProductsCore($db, int $consigneeId, array $desire
 }
 
 /**
+ * The audited consignee-product assignment primitive — the consignee twin of
+ * dl_setBranchProductActive(). Re-assignment is always allowed.
+ *
+ * Unlike branches there is deliberately NO unfinished-ending blocker here:
+ * consignee custody has no nullable ending-entry workflow, so entity/catalog
+ * validation and the surrounding transaction remain the refusal boundary
+ * (pre-existing documented decision, handlers.php:6081-6086).
+ *
+ * @return array{ok:bool,is_active:int}
+ */
+function dl_setConsigneeProductActive($db, int $consigneeId, int $productId, bool $active, ?int $actorId = null): array
+{
+    // Audits carry the consignee's owning commissary, matching
+    // dl_bulkAssignConsigneeProductsCore().
+    $branchStmt = $db->prepare('SELECT assigned_commissary_id FROM dl_consignees WHERE id = :id LIMIT 1');
+    $branchStmt->execute([':id' => $consigneeId]);
+    $auditBranchId = (int)$branchStmt->fetchColumn();
+
+    $db->prepare(
+        'INSERT INTO dl_consignee_products (consignee_id, product_id, is_active) VALUES (:cid, :pid, :active)
+         ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)'
+    )->execute([':cid' => $consigneeId, ':pid' => $productId, ':active' => $active ? 1 : 0]);
+
+    if ($active) {
+        dl_auditLog('consignee_product_assigned', $auditBranchId, 'dl_consignee_products', "{$consigneeId}-{$productId}", null, [
+            'is_active' => 1,
+            'refused' => false,
+            'actor_id' => $actorId,
+        ], 'product assigned to consignee');
+        return ['ok' => true, 'is_active' => 1];
+    }
+
+    dl_auditLog('consignee_product_unassigned', $auditBranchId, 'dl_consignee_products', "{$consigneeId}-{$productId}", ['is_active' => 1], [
+        'is_active' => 0,
+        'refused' => false,
+        'actor_id' => $actorId,
+    ], 'product unassigned from consignee');
+    return ['ok' => true, 'is_active' => 0];
+}
+
+/**
+ * Resolve the requested CONSIGNEE-assignment intent from product API input.
+ *
+ * The consignee twin of dl_normalizeAssignmentMode(). A MISSING
+ * consignee_assignment_mode defaults to 'all_active' — today's behaviour and
+ * the backward-compatible contract. A garbage/unknown value also coerces to
+ * 'all_active', never to the destructive 'specific'. Returns the normalised
+ * mode plus the de-duplicated, positive consignee ids.
+ *
+ * @return array{0:string,1:array<int,int>}
+ */
+function dl_normalizeConsigneeAssignmentMode($input): array
+{
+    $mode = 'all_active';
+    if (is_array($input) && array_key_exists('consignee_assignment_mode', $input)) {
+        $raw = strtolower(trim((string)$input['consignee_assignment_mode']));
+        if (in_array($raw, ['all_active', 'specific'], true)) {
+            $mode = $raw;
+        }
+    }
+    $ids = [];
+    if (is_array($input) && isset($input['consignee_ids']) && is_array($input['consignee_ids'])) {
+        foreach ($input['consignee_ids'] as $id) {
+            $id = (int)$id;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+    }
+    return [$mode, array_values($ids)];
+}
+
+/**
+ * The consignee ids a product should be assigned to for the given intent.
+ * 'all_active' -> every ACTIVE consignee; 'specific' -> the requested ACTIVE
+ * consignees. Unknown/inactive consignee ids are ignored.
+ *
+ * @param array<int,int> $consigneeIds
+ * @return array<int,int>
+ */
+function dl_targetConsigneeIdsForAssignmentMode($db, string $mode, array $consigneeIds): array
+{
+    if ($mode === 'all_active') {
+        $rows = $db->query('SELECT id FROM dl_consignees WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return array_map(static fn($r) => (int)$r['id'], $rows);
+    }
+    if ($consigneeIds === []) {
+        return [];
+    }
+    $placeholders = implode(',', array_fill(0, count($consigneeIds), '?'));
+    $stmt = $db->prepare("SELECT id FROM dl_consignees WHERE is_active = 1 AND id IN ({$placeholders})");
+    $stmt->execute(array_values($consigneeIds));
+    return array_map(static fn($r) => (int)$r['id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+}
+
+/**
+ * Apply a product's persisted CONSIGNEE-assignment intent — the consignee
+ * twin of dl_applyProductAssignmentMode().
+ *
+ * 'all_active' is ADDITIVE — it never strips an existing pair. 'specific'
+ * removes pairs for consignees that are no longer selected. There is no
+ * unfinished-ending guard on the consignee path (documented decision); the
+ * caller must run this inside a transaction so a mid-flight failure rolls
+ * back cleanly.
+ *
+ * @param array<int,int> $consigneeIds
+ * @return array{ok:bool,code?:string,mode?:string,added?:array,removed?:array}
+ */
+function dl_applyProductConsigneeAssignmentMode($db, int $productId, string $mode, array $consigneeIds, ?int $actorId = null): array
+{
+    // Defence in depth: only the exact 'specific' token may remove pairs;
+    // anything else (including a garbage value that somehow bypassed the
+    // normalizer and the ENUM) reads as additive 'all_active'.
+    $mode = $mode === 'specific' ? 'specific' : 'all_active';
+
+    $target = dl_targetConsigneeIdsForAssignmentMode($db, $mode, $consigneeIds);
+    $stmt = $db->prepare('SELECT consignee_id FROM dl_consignee_products WHERE product_id = :pid AND is_active = 1');
+    $stmt->execute([':pid' => $productId]);
+    $current = array_map(static fn($r) => (int)$r['consignee_id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+    $toAdd = array_values(array_diff($target, $current));
+    $toRemove = $mode === 'all_active' ? [] : array_values(array_diff($current, $target));
+
+    $db->prepare('UPDATE dl_products SET consignee_assignment_mode = :mode WHERE id = :id')
+        ->execute([':mode' => $mode, ':id' => $productId]);
+
+    foreach ($toAdd as $consigneeId) {
+        $r = dl_setConsigneeProductActive($db, (int)$consigneeId, $productId, true, $actorId);
+        if (($r['ok'] ?? false) !== true) {
+            return ['ok' => false, 'code' => 'PRODUCT_ASSIGNMENT_FAILED'];
+        }
+    }
+    foreach ($toRemove as $consigneeId) {
+        $r = dl_setConsigneeProductActive($db, (int)$consigneeId, $productId, false, $actorId);
+        if (($r['ok'] ?? false) !== true) {
+            return ['ok' => false, 'code' => 'PRODUCT_UNASSIGNMENT_BLOCKED'];
+        }
+    }
+
+    return [
+        'ok' => true,
+        'mode' => $mode,
+        'added' => $toAdd,
+        'removed' => $toRemove,
+    ];
+}
+
+/**
  * The immediately previous business date when it is still open with an unfinalized PM
  * shift, else null. Ported from the cashier gate (handlers.php:6007-6015) so the
  * production user is told a prior PM day is still pending instead of silently finding a
@@ -15752,6 +15900,7 @@ function handleAdminProducts(array $params = []): void
         $sql = 'SELECT p.*, ' . $effectivePrice . ' AS current_price,
                    (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS branch_count,
                    (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS assigned_branch_ids,
+                   (SELECT GROUP_CONCAT(cp.consignee_id ORDER BY cp.consignee_id) FROM dl_consignee_products cp WHERE cp.product_id = p.id AND cp.is_active = 1) AS assigned_consignee_ids,
                    (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
                      WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
                      ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
@@ -15800,6 +15949,9 @@ function handleAdminProducts(array $params = []): void
                         (SELECT GROUP_CONCAT(all_bp.branch_id ORDER BY all_bp.branch_id)
                            FROM dl_branch_products all_bp
                           WHERE all_bp.product_id = p.id AND all_bp.is_active = 1) AS assigned_branch_ids,
+                        (SELECT GROUP_CONCAT(all_cp.consignee_id ORDER BY all_cp.consignee_id)
+                           FROM dl_consignee_products all_cp
+                          WHERE all_cp.product_id = p.id AND all_cp.is_active = 1) AS assigned_consignee_ids,
                         (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
                           WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
                           ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
@@ -15846,6 +15998,7 @@ function handleAdminProducts(array $params = []): void
             $pStmt = $ctx->db()->prepare(
                 'SELECT p.*, CASE WHEN cp.is_active = 1 THEN 1 ELSE 0 END AS assigned,
                         (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS assigned_branch_ids,
+                        (SELECT GROUP_CONCAT(all_cp.consignee_id ORDER BY all_cp.consignee_id) FROM dl_consignee_products all_cp WHERE all_cp.product_id = p.id AND all_cp.is_active = 1) AS assigned_consignee_ids,
                         (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY) ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
                    FROM dl_products p
                    LEFT JOIN dl_consignee_products cp ON cp.product_id = p.id AND cp.consignee_id = :cid
@@ -16527,6 +16680,10 @@ function apiCreateProduct(array $params = []): void
     // to 'all_active' — today's behaviour, backward compatible for existing
     // API callers and CSV imports.
     [$assignmentMode, $assignmentBranchIds] = dl_normalizeAssignmentMode($input);
+    // Consignee assignment intent (Slice 7). The consignee twin: a MISSING
+    // key defaults to 'all_active' and a garbage value coerces to
+    // 'all_active', never to 'specific' (which would strip assignments).
+    [$consigneeAssignmentMode, $consigneeAssignmentIds] = dl_normalizeConsigneeAssignmentMode($input);
 
     if ($name === '' || $price <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Name and price are required', 'type' => 'error']]));
@@ -16546,8 +16703,8 @@ function apiCreateProduct(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack, assignment_mode) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit, :ppp, :mode)'
-        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':mode' => $assignmentMode]);
+            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack, assignment_mode, consignee_assignment_mode) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit, :ppp, :mode, :cmode)'
+        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':mode' => $assignmentMode, ':cmode' => $consigneeAssignmentMode]);
 
         $productId = (int)$ctx->db()->lastInsertId();
 
@@ -16576,6 +16733,26 @@ function apiCreateProduct(array $params = []): void
             )->execute($params);
         }
 
+        // Apply the requested CONSIGNEE assignment intent (Slice 7). Mirrors
+        // the branch block above: 'all_active' assigns every active consignee
+        // (a new product has no prior pairs, so this is additive by
+        // construction); 'specific' assigns exactly the selected active
+        // consignees. A specific product is never auto-assigned to a
+        // consignee created later (see apiSaveConsignee).
+        $targetConsignees = dl_targetConsigneeIdsForAssignmentMode($ctx->db(), $consigneeAssignmentMode, $consigneeAssignmentIds);
+        if ($targetConsignees !== []) {
+            $values = [];
+            $params = [];
+            foreach ($targetConsignees as $index => $consigneeId) {
+                $values[] = "(:cid_{$index}, :cpid_{$index})";
+                $params[":cid_{$index}"] = (int)$consigneeId;
+                $params[":cpid_{$index}"] = $productId;
+            }
+            $ctx->db()->prepare(
+                'INSERT IGNORE INTO dl_consignee_products (consignee_id, product_id) VALUES ' . implode(', ', $values)
+            )->execute($params);
+        }
+
         dl_auditLog('create_product', null, 'product', (string)$productId, null, [
             'sku' => $sku,
             'name' => $name,
@@ -16585,6 +16762,8 @@ function apiCreateProduct(array $params = []): void
             'pcs_per_pack' => $pcsPerPack,
             'assignment_mode' => $assignmentMode,
             'assigned_branch_ids' => $targetBranches,
+            'consignee_assignment_mode' => $consigneeAssignmentMode,
+            'assigned_consignee_ids' => $targetConsignees,
         ]);
 
         app()->cache()->clearByTags('daily-ledger', ['dl_products']);
@@ -16646,6 +16825,12 @@ function apiUpdateProduct(array $params = []): void
     // loadiness guard). When present it is applied all-or-nothing.
     $assignmentModePresent = is_array($input) && array_key_exists('assignment_mode', $input);
     [$assignmentMode, $assignmentBranchIds] = dl_normalizeAssignmentMode($input);
+    // Consignee assignment intent (Slice 7). Like the branch key it is
+    // OPTIONAL: an old/price-only payload that omits it leaves the consignee
+    // mode and pairs untouched (it can never strip them). When present, a
+    // missing or garbage value reads as the additive 'all_active'.
+    $consigneeAssignmentModePresent = is_array($input) && array_key_exists('consignee_assignment_mode', $input);
+    [$consigneeAssignmentMode, $consigneeAssignmentIds] = dl_normalizeConsigneeAssignmentMode($input);
     $userId = 0;
     if (isset($user['id']) && is_numeric($user['id'])) {
         $userId = (int)$user['id'];
@@ -16680,7 +16865,7 @@ function apiUpdateProduct(array $params = []): void
         $ctx->db()->beginTransaction();
 
         // Lock the product so history insertion, current-price sync and repricing are atomic.
-        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, assignment_mode, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id FOR UPDATE');
+        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, assignment_mode, consignee_assignment_mode, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id FOR UPDATE');
         $oldStmt->execute([':id' => $productId]);
         $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -16739,6 +16924,25 @@ function apiUpdateProduct(array $params = []): void
             }
         }
 
+        // Apply the CONSIGNEE assignment intent when supplied (Slice 7).
+        // Additive for 'all_active' (never strips a pre-existing pair),
+        // diff-removal for 'specific'. There is no unfinished-ending blocker on
+        // the consignee path (documented decision), so the transaction is the
+        // refusal boundary.
+        $consigneeAssignmentResult = null;
+        if ($consigneeAssignmentModePresent) {
+            $consigneeAssignmentResult = dl_applyProductConsigneeAssignmentMode($ctx->db(), $productId, $consigneeAssignmentMode, $consigneeAssignmentIds, $userId);
+            if (($consigneeAssignmentResult['ok'] ?? false) !== true) {
+                $ctx->db()->rollBack();
+                $ctx->json([
+                    'ok' => false,
+                    'code' => (string)($consigneeAssignmentResult['code'] ?? 'PRODUCT_ASSIGNMENT_FAILED'),
+                    'error' => 'Cannot change the consignee assignment.',
+                ], 409);
+                return;
+            }
+        }
+
         $reprice = ['updated_rows' => 0, 'unchanged_rows' => 0, 'skipped_rows' => 0, 'skipped_days' => []];
         $priceChanged = abs(dl_resolveBaseProductPrice($productId, $effectiveFrom) - $price) >= 0.00001;
         if ($priceChanged) {
@@ -16773,6 +16977,8 @@ function apiUpdateProduct(array $params = []): void
             'pcs_per_pack' => $pcsPerPack,
             'assignment_mode' => $assignmentModePresent ? $assignmentMode : ($old['assignment_mode'] ?? 'all_active'),
             'assignment' => $assignmentResult,
+            'consignee_assignment_mode' => $consigneeAssignmentModePresent ? $consigneeAssignmentMode : ($old['consignee_assignment_mode'] ?? 'all_active'),
+            'consignee_assignment' => $consigneeAssignmentResult,
         ]);
 
         if ((int)($old['is_active'] ?? 1) === 1 && $isActive === 0) {
@@ -16999,6 +17205,17 @@ function apiSaveConsignee(array $params = []): void
             $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active]);
             $id = (int)$ctx->db()->lastInsertId();
             $action = 'consignee_created';
+
+            // Assign active products that opted into "all active consignees"
+            // only (Slice 7, mirrors apiCreateBranch). Products explicitly set
+            // to 'specific' are assigned by the product modal and are NEVER
+            // auto-assigned to a consignee created later.
+            $pStmt = $ctx->db()->query("SELECT id FROM dl_products WHERE is_active = 1 AND consignee_assignment_mode = 'all_active'");
+            foreach ($pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
+                $ctx->db()->prepare(
+                    'INSERT IGNORE INTO dl_consignee_products (consignee_id, product_id) VALUES (:cid, :pid)'
+                )->execute([':cid' => $id, ':pid' => (int)$p['id']]);
+            }
         }
         dl_auditLog($action, $commissaryId, 'dl_consignees', (string)$id, null, ['code' => $code, 'name' => $name, 'area' => $area !== '' ? $area : null, 'address' => $address !== '' ? $address : null, 'assigned_commissary_id' => $commissaryId, 'price_group_id' => $priceGroupId, 'is_active' => $active, 'actor_id' => dl_getActorUserId($user)]);
         $ctx->json(['ok' => true, 'consignee_id' => $id]);
