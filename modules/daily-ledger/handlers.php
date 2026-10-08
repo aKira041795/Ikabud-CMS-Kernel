@@ -3235,6 +3235,100 @@ function dl_applyConsigneeLedgerDelta($db, int $guardBranchId, int $consigneeId,
     return ['before_qty' => $before, 'after_qty' => $after];
 }
 
+/**
+ * Record the requested TOTAL return for one consignee custody line.
+ *
+ * Transaction contract: this function owns and completes a transaction only
+ * when the caller does not already have one. When called in a transaction, the
+ * caller owns commit/rollback. Effects are append-only; a correction appends the
+ * difference from the previously recorded return total.
+ *
+ * @return array{returned:int,delta:int}
+ */
+function dl_recordConsigneeReturn($db, int $consigneeId, int $productId, string $ledgerDate, string $shift, int $totalReturned, int $actorId): array
+{
+    if ($consigneeId <= 0 || $productId <= 0 || $totalReturned < 0) {
+        throw new \InvalidArgumentException('Consignee, product, and a non-negative return quantity are required.');
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate)) {
+        throw new \InvalidArgumentException('A valid ledger date is required.');
+    }
+    [$year, $month, $day] = array_map('intval', explode('-', $ledgerDate));
+    if (!checkdate($month, $day, $year)) {
+        throw new \InvalidArgumentException('A valid ledger date is required.');
+    }
+    if (!in_array($shift, ['AM', 'PM'], true)) {
+        throw new \InvalidArgumentException('Shift must be AM or PM.');
+    }
+
+    $consigneeStmt = $db->prepare('SELECT assigned_commissary_id FROM dl_consignees WHERE id = :id LIMIT 1');
+    $consigneeStmt->execute([':id' => $consigneeId]);
+    $sourceBranchId = $consigneeStmt->fetchColumn();
+    if ($sourceBranchId === false) {
+        throw new \InvalidArgumentException('Consignee not found.');
+    }
+    $productStmt = $db->prepare('SELECT id FROM dl_products WHERE id = :id LIMIT 1');
+    $productStmt->execute([':id' => $productId]);
+    if ($productStmt->fetchColumn() === false) {
+        throw new \InvalidArgumentException('Product not found.');
+    }
+
+    $ownsTransaction = !$db->inTransaction();
+    if ($ownsTransaction) {
+        $db->beginTransaction();
+    }
+    try {
+        $effects = $db->prepare('SELECT quantity FROM dl_consignee_ledger_effects WHERE consignee_id = :c AND product_id = :p AND ledger_date = :d AND shift = :s AND effect_kind = "return" AND effect_status = "applied" ORDER BY id FOR UPDATE');
+        $effects->execute([':c' => $consigneeId, ':p' => $productId, ':d' => $ledgerDate, ':s' => $shift]);
+        $restoredReturnQty = 0;
+        foreach ($effects->fetchAll(PDO::FETCH_ASSOC) ?: [] as $effect) {
+            $effectQty = (int)$effect['quantity'];
+            if ($effectQty < 0) {
+                $restoredReturnQty += -$effectQty;
+            }
+        }
+        $ledgerStmt = $db->prepare('SELECT withdraw FROM dl_consignee_ledger WHERE consignee_id = :c AND product_id = :p AND ledger_date = :d AND shift = :s LIMIT 1 FOR UPDATE');
+        $ledgerStmt->execute([':c' => $consigneeId, ':p' => $productId, ':d' => $ledgerDate, ':s' => $shift]);
+        $ledgerRow = $ledgerStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $alreadyReturned = $ledgerRow ? max(0, (int)$ledgerRow['withdraw'] - $restoredReturnQty) : 0;
+        $delta = $totalReturned - $alreadyReturned;
+
+        // This is the single custody guard and lock check. Increasing returns is
+        // a negative custody delta; lowering a mistyped total restores custody.
+        // The ledger is movement-only, so that restoration lands in addtl; the
+        // report removes this append-only compensation from gross and returns.
+        $state = dl_applyConsigneeLedgerDelta(
+            $db, (int)$sourceBranchId, $consigneeId, $productId,
+            $ledgerDate, -$delta, $actorId, $shift
+        );
+
+        if ($delta !== 0) {
+            $db->prepare('INSERT INTO dl_consignee_ledger_effects
+                (delivery_id, delivery_item_id, consignee_id, source_branch_id, product_id, ledger_date, shift,
+                 quantity, effect_kind, effect_status, applied_by, applied_at, before_qty, after_qty)
+                VALUES (NULL, NULL, :c, :b, :p, :d, :s, :q, "return", "applied", :u, NOW(), :before, :after)')->execute([
+                ':c' => $consigneeId, ':b' => (int)$sourceBranchId, ':p' => $productId,
+                ':d' => $ledgerDate, ':s' => $shift, ':q' => $delta,
+                ':u' => $actorId > 0 ? $actorId : null,
+                ':before' => $state['before_qty'], ':after' => $state['after_qty'],
+            ]);
+            dl_auditLog('consignee_return_recorded', (int)$sourceBranchId, 'dl_consignee_ledger_effects', (string)$db->lastInsertId(),
+                ['returned' => $alreadyReturned, 'custody' => $state['before_qty']],
+                ['returned' => $totalReturned, 'delta' => $delta, 'custody' => $state['after_qty']]);
+        }
+
+        if ($ownsTransaction) {
+            $db->commit();
+        }
+        return ['returned' => $totalReturned, 'delta' => $delta];
+    } catch (\Throwable $e) {
+        if ($ownsTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
 function dl_applyConsigneeDeliveryCredit($db, int $deliveryId, int $deliveryItemId, int $sourceBranchId, int $consigneeId, int $productId, string $ledgerDate, int $quantity, int $actorId, string $shift): bool
 {
     $exists = $db->prepare('SELECT effect_status FROM dl_consignee_ledger_effects WHERE delivery_item_id = :id AND effect_kind = "credit" FOR UPDATE');
@@ -12870,18 +12964,30 @@ function handleAdminConsigneeDispatchReport(array $params = []): void
         [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
 
+    // A hand-typed URL must not be able to state a filter the query cannot honour:
+    // a junk consignee/product id or an unknown shift is dropped here, so the select
+    // and the empty-state wording never claim a filter that was not actually applied.
+    $consigneeFilter = max(0, (int)($input['consignee_id'] ?? 0));
+    $productFilter = max(0, (int)($input['product_id'] ?? 0));
+    $shiftFilter = strtoupper(trim((string)($input['shift'] ?? '')));
+    if (!in_array($shiftFilter, ['AM', 'PM'], true)) {
+        $shiftFilter = '';
+    }
+
     $report = dl_fetchConsigneeDispatchReport($ctx->db(), [
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
-        'consignee_id' => (int)($input['consignee_id'] ?? 0),
-        'product_id' => (int)($input['product_id'] ?? 0),
-        'shift' => (string)($input['shift'] ?? ''),
+        'consignee_id' => $consigneeFilter,
+        'product_id' => $productFilter,
+        'shift' => $shiftFilter,
     ]);
+
+    $filterOptions = dl_consigneeDispatchFilterOptions($ctx->db());
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
 
     echo dlRender('modules/daily-ledger/admin/consignee-dispatch-report.disyl', [
-        'page_title' => 'Consignee Dispatch Report',
+        'page_title' => 'Consignee Dispatch Ledger',
         'user_name' => $userName,
         'user_role' => (string)($user['role'] ?? 'unknown'),
         'current_page' => 'consignee_dispatch',
@@ -12889,8 +12995,49 @@ function handleAdminConsigneeDispatchReport(array $params = []): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
+        'filter_consignee_id' => $consigneeFilter,
+        'filter_product_id' => $productFilter,
+        'filter_shift' => $shiftFilter,
+        'filter_consignees' => $filterOptions['consignees'],
+        'filter_products' => $filterOptions['products'],
         'report' => $report,
     ]);
+}
+
+/**
+ * Filter option lists for the Consignee Dispatch Report.
+ *
+ * Both lists come from the CONSIGNEE LEDGER, not the full catalogue: an option the
+ * report can never match is noise, and the whole product catalogue in a dropdown is
+ * unusable. They are derived from ALL ledger rows rather than the filtered range, so
+ * narrowing the report does not collapse the list to the current selection and strand
+ * the admin with no way back to "all".
+ *
+ * GROUP BY (not DISTINCT) because the consignee list orders by the shared sort rule,
+ * and DISTINCT forbids ordering by an expression that is absent from the select list
+ * (MySQL 5.7 raises 3065 for that). sort_order is selected so the rule stays legal.
+ *
+ * @return array{consignees: array<int, array<string, mixed>>, products: array<int, array<string, mixed>>}
+ */
+function dl_consigneeDispatchFilterOptions($db): array
+{
+    $consignees = $db->query(
+        'SELECT c.id, c.code, c.name, c.sort_order'
+        . ' FROM dl_consignee_ledger l'
+        . ' INNER JOIN dl_consignees c ON c.id = l.consignee_id'
+        . ' GROUP BY c.id, c.code, c.name, c.sort_order'
+        . ' ORDER BY ' . dl_entityOrderBySql('c.')
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $products = $db->query(
+        'SELECT p.id, p.name, p.sku'
+        . ' FROM dl_consignee_ledger l'
+        . ' INNER JOIN dl_products p ON p.id = l.product_id'
+        . ' GROUP BY p.id, p.name, p.sku'
+        . ' ORDER BY p.name ASC'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    return ['consignees' => $consignees, 'products' => $products];
 }
 
 function handleAdminProductionOutputRedirect(array $params = []): void
@@ -19142,6 +19289,12 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
  * there are no sold quantities, so the payload reports the mode and carries a
  * NULL total (never 0 or "PHP 0.00", which would read as a real zero).
  *
+ * Per row the payload keeps `dispatch_value` GROSS (the proof the delivery
+ * happened), reports the `spoilage_value` written off against it, and the
+ * `net_value` still collectible; `total_value` is the gross sum. A fully
+ * returned line is deliberately NOT dropped - it is the evidence that a
+ * delivery happened and was pulled out.
+ *
  * The feature toggle never hides recorded history: rows are returned whatever
  * consignee_enabled says. The caller only uses that flag to withhold new work.
  *
@@ -19168,12 +19321,31 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
         [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
 
+    // VALUATION SHAPE: `dispatch_value` stays GROSS — it is the proof the delivery happened,
+    // and a frozen oracle pins it at addtl * price_snapshot. The custody-out side is reported
+    // SEPARATELY as `spoilage_value`, with `net_value` the honest still-collectible figure. A
+    // ledger that is the proof of deliveries AND pullouts must show them side by side; netting
+    // the delivery figure away would destroy the delivery evidence.
+    //
+    // COMPENSATION: dl_consignee_ledger is a MOVEMENT ledger. `dl_recordConsigneeReturn()`
+    // lowers a mistyped return total by applying a POSITIVE custody delta, which lands in
+    // `addtl`, and appends a return effect with a NEGATIVE quantity. So raw `addtl` is
+    // "dispatched + compensations" and raw `withdraw` is "every return ever recorded", not
+    // balances. `compensation_qty` is the total of those negative effects and is subtracted from
+    // BOTH gross figures to recover the true dispatched and true returned quantities.
+    //
+    // `net_value` needs NO compensation: (addtl - withdraw) already loses it, because every
+    // compensation adds the same amount to `addtl` and never touches `withdraw`. That equality
+    // is also what keeps `dl_applyConsigneeLedgerDelta()`'s custody guard honest.
     $sql = 'SELECT l.ledger_date AS dispatch_date, l.shift,
                    c.id AS consignee_id, c.code AS consignee_code, c.name AS consignee_name,
                    l.product_id, p.name AS product_name, p.sku,
-                   SUM(l.addtl) AS quantity,
+                   SUM(l.addtl - COALESCE(cx.compensation_qty, 0)) AS quantity,
+                   SUM(l.withdraw - COALESCE(cx.compensation_qty, 0)) AS returned_qty,
                    MAX(l.price_snapshot) AS unit_price,
-                   SUM(l.addtl * COALESCE(l.price_snapshot, 0)) AS dispatch_value,
+                   SUM((l.addtl - COALESCE(cx.compensation_qty, 0)) * COALESCE(l.price_snapshot, 0)) AS dispatch_value,
+                   SUM((l.withdraw - COALESCE(cx.compensation_qty, 0)) * COALESCE(l.price_snapshot, 0)) AS spoilage_value,
+                   SUM((l.addtl - l.withdraw) * COALESCE(l.price_snapshot, 0)) AS net_value,
                    MAX(d.dr_number) AS dr_number,
                    MAX(d.provenance_status) AS provenance_status,
                    MAX(d.status) AS delivery_status
@@ -19192,6 +19364,17 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
                   AND lx.ledger_date = l.ledger_date
                   AND lx.shift = l.shift
               LEFT JOIN dl_deliveries d ON d.id = lx.delivery_id
+              LEFT JOIN (
+                  SELECT e.consignee_id, e.product_id, e.ledger_date, e.shift,
+                         SUM(CASE WHEN e.quantity < 0 THEN -e.quantity ELSE 0 END) AS compensation_qty
+                    FROM dl_consignee_ledger_effects e
+                   WHERE e.effect_kind = \'return\'
+                     AND e.effect_status = \'applied\'
+                   GROUP BY e.consignee_id, e.product_id, e.ledger_date, e.shift
+              ) cx ON cx.consignee_id = l.consignee_id
+                  AND cx.product_id = l.product_id
+                  AND cx.ledger_date = l.ledger_date
+                  AND cx.shift = l.shift
              WHERE l.addtl > 0
                AND l.ledger_date BETWEEN :date_from AND :date_to';
     $bind = [':date_from' => $dateFrom, ':date_to' => $dateTo];
@@ -19223,8 +19406,13 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
     $total = 0.0;
     foreach ($rawRows as $r) {
         $quantity = (int)($r['quantity'] ?? 0);
+        $returnedQty = (int)($r['returned_qty'] ?? 0);
         $unitPrice = (float)($r['unit_price'] ?? 0);
         $dispatchValue = (float)($r['dispatch_value'] ?? 0);
+        $spoilageValue = (float)($r['spoilage_value'] ?? 0);
+        $netValue = (float)($r['net_value'] ?? 0);
+        // The headline total is the GROSS dispatch valuation (the delivery evidence), which a
+        // frozen oracle pins by asserting the rendered report carries `PHP 87.50`.
         $total += $dispatchValue;
         $verification = 'Unverified';
         if (!empty($r['dr_number']) || !empty($r['provenance_status'])) {
@@ -19243,8 +19431,11 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
             'product_name' => (string)($r['product_name'] ?? ''),
             'sku' => (string)($r['sku'] ?? ''),
             'quantity' => $quantity,
+            'returned_qty' => $returnedQty,
             'unit_price' => $unitPrice,
             'dispatch_value' => $dispatchValue,
+            'spoilage_value' => $spoilageValue,
+            'net_value' => $netValue,
             'dr_number' => $r['dr_number'] ?? null,
             'provenance_status' => $r['provenance_status'] ?? null,
             'delivery_status' => $r['delivery_status'] ?? null,

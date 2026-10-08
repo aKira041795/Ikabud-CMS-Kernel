@@ -24,7 +24,10 @@ async function login(page, account) {
         page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 25000 }),
         page.click('button[type="submit"], input[type="submit"]'),
     ]);
-    await page.waitForLoadState('networkidle');
+    // NOT 'networkidle': the Daily Sheet polls, so the network never goes idle and this wait
+    // times the whole spec out before it can assert anything. It did exactly that on the
+    // unchanged tree (measured 2026-10-08), which made this oracle unusable.
+    await page.waitForLoadState('load');
 }
 
 /** What the print stylesheet actually does to the sheet. */
@@ -90,9 +93,9 @@ async function printDiagnostics(page) {
 
 test('print evidence: what the Daily Production Sheet actually puts on paper', async ({ page }) => {
     await login(page, PRODUCTION);
-    await page.goto('/daily-ledger/admin/commissary');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/daily-ledger/admin/commissary', { waitUntil: 'domcontentloaded' });
     // Wait for the sheet itself rather than racing the layout of a 2.5MB, 178-row document.
+    // (Not 'networkidle' — see the note in login() above.)
     // The print header is display:none on screen by design, so wait for ATTACHMENT, not visibility.
     await page.waitForSelector('#daily-sheet-print-header', { state: 'attached', timeout: 30000 });
     await page.waitForSelector('#tab-daily-sheet table tbody tr.daily-sheet-product-row', { timeout: 30000 });

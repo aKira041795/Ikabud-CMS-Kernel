@@ -1357,6 +1357,55 @@ function apiReviewDeliveryProvenance(array $params = []): void
     ]);
 }
 
+/** Record an admin-entered total return/pullout from consignee custody. */
+function apiRecordConsigneeReturn(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor']);
+    $actorId = dl_getActorUserId($user);
+    $input = json_decode((string)file_get_contents('php://input'), true);
+    if (!is_array($input)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid return request.'], 422);
+        return;
+    }
+
+    $consigneeId = filter_var($input['consignee_id'] ?? null, FILTER_VALIDATE_INT);
+    $productId = filter_var($input['product_id'] ?? null, FILTER_VALIDATE_INT);
+    $quantity = filter_var($input['quantity'] ?? null, FILTER_VALIDATE_INT);
+    $ledgerDate = trim((string)($input['ledger_date'] ?? ''));
+    $shift = trim((string)($input['shift'] ?? ''));
+    $validDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate) === 1;
+    if ($validDate) {
+        [$year, $month, $day] = array_map('intval', explode('-', $ledgerDate));
+        $validDate = checkdate($month, $day, $year);
+    }
+    if ($consigneeId === false || $consigneeId <= 0
+        || $productId === false || $productId <= 0
+        || $quantity === false || $quantity < 0
+        || !$validDate || !in_array($shift, ['AM', 'PM'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Consignee, product, ledger date, AM/PM shift, and a non-negative quantity are required.'], 422);
+        return;
+    }
+
+    try {
+        $result = dl_recordConsigneeReturn(
+            $ctx->db(), (int)$consigneeId, (int)$productId,
+            $ledgerDate, $shift, (int)$quantity, $actorId
+        );
+        $ctx->json(['ok' => true] + $result);
+    } catch (\InvalidArgumentException | \RuntimeException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+    } catch (\Throwable $e) {
+        $ctx->log('apiRecordConsigneeReturn: ' . $e->getMessage(), 'error', [
+            'consignee_id' => $consigneeId,
+            'product_id' => $productId,
+            'user_sub' => $user['sub'] ?? null,
+        ]);
+        $ctx->json(['ok' => false, 'error' => 'Database error'], 500);
+    }
+}
+
 /** Apply an explicit correction after provenance evidence has been saved. */
 function apiCorrectConsigneeDeliveryDiscrepancy(array $params = []): void
 {

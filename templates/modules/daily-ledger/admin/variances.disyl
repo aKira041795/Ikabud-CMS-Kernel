@@ -661,7 +661,7 @@
 </style>
 
 </head>
-<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }" data-wb-component="app-shell">
+<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: false }" data-wb-component="app-shell">
 
     <div id="toast-container" class="fixed top-4 right-4 z-50" role="status" aria-live="polite"></div>
 
@@ -715,6 +715,9 @@
 		</button>
             </div>
 
+            {* Collapsed sidebar is icon-only, so each menu item needs a visible hint. The label is
+               read from the item's own aria-label rather than duplicated here, so a new menu item
+               only has to declare its aria-label once and still gets a tooltip. *}
             <nav class="mt-4 px-2 flex-1 overflow-y-auto">
                 {if user_role == 'cashier' || user_role == 'supervisor' || user_role == 'admin'}
                 <a href="{base_url}/ledger"
@@ -1651,5 +1654,12 @@
     }, true);
 </script>
 
+<script>
+/* The sidebar defaults to collapsed, so its menu items are icon-only. Copy each item's existing
+   accessible name onto a native tooltip so the icon can be identified on hover. A native title is
+   used rather than a CSS tooltip because the nav is a scroll container (overflow-y:auto), which
+   would clip a pseudo-element. No braces here on purpose: braces in a DiSyL template are parsed. */
+document.querySelectorAll('#wb-sidebar .wb-nav-item[aria-label]').forEach(el => el.title = el.getAttribute('aria-label'));
+</script>
 </body>
 </html>

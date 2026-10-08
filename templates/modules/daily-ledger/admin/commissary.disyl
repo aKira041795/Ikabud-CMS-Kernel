@@ -375,6 +375,31 @@
          * Uses the same Bearer auth as the save API calls so authentication
          * cannot differ between a POST that saved and the GET that refreshes.
          */
+        // Sticky offsets after Product cannot be constants: every numeric sheet
+        // column receives an equal fluid share. Measure the rendered headers so
+        // ADDTL and the optional right-side VARIANCE run remain exact.
+        window.dlUpdateDailySheetStickyOffsets = function() {
+            var table = document.getElementById('production-ledger-table');
+            if (!table) return;
+            var product = table.querySelector('thead .dl-sheet-sticky-product');
+            var beg = table.querySelector('thead .dl-sheet-sticky-beg');
+            var variance = table.querySelector('thead .dl-sheet-sticky-variance');
+            if (!product || !beg) return;
+            table.style.setProperty('--dl-sheet-addtl-left',
+                (product.getBoundingClientRect().width + beg.getBoundingClientRect().width) + 'px');
+            table.style.setProperty('--dl-sheet-actual-right',
+                (variance ? variance.getBoundingClientRect().width : 0) + 'px');
+        };
+        window.dlScheduleDailySheetStickyOffsets = function() {
+            if (window.dlSheetStickyFrame) cancelAnimationFrame(window.dlSheetStickyFrame);
+            window.dlSheetStickyFrame = requestAnimationFrame(function() {
+                window.dlSheetStickyFrame = null;
+                window.dlUpdateDailySheetStickyOffsets();
+            });
+        };
+        window.addEventListener('resize', window.dlScheduleDailySheetStickyOffsets);
+        document.addEventListener('DOMContentLoaded', window.dlScheduleDailySheetStickyOffsets);
+
         window.dlLoadUrl = function(url, usePush) {
             // The ledger owns page-level state and timers outside #main-content.
             // Replacing only its markup leaves the old date/branch and callbacks live.
@@ -420,6 +445,7 @@
                 if (typeof htmx !== 'undefined') {
                     htmx.process(target);
                 }
+                window.dlScheduleDailySheetStickyOffsets();
                 // Keep the URL in sync (back/forward + shareable filters)
                 if (window.history) {
                     if (usePush && window.history.pushState) {
@@ -496,6 +522,47 @@
         width: auto;
         min-width: 0;
         max-width: none;
+    }
+    /* Keep the row identity visible without changing any column's fluid-grid
+       geometry. ADDTL's offset is measured because BEG is fluid; ACTUAL BAL's
+       offset is the measured width of VARIANCE when that optional column renders. */
+    #tab-daily-sheet .dl-sheet-sticky-product,
+    #tab-daily-sheet .dl-sheet-sticky-beg,
+    #tab-daily-sheet .dl-sheet-sticky-addtl {
+        position: sticky;
+        z-index: 3;
+    }
+    #tab-daily-sheet tbody .dl-sheet-sticky-product,
+    #tab-daily-sheet tbody .dl-sheet-sticky-beg,
+    #tab-daily-sheet tbody .dl-sheet-sticky-addtl,
+    #tab-daily-sheet tbody .dl-sheet-sticky-actual,
+    #tab-daily-sheet tbody .dl-sheet-sticky-variance {
+        background: #fff;
+    }
+    #tab-daily-sheet thead .dl-sheet-sticky-product,
+    #tab-daily-sheet thead .dl-sheet-sticky-beg,
+    #tab-daily-sheet thead .dl-sheet-sticky-addtl,
+    #tab-daily-sheet thead .dl-sheet-sticky-actual,
+    #tab-daily-sheet thead .dl-sheet-sticky-variance {
+        z-index: 4;
+    }
+    #tab-daily-sheet .dl-sheet-sticky-product { left: 0; }
+    #tab-daily-sheet .dl-sheet-sticky-beg { left: 200px; }
+    #tab-daily-sheet .dl-sheet-sticky-addtl {
+        left: var(--dl-sheet-addtl-left);
+        box-shadow: 3px 0 4px -3px rgba(15, 23, 42, .45);
+    }
+    @media (min-width: 1024px) {
+        #tab-daily-sheet .dl-sheet-sticky-actual,
+        #tab-daily-sheet .dl-sheet-sticky-variance {
+            position: sticky;
+            z-index: 3;
+        }
+        #tab-daily-sheet .dl-sheet-sticky-actual {
+            right: var(--dl-sheet-actual-right, 0px);
+            box-shadow: -3px 0 4px -3px rgba(15, 23, 42, .45);
+        }
+        #tab-daily-sheet .dl-sheet-sticky-variance { right: 0; }
     }
     /* Branch columns are FLUID like every other numeric column; the vertical
        writing-mode and fixed height keep the rotated header readable while the
@@ -620,6 +687,14 @@
 
         #tab-daily-sheet { display: block !important; }
         #tab-daily-sheet .table-wrap { overflow: visible !important; }
+        #tab-daily-sheet .dl-sheet-sticky-product,
+        #tab-daily-sheet .dl-sheet-sticky-beg,
+        #tab-daily-sheet .dl-sheet-sticky-addtl,
+        #tab-daily-sheet .dl-sheet-sticky-actual,
+        #tab-daily-sheet .dl-sheet-sticky-variance {
+            position: static !important;
+            box-shadow: none !important;
+        }
         /* The on-screen fluid grid's floor must not reach the paper: at 14 numeric columns
            min-width is 1348px, wider than an A4-landscape content box, which cut the last
            column off the printed sheet. */
@@ -673,7 +748,7 @@
 </style>
 
 </head>
-<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }" data-wb-component="app-shell">
+<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: false }" data-wb-component="app-shell">
 
     <div id="toast-container" class="fixed top-4 right-4 z-50" role="status" aria-live="polite"></div>
 
@@ -727,6 +802,9 @@
 		</button>
             </div>
 
+            {* Collapsed sidebar is icon-only, so each menu item needs a visible hint. The label is
+               read from the item's own aria-label rather than duplicated here, so a new menu item
+               only has to declare its aria-label once and still gets a tooltip. *}
             <nav class="mt-4 px-2 flex-1 overflow-y-auto">
                 {if user_role == 'cashier' || user_role == 'supervisor' || user_role == 'admin'}
                 <a href="{base_url}/ledger"
@@ -1446,11 +1524,11 @@
             <table class="production-ledger-table" id="production-ledger-table" style="--sheet-numeric-cols: {sheet_numeric_column_count}">
                 <thead>
                     <tr>
-                        <th>Product</th>
+                        <th class="dl-sheet-sticky-product">Product</th>
                         {* Right padding matches the cell content's right padding so the header
                            text's right edge sits over the cell content it labels (S7c). *}
-                        <th class="text-right pr-1">BEG</th>
-                        <th class="text-right pr-2">ADDTL</th>
+                        <th class="text-right pr-1 dl-sheet-sticky-beg">BEG</th>
+                        <th class="text-right pr-2 dl-sheet-sticky-addtl">ADDTL</th>
                         {if destination_filter == 'branches' || destination_filter == 'all'}
                         {foreach sheet_branches as br}
                         {if br.id != sheet_source_branch_id}
@@ -1464,8 +1542,8 @@
                         {/foreach}
                         {/if}
                         <th class="text-right">TOTAL</th>
-                        <th title="Commissary balance after all dispatch (branches and consignees): BEG + ADDTL - TOTAL - WASTAGE" class="text-right pr-1">ACTUAL BAL</th>
-                        {if can_view_production_variance}<th class="text-right">VARIANCE</th>{/if}
+                        <th title="Commissary balance after all dispatch (branches and consignees): BEG + ADDTL - TOTAL - WASTAGE" class="text-right pr-1 dl-sheet-sticky-actual">ACTUAL BAL</th>
+                        {if can_view_production_variance}<th class="text-right dl-sheet-sticky-variance">VARIANCE</th>{/if}
                     </tr>
                 </thead>
                 <tbody>
@@ -1480,8 +1558,8 @@
                     {/if}
                     {foreach daily_sheet_rows as row}
                     <tr class="daily-sheet-product-row" data-product-id="{row.product_id}" data-produced="{row.addtl_qty}">
-                        <td class="font-medium">{row.sheet_label}</td>
-                        <td class="px-1 py-1 text-right">
+                        <td class="font-medium dl-sheet-sticky-product">{row.sheet_label}</td>
+                        <td class="px-1 py-1 text-right dl-sheet-sticky-beg">
                             {* BEG is user-settable; the carry is the suggestion, never auto-persisted. *}
                             <input type="number" step="1" class="form-input w-20 ml-auto text-right production-beg-input"
                                 id="production-beg-{row.product_id}"
@@ -1502,7 +1580,7 @@
                         {* ADDTL is a displayed value and a per-row entry point. The row trigger opens
                            the Record Addition modal with that row's product preselected, mirroring the
                            cashier ledger's dlAddStockDirect trigger; editing is the log below. *}
-                        <td class="text-right px-2 py-1 font-semibold">
+                        <td class="text-right px-2 py-1 font-semibold dl-sheet-sticky-addtl">
                             <button type="button"
                                     class="ledger-trigger ledger-trigger-add addtl-trigger"
                                     data-product="{row.product_id}"
@@ -1579,7 +1657,7 @@
                         {/foreach}
                         {/if}
                         <td class="text-right font-semibold production-total consignee-sheet-total">{row.total_qty}</td>
-                        <td class="px-1 py-1 text-right">
+                        <td class="px-1 py-1 text-right dl-sheet-sticky-actual">
                             <input type="number" step="1" class="form-input w-24 ml-auto text-right production-actual-input"
                                 id="production-actual-{row.product_id}"
                                 value="{row.actual_input_value}"
@@ -1589,7 +1667,7 @@
                                 {if shift_status == 'finalized'}disabled{/if}
                                 title="Suggested book balance: {row.book_balance}; clear and save for not counted">
                         </td>
-                        {if can_view_production_variance}<td class="text-right production-variance">{if row.calc_variance_present}{row.calc_variance}{/if}</td>{/if}
+                        {if can_view_production_variance}<td class="text-right production-variance dl-sheet-sticky-variance">{if row.calc_variance_present}{row.calc_variance}{/if}</td>{/if}
                     </tr>
                     {/foreach}
                 </tbody>
@@ -2531,5 +2609,12 @@
     }
 </script>
 
+<script>
+/* The sidebar defaults to collapsed, so its menu items are icon-only. Copy each item's existing
+   accessible name onto a native tooltip so the icon can be identified on hover. A native title is
+   used rather than a CSS tooltip because the nav is a scroll container (overflow-y:auto), which
+   would clip a pseudo-element. No braces here on purpose: braces in a DiSyL template are parsed. */
+document.querySelectorAll('#wb-sidebar .wb-nav-item[aria-label]').forEach(el => el.title = el.getAttribute('aria-label'));
+</script>
 </body>
 </html>

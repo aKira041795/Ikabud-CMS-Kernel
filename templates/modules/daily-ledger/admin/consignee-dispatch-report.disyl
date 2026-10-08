@@ -4,22 +4,61 @@
 {/block}
 
 {block content}
-<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-    <div>
-        <h2 class="text-lg font-semibold text-gray-900">Consignee Dispatch Report</h2>
-        <p class="text-sm text-gray-500">
-            Dispatch valuation from recorded price snapshots — an estimate of what may be collectible.
-            It is <span class="font-semibold">not income</span> and it is <span class="font-semibold">not a receivable</span>.
-        </p>
-    </div>
-    <div class="flex items-center gap-2">
-        <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/consignee-dispatch-report">
-            <input type="date" class="form-input" name="date_from" value="{date_from}">
-            <span class="text-sm text-gray-500">to</span>
-            <input type="date" class="form-input" name="date_to" value="{date_to}">
+<div class="mb-4">
+    <h2 class="text-lg font-semibold text-gray-900">Consignee Dispatch Ledger</h2>
+    <p class="text-sm text-gray-500">
+        The proof of consignee deliveries and the pullouts/returns written off against them.
+        Values come from the price snapshot recorded when the goods left, so they estimate what may
+        still be collectible. This is <span class="font-semibold">not income</span> and it is
+        <span class="font-semibold">not a receivable</span>. A pullout or return is treated as
+        <span class="font-semibold">spoilage</span>: it is written off, not credited.
+    </p>
+</div>
+
+<div class="card mb-4">
+    <form class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end"
+          method="GET" action="{base_url}/admin/consignee-dispatch-report">
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1" for="cdr-date-from">From</label>
+            <input id="cdr-date-from" type="date" class="form-input mt-0 w-full" name="date_from" value="{date_from}">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1" for="cdr-date-to">To</label>
+            <input id="cdr-date-to" type="date" class="form-input mt-0 w-full" name="date_to" value="{date_to}">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1" for="cdr-consignee">Consignee</label>
+            <select id="cdr-consignee" class="form-input mt-0 w-full" name="consignee_id">
+                <option value="">All Consignees</option>
+                {foreach filter_consignees as c}
+                <option value="{c.id}" {if filter_consignee_id == c.id}selected{/if}>{c.code} - {c.name}</option>
+                {/foreach}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1" for="cdr-product">Product</label>
+            <select id="cdr-product" class="form-input mt-0 w-full" name="product_id">
+                <option value="">All Products</option>
+                {foreach filter_products as p}
+                <option value="{p.id}" {if filter_product_id == p.id}selected{/if}>{p.name}</option>
+                {/foreach}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1" for="cdr-shift">Shift</label>
+            <select id="cdr-shift" class="form-input mt-0 w-full" name="shift">
+                <option value="">All Shifts</option>
+                <option value="AM" {if filter_shift == 'AM'}selected{/if}>AM</option>
+                <option value="PM" {if filter_shift == 'PM'}selected{/if}>PM</option>
+            </select>
+        </div>
+        <div class="flex items-center gap-2">
             <button type="submit" class="btn btn-outline">Apply</button>
-        </form>
-    </div>
+            {if filter_consignee_id > 0 || filter_product_id > 0 || filter_shift != ''}
+            <a id="cdr-clear-filters" href="{base_url}/admin/consignee-dispatch-report" class="text-xs text-indigo-600 hover:underline">Clear</a>
+            {/if}
+        </div>
+    </form>
 </div>
 
 {if report.sales_mode == 'consignment'}
@@ -48,12 +87,13 @@
     <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
         <div>
             <h3 class="font-medium text-gray-900">Dispatch lines</h3>
-            <p class="text-xs text-gray-500">{report.row_count} line(s) between {report.date_from} and {report.date_to}.</p>
+            <p id="consignee-dispatch-count" class="text-xs text-gray-500">{report.row_count} line(s) between {report.date_from} and {report.date_to}.</p>
         </div>
         {if report.sales_mode == 'order'}
         <div class="text-right">
             <div class="text-xs text-gray-500">Dispatch valuation (from price snapshots)</div>
             <div class="text-base font-semibold text-gray-900">PHP {report.total_value | number_format:2}</div>
+            <div class="text-xs text-gray-500">Gross dispatched value — spoilage is written off against it below.</div>
             <div class="text-xs text-gray-500">Estimate only — not income and not a receivable.</div>
         </div>
         {/if}
@@ -72,15 +112,18 @@
                     <th>Consignee</th>
                     <th>Product</th>
                     <th class="text-right">Quantity</th>
-                    <th class="text-right">Unit price (snapshot)</th>
+                    <th class="text-right">Returns / Pullout</th>
+                    <th class="text-right"><span class="block">Unit price</span><span class="block text-xs font-normal text-gray-500">(snapshot)</span></th>
                     <th class="text-right">Dispatch value</th>
-                    <th>Verification (DR / provenance)</th>
+                    <th class="text-right">Spoilage value</th>
+                    <th class="text-right">Still collectible</th>
+                    <th><span class="block">Verification</span><span class="block text-xs font-normal text-gray-500">(DR / provenance)</span></th>
                     <th>Collection status</th>
                 </tr>
             </thead>
             <tbody>
                 {if report.row_count == 0}
-                <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No recorded consignee dispatches for this date range.</td></tr>
+                <tr><td colspan="11" class="px-4 py-10 text-center text-sm text-gray-500">{if filter_consignee_id > 0 || filter_product_id > 0 || filter_shift != ''}No consignee dispatches match these filters between {report.date_from} and {report.date_to}. Clear the filters to see the whole range.{else}No recorded consignee dispatches for this date range.{/if}</td></tr>
                 {/if}
                 {foreach report.rows as row}
                 <tr>
@@ -88,8 +131,27 @@
                     <td><div class="font-medium">{row.consignee_name}</div><div class="text-xs font-mono text-gray-500">{row.consignee_code}</div></td>
                     <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
                     <td class="text-right">{row.quantity}</td>
+                    <td class="text-right">
+                        {if user_role == 'admin' || user_role == 'supervisor'}
+                        <div class="inline-flex items-center justify-end gap-1">
+                            <input type="number" min="0" step="1" value="{row.returned_qty}"
+                                   class="form-input mt-0 w-20 text-right consignee-return-input"
+                                   aria-label="Returns / Pullout for {row.product_name}"
+                                   data-consignee-id="{row.consignee_id}" data-product-id="{row.product_id}"
+                                   data-ledger-date="{row.dispatch_date}" data-shift="{row.shift}">
+                            <button type="button" class="btn btn-outline px-2 py-1 consignee-return-save">Save</button>
+                        </div>
+                        {else}
+                        {row.returned_qty}
+                        {/if}
+                    </td>
                     <td class="text-right">{row.unit_price | number_format:2}</td>
-                    <td class="text-right font-semibold">{row.dispatch_value | number_format:2}</td>
+                    <td class="text-right">{row.dispatch_value | number_format:2}</td>
+                    <td class="text-right text-gray-600">
+                        {row.spoilage_value | number_format:2}
+                        {if row.returned_qty > 0}<div class="text-xs font-normal text-gray-500">written off as spoilage</div>{/if}
+                    </td>
+                    <td class="text-right font-semibold">{row.net_value | number_format:2}</td>
                     <td>{row.verification}</td>
                     <td>{row.collection_status}</td>
                 </tr>
@@ -98,4 +160,49 @@
         </table>
     </div>
 </div>
+
+<script>
+(function () {
+    var table = document.getElementById('consignee-dispatch-report-table');
+    if (!table) return;
+    table.addEventListener('click', function (event) {
+        var button = event.target.closest('.consignee-return-save');
+        if (!button) return;
+        var input = button.parentElement.querySelector('.consignee-return-input');
+        if (!input || !input.checkValidity()) {
+            if (input) input.reportValidity();
+            return;
+        }
+        var quantity = Number(input.value);
+        if (!Number.isInteger(quantity) || quantity < 0) {
+            showToast('Return quantity must be a whole number of zero or more.', 'error');
+            return;
+        }
+        button.disabled = true;
+        window.dlWriteTimeout('{base_url}/api/v1/deliveries/consignee-return', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                consignee_id: Number(input.dataset.consigneeId),
+                product_id: Number(input.dataset.productId),
+                ledger_date: input.dataset.ledgerDate,
+                shift: input.dataset.shift,
+                quantity: quantity
+            })
+        }, 'This consignee return').then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (body) {
+                if (!response.ok || !body.ok) throw new Error(body.error || 'Return was not saved.');
+                showToast('Return / pullout saved', 'success');
+                window.location.reload();
+            });
+        }).catch(function (error) {
+            button.disabled = false;
+            var message = error && error.dlTimedOut
+                ? window.dlWriteTimeoutMessage('This consignee return')
+                : ((error && error.message) || 'Return was not saved.');
+            showToast(message, 'error');
+        });
+    });
+}());
+</script>
 {/block}

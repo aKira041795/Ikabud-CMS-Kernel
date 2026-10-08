@@ -194,6 +194,7 @@ return [
         '/daily-ledger/api/v1/deliveries/post'            => 'daily-ledger:apiPostDelivery',
         '/daily-ledger/api/v1/deliveries/review-provenance' => 'daily-ledger:apiReviewDeliveryProvenance',
         '/daily-ledger/api/v1/deliveries/correct-consignee-discrepancy' => 'daily-ledger:apiCorrectConsigneeDeliveryDiscrepancy',
+        '/daily-ledger/api/v1/deliveries/consignee-return' => 'daily-ledger:apiRecordConsigneeReturn',
         '/daily-ledger/api/v1/deliveries/void'            => 'daily-ledger:apiVoidDelivery',
         '/daily-ledger/api/v1/admin/deliveries/change-destination' => 'daily-ledger:apiChangeDeliveryDestination',
 
