@@ -147,6 +147,7 @@ return [
         '/daily-ledger/api/v1/admin/branches'            => 'daily-ledger:apiCreateBranch',
         '/daily-ledger/api/v1/admin/branches/update'     => 'daily-ledger:apiUpdateBranch',
         '/daily-ledger/api/v1/admin/consignees'          => 'daily-ledger:apiSaveConsignee',
+        '/daily-ledger/api/v1/admin/consignees/products' => 'daily-ledger:apiBulkAssignConsigneeProducts',
         '/daily-ledger/api/v1/admin/branches/products'   => 'daily-ledger:apiBulkAssignBranchProducts',
 
         // Admin: user management

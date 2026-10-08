@@ -32,10 +32,16 @@ function probe(string $label, bool $ok, string $detail = ''): void {
     printf("  %s %s%s\n", $ok ? 'PASS' : 'FAIL', $label, $detail !== '' ? "  ($detail)" : '');
 }
 function columnExists($db, string $table, string $col): bool {
+    // SHOW COLUMNS, NOT information_schema. Under modulePushContext the kernel forbids the system
+    // schema — "Access to system schema 'information_schema' is forbidden for modules" — so an
+    // information_schema probe throws, the try/catch below swallows it, and the check silently
+    // returns false. That is a FALSE RED that fails correct work (measured 2026-10-08: this gate
+    // reported area=0 address=0 price_group_id=0 against three columns that demonstrably existed).
     try {
-        $s = $db->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
-        $s->execute([$table, $col]);
-        return (int)$s->fetchColumn() > 0;
+        foreach ($db->query("SHOW COLUMNS FROM `{$table}`")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            if ((string)$c['Field'] === $col) { return true; }
+        }
+        return false;
     } catch (\Throwable $e) { return false; }
 }
 
@@ -66,13 +72,19 @@ foreach ([$CODE, $CODE2] as $c) {
     if ($id > 0) { $db->exec("DELETE FROM dl_consignees WHERE id = $id"); }
 }
 
-/** Find a non-default price group so "it saved" cannot be confused with "it defaulted". */
+/** Find a non-default price group so "it saved" cannot be confused with "it defaulted".
+ *  Tenant 207 has NONE (measured: 0 rows), so create a fixture one and remove it afterwards —
+ *  otherwise the gate cannot build its own fixture and reports a false red. */
 $pgId = 0;
+$createdPg = false;
 try {
     $pgId = (int)$db->query('SELECT id FROM dl_price_groups WHERE is_default = 0 ORDER BY id LIMIT 1')->fetchColumn();
 } catch (\Throwable $e) { $pgId = 0; }
 if ($pgId <= 0) {
-    $pgId = (int)$db->query('SELECT id FROM dl_price_groups ORDER BY id DESC LIMIT 1')->fetchColumn();
+    $db->prepare("INSERT INTO dl_price_groups (name, type, is_default, is_active) VALUES (?, 'other', 0, 1)")
+       ->execute([$TAG . ' Fixture Price Group']);
+    $pgId = (int)$db->lastInsertId();
+    $createdPg = true;
 }
 
 $payload = ['consignee_id' => 0, 'code' => $CODE, 'name' => 'S3 Gate Consignee',
@@ -116,7 +128,9 @@ foreach ([$CODE, $CODE2] as $c) {
     $id = (int)$db->query('SELECT id FROM dl_consignees WHERE code = ' . $db->quote($c))->fetchColumn();
     if ($id > 0) { $db->exec("DELETE FROM dl_consignees WHERE id = $id"); }
 }
-$leaked = (int)$db->query("SELECT COUNT(*) FROM dl_consignees WHERE code LIKE '" . $TAG . "%'")->fetchColumn();
+if ($createdPg) { $db->exec('DELETE FROM dl_price_groups WHERE id = ' . (int)$pgId); }
+$leaked = (int)$db->query("SELECT COUNT(*) FROM dl_consignees WHERE code LIKE '" . $TAG . "%'")->fetchColumn()
+        + (int)$db->query("SELECT COUNT(*) FROM dl_price_groups WHERE name LIKE '" . $TAG . "%'")->fetchColumn();
 probe('E pin: fixture cleaned up', $leaked === 0, "leaked=$leaked");
 
 $failed = array_values(array_filter($results, static fn(array $r): bool => !$r[1]));

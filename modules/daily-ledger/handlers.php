@@ -2912,9 +2912,15 @@ function dl_applyConsigneeLedgerDelta($db, int $guardBranchId, int $consigneeId,
         throw new \RuntimeException('Reverse quantity exceeds consignee custody stock.');
     }
     if (!$row) {
+        $priceGroupStmt = $db->prepare('SELECT price_group_id FROM dl_consignees WHERE id = :id LIMIT 1');
+        $priceGroupStmt->execute([':id' => $consigneeId]);
+        $consigneePriceGroupId = $priceGroupStmt->fetchColumn();
+        $priceGroupId = $consigneePriceGroupId !== false && $consigneePriceGroupId !== null
+            ? (int)$consigneePriceGroupId
+            : dl_defaultPriceGroupId();
         $db->prepare('INSERT INTO dl_consignee_ledger (consignee_id, product_id, ledger_date, shift, price_snapshot, addtl, withdraw, encoded_by, updated_by) VALUES (:c, :p, :d, :s, :price, :a, :w, :u, :u2)')->execute([
             ':c' => $consigneeId, ':p' => $productId, ':d' => $ledgerDate, ':s' => $shift,
-            ':price' => dl_resolveProductPrice($productId, dl_defaultPriceGroupId(), $ledgerDate),
+            ':price' => dl_resolveProductPrice($productId, $priceGroupId, $ledgerDate),
             ':a' => max(0, $delta), ':w' => max(0, -$delta),
             ':u' => $actorId > 0 ? $actorId : null, ':u2' => $actorId > 0 ? $actorId : null,
         ]);
@@ -6025,6 +6031,52 @@ function dl_bulkAssignBranchProductsCore($db, int $branchId, array $desiredProdu
     }
 
     return ['ok' => true, 'added' => $toAdd, 'removed' => $toRemove, 'warnings' => $warnings];
+}
+
+/**
+ * ALL-OR-NOTHING bulk reassignment of one consignee's active-product checklist.
+ * Consignee custody has no nullable ending-entry workflow, so there is no
+ * branch-style unfinished-ending blocker; entity/catalog validation and the
+ * transaction remain the refusal boundary.
+ *
+ * @param array<int,int> $desiredProductIds
+ * @return array{ok:bool,added:array<int,int>,removed:array<int,int>,warnings:array}
+ */
+function dl_bulkAssignConsigneeProductsCore($db, int $consigneeId, array $desiredProductIds, ?int $actorId = null): array
+{
+    $desired = [];
+    foreach ($desiredProductIds as $pid) {
+        $pid = (int)$pid;
+        if ($pid > 0) $desired[$pid] = $pid;
+    }
+
+    $activeProducts = [];
+    foreach ($db->query('SELECT id FROM dl_products WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $activeProducts[(int)$row['id']] = true;
+    }
+    $desired = array_values(array_filter(array_values($desired), static fn(int $pid): bool => isset($activeProducts[$pid])));
+
+    $stmt = $db->prepare('SELECT cp.product_id FROM dl_consignee_products cp INNER JOIN dl_products p ON p.id = cp.product_id AND p.is_active = 1 WHERE cp.consignee_id = :cid AND cp.is_active = 1');
+    $stmt->execute([':cid' => $consigneeId]);
+    $current = array_map(static fn(array $row): int => (int)$row['product_id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    $toAdd = array_values(array_diff($desired, $current));
+    $toRemove = array_values(array_diff($current, $desired));
+
+    $branchStmt = $db->prepare('SELECT assigned_commissary_id FROM dl_consignees WHERE id = :id LIMIT 1');
+    $branchStmt->execute([':id' => $consigneeId]);
+    $auditBranchId = (int)$branchStmt->fetchColumn();
+
+    $upsert = $db->prepare('INSERT INTO dl_consignee_products (consignee_id, product_id, is_active) VALUES (:cid, :pid, :active) ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)');
+    foreach ($toAdd as $pid) {
+        $upsert->execute([':cid' => $consigneeId, ':pid' => $pid, ':active' => 1]);
+        dl_auditLog('consignee_product_assigned', $auditBranchId, 'dl_consignee_products', "{$consigneeId}-{$pid}", null, ['is_active' => 1, 'refused' => false, 'actor_id' => $actorId], 'product assigned to consignee');
+    }
+    foreach ($toRemove as $pid) {
+        $upsert->execute([':cid' => $consigneeId, ':pid' => $pid, ':active' => 0]);
+        dl_auditLog('consignee_product_unassigned', $auditBranchId, 'dl_consignee_products', "{$consigneeId}-{$pid}", ['is_active' => 1], ['is_active' => 0, 'refused' => false, 'actor_id' => $actorId], 'product unassigned from consignee');
+    }
+
+    return ['ok' => true, 'added' => $toAdd, 'removed' => $toRemove, 'warnings' => []];
 }
 
 /**
@@ -15625,11 +15677,12 @@ function handleAdminProducts(array $params = []): void
     // assignment tab is the per-branch picker on that SAME page.
     $tab = trim((string)($input['tab'] ?? ''));
     $selectedBranchId = isset($input['branch_id']) && $input['branch_id'] !== '' ? (int)$input['branch_id'] : 0;
+    $selectedConsigneeId = isset($input['consignee_id']) && $input['consignee_id'] !== '' ? (int)$input['consignee_id'] : 0;
     $today = dl_businessDate();
     $effectivePrice = dl_effectivePriceSql('p', ':product_price_at');
 
     $products = [];
-    if ($tab !== 'assignment') {
+    if ($tab !== 'assignment' && $tab !== 'consignee_assignment') {
         $sql = 'SELECT p.*, ' . $effectivePrice . ' AS current_price,
                    (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS branch_count,
                    (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS assigned_branch_ids,
@@ -15651,8 +15704,11 @@ function handleAdminProducts(array $params = []): void
     // Shared by the assignment selector and the product modal's branch pickers.
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // ── Assignment tab: one branch's full checklist ─────────────────────
+    $consignees = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // ── Assignment tabs: one destination's full checklist ───────────────
     $assignmentBranch = null;
+    $assignmentConsignee = null;
     $assignmentProducts = [];
     $warningGroups = [];
     if ($tab === 'assignment') {
@@ -15706,6 +15762,33 @@ function handleAdminProducts(array $params = []): void
                 ];
             }
         }
+    } elseif ($tab === 'consignee_assignment') {
+        if ($selectedConsigneeId <= 0 && $consignees !== []) {
+            $selectedConsigneeId = (int)$consignees[0]['id'];
+        }
+        foreach ($consignees as $consignee) {
+            if ((int)$consignee['id'] === $selectedConsigneeId) {
+                $assignmentConsignee = $consignee;
+                break;
+            }
+        }
+        if ($assignmentConsignee === null && $consignees !== []) {
+            $assignmentConsignee = $consignees[0];
+            $selectedConsigneeId = (int)$assignmentConsignee['id'];
+        }
+        if ($assignmentConsignee !== null) {
+            $pStmt = $ctx->db()->prepare(
+                'SELECT p.*, CASE WHEN cp.is_active = 1 THEN 1 ELSE 0 END AS assigned,
+                        (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS assigned_branch_ids,
+                        (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY) ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
+                   FROM dl_products p
+                   LEFT JOIN dl_consignee_products cp ON cp.product_id = p.id AND cp.consignee_id = :cid
+                  WHERE p.is_active = 1
+                  ORDER BY p.sort_order, p.name'
+            );
+            $pStmt->execute([':cid' => $selectedConsigneeId, ':product_label_at' => $today]);
+            $assignmentProducts = $pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
     }
 
     $role = (string)($user['role'] ?? '');
@@ -15719,11 +15802,14 @@ function handleAdminProducts(array $params = []): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'products' => $products,
         'branches' => $branches,
+        'consignees' => $consignees,
         'search' => $search,
         'today' => $today,
         'tab' => $tab,
         'branch_id' => $selectedBranchId,
+        'consignee_id' => $selectedConsigneeId,
         'assignment_branch' => $assignmentBranch,
+        'assignment_consignee' => $assignmentConsignee,
         'assignment_products' => $assignmentProducts,
         'warning_groups' => $warningGroups,
     ]);
@@ -15810,6 +15896,48 @@ function apiBulkAssignBranchProducts(array $params = []): void
             'branch_id' => $branchId,
         ]);
         $ctx->json(['ok' => false, 'error' => 'Failed to save branch products'], 500);
+    }
+}
+
+/** POST /daily-ledger/api/v1/admin/consignees/products */
+function apiBulkAssignConsigneeProducts(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $consigneeId = (int)($input['consignee_id'] ?? 0);
+    $productIds = isset($input['product_ids']) && is_array($input['product_ids']) ? $input['product_ids'] : [];
+    if ($consigneeId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'consignee_id is required'], 422);
+        return;
+    }
+
+    $stmt = $ctx->db()->prepare('SELECT id, name FROM dl_consignees WHERE id = :id AND is_active = 1 LIMIT 1');
+    $stmt->execute([':id' => $consigneeId]);
+    if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
+        $ctx->json(['ok' => false, 'error' => 'Active consignee not found'], 404);
+        return;
+    }
+
+    try {
+        $ctx->db()->beginTransaction();
+        $result = dl_bulkAssignConsigneeProductsCore($ctx->db(), $consigneeId, $productIds, dl_getActorUserId($user));
+        $ctx->db()->commit();
+        app()->cache()->clearByTags('daily-ledger', ['dl_products']);
+        $ctx->json(['ok' => true, 'added' => count($result['added']), 'removed' => count($result['removed']), 'warnings' => []]);
+    } catch (\Throwable $e) {
+        try {
+            if ($ctx->db()->inTransaction()) $ctx->db()->rollBack();
+        } catch (\Throwable $ignored) {
+        }
+        write_log('daily-ledger apiBulkAssignConsigneeProducts failed', 'error', ['error' => $e->getMessage(), 'consignee_id' => $consigneeId]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to save consignee products', 'refused' => []], 500);
     }
 }
 
@@ -16708,7 +16836,7 @@ function handleAdminBranches(array $params = []): void
     // Commissary candidates for the supply-mode picker (any active branch flagged as commissary).
     $commStmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name');
     $commissaries = $commStmt ? ($commStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
-    $consigneeSql = 'SELECT c.id, c.code, c.name, c.assigned_commissary_id, c.is_active, b.code AS commissary_code, b.name AS commissary_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id WHERE 1=1';
+    $consigneeSql = 'SELECT c.id, c.code, c.name, c.area, c.address, c.price_group_id, c.assigned_commissary_id, c.is_active, b.code AS commissary_code, b.name AS commissary_name, pg.name AS price_group_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id LEFT JOIN dl_price_groups pg ON pg.id = c.price_group_id WHERE 1=1';
     $consigneeBind = [];
     if ($search !== '') {
         $consigneeSql .= ' AND (c.name LIKE :cq OR c.code LIKE :cq2)';
@@ -16756,7 +16884,11 @@ function apiSaveConsignee(array $params = []): void
     $id = (int)($input['consignee_id'] ?? 0);
     $code = strtoupper(trim((string)($input['code'] ?? '')));
     $name = trim((string)($input['name'] ?? ''));
+    $area = trim((string)($input['area'] ?? ''));
+    $address = trim((string)($input['address'] ?? ''));
     $commissaryId = (int)($input['assigned_commissary_id'] ?? 0);
+    $priceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== '' && $input['price_group_id'] !== null
+        ? (int)$input['price_group_id'] : null;
     $active = !empty($input['is_active']) ? 1 : 0;
     if ($code === '' || $name === '' || $commissaryId <= 0) {
         $ctx->json(['ok' => false, 'error' => 'Code, name, and assigned commissary are required.'], 422);
@@ -16768,10 +16900,18 @@ function apiSaveConsignee(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Assigned commissary must be an active commissary branch.'], 422);
         return;
     }
+    if ($priceGroupId !== null) {
+        $priceGroup = $ctx->db()->prepare('SELECT id FROM dl_price_groups WHERE id = :id LIMIT 1');
+        $priceGroup->execute([':id' => $priceGroupId]);
+        if (!$priceGroup->fetchColumn()) {
+            $ctx->json(['ok' => false, 'error' => 'Price group does not exist.'], 422);
+            return;
+        }
+    }
     try {
         if ($id > 0) {
-            $stmt = $ctx->db()->prepare('UPDATE dl_consignees SET code = :code, name = :name, assigned_commissary_id = :commissary, is_active = :active WHERE id = :id');
-            $stmt->execute([':code' => $code, ':name' => $name, ':commissary' => $commissaryId, ':active' => $active, ':id' => $id]);
+            $stmt = $ctx->db()->prepare('UPDATE dl_consignees SET code = :code, name = :name, area = :area, address = :address, assigned_commissary_id = :commissary, price_group_id = :price_group, is_active = :active WHERE id = :id');
+            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':id' => $id]);
             if ($stmt->rowCount() === 0) {
                 $found = $ctx->db()->prepare('SELECT id FROM dl_consignees WHERE id = :id');
                 $found->execute([':id' => $id]);
@@ -16779,12 +16919,12 @@ function apiSaveConsignee(array $params = []): void
             }
             $action = 'consignee_updated';
         } else {
-            $stmt = $ctx->db()->prepare('INSERT INTO dl_consignees (code, name, assigned_commissary_id, is_active) VALUES (:code, :name, :commissary, :active)');
-            $stmt->execute([':code' => $code, ':name' => $name, ':commissary' => $commissaryId, ':active' => $active]);
+            $stmt = $ctx->db()->prepare('INSERT INTO dl_consignees (code, name, area, address, assigned_commissary_id, price_group_id, is_active) VALUES (:code, :name, :area, :address, :commissary, :price_group, :active)');
+            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active]);
             $id = (int)$ctx->db()->lastInsertId();
             $action = 'consignee_created';
         }
-        dl_auditLog($action, $commissaryId, 'dl_consignees', (string)$id, null, ['code' => $code, 'name' => $name, 'assigned_commissary_id' => $commissaryId, 'is_active' => $active, 'actor_id' => dl_getActorUserId($user)]);
+        dl_auditLog($action, $commissaryId, 'dl_consignees', (string)$id, null, ['code' => $code, 'name' => $name, 'area' => $area !== '' ? $area : null, 'address' => $address !== '' ? $address : null, 'assigned_commissary_id' => $commissaryId, 'price_group_id' => $priceGroupId, 'is_active' => $active, 'actor_id' => dl_getActorUserId($user)]);
         $ctx->json(['ok' => true, 'consignee_id' => $id]);
     } catch (\Throwable $e) {
         $status = $e instanceof \RuntimeException && in_array($e->getCode(), [404, 422], true) ? $e->getCode() : 422;
@@ -18673,8 +18813,9 @@ function handleAdminCommissary(): void
         ];
     }
 
-    // Consignee custody is a separate, read-only sheet. Only consignees supplied
-    // by this sheet's commissary and with a row on the selected date are shown.
+    // Consignee custody is a separate, read-only sheet. Only active consignees
+    // supplied by this commissary, assigned this product, and carrying a row on
+    // the selected date are shown.
     $consigneeSheetSql = 'SELECT c.id AS consignee_id, c.code AS consignee_code, c.name AS consignee_name,
                                 l.product_id, p.name AS product_name, p.sku,
                                 SUM(l.beg_bal) AS beg_bal, SUM(l.addtl) AS addtl,
@@ -18683,8 +18824,10 @@ function handleAdminCommissary(): void
                            FROM dl_consignee_ledger l
                            INNER JOIN dl_consignees c ON c.id = l.consignee_id
                            INNER JOIN dl_products p ON p.id = l.product_id
+                           INNER JOIN dl_consignee_products cp ON cp.consignee_id = c.id AND cp.product_id = p.id AND cp.is_active = 1
                           WHERE l.ledger_date = :date
-                            AND c.assigned_commissary_id = :commissary';
+                            AND c.assigned_commissary_id = :commissary
+                            AND c.is_active = 1';
     $consigneeSheetBind = [':date' => $rawDate, ':commissary' => $sheetSourceBranchId];
     if ($shift !== null) {
         $consigneeSheetSql .= ' AND l.shift = :shift';
@@ -18694,6 +18837,9 @@ function handleAdminCommissary(): void
     $consigneeSheetStmt = $db->prepare($consigneeSheetSql);
     $consigneeSheetStmt->execute($consigneeSheetBind);
     $consigneeSheetRows = $consigneeSheetStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $consigneeAssignmentStmt = $db->prepare('SELECT COUNT(*) FROM dl_consignee_products cp INNER JOIN dl_consignees c ON c.id = cp.consignee_id AND c.is_active = 1 INNER JOIN dl_products p ON p.id = cp.product_id AND p.is_active = 1 WHERE c.assigned_commissary_id = :commissary AND cp.is_active = 1');
+    $consigneeAssignmentStmt->execute([':commissary' => $sheetSourceBranchId]);
+    $consigneeAssignmentCount = (int)$consigneeAssignmentStmt->fetchColumn();
 
     // Historical NULL-shift rows remain explicitly unshifted; they are never
     // assigned to AM or PM. The selected shift only reads shift-keyed rows.
@@ -18840,6 +18986,7 @@ function handleAdminCommissary(): void
         'summary_rows' => $summaryRows,
         'daily_sheet_rows' => $dailySheetRows,
         'consignee_sheet_rows' => $consigneeSheetRows,
+        'consignee_assignment_count' => $consigneeAssignmentCount,
         'sheet_branches' => $sheetBranches,
         'sheet_source_branch_id' => $sheetSourceBranchId,
         'sheet_source_branch_name' => $sheetSourceBranchName,

@@ -53,6 +53,7 @@
     "dl_commissary_product_ledger",
     "dl_delivery_ledger_effects",
     "dl_consignees",
+    "dl_consignee_products",
     "dl_consignee_ledger",
     "dl_consignee_ledger_effects",
     "dl_integrity_notifications",
@@ -163,7 +164,9 @@
     "database/migrations/079_snapshot_withdrawal_encoder_name.sql",
     "database/migrations/080_declared_receiving_shift.sql",
     "database/migrations/081_consignee_destinations.sql",
-    "database/migrations/082_consignee_discrepancy_effects.sql"
+    "database/migrations/082_consignee_discrepancy_effects.sql",
+    "database/migrations/083_consignee_products.sql",
+    "database/migrations/084_consignee_destination_details.sql"
   ],
   "capabilities": {
     "exposes": [

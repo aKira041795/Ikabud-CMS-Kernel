@@ -70,24 +70,30 @@
 {block content}
 <div class="mb-4 border-b border-gray-200">
     <nav class="flex gap-1" aria-label="Products sections" data-products-tabs>
-        <a href="{base_url}/admin/products" data-tab-products {if tab == 'assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
-           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment'}text-gray-500 hover:text-gray-700{else}border-b-2 border-indigo-600 text-indigo-700{/if}">Products</a>
-        <a href="{base_url}/admin/products?tab=assignment" data-tab-assignment {if tab == 'assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
+        <a href="{base_url}/admin/products" data-tab-products {if tab == 'assignment' || tab == 'consignee_assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
+           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment' || tab == 'consignee_assignment'}text-gray-500 hover:text-gray-700{else}border-b-2 border-indigo-600 text-indigo-700{/if}">Products</a>
+        <a href="{base_url}/admin/products?tab=assignment" data-tab-assignment {if tab == 'assignment' || tab == 'consignee_assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
            class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment'}border-b-2 border-indigo-600 text-indigo-700{else}text-gray-500 hover:text-gray-700{/if}">Show in Branches</a>
+        <a href="{base_url}/admin/products?tab=consignee_assignment" data-tab-consignee-assignment {if tab == 'assignment' || tab == 'consignee_assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
+           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'consignee_assignment'}border-b-2 border-indigo-600 text-indigo-700{else}text-gray-500 hover:text-gray-700{/if}">Show in Consignees</a>
     </nav>
 </div>
 
-{if tab == 'assignment'}
+{if tab == 'assignment' || tab == 'consignee_assignment'}
 <div class="card mb-4">
     <div class="card-body flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
             <form method="GET" action="{base_url}/admin/products" onsubmit="return window.dlLoadForm(this)" data-picker-branch-form>
-                <input type="hidden" name="tab" value="assignment">
-                <label class="form-label" for="picker-branch">Branch being edited</label>
-                <select class="form-input sm:w-80" id="picker-branch" name="branch_id" onchange="changePickerBranch(this)" data-picker-branch>
-                    {foreach branches as b}
+                {if tab == 'assignment'}<input type="hidden" name="tab" value="assignment">{/if}
+                {if tab == 'consignee_assignment'}<input type="hidden" name="tab" value="consignee_assignment">{/if}
+                <label class="form-label" for="picker-branch">{if tab == 'assignment'}Branch{else}Consignee{/if} being edited</label>
+                <select class="form-input sm:w-80" id="picker-branch" name="{if tab == 'assignment'}branch_id{else}consignee_id{/if}" onchange="changePickerBranch(this)" data-picker-branch>
+                    {if tab == 'assignment'}{foreach branches as b}
                     <option value="{b.id}" {if b.id == branch_id}selected{/if}>{b.code} — {b.name}{if b.is_commissary == 1} (commissary){/if}</option>
-                    {/foreach}
+                    {/foreach}{/if}
+                    {if tab == 'consignee_assignment'}{foreach consignees as c}
+                    <option value="{c.id}" {if c.id == consignee_id}selected{/if}>{c.code} — {c.name}</option>
+                    {/foreach}{/if}
                 </select>
             </form>
             <div>
@@ -107,15 +113,16 @@
             <span class="font-semibold text-gray-900" id="picker-visible-count">{assignment_products | length}</span>
             matching
             <span class="mx-2 text-gray-300" aria-hidden="true">|</span>
-            <span id="picker-checked-count">0</span> shown in branch
+            <span id="picker-checked-count">0</span> shown in {if tab == 'assignment'}branch{else}consignee{/if}
         </div>
     </div>
 </div>
 
-{if assignment_branch}
+{if assignment_branch || assignment_consignee}
 <div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
     Editing products for
-    <span class="font-semibold" data-picker-branch-name>{assignment_branch.code} — {assignment_branch.name}</span>
+    {if assignment_branch}<span class="font-semibold" data-picker-branch-name>{assignment_branch.code} — {assignment_branch.name}</span>{/if}
+    {if assignment_consignee}<span class="font-semibold" data-picker-branch-name>{assignment_consignee.code} — {assignment_consignee.name}</span>{/if}
     {if assignment_branch.is_commissary == 1}<span class="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">COMMISSARY</span>{/if}
 </div>
 {/if}
@@ -166,7 +173,7 @@
                 {foreach assignment_products as p}
                 <tr class="picker-row" data-product-id="{p.id}">
                     <td>
-                        <input type="checkbox" id="picker-product-{p.id}" class="picker-check" value="{p.id}" data-initial="{p.assigned}" {if p.assigned == 1}checked{/if} onchange="pickerSelectionChanged()" aria-label="Show {p.name} in this branch" data-product-check>
+                        <input type="checkbox" id="picker-product-{p.id}" class="picker-check" value="{p.id}" data-initial="{p.assigned}" {if p.assigned == 1}checked{/if} onchange="pickerSelectionChanged()" aria-label="Show {p.name} in this {if tab == 'assignment'}branch{else}consignee{/if}" data-product-check>
                     </td>
                     <td class="picker-sku font-mono text-xs text-gray-500">{p.sku}</td>
                     <td class="picker-name font-medium text-gray-900"><label for="picker-product-{p.id}">{p.name}</label></td>
@@ -194,7 +201,7 @@
 <div id="picker-warning" class="hidden mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status" aria-live="polite" tabindex="-1" data-picker-save-warning></div>
 
 <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
-    <a href="{base_url}/admin/branches" class="btn btn-outline" onclick="return pickerLeaveAssignment(event, this.href)">Back to branches</a>
+    <a href="{base_url}/admin/branches" class="btn btn-outline" onclick="return pickerLeaveAssignment(event, this.href)">Back to {if tab == 'assignment'}branches{else}consignees{/if}</a>
     <button type="button" class="btn btn-outline" id="picker-discard" onclick="discardPickerChanges()" disabled>Discard changes</button>
     <button type="button" class="btn btn-primary" id="picker-save" onclick="submitPicker()" disabled data-picker-save>Save changes</button>
 </div>
@@ -682,7 +689,8 @@
     }
 
     // ── Assignment tab (Slice B) — picker behaviour ────────────────────
-    var PICKER_BRANCH_ID = {branch_id | default:0};
+    var PICKER_BRANCH_ID = {if tab == 'consignee_assignment'}{consignee_id | default:0}{else}{branch_id | default:0}{/if};
+    var PICKER_IS_CONSIGNEE = {if tab == 'consignee_assignment'}true{else}false{/if};
 
     function pickerEscape(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -815,7 +823,7 @@
 
     function openPickerProduct(button) {
         if (pickerDirty) {
-            showToast('Save or discard this branch’s changes before opening a product.', 'warning');
+            showToast('Save or discard this destination’s changes before opening a product.', 'warning');
             document.getElementById('picker-change-summary').focus();
             return;
         }
@@ -894,10 +902,14 @@
         });
         btn.disabled = true;
         btn.textContent = 'Saving...';
-        fetch(BASE + '/api/v1/admin/branches/products', {
+        var pickerEndpoint = PICKER_IS_CONSIGNEE ? '/api/v1/admin/consignees/products' : '/api/v1/admin/branches/products';
+        var pickerPayload = PICKER_IS_CONSIGNEE
+            ? { consignee_id: PICKER_BRANCH_ID, product_ids: ids }
+            : { branch_id: PICKER_BRANCH_ID, product_ids: ids };
+        fetch(BASE + pickerEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ branch_id: PICKER_BRANCH_ID, product_ids: ids })
+            body: JSON.stringify(pickerPayload)
         })
         .then(function (r) { return r.json(); })
         .then(function (res) {
@@ -928,7 +940,7 @@
     updatePickerChangeSummary();
     filterPicker();
     window.onbeforeunload = function () {
-        if (pickerDirty) { return 'You have unsaved branch product changes.'; }
+        if (pickerDirty) { return 'You have unsaved destination product changes.'; }
     };
 
     // Clicking the overlay background closes the modal (delegated so it survives

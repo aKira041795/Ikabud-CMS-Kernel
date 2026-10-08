@@ -1756,8 +1756,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {if consignee_sheet_rows | count == 0}
-                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No consignee ledger activity for this commissary and date.</td></tr>
+                        {if consignee_sheet_rows | count == 0 && consignee_assignment_count == 0}
+                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No products are assigned to active consignees for this commissary. Use Products → Show in Consignees to choose what appears here.</td></tr>
+                        {/if}
+                        {if consignee_sheet_rows | count == 0 && consignee_assignment_count > 0}
+                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
                         {/if}
                         {foreach consignee_sheet_rows as row}
                         <tr>
