@@ -39,6 +39,7 @@
                 "/daily-ledger/admin/products/export",
                 "/daily-ledger/admin/reconciliation",
                 "/daily-ledger/admin/sales",
+                "/daily-ledger/admin/consignee-dispatch-report",
                 "/daily-ledger/admin/settings",
                 "/daily-ledger/admin/settings/backup-download",
                 "/daily-ledger/admin/usage",
@@ -389,6 +390,21 @@
                 "app-shell",
                 "page-header",
                 "entity-list",
+                "responsive-table"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-consignee-dispatch-report",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/consignee-dispatch-report",
+            "roles": [
+                "admin",
+                "supervisor",
+                "auditor"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
                 "responsive-table"
             ]
         },

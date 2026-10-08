@@ -764,6 +764,13 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
                 </a>
 
+                <a href="{base_url}/admin/consignee-dispatch-report"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'consignee_dispatch'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Consignee Dispatch Report">
+                    <i class="fas fa-file-invoice w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Consignee Dispatch</span>
+                </a>
+
                 {if feature_pos}
                 <a href="{base_url}/admin/pos-sales"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'pos_sales'}bg-white/10 ring-1 ring-white/10{/if}"
@@ -1744,18 +1751,7 @@
                 </div>
             </div>
             <div class="card-body border-b border-slate-200">
-                {if consignee_sales_mode == 'consignment'}
-                <div id="consignee-sales-mode-banner" class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                    <span class="font-semibold">Active mode: Consignment — sold pieces only.</span>
-                    On consignment — sold pieces not recorded yet. Goods shown below remain in the consignee's custody, so no amount for collection can be calculated.
-                </div>
-                {/if}
-                {if consignee_sales_mode == 'order'}
-                <div id="consignee-sales-mode-banner" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                    <span class="font-semibold">Active mode: Order — all items considered sold.</span>
-                    Every dispatched piece is treated as sold; the consignee is a debtor for the for-collection amounts shown from stored dispatch price snapshots.
-                </div>
-                {/if}
+                <p class="text-xs text-gray-500">This is a stock (custody) view. Quantities only — dispatched value belongs on Sales &rarr; Consignee Dispatch Report.</p>
             </div>
             <div class="table-wrap">
                 <table id="consignee-production-ledger-table">
@@ -1767,18 +1763,14 @@
                             <th class="text-right">ADDTL</th>
                             <th class="text-right">WITHDRAWALS</th>
                             <th class="text-right">ENDING</th>
-                            {if consignee_sales_mode == 'order'}
-                            <th class="text-right">SOLD</th>
-                            <th class="text-right">FOR COLLECTION</th>
-                            {/if}
                         </tr>
                     </thead>
                     <tbody>
                         {if consignee_sheet_rows | count == 0 && consignee_assignment_count == 0}
-                        <tr><td colspan="{if consignee_sales_mode == 'order'}8{else}6{/if}" class="px-4 py-10 text-center text-sm text-gray-500">No products are assigned to active consignees for this commissary. Use Products → Show in Consignees to choose what appears here.</td></tr>
+                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No products are assigned to active consignees for this commissary. Use Products → Show in Consignees to choose what appears here.</td></tr>
                         {/if}
                         {if consignee_sheet_rows | count == 0 && consignee_assignment_count > 0}
-                        <tr><td colspan="{if consignee_sales_mode == 'order'}8{else}6{/if}" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
+                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
                         {/if}
                         {foreach consignee_sheet_rows as row}
                         <tr>
@@ -1788,10 +1780,6 @@
                             <td class="text-right font-semibold text-emerald-700">{row.addtl}</td>
                             <td class="text-right font-semibold text-amber-700">{row.withdraw_qty}</td>
                             <td class="text-right font-semibold">{row.ending_qty}</td>
-                            {if consignee_sales_mode == 'order'}
-                            <td class="text-right font-semibold text-emerald-700">{row.sold_qty}</td>
-                            <td class="text-right font-semibold text-emerald-700">PHP {row.for_collection | number_format:2}</td>
-                            {/if}
                         </tr>
                         {/foreach}
                     </tbody>

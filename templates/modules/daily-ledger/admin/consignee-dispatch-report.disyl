@@ -1,0 +1,101 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Consignee Dispatch Report</h2>
+        <p class="text-sm text-gray-500">
+            Dispatch valuation from recorded price snapshots — an estimate of what may be collectible.
+            It is <span class="font-semibold">not income</span> and it is <span class="font-semibold">not a receivable</span>.
+        </p>
+    </div>
+    <div class="flex items-center gap-2">
+        <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/consignee-dispatch-report">
+            <input type="date" class="form-input" name="date_from" value="{date_from}">
+            <span class="text-sm text-gray-500">to</span>
+            <input type="date" class="form-input" name="date_to" value="{date_to}">
+            <button type="submit" class="btn btn-outline">Apply</button>
+        </form>
+    </div>
+</div>
+
+{if report.sales_mode == 'consignment'}
+<div id="consignee-dispatch-mode-consignment" class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 mb-6">
+    <span class="font-semibold">Consignment mode: sold pieces are not recorded yet.</span>
+    Each row below is the dispatch valuation from the price snapshot stored when the goods left.
+    Because nothing has been reported sold, this view reports no collection total and no money total.
+</div>
+{/if}
+
+{if report.sales_mode == 'order'}
+<div id="consignee-dispatch-mode-order" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 mb-6">
+    <span class="font-semibold">Order mode: dispatched pieces are treated as sold.</span>
+    The dispatch valuation below is estimated from the recorded price snapshots.
+    It is not a receivable and no revenue is booked here — collection is not tracked as AR.
+</div>
+{/if}
+
+{if !report.consignee_enabled}
+<div id="consignee-dispatch-feature-off" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-6">
+    New consignee setup and dispatches are disabled in settings. Recorded dispatch history remains visible below.
+</div>
+{/if}
+
+<div class="card p-0 overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div>
+            <h3 class="font-medium text-gray-900">Dispatch lines</h3>
+            <p class="text-xs text-gray-500">{report.row_count} line(s) between {report.date_from} and {report.date_to}.</p>
+        </div>
+        {if report.sales_mode == 'order'}
+        <div class="text-right">
+            <div class="text-xs text-gray-500">Dispatch valuation (from price snapshots)</div>
+            <div class="text-base font-semibold text-gray-900">PHP {report.total_value | number_format:2}</div>
+            <div class="text-xs text-gray-500">Estimate only — not income and not a receivable.</div>
+        </div>
+        {/if}
+        {if report.sales_mode == 'consignment'}
+        <div class="text-right">
+            <div class="text-xs text-gray-500">Collection total</div>
+            <div class="text-base font-semibold text-gray-700">Not reported — sold pieces are not recorded yet</div>
+        </div>
+        {/if}
+    </div>
+    <div class="table-wrap">
+        <table id="consignee-dispatch-report-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Consignee</th>
+                    <th>Product</th>
+                    <th class="text-right">Quantity</th>
+                    <th class="text-right">Unit price (snapshot)</th>
+                    <th class="text-right">Dispatch value</th>
+                    <th>Verification (DR / provenance)</th>
+                    <th>Collection status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if report.row_count == 0}
+                <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No recorded consignee dispatches for this date range.</td></tr>
+                {/if}
+                {foreach report.rows as row}
+                <tr>
+                    <td class="whitespace-nowrap">{row.dispatch_date}{if row.shift} · {row.shift}{/if}</td>
+                    <td><div class="font-medium">{row.consignee_name}</div><div class="text-xs font-mono text-gray-500">{row.consignee_code}</div></td>
+                    <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
+                    <td class="text-right">{row.quantity}</td>
+                    <td class="text-right">{row.unit_price | number_format:2}</td>
+                    <td class="text-right font-semibold">{row.dispatch_value | number_format:2}</td>
+                    <td>{row.verification}</td>
+                    <td>{row.collection_status}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}

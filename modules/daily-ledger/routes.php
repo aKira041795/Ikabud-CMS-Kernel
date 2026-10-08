@@ -19,6 +19,7 @@ return [
         '/daily-ledger/admin/production-output'    => 'daily-ledger:handleAdminProductionOutputRedirect',
         '/daily-ledger/admin/commissary'           => 'daily-ledger:handleAdminCommissary',
         '/daily-ledger/admin/sales'                => 'daily-ledger:handleAdminSales',
+        '/daily-ledger/admin/consignee-dispatch-report' => 'daily-ledger:handleAdminConsigneeDispatchReport',
         '/daily-ledger/admin/variances'            => 'daily-ledger:handleAdminVariances',
         '/daily-ledger/admin/reconciliation'       => 'daily-ledger:handleAdminReconciliation',
         '/daily-ledger/admin/reports'              => 'daily-ledger:handleAdminReports',

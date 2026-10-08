@@ -549,6 +549,16 @@
       ]
     },
     {
+      "label": "Consignee Dispatch Report",
+      "url": "/daily-ledger/admin/consignee-dispatch-report",
+      "icon": "file-invoice",
+      "roles": [
+        "admin",
+        "supervisor",
+        "auditor"
+      ]
+    },
+    {
       "label": "POS Sales",
       "url": "/daily-ledger/admin/pos-sales",
       "icon": "receipt",

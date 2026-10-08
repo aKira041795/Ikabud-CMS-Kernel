@@ -12559,6 +12559,61 @@ function handleAdminSales(array $params = []): void
     ]);
 }
 
+/**
+ * Sales -> Consignee Dispatch Report page.
+ *
+ * Read-only: this view never creates or changes a dispatch, so it is safe to
+ * reach even when the consignee feature toggle is off. Recorded dispatch
+ * history is never hidden by a settings change; the toggle only withholds NEW
+ * work (there is none to offer here).
+ */
+function handleAdminConsigneeDispatchReport(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    $input = $ctx->input();
+
+    $dateFrom = trim((string)($input['date_from'] ?? ''));
+    $dateTo = trim((string)($input['date_to'] ?? ''));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $dateFrom = dl_businessDate();
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $dateTo = $dateFrom;
+    }
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
+
+    $report = dl_fetchConsigneeDispatchReport($ctx->db(), [
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'consignee_id' => (int)($input['consignee_id'] ?? 0),
+        'product_id' => (int)($input['product_id'] ?? 0),
+        'shift' => (string)($input['shift'] ?? ''),
+    ]);
+
+    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+
+    echo dlRender('modules/daily-ledger/admin/consignee-dispatch-report.disyl', [
+        'page_title' => 'Consignee Dispatch Report',
+        'user_name' => $userName,
+        'user_role' => (string)($user['role'] ?? 'unknown'),
+        'current_page' => 'consignee_dispatch',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'report' => $report,
+    ]);
+}
+
 function handleAdminProductionOutputRedirect(array $params = []): void
 {
     dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
@@ -18630,11 +18685,13 @@ function handleAdminUsage(): void
 }
 
 /**
- * Read the consignee custody sheet and its order-mode monetary lens.
+ * Read the consignee CUSTODY sheet: quantities only.
  *
- * sold_qty deliberately means dispatched ADDTL pieces, and for_collection uses
- * each ledger row's immutable price_snapshot. The selected sales mode never
- * enters this query and therefore cannot alter custody or posting.
+ * This is a stock document, so it carries no money. The order-mode monetary
+ * lens that used to live here (sold_qty / for_collection) was removed in slice
+ * 8 and now lives on Sales -> Consignee Dispatch Report, built from the same
+ * dl_consignee_ledger price snapshots. The selected sales mode never enters
+ * this query and therefore cannot alter custody or posting.
  */
 function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?string $shift): array
 {
@@ -18642,9 +18699,7 @@ function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?strin
                    l.product_id, p.name AS product_name, p.sku,
                    SUM(l.beg_bal) AS beg_bal, SUM(l.addtl) AS addtl,
                    SUM(l.withdraw) AS withdraw_qty,
-                   SUM(l.beg_bal + l.addtl - l.withdraw) AS ending_qty,
-                   SUM(l.addtl) AS sold_qty,
-                   SUM(l.addtl * COALESCE(l.price_snapshot, 0)) AS for_collection
+                   SUM(l.beg_bal + l.addtl - l.withdraw) AS ending_qty
               FROM dl_consignee_ledger l
               INNER JOIN dl_consignees c ON c.id = l.consignee_id
               INNER JOIN dl_products p ON p.id = l.product_id
@@ -18661,6 +18716,151 @@ function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?strin
     $stmt = $db->prepare($sql);
     $stmt->execute($bind);
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * Build the Sales -> Consignee Dispatch Report.
+ *
+ * Commercial subject, never a stock or custody one. Each row is a dispatch
+ * line sourced from the EXISTING records: dl_consignee_ledger carries the
+ * dispatched quantity (addtl) and the immutable price_snapshot; the
+ * dl_consignee_ledger_effects -> dl_deliveries bridge supplies the DR number
+ * and provenance verification status. No new ledger is invented here.
+ *
+ * The value is a DISPATCH VALUATION from recorded price snapshots - an
+ * estimate of what may be collectible, never booked income and never an
+ * accounts-receivable balance (no consignee AR exists). In consignment mode
+ * there are no sold quantities, so the payload reports the mode and carries a
+ * NULL total (never 0 or "PHP 0.00", which would read as a real zero).
+ *
+ * The feature toggle never hides recorded history: rows are returned whatever
+ * consignee_enabled says. The caller only uses that flag to withhold new work.
+ *
+ * MySQL 5.7-safe: a plain LEFT JOIN to a grouped derived table (no CTE, no
+ * window function, no JSON_TABLE).
+ *
+ * @param array{date_from?:string,date_to?:string,consignee_id?:int,product_id?:int,shift?:string} $filters
+ * @return array{sales_mode:string,consignee_enabled:bool,rows:array<int,array<string,mixed>>,total_value:?float,row_count:int}
+ */
+function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
+{
+    $mode = dl_normalizeConsigneeSalesMode(dlModuleSettings()['consignee_sales_mode'] ?? null);
+    $enabled = dl_isConsigneeEnabled();
+
+    $dateFrom = (string)($filters['date_from'] ?? '');
+    $dateTo = (string)($filters['date_to'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $dateFrom = dl_businessDate();
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $dateTo = $dateFrom;
+    }
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
+
+    $sql = 'SELECT l.ledger_date AS dispatch_date, l.shift,
+                   c.id AS consignee_id, c.code AS consignee_code, c.name AS consignee_name,
+                   l.product_id, p.name AS product_name, p.sku,
+                   SUM(l.addtl) AS quantity,
+                   MAX(l.price_snapshot) AS unit_price,
+                   SUM(l.addtl * COALESCE(l.price_snapshot, 0)) AS dispatch_value,
+                   MAX(d.dr_number) AS dr_number,
+                   MAX(d.provenance_status) AS provenance_status,
+                   MAX(d.status) AS delivery_status
+              FROM dl_consignee_ledger l
+              INNER JOIN dl_consignees c ON c.id = l.consignee_id
+              INNER JOIN dl_products p ON p.id = l.product_id
+              LEFT JOIN (
+                  SELECT e.consignee_id, e.product_id, e.ledger_date, e.shift,
+                         MAX(e.delivery_id) AS delivery_id
+                    FROM dl_consignee_ledger_effects e
+                   WHERE e.effect_kind = \'credit\'
+                     AND e.effect_status = \'applied\'
+                   GROUP BY e.consignee_id, e.product_id, e.ledger_date, e.shift
+              ) lx ON lx.consignee_id = l.consignee_id
+                  AND lx.product_id = l.product_id
+                  AND lx.ledger_date = l.ledger_date
+                  AND lx.shift = l.shift
+              LEFT JOIN dl_deliveries d ON d.id = lx.delivery_id
+             WHERE l.addtl > 0
+               AND l.ledger_date BETWEEN :date_from AND :date_to';
+    $bind = [':date_from' => $dateFrom, ':date_to' => $dateTo];
+
+    $consigneeId = (int)($filters['consignee_id'] ?? 0);
+    if ($consigneeId > 0) {
+        $sql .= ' AND l.consignee_id = :consignee_id';
+        $bind[':consignee_id'] = $consigneeId;
+    }
+    $productId = (int)($filters['product_id'] ?? 0);
+    if ($productId > 0) {
+        $sql .= ' AND l.product_id = :product_id';
+        $bind[':product_id'] = $productId;
+    }
+    $shift = strtoupper(trim((string)($filters['shift'] ?? '')));
+    if (in_array($shift, ['AM', 'PM'], true)) {
+        $sql .= ' AND l.shift = :shift';
+        $bind[':shift'] = $shift;
+    }
+
+    $sql .= ' GROUP BY l.ledger_date, l.shift, c.id, c.code, c.name, l.product_id, p.name, p.sku'
+        . ' ORDER BY l.ledger_date DESC, c.name, p.name';
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+    $rawRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $rows = [];
+    $total = 0.0;
+    foreach ($rawRows as $r) {
+        $quantity = (int)($r['quantity'] ?? 0);
+        $unitPrice = (float)($r['unit_price'] ?? 0);
+        $dispatchValue = (float)($r['dispatch_value'] ?? 0);
+        $total += $dispatchValue;
+        $verification = 'Unverified';
+        if (!empty($r['dr_number']) || !empty($r['provenance_status'])) {
+            $provenance = (string)($r['provenance_status'] ?? 'none');
+            $verification = trim((string)($r['dr_number'] ?? '')) !== ''
+                ? (string)$r['dr_number'] . ' - ' . $provenance
+                : $provenance;
+        }
+        $rows[] = [
+            'dispatch_date' => (string)($r['dispatch_date'] ?? ''),
+            'shift' => (string)($r['shift'] ?? ''),
+            'consignee_id' => (int)($r['consignee_id'] ?? 0),
+            'consignee_code' => (string)($r['consignee_code'] ?? ''),
+            'consignee_name' => (string)($r['consignee_name'] ?? ''),
+            'product_id' => (int)($r['product_id'] ?? 0),
+            'product_name' => (string)($r['product_name'] ?? ''),
+            'sku' => (string)($r['sku'] ?? ''),
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'dispatch_value' => $dispatchValue,
+            'dr_number' => $r['dr_number'] ?? null,
+            'provenance_status' => $r['provenance_status'] ?? null,
+            'delivery_status' => $r['delivery_status'] ?? null,
+            'verification' => $verification,
+            // No consignee AR exists, so this is a status, not a balance. In
+            // consignment mode the pieces are still in custody and nothing was
+            // reported sold; in order mode the dispatch is treated as sold but
+            // collection is still not tracked as a receivable.
+            'collection_status' => $mode === 'order'
+                ? 'Treated as sold - no collection record'
+                : 'In custody - no collection recorded',
+        ];
+    }
+
+    return [
+        'sales_mode' => $mode,
+        'consignee_enabled' => $enabled,
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'rows' => $rows,
+        'row_count' => count($rows),
+        // HONESTY: consignment mode has no sold quantities, so there is no
+        // money TOTAL to show. Null (not 0, not PHP 0.00) says "not recorded".
+        'total_value' => $mode === 'order' ? round($total, 2) : null,
+    ];
 }
 
 function handleAdminCommissary(): void
