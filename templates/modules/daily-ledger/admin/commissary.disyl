@@ -1296,6 +1296,11 @@
 {/if}
 <!-- Tab 1: Daily Sheet -->
 <div id="tab-daily-sheet" class="tab-panel">
+    <div class="mb-5 flex gap-2 border-b border-gray-200 print-hidden">
+        <button type="button" id="production-destination-tab-branches" class="px-4 py-2 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-700" onclick="switchProductionDestinationTab('branches')">Branches</button>
+        <button type="button" id="production-destination-tab-consignees" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-gray-500" onclick="switchProductionDestinationTab('consignees')">Consignees</button>
+    </div>
+    <div id="production-destination-panel-branches">
     <!-- Print-only identity header. Hidden on screen (.hidden); the print stylesheet
          reveals it so the printed sheet names the commissary, date, shift and day
          status. Plain text only — no controls. -->
@@ -1730,6 +1735,47 @@
     </div>
 </div>
 
+    <div id="production-destination-panel-consignees" class="hidden">
+        <div class="card mb-6">
+            <div class="card-header">
+                <div>
+                    <span>Consignee Daily Sheet — {date}{if shift} · {shift}{else} · All shifts{/if}</span>
+                    <div class="text-xs text-gray-500">Only consignees supplied by {sheet_source_branch_name} with ledger activity on this date are shown.</div>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table id="consignee-production-ledger-table">
+                    <thead>
+                        <tr>
+                            <th>Consignee</th>
+                            <th>Product</th>
+                            <th class="text-right">BEG</th>
+                            <th class="text-right">ADDTL</th>
+                            <th class="text-right">WITHDRAWALS</th>
+                            <th class="text-right">ENDING</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {if consignee_sheet_rows | count == 0}
+                        <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No consignee ledger activity for this commissary and date.</td></tr>
+                        {/if}
+                        {foreach consignee_sheet_rows as row}
+                        <tr>
+                            <td><div class="font-medium">{row.consignee_name}</div><div class="text-xs font-mono text-gray-500">{row.consignee_code}</div></td>
+                            <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
+                            <td class="text-right">{row.beg_bal}</td>
+                            <td class="text-right font-semibold text-emerald-700">{row.addtl}</td>
+                            <td class="text-right font-semibold text-amber-700">{row.withdraw_qty}</td>
+                            <td class="text-right font-semibold">{row.ending_qty}</td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 {if can_view_production_management}
 <!-- Dispatch to Branch -->
 <div class="card mt-6">
@@ -1814,6 +1860,22 @@
 
 
 <script>
+    function switchProductionDestinationTab(tab) {
+        var active = tab === 'consignees' ? 'consignees' : 'branches';
+        ['branches', 'consignees'].forEach(function(kind) {
+            var panel = document.getElementById('production-destination-panel-' + kind);
+            var button = document.getElementById('production-destination-tab-' + kind);
+            var selected = kind === active;
+            if (panel) panel.classList.toggle('hidden', !selected);
+            if (button) {
+                button.classList.toggle('border-indigo-600', selected);
+                button.classList.toggle('text-indigo-700', selected);
+                button.classList.toggle('border-transparent', !selected);
+                button.classList.toggle('text-gray-500', !selected);
+            }
+        });
+    }
+
     function switchCommissaryTab(tab) {
         var tabs = ['inventory', 'deliveries', 'pullouts', 'summary', 'daily-sheet'];
         tabs.forEach(function(t) {

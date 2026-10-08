@@ -162,7 +162,8 @@
     "database/migrations/078_sheet_entry_branch_link_finding_type.sql",
     "database/migrations/079_snapshot_withdrawal_encoder_name.sql",
     "database/migrations/080_declared_receiving_shift.sql",
-    "database/migrations/081_consignee_destinations.sql"
+    "database/migrations/081_consignee_destinations.sql",
+    "database/migrations/082_consignee_discrepancy_effects.sql"
   ],
   "capabilities": {
     "exposes": [

@@ -126,6 +126,7 @@
                 "/daily-ledger/api/v1/commissary/run",
                 "/daily-ledger/api/v1/deliveries/create",
                 "/daily-ledger/api/v1/deliveries/post",
+                "/daily-ledger/api/v1/deliveries/correct-consignee-discrepancy",
                 "/daily-ledger/api/v1/deliveries/review-provenance",
                 "/daily-ledger/api/v1/deliveries/void",
                 "/daily-ledger/api/v1/pos/cart/abandon",
@@ -1543,6 +1544,33 @@
         {
             "id": "action-daily-ledger-api-v1-deliveries-post",
             "route": "/daily-ledger/api/v1/deliveries/post",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-deliveries-correct-consignee-discrepancy",
+            "route": "/daily-ledger/api/v1/deliveries/correct-consignee-discrepancy",
             "method": "POST",
             "requires": {
                 "authenticated": true,

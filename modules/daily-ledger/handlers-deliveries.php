@@ -366,6 +366,13 @@ function dl_isPaperDrCapturedDelivery(array $delivery): bool
     return (string)($delivery['remarks'] ?? '') === dl_paperDrCaptureRemark();
 }
 
+/** Branch cashier dispatches still require receiving; only consignees gain this path. */
+function dl_isProvenanceReviewEligible(array $delivery): bool
+{
+    return dl_isPaperDrCapturedDelivery($delivery)
+        || (string)($delivery['destination_type'] ?? '') === 'consignee';
+}
+
 function dl_findPaperCapturedCommissaryDelivery(
     \Ikabud\Kernel\Contracts\DatabaseContract $db,
     int $branchId,
@@ -1257,6 +1264,16 @@ function apiReviewDeliveryProvenance(array $params = []): void
     $deliveryId = (int)($input['delivery_id'] ?? 0);
     $action = trim((string)($input['action'] ?? ''));
     $note = trim((string)($input['note'] ?? ''));
+    $discrepancies = [];
+    foreach ((array)($input['discrepancies'] ?? []) as $rawDiscrepancy) {
+        $productId = (int)($rawDiscrepancy['product_id'] ?? 0);
+        $receivedQty = filter_var($rawDiscrepancy['received_qty'] ?? null, FILTER_VALIDATE_INT);
+        if ($productId <= 0 || $receivedQty === false || $receivedQty < 0) {
+            $ctx->json(['ok' => false, 'error' => 'Each discrepancy needs a product and a non-negative received quantity.'], 422);
+            return;
+        }
+        $discrepancies[] = ['product_id' => $productId, 'received_qty' => $receivedQty];
+    }
 
     if ($deliveryId <= 0 || !in_array($action, ['accepted', 'discrepant', 'reopen'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid paper DR check request'], 422);
@@ -1268,8 +1285,8 @@ function apiReviewDeliveryProvenance(array $params = []): void
     }
 
     $stmt = $ctx->db()->prepare(
-        'SELECT id, origin_type, origin_id, destination_type, destination_id,
-                remarks, provenance_status, provenance_review_note
+        'SELECT id, origin_type, origin_id, destination_type, destination_id, consignee_id,
+                delivery_date, production_shift, remarks, provenance_status, provenance_review_note
            FROM dl_deliveries
           WHERE id = :id
           LIMIT 1'
@@ -1284,7 +1301,7 @@ function apiReviewDeliveryProvenance(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
         return;
     }
-    if (!dl_isPaperDrCapturedDelivery($delivery)) {
+    if (!dl_isProvenanceReviewEligible($delivery)) {
         $ctx->json(['ok' => false, 'error' => 'Only captured paper-DR deliveries can be checked here.'], 422);
         return;
     }
@@ -1307,6 +1324,13 @@ function apiReviewDeliveryProvenance(array $params = []): void
 
     $ctx->db()->prepare($sql)->execute($bind);
 
+    $correction = ['adjusted' => 0, 'correction_error' => null];
+    if ($action === 'discrepant' && (string)$delivery['destination_type'] === 'consignee' && $discrepancies !== []) {
+        $correction = dl_recordConsigneeDeliveryDiscrepancies(
+            $ctx->db(), $delivery, $discrepancies, $reviewerId, $note
+        );
+    }
+
     dl_auditLog('review_delivery_provenance', (int)($delivery['destination_id'] ?? 0) ?: null, 'dl_deliveries', (string)$deliveryId, [
         'provenance_status' => (string)($delivery['provenance_status'] ?? 'none'),
         'provenance_review_note' => (string)($delivery['provenance_review_note'] ?? ''),
@@ -1317,7 +1341,57 @@ function apiReviewDeliveryProvenance(array $params = []): void
         'reviewed_by_role' => $role,
     ]);
 
-    $ctx->json(['ok' => true, 'provenance_status' => $newStatus]);
+    $meta = dlDeliveryProvenanceStatusMeta($newStatus);
+    $ctx->json([
+        'ok' => true,
+        'provenance_status' => $newStatus,
+        'provenance_status_label' => $meta['label'],
+        'provenance_status_badge_classes' => $meta['badge_classes'],
+        'provenance_reviewer_name' => $action === 'reopen' ? null : (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? ''),
+    ]);
+}
+
+/** Apply an explicit correction after provenance evidence has been saved. */
+function apiCorrectConsigneeDeliveryDiscrepancy(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor']);
+    $actorId = dl_getActorUserId($user);
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $deliveryId = (int)($input['delivery_id'] ?? 0);
+    $note = trim((string)($input['note'] ?? ''));
+    $counts = [];
+    foreach ((array)($input['discrepancies'] ?? []) as $raw) {
+        $productId = (int)($raw['product_id'] ?? 0);
+        $receivedQty = filter_var($raw['received_qty'] ?? null, FILTER_VALIDATE_INT);
+        if ($productId <= 0 || $receivedQty === false || $receivedQty < 0) {
+            $ctx->json(['ok' => false, 'error' => 'Each discrepancy needs a product and a non-negative received quantity.'], 422);
+            return;
+        }
+        $counts[] = ['product_id' => $productId, 'received_qty' => $receivedQty];
+    }
+    if ($deliveryId <= 0 || $counts === []) {
+        $ctx->json(['ok' => false, 'error' => 'Delivery and discrepancy quantities are required.'], 422);
+        return;
+    }
+
+    $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, destination_type, destination_id, consignee_id, delivery_date, production_shift, remarks FROM dl_deliveries WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $deliveryId]);
+    $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$delivery) { $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404); return; }
+    if (!dl_deliveryRecordAuthorized($user, $delivery)) { $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403); return; }
+    if ((string)$delivery['destination_type'] !== 'consignee') {
+        $ctx->json(['ok' => false, 'error' => 'Only consignee discrepancies use this correction path.'], 422);
+        return;
+    }
+
+    $result = dl_recordConsigneeDeliveryDiscrepancies($ctx->db(), $delivery, $counts, $actorId, $note, true);
+    if ($result['correction_error'] !== null) {
+        $ctx->json(['ok' => false, 'error' => $result['correction_error'], 'evidence_saved' => true], 422);
+        return;
+    }
+    $ctx->json(['ok' => true, 'adjusted' => $result['adjusted']]);
 }
 
 function apiListDeliveries(array $params = []): void
@@ -1433,11 +1507,13 @@ function apiListDeliveries(array $params = []): void
                    CASE WHEN ' . $hasReceivingSql . ' THEN 1 ELSE 0 END AS has_receiving,
                    d.created_at, d.posted_at, d.voided_at,
                    d.remarks, d.provenance_status, d.provenance_reviewed_at, d.provenance_review_note,
+                   (SELECT COALESCE(SUM(di_total.quantity), 0) FROM dl_delivery_items di_total WHERE di_total.delivery_id = d.id) AS sent_quantity,
                    CASE WHEN d.remarks = :paper_dr_remark THEN 1 ELSE 0 END AS is_paper_dr_exception,
+                   CASE WHEN d.remarks = :paper_dr_remark2 OR d.destination_type = "consignee" THEN 1 ELSE 0 END AS is_provenance_reviewable,
                    ru.username AS provenance_reviewer_name,
                    CASE
                        WHEN d.origin_type = "commissary" THEN "Commissary"
-                       WHEN d.origin_type = "branch" THEN COALESCE(ob.name, CONCAT("Branch #", d.origin_id))
+                       WHEN d.origin_type = "branch" THEN COALESCE(CONCAT(ob.code, " - ", ob.name), CONCAT("Branch #", d.origin_id))
                        WHEN d.origin_id IS NOT NULL AND d.origin_id > 0 THEN CONCAT(REPLACE(d.origin_type, "_", " "), " #", d.origin_id)
                        ELSE REPLACE(d.origin_type, "_", " ")
                    END AS origin_label,
@@ -1456,9 +1532,26 @@ function apiListDeliveries(array $params = []): void
          . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 200';
     $stmt = $ctx->db()->prepare($sql);
     $bind[':paper_dr_remark'] = dl_paperDrCaptureRemark();
+    $bind[':paper_dr_remark2'] = dl_paperDrCaptureRemark();
     $stmt->execute($bind);
     $deliveries = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $itemsByDelivery = [];
+    if ($deliveries !== []) {
+        $deliveryIds = array_map('intval', array_column($deliveries, 'id'));
+        $marks = implode(',', array_fill(0, count($deliveryIds), '?'));
+        $itemStmt = $ctx->db()->prepare("SELECT di.delivery_id, di.product_id, di.quantity, p.name AS product_name FROM dl_delivery_items di INNER JOIN dl_products p ON p.id = di.product_id WHERE di.delivery_id IN ($marks) ORDER BY di.id");
+        $itemStmt->execute($deliveryIds);
+        foreach ($itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $item) {
+            $itemsByDelivery[(int)$item['delivery_id']][] = [
+                'product_id' => (int)$item['product_id'],
+                'product_name' => (string)$item['product_name'],
+                'sent_qty' => (int)$item['quantity'],
+            ];
+        }
+    }
     foreach ($deliveries as &$deliveryRow) {
+        $deliveryRow['sent_quantity'] = (int)$deliveryRow['sent_quantity'];
+        $deliveryRow['items'] = $itemsByDelivery[(int)$deliveryRow['id']] ?? [];
         $statusMeta = dlDeliveryStatusMeta((string)($deliveryRow['status'] ?? ''));
         $deliveryRow['status_label'] = $statusMeta['label'];
         $deliveryRow['status_badge_classes'] = $statusMeta['badge_classes'];

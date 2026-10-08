@@ -15,14 +15,14 @@ $mode = (string)($argv[1] ?? '');
 $payloadFile = (string)($argv[2] ?? '');
 $actorId = (int)($argv[3] ?? 0);
 $role = (string)($argv[4] ?? 'cashier');
-if (!in_array($mode, ['dispatch', 'incoming', 'deliveries', 'void'], true) || !is_file($payloadFile) || $actorId <= 0) exit(2);
+if (!in_array($mode, ['dispatch', 'incoming', 'deliveries', 'void', 'review', 'correct', 'commissary'], true) || !is_file($payloadFile) || $actorId <= 0) exit(2);
 
 $payload = json_decode((string)file_get_contents($payloadFile), true) ?: [];
 $_SERVER['HTTP_HOST'] = $_SERVER['SERVER_NAME'] = 'localhost';
 $_SERVER['REQUEST_URI'] = '/daily-ledger/api/v1/consignee-fixture/' . $mode;
-$_SERVER['REQUEST_METHOD'] = in_array($mode, ['dispatch', 'void'], true) ? 'POST' : 'GET';
+$_SERVER['REQUEST_METHOD'] = in_array($mode, ['dispatch', 'void', 'review', 'correct'], true) ? 'POST' : 'GET';
 $_SERVER['CONTENT_TYPE'] = 'application/json';
-$_GET = in_array($mode, ['dispatch', 'void'], true) ? [] : $payload;
+$_GET = in_array($mode, ['dispatch', 'void', 'review', 'correct'], true) ? [] : $payload;
 
 $app = kernelCliBootstrap($basePath);
 $app->tenant()->setTenantId(207);
@@ -54,4 +54,7 @@ stream_wrapper_register('php', DlConsigneeInputWrapper::class);
 if ($mode === 'dispatch') apiCreateCashierDispatch();
 elseif ($mode === 'incoming') apiGetIncomingDeliveries();
 elseif ($mode === 'void') apiVoidDelivery();
+elseif ($mode === 'review') apiReviewDeliveryProvenance();
+elseif ($mode === 'correct') apiCorrectConsigneeDeliveryDiscrepancy();
+elseif ($mode === 'commissary') handleAdminCommissary();
 else apiListDeliveries();

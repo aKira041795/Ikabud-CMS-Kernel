@@ -2928,11 +2928,11 @@ function dl_applyConsigneeLedgerDelta($db, int $guardBranchId, int $consigneeId,
 
 function dl_applyConsigneeDeliveryCredit($db, int $deliveryId, int $deliveryItemId, int $sourceBranchId, int $consigneeId, int $productId, string $ledgerDate, int $quantity, int $actorId, string $shift): bool
 {
-    $exists = $db->prepare('SELECT effect_status FROM dl_consignee_ledger_effects WHERE delivery_item_id = :id FOR UPDATE');
+    $exists = $db->prepare('SELECT effect_status FROM dl_consignee_ledger_effects WHERE delivery_item_id = :id AND effect_kind = "credit" FOR UPDATE');
     $exists->execute([':id' => $deliveryItemId]);
     if ($exists->fetchColumn() !== false) return false;
     $state = dl_applyConsigneeLedgerDelta($db, $sourceBranchId, $consigneeId, $productId, $ledgerDate, $quantity, $actorId, $shift);
-    $db->prepare('INSERT INTO dl_consignee_ledger_effects (delivery_id, delivery_item_id, consignee_id, source_branch_id, product_id, ledger_date, shift, quantity, effect_status, applied_by, applied_at, before_qty, after_qty) VALUES (:d, :di, :c, :b, :p, :dt, :s, :q, "applied", :u, NOW(), :before, :after)')->execute([
+    $db->prepare('INSERT INTO dl_consignee_ledger_effects (delivery_id, delivery_item_id, consignee_id, source_branch_id, product_id, ledger_date, shift, quantity, effect_kind, effect_status, applied_by, applied_at, before_qty, after_qty) VALUES (:d, :di, :c, :b, :p, :dt, :s, :q, "credit", "applied", :u, NOW(), :before, :after)')->execute([
         ':d' => $deliveryId, ':di' => $deliveryItemId, ':c' => $consigneeId, ':b' => $sourceBranchId,
         ':p' => $productId, ':dt' => $ledgerDate, ':s' => $shift, ':q' => $quantity,
         ':u' => $actorId ?: null, ':before' => $state['before_qty'], ':after' => $state['after_qty'],
@@ -2941,9 +2941,93 @@ function dl_applyConsigneeDeliveryCredit($db, int $deliveryId, int $deliveryItem
     return true;
 }
 
+/**
+ * Record paper-DR evidence first, then append one idempotent correction per item.
+ * A correction failure (notably a finalized shift) never erases the evidence.
+ *
+ * @param array<int,array{product_id:int,received_qty:int}> $counts
+ * @return array{adjusted:int,correction_error:?string}
+ */
+function dl_recordConsigneeDeliveryDiscrepancies($db, array $delivery, array $counts, int $actorId, string $note, bool $applyCorrection = false): array
+{
+    $deliveryId = (int)$delivery['id'];
+    $itemsStmt = $db->prepare('SELECT id, product_id, quantity FROM dl_delivery_items WHERE delivery_id = :d ORDER BY id');
+    $itemsStmt->execute([':d' => $deliveryId]);
+    $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $byProduct = [];
+    foreach ($counts as $count) {
+        $byProduct[(int)$count['product_id']] = (int)$count['received_qty'];
+    }
+
+    // Evidence is durable independently of whether the guarded movement can run.
+    $flag = $db->prepare('INSERT INTO dl_delivery_variance_flags
+        (delivery_id, receiving_id, product_id, sent_qty, received_qty, variance, is_reviewed, reviewed_by, reviewed_at, review_note)
+        VALUES (:d, NULL, :p, :sent, :received, :variance, 0, :u, NOW(), :note)
+        ON DUPLICATE KEY UPDATE sent_qty = VALUES(sent_qty), received_qty = VALUES(received_qty),
+            variance = VALUES(variance), reviewed_by = VALUES(reviewed_by), reviewed_at = VALUES(reviewed_at), review_note = VALUES(review_note)');
+    $corrections = [];
+    foreach ($items as $item) {
+        $productId = (int)$item['product_id'];
+        if (!array_key_exists($productId, $byProduct)) continue;
+        $sent = (int)$item['quantity'];
+        $received = $byProduct[$productId];
+        if ($received < 0) throw new \InvalidArgumentException('Received quantities cannot be negative.');
+        $delta = $received - $sent;
+        if ($delta === 0) continue;
+        $flag->execute([
+            ':d' => $deliveryId, ':p' => $productId, ':sent' => $sent,
+            ':received' => $received, ':variance' => $delta,
+            ':u' => $actorId ?: null, ':note' => $note !== '' ? $note : null,
+        ]);
+        $corrections[] = [$item, $delta];
+    }
+
+    if ($corrections === [] || !$applyCorrection) return ['adjusted' => 0, 'correction_error' => null];
+
+    try {
+        $db->beginTransaction();
+        $adjusted = 0;
+        foreach ($corrections as [$item, $delta]) {
+            $existing = $db->prepare('SELECT quantity, effect_status FROM dl_consignee_ledger_effects WHERE delivery_item_id = :di AND effect_kind = "adjustment" FOR UPDATE');
+            $existing->execute([':di' => (int)$item['id']]);
+            $effect = $existing->fetch(PDO::FETCH_ASSOC) ?: null;
+            if ($effect) {
+                if ((int)$effect['quantity'] !== $delta || (string)$effect['effect_status'] !== 'applied') {
+                    throw new \RuntimeException('This discrepancy already has a different correction. Reopen and review the existing adjustment.');
+                }
+                continue;
+            }
+            $state = dl_applyConsigneeLedgerDelta(
+                $db, (int)$delivery['origin_id'], (int)$delivery['consignee_id'],
+                (int)$item['product_id'], (string)$delivery['delivery_date'], $delta,
+                $actorId, (string)($delivery['production_shift'] ?? 'AM')
+            );
+            $db->prepare('INSERT INTO dl_consignee_ledger_effects
+                (delivery_id, delivery_item_id, consignee_id, source_branch_id, product_id, ledger_date, shift,
+                 quantity, effect_kind, effect_status, applied_by, applied_at, before_qty, after_qty)
+                VALUES (:d, :di, :c, :b, :p, :dt, :s, :q, "adjustment", "applied", :u, NOW(), :before, :after)')->execute([
+                ':d' => $deliveryId, ':di' => (int)$item['id'], ':c' => (int)$delivery['consignee_id'],
+                ':b' => (int)$delivery['origin_id'], ':p' => (int)$item['product_id'],
+                ':dt' => (string)$delivery['delivery_date'], ':s' => (string)($delivery['production_shift'] ?? 'AM'),
+                ':q' => $delta, ':u' => $actorId ?: null,
+                ':before' => $state['before_qty'], ':after' => $state['after_qty'],
+            ]);
+            dl_auditLog('consignee_ledger_adjusted', (int)$delivery['origin_id'], 'dl_consignee_ledger_effects', (string)$db->lastInsertId(), ['quantity' => $state['before_qty']], ['quantity' => $state['after_qty'], 'delivery_id' => $deliveryId]);
+            $adjusted++;
+        }
+        $db->commit();
+        return ['adjusted' => $adjusted, 'correction_error' => null];
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        return ['adjusted' => 0, 'correction_error' => $e->getMessage()];
+    }
+}
+
 function dl_reverseConsigneeDeliveryCredits($db, int $deliveryId, int $actorId): int
 {
-    $stmt = $db->prepare('SELECT * FROM dl_consignee_ledger_effects WHERE delivery_id = :id ORDER BY id FOR UPDATE');
+    // Undo adjustments before the original credit. A short-to-zero correction
+    // would otherwise try to remove the credit from a zero net balance first.
+    $stmt = $db->prepare('SELECT * FROM dl_consignee_ledger_effects WHERE delivery_id = :id ORDER BY (effect_kind = "adjustment") DESC, id DESC FOR UPDATE');
     $stmt->execute([':id' => $deliveryId]);
     $reversed = 0;
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $effect) {
@@ -18468,6 +18552,28 @@ function handleAdminCommissary(): void
         ];
     }
 
+    // Consignee custody is a separate, read-only sheet. Only consignees supplied
+    // by this sheet's commissary and with a row on the selected date are shown.
+    $consigneeSheetSql = 'SELECT c.id AS consignee_id, c.code AS consignee_code, c.name AS consignee_name,
+                                l.product_id, p.name AS product_name, p.sku,
+                                SUM(l.beg_bal) AS beg_bal, SUM(l.addtl) AS addtl,
+                                SUM(l.withdraw) AS withdraw_qty,
+                                SUM(l.beg_bal + l.addtl - l.withdraw) AS ending_qty
+                           FROM dl_consignee_ledger l
+                           INNER JOIN dl_consignees c ON c.id = l.consignee_id
+                           INNER JOIN dl_products p ON p.id = l.product_id
+                          WHERE l.ledger_date = :date
+                            AND c.assigned_commissary_id = :commissary';
+    $consigneeSheetBind = [':date' => $rawDate, ':commissary' => $sheetSourceBranchId];
+    if ($shift !== null) {
+        $consigneeSheetSql .= ' AND l.shift = :shift';
+        $consigneeSheetBind[':shift'] = $shift;
+    }
+    $consigneeSheetSql .= ' GROUP BY c.id, c.code, c.name, l.product_id, p.name, p.sku ORDER BY c.name, p.name';
+    $consigneeSheetStmt = $db->prepare($consigneeSheetSql);
+    $consigneeSheetStmt->execute($consigneeSheetBind);
+    $consigneeSheetRows = $consigneeSheetStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     // Historical NULL-shift rows remain explicitly unshifted; they are never
     // assigned to AM or PM. The selected shift only reads shift-keyed rows.
     $legacySheetStmt = $db->prepare('SELECT COUNT(*) FROM dl_commissary_product_ledger WHERE commissary_branch_id = :cb AND ledger_date = :d AND shift IS NULL');
@@ -18612,6 +18718,7 @@ function handleAdminCommissary(): void
         'pullout_rows' => $pulloutRows,
         'summary_rows' => $summaryRows,
         'daily_sheet_rows' => $dailySheetRows,
+        'consignee_sheet_rows' => $consigneeSheetRows,
         'sheet_branches' => $sheetBranches,
         'sheet_source_branch_id' => $sheetSourceBranchId,
         'sheet_source_branch_name' => $sheetSourceBranchName,
