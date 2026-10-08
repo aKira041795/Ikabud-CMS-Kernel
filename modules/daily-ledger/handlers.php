@@ -929,9 +929,16 @@ function dl_commissaryDepartedQtyByProduct($db, int $commissaryId, string $date,
  * tell "compared nothing" (which must never be read as proof) apart from
  * "compared values that all happened to be zero" (a legitimate result).
  *
- * kind='value'      both sides exist and differ.
- * kind='missing_row' the derivation reports a non-zero quantity for a product
- *                   the projection has no row for.
+ * kind='value'      both sides exist and differ. This is the ONLY kind that
+ *                   reaches `mismatches`: a genuine disagreement needs a stored
+ *                   projection value to disagree with.
+ *
+ * `unrecorded` lists departures the projection does not COVER: the derivation
+ * reports a non-zero quantity for a (commissary, date, shift, product) the
+ * projection has no row for. The invariant is UNDEFINED there - there is nothing
+ * to compare - so these are neither counted in `checked` nor reported in
+ * `mismatches`. They are still surfaced, so the guard cannot silently stop
+ * noticing a departure the projection never recorded.
  *
  * `uncomparable` lists projection buckets that cannot be judged at all. A
  * legacy row whose shift IS NULL is a pre-shift-era aggregate: the derivation
@@ -943,10 +950,10 @@ function dl_commissaryDepartedQtyByProduct($db, int $commissaryId, string $date,
  * Filter arguments are optional: null means "do not filter on this". When a
  * commissary and date are pinned but the projection holds no row for them, the
  * requested bucket is still interrogated, so a departure with no projection row
- * surfaces as missing_row rather than as silence.
+ * surfaces in `unrecorded` rather than as silence.
  *
  * @param PDO|\Ikabud\Kernel\Contracts\ModuleDB $db Module gateway or raw PDO.
- * @return array{checked:int,mismatches:list<array{commissary_id:int,date:string,shift:?string,product_id:int,projection:int,derived:int,kind:string}>,uncomparable:list<array{commissary_id:int,date:string,product_id:int,projection:int,reason:string}>}
+ * @return array{checked:int,mismatches:list<array{commissary_id:int,date:string,shift:?string,product_id:int,projection:int,derived:int,kind:string}>,uncomparable:list<array{commissary_id:int,date:string,product_id:int,projection:int,reason:string}>,unrecorded:list<array{commissary_id:int,date:string,shift:?string,product_id:int,derived:int}>}
  *
  * @mysql57-compat INSPECTION-ONLY (no local 5.7 server): plain SELECTs, grouped
  * aggregates, null-safe column reads; no CTEs, no window functions, no
@@ -1009,6 +1016,7 @@ function dl_reconcileCommissaryDispatch($db, ?int $commissaryId = null, ?string 
     $checked = 0;
     $mismatches = [];
     $uncomparable = [];
+    $unrecorded = [];
     foreach ($scopes as $scope) {
         $cid = (int)$scope[0];
         $d = (string)$scope[1];
@@ -1019,11 +1027,11 @@ function dl_reconcileCommissaryDispatch($db, ?int $commissaryId = null, ?string 
         // A real legacy NULL-shift bucket cannot be compared per-shift: the
         // derivation helper treats a null shift as "no shift filter" and returns
         // the ALL-SHIFT total, which a pre-shift-era aggregate can never match.
-        // Skip BOTH directions for it - no value mismatch, and no missing_row
+        // Skip BOTH directions for it - no value mismatch, and no unrecorded
         // attribution of the all-shift total to this unshifted bucket. Report it
         // as uncomparable so a legacy tenant's state is visible, not silent.
         // (An empty synthesized scope - no projection row at all - still falls
-        // through so a departure it never recorded surfaces as missing_row.)
+        // through so a departure it never recorded surfaces in `unrecorded`.)
         if ($sKey === "\0" && $bucket !== []) {
             foreach ($bucket as $pid => $projected) {
                 $uncomparable[] = [
@@ -1057,25 +1065,27 @@ function dl_reconcileCommissaryDispatch($db, ?int $commissaryId = null, ?string 
             unset($derived[$pid]);
         }
 
-        // Any derivation left over is a departure the projection has no row for.
+        // Any derivation left over is a departure the projection has no row
+        // for. The invariant is UNDEFINED for it (there is no stored value to
+        // compare), so it is not a disagreement: record it in `unrecorded`
+        // instead. The departure stays visible - silence would be the worse
+        // failure - but it is never counted as `checked`.
         foreach ($derived as $pid => $derivedQty) {
             $derivedQty = (int)$derivedQty;
             if ($derivedQty === 0) {
                 continue;
             }
-            $mismatches[] = [
+            $unrecorded[] = [
                 'commissary_id' => $cid,
                 'date' => $d,
                 'shift' => $scopeShift,
                 'product_id' => (int)$pid,
-                'projection' => 0,
                 'derived' => $derivedQty,
-                'kind' => 'missing_row',
             ];
         }
     }
 
-    return ['checked' => $checked, 'mismatches' => $mismatches, 'uncomparable' => $uncomparable];
+    return ['checked' => $checked, 'mismatches' => $mismatches, 'uncomparable' => $uncomparable, 'unrecorded' => $unrecorded];
 }
 
 /**

@@ -69,6 +69,7 @@ function reconcileVerdict(array $recon): array
     $checked = (int)$recon['checked'];
     $mismatches = $recon['mismatches'] ?? [];
     $uncomparable = $recon['uncomparable'] ?? [];
+    $unrecorded = $recon['unrecorded'] ?? [];
     $parts = [];
     if ($checked === 0) {
         $parts[] = 'no projection rows to compare';
@@ -76,6 +77,9 @@ function reconcileVerdict(array $recon): array
     $parts[] = 'checked ' . $checked . ' value(s)';
     if ($uncomparable !== []) {
         $parts[] = count($uncomparable) . ' uncomparable (legacy null shift)';
+    }
+    if ($unrecorded !== []) {
+        $parts[] = count($unrecorded) . ' unrecorded (no projection row)';
     }
     foreach ($mismatches as $m) {
         $parts[] = sprintf(
@@ -176,12 +180,14 @@ foreach ($rows as $r) {
 $reconB = dl_reconcileCommissaryDispatch($db, $COMMISSARY, $DATE, null);
 $checkedB = (int)$reconB['checked'];
 $uncomparableB = count($reconB['uncomparable'] ?? []);
+$unrecordedB = count($reconB['unrecorded'] ?? []);
 probe(
     'B the identity BEG + ADDTL - TOTAL - WASTAGE = ACTUAL BAL still holds',
     $checkedB > 0 && $identityBreaks === [],
     ($checkedB === 0 ? 'no projection rows to compare; ' : '')
     . 'checked ' . $checkedB . ' value(s)'
     . ($uncomparableB !== [] ? '; ' . $uncomparableB . ' uncomparable (legacy null shift)' : '')
+    . ($unrecordedB > 0 ? '; ' . $unrecordedB . ' unrecorded (no projection row)' : '')
     . '; breaks: ' . ($identityBreaks === [] ? 'none' : implode(',', $identityBreaks))
 );
 

@@ -64,11 +64,21 @@ if ($sumDepartures === 0) {
     $check('missing_row absent only because every departure HAS a row', $probe['mismatches'] === []);
 } else {
     $recon = dl_reconcileCommissaryDispatch($db, 18, '2026-10-02', null);
-    $missing = array_filter($recon['mismatches'], static fn(array $m): bool => $m['kind'] === 'missing_row');
+    // Assert the OUTCOME, not a mechanism. The departures must remain VISIBLE with their
+    // quantities intact; which bucket carries them is the implementation's business. Naming
+    // `missing_row` here would re-encode the very mechanism the unrecorded-day contract
+    // replaced, and would false-fail a correct tree.
+    $reported = array_sum(array_column($recon['unrecorded'] ?? [], 'derived'))
+              + array_sum(array_column($recon['mismatches'], 'derived'));
     $check(
-        'departures with no projection row surface as missing_row',
-        $missing !== [],
-        sprintf('found %d missing_row of %d departure(s)', count($missing), count($departed))
+        'departures with no projection row stay visible, quantities intact',
+        $reported === $sumDepartures,
+        sprintf('reported %d of %d unit(s)', $reported, $sumDepartures)
+    );
+    $check(
+        'an unrecorded day is not claimed as a disagreement',
+        $recon['mismatches'] === [],
+        'mismatches=' . count($recon['mismatches'])
     );
     $check('synthesized scope was usable (uncomparable empty)', $recon['uncomparable'] === []);
 }
