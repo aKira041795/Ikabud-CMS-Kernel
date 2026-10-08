@@ -913,6 +913,172 @@ function dl_commissaryDepartedQtyByProduct($db, int $commissaryId, string $date,
 }
 
 /**
+ * Reconcile the projection against the single departure derivation.
+ *
+ * READ-ONLY. dl_commissary_product_ledger.dispatched_qty is a read model; this
+ * proves it still equals the write model it claims to mirror. It issues SELECTs
+ * only - no writes, no DDL, no side effects - so it is safe against production.
+ *
+ * dl_commissaryDepartedQtyByProduct() is the ONE owner of the departure number;
+ * this function never re-derives that SQL. Each projection row (a
+ * commissary/date/shift/product bucket) is compared against the derivation for
+ * the SAME bucket, so a multi-shift day is compared shift by shift.
+ *
+ * `checked` counts EVERY projection value actually compared. It is 0 when the
+ * projection holds no row in scope. That 0 is load-bearing: a caller can then
+ * tell "compared nothing" (which must never be read as proof) apart from
+ * "compared values that all happened to be zero" (a legitimate result).
+ *
+ * kind='value'      both sides exist and differ.
+ * kind='missing_row' the derivation reports a non-zero quantity for a product
+ *                   the projection has no row for.
+ *
+ * `uncomparable` lists projection buckets that cannot be judged at all. A
+ * legacy row whose shift IS NULL is a pre-shift-era aggregate: the derivation
+ * helper's null shift means "do not filter on shift" and returns the ALL-SHIFT
+ * total, so the per-shift invariant is undefined for it. Such a bucket is
+ * neither counted in `checked` nor reported in `mismatches` - we claim neither
+ * agreement nor disagreement.
+ *
+ * Filter arguments are optional: null means "do not filter on this". When a
+ * commissary and date are pinned but the projection holds no row for them, the
+ * requested bucket is still interrogated, so a departure with no projection row
+ * surfaces as missing_row rather than as silence.
+ *
+ * @param PDO|\Ikabud\Kernel\Contracts\ModuleDB $db Module gateway or raw PDO.
+ * @return array{checked:int,mismatches:list<array{commissary_id:int,date:string,shift:?string,product_id:int,projection:int,derived:int,kind:string}>,uncomparable:list<array{commissary_id:int,date:string,product_id:int,projection:int,reason:string}>}
+ *
+ * @mysql57-compat INSPECTION-ONLY (no local 5.7 server): plain SELECTs, grouped
+ * aggregates, null-safe column reads; no CTEs, no window functions, no
+ * JSON_TABLE. The derivation SQL is reused unchanged.
+ */
+function dl_reconcileCommissaryDispatch($db, ?int $commissaryId = null, ?string $date = null, ?string $shift = null): array
+{
+    $normalizedShift = $shift === null ? null : dl_normalizeShift($shift);
+
+    // Load the projection rows in scope. This is the read model being verified.
+    $where = [];
+    $bind = [];
+    if ($commissaryId !== null) {
+        $where[] = 'commissary_branch_id = :rec_commissary';
+        $bind[':rec_commissary'] = $commissaryId;
+    }
+    if ($date !== null) {
+        $where[] = 'ledger_date = :rec_date';
+        $bind[':rec_date'] = $date;
+    }
+    if ($normalizedShift !== null) {
+        $where[] = 'shift = :rec_shift';
+        $bind[':rec_shift'] = $normalizedShift;
+    }
+    $sql = 'SELECT commissary_branch_id, ledger_date, shift, product_id, dispatched_qty
+              FROM dl_commissary_product_ledger';
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY commissary_branch_id, ledger_date, shift, product_id';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+
+    $projection = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $cid = (int)$row['commissary_branch_id'];
+        $d = (string)$row['ledger_date'];
+        // NULL shift is a real, distinct bucket (the legacy/unshifted row); key
+        // it explicitly so it cannot collide with the 'AM'/'PM' buckets.
+        $sKey = $row['shift'] === null ? "\0" : (string)$row['shift'];
+        $pid = (int)$row['product_id'];
+        $projection[$cid][$d][$sKey][$pid] = (int)$row['dispatched_qty'];
+    }
+
+    // One derivation interrogation per projection bucket. A pinned
+    // (commissary, date) with no projection row still gets one, so a departure
+    // the projection never recorded is reported rather than skipped.
+    $scopes = [];
+    foreach ($projection as $cid => $byDate) {
+        foreach ($byDate as $d => $byShift) {
+            foreach (array_keys($byShift) as $sKey) {
+                $scopes[$cid . '|' . $d . '|' . $sKey] = [$cid, $d, $sKey];
+            }
+        }
+    }
+    if ($scopes === [] && $commissaryId !== null && $date !== null) {
+        $scopes[$commissaryId . '|' . $date . '|' . ($normalizedShift ?? "\0")] = [$commissaryId, $date, $normalizedShift ?? "\0"];
+    }
+
+    $checked = 0;
+    $mismatches = [];
+    $uncomparable = [];
+    foreach ($scopes as $scope) {
+        $cid = (int)$scope[0];
+        $d = (string)$scope[1];
+        $sKey = (string)$scope[2];
+        $scopeShift = $sKey === "\0" ? null : $sKey;
+        $bucket = $projection[$cid][$d][$sKey] ?? [];
+
+        // A real legacy NULL-shift bucket cannot be compared per-shift: the
+        // derivation helper treats a null shift as "no shift filter" and returns
+        // the ALL-SHIFT total, which a pre-shift-era aggregate can never match.
+        // Skip BOTH directions for it - no value mismatch, and no missing_row
+        // attribution of the all-shift total to this unshifted bucket. Report it
+        // as uncomparable so a legacy tenant's state is visible, not silent.
+        // (An empty synthesized scope - no projection row at all - still falls
+        // through so a departure it never recorded surfaces as missing_row.)
+        if ($sKey === "\0" && $bucket !== []) {
+            foreach ($bucket as $pid => $projected) {
+                $uncomparable[] = [
+                    'commissary_id' => $cid,
+                    'date' => $d,
+                    'product_id' => (int)$pid,
+                    'projection' => (int)$projected,
+                    'reason' => 'legacy_null_shift_cannot_be_compared_per_shift',
+                ];
+            }
+            continue;
+        }
+
+        $derived = dl_commissaryDepartedQtyByProduct($db, $cid, $d, $scopeShift);
+
+        // Compare every stored projection value in this bucket.
+        foreach ($bucket as $pid => $projected) {
+            $checked++;
+            $derivedQty = (int)($derived[$pid] ?? 0);
+            if ($projected !== $derivedQty) {
+                $mismatches[] = [
+                    'commissary_id' => $cid,
+                    'date' => $d,
+                    'shift' => $scopeShift,
+                    'product_id' => (int)$pid,
+                    'projection' => (int)$projected,
+                    'derived' => $derivedQty,
+                    'kind' => 'value',
+                ];
+            }
+            unset($derived[$pid]);
+        }
+
+        // Any derivation left over is a departure the projection has no row for.
+        foreach ($derived as $pid => $derivedQty) {
+            $derivedQty = (int)$derivedQty;
+            if ($derivedQty === 0) {
+                continue;
+            }
+            $mismatches[] = [
+                'commissary_id' => $cid,
+                'date' => $d,
+                'shift' => $scopeShift,
+                'product_id' => (int)$pid,
+                'projection' => 0,
+                'derived' => $derivedQty,
+                'kind' => 'missing_row',
+            ];
+        }
+    }
+
+    return ['checked' => $checked, 'mismatches' => $mismatches, 'uncomparable' => $uncomparable];
+}
+
+/**
  * Per-DESTINATION breakdown of what left the commissary, for the sheet's
  * destination columns only. It is NOT a second owner of the departure total:
  * dl_commissaryDepartedQtyByProduct() owns the number, and this matrix only

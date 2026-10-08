@@ -57,6 +57,35 @@ function probe(string $name, bool $ok, string $detail = ''): void
     printf("  %s %s%s\n", $ok ? 'PASS' : 'FAIL', $name, $detail !== '' ? "  ({$detail})" : '');
 }
 
+/**
+ * Turn a dl_reconcileCommissaryDispatch() result into [ok, detail].
+ *
+ * checked === 0 is a FAILURE. An empty comparison proves nothing, so it must
+ * never be read as success. checked >= 1 with no mismatches is a PASS: values
+ * were compared and agreed, even if every one of them was legitimately zero.
+ */
+function reconcileVerdict(array $recon): array
+{
+    $checked = (int)$recon['checked'];
+    $mismatches = $recon['mismatches'] ?? [];
+    $uncomparable = $recon['uncomparable'] ?? [];
+    $parts = [];
+    if ($checked === 0) {
+        $parts[] = 'no projection rows to compare';
+    }
+    $parts[] = 'checked ' . $checked . ' value(s)';
+    if ($uncomparable !== []) {
+        $parts[] = count($uncomparable) . ' uncomparable (legacy null shift)';
+    }
+    foreach ($mismatches as $m) {
+        $parts[] = sprintf(
+            '%s p%d projection=%d derived=%d',
+            (string)$m['kind'], (int)$m['product_id'], (int)$m['projection'], (int)$m['derived']
+        );
+    }
+    return [$checked > 0 && $mismatches === [], implode('; ', $parts)];
+}
+
 $COMMISSARY = 18;
 $DATE = '2026-10-07';   // the real consignee dispatch E2E-B2C-001 lives here
 
@@ -120,6 +149,10 @@ probe(
 
 // ---------------------------------------------------------------------------------------------
 // B / G — the identity holds, and ONLY dispatched moved.
+//
+// The identity is checked on the projection rows, but the anti-vacuity guard is the
+// reconciliation's `checked` count: an empty projection must FAIL here rather than pass
+// because the conjunction over zero rows is trivially true.
 // ---------------------------------------------------------------------------------------------
 $rows = $db->query(
     'SELECT product_id, beg_qty, produced_qty, dispatched_qty, wastage_qty, actual_end_qty
@@ -128,7 +161,6 @@ $rows = $db->query(
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $identityBreaks = [];
-$dispatchedMismatch = [];
 foreach ($rows as $r) {
     $pid = (int)$r['product_id'];
     $beg = (int)$r['beg_qty'];
@@ -139,46 +171,41 @@ foreach ($rows as $r) {
     if ($end !== null && $beg + $prod - $disp - $waste !== $end) {
         $identityBreaks[] = "p{$pid}";
     }
-    if ($disp !== (int)($departed[$pid] ?? 0)) {
-        $dispatchedMismatch[] = "p{$pid} projection{$disp} derivation" . (int)($departed[$pid] ?? 0);
-    }
 }
 
+$reconB = dl_reconcileCommissaryDispatch($db, $COMMISSARY, $DATE, null);
+$checkedB = (int)$reconB['checked'];
+$uncomparableB = count($reconB['uncomparable'] ?? []);
 probe(
     'B the identity BEG + ADDTL - TOTAL - WASTAGE = ACTUAL BAL still holds',
-    $rows === [] || $identityBreaks === [],
-    $rows === [] ? 'no projection rows for the date' : 'breaks: ' . implode(',', $identityBreaks)
+    $checkedB > 0 && $identityBreaks === [],
+    ($checkedB === 0 ? 'no projection rows to compare; ' : '')
+    . 'checked ' . $checkedB . ' value(s)'
+    . ($uncomparableB !== [] ? '; ' . $uncomparableB . ' uncomparable (legacy null shift)' : '')
+    . '; breaks: ' . ($identityBreaks === [] ? 'none' : implode(',', $identityBreaks))
 );
 
 // ---------------------------------------------------------------------------------------------
 // C — the projection equals the single derivation (this is the backfill's correctness).
+// Ownership of the comparison lives in dl_reconcileCommissaryDispatch(); this criterion only
+// reports it. checked === 0 is a FAILURE: a comparison over no rows proves nothing.
 // ---------------------------------------------------------------------------------------------
+$verdictC = reconcileVerdict(dl_reconcileCommissaryDispatch($db, $COMMISSARY, $DATE, null));
 probe(
     'C the projection dispatched_qty equals the single derivation',
-    $rows === [] || $dispatchedMismatch === [],
-    $rows === [] ? 'no projection rows' : 'mismatch: ' . implode(', ', $dispatchedMismatch)
+    $verdictC[0],
+    $verdictC[1]
 );
 
 // ---------------------------------------------------------------------------------------------
 // D — MESHING: one derivation, so the two consumers cannot disagree by construction.
-// Compares the derivation against the value Inventory reads (the projection), product by product.
+// Inventory reads the projection; the Daily Sheet reads the derivation. Same owner, same verdict.
 // ---------------------------------------------------------------------------------------------
-$invRows = $db->query(
-    'SELECT product_id, dispatched_qty FROM dl_commissary_product_ledger WHERE commissary_branch_id = ' . $COMMISSARY
-    . ' AND ledger_date = ' . $db->quote($DATE)
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-$meshBreaks = [];
-foreach ($invRows as $r) {
-    $pid = (int)$r['product_id'];
-    if ((int)$r['dispatched_qty'] !== (int)($departed[$pid] ?? 0)) {
-        $meshBreaks[] = "p{$pid}";
-    }
-}
+$verdictD = reconcileVerdict(dl_reconcileCommissaryDispatch($db, $COMMISSARY, $DATE, null));
 probe(
     'D MESHING Inventory and the Daily Sheet share one derivation',
-    $meshBreaks === [],
-    $meshBreaks === [] ? 'identical for ' . count($invRows) . ' product(s)' : 'divergent: ' . implode(',', $meshBreaks)
+    $verdictD[0],
+    $verdictD[1]
 );
 
 // ---------------------------------------------------------------------------------------------
