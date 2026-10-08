@@ -223,7 +223,7 @@ MySQL 5.7, with no local 5.7 server to test against, is pure risk for a naming c
 not manifest (call sites already qualify it, e.g. `cpl.calc_variance`). The two names are
 distinguishable by their table. **Item 4 is withdrawn.**
 
-### 7.3 The projection is essentially EMPTY for this tenant's history
+### 7.3 The projection is sparse here — and that is expected test state
 
 Measured while building item 1:
 
@@ -232,13 +232,22 @@ Measured while building item 1:
 - only **1 of 132** posted deliveries ever produced a `dl_delivery_ledger_effects` row, so
   `dl_applyPostedDeliveryCommissaryLedger()` (6 call sites) is newly wired and the rest predate it
 
-This is expected history, not corruption — which is exactly why the reconciliation must **not**
-report it as disagreement. It is reported in a separate `unrecorded` bucket.
+**Owner ruling (2026-10-08): do NOT backfill.** Tenant 207 is a **test server** and its database
+is a **restore from a live backup**, so a sparse or absent projection is the normal condition of
+test data rather than a production anomaly. The 95,437 figure must **not** be read as a defect in
+production.
 
-**Open, and deliberately NOT decided here:** whether the projection should be **backfilled** for
-those 42 dates. The Inventory tab can only read the projection, so 95,437 units of committed
-history are invisible there, while the Daily Sheet reads the derivation directly and shows them
-correctly. Backfilling alters historical figures, so it is the **owner's decision**.
+**Why this makes the `unrecorded` bucket load-bearing rather than tidy:** if the reconciliation
+reported those rows as mismatches, then on a test DB restored from a live backup it would emit
+~95k units of noise **on every restore**, and be distrusted or weakened within days — the same
+fate the NULL-shift false positive would have met. The bucket is what makes the reconciliation
+usable against test data at all.
+
+**Consequence to expect:** on a *fresh* restore the projection may be entirely empty, giving
+`checked = 0` and making the depletion gate FAIL with *"no projection rows to compare"*. That is
+the intended behaviour — a run that compared nothing may not report success — and is exactly the
+vacuous-pass defect repaired above. It is **not** a broken gate and must not be "fixed" by
+restoring a `$rows === [] ||` escape.
 
 ### 7.4 §1.2 restated — the formula was in three places; the *consequence* was narrower
 
