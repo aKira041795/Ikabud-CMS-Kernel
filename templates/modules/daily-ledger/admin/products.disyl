@@ -433,14 +433,14 @@
                         </select>
                     </div>
                     <div class="form-group" data-edit-assignment>
-                        <label class="form-label">Show in branches and consignees</label>
+                        <label class="form-label">Show in branches</label>
                         <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="radio" name="edit-assignment-mode" value="all_active" checked onchange="toggleEditBranchPicker()">
-                            All active branches and consignees
+                            <input type="radio" name="edit-branch-assignment-mode" value="all_active" checked onchange="toggleEditBranchPicker()">
+                            All active branches
                         </label>
                         <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
-                            <input type="radio" name="edit-assignment-mode" value="specific" onchange="toggleEditBranchPicker()">
-                            Only selected branches and consignees
+                            <input type="radio" name="edit-branch-assignment-mode" value="specific" onchange="toggleEditBranchPicker()">
+                            Only selected branches
                         </label>
                         <div id="edit-branch-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
                             {foreach branches as b}
@@ -449,7 +449,23 @@
                                 {b.code} — {b.name}
                             </label>
                             {/foreach}
-                            <div class="mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Consignees</div>
+                        </div>
+                    </div>
+                    {* Bridges and consignees have their OWN control. They used to share one, which broke
+                       the very guard it existed for: a product that was all_active for branches but
+                       specific for consignees could not be represented, so saving an unrelated edit
+                       silently rewrote the consignee intent. *}
+                    <div class="form-group" data-edit-assignment>
+                        <label class="form-label">Show in consignees</label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="radio" name="edit-consignee-assignment-mode" value="all_active" checked onchange="toggleEditConsigneePicker()">
+                            All active consignees
+                        </label>
+                        <label class="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                            <input type="radio" name="edit-consignee-assignment-mode" value="specific" onchange="toggleEditConsigneePicker()">
+                            Only selected consignees
+                        </label>
+                        <div id="edit-consignee-picker" class="mt-2 hidden max-h-40 overflow-y-auto rounded border border-gray-200 bg-white p-2">
                             {foreach consignees as c}
                             <label class="flex items-center gap-2 text-sm text-gray-700">
                                 <input type="checkbox" class="edit-consignee-check" value="{c.id}">
@@ -547,12 +563,20 @@
         document.getElementById('edit-effective-from').value = TODAY;
         document.getElementById('edit-current-price-effective').textContent = currentPriceEffectiveFrom || 'Not recorded';
         // Load the CURRENT assignment intent into the modal so opening and saving an
-        // edit cannot silently rewrite assignments (the loadiness guard). Branches and
-        // consignees share ONE mode control (chair decision 1).
-        var mode = assignmentMode || consigneeAssignmentMode || 'all_active';
-        Array.prototype.forEach.call(document.getElementsByName('edit-assignment-mode'), function (radio) {
+        // edit cannot silently rewrite assignments (the loadiness guard).
+        //
+        // Each scope loads its OWN mode. A missing stored consignee mode falls back to the
+        // branch mode, so every existing product keeps behaving exactly as it does today.
+        var mode = assignmentMode || 'all_active';
+        var consigneeMode = consigneeAssignmentMode || mode;
+        Array.prototype.forEach.call(document.getElementsByName('edit-branch-assignment-mode'), function (radio) {
             radio.checked = (radio.value === mode);
         });
+        Array.prototype.forEach.call(document.getElementsByName('edit-consignee-assignment-mode'), function (radio) {
+            radio.checked = (radio.value === consigneeMode);
+        });
+        toggleEditBranchPicker();
+        toggleEditConsigneePicker();
         var assignedSet = {};
         String(assignedBranchIdsCsv || '').split(',').forEach(function (value) {
             if (value !== '') { assignedSet[parseInt(value, 10)] = true; }
@@ -579,8 +603,13 @@
     }
 
     function toggleEditBranchPicker() {
-        var specific = document.querySelector('input[name="edit-assignment-mode"][value="specific"]');
+        var specific = document.querySelector('input[name="edit-branch-assignment-mode"][value="specific"]');
         document.getElementById('edit-branch-picker').classList.toggle('hidden', !(specific && specific.checked));
+    }
+
+    function toggleEditConsigneePicker() {
+        var specific = document.querySelector('input[name="edit-consignee-assignment-mode"][value="specific"]');
+        document.getElementById('edit-consignee-picker').classList.toggle('hidden', !(specific && specific.checked));
     }
 
     function selectedAssignmentMode(name) {
@@ -660,10 +689,10 @@
                 batch_input_qty: parseFloat(document.getElementById('edit-batch-kilo-qty').value) || null,
                 batch_egg_qty: parseFloat(document.getElementById('edit-batch-egg-qty').value) || null,
                 pcs_per_pack: parseInt(document.getElementById('edit-pcs-per-pack').value, 10) || null,
-                assignment_mode: selectedAssignmentMode('edit-assignment-mode'),
-                branch_ids: (selectedAssignmentMode('edit-assignment-mode') === 'specific') ? collectCheckedBranches('.edit-branch-check') : [],
-                consignee_assignment_mode: selectedAssignmentMode('edit-assignment-mode'),
-                consignee_ids: (selectedAssignmentMode('edit-assignment-mode') === 'specific') ? collectCheckedConsignees('.edit-consignee-check') : []
+                assignment_mode: selectedAssignmentMode('edit-branch-assignment-mode'),
+                branch_ids: (selectedAssignmentMode('edit-branch-assignment-mode') === 'specific') ? collectCheckedBranches('.edit-branch-check') : [],
+                consignee_assignment_mode: selectedAssignmentMode('edit-consignee-assignment-mode'),
+                consignee_ids: (selectedAssignmentMode('edit-consignee-assignment-mode') === 'specific') ? collectCheckedConsignees('.edit-consignee-check') : []
             })
         })
         .then(function(r) { return r.json(); })
