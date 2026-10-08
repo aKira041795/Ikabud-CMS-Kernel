@@ -62,6 +62,12 @@ function dl_productionBalance(int $beg, int $produced, int $dispatched, int $was
     return $beg + $produced - $dispatched - $wastage;
 }
 
+/** Display order for an orderable entity: numbered first (ascending), unnumbered last. */
+function dl_entityOrderBySql(string $prefix = ''): string
+{
+    return "({$prefix}sort_order = 0) ASC, {$prefix}sort_order ASC, {$prefix}name ASC";
+}
+
 function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType = null, ?string $entityId = null, $oldData = null, $newData = null, ?string $reason = null): void
 {
     $ctx = module();
@@ -8069,7 +8075,7 @@ function handleCashierLedger(array $params = []): void
                INNER JOIN dl_branches src ON src.id = :source
               WHERE c.is_active = 1
                 AND c.assigned_commissary_id = IF(src.is_commissary = 1, src.id, src.assigned_commissary_id)
-              ORDER BY c.name'
+              ORDER BY ' . dl_entityOrderBySql('c.')
         );
         $consigneeStmt->execute([':source' => $branchId]);
         $consignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -11206,7 +11212,7 @@ function apiProductionDestinations(array $params = []): void
            FROM dl_consignees c
            INNER JOIN dl_branches cb ON cb.id = c.assigned_commissary_id AND cb.is_commissary = 1
           WHERE c.is_active = 1 AND c.assigned_commissary_id IN ({$placeholders})
-          ORDER BY c.name"
+          ORDER BY " . dl_entityOrderBySql('c.')
     );
     $consigneeStmt->execute($allowedBranchIds);
 
@@ -15124,7 +15130,7 @@ function handleAdminActivity(array $params = []): void
     }
     unset($branchOption);
 
-    $consigneesStmt = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 ORDER BY name');
+    $consigneesStmt = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 ORDER BY ' . dl_entityOrderBySql());
     $consignees = $consigneesStmt ? ($consigneesStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     foreach ($consignees as &$consigneeOption) {
         $consigneeOption['filter_value'] = 'consignee:' . (int)$consigneeOption['id'];
@@ -16247,7 +16253,7 @@ function handleAdminProducts(array $params = []): void
     // Shared by the assignment selector and the product modal's branch pickers.
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $consignees = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $consignees = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // ── Assignment tabs: one destination's full checklist ───────────────
     $assignmentBranch = null;
@@ -17433,7 +17439,7 @@ function handleAdminBranches(array $params = []): void
     }
     // Use the same order the Daily Sheet prints in, so the sequence configured
     // here is immediately visible here instead of only on the sheet.
-    $sql .= ' ORDER BY (b.sort_order = 0) ASC, b.sort_order ASC, b.name ASC';
+    $sql .= ' ORDER BY ' . dl_entityOrderBySql('b.');
     $stmt = $ctx->db()->prepare($sql);
     $stmt->execute($bind);
     $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -17441,13 +17447,13 @@ function handleAdminBranches(array $params = []): void
     // Commissary candidates for the supply-mode picker (any active branch flagged as commissary).
     $commStmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name');
     $commissaries = $commStmt ? ($commStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
-    $consigneeSql = 'SELECT c.id, c.code, c.name, c.area, c.address, c.price_group_id, c.assigned_commissary_id, c.is_active, b.code AS commissary_code, b.name AS commissary_name, pg.name AS price_group_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id LEFT JOIN dl_price_groups pg ON pg.id = c.price_group_id WHERE 1=1';
+    $consigneeSql = 'SELECT c.id, c.code, c.name, c.area, c.address, c.price_group_id, c.assigned_commissary_id, c.is_active, c.sort_order, b.code AS commissary_code, b.name AS commissary_name, pg.name AS price_group_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id LEFT JOIN dl_price_groups pg ON pg.id = c.price_group_id WHERE 1=1';
     $consigneeBind = [];
     if ($search !== '') {
         $consigneeSql .= ' AND (c.name LIKE :cq OR c.code LIKE :cq2)';
         $consigneeBind = [':cq' => "%{$search}%", ':cq2' => "%{$search}%"];
     }
-    $consigneeSql .= ' ORDER BY c.name';
+    $consigneeSql .= ' ORDER BY ' . dl_entityOrderBySql('c.');
     $consigneeStmt = $ctx->db()->prepare($consigneeSql);
     $consigneeStmt->execute($consigneeBind);
     $consignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -17500,6 +17506,7 @@ function apiSaveConsignee(array $params = []): void
     $priceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== '' && $input['price_group_id'] !== null
         ? (int)$input['price_group_id'] : null;
     $active = !empty($input['is_active']) ? 1 : 0;
+    $sortOrder = (int)($input['sort_order'] ?? 0);
     if ($code === '' || $name === '' || $commissaryId <= 0) {
         $ctx->json(['ok' => false, 'error' => 'Code, name, and assigned commissary are required.'], 422);
         return;
@@ -17520,8 +17527,8 @@ function apiSaveConsignee(array $params = []): void
     }
     try {
         if ($id > 0) {
-            $stmt = $ctx->db()->prepare('UPDATE dl_consignees SET code = :code, name = :name, area = :area, address = :address, assigned_commissary_id = :commissary, price_group_id = :price_group, is_active = :active WHERE id = :id');
-            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':id' => $id]);
+            $stmt = $ctx->db()->prepare('UPDATE dl_consignees SET code = :code, name = :name, area = :area, address = :address, assigned_commissary_id = :commissary, price_group_id = :price_group, is_active = :active, sort_order = :sort_order WHERE id = :id');
+            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':sort_order' => $sortOrder, ':id' => $id]);
             if ($stmt->rowCount() === 0) {
                 $found = $ctx->db()->prepare('SELECT id FROM dl_consignees WHERE id = :id');
                 $found->execute([':id' => $id]);
@@ -17529,8 +17536,8 @@ function apiSaveConsignee(array $params = []): void
             }
             $action = 'consignee_updated';
         } else {
-            $stmt = $ctx->db()->prepare('INSERT INTO dl_consignees (code, name, area, address, assigned_commissary_id, price_group_id, is_active) VALUES (:code, :name, :area, :address, :commissary, :price_group, :active)');
-            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active]);
+            $stmt = $ctx->db()->prepare('INSERT INTO dl_consignees (code, name, area, address, assigned_commissary_id, price_group_id, is_active, sort_order) VALUES (:code, :name, :area, :address, :commissary, :price_group, :active, :sort_order)');
+            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':sort_order' => $sortOrder]);
             $id = (int)$ctx->db()->lastInsertId();
             $action = 'consignee_created';
 
@@ -19103,7 +19110,7 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
         $metaStmt = $db->query(
             'SELECT id, code, name FROM dl_consignees'
             . ' WHERE id IN (' . $idList . ') AND is_active = 1'
-            . ' ORDER BY name ASC, id ASC'
+            . ' ORDER BY ' . dl_entityOrderBySql()
         );
         foreach ($metaStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $metaRow) {
             $consignees[(int)$metaRow['id']] = [
@@ -19563,7 +19570,7 @@ function handleAdminCommissary(): void
     // alphabetical order -- i.e. exactly the pre-order behaviour.
     $sheetBranchesStmt = $db->query(
         'SELECT id, code, name FROM dl_branches WHERE is_active = 1
-          ORDER BY (sort_order = 0) ASC, sort_order ASC, name ASC'
+          ORDER BY ' . dl_entityOrderBySql()
     );
     $sheetBranches = $sheetBranchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $sheetProducts = dl_fetchProductionSheetProducts(
