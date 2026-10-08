@@ -50,6 +50,18 @@ if (is_dir(__DIR__ . '/helpers/views')) {
  */
 
 // ─── Helpers ───────────────────────────────────────────────────────────
+/** The production balance expression, for use inside SQL. $prefix is '' or 'cpl.'. */
+function dl_productionBalanceSql(string $prefix = ''): string
+{
+    return "({$prefix}beg_qty + {$prefix}produced_qty - {$prefix}dispatched_qty - {$prefix}wastage_qty)";
+}
+
+/** The same balance, computed in PHP. */
+function dl_productionBalance(int $beg, int $produced, int $dispatched, int $wastage): int
+{
+    return $beg + $produced - $dispatched - $wastage;
+}
+
 function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType = null, ?string $entityId = null, $oldData = null, $newData = null, ?string $reason = null): void
 {
     $ctx = module();
@@ -2866,7 +2878,7 @@ function dl_settlePendingEndingsForShift($db, int $branchId, string $date, strin
             );
             $select->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
             foreach ($select->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-                $movements = (int)$row['beg_qty'] + (int)$row['produced_qty'] - (int)$row['dispatched_qty'] - (int)$row['wastage_qty'];
+                $movements = dl_productionBalance((int)$row['beg_qty'], (int)$row['produced_qty'], (int)$row['dispatched_qty'], (int)$row['wastage_qty']);
                 $decision = dl_settleUnfinalizedRow(null, $finalized, $movements, null, false);
                 $rung = (string)($decision['rung'] ?? '');
                 if ($rung !== 'derived-from-movements' && $rung !== 'zero-forced') {
@@ -3614,7 +3626,7 @@ function dl_applyCommissaryProductLedgerDelta(
         ':id' => (int)$row['id'],
     ]);
 
-    return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => (int)$row['beg_qty'] + $newProduced - $newDispatched - $newWastage, 'skipped' => false];
+    return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => dl_productionBalance((int)$row['beg_qty'], $newProduced, $newDispatched, $newWastage), 'skipped' => false];
 }
 
 /**
@@ -3895,7 +3907,7 @@ function dl_saveCommissaryBeginningQty(
     $read = $db->prepare(
         'SELECT beg_qty, produced_qty, dispatched_qty, wastage_qty, remaining_qty,
                 actual_end_qty, calc_variance,
-                (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS book_balance
+                ' . dl_productionBalanceSql() . ' AS book_balance
            FROM dl_commissary_product_ledger
           WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift LIMIT 1'
     );
@@ -4733,7 +4745,7 @@ function dl_readCommissaryProductLedgerRow($db, int $commissaryBranchId, int $pr
     $read = $db->prepare(
         'SELECT beg_qty, produced_qty, dispatched_qty, wastage_qty, remaining_qty,
                 actual_end_qty, calc_variance,
-                (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS book_balance
+                ' . dl_productionBalanceSql() . ' AS book_balance
            FROM dl_commissary_product_ledger
           WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d AND shift <=> :shift
           LIMIT 1'
@@ -19353,7 +19365,7 @@ function handleAdminCommissary(): void
                 cpl.remaining_qty,
                 cpl.actual_end_qty,
                 cpl.calc_variance,
-                (cpl.beg_qty + cpl.produced_qty - cpl.dispatched_qty - cpl.wastage_qty) AS book_balance,
+                " . dl_productionBalanceSql('cpl.') . " AS book_balance,
                 COALESCE(cum.cumulative_remaining, cpl.remaining_qty) AS cumulative_remaining,
                 cpl.updated_at
            FROM dl_commissary_product_ledger cpl
@@ -20147,7 +20159,7 @@ function dl_saveProductionOutputLedgerCell(array $user, array $input): array
         $read = $db->prepare(
             'SELECT beg_qty, produced_qty, dispatched_qty, wastage_qty, remaining_qty,
                     actual_end_qty, calc_variance,
-                    (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS book_balance
+                    ' . dl_productionBalanceSql() . ' AS book_balance
                FROM dl_commissary_product_ledger
               WHERE commissary_branch_id = :bid AND product_id = :pid AND ledger_date = :d
               LIMIT 1'
