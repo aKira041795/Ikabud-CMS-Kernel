@@ -390,6 +390,13 @@
       "description": "Expose the selling-account management UI and APIs. Existing data is unaffected when off."
     },
     {
+      "key": "consignee_enabled",
+      "type": "checkbox",
+      "label": "Enable Consignees",
+      "default": true,
+      "description": "Allow new consignee setup and dispatches. Existing consignee deliveries, ledger rows, and audit history remain visible when off."
+    },
+    {
       "key": "consignee_sales_mode",
       "type": "select",
       "label": "Consignee Sales Treatment",

@@ -59,7 +59,7 @@
 {block content}
 <div class="mb-5 flex gap-2 border-b border-gray-200">
     <button id="tab-branches" class="px-4 py-2 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-700" onclick="showDestinationTab('branches')">Branches</button>
-    <button id="tab-consignees" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-gray-500" onclick="showDestinationTab('consignees')">Consignees</button>
+    {if consignee_enabled}<button id="tab-consignees" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-gray-500" onclick="showDestinationTab('consignees')">Consignees</button>{/if}
 </div>
 <div id="branches-panel">
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -370,7 +370,11 @@
         document.getElementById('branches-panel').classList.toggle('hidden', consignee);
         document.getElementById('consignees-panel').classList.toggle('hidden', !consignee);
         document.getElementById('tab-branches').className = 'px-4 py-2 text-sm font-semibold border-b-2 ' + (!consignee ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500');
-        document.getElementById('tab-consignees').className = 'px-4 py-2 text-sm font-semibold border-b-2 ' + (consignee ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500');
+        // The Consignees tab is hidden when the feature is disabled, so the button may be absent.
+        var consigneeTab = document.getElementById('tab-consignees');
+        if (consigneeTab) {
+            consigneeTab.className = 'px-4 py-2 text-sm font-semibold border-b-2 ' + (consignee ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500');
+        }
     }
 
     function openAddBranch() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-code').focus(); }

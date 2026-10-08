@@ -57,9 +57,9 @@
                                 <optgroup label="Branches">
                                     {foreach all_branches as b}{if b.id != branch_id}<option value="branch:{b.id}" data-type="branch" data-id="{b.id}">{b.code} — {b.name}</option>{/if}{/foreach}
                                 </optgroup>
-                                <optgroup label="Consignees">
+                                {if consignee_enabled}<optgroup label="Consignees">
                                     {foreach consignees as c}<option value="consignee:{c.id}" data-type="consignee" data-id="{c.id}">{c.code} — {c.name}</option>{/foreach}
-                                </optgroup>
+                                </optgroup>{/if}
                             </select>
                         </div>
                         <div>

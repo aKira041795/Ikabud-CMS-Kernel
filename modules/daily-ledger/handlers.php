@@ -537,6 +537,35 @@ function dlSettingsDefaults(): array
     return $defaults;
 }
 
+function dl_normalizeConsigneeEnabled(mixed $value): bool
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+    if (is_int($value) && in_array($value, [0, 1], true)) {
+        return $value === 1;
+    }
+    if (is_string($value)) {
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+            return false;
+        }
+    }
+
+    // Consignees are an established live capability. Unknown storage values
+    // must fail open to the declared default rather than silently disabling it.
+    return true;
+}
+
+function dl_isConsigneeEnabled(): bool
+{
+    $settings = dlModuleSettings();
+    return dl_normalizeConsigneeEnabled($settings['consignee_enabled'] ?? true);
+}
+
 function dl_normalizeConsigneeSalesMode(mixed $value): string
 {
     return in_array($value, ['consignment', 'order'], true) ? $value : 'consignment';
@@ -549,6 +578,7 @@ function dlModuleSettings(bool $refresh = false): array
         return $cache;
     }
     $cache = array_merge(dlSettingsDefaults(), getModuleSettings('daily-ledger'));
+    $cache['consignee_enabled'] = dl_normalizeConsigneeEnabled($cache['consignee_enabled'] ?? true);
     $cache['consignee_sales_mode'] = dl_normalizeConsigneeSalesMode($cache['consignee_sales_mode'] ?? null);
     return $cache;
 }
@@ -559,6 +589,9 @@ function dlPersistModuleSettings(array $settings): bool
         return true;
     }
 
+    if (array_key_exists('consignee_enabled', $settings)) {
+        $settings['consignee_enabled'] = dl_normalizeConsigneeEnabled($settings['consignee_enabled']);
+    }
     if (array_key_exists('consignee_sales_mode', $settings)) {
         $settings['consignee_sales_mode'] = dl_normalizeConsigneeSalesMode($settings['consignee_sales_mode']);
     }
@@ -650,6 +683,7 @@ function dl_featureSettings(): array
         'formal_delivery_workflow_enabled' => dl_settingToBool($settings['formal_delivery_workflow_enabled'] ?? false),
         'price_groups_enabled' => dl_settingToBool($settings['price_groups_enabled'] ?? true),
         'selling_accounts_enabled' => dl_settingToBool($settings['selling_accounts_enabled'] ?? false),
+        'consignee_enabled' => dl_normalizeConsigneeEnabled($settings['consignee_enabled'] ?? true),
         'pos_enabled' => dl_settingToBool($settings['pos_enabled'] ?? false),
         'pos_sort_by_sales' => dl_settingToBool($settings['pos_sort_by_sales'] ?? true),
     ];
@@ -7732,6 +7766,7 @@ function handleCashierLedger(array $params = []): void
         'server_epoch_ms' => $clockLabel['server_epoch_ms'],
         'all_branches' => $allBranches,
         'consignees' => $consignees,
+        'consignee_enabled' => dl_isConsigneeEnabled(),
         'incoming_count' => $incomingCount,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'commissary_branch_id' => $commissaryBranchId,
@@ -8881,12 +8916,17 @@ function apiCreateCashierDispatch(array $params = []): void
     }
 
     $user = dlCurrentUser();
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $requestedDestinationType = (string)($input['destination_type'] ?? 'branch');
+    if ($requestedDestinationType === 'consignee' && !dl_isConsigneeEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'The Consignees feature is disabled. New consignee dispatches are unavailable.'], 403);
+        return;
+    }
     if (!dl_isFormalDeliveryEnabled()) {
         $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled for branch deliveries.'], 403);
         return;
     }
 
-    $input = (array)json_decode(file_get_contents('php://input'), true);
     $authResult = dl_authorizeBranch($user, $input);
     if ($authResult['branch_id'] < 0) {
         $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
@@ -12420,6 +12460,7 @@ function handleAdminSettings(array $params = []): void
         'production_output_enabled' => $featureSettings['production_output_enabled'],
         'formal_delivery_workflow_enabled' => $featureSettings['formal_delivery_workflow_enabled'],
         'price_groups_enabled' => $featureSettings['price_groups_enabled'],
+        'consignee_enabled' => $featureSettings['consignee_enabled'],
         'pos_enabled' => $featureSettings['pos_enabled'],
         'pos_sort_by_sales' => $featureSettings['pos_sort_by_sales'],
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
@@ -12697,6 +12738,7 @@ function apiSaveRolePermissions(array $params = []): void
     $productionOutputEnabled = $featureSettings['production_output_enabled'];
     $formalDeliveryEnabled = $featureSettings['formal_delivery_workflow_enabled'];
     $priceGroupsEnabled = $featureSettings['price_groups_enabled'];
+    $consigneeEnabled = $featureSettings['consignee_enabled'];
     $posEnabled = $featureSettings['pos_enabled'];
     $posSortBySales = $featureSettings['pos_sort_by_sales'];
     $backupBeforeResetEnabled = $backupSettings['backup_before_reset_enabled'];
@@ -12720,6 +12762,7 @@ function apiSaveRolePermissions(array $params = []): void
     foreach ([
         'formal_delivery_workflow_enabled' => &$formalDeliveryEnabled,
         'price_groups_enabled' => &$priceGroupsEnabled,
+        'consignee_enabled' => &$consigneeEnabled,
         'pos_enabled' => &$posEnabled,
         'pos_sort_by_sales' => &$posSortBySales,
     ] as $key => &$ref) {
@@ -12804,6 +12847,7 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled ? '1' : '0',
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled ? '1' : '0',
         'price_groups_enabled' => $priceGroupsEnabled ? '1' : '0',
+        'consignee_enabled' => $consigneeEnabled ? '1' : '0',
         'pos_enabled' => $posEnabled ? '1' : '0',
         'pos_sort_by_sales' => $posSortBySales ? '1' : '0',
         'backup_before_reset_enabled' => $backupBeforeResetEnabled ? '1' : '0',
@@ -12834,6 +12878,7 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
+        'consignee_enabled' => $consigneeEnabled,
         'pos_enabled' => $posEnabled,
         'pos_sort_by_sales' => $posSortBySales,
         'backup_before_reset_enabled' => $backupBeforeResetEnabled,
@@ -12864,6 +12909,7 @@ function apiSaveRolePermissions(array $params = []): void
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
+        'consignee_enabled' => $consigneeEnabled,
         'pos_enabled' => $posEnabled,
         'pos_sort_by_sales' => $posSortBySales,
         'consignee_sales_mode' => $consigneeSalesMode,
@@ -15693,6 +15739,9 @@ function handleAdminProducts(array $params = []): void
     // parameter the page renders exactly the product list it always has; the
     // assignment tab is the per-branch picker on that SAME page.
     $tab = trim((string)($input['tab'] ?? ''));
+    if ($tab === 'consignee_assignment' && !dl_isConsigneeEnabled()) {
+        $tab = '';
+    }
     $selectedBranchId = isset($input['branch_id']) && $input['branch_id'] !== '' ? (int)$input['branch_id'] : 0;
     $selectedConsigneeId = isset($input['consignee_id']) && $input['consignee_id'] !== '' ? (int)$input['consignee_id'] : 0;
     $today = dl_businessDate();
@@ -15829,6 +15878,7 @@ function handleAdminProducts(array $params = []): void
         'assignment_consignee' => $assignmentConsignee,
         'assignment_products' => $assignmentProducts,
         'warning_groups' => $warningGroups,
+        'consignee_enabled' => dl_isConsigneeEnabled(),
     ]);
 }
 
@@ -15927,6 +15977,10 @@ function apiBulkAssignConsigneeProducts(array $params = []): void
     }
 
     $user = dlCurrentUser(['admin']);
+    if (!dl_isConsigneeEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'The Consignees feature is disabled. Consignee product assignments are unavailable.'], 403);
+        return;
+    }
     $input = $ctx->input();
     $consigneeId = (int)($input['consignee_id'] ?? 0);
     $productIds = isset($input['product_ids']) && is_array($input['product_ids']) ? $input['product_ids'] : [];
@@ -16889,6 +16943,7 @@ function handleAdminBranches(array $params = []): void
         'search' => $search,
         'selected_price_group_id' => $selectedPriceGroupId,
         'selected_price_group_name' => $selectedPriceGroupName,
+        'consignee_enabled' => dl_isConsigneeEnabled(),
     ]);
 }
 
@@ -16899,6 +16954,10 @@ function apiSaveConsignee(array $params = []): void
     $user = dlCurrentUser(['admin']);
     $input = $ctx->input();
     $id = (int)($input['consignee_id'] ?? 0);
+    if ($id <= 0 && !dl_isConsigneeEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'The Consignees feature is disabled. New consignees cannot be created.'], 403);
+        return;
+    }
     $code = strtoupper(trim((string)($input['code'] ?? '')));
     $name = trim((string)($input['name'] ?? ''));
     $area = trim((string)($input['area'] ?? ''));
@@ -19020,6 +19079,7 @@ function handleAdminCommissary(): void
         'consignee_sheet_rows' => $consigneeSheetRows,
         'consignee_assignment_count' => $consigneeAssignmentCount,
         'consignee_sales_mode' => $consigneeSalesMode,
+        'consignee_enabled' => dl_isConsigneeEnabled(),
         'sheet_branches' => $sheetBranches,
         'sheet_source_branch_id' => $sheetSourceBranchId,
         'sheet_source_branch_name' => $sheetSourceBranchName,

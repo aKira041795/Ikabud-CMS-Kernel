@@ -271,6 +271,25 @@
             </div>
 
             <div>
+                <p class="text-sm text-gray-700 font-medium">Consignees</p>
+                <p class="mt-1 text-sm text-gray-500">Third-party stock destinations and consignee product assignments. When OFF, new setup and dispatches are blocked while existing deliveries, ledger rows, and audit history stay visible.</p>
+            </div>
+            <div>
+                {if can_manage_feature_activation}
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="feature-consignee" {if consignee_enabled}checked{/if}>
+                    Enable Consignees
+                </label>
+                <p class="mt-2 text-sm text-gray-500">Enabling Consignees makes consignee setup, product assignment, production sheets, and dispatch destinations available.</p>
+                {/if}
+                {if !can_manage_feature_activation}
+                <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if consignee_enabled}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !consignee_enabled}bg-gray-100 text-gray-700 ring-gray-300{/if}">
+                    Consignees are {if consignee_enabled}Enabled{/if}{if !consignee_enabled}Disabled{/if}
+                </div>
+                {/if}
+            </div>
+
+            <div>
                 <p class="text-sm text-gray-700 font-medium">Point of Sale (POS)</p>
                 <p class="mt-1 text-sm text-gray-500">Itemized cashier POS transactions with receipts. When OFF, only the manual stock ledger is available.</p>
             </div>
@@ -941,6 +960,10 @@
         var featurePriceGroups = document.getElementById('feature-price-groups');
         if (featurePriceGroups) {
             payload.price_groups_enabled = featurePriceGroups.checked;
+        }
+        var featureConsignee = document.getElementById('feature-consignee');
+        if (featureConsignee) {
+            payload.consignee_enabled = featureConsignee.checked;
         }
         var featurePos = document.getElementById('feature-pos');
         if (featurePos) {
