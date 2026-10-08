@@ -132,8 +132,10 @@ elif [ -n "$col" ]; then
   fi
 else
   fail "dl_consignees.sort_order is MISSING"
-  note "The migration did not run. On this host:"
-  note "    php ikabud tenant:migrate ${TENANT:-<tenant_id>} daily-ledger"
+  note "The migration did not run. Two deploy paths apply it, so use whichever this host uses:"
+  note "  * upgrade kit: db/tenant-upgrade.sql (the guarded ALTER is already generated into it)"
+  note "  * CLI:         php ikabud tenant:migrate ${TENANT:-<tenant_id>} daily-ledger"
+  note "The ALTER is guarded, so applying it twice is safe."
   note "Until it runs, consignee listings and the Daily Sheet columns will fail with"
   note "1054 Unknown column 'sort_order'."
 fi
