@@ -1575,6 +1575,11 @@ function discoverModules(): array
         }
     }
 
+    // Publish the raw scan before per-module state can issue database queries.
+    // A listener re-entering discovery from that loop must see this memo rather
+    // than starting another recursive scan.
+    $GLOBALS['_kernel_discovered_modules'] = $result;
+
     // Per-call state: enabled flag + table-ownership registration (fresh every request)
     foreach ($result as $moduleId => $manifest) {
         $manifest['_enabled'] = isModuleEnabled($moduleId);

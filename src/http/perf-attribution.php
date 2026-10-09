@@ -18,6 +18,8 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             'queries' => 0,
             'total_ms' => 0.0,
             'slowest' => [],
+            'ddl_queries' => 0,
+            'ddl_tables' => [],
         ],
         'phases' => [
             'boot' => null,
@@ -52,7 +54,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
     function kernelPerfProbeRequestAttribution(): array
     {
         $empty = [
-            'db' => ['queries' => 0, 'total_ms' => 0.0, 'slowest' => []],
+            'db' => ['queries' => 0, 'total_ms' => 0.0, 'slowest' => [], 'ddl_queries' => 0, 'ddl_tables' => []],
             'phases' => ['boot' => null, 'dispatch' => null, 'render' => null, 'shutdown' => null],
         ];
 
@@ -70,6 +72,8 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                     'queries' => max(0, (int)($db['queries'] ?? 0)),
                     'total_ms' => max(0.0, (float)($db['total_ms'] ?? 0.0)),
                     'slowest' => array_slice(is_array($db['slowest'] ?? null) ? $db['slowest'] : [], 0, 5),
+                    'ddl_queries' => max(0, (int)($db['ddl_queries'] ?? 0)),
+                    'ddl_tables' => is_array($db['ddl_tables'] ?? null) ? $db['ddl_tables'] : [],
                 ],
                 'phases' => [
                     'boot' => isset($phases['boot']) ? (float)$phases['boot'] : null,
@@ -103,6 +107,11 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
 
                     $state['db']['queries'] = (int)$state['db']['queries'] + 1;
                     $state['db']['total_ms'] = (float)$state['db']['total_ms'] + $duration;
+                    if (preg_match('/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([a-zA-Z0-9_]+)`?/i', $sql, $ddlMatch) === 1) {
+                        $table = (string)$ddlMatch[1];
+                        $state['db']['ddl_queries'] = (int)($state['db']['ddl_queries'] ?? 0) + 1;
+                        $state['db']['ddl_tables'][$table] = (int)($state['db']['ddl_tables'][$table] ?? 0) + 1;
+                    }
                     $state['db']['slowest'][] = ['ms' => $duration, 'sql' => $sql];
                     usort(
                         $state['db']['slowest'],

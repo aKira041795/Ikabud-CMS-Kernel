@@ -995,6 +995,8 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
         'db_queries' => (int)$requestAttribution['db']['queries'],
         'db_total_ms' => (float)$requestAttribution['db']['total_ms'],
         'db_slowest' => $requestAttribution['db']['slowest'],
+        'ddl_queries' => (int)$requestAttribution['db']['ddl_queries'],
+        'ddl_tables' => $requestAttribution['db']['ddl_tables'],
         'phases' => $requestAttribution['phases'],
     ];
 

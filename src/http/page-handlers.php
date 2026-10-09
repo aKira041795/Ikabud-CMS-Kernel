@@ -314,6 +314,7 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $requestAttribution = kernelPerfProbeRequestAttribution();
         $perfData['db_queries'] = (int)$requestAttribution['db']['queries'];
         $perfData['db_total_ms'] = round((float)$requestAttribution['db']['total_ms'], 2);
+        $perfData['ddl_queries'] = (int)$requestAttribution['db']['ddl_queries'];
         $perfData['db_slowest'] = $requestAttribution['db']['slowest'][0] ?? null;
         $perfData['phases'] = $requestAttribution['phases'];
         $slowestQuery = is_array($perfData['db_slowest'])
@@ -322,6 +323,7 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
 
         $perfRows = [
             ['Request DB queries', $perfData['db_queries'], 'queries', ''],
+            ['Request CREATE TABLE queries', $perfData['ddl_queries'], 'queries', ''],
             ['Request DB total', $perfData['db_total_ms'], 'ms', ''],
             ['Request slowest query', $slowestQuery, '', ''],
             ['Request phase: boot', $perfData['phases']['boot'] ?? 'not measured', 'ms elapsed', ''],

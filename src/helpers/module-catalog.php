@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/table-ensure-cache.php';
+
 // ─── Control-plane catalog + tenant entitlements ─────────────────────────
 
 function moduleCatalogTable(): string
@@ -38,11 +40,13 @@ function moduleCatalogWithKernelDbEscalation(callable $callback): mixed
     }
 }
 
-function moduleControlPlaneEnsureCatalogTables(): bool
+function moduleControlPlaneEnsureCatalogTables(bool $force = false): bool
 {
-    static $ensured = null;
-    if ($ensured !== null) {
-        return $ensured;
+    $config = app()->config('control_database', app()->config('database', []));
+    $databaseIdentity = kernelTableEnsureCacheDatabaseIdentity(is_array($config) ? $config : []);
+    $guard = 'module-control-plane-catalog';
+    if (!kernelTableEnsureCacheShouldRun($databaseIdentity, $guard, $force)) {
+        return true;
     }
 
     try {
@@ -112,10 +116,9 @@ function moduleControlPlaneEnsureCatalogTables(): bool
             . 'KEY idx_access_request_module_status (module_id, status)'
             . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
-        $ensured = true;
+        kernelTableEnsureCacheMarkEnsured($databaseIdentity, $guard);
         return true;
     } catch (Throwable $e) {
-        $ensured = false;
         return false;
     }
 }
