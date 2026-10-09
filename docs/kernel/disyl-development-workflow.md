@@ -114,6 +114,75 @@ If your template needs a construct DiSyL lacks (a PHP operator, a whitelisted fu
 
 ---
 
+## Compiled vs interpreted rendering
+
+DiSyL has two pipelines. Compiled mode (`DISYL_COMPILED_MODE=true`) turns a template into a PHP class and
+reuses it. The interpreted pipeline re-reads and re-evaluates the source on every request; it is the
+legacy fallback. `TemplateEngine::render()` only takes the compiled path when the template is **eligible**.
+
+A template is ineligible — and so renders interpreted — when it uses a construct the compiler does not
+support:
+
+| Construct | Status | Why |
+|---|---|---|
+| `{extends }` | gated by `DISYL_EXTENDS_COMPILED`, default **off** | see below |
+| `{ikb_*}` / `{island` | always interpreted | component tags need the interpreted pipeline |
+| `{macro }` / `{call }` | always interpreted | user macros are not implemented in the compiler |
+
+`{cache `, `{parallel` and `{ai_*` also stay on the interpreted path.
+
+### `DISYL_EXTENDS_COMPILED`
+
+Extending templates are the bulk of this codebase — **366 of 743 `.disyl` files**. With the flag off
+(nothing sets it unless you do), every one of them renders interpreted, and **in production only** the
+engine writes one line per template:
+
+```
+[warning] disyl.interpreted.deprecated {"template":"…dashboard.disyl","reason":"template rendered via
+  the legacy interpreted pipeline; migrate to compiled-eligible syntax"}
+```
+
+The reason string is generic: it names the symptom, not the cause. Nothing in the template is wrong —
+the gate is this flag. The notice is also gated on `APP_ENV`/`IKABUD_ENV` being `production`/`prod`, which
+is why it never appears locally.
+
+Measured benefit (tenant 207, `DISYL_SHARED_OUTPUT_TTL=0`, medians of 8 warmed requests, A/B/A — flag off,
+on, off again):
+
+| Page | Flag off | Flag on |
+|---|---|---|
+| cashier ledger | 1436 / 1532 ms | **511 / 508 ms** |
+| dashboard | 418 / 434 ms | 406 / 377 ms |
+| commissary sheet | 608 / 603 ms | 802 / 603 ms (unchanged; the 802 was noise) |
+
+The gain tracks template-graph work that disappears, not page size: the ledger's deep include graph is
+re-parsed on every interpreted render, while a data-heavy sheet is dominated by building its rows.
+
+**Enable** — append to `.env`. It must be `.env`: `bootstrap.php` loads that file per request via
+`putenv()`, so a shell variable does **not** reach php-fpm.
+
+```
+DISYL_EXTENDS_COMPILED=1
+```
+
+No restart is needed; it applies on the next request.
+
+**Verify** — pages still load, the `disyl.interpreted.deprecated` lines stop for extending templates, and
+**`disyl.compile.fallback` stays at 0**. That second line means a template threw in the compiled path and
+fell back, which is the signal to revert.
+
+**Rollback** — remove the line.
+
+**Why it is not the default yet.** The compiled `{extends}` path had eight genuine divergences
+(multi-level nearest-ancestor blocks, includes of extends-files, chain depth, diagnostics). They were
+fixed (`814c88d6`, `8fb6e358`, `bead7377`), and the gate is now evidence-backed: parity **178/178 with the
+flag off and on**, conformance `disagreements: none` both ways, the `tests/disyl_*.php` family identical
+in both modes, and 0 compile fallbacks on real pages. The flip is nonetheless global — every module's
+extending templates — while browser coverage is concentrated on daily-ledger, so it stays opt-in until
+more real-page coverage exists.
+
+---
+
 ## Decision Gate — Engine vs. Template
 
 | Scenario | Action |
@@ -154,6 +223,8 @@ flowchart TD
 |---|---|---|
 | Template changes don't appear after edit | Compiled cache not invalidated | Reload with `?disyl_nocache=1`; then `php ikabud cache:clear`; in production force-restart PHP-FPM to evict APCu |
 | `render_failure` in `app.log` | Template throws at render time | Check the stack in `error.log`, fix, reload |
+| `disyl.interpreted.deprecated` in `app.log` (production only) | Template is not compiled-eligible, usually because it uses `{extends }`, which is gated off | See [Compiled vs interpreted rendering](#compiled-vs-interpreted-rendering) — this is a speed notice, not an error |
+| `disyl.compile.fallback` in `app.log` | The compiled path threw and the engine finished the render interpreted | Read the logged `reason`; fix or revert the change that triggered it |
 | `[strict] Undefined variable` | Context key not passed to template | Add the key in the handler, or use `{var \| default:...}` |
 | Linter exit code 1 | Syntax / structure error in a `.disyl` file | Fix the reported file/line, re-lint |
 | Contract file silently not registered | Old engine behavior | Current engine throws + logs via `getLastLoadErrors()` — check `app.log` for `loadViewConfigs` errors |

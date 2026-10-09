@@ -331,6 +331,11 @@ function buildReadme(string $codeArchiveName): string
         '- Some legacy-reconciliation migrations may remove obsolete tables only after data is backfilled into canonical replacements.',
         '- Do not rerun public/lock.php as an upgrade path for an existing production install.',
         '- Do not replace the live .env with .env.example.',
+        '- Optional speed-up: appending DISYL_EXTENDS_COMPILED=1 to the live .env compiles {extends}-based',
+        '  templates instead of rendering them on the interpreted pipeline (measured 1436ms -> 510ms on the',
+        '  daily-ledger cashier ledger). It must be .env, since bootstrap.php loads it per request. After',
+        '  enabling, confirm no disyl.compile.fallback lines appear in storage/logs/app.log; remove the line',
+        '  to revert. Full detail: docs/kernel/disyl-development-workflow.md.',
         '',
     ]) . "\n";
 }
