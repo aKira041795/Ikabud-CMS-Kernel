@@ -270,10 +270,13 @@ try {
         str_contains($template, 'function openProductionAdditionModal(productId)')
         && str_contains($template, 'onclick="openProductionAdditionModal()"')
         && str_contains($template, 'product.value = productId ? String(productId) : \'\''));
+    // These select the padding the rule is about, not the whole class attribute: pinning
+    // 'text-right pr-1">BEG<' made the assertion fail the moment the pinned-column work added
+    // 'dl-sheet-sticky-beg' to the same token list, which changed no padding at all.
     $h->test('S7c numeric headers right-pad to match their cell content and inputs are flush right',
-        str_contains($template, 'text-right pr-1">BEG<')
-        && str_contains($template, 'text-right pr-2">ADDTL<')
-        && str_contains($template, 'text-right pr-1">ACTUAL BAL<')
+        preg_match('/<th class="[^"]*\bpr-1\b[^"]*">BEG</', $template) === 1
+        && preg_match('/<th class="[^"]*\bpr-2\b[^"]*">ADDTL</', $template) === 1
+        && preg_match('/<th[^>]*class="[^"]*\bpr-1\b[^"]*"[^>]*>ACTUAL BAL</', $template) === 1
         && str_contains($template, 'w-20 ml-auto text-right production-beg-input')
         && str_contains($template, 'w-24 ml-auto text-right production-actual-input'));
     $h->test('S7b BEG and ACTUAL BAL save on explicit change',

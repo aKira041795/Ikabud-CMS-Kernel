@@ -395,10 +395,118 @@
             window.dlSheetStickyFrame = requestAnimationFrame(function() {
                 window.dlSheetStickyFrame = null;
                 window.dlUpdateDailySheetStickyOffsets();
+                // The bar's width follows the table, and both change whenever these offsets do.
+                if (window.dlUpdateDailySheetHScroll) window.dlUpdateDailySheetHScroll();
             });
         };
         window.addEventListener('resize', window.dlScheduleDailySheetStickyOffsets);
-        document.addEventListener('DOMContentLoaded', window.dlScheduleDailySheetStickyOffsets);
+        document.addEventListener('DOMContentLoaded', function() {
+            window.dlScheduleDailySheetStickyOffsets();
+            window.dlInitDailySheetPan();
+            window.dlInitDailySheetHScroll();
+        });
+
+        /* Laptop ergonomics for a sheet wider than the window: there is no sideways swipe on a
+           laptop, and the native horizontal scrollbar is at the bottom of the scroll box. Adds
+           drag-to-pan on BOTH axes and Shift+wheel for sideways, both MOUSE ONLY so a tablet keeps
+           its native touch panning. The vertical axis matters as much as the horizontal one: the
+           wrap scrolls both ways now, so the rows can be dragged under the pinned header instead of
+           hunting for a scrollbar.
+           Handlers are bound to the wrap itself rather than to window: the wrap is replaced on an
+           in-place refresh, so window listeners would pile up one set per refresh. */
+        window.dlInitDailySheetPan = function() {
+            var wrap = document.querySelector('#tab-daily-sheet .dl-sheet-scroll');
+            if (!wrap || wrap.dataset.panReady === '1') return;
+            wrap.dataset.panReady = '1';
+
+            var panning = false;
+            var startX = 0;
+            var startY = 0;
+            var startScroll = 0;
+            var startTop = 0;
+
+            wrap.addEventListener('pointerdown', function(e) {
+                // e.pointerType === 'mouse' keeps touch/mousepad gestures native.
+                if (e.pointerType !== 'mouse' || e.button !== 0) return;
+                // Never swallow a press on an entry control or a link, or recording a figure would
+                // start a pan instead of a click.
+                var target = e.target;
+                if (target && target.closest && target.closest('button, input, select, textarea, a, label')) return;
+                panning = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startScroll = wrap.scrollLeft;
+                startTop = wrap.scrollTop;
+                wrap.classList.add('dl-sheet-panning');
+                if (wrap.setPointerCapture) wrap.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            });
+
+            wrap.addEventListener('pointermove', function(e) {
+                if (!panning) return;
+                wrap.scrollLeft = startScroll - (e.clientX - startX);
+                wrap.scrollTop = startTop - (e.clientY - startY);
+            });
+
+            var endPan = function() {
+                if (!panning) return;
+                panning = false;
+                wrap.classList.remove('dl-sheet-panning');
+            };
+            wrap.addEventListener('pointerup', endPan);
+            wrap.addEventListener('pointercancel', endPan);
+
+            wrap.addEventListener('wheel', function(e) {
+                if (!e.shiftKey) return;
+                var delta = e.deltaY || e.deltaX;
+                if (!delta) return;
+                wrap.scrollLeft += delta;
+                e.preventDefault();
+            }, { passive: false });
+        };
+
+        /* A horizontal scrollbar the user can always reach. The sheet is wider than a laptop screen,
+           but the wrap's own scrollbar sits at the bottom of a 70vh box that itself starts below the
+           fold, so reaching it meant leaving the row being read (owner, 2026-10-09).
+           This bar is pinned to the bottom of the window while the sheet is on screen and is kept in
+           step with the wrap in BOTH directions. It is a real overflow container rather than a drawn
+           thumb, so the platform supplies the scrollbar the user already knows how to drag. */
+        window.dlUpdateDailySheetHScroll = function() {
+            var wrap = document.querySelector('#tab-daily-sheet .dl-sheet-scroll');
+            var table = document.getElementById('production-ledger-table');
+            var bar = document.getElementById('dl-sheet-hscroll');
+            var inner = document.getElementById('dl-sheet-hscroll-inner');
+            if (!wrap || !table || !bar || !inner) return;
+            // Nothing to scroll means no bar: a dead scrollbar is worse than none.
+            var overflows = table.scrollWidth > wrap.clientWidth + 1;
+            bar.style.display = overflows ? '' : 'none';
+            if (overflows) inner.style.width = table.scrollWidth + 'px';
+        };
+
+        window.dlInitDailySheetHScroll = function() {
+            var wrap = document.querySelector('#tab-daily-sheet .dl-sheet-scroll');
+            var bar = document.getElementById('dl-sheet-hscroll');
+            if (!wrap || !bar || bar.dataset.syncReady === '1') return;
+            bar.dataset.syncReady = '1';
+
+            // Writing scrollLeft on the other element fires its own scroll event, which would echo.
+            // Each side writes only when the two actually disagree, so this converges instead.
+            var sync = function(from, to) {
+                if (Math.abs(from.scrollLeft - to.scrollLeft) > 1) to.scrollLeft = from.scrollLeft;
+            };
+            wrap.addEventListener('scroll', function() { sync(wrap, bar); }, { passive: true });
+            bar.addEventListener('scroll', function() { sync(bar, wrap); }, { passive: true });
+
+            // Bound once for the page, not once per bind: this script re-runs whenever the shell is
+            // swapped in place, and a window listener per refresh would pile up.
+            if (!window.dlSheetHScrollResizeBound) {
+                window.dlSheetHScrollResizeBound = true;
+                window.addEventListener('resize', function() {
+                    if (window.dlUpdateDailySheetHScroll) window.dlUpdateDailySheetHScroll();
+                });
+            }
+            window.dlUpdateDailySheetHScroll();
+        };
 
         window.dlLoadUrl = function(url, usePush) {
             // The ledger owns page-level state and timers outside #main-content.
@@ -446,6 +554,8 @@
                     htmx.process(target);
                 }
                 window.dlScheduleDailySheetStickyOffsets();
+                window.dlInitDailySheetPan();
+                window.dlInitDailySheetHScroll();
                 // Keep the URL in sync (back/forward + shareable filters)
                 if (window.history) {
                     if (usePush && window.history.pushState) {
@@ -539,12 +649,78 @@
     #tab-daily-sheet tbody .dl-sheet-sticky-variance {
         background: #fff;
     }
-    #tab-daily-sheet thead .dl-sheet-sticky-product,
-    #tab-daily-sheet thead .dl-sheet-sticky-beg,
-    #tab-daily-sheet thead .dl-sheet-sticky-addtl,
-    #tab-daily-sheet thead .dl-sheet-sticky-actual,
-    #tab-daily-sheet thead .dl-sheet-sticky-variance {
+    /* A sticky element sticks to its NEAREST scrollport, and .table-wrap is one: `overflow-x: auto`
+       forces the other axis to compute to `auto` too (CSS turns a `visible` axis into `auto` when
+       its sibling is not visible). It never scrolled vertically because nothing bounded its height,
+       so `top: 0` on the header had no effect while the PAGE scrolls -- the header just travelled
+       with the content.
+       Bounding the height makes this wrap the vertical scroller, so the header sticks. It also
+       keeps horizontal panning on the table alone instead of panning the whole page.
+       The print block above sets overflow:visible for pagination and is unaffected. */
+    #tab-daily-sheet .dl-sheet-scroll {
+        max-height: 70vh;
+        overflow: auto;
+    }
+    /* Laptop ergonomics: the native horizontal scrollbar sits at the bottom of this scroll box, so
+       using it means leaving the row you are reading. Dragging anywhere non-interactive now pans
+       the sheet on both axes, and the grab cursor advertises it. Interactive controls keep their
+       own cursors. */
+    #tab-daily-sheet .dl-sheet-scroll { cursor: grab; }
+    #tab-daily-sheet .dl-sheet-scroll.dl-sheet-panning { cursor: grabbing; user-select: none; }
+    /* A second horizontal scrollbar, pinned to the bottom of the WINDOW while the sheet is on
+       screen. The wrap's own scrollbar is at the bottom of a 70vh box, and that box starts below
+       the fold, so on a laptop reaching it meant scrolling away from the row being read.
+       `position: sticky; bottom: 0` keeps it in normal flow (so it pushes nothing) and bounded by
+       the section it belongs to, so it stops being pinned once the sheet leaves the screen. */
+    #tab-daily-sheet .dl-sheet-hscroll {
+        position: sticky;
+        bottom: 0;
+        z-index: 6;
+        overflow-x: auto;
+        overflow-y: hidden;
+        background: #fff;
+        border-top: 1px solid rgba(15, 23, 42, .12);
+        box-shadow: 0 -2px 6px -4px rgba(15, 23, 42, .35);
+    }
+    #tab-daily-sheet .dl-sheet-hscroll-inner { height: 1px; }
+    /* Force a CLASSIC scrollbar for this one element. Platforms that draw overlay scrollbars give
+       the native one no height at all, which would collapse this bar to its 2px border and leave
+       the user nothing to grab -- the exact complaint being fixed. Firefox gets the thin native
+       bar; Chromium gets the styled one below. */
+    #tab-daily-sheet .dl-sheet-hscroll { scrollbar-width: thin; }
+    #tab-daily-sheet .dl-sheet-hscroll::-webkit-scrollbar { height: 10px; }
+    #tab-daily-sheet .dl-sheet-hscroll::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 5px;
+    }
+    #tab-daily-sheet .dl-sheet-hscroll::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border-radius: 5px;
+    }
+    #tab-daily-sheet .dl-sheet-hscroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    /* Vertical: the destination header row (branch and consignee names) stays fixed while the
+       product rows scroll under it, so the encoder never loses which column is which
+       (owner, 2026-10-09).
+       Layering matters: body pinned cells are 3, so the header needs more; and the pinned
+       HEADER cells need more again, because the Product header is the first child and would
+       lose a z-index tie with a later branch header and let it paint over the corner. */
+    #tab-daily-sheet #production-ledger-table thead th {
+        position: sticky;
+        top: 0;
         z-index: 4;
+    }
+    /* The pinned header cells must outrank the branch/consignee headers, or a sliding branch name
+       paints over BEG and ADDTL. Specificity is the whole point here: the rule above selects
+       `#tab-daily-sheet #production-ledger-table thead th` (two ids), so a plain
+       `#tab-daily-sheet thead .dl-sheet-sticky-x` (one id) LOSES to it no matter the order -- the
+       z-index bump silently did nothing and every header cell ended up equal, which DOM order then
+       resolved in favour of the later branch headers. Matching the two-id form fixes it. */
+    #tab-daily-sheet #production-ledger-table thead th.dl-sheet-sticky-product,
+    #tab-daily-sheet #production-ledger-table thead th.dl-sheet-sticky-beg,
+    #tab-daily-sheet #production-ledger-table thead th.dl-sheet-sticky-addtl,
+    #tab-daily-sheet #production-ledger-table thead th.dl-sheet-sticky-actual,
+    #tab-daily-sheet #production-ledger-table thead th.dl-sheet-sticky-variance {
+        z-index: 5;
     }
     #tab-daily-sheet .dl-sheet-sticky-product { left: 0; }
     #tab-daily-sheet .dl-sheet-sticky-beg { left: 200px; }
@@ -690,6 +866,7 @@
 
         #tab-daily-sheet { display: block !important; }
         #tab-daily-sheet .table-wrap { overflow: visible !important; }
+        #tab-daily-sheet .dl-sheet-hscroll { display: none !important; }
         #tab-daily-sheet .dl-sheet-sticky-product,
         #tab-daily-sheet .dl-sheet-sticky-beg,
         #tab-daily-sheet .dl-sheet-sticky-addtl,
@@ -1534,7 +1711,7 @@
         {else}
         {set sheet_numeric_column_count = sheet_branch_column_count + 3}
         {/if}
-        <div class="table-wrap">
+        <div class="table-wrap dl-sheet-scroll">
             <table class="production-ledger-table" id="production-ledger-table" style="--sheet-numeric-cols: {sheet_numeric_column_count}">
                 <thead>
                     <tr>
@@ -1700,6 +1877,16 @@
                     {/foreach}
                 </tbody>
             </table>
+        </div>
+        <!-- A second, always-reachable horizontal scrollbar. The wrap's own scrollbar sits at the
+             bottom of a box that is below the fold on a laptop, so reaching it meant leaving the
+             row being read. This bar is pinned to the bottom of the window while the sheet is on
+             screen and is kept in step with the wrap in both directions by
+             dlInitDailySheetHScroll. It carries the table's full width, so it is a real overflow
+             container and the platform draws the scrollbar the user already knows how to drag.
+             aria-hidden: the table already exposes horizontal scrolling to the keyboard. -->
+        <div class="dl-sheet-hscroll" id="dl-sheet-hscroll" aria-hidden="true">
+            <div class="dl-sheet-hscroll-inner" id="dl-sheet-hscroll-inner"></div>
         </div>
     </div>
 
