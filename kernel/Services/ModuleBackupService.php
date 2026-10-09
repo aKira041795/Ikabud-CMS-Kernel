@@ -118,7 +118,20 @@ final class ModuleBackupService
                 fwrite($fh, 'DELETE FROM `' . $safe . "`;\n");
 
                 if ($count > 0) {
-                    $data = $db->query('SELECT * FROM ' . $safe);
+                    // GENERATED columns must be left out of the dump. MySQL rejects ANY explicit value
+                    // for them -- "#3105 The value specified for generated column ... is not allowed"
+                    // -- so a dump that lists one can never be imported, which silently made every
+                    // backup containing such a table unrestorable. SHOW COLUMNS is permitted by module
+                    // DB enforcement and reports the flag in `Extra`; SHOW FULL COLUMNS and
+                    // information_schema are not reachable through a module DB handle.
+                    $dumpable = self::dumpableColumns($db, $safe);
+                    $selectSql = $dumpable === []
+                        ? '*'
+                        : implode(', ', array_map(
+                            static fn (string $c): string => '`' . str_replace('`', '``', $c) . '`',
+                            $dumpable
+                        ));
+                    $data = $db->query('SELECT ' . $selectSql . ' FROM ' . $safe);
                     $batch = [];
                     $columnSql = null;
                     while ($row = $data->fetch(\PDO::FETCH_ASSOC)) {
@@ -300,6 +313,44 @@ final class ModuleBackupService
             $string
         );
         return "'" . $string . "'";
+    }
+
+    /**
+     * Columns that may be written back on import: everything except GENERATED columns.
+     *
+     * Returns [] when the column list cannot be read, and the caller then falls back to SELECT *, so
+     * an introspection failure degrades to the previous behaviour instead of emptying the dump.
+     *
+     * @return list<string>
+     */
+    private static function dumpableColumns($db, string $safeTable): array
+    {
+        try {
+            $rows = $db->query('SHOW COLUMNS FROM `' . $safeTable . '`');
+        } catch (\Throwable $e) {
+            return [];
+        }
+        if (!is_iterable($rows)) {
+            return [];
+        }
+
+        $columns = [];
+        foreach ($rows as $row) {
+            $field = is_array($row) ? (string) ($row['Field'] ?? '') : '';
+            if ($field === '') {
+                continue;
+            }
+            // Only VIRTUAL/STORED GENERATED columns are unwritable. A bare 'GENERATED' match would also
+            // catch MySQL's `DEFAULT_GENERATED`, which is what it reports for an ordinary
+            // `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP` column -- dropping those would silently
+            // strip real data (timestamps) out of every backup.
+            if (preg_match('/\b(?:VIRTUAL|STORED)\s+GENERATED\b/i', (string) ($row['Extra'] ?? '')) === 1) {
+                continue;
+            }
+            $columns[] = $field;
+        }
+
+        return $columns;
     }
 
     private static function safeIdentifier(string $name): string
