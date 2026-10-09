@@ -47,6 +47,27 @@ function routeSegmentIsDynamic(string $segment): bool
     return $cache[$segment] = (bool) preg_match('/^\{[A-Za-z0-9_]+\}$/', $segment);
 }
 
+function routePatternsCouldConflictCheap(string $left, string $right): bool
+{
+    $leftSegments = routePatternSegments($left);
+    $rightSegments = routePatternSegments($right);
+
+    if (count($leftSegments) !== count($rightSegments)) {
+        return false;
+    }
+
+    if ($leftSegments === []) {
+        return true;
+    }
+
+    $leftFirst = $leftSegments[0];
+    $rightFirst = $rightSegments[0];
+
+    return routeSegmentIsDynamic($leftFirst)
+        || routeSegmentIsDynamic($rightFirst)
+        || $leftFirst === $rightFirst;
+}
+
 function routePatternsMayConflict(string $left, string $right): bool
 {
     $leftSegments = routePatternSegments($left);
@@ -136,11 +157,26 @@ function loadModuleRoutes(array $routes): array
     // Track which module owns each route for conflict detection
     $routeOwners = [];
     $methodPatterns = [];
+    $methodPatternIndex = [];
+    $methodPatternSequence = [];
     foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $m) {
         $methodPatterns[$m] = [];
+        $methodPatternIndex[$m] = [];
+        $methodPatternSequence[$m] = 0;
         foreach ($routes[$m] ?? [] as $pattern => $_) {
             $routeOwners[$m . ':' . $pattern] = '_kernel';
             $methodPatterns[$m][$pattern] = '_kernel';
+
+            $segments = routePatternSegments($pattern);
+            $segmentCount = count($segments);
+            $sequence = $methodPatternSequence[$m]++;
+            $methodPatternIndex[$m][$segmentCount]['all'][$pattern] = $sequence;
+            if ($segments !== [] && routeSegmentIsDynamic($segments[0])) {
+                $methodPatternIndex[$m][$segmentCount]['dynamic'][$pattern] = $sequence;
+            } else {
+                $firstSegment = $segments[0] ?? '';
+                $methodPatternIndex[$m][$segmentCount]['literal'][$firstSegment][$pattern] = $sequence;
+            }
         }
     }
 
@@ -520,8 +556,30 @@ function loadModuleRoutes(array $routes): array
                 $blockedByAmbiguity = false;
 
                 // Lint for semantic ambiguity (e.g. /foo/{id} vs /foo/bar).
-                foreach ($methodPatterns[$method] as $existingPattern => $owner) {
+                // Only same-length patterns with compatible first segments can
+                // conflict. Build that candidate set from the registration index,
+                // retaining registration order because block mode stops at the
+                // first ambiguous owner.
+                $patternSegments = routePatternSegments($pattern);
+                $patternSegmentCount = count($patternSegments);
+                $patternBucket = $methodPatternIndex[$method][$patternSegmentCount] ?? [];
+                $firstPatternSegment = $patternSegments[0] ?? '';
+                if ($patternSegments !== [] && routeSegmentIsDynamic($firstPatternSegment)) {
+                    $ambiguityCandidates = $patternBucket['all'] ?? [];
+                } else {
+                    $ambiguityCandidates = $patternBucket['dynamic'] ?? [];
+                    foreach ($patternBucket['literal'][$firstPatternSegment] ?? [] as $candidatePattern => $sequence) {
+                        $ambiguityCandidates[$candidatePattern] = $sequence;
+                    }
+                    asort($ambiguityCandidates, SORT_NUMERIC);
+                }
+
+                foreach ($ambiguityCandidates as $existingPattern => $_sequence) {
+                    $owner = $methodPatterns[$method][$existingPattern];
                     if ($existingPattern === $pattern) {
+                        continue;
+                    }
+                    if (!routePatternsCouldConflictCheap($existingPattern, $pattern)) {
                         continue;
                     }
                     if (!routePatternsMayConflict($existingPattern, $pattern)) {
@@ -582,6 +640,14 @@ function loadModuleRoutes(array $routes): array
                 $routes[$method][$pattern] = $handler;
                 $routeOwners[$routeKey] = $moduleId;
                 $methodPatterns[$method][$pattern] = $moduleId;
+
+                $sequence = $methodPatternSequence[$method]++;
+                $methodPatternIndex[$method][$patternSegmentCount]['all'][$pattern] = $sequence;
+                if ($patternSegments !== [] && routeSegmentIsDynamic($firstPatternSegment)) {
+                    $methodPatternIndex[$method][$patternSegmentCount]['dynamic'][$pattern] = $sequence;
+                } else {
+                    $methodPatternIndex[$method][$patternSegmentCount]['literal'][$firstPatternSegment][$pattern] = $sequence;
+                }
             }
         }
         } finally {
