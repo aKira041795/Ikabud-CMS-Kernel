@@ -305,7 +305,15 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['disyl_template'] = (string)$disylRender['template'];
         $perfData['disyl_extends'] = !empty($disylRender['extends']);
 
-        $perfData['total_ms'] = round((microtime(true) - $perfOverallStart) * 1000, 2);
+        // Measured from the REQUEST's start, the same origin as every phase row above, so the numbers in
+        // this table are comparable and a row labelled "total" cannot come out smaller than one of its own
+        // phases. The probe's own measurement cost is its own row rather than folded into the total: no
+        // ordinary page pays it, and hiding it inside the headline made this page look far worse than the
+        // site it measures.
+        $requestElapsedMs = kernelPerfRequestElapsedMs();
+        $perfData['total_ms'] = $requestElapsedMs === null ? null : round($requestElapsedMs, 2);
+        $perfData['probe_self_ms'] = round((microtime(true) - $perfOverallStart) * 1000, 2);
+        $perfOpcache = kernelPerfProbeOpcache();
         $perfData['php_version'] = PHP_VERSION;
         $perfData['peak_memory_kb'] = (int) round(memory_get_peak_usage(true) / 1024);
         $perfData['host'] = $_SERVER['HTTP_HOST'] ?? '';
@@ -367,7 +375,16 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ['Cache disk usage', $perfData['cache_total_size_mb'], 'MB', ''],
             ['APCu entries', $perfData['cache_apcu_entries'], $perfData['cache_apcu_available'] ? 'entries' : 'entries (APCu off)', ''],
             ['DiSyL render (extends)', $perfData['disyl_render_ms'], 'ms · ' . $perfData['disyl_template'] . ' · extends=' . ($perfData['disyl_extends'] ? 'true' : 'false'), $perfData['disyl_ok'] ? '' : 'FAIL'],
-            ['Total wall time', $perfData['total_ms'], 'ms', ''],
+            // OPcache. `compiled_this_request` is the row that matters: a cached-script count cannot tell
+            // "OPcache serves the module helper files" apart from "they are recompiled every request".
+            ['OPcache enabled', $perfOpcache['available'] ? 'yes' : 'no / not readable', '', ''],
+            ['OPcache scripts compiled this request', $perfOpcache['compiled_this_request'] ?? 'not measured', 'scripts', ''],
+            ['OPcache cached scripts / max keys', $perfOpcache['available'] ? $perfOpcache['now']['cached_scripts'] . ' / ' . $perfOpcache['now']['max_cached_keys'] : 'not measured', '', ''],
+            ['OPcache memory used / free', $perfOpcache['available'] ? $perfOpcache['now']['used_mb'] . ' / ' . $perfOpcache['now']['free_mb'] . ' MB' : 'not measured', 'wasted ' . ($perfOpcache['available'] ? $perfOpcache['now']['wasted_mb'] : '?') . ' MB', ''],
+            ['OPcache restarts (OOM / hash)', $perfOpcache['available'] ? $perfOpcache['now']['oom_restarts'] . ' / ' . $perfOpcache['now']['hash_restarts'] : 'not measured', '', ''],
+            ['OPcache validate_timestamps / freq', $perfOpcache['validate_timestamps'] ?? 'unknown', (string)($perfOpcache['revalidate_freq'] ?? ''), ''],
+            ['Probe self-measurement', $perfData['probe_self_ms'], 'ms (this page only, not a normal request)', ''],
+            ['Total wall time', $perfData['total_ms'] ?? 'not measured', 'ms', ''],
             ['Peak memory', $perfData['peak_memory_kb'], 'KB', ''],
         ];
 

@@ -101,5 +101,28 @@ phaseBreakdownAssert(
     json_encode(['sum' => $sum, 'dispatch' => $marked['phases']['dispatch']])
 );
 
+// The perf pages take their headline "Total wall time" from the SAME origin as these marks. Before
+// 2026-10-09 they used a mark taken inside the handler, after auth, which produced an impossible
+// reading — locally total_ms = 134.76 printed beside phase:dispatch = 260.79, a total smaller than one
+// of its own phases. This pins the shared origin and the floor that bug violated.
+$elapsed = kernelPerfRequestElapsedMs();
+phaseBreakdownAssert(
+    'request elapsed shares the phase origin and cannot precede the last mark',
+    $elapsed !== null && $elapsed >= (float)$marked['phases']['dispatch'],
+    json_encode(['elapsed_ms' => $elapsed, 'dispatch' => $marked['phases']['dispatch']])
+);
+
+// null, never 0. With no attribution state there was no measurement, and returning 0.0 would report
+// that the request took no time — the same unrepresentable-cost trap the phase marks avoid.
+$savedAttributionState = $GLOBALS['kernel_perf_request_attribution'] ?? null;
+unset($GLOBALS['kernel_perf_request_attribution']);
+$elapsedWithoutState = kernelPerfRequestElapsedMs();
+$GLOBALS['kernel_perf_request_attribution'] = $savedAttributionState;
+phaseBreakdownAssert(
+    'elapsed reports null rather than zero when the attribution state is absent',
+    $elapsedWithoutState === null,
+    var_export($elapsedWithoutState, true)
+);
+
 echo 'Total: ' . ($pass + $fail) . " PASS: {$pass} FAIL: {$fail}" . PHP_EOL;
 exit($fail === 0 ? 0 : 1);

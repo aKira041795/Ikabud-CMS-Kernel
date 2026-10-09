@@ -984,7 +984,12 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
         $perfResults['disyl_error'] = (string)$disylRender['error'];
     }
 
-    $perfResults['total_ms'] = round((microtime(true) - $perfOverall) * 1000, 2);
+    // Same origin as the attribution phases below, so `total_ms` is the request's real elapsed time and
+    // not the probe's own measurement window. The old number is kept as `probe_self_ms`.
+    $requestElapsedMs = kernelPerfRequestElapsedMs();
+    $perfResults['total_ms'] = $requestElapsedMs === null ? null : round($requestElapsedMs, 2);
+    $perfResults['probe_self_ms'] = round((microtime(true) - $perfOverall) * 1000, 2);
+    $perfResults['opcache'] = kernelPerfProbeOpcache();
     $perfResults['php_version'] = PHP_VERSION;
     $perfResults['peak_memory_kb'] = (int) round(memory_get_peak_usage(true) / 1024);
     $perfResults['timestamp'] = date('c');

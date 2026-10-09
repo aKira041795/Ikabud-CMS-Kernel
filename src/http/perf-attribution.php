@@ -14,6 +14,13 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
         'started_ns' => isset($GLOBALS['kernel_perf_request_started_ns'])
             ? (int)$GLOBALS['kernel_perf_request_started_ns']
             : hrtime(true),
+        // Baseline for "how many scripts did THIS request compile". Taken here because this file is the
+        // earliest instrumentation point on the request path, well before any module is registered, so
+        // the delta spans module registration - where the 347 helper files are included. Guarded with
+        // function_exists because an attribution-only caller (the unit tests) never loads perf-probe.php.
+        'opcache_baseline' => function_exists('kernelPerfOpcacheSnapshot')
+            ? kernelPerfOpcacheSnapshot()
+            : null,
         'db' => [
             'queries' => 0,
             'total_ms' => 0.0,
@@ -44,6 +51,28 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             'shutdown' => null,
         ],
     ];
+
+    /**
+     * Milliseconds since the request's own start - the SAME origin as every phase mark.
+     *
+     * The perf pages used to compute their "Total wall time" from a mark taken inside the handler,
+     * after auth, so that number shared no origin with the phases printed beside it. Locally that
+     * produced an impossible reading: total_ms = 134.76 sitting under phase:dispatch = 260.79, a total
+     * smaller than one of its own phases. Anything a reader naturally compares or subtracts has to be
+     * measured from one origin, so this is the helper both pages now use.
+     *
+     * Returns null when the attribution state is absent (never 0): no state means no measurement, and
+     * 0 would claim the request took no time.
+     */
+    function kernelPerfRequestElapsedMs(): ?float
+    {
+        $state = $GLOBALS['kernel_perf_request_attribution'] ?? null;
+        if (!is_array($state) || !isset($state['started_ns'])) {
+            return null;
+        }
+
+        return (hrtime(true) - (int)$state['started_ns']) / 1_000_000;
+    }
 
     function kernelPerfMarkRequestPhase(string $phase): void
     {

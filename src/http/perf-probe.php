@@ -125,3 +125,93 @@ if (!function_exists('kernelPerfProbeDisylRender')) {
         return $result;
     }
 }
+
+if (!function_exists('kernelPerfOpcacheSnapshot')) {
+    /**
+     * One cheap read of the OPcache state, or null when OPcache is not in play.
+     *
+     * `opcache_get_status(false)` deliberately omits the per-script list: enumerating thousands of
+     * cached scripts costs more than the number is worth, and this runs on the request path.
+     *
+     * Returns null - never a zero - when the function is unavailable (hosts disable it through
+     * `disable_functions`) or OPcache is off. A fabricated 0 would read as "cached nothing", which is a
+     * different claim from "could not ask".
+     */
+    function kernelPerfOpcacheSnapshot(): ?array
+    {
+        if (!function_exists('opcache_get_status')) {
+            return null;
+        }
+        try {
+            $status = @opcache_get_status(false);
+        } catch (Throwable $e) {
+            return null;
+        }
+        if (!is_array($status) || empty($status['opcache_enabled'])) {
+            return null;
+        }
+        $stats = is_array($status['opcache_statistics'] ?? null) ? $status['opcache_statistics'] : [];
+        $memory = is_array($status['memory_usage'] ?? null) ? $status['memory_usage'] : [];
+
+        return [
+            'cached_scripts' => (int)($stats['num_cached_scripts'] ?? 0),
+            'max_cached_keys' => (int)($stats['max_cached_keys'] ?? 0),
+            'hits' => (int)($stats['hits'] ?? 0),
+            'misses' => (int)($stats['misses'] ?? 0),
+            'oom_restarts' => (int)($stats['oom_restarts'] ?? 0),
+            'hash_restarts' => (int)($stats['hash_restarts'] ?? 0),
+            'used_mb' => round(((int)($memory['used_memory'] ?? 0)) / 1048576, 1),
+            'free_mb' => round(((int)($memory['free_memory'] ?? 0)) / 1048576, 1),
+            'wasted_mb' => round(((int)($memory['wasted_memory'] ?? 0)) / 1048576, 1),
+        ];
+    }
+}
+
+if (!function_exists('kernelPerfProbeOpcache')) {
+    /**
+     * OPcache state, plus how many scripts THIS request had to compile.
+     *
+     * The delta is the whole point. A cached-script count alone cannot tell "OPcache is serving the 347
+     * module helper files" apart from "OPcache is enabled and those same files are compiled every
+     * request" - and those two states need opposite fixes. A cached count can even look healthy while
+     * the files that matter are recompiled each time, because the count is per-worker and stays high.
+     *
+     * `misses` is cumulative for the worker, so the difference against the request's own baseline
+     * (captured before any module is registered) counts the compilations that happened DURING module
+     * registration - which is exactly where the helper files are included.
+     */
+    function kernelPerfProbeOpcache(): array
+    {
+        $now = kernelPerfOpcacheSnapshot();
+        $baseline = $GLOBALS['kernel_perf_request_attribution']['opcache_baseline'] ?? null;
+        if (!is_array($baseline)) {
+            $baseline = null;
+        }
+
+        $report = [
+            'available' => $now !== null,
+            'now' => $now,
+            'baseline_available' => $baseline !== null,
+            // null, never 0: without a baseline there is no measurement, and 0 would claim there was.
+            'compiled_this_request' => null,
+            'validate_timestamps' => null,
+            'revalidate_freq' => null,
+        ];
+
+        if ($now !== null && $baseline !== null) {
+            $report['compiled_this_request'] = max(0, $now['misses'] - (int)$baseline['misses']);
+        }
+
+        // ini_get returns false for an unknown or unreadable directive; report that as unknown.
+        $validate = ini_get('opcache.validate_timestamps');
+        if ($validate !== false) {
+            $report['validate_timestamps'] = (string)$validate;
+        }
+        $freq = ini_get('opcache.revalidate_freq');
+        if ($freq !== false) {
+            $report['revalidate_freq'] = (string)$freq;
+        }
+
+        return $report;
+    }
+}
