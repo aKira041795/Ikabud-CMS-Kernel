@@ -127,6 +127,15 @@
 </div>
 {/if}
 
+{* The destination you asked for was not available, so this is a different one. Said out loud,
+   because Save writes the whole visible list: saving here would change a branch nobody chose. *}
+{if destination_substituted_from > 0}
+<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert" data-picker-substituted>
+    <div class="font-semibold"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> That destination is not available</div>
+    <p class="mt-1">The destination you opened is inactive or no longer exists, so this is a different one. Check the name above before saving.</p>
+</div>
+{/if}
+
 {if warning_groups | length > 0}
 <div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" data-picker-warning-info>
     <div class="font-semibold"><i class="fas fa-circle-info" aria-hidden="true"></i> Information: older unfinished days</div>
@@ -750,6 +759,15 @@
     // ── Assignment tab (Slice B) — picker behaviour ────────────────────
     var PICKER_BRANCH_ID = {if tab == 'consignee_assignment'}{consignee_id | default:0}{else}{branch_id | default:0}{/if};
     var PICKER_IS_CONSIGNEE = {if tab == 'consignee_assignment'}true{else}false{/if};
+    // The destination this checklist writes to, taken from the header so there is only ONE place it
+    // is stated. Used on the save control, which sits 178 rows below that header.
+    var pickerDestinationName = (function () {
+        var el = document.querySelector('[data-picker-branch-name]');
+        if (!el) { return ''; }
+        var text = (el.textContent || '').trim();
+        var parts = text.split('\u2014');
+        return (parts.length > 1 ? parts[parts.length - 1] : text).trim();
+    })();
 
     function pickerEscape(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -791,7 +809,13 @@
         }
         if (save) {
             save.disabled = !pickerDirty;
-            save.textContent = pickerDirty ? 'Save ' + total + ' change' + (total === 1 ? '' : 's') : 'Save changes';
+            // Name the destination ON the control. This editor's Save writes the whole visible list,
+            // and the header that names the destination is 178 rows away, so an operator who scrolled
+            // down could save a destination they never chose -- which reads as "nothing happened".
+            var suffix = pickerDestinationName ? ' to ' + pickerDestinationName : '';
+            save.textContent = pickerDirty
+                ? 'Save ' + total + ' change' + (total === 1 ? '' : 's') + suffix
+                : 'Save changes' + suffix;
         }
         if (discard) { discard.disabled = !pickerDirty; }
     }

@@ -16714,6 +16714,13 @@ function handleAdminProducts(array $params = []): void
     $assignmentConsignee = null;
     $assignmentProducts = [];
     $warningGroups = [];
+    // Set when the operator asked for a destination and got a different one. The checklist is a
+    // per-destination editor whose Save writes the WHOLE visible list, so silently substituting a
+    // branch means a save can land on a destination the operator never chose -- and a 178-row list
+    // hides the header that names it. Reported, never silent.
+    $requestedBranchId = (int) ($input['branch_id'] ?? 0);
+    $requestedConsigneeId = (int) ($input['consignee_id'] ?? 0);
+    $destinationSubstitutedFrom = 0;
     if ($tab === 'assignment') {
         if ($selectedBranchId <= 0 && $branches !== []) {
             $selectedBranchId = (int)$branches[0]['id'];
@@ -16729,6 +16736,9 @@ function handleAdminProducts(array $params = []): void
             // so the editor always shows a real branch.
             $assignmentBranch = $branches[0];
             $selectedBranchId = (int)$assignmentBranch['id'];
+            if ($requestedBranchId > 0 && $requestedBranchId !== $selectedBranchId) {
+                $destinationSubstitutedFrom = $requestedBranchId;
+            }
         }
         if ($assignmentBranch !== null) {
             $pStmt = $ctx->db()->prepare(
@@ -16781,6 +16791,9 @@ function handleAdminProducts(array $params = []): void
         if ($assignmentConsignee === null && $consignees !== []) {
             $assignmentConsignee = $consignees[0];
             $selectedConsigneeId = (int)$assignmentConsignee['id'];
+            if ($requestedConsigneeId > 0 && $requestedConsigneeId !== $selectedConsigneeId) {
+                $destinationSubstitutedFrom = $requestedConsigneeId;
+            }
         }
         if ($assignmentConsignee !== null) {
             $pStmt = $ctx->db()->prepare(
@@ -16818,6 +16831,7 @@ function handleAdminProducts(array $params = []): void
         'assignment_branch' => $assignmentBranch,
         'assignment_consignee' => $assignmentConsignee,
         'assignment_products' => $assignmentProducts,
+        'destination_substituted_from' => $destinationSubstitutedFrom,
         'warning_groups' => $warningGroups,
         'consignee_enabled' => dl_isConsigneeEnabled(),
     ]);
