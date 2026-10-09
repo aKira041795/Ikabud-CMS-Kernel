@@ -339,3 +339,11 @@ echo "║     → database/migrations/005–009 (kernel features)        ║\n";
 echo "║     → modules/*/database/migrations/ (module schemas)      ║\n";
 echo "║                                                             ║\n";
 echo "╚══════════════════════════════════════════════════════════════╝\n";
+
+// Printed outside the box so the box art cannot drift out of alignment.
+echo "\n";
+echo "  6. Warm OPcache, once per host, after the files are in place:\n";
+echo "       php scripts/warm-opcache.php --base=https://yourdomain.com\n";
+echo "     Any PHP restart (this install, a reboot, a PHP upgrade) empties OPcache,\n";
+echo "     and the next visitor then pays to have the framework recompiled from\n";
+echo "     source: measured 227.64 ms cold against 61.68 ms warm on identical code.\n";
