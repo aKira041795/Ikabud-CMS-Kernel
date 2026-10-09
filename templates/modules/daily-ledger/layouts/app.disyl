@@ -52,8 +52,8 @@
            loses the line between the product on the left and the figure on the right.
            The stripe and the hover tint are painted on the CELLS, not the row, because the pinned
            columns carry their own white background and a row-level colour cannot show through them. */
-        .dl-zebra tbody tr:nth-child(even) > td { background: rgb(248 250 252); }
-        .dl-zebra tbody tr:hover > td { background: rgb(241 245 249); }
+        .dl-zebra tbody tr:nth-child(even) > td { background: rgb(236 241 247); }
+        .dl-zebra tbody tr:hover > td { background: rgb(219 227 238); }
 
         /* Settings page: group the cards into named sections with a jump nav, so a long single-column
            form can be scanned and navigated instead of scrolled blindly. */

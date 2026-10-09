@@ -655,10 +655,10 @@
        has one, which would leave the pinned column white while the rest of the row stripes. These
        selectors carry two ids, so they outrank the pinned-cell rule above. */
     #tab-daily-sheet #production-ledger-table.dl-zebra tbody tr:nth-child(even) > td {
-        background: rgb(248 250 252);
+        background: rgb(236 241 247);
     }
     #tab-daily-sheet #production-ledger-table.dl-zebra tbody tr:hover > td {
-        background: rgb(241 245 249);
+        background: rgb(219 227 238);
     }
     /* A sticky element sticks to its NEAREST scrollport, and .table-wrap is one: `overflow-x: auto`
        forces the other axis to compute to `auto` too (CSS turns a `visible` axis into `auto` when
