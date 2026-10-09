@@ -25,7 +25,7 @@ declare(strict_types=1);
  * Usage:
  *   php tests/load/daily_ledger_load_test.php [--base=http://baronledger.test]
  *        [--phase=all|latency|ceiling|contention|mixed] [--date=YYYY-MM-DD]
- *        [--peak-branches=23] [--clean-writes] [--json=path]
+ *        [--peak-branches=23] [--write-concurrency=10] [--clean-writes] [--json=path]
  *
  * Requires fixtures: php tests/load/seed_load_users.php --db=baronledger
  */
@@ -38,6 +38,7 @@ $opts = [
     'phase' => 'all',
     'date' => '2027-01-15',   // synthetic: keeps writes off real ledger rows
     'peak-branches' => 23,
+    'write-concurrency' => 10, // concurrent writers in the contention phase
     'clean-writes' => false,
     'reset-limiter' => false,
     'json' => 'test_results/daily-ledger-load.json',
@@ -589,7 +590,7 @@ if (in_array($opts['phase'], ['all', 'contention'], true)) {
     if ($writeSessions === []) {
         echo "  skipped: no admin sessions available for write contention\n\n";
     } else {
-        $conc = min(10, count($writeSessions));
+        $conc = min((int) $opts['write-concurrency'], count($writeSessions));
         $testDate = (string)$opts['date'];
 
         // Same branch + same date + same shift, distinct products: exercises the

@@ -1733,3 +1733,64 @@ function dl_cap_entity_get_entry_1(mixed $payload, string $capabilityId = '', st
         return [];
     }
 }
+
+/**
+ * Is this a MySQL lock conflict that a retry can clear?
+ *
+ *   1213  deadlock found -- InnoDB chose this transaction as the victim and rolled it back
+ *   1205  lock wait timeout exceeded
+ *
+ * Both mean "this attempt wrote nothing; the same work can be run again". Everything
+ * else -- a duplicate key, a constraint violation, malformed SQL -- is a real error and
+ * must surface rather than be retried into a different failure.
+ */
+function dl_isDeadlockError(\Throwable $e): bool
+{
+    if (!$e instanceof \PDOException) {
+        return false;
+    }
+    $driverCode = (int) ($e->errorInfo[1] ?? 0);
+    return $driverCode === 1213 || $driverCode === 1205;
+}
+
+/**
+ * Run a unit of work that owns its transaction, retrying ONLY on a lock conflict.
+ *
+ * The callable does its own beginTransaction/commit. This helper does not manage
+ * transaction boundaries; on a lock conflict it rolls back whatever the failed attempt
+ * left open and re-runs the callable. That is safe precisely because 1213/1205 means
+ * InnoDB discarded the whole transaction -- there is no partial write to replay.
+ *
+ * Business refusals (RuntimeException, e.g. "Day is closed" or a 403 branch refusal)
+ * are not lock conflicts, so they are rethrown on the first attempt and never retried.
+ *
+ * @param mixed           $db          module DB connection (kernel contract, not raw PDO)
+ * @param callable():mixed $work        one complete attempt, transaction included
+ * @param int             $maxAttempts total attempts before giving up
+ * @return mixed whatever $work returns on the attempt that succeeds
+ */
+function dl_runWithDeadlockRetry($db, callable $work, int $maxAttempts = 3)
+{
+    $attempt = 0;
+    while (true) {
+        $attempt++;
+        try {
+            return $work();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            if ($attempt >= $maxAttempts || !dl_isDeadlockError($e)) {
+                throw $e;
+            }
+            write_log('daily-ledger lock conflict, retrying', 'warning', [
+                'attempt'     => $attempt,
+                'max_attempts' => $maxAttempts,
+                'driver_code' => (int) ($e->errorInfo[1] ?? 0),
+            ]);
+            // Bounded linear backoff (20ms, then 40ms): long enough for the other
+            // transaction to finish, short enough that a cashier never notices.
+            usleep(20000 * $attempt);
+        }
+    }
+}

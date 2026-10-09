@@ -10824,64 +10824,68 @@ function apiSaveLedgerField(array $params = []): void
     }
 
     try {
-        $ctx->db()->beginTransaction();
-        $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
-        if ($dayStatus === 'closed' && $role === 'cashier') {
-            throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
-        }
-        dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
+        // A 1213/1205 here discards the whole transaction, so re-running it is safe and
+        // is the difference between a cashier seeing "Save failed" and the save landing.
+        dl_runWithDeadlockRetry($ctx->db(), static function () use ($ctx, $branchId, $productId, $date, $shift, $userId, $value, $field, $column, $role) {
+            $ctx->db()->beginTransaction();
+            $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
+            if ($dayStatus === 'closed' && $role === 'cashier') {
+                throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
+            }
+            dl_assertShiftMutable($ctx->db(), $branchId, $date, $shift);
 
-        $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
-        // Deliberately NOT "FOR UPDATE". This read only captures the audit "before"
-        // value; the INSERT ... ON DUPLICATE KEY UPDATE below already takes the row
-        // lock it needs. Under REPEATABLE READ a locking read of a row that does not
-        // exist yet takes a next-key lock on the gap it would occupy. At the start of
-        // a business day every row is missing and the new date is the newest in the
-        // table, so concurrent saves across branches all gap-lock the same index
-        // supremum and then each request an insert-intention lock inside it - which
-        // deadlocks (InnoDB 1213, reproduced at 10 concurrent saves over 10 branches).
-        $oldStmt = $ctx->db()->prepare(
-            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1"
-        );
-        $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
-        $oldVal = $oldStmt->fetchColumn();
+            $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
+            // Deliberately NOT "FOR UPDATE". This read only captures the audit "before"
+            // value; the INSERT ... ON DUPLICATE KEY UPDATE below already takes the row
+            // lock it needs. Under REPEATABLE READ a locking read of a row that does not
+            // exist yet takes a next-key lock on the gap it would occupy. At the start of
+            // a business day every row is missing and the new date is the newest in the
+            // table, so concurrent saves across branches all gap-lock the same index
+            // supremum and then each request an insert-intention lock inside it - which
+            // deadlocks (InnoDB 1213, reproduced at 10 concurrent saves over 10 branches).
+            $oldStmt = $ctx->db()->prepare(
+                "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift LIMIT 1"
+            );
+            $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
+            $oldVal = $oldStmt->fetchColumn();
 
-        $stmt = $ctx->db()->prepare(
-            "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, {$column}, encoded_by, updated_by)
-             VALUES (:bid, :pid, :d, :shift, :price, :val, :uid, :uid2)
-             ON DUPLICATE KEY UPDATE {$column} = :val2, updated_by = :uid3, updated_at = CURRENT_TIMESTAMP"
-        );
-        $stmt->execute([
-            ':bid'   => $branchId,
-            ':pid'   => $productId,
-            ':d'     => $date,
-            ':shift' => $shift,
-            ':price' => $currentPrice,
-            ':val'   => $value,
-            ':uid'   => $userId,
-            ':uid2'  => $userId,
-            ':val2'  => $value,
-            ':uid3'  => $userId,
-        ]);
+            $stmt = $ctx->db()->prepare(
+                "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, {$column}, encoded_by, updated_by)
+                 VALUES (:bid, :pid, :d, :shift, :price, :val, :uid, :uid2)
+                 ON DUPLICATE KEY UPDATE {$column} = :val2, updated_by = :uid3, updated_at = CURRENT_TIMESTAMP"
+            );
+            $stmt->execute([
+                ':bid'   => $branchId,
+                ':pid'   => $productId,
+                ':d'     => $date,
+                ':shift' => $shift,
+                ':price' => $currentPrice,
+                ':val'   => $value,
+                ':uid'   => $userId,
+                ':uid2'  => $userId,
+                ':val2'  => $value,
+                ':uid3'  => $userId,
+            ]);
 
-        // Auto-recompute sales = beg_bal + addtl - withdraw - bal_end (server-side)
-        if ($field !== 'sales') {
-            dl_recomputeSales($branchId, $productId, $date, $userId, $shift);
-        }
-        dl_recomputeVariancesForDay($branchId, $date);
+            // Auto-recompute sales = beg_bal + addtl - withdraw - bal_end (server-side)
+            if ($field !== 'sales') {
+                dl_recomputeSales($branchId, $productId, $date, $userId, $shift);
+            }
+            dl_recomputeVariancesForDay($branchId, $date);
 
-        // Audit log (silent)
-        $oldAudit = $oldVal !== false ? ($oldVal !== null ? (int)$oldVal : null) : null;
-        dl_auditLog(
-            'field_update',
-            $branchId,
-            'dl_daily_ledger',
-            "{$branchId}-{$productId}-{$date}-{$shift}",
-            [$field => $oldAudit],
-            [$field => $value]
-        );
+            // Audit log (silent)
+            $oldAudit = $oldVal !== false ? ($oldVal !== null ? (int)$oldVal : null) : null;
+            dl_auditLog(
+                'field_update',
+                $branchId,
+                'dl_daily_ledger',
+                "{$branchId}-{$productId}-{$date}-{$shift}",
+                [$field => $oldAudit],
+                [$field => $value]
+            );
 
-        $ctx->db()->commit();
+            $ctx->db()->commit();
+        });
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'field' => $field, 'value' => $value]);
