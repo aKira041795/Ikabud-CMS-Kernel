@@ -661,7 +661,7 @@
 </style>
 
 </head>
-<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: false }" data-wb-component="app-shell">
+<body class="min-h-screen bg-slate-50" data-wb-role="{user_role}" x-data="{ sidebarOpen: wbSidebarOpen() }" x-effect="wbSidebarPersist(sidebarOpen)" data-wb-component="app-shell">
 
     <div id="toast-container" class="fixed top-4 right-4 z-50" role="status" aria-live="polite"></div>
 
@@ -1654,6 +1654,28 @@
     }, true);
 </script>
 
+<script>
+/* The sidebar's expanded/collapsed state must survive navigating to another view, so it is kept in
+   localStorage and read back on load. Every access is guarded: localStorage throws in private mode
+   and when storage is disabled, and an exception there would break every Alpine binding on the page.
+   The key is scoped by ROLE, not just by browser: localStorage is shared by every account that uses
+   this device, so an admin who expanded the sidebar on a shop tablet would otherwise hand a cashier
+   an expanded sidebar and cost them the full-width ledger view. A non-admin with no stored
+   preference therefore always starts COLLAPSED, which is what the default is for.
+   All three daily-ledger shells share these keys, so the state carries across views.
+   No braces in the x-data / x-effect expressions above on purpose: braces in a DiSyL ATTRIBUTE are
+   parsed. A <script> block is the safe place for JS that needs them. */
+function wbSidebarStorageKey() {
+    var role = document.body ? document.body.getAttribute('data-wb-role') : '';
+    return 'dl_sidebar_open:' + (role ? role : 'anon');
+}
+function wbSidebarOpen() {
+    try { return localStorage.getItem(wbSidebarStorageKey()) === '1'; } catch (e) { return false; }
+}
+function wbSidebarPersist(open) {
+    try { localStorage.setItem(wbSidebarStorageKey(), open ? '1' : '0'); } catch (e) {}
+}
+</script>
 <script>
 /* The sidebar defaults to collapsed, so its menu items are icon-only. Copy each item's existing
    accessible name onto a native tooltip so the icon can be identified on hover. A native title is
