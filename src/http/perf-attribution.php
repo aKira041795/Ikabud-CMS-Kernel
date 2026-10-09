@@ -23,6 +23,16 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
         ],
         'phases' => [
             'boot' => null,
+            'session' => null,
+            'core_routes' => null,
+            'settings_preload' => null,
+            'module_routes_discovery' => null,
+            'module_routes_registration' => null,
+            'module_routes_event_flush' => null,
+            'module_routes_contract_drift' => null,
+            'module_routes' => null,
+            'dispatch_hooks' => null,
+            'route_match' => null,
             'dispatch' => null,
             'render' => null,
             'shutdown' => null,
@@ -32,7 +42,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
     function kernelPerfMarkRequestPhase(string $phase): void
     {
         try {
-            if (!in_array($phase, ['boot', 'dispatch', 'render', 'shutdown'], true)) {
+            if (!in_array($phase, ['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'], true)) {
                 return;
             }
 
@@ -55,7 +65,38 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
     {
         $empty = [
             'db' => ['queries' => 0, 'total_ms' => 0.0, 'slowest' => [], 'ddl_queries' => 0, 'ddl_tables' => []],
-            'phases' => ['boot' => null, 'dispatch' => null, 'render' => null, 'shutdown' => null],
+            'phases' => [
+                'boot' => null,
+                'session' => null,
+                'core_routes' => null,
+                'settings_preload' => null,
+                'module_routes_discovery' => null,
+                'module_routes_registration' => null,
+                'module_routes_event_flush' => null,
+                'module_routes_contract_drift' => null,
+                'module_routes' => null,
+                'dispatch_hooks' => null,
+                'route_match' => null,
+                'dispatch' => null,
+                'render' => null,
+                'shutdown' => null,
+            ],
+            'phase_deltas' => [
+                'session' => null,
+                'core_routes' => null,
+                'settings_preload' => null,
+                'module_routes' => null,
+                'dispatch_hooks' => null,
+                'route_match' => null,
+                'dispatch_tail' => null,
+            ],
+            'module_route_deltas' => [
+                'discovery' => null,
+                'registration' => null,
+                'event_flush' => null,
+                'contract_drift' => null,
+                'tail' => null,
+            ],
         ];
 
         try {
@@ -67,6 +108,41 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             $db = is_array($state['db'] ?? null) ? $state['db'] : [];
             $phases = is_array($state['phases'] ?? null) ? $state['phases'] : [];
 
+            $phaseValues = [];
+            foreach (['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'] as $phase) {
+                $phaseValues[$phase] = isset($phases[$phase]) ? (float)$phases[$phase] : null;
+            }
+
+            $deltaPairs = [
+                'session' => ['boot', 'session'],
+                'core_routes' => ['session', 'core_routes'],
+                'settings_preload' => ['core_routes', 'settings_preload'],
+                'module_routes' => ['settings_preload', 'module_routes'],
+                'dispatch_hooks' => ['module_routes', 'dispatch_hooks'],
+                'route_match' => ['dispatch_hooks', 'route_match'],
+                'dispatch_tail' => ['route_match', 'dispatch'],
+            ];
+            $phaseDeltas = [];
+            foreach ($deltaPairs as $segment => [$before, $after]) {
+                $phaseDeltas[$segment] = $phaseValues[$before] !== null && $phaseValues[$after] !== null
+                    ? max(0.0, $phaseValues[$after] - $phaseValues[$before])
+                    : null;
+            }
+
+            $moduleRoutePairs = [
+                'discovery' => ['settings_preload', 'module_routes_discovery'],
+                'registration' => ['module_routes_discovery', 'module_routes_registration'],
+                'event_flush' => ['module_routes_registration', 'module_routes_event_flush'],
+                'contract_drift' => ['module_routes_event_flush', 'module_routes_contract_drift'],
+                'tail' => ['module_routes_contract_drift', 'module_routes'],
+            ];
+            $moduleRouteDeltas = [];
+            foreach ($moduleRoutePairs as $segment => [$before, $after]) {
+                $moduleRouteDeltas[$segment] = $phaseValues[$before] !== null && $phaseValues[$after] !== null
+                    ? max(0.0, $phaseValues[$after] - $phaseValues[$before])
+                    : null;
+            }
+
             return [
                 'db' => [
                     'queries' => max(0, (int)($db['queries'] ?? 0)),
@@ -75,12 +151,9 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                     'ddl_queries' => max(0, (int)($db['ddl_queries'] ?? 0)),
                     'ddl_tables' => is_array($db['ddl_tables'] ?? null) ? $db['ddl_tables'] : [],
                 ],
-                'phases' => [
-                    'boot' => isset($phases['boot']) ? (float)$phases['boot'] : null,
-                    'dispatch' => isset($phases['dispatch']) ? (float)$phases['dispatch'] : null,
-                    'render' => isset($phases['render']) ? (float)$phases['render'] : null,
-                    'shutdown' => isset($phases['shutdown']) ? (float)$phases['shutdown'] : null,
-                ],
+                'phases' => $phaseValues,
+                'phase_deltas' => $phaseDeltas,
+                'module_route_deltas' => $moduleRouteDeltas,
             ];
         } catch (Throwable $ignored) {
             return $empty;

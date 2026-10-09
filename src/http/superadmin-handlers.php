@@ -998,6 +998,8 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
         'ddl_queries' => (int)$requestAttribution['db']['ddl_queries'],
         'ddl_tables' => $requestAttribution['db']['ddl_tables'],
         'phases' => $requestAttribution['phases'],
+        'phase_deltas' => $requestAttribution['phase_deltas'],
+        'module_route_deltas' => $requestAttribution['module_route_deltas'],
     ];
 
     echo json_encode(['ok' => true, 'perf' => $perfResults], JSON_PRETTY_PRINT);

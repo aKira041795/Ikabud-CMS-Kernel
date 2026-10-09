@@ -30,7 +30,7 @@ attributionAssert('unmarked phase is null, not zero', $fresh['phases']['dispatch
 // assertion is the must-refuse for it.
 $busReflection = new ReflectionClass(app()->events());
 $listenersProp = $busReflection->getProperty('listeners');
-$listenersProp->setAccessible(true);
+// setAccessible() is a no-op since PHP 8.1 and deprecated since PHP 8.5 — omit it.
 $dbEventListeners = $listenersProp->getValue(app()->events())['kernel.database.query.after'] ?? [];
 $moduleOwners = [];
 foreach ($dbEventListeners as $entry) {

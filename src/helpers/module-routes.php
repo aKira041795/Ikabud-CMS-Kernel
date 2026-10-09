@@ -144,7 +144,12 @@ function loadModuleRoutes(array $routes): array
         }
     }
 
-    foreach (getEnabledModules() as $module) {
+    $enabledModules = getEnabledModules();
+    if (function_exists('kernelPerfMarkRequestPhase')) {
+        kernelPerfMarkRequestPhase('module_routes_discovery');
+    }
+
+    foreach ($enabledModules as $module) {
         loadModuleHelpers($module);
 
         // Register capability providers declared by the module.
@@ -554,13 +559,23 @@ function loadModuleRoutes(array $routes): array
         }
     }
 
+    if (function_exists('kernelPerfMarkRequestPhase')) {
+        kernelPerfMarkRequestPhase('module_routes_registration');
+    }
+
     // Flush all deferred event registrations in a single batch (1 cache check + 1 batch DB write)
     if (function_exists('kernelFlushPendingEventRegistrations')) {
         kernelFlushPendingEventRegistrations();
     }
+    if (function_exists('kernelPerfMarkRequestPhase')) {
+        kernelPerfMarkRequestPhase('module_routes_event_flush');
+    }
 
     // Check read contract schema drift after all modules are loaded
     kernelCheckReadContractDrift();
+    if (function_exists('kernelPerfMarkRequestPhase')) {
+        kernelPerfMarkRequestPhase('module_routes_contract_drift');
+    }
 
     return $routes;
 }

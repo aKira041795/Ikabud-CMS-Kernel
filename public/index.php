@@ -189,6 +189,7 @@ if (!$isApiRequest && session_status() === PHP_SESSION_NONE) {
     ]);
     session_start();
 }
+kernelPerfMarkRequestPhase('session');
 
 register_shutdown_function('kernelFireShutdownHooks');
 
@@ -480,14 +481,18 @@ if (!empty($_SERVER['IK_FAST_404'])) {
 }
 
 $routes = kernelCoreRoutes();
+kernelPerfMarkRequestPhase('core_routes');
 
 // Batch-load all tenant module settings in 1 query (avoids N+1 per module)
 preloadAllTenantModuleSettings();
+kernelPerfMarkRequestPhase('settings_preload');
 
 $routes = loadModuleRoutes($routes);
+kernelPerfMarkRequestPhase('module_routes');
 kernelRegisterCoreRequestDispatchHooks();
 
 $dispatchContext = kernelApplyRequestBeforeDispatch(kernelBuildRequestDispatchContext($method, $uri));
+kernelPerfMarkRequestPhase('dispatch_hooks');
 $method = strtoupper((string)($dispatchContext['method'] ?? $method));
 if ($method === 'HEAD') {
     $method = 'GET';
@@ -554,6 +559,7 @@ foreach ($routePatterns as $pattern) {
         break;
     }
 }
+kernelPerfMarkRequestPhase('route_match');
 
 if ($handler === null) {
     // Route-level 404. When the CMS module is loaded, cmsResolveTemplate()
