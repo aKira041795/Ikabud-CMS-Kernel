@@ -222,6 +222,48 @@ foreach ($includeRootFiles as $file) {
     }
 }
 
+// ── storage/: ship the SCAFFOLDING, never the runtime DATA ──────────────
+// storage/ holds two different things. One is content that ships: the Ark profiles, the CMS
+// themes, the .htaccess. The other is what THIS install produced and what describes THIS host —
+// uploaded documents, report archives, workbench scratch, and the module/settings JSON.
+//
+// The second kind must never ride in a deploy package. It leaks client files (measured
+// 2026-10-09: 8 uploaded PDFs under academic_similarity/, 18 files under private/), and it
+// overwrites the RECEIVING install's own state — storage/modules.json is that install's module
+// registry, and the operator is separately told to preserve storage/.
+//
+// This class has now recurred three times, and each earlier fix listed the offenders by name
+// (storage/db-snapshots/, storage/maintenance/ — see the note in $excludePrefixes above). A
+// list of names cannot hold a rule: the next runtime directory leaks by default. So this is one
+// RULE instead — under storage/, a path ships only if git tracks it. Content in the repository
+// is intentional by definition; content the working tree accumulated is not.
+//
+// Falls back to today's behaviour (no filtering) when the git index is unavailable, so building
+// from an export or a tarball can never silently drop tracked files. The .gitkeep placeholders
+// added near the end of this script are unaffected: they are appended after this filter.
+$trackedStorage = [];
+$gitIndex = shell_exec('git -C ' . escapeshellarg($root) . ' ls-files -- storage 2>/dev/null');
+if (is_string($gitIndex)) {
+    foreach (explode("\n", trim($gitIndex)) as $trackedPath) {
+        $trackedPath = trim($trackedPath);
+        if ($trackedPath !== '') {
+            $trackedStorage[$trackedPath] = true;
+        }
+    }
+}
+if ($trackedStorage === []) {
+    echo "  NOTE: git index unavailable — storage/ runtime data is NOT filtered (previous behaviour).\n";
+} else {
+    $storageBefore = $files;
+    $files = array_values(array_filter($files, static function (array $entry) use ($trackedStorage): bool {
+        return !str_starts_with($entry['relative'], 'storage/') || isset($trackedStorage[$entry['relative']]);
+    }));
+    $storageDropped = count($storageBefore) - count($files);
+    $skipped += $storageDropped;
+    echo "  storage/: kept " . (count($storageBefore) - $storageDropped) . " of " . count($storageBefore)
+        . " entries, dropped {$storageDropped} untracked runtime path(s).\n";
+}
+
 $fileCount = count($files);
 echo "  Found {$fileCount} files to archive ({$skipped} excluded).\n\n";
 
