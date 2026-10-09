@@ -32,7 +32,22 @@ Backups are generated as SQL files in:
 
 Backup file naming:
 
-- `dl-db-backup-YYYYMMDD-HHMMSS.sql`
+- `daily-ledger-db-backup-YYYYMMDD-HHMMSS.sql` (the prefix is the module slug)
+
+### What a backup contains
+
+- Every `dl_*` table the module owns, as data-only `DELETE` + `INSERT` statements.
+- **Module settings**, because they are the one thing a prefix scan cannot reach: they live in the
+  kernel table `tenant_module_settings`, keyed `(tenant_id, module_id, setting_key)`. The dump ends with
+  a `DELETE` scoped to this tenant **and** `module_id = 'daily-ledger'`, followed by the settings rows,
+  so importing it restores consignee settings, feature flags, role permissions, branding and shift
+  times along with the data. Before 2026-10-09 a restore silently lost all of them.
+- The header names the target database (`-- Target database: <name>`), so a dump is not imported into
+  the wrong tenant's database, which otherwise looks exactly like "the restore did nothing".
+- Settings are written only when `tenant_module_settings` sits in the SAME database as the `dl_*`
+  tables. A file is imported as one unit, so a section aimed at another database would fail the whole
+  import (1146) - and without a resolved tenant the section is omitted, because an unscoped `DELETE`
+  would remove another tenant's settings from a shared database.
 
 Security behavior:
 

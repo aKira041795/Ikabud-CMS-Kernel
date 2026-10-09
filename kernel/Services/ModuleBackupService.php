@@ -15,6 +15,9 @@ namespace Ikabud\Kernel\Services;
  *   - Dumps every table matching a prefix ({prefix}_%) to a data-only SQL file
  *     under storage/backups/{moduleId}/ (schema must already exist; restore =
  *     run the file against the already-migrated schema).
+ *   - Also carries the module's `tenant_module_settings` rows when they live in the
+ *     same database, because settings are NOT module tables and a restore used to come
+ *     back with them missing.
  *   - Streams secure downloads (filename validated, path-traversal safe).
  *   - Enforces retention cleanup and leaves an audit trail via write_log().
  *
@@ -52,7 +55,7 @@ final class ModuleBackupService
      *                              'download_path'       => string      URL path for downloads (e.g. '/dc-cafe/api/v1/backup/download'),
      *                              'event'               => string      audit event (default '<moduleId>.backup.created'),
      *                            ]
-     * @return array{file_name:string,file_size_bytes:int,download_url:string,tables:list<array{table:string,rows:int}>,total_rows:int,retention_days:int,deleted_old_backups:int}
+     * @return array{file_name:string,file_size_bytes:int,download_url:string,tables:list<array{table:string,rows:int}>,total_rows:int,settings:array{included:bool,rows:int,table:string,reason:string},retention_days:int,deleted_old_backups:int}
      */
     public static function generate(\Ikabud\Kernel\Contracts\ModuleContext $ctx, string $tablePrefix, string $reason, array $options = []): array
     {
@@ -105,6 +108,12 @@ final class ModuleBackupService
             fwrite($fh, '-- ' . strtoupper($moduleId) . " SQL Backup\n");
             fwrite($fh, '-- Generated at: ' . date('c') . "\n");
             fwrite($fh, '-- Reason: ' . $reason . "\n");
+            // Naming the target saves the operator from importing a tenant's data into the wrong
+            // database, which is indistinguishable from "the restore did nothing".
+            $targetDatabase = self::currentDatabase($db);
+            if ($targetDatabase !== '') {
+                fwrite($fh, '-- Target database: ' . $targetDatabase . "\n");
+            }
             fwrite($fh, "SET FOREIGN_KEY_CHECKS=0;\n\n");
 
             foreach ($tables as $table) {
@@ -160,6 +169,8 @@ final class ModuleBackupService
                 $tableSummaries[] = ['table' => $safe, 'rows' => $count];
             }
 
+            $settings = self::appendSettingsSection($fh, $ctx, $targetDatabase);
+
             fwrite($fh, "SET FOREIGN_KEY_CHECKS=1;\n");
             fclose($fh);
             @chmod($tmpTarget, 0640);
@@ -183,6 +194,9 @@ final class ModuleBackupService
             'download_url' => ($downloadPath !== '' ? $downloadPath . '/' : '') . '?file=' . rawurlencode($filename),
             'tables' => $tableSummaries,
             'total_rows' => $totalRows,
+            // Reported separately from total_rows: settings are configuration, not ledger data, and
+            // a caller that shows "N rows backed up" should not silently include them.
+            'settings' => $settings,
             'retention_days' => $retentionDays,
             'deleted_old_backups' => $deletedOld,
             'by_user' => $byUser,
@@ -299,6 +313,112 @@ final class ModuleBackupService
             }
         }
         return $deleted;
+    }
+
+    /**
+     * Name of the database a handle is connected to, or '' when it cannot be determined.
+     */
+    private static function currentDatabase($db): string
+    {
+        try {
+            $stmt = $db->query('SELECT DATABASE()');
+            $name = $stmt ? $stmt->fetchColumn() : false;
+            return is_string($name) ? $name : '';
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
+    /**
+     * Append the module's own tenant_module_settings rows to an open dump.
+     *
+     * Module settings are NOT module tables. They live in the kernel table
+     * `tenant_module_settings`, keyed (tenant_id, module_id, setting_key), so a scan over the
+     * manifest's owns_tables cannot find them. A backup taken before this carried every dl_* row
+     * and restored with the module's whole configuration missing — feature flags, consignee
+     * settings, role permissions, branding — while still looking complete. (Measured on tenant 207:
+     * 25 rows, none of them ever carried.)
+     *
+     * Written ONLY when the settings table is in the SAME database as the dumped tables, because the
+     * file is imported as a single unit. A section aimed at another database would make the entire
+     * import fail with 1146, which is worse than a backup that merely lacks settings, so a module
+     * whose data lives in its own database gets no settings section and says why.
+     *
+     * @return array{included:bool,rows:int,table:string,reason:string}
+     */
+    private static function appendSettingsSection($fh, \Ikabud\Kernel\Contracts\ModuleContext $ctx, string $targetDatabase): array
+    {
+        $moduleId = (string) $ctx->moduleId();
+        $table = function_exists('moduleTenantSettingsTable') ? moduleTenantSettingsTable() : 'tenant_module_settings';
+        $skip = static fn (string $reason): array => ['included' => false, 'rows' => 0, 'table' => $table, 'reason' => $reason];
+
+        // Every other identifier here goes through safeIdentifier(); this one is interpolated into SQL
+        // that gets WRITTEN to a file, so validate it rather than trust the helper's return.
+        if (preg_match('/^[a-z0-9_]+$/i', $table) !== 1) {
+            return $skip('settings table name is not a plain identifier: ' . $table);
+        }
+        if (!function_exists('moduleTenantSettingsTenantId')) {
+            return $skip('settings helper unavailable in this runtime');
+        }
+        $tenantId = moduleTenantSettingsTenantId();
+        if ($tenantId === null || $tenantId <= 0) {
+            // Without a tenant the rows cannot be scoped, and an unscoped DELETE would wipe another
+            // tenant's settings in a shared database. Refuse rather than guess.
+            return $skip('no tenant in the request context, so the rows cannot be scoped');
+        }
+        if ($targetDatabase === '') {
+            return $skip('target database unknown, so the settings table cannot be located safely');
+        }
+
+        $rows = [];
+        // Kernel-owned table, so read it the way the kernel does: escalation is what lets a kernel
+        // service read a kernel table during a module request without the module declaring it.
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $settingsPdo = app()->db();
+            $settingsDatabase = self::currentDatabase($settingsPdo);
+            if ($settingsDatabase !== $targetDatabase) {
+                return $skip('settings live in ' . $settingsDatabase . ', not in the dumped database ' . $targetDatabase);
+            }
+            $stmt = $settingsPdo->prepare(
+                'SELECT setting_key, setting_value FROM `' . $table . '` '
+                . 'WHERE tenant_id = :tid AND module_id = :mid ORDER BY setting_key'
+            );
+            $stmt->execute([':tid' => $tenantId, ':mid' => $moduleId]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            // An install without the table (or without access to it) must still produce a usable
+            // backup; it simply has no settings to carry.
+            return $skip('settings unreadable: ' . $e->getMessage());
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
+
+        fwrite($fh, '-- ------------------------------------------------------------' . "\n");
+        fwrite($fh, '-- Module settings: ' . $table . ' (rows: ' . count($rows) . ')' . "\n");
+        fwrite($fh, "-- These are NOT module tables: they live in the kernel settings table, keyed\n");
+        fwrite($fh, '-- (tenant_id, module_id, setting_key), so a table scan cannot find them. Scoped to' . "\n");
+        fwrite($fh, '-- tenant_id = ' . $tenantId . ' AND module_id = ' . self::sqlQuote($moduleId)
+            . " so that importing this file\n");
+        fwrite($fh, "-- cannot touch another tenant's settings in a shared database.\n");
+        fwrite($fh, 'DELETE FROM `' . $table . '` WHERE `tenant_id` = ' . $tenantId
+            . ' AND `module_id` = ' . self::sqlQuote($moduleId) . ";\n");
+
+        if ($rows !== []) {
+            $tuples = [];
+            foreach ($rows as $row) {
+                $tuples[] = '(' . $tenantId
+                    . ', ' . self::sqlQuote($moduleId)
+                    . ', ' . self::sqlQuote(is_array($row) ? ($row['setting_key'] ?? '') : '')
+                    . ', ' . self::sqlQuote(is_array($row) ? ($row['setting_value'] ?? null) : null)
+                    . ')';
+            }
+            fwrite($fh, 'INSERT INTO `' . $table . '` (`tenant_id`, `module_id`, `setting_key`, `setting_value`) VALUES' . "\n"
+                . implode(",\n", $tuples) . ";\n");
+        }
+        fwrite($fh, "\n");
+
+        return ['included' => true, 'rows' => count($rows), 'table' => $table, 'reason' => ''];
     }
 
     private static function sqlQuote(mixed $value): string
