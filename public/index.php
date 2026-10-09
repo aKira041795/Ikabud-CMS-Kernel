@@ -148,6 +148,7 @@ require_once __DIR__ . '/../src/http/admin-view-cache.php';
 require_once __DIR__ . '/../src/http/tenant-entry-modules.php';
 require_once __DIR__ . '/../src/http/core-routes.php';
 require_once __DIR__ . '/../src/http/admin-handlers.php';
+require_once __DIR__ . '/../src/http/perf-probe.php';
 require_once __DIR__ . '/../src/http/page-handlers.php';
 require_once __DIR__ . '/../src/http/integration-handlers.php';
 require_once __DIR__ . '/../src/http/superadmin-handlers.php';

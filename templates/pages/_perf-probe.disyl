@@ -1,0 +1,5 @@
+{extends "layouts/app.disyl"}
+
+{block content}
+<div id="kernel-perf-probe-marker">ok</div>
+{/block}

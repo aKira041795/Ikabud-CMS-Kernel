@@ -247,13 +247,14 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['module_discover_ms'] = round((microtime(true) - $t) * 1000, 2);
         $perfData['module_count'] = count($perfDiscoveredModules);
 
-        $t = microtime(true);
-        discoverModules(true);
-        $perfData['module_discover_cold_ms'] = round((microtime(true) - $t) * 1000, 2);
+        $coldDiscover = kernelPerfProbeColdModuleDiscover();
+        $perfData['module_discover_cold_ms'] = round((float)$coldDiscover['ms'], 2);
+        $perfData['module_discover_cold_count'] = (int)$coldDiscover['modules'];
 
-        $t = microtime(true);
-        preloadAllTenantModuleSettings();
-        $perfData['settings_preload_ms'] = round((microtime(true) - $t) * 1000, 2);
+        $settingsPreload = kernelPerfProbeSettingsPreload();
+        $perfData['settings_preload_ms'] = round((float)$settingsPreload['ms'], 2);
+        $perfData['settings_preload_state'] = (string)$settingsPreload['state'];
+        $perfData['settings_preload_rows'] = (int)$settingsPreload['rows'];
 
         $t = microtime(true);
         $perfCacheOk = false;
@@ -294,19 +295,15 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['cache_total_size_mb'] = (float)($cacheStats['total_size_mb'] ?? 0);
         $perfData['cache_apcu_entries'] = (int)($cacheStats['apcu_entries'] ?? 0);
         $perfData['cache_apcu_available'] = !empty($cacheStats['apcu_available']);
+        $perfData['cache_eviction'] = ((int)($cacheStats['max_size_mb'] ?? 0) === 0)
+            ? 'disabled (limit 0 = unlimited)'
+            : 'enabled (' . (int)$cacheStats['max_size_mb'] . ' MB limit)';
 
-        $t = microtime(true);
-        try {
-            ob_start();
-            app()->render('pages/login.disyl', ['page_title' => '__perf__', 'base_url' => external_base_url()]);
-            ob_get_clean();
-            $perfData['disyl_render_ms'] = round((microtime(true) - $t) * 1000, 2);
-            $perfData['disyl_ok'] = true;
-        } catch (Throwable $e) {
-            ob_get_clean();
-            $perfData['disyl_render_ms'] = null;
-            $perfData['disyl_ok'] = false;
-        }
+        $disylRender = kernelPerfProbeDisylRender();
+        $perfData['disyl_render_ms'] = round((float)$disylRender['ms'], 2);
+        $perfData['disyl_ok'] = !empty($disylRender['ok']);
+        $perfData['disyl_template'] = (string)$disylRender['template'];
+        $perfData['disyl_extends'] = !empty($disylRender['extends']);
 
         $perfData['total_ms'] = round((microtime(true) - $perfOverallStart) * 1000, 2);
         $perfData['php_version'] = PHP_VERSION;
@@ -316,17 +313,18 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
 
         $perfRows = [
             ['DB ping (SELECT 1)', $perfData['db_ping_ms'], 'ms', $perfData['db_ok'] ? '' : 'FAIL'],
-            ['Module discover (cached)', $perfData['module_discover_ms'], 'ms', ''],
-            ['Module discover (cold)', $perfData['module_discover_cold_ms'], 'ms', ''],
-            ['Settings preload', $perfData['settings_preload_ms'], 'ms', ''],
+            ['Module discover (warm)', $perfData['module_discover_ms'], 'ms', ''],
+            ['Module discover (cold scan)', $perfData['module_discover_cold_ms'], 'ms · ' . $perfData['module_discover_cold_count'] . ' modules', ''],
+            ['Settings preload', $perfData['settings_preload_state'] === 'measured' ? $perfData['settings_preload_ms'] : 'skipped (no tenant)', $perfData['settings_preload_state'] === 'measured' ? 'ms · ' . $perfData['settings_preload_rows'] . ' rows' : '', ''],
             ['Cache round-trip', $perfData['cache_roundtrip_ms'], 'ms', $perfData['cache_ok'] ? '' : 'FAIL'],
             ['Cache hit rate', $perfData['cache_hit_rate_pct'], '%', ''],
             ['Cache miss rate', $perfData['cache_miss_rate_pct'], '%', ''],
             ['Cache bypass rate', $perfData['cache_bypass_rate_pct'], '%', ''],
             ['Cache files (active/expired)', $perfData['cache_active_files'] . '/' . $perfData['cache_expired_files'], '', ''],
+            ['Cache eviction', $perfData['cache_eviction'], '', ''],
             ['Cache disk usage', $perfData['cache_total_size_mb'], 'MB', ''],
             ['APCu entries', $perfData['cache_apcu_entries'], $perfData['cache_apcu_available'] ? 'entries' : 'entries (APCu off)', ''],
-            ['DiSyL render (login page)', $perfData['disyl_render_ms'], 'ms', $perfData['disyl_ok'] ? '' : 'FAIL'],
+            ['DiSyL render (extends)', $perfData['disyl_render_ms'], 'ms · ' . $perfData['disyl_template'] . ' · extends=' . ($perfData['disyl_extends'] ? 'true' : 'false'), $perfData['disyl_ok'] ? '' : 'FAIL'],
             ['Total wall time', $perfData['total_ms'], 'ms', ''],
             ['Peak memory', $perfData['peak_memory_kb'], 'KB', ''],
         ];

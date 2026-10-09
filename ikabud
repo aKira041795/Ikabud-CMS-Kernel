@@ -1033,6 +1033,7 @@ switch ($command) {
         out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
         out('    ' . green('disyl:inspect') . ' <file>       Inspect template variables, components, sources');
         out('    ' . green('cache:clear') . '                 Clear all runtime caches (DiSyL compiled, file cache, APCu)');
+        out('    ' . green('cache:prune') . ' [--dry-run]     Remove expired file-cache entries');
         out('    ' . green('cache:clear') . ' --disyl-only    Clear only DiSyL compiled template cache');
         out('    ' . green('cache:clear') . ' --apcu-only     Clear only APCu in-memory cache');
         out('    ' . green('theme:validate') . ' <slug>     Validate theme manifest, tokens, templates, anti-patterns');
@@ -4781,6 +4782,33 @@ MD;
             // Non-fatal — migration check is best-effort
         }
         break;
+
+    // ── cache:prune ───────────────────────────────────────────────
+    case 'cache:prune':
+        banner();
+        $dryRun = hasFlag('--dry-run');
+        out('  ' . bold('Cache Prune') . ($dryRun ? dim(' — dry run') : ''));
+        out('');
+
+        try {
+            $cache = new \Ikabud\Kernel\Cache(STORAGE_PATH . '/cache');
+            $result = $dryRun ? $cache->previewExpired() : $cache->pruneExpired();
+            $count = (int)($result['pruned'] ?? 0);
+            $kept = (int)($result['kept'] ?? 0);
+            $bytes = (int)($result['bytes_freed'] ?? 0);
+            $errors = is_array($result['errors'] ?? null) ? $result['errors'] : [];
+            $verb = $dryRun ? 'would be removed' : 'removed';
+            out('  ' . green('✓') . " {$count} expired cache file(s) {$verb}; {$kept} kept; {$bytes} byte(s) " . ($dryRun ? 'reclaimable' : 'freed') . '.');
+            foreach ($errors as $error) {
+                out('  ' . yellow('△') . ' ' . $error);
+            }
+            out('');
+            exit($errors === [] ? 0 : 1);
+        } catch (\Throwable $e) {
+            out('  ' . yellow('△') . ' Unable to prune expired cache files: ' . $e->getMessage());
+            out('');
+            exit(1);
+        }
 
     // ── cache:clear ───────────────────────────────────────────────
     case 'cache:clear':

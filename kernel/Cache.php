@@ -388,6 +388,95 @@ class Cache
     }
     
     /**
+     * Remove cache files that the normal file read path can no longer serve.
+     *
+     * @return array{pruned:int, kept:int, bytes_freed:int, errors:array}
+     */
+    public function pruneExpired(): array
+    {
+        return $this->sweepExpiredCacheFiles(false);
+    }
+
+    /**
+     * Inspect expired files without deleting them (used by cache:prune --dry-run).
+     *
+     * @return array{pruned:int, kept:int, bytes_freed:int, errors:array}
+     */
+    public function previewExpired(): array
+    {
+        return $this->sweepExpiredCacheFiles(true);
+    }
+
+    private function sweepExpiredCacheFiles(bool $dryRun): array
+    {
+        $result = ['pruned' => 0, 'kept' => 0, 'bytes_freed' => 0, 'errors' => []];
+        $now = time();
+
+        foreach ($this->getAllCachedFiles() as $fileInfo) {
+            $file = (string)($fileInfo['file'] ?? '');
+            if ($file === '' || !is_file($file)) {
+                continue;
+            }
+
+            try {
+                $mtime = @filemtime($file);
+                $size = @filesize($file);
+                if ($mtime === false || $size === false) {
+                    // Conservative rule: metadata uncertainty must not delete an entry.
+                    $result['kept']++;
+                    continue;
+                }
+
+                // has() rejects files older than the instance TTL.
+                $prunable = ($mtime + $this->ttl) < $now;
+                if (!$prunable) {
+                    $data = @file_get_contents($file);
+                    if ($data === false || $data === '') {
+                        $prunable = true;
+                    } else {
+                        if (str_starts_with($data, 'GZ:')) {
+                            $data = @gzuncompress(substr($data, 3));
+                        }
+                        if ($data === false) {
+                            $prunable = true;
+                        } else {
+                            $payload = @unserialize($data, ['allowed_classes' => false]);
+                            if ($payload === false && $data !== serialize(false)) {
+                                $prunable = true;
+                            } else {
+                                // get() rejects legacy payloads without a positive stamp and
+                                // stamps at or before the current second.
+                                $expiresAt = is_array($payload) && isset($payload['_cache_expires_at'])
+                                    ? (int)$payload['_cache_expires_at']
+                                    : 0;
+                                $prunable = $expiresAt === 0 || $now >= $expiresAt;
+                            }
+                        }
+                    }
+                }
+
+                if (!$prunable) {
+                    $result['kept']++;
+                    continue;
+                }
+
+                if ($dryRun || @unlink($file)) {
+                    $result['pruned']++;
+                    $result['bytes_freed'] += (int)$size;
+                } else {
+                    $result['kept']++;
+                    $result['errors'][] = 'Failed to delete: ' . $file;
+                }
+            } catch (\Throwable $e) {
+                $result['kept']++;
+                $result['errors'][] = $file . ': ' . $e->getMessage();
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Enforce cache size limit using LRU eviction
      */
     private function enforceCacheLimit(): void

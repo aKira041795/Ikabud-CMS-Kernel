@@ -893,15 +893,17 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
     $perfResults['module_discover_ms'] = round((microtime(true) - $t) * 1000, 2);
     $perfResults['module_count'] = count($perfMods);
 
-    // ── 3. Module discovery (cold — bypass cache) ─────────────
-    $t = microtime(true);
-    discoverModules(true);
-    $perfResults['module_discover_cold_ms'] = round((microtime(true) - $t) * 1000, 2);
+    // ── 3. Module discovery (genuine cold scan) ───────────────
+    $coldDiscover = kernelPerfProbeColdModuleDiscover();
+    $perfResults['module_discover_cold_ms'] = round((float)$coldDiscover['ms'], 2);
+    $perfResults['module_discover_cold_count'] = (int)$coldDiscover['modules'];
 
     // ── 4. Settings preload ───────────────────────────────────
-    $t = microtime(true);
-    preloadAllTenantModuleSettings();
-    $perfResults['settings_preload_ms'] = round((microtime(true) - $t) * 1000, 2);
+    $settingsPreload = kernelPerfProbeSettingsPreload();
+    $perfResults['settings_preload_ms'] = round((float)$settingsPreload['ms'], 2);
+    $perfResults['settings_preload_state'] = (string)$settingsPreload['state'];
+    $perfResults['settings_preload_tenant_id'] = $settingsPreload['tenant_id'];
+    $perfResults['settings_preload_rows'] = (int)$settingsPreload['rows'];
 
     // ── 5. Cache read/write round trip ────────────────────────
     $t = microtime(true);
@@ -940,6 +942,9 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
             'active_files' => (int)($cacheStats['active_files'] ?? 0),
             'expired_files' => (int)($cacheStats['expired_files'] ?? 0),
             'total_size_mb' => (float)($cacheStats['total_size_mb'] ?? 0),
+            'eviction' => ((int)($cacheStats['max_size_mb'] ?? 0) === 0)
+                ? 'disabled (limit 0 = unlimited)'
+                : 'enabled (' . (int)$cacheStats['max_size_mb'] . ' MB limit)',
             'apcu_available' => !empty($cacheStats['apcu_available']),
             'apcu_entries' => (int)($cacheStats['apcu_entries'] ?? 0),
             'apcu_memory_bytes' => (int)($cacheStats['apcu_memory_bytes'] ?? 0),
@@ -951,19 +956,17 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
         ];
     }
 
-    // ── 6. DiSyL template render ──────────────────────────────
-    $t = microtime(true);
-    try {
-        ob_start();
-        app()->render('pages/login.disyl', ['page_title' => '__perf_probe__', 'base_url' => external_base_url()]);
-        ob_get_clean();
-        $perfResults['disyl_render_login_ms'] = round((microtime(true) - $t) * 1000, 2);
-        $perfResults['disyl_ok'] = true;
-    } catch (Throwable $e) {
-        ob_get_clean();
-        $perfResults['disyl_render_login_ms'] = null;
-        $perfResults['disyl_ok'] = false;
-        $perfResults['disyl_error'] = $e->getMessage();
+    // ── 6. DiSyL template render ({extends} path) ─────────────
+    $disylRender = kernelPerfProbeDisylRender();
+    // Preserve the existing key for API consumers while changing what it measures.
+    $perfResults['disyl_render_login_ms'] = round((float)$disylRender['ms'], 2);
+    $perfResults['disyl_render_extends_ms'] = round((float)$disylRender['ms'], 2);
+    $perfResults['disyl_template'] = (string)$disylRender['template'];
+    $perfResults['disyl_extends'] = !empty($disylRender['extends']);
+    $perfResults['disyl_compiled'] = $disylRender['compiled'];
+    $perfResults['disyl_ok'] = !empty($disylRender['ok']);
+    if (isset($disylRender['error'])) {
+        $perfResults['disyl_error'] = (string)$disylRender['error'];
     }
 
     $perfResults['total_ms'] = round((microtime(true) - $perfOverall) * 1000, 2);

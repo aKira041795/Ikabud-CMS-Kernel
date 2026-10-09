@@ -8,6 +8,24 @@ entity inspection, scaffolding, diagnostics, and module management.
 
 ---
 
+## Cache Maintenance
+
+### `cache:prune`
+
+Removes only expired or otherwise unreadable `*.cache` payloads from instance
+and legacy cache locations. Tag indexes and keep placeholders are not touched.
+
+```
+php ikabud cache:prune
+php ikabud cache:prune --dry-run
+```
+
+`--dry-run` reports how many expired entries would be removed and how many
+bytes are reclaimable without deleting files. Exit code `0` means the scan
+completed without deletion errors; exit code `1` reports an error.
+
+---
+
 ## Architecture Enforcement
 
 ### `architecture:check`
