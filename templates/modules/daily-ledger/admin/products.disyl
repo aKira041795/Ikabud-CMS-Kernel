@@ -121,8 +121,8 @@
 {if assignment_branch || assignment_consignee}
 <div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
     Editing products for
-    {if assignment_branch}<span class="font-semibold" data-picker-branch-name>{assignment_branch.code} — {assignment_branch.name}</span>{/if}
-    {if assignment_consignee}<span class="font-semibold" data-picker-branch-name>{assignment_consignee.code} — {assignment_consignee.name}</span>{/if}
+    {if assignment_branch}<span class="font-semibold" data-picker-branch-name data-picker-branch-id="{assignment_branch.id}">{assignment_branch.code} — {assignment_branch.name}</span>{/if}
+    {if assignment_consignee}<span class="font-semibold" data-picker-branch-name data-picker-branch-id="{assignment_consignee.id}">{assignment_consignee.code} — {assignment_consignee.name}</span>{/if}
     {if assignment_branch.is_commissary == 1}<span class="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">COMMISSARY</span>{/if}
 </div>
 {/if}
@@ -759,15 +759,32 @@
     // ── Assignment tab (Slice B) — picker behaviour ────────────────────
     var PICKER_BRANCH_ID = {if tab == 'consignee_assignment'}{consignee_id | default:0}{else}{branch_id | default:0}{/if};
     var PICKER_IS_CONSIGNEE = {if tab == 'consignee_assignment'}true{else}false{/if};
-    // The destination this checklist writes to, taken from the header so there is only ONE place it
-    // is stated. Used on the save control, which sits 178 rows below that header.
-    var pickerDestinationName = (function () {
+    // The destination THIS checklist belongs to: it is what the operator is looking at and editing, and
+    // it is now a DOM fact rather than a captured constant.
+    //
+    // Why that matters: this script block renders OUTSIDE #main-content, so the in-place refresh used
+    // to switch destinations never re-runs it. Every constant below kept the value from the original
+    // page load, so selecting another destination updated the header and the URL while `PICKER_BRANCH_ID`
+    // stayed on the old branch -- and Save then wrote the old branch, silently. Measured: after
+    // selecting RIZAL-COMMIS the header read RIZAL-COMMIS while PICKER_BRANCH_ID was still Bagting.
+    function pickerContentBranchId() {
+        var el = document.querySelector('[data-picker-branch-id]');
+        var id = el ? parseInt(el.getAttribute('data-picker-branch-id'), 10) : 0;
+        return (id > 0) ? id : PICKER_BRANCH_ID;
+    }
+    function pickerSelectedBranchId() {
+        var select = document.getElementById('picker-branch');
+        var id = select ? parseInt(select.value, 10) : 0;
+        return (id > 0) ? id : 0;
+    }
+    // Read at use time, for the same reason: a captured copy goes stale on an in-place swap.
+    function pickerDestinationName() {
         var el = document.querySelector('[data-picker-branch-name]');
         if (!el) { return ''; }
         var text = (el.textContent || '').trim();
         var parts = text.split('\u2014');
         return (parts.length > 1 ? parts[parts.length - 1] : text).trim();
-    })();
+    }
 
     function pickerEscape(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -812,7 +829,9 @@
             // Name the destination ON the control. This editor's Save writes the whole visible list,
             // and the header that names the destination is 178 rows away, so an operator who scrolled
             // down could save a destination they never chose -- which reads as "nothing happened".
-            var suffix = pickerDestinationName ? ' to ' + pickerDestinationName : '';
+            var suffix = '';
+            var destinationName = pickerDestinationName();
+            if (destinationName) { suffix = ' to ' + destinationName; }
             save.textContent = pickerDirty
                 ? 'Save ' + total + ' change' + (total === 1 ? '' : 's') + suffix
                 : 'Save changes' + suffix;
@@ -881,11 +900,16 @@
 
     function changePickerBranch(select) {
         if (pickerDirty && !window.confirm('Discard the unsaved product changes and switch branches?')) {
-            select.value = String(PICKER_BRANCH_ID);
+            select.value = String(pickerContentBranchId());
             return;
         }
         pickerDirty = false;
-        window.dlLoadForm(select.form);
+        // A REAL navigation, not the in-place swap. The swap replaces #main-content but this script
+        // block renders outside it, so the picker's constants survived it and the save target stayed on
+        // the previous destination. Loading the page properly re-initialises all of it.
+        var params = new URLSearchParams(new FormData(select.form)).toString();
+        var action = select.form.action;
+        window.location.assign(action + (action.indexOf('?') >= 0 ? '&' : '?') + params);
     }
 
     function pickerLeaveAssignment(event, href) {
@@ -988,9 +1012,19 @@
         btn.disabled = true;
         btn.textContent = 'Saving...';
         var pickerEndpoint = PICKER_IS_CONSIGNEE ? '/api/v1/admin/consignees/products' : '/api/v1/admin/branches/products';
+        // Attribute the list to the destination it belongs to, and refuse when the dropdown disagrees:
+        // saving then would apply one branch's list to another branch.
+        var destinationId = pickerContentBranchId();
+        var selectedId = pickerSelectedBranchId();
+        if (selectedId > 0 && destinationId > 0 && selectedId !== destinationId) {
+            showToast('This list belongs to another destination. Reload the page, then save.', 'error');
+            btn.disabled = false;
+            btn.textContent = original;
+            return;
+        }
         var pickerPayload = PICKER_IS_CONSIGNEE
-            ? { consignee_id: PICKER_BRANCH_ID, product_ids: ids }
-            : { branch_id: PICKER_BRANCH_ID, product_ids: ids };
+            ? { consignee_id: destinationId, product_ids: ids }
+            : { branch_id: destinationId, product_ids: ids };
         fetch(BASE + pickerEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
