@@ -1629,12 +1629,15 @@
                 <div class="text-xs text-gray-500">BEG + ADDTL − TOTAL − WASTAGE = ACTUAL BAL</div>
             </div>
             <div class="flex items-center gap-2 print-hidden">
-                {if !can_view_production_management}
+                {* The day + shift controls are ONE block, identical in both views. They used to be gated on
+                   !can_view_production_management, which handed the operator the controls beside the cells while
+                   the ADMIN — the role that edits beginnings — had only the filter form at the top of the page:
+                   the BEG column sat disabled next to an editable count cell with nothing near it to unlock it,
+                   and an admin had to rediscover a different layout for the same sheet. Both controls write the
+                   same URL parameters the filter form writes, so the three cannot disagree. *}
                 <input type="date" id="production-date-picker" name="date" value="{date}" max="{today}"
                        class="form-input w-auto min-w-40" onchange="window.dlReloadProductionDate(this.value)"
                        title="Business date">
-                {/if}
-                {if !can_view_production_management}
                 {if shift_locked}
                 <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-300">Locked to {shift} Shift</span>
                 {else}
@@ -1642,7 +1645,6 @@
                     <a href="{base_url}/admin/commissary?date={date}&commissary_id={commissary_id}&branch_id={branch_id}&shift=AM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'AM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">AM</a>
                     <a href="{base_url}/admin/commissary?date={date}&commissary_id={commissary_id}&branch_id={branch_id}&shift=PM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'PM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">PM</a>
                 </div>
-                {/if}
                 {/if}
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
                 {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-outline btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
@@ -1710,7 +1712,7 @@
         <div id="production-beg-shift-locked-note" class="mx-4 mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 print-hidden" role="status">
             <span class="font-semibold">Beginnings are recorded per shift.</span>
             This is the <span class="font-semibold">All</span> view, where a beginning has no single shift to belong to, so the BEG column is read-only.
-            Choose <span class="font-semibold">AM</span> or <span class="font-semibold">PM</span> in the Shift selector above to record one — the ending of the earlier shift is offered there as the carry.
+            Choose <span class="font-semibold">AM</span> or <span class="font-semibold">PM</span> at the top of this sheet to record one — the earlier shift's ending is offered there as the carry.
         </div>
         {/if}
         {if historical_unshifted_count > 0}
