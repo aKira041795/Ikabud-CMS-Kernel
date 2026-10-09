@@ -27,23 +27,52 @@ happened — the 64 ms was a cold-OPcache artefact, not a cost waiting to be def
 
 Measured on the live host (`/superadmin/perf`), before and after a deployment the same day:
 
-| row | pre-deploy 15:41 | post-deploy 16:30 |
-|---|---|---|
-| `Registration: newly included files` | 347 files / 5,007.78 KB | **347 files / 5,007.78 KB (identical)** |
-| `Registration: newly included size` | 5,007.78 KB | **5,007.78 KB (identical)** |
-| `Registration: helpers load` | 64.06 ms | **9.79 ms (−84.7%)** |
-| `OPcache scripts compiled this request` | not measured | **16** |
-| `OPcache enabled` | not measured | yes |
-| `OPcache cached scripts / max keys` | not measured | 2,923 / 7,963 |
-| `OPcache restarts (OOM / hash)` | not measured | 0 / 0 |
-| `Module routes: registration` | 70.37 ms | 16.31 ms |
-| `Dispatch segment: module routes` | 83.12 ms | 30.30 ms |
-| `Request phase: dispatch` (the framework cost) | 107.19 ms | 61.68 ms |
+| row | 15:41 pre-deploy | 16:30 post-deploy | 16:42 after PHP upgrade (cold) | 16:59 same host (warm) |
+|---|---|---|---|---|
+| PHP | 8.3.35 | 8.3.35 | **8.5.11** | **8.5.11** |
+| `Registration: newly included files` | 347 files / 5,007.78 KB | **347 files / 5,007.78 KB (identical)** | 347 files / 5,007.78 KB | 347 files / 5,007.78 KB |
+| `Registration: helpers load` | 64.06 ms | **9.79 ms (−84.7%)** | 82.48 ms | **7.53 ms** |
+| `OPcache scripts compiled this request` | not measured | 16 | **102** | **4** |
+| `OPcache cached scripts / max keys` | not measured | 2,923 / 7,963 | 704 / 16,229 | 734 / 16,229 |
+| `OPcache memory used / free` | not measured | 127.8 / 0 MB | 36.4 / 91.6 MB | 37.2 / 90.5 MB |
+| `Module routes: registration` | 70.37 ms | 16.31 ms | 105.76 ms | 12.20 ms |
+| `Dispatch segment: module routes` | 83.12 ms | 30.30 ms | 193.35 ms | 24.70 ms |
+| `Request phase: dispatch` (the framework cost) | 107.19 ms | 61.68 ms | 227.64 ms | **46.55 ms** |
+| `Total wall time` | not measured | not measured | 302.54 ms | 105.12 ms |
 
 > **Not `boot + dispatch`.** The phase marks are CUMULATIVE from request start, and the deltas are chained
 > from `boot` (`src/http/perf-attribution.php:213-221`), so `boot` is a span INSIDE `dispatch`. Adding them
 > double-counts boot. Framework cost = `dispatch` = **61.68 ms**, of which boot is the first 18.87 ms. An
 > earlier revision of this section stated 123.07 → 80.55 ms; that was this error, corrected here.
+>
+> Verified twice against the readings themselves, because an identity is cheap to check and the error was
+> expensive: `14.369705 + 0.076444 + 0.104269 + 0.009984 + 24.701004 + 0.084427 + 7.207417 + 0.001242`
+> `= 46.554492`, which is the reported `dispatch` to six decimals.
+
+**The 16:42 reading is the control this question needed.** It arrived because the PHP 8.5 upgrade restarted
+PHP and emptied OPcache, which turned a known-but-unmeasured effect into a live experiment:
+
+| phase | needs compiled code or the filesystem? | 16:30 warm | 16:42 cold | ratio |
+|---|---|---|---|---|
+| `helpers load` | **yes** | 9.79 | 82.48 | **8.4×** |
+| `event flush` | **yes** (first call compiles hook files) | 1.18 | 10.74 | **9.1×** |
+| `module discovery` | **yes** (directory scans) | 11.31 | 75.80 | **6.7×** |
+| `route merge` | **yes** | 4.51 | 19.43 | 4.3× |
+| `route match` | no | 12.24 | 10.95 | 0.89× |
+| `capability validate` | no | 0.74 | 0.74 | 1.00× |
+| `contract drift` | no | 1.41 | 0.97 | 0.69× |
+| `entity context` | no | 0.20 | 0.15 | 0.75× |
+
+Everything that must compile or stat files inflated 4–9×; everything running on already-loaded data was
+flat or **faster**. A PHP-version regression would have slowed all eight. Combined with `102 scripts
+compiled` versus `16`, and a cache count that had fallen from 2,923 to 704, the reading is cold OPcache,
+not 8.5 — and 8.5 is in fact **faster**: against the 16:30 warm reading it is **46.55 vs 61.68 ms
+(−24.5%)**, with `route match` down 41% and `boot` down 24%.
+
+**Cache warmth is now scheduled rather than hoped for.** `scripts/warm-opcache.php` warms the pool in real
+HTTP requests after a deploy (CLI would build a second opcache the web pool never reads). The cold start is
+**4.89×** the warm cost (227.64 / 46.55), and it is paid by whoever arrives first after any PHP restart —
+which on shared hosting is the host's decision, not the operator's.
 
 **Interpretation.** The file count and byte size are identical, so nothing about *what is included* changed;
 the same work simply stopped being compiled. The 64 ms was a transient cold-OPcache state — the earlier
@@ -67,20 +96,38 @@ the local web-SAPI figure (7.24 ms) to within 1.4×.
 - Still unmeasured, and now the more interesting question: what a **real page** costs. The probe page's own
   measurement overhead is **75.07 ms of its 136.75 ms total (55%)**, of which the forced cold module scan
   is 67.36 ms. Its total is now measured correctly, but it is largely a measurement of itself.
-- Residual framework cost is **61.68 ms** (= `dispatch`; `boot` is its first 18.87 ms, not an addition to it),
-  and after this week's fixes it is no longer concentrated in the include path. Composition:
+- Residual framework cost is **46.55 ms** (= `dispatch`; `boot` is its first 14.37 ms, not an addition to
+  it), on PHP 8.5.11 with a warm cache. Composition, summing exactly to `dispatch`:
 
   | component | ms | share | ever examined? |
   |---|---|---|---|
-  | boot | 18.87 | 31% | **no** |
-  | module routes | 30.30 | 49% | partly — discovery 11.31 **no**, registration 16.31 yes (include 9.79, route merge 4.51), contract drift 1.41 **no**, event flush 1.18 **no** |
-  | route match | 12.24 | 20% | **no** |
-  | all other segments | 0.27 | 0% | no |
+  | boot | 14.37 | 31% | **no** |
+  | module routes | 24.70 | 53% | partly — see its parts below |
+  | — module discovery | 10.59 | 23% | **no** |
+  | — registration | 12.20 | 26% | yes (include 7.53, route merge 3.19, cap register 0.85, cap validate 0.48, entity 0.14) |
+  | — contract drift | 0.99 | 2% | **no** |
+  | — event flush | 0.87 | 2% | **no** |
+  | route match | 7.21 | 15% | **no** |
+  | all other segments | 0.28 | 1% | no |
 
-  So **42.42 ms — 69% of the framework — sits in three components this work never examined** (boot, module
-  discovery, route match), which is now a better place to look than anything in this ADR.
-  `route match` rose from 7.93 to 12.24 ms (+54%) between the same two readings and is unexplained; it
-  should be re-measured before anything is attributed to it.
+  So **32.16 ms — 69% of the framework — still sits in three components this work never examined** (boot
+  14.37, module discovery 10.59, route match 7.21). That remains a better place to look than anything in
+  this ADR.
+
+- **Module discovery is the one component the warm-up cannot help.** The probe's forced cold scan reports
+  **53.45 ms for 71 modules**, and dispatch's `discovery` reports **10.59 ms for the same work warm**: a 5×
+  spread on an operation whose output changes only when a module is installed, enabled or deployed. It is
+  filesystem metadata, not compiled code, so OPcache is irrelevant to it — warming the pool has already
+  removed everything else and left this standing. Caching the discovery result is therefore the next real
+  target, and it is squarely in this ADR's territory.
+
+- **Retraction:** an earlier revision of this section recorded `route match` rising 7.93 → 12.24 ms (+54%)
+  and called it unexplained. It is not a regression: on 8.5 it measures **7.21 ms**, 41% below the warm 8.3
+  reading, and the 12.24 figure was taken while the cache was in the intermediate state that the 16:42
+  reading later explained. The rise was an artefact of the instrument, not of the code.
+
+- The earlier `OPcache memory used / free = 127.8 / 0 MB` risk is **resolved by the host**: `max keys` rose
+  7,963 → 16,229 and free memory to 90.5 MB. The budget is no longer the constraint on compile-at-deploy.
 
 ## Context
 
