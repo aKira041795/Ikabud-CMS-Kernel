@@ -1000,6 +1000,8 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
         'phases' => $requestAttribution['phases'],
         'phase_deltas' => $requestAttribution['phase_deltas'],
         'module_route_deltas' => $requestAttribution['module_route_deltas'],
+        'registration_deltas' => $requestAttribution['registration_deltas'],
+        'registration_include_cost' => $requestAttribution['registration_include_cost'],
     ];
 
     echo json_encode(['ok' => true, 'perf' => $perfResults], JSON_PRETTY_PRINT);

@@ -149,8 +149,22 @@ function loadModuleRoutes(array $routes): array
         kernelPerfMarkRequestPhase('module_routes_discovery');
     }
 
+    $moduleRegIncludedBefore = array_fill_keys(get_included_files(), true);
+    $moduleRegDurationsNs = [
+        'helpers_load' => 0,
+        'capability_validate' => 0,
+        'capability_register' => 0,
+        'entity_context' => 0,
+        'entity_sources' => 0,
+        'route_merge' => 0,
+    ];
+    $moduleRegCursorNs = hrtime(true);
+
     foreach ($enabledModules as $module) {
         loadModuleHelpers($module);
+        $moduleRegNowNs = hrtime(true);
+        $moduleRegDurationsNs['helpers_load'] += $moduleRegNowNs - $moduleRegCursorNs; // module_reg_helpers_load
+        $moduleRegCursorNs = $moduleRegNowNs;
 
         // Register capability providers declared by the module.
         // Minimal v1 bridge: modules publish callables via helpers.php.
@@ -158,6 +172,9 @@ function loadModuleRoutes(array $routes): array
         //  - $capability_handlers array in global scope (preferred)
         //  - or functions named: <moduleId>_cap_<sanitizedCapabilityId>
         $capCheck = validateModuleCapabilities($module);
+        $moduleRegNowNs = hrtime(true);
+        $moduleRegDurationsNs['capability_validate'] += $moduleRegNowNs - $moduleRegCursorNs; // module_reg_capability_validate
+        $moduleRegCursorNs = $moduleRegNowNs;
         if (!empty($capCheck['ok']) && !empty($capCheck['exposes'])) {
             $moduleId = (string)($module['id'] ?? '');
             $policy = is_array($capCheck['policy'] ?? null) ? $capCheck['policy'] : [];
@@ -279,6 +296,9 @@ function loadModuleRoutes(array $routes): array
                 }
             }
         }
+        $moduleRegNowNs = hrtime(true);
+        $moduleRegDurationsNs['capability_register'] += $moduleRegNowNs - $moduleRegCursorNs; // module_reg_capability_register
+        $moduleRegCursorNs = $moduleRegNowNs;
 
         $entityContextCheck = validateModuleEntityContexts($module);
         if (!empty($entityContextCheck['ok'])) {
@@ -336,6 +356,9 @@ function loadModuleRoutes(array $routes): array
                 );
             }
         }
+        $moduleRegNowNs = hrtime(true);
+        $moduleRegDurationsNs['entity_context'] += $moduleRegNowNs - $moduleRegCursorNs; // module_reg_entity_context
+        $moduleRegCursorNs = $moduleRegNowNs;
 
         // ── Entity Sources (declarative entity-view registration from manifest) ──
         // Modules declare entity_sources in their manifest to auto-register
@@ -441,7 +464,11 @@ function loadModuleRoutes(array $routes): array
                 }
             }
         }
+        $moduleRegNowNs = hrtime(true);
+        $moduleRegDurationsNs['entity_sources'] += $moduleRegNowNs - $moduleRegCursorNs; // module_reg_entity_sources
+        $moduleRegCursorNs = $moduleRegNowNs;
 
+        try {
         $moduleId = $module['id'] ?? 'unknown';
 
         // Event declarations are validated before route handling so route-less
@@ -557,8 +584,31 @@ function loadModuleRoutes(array $routes): array
                 $methodPatterns[$method][$pattern] = $moduleId;
             }
         }
+        } finally {
+            $moduleRegNowNs = hrtime(true);
+            $moduleRegDurationsNs['route_merge'] += $moduleRegNowNs - $moduleRegCursorNs; // module_reg_route_merge
+            $moduleRegCursorNs = $moduleRegNowNs;
+        }
+    }
+    $moduleRegIncludedAfter = get_included_files();
+    $moduleRegNewIncluded = array_values(array_filter(
+        $moduleRegIncludedAfter,
+        static fn(string $file): bool => !isset($moduleRegIncludedBefore[$file])
+    ));
+    $moduleRegIncludedBytes = 0;
+    foreach ($moduleRegNewIncluded as $moduleRegIncludedFile) {
+        $moduleRegFileSize = @filesize($moduleRegIncludedFile);
+        if (is_int($moduleRegFileSize)) {
+            $moduleRegIncludedBytes += $moduleRegFileSize;
+        }
     }
 
+    if (function_exists('kernelPerfPublishModuleRegistrationBreakdown')) {
+        kernelPerfPublishModuleRegistrationBreakdown($moduleRegDurationsNs, [
+            'files' => count($moduleRegNewIncluded),
+            'bytes' => $moduleRegIncludedBytes,
+        ], $moduleRegCursorNs);
+    }
     if (function_exists('kernelPerfMarkRequestPhase')) {
         kernelPerfMarkRequestPhase('module_routes_registration');
     }

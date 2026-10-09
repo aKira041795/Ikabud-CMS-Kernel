@@ -28,6 +28,12 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             'settings_preload' => null,
             'module_routes_discovery' => null,
             'module_routes_registration' => null,
+            'module_reg_helpers_load' => null,
+            'module_reg_capability_validate' => null,
+            'module_reg_capability_register' => null,
+            'module_reg_entity_context' => null,
+            'module_reg_entity_sources' => null,
+            'module_reg_route_merge' => null,
             'module_routes_event_flush' => null,
             'module_routes_contract_drift' => null,
             'module_routes' => null,
@@ -42,7 +48,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
     function kernelPerfMarkRequestPhase(string $phase): void
     {
         try {
-            if (!in_array($phase, ['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'], true)) {
+            if (!in_array($phase, ['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'], true)) {
                 return;
             }
 
@@ -61,6 +67,53 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
         }
     }
 
+    /**
+     * Publish accumulated operation durations as synthetic cumulative marks.
+     * The final operation absorbs timer/publisher overhead so the six deltas
+     * exactly partition the registration parent wall time.
+     *
+     * @param array<string, int|float> $durationNs
+     * @param array<string, int|float> $includeCost
+     */
+    function kernelPerfPublishModuleRegistrationBreakdown(array $durationNs, array $includeCost = [], ?int $endedNs = null): void
+    {
+        try {
+            $state = &$GLOBALS['kernel_perf_request_attribution'];
+            $phases = &$state['phases'];
+            if (!is_array($state) || !is_array($phases ?? null) || $phases['module_routes_registration'] !== null) {
+                return;
+            }
+
+            $names = ['helpers_load', 'capability_validate', 'capability_register', 'entity_context', 'entity_sources', 'route_merge'];
+            $startMs = isset($phases['module_routes_discovery']) ? (float)$phases['module_routes_discovery'] : null;
+            if ($startMs === null) {
+                return;
+            }
+
+            $parentMs = max($startMs, (($endedNs ?? hrtime(true)) - (int)$state['started_ns']) / 1_000_000);
+            $availableMs = $parentMs - $startMs;
+            $measuredMs = 0.0;
+            foreach ($names as $name) {
+                $measuredMs += max(0.0, (float)($durationNs[$name] ?? 0) / 1_000_000);
+            }
+            $durationNs['route_merge'] = max(0.0, (float)($durationNs['route_merge'] ?? 0) + (($availableMs - $measuredMs) * 1_000_000));
+
+            $cumulative = $startMs;
+            foreach ($names as $name) {
+                $cumulative += max(0.0, (float)($durationNs[$name] ?? 0) / 1_000_000);
+                $phases['module_reg_' . $name] = min($parentMs, $cumulative);
+            }
+            $phases['module_reg_route_merge'] = $parentMs;
+            $phases['module_routes_registration'] = $parentMs;
+            $state['registration_include_cost'] = [
+                'files' => max(0, (int)($includeCost['files'] ?? 0)),
+                'bytes' => max(0, (int)($includeCost['bytes'] ?? 0)),
+            ];
+        } catch (Throwable $ignored) {
+            // Attribution must never affect request handling.
+        }
+    }
+
     function kernelPerfProbeRequestAttribution(): array
     {
         $empty = [
@@ -72,6 +125,12 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                 'settings_preload' => null,
                 'module_routes_discovery' => null,
                 'module_routes_registration' => null,
+                'module_reg_helpers_load' => null,
+                'module_reg_capability_validate' => null,
+                'module_reg_capability_register' => null,
+                'module_reg_entity_context' => null,
+                'module_reg_entity_sources' => null,
+                'module_reg_route_merge' => null,
                 'module_routes_event_flush' => null,
                 'module_routes_contract_drift' => null,
                 'module_routes' => null,
@@ -97,6 +156,15 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                 'contract_drift' => null,
                 'tail' => null,
             ],
+            'registration_deltas' => [
+                'helpers_load' => null,
+                'capability_validate' => null,
+                'capability_register' => null,
+                'entity_context' => null,
+                'entity_sources' => null,
+                'route_merge' => null,
+            ],
+            'registration_include_cost' => ['files' => 0, 'bytes' => 0],
         ];
 
         try {
@@ -109,7 +177,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             $phases = is_array($state['phases'] ?? null) ? $state['phases'] : [];
 
             $phaseValues = [];
-            foreach (['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'] as $phase) {
+            foreach (['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'] as $phase) {
                 $phaseValues[$phase] = isset($phases[$phase]) ? (float)$phases[$phase] : null;
             }
 
@@ -143,6 +211,21 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                     : null;
             }
 
+            $registrationPairs = [
+                'helpers_load' => ['module_routes_discovery', 'module_reg_helpers_load'],
+                'capability_validate' => ['module_reg_helpers_load', 'module_reg_capability_validate'],
+                'capability_register' => ['module_reg_capability_validate', 'module_reg_capability_register'],
+                'entity_context' => ['module_reg_capability_register', 'module_reg_entity_context'],
+                'entity_sources' => ['module_reg_entity_context', 'module_reg_entity_sources'],
+                'route_merge' => ['module_reg_entity_sources', 'module_reg_route_merge'],
+            ];
+            $registrationDeltas = [];
+            foreach ($registrationPairs as $segment => [$before, $after]) {
+                $registrationDeltas[$segment] = $phaseValues[$before] !== null && $phaseValues[$after] !== null
+                    ? max(0.0, $phaseValues[$after] - $phaseValues[$before])
+                    : null;
+            }
+
             return [
                 'db' => [
                     'queries' => max(0, (int)($db['queries'] ?? 0)),
@@ -154,6 +237,10 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                 'phases' => $phaseValues,
                 'phase_deltas' => $phaseDeltas,
                 'module_route_deltas' => $moduleRouteDeltas,
+                'registration_deltas' => $registrationDeltas,
+                'registration_include_cost' => is_array($state['registration_include_cost'] ?? null)
+                    ? $state['registration_include_cost']
+                    : ['files' => 0, 'bytes' => 0],
             ];
         } catch (Throwable $ignored) {
             return $empty;

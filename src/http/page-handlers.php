@@ -319,6 +319,8 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['phases'] = $requestAttribution['phases'];
         $perfData['phase_deltas'] = $requestAttribution['phase_deltas'];
         $perfData['module_route_deltas'] = $requestAttribution['module_route_deltas'];
+        $perfData['registration_deltas'] = $requestAttribution['registration_deltas'];
+        $perfData['registration_include_cost'] = $requestAttribution['registration_include_cost'];
         $slowestQuery = is_array($perfData['db_slowest'])
             ? round((float)$perfData['db_slowest']['ms'], 2) . ' ms · ' . (string)$perfData['db_slowest']['sql']
             : 'not measured';
@@ -338,6 +340,14 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ['Dispatch segment: module routes', $perfData['phase_deltas']['module_routes'] ?? 'not measured', 'ms', ''],
             ['Module routes: discovery', $perfData['module_route_deltas']['discovery'] ?? 'not measured', 'ms', ''],
             ['Module routes: registration', $perfData['module_route_deltas']['registration'] ?? 'not measured', 'ms', ''],
+            ['Registration: helpers load', $perfData['registration_deltas']['helpers_load'] ?? 'not measured', 'ms', ''],
+            ['Registration: capability validate', $perfData['registration_deltas']['capability_validate'] ?? 'not measured', 'ms', ''],
+            ['Registration: capability register', $perfData['registration_deltas']['capability_register'] ?? 'not measured', 'ms', ''],
+            ['Registration: entity context', $perfData['registration_deltas']['entity_context'] ?? 'not measured', 'ms', ''],
+            ['Registration: entity sources', $perfData['registration_deltas']['entity_sources'] ?? 'not measured', 'ms', ''],
+            ['Registration: route merge', $perfData['registration_deltas']['route_merge'] ?? 'not measured', 'ms', ''],
+            ['Registration: newly included files', $perfData['registration_include_cost']['files'] ?? 0, 'files', ''],
+            ['Registration: newly included size', round((float)($perfData['registration_include_cost']['bytes'] ?? 0) / 1024, 2), 'KB', ''],
             ['Module routes: event flush', $perfData['module_route_deltas']['event_flush'] ?? 'not measured', 'ms', ''],
             ['Module routes: contract drift', $perfData['module_route_deltas']['contract_drift'] ?? 'not measured', 'ms', ''],
             ['Module routes: tail', $perfData['module_route_deltas']['tail'] ?? 'not measured', 'ms', ''],
