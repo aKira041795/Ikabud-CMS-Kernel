@@ -1480,9 +1480,21 @@ require_once __DIR__ . '/module-routes.php';
  * discoverModulesScanAll()), then folds count + a hash of every manifest into the cache key, so a
  * manifest edit invalidates on the very next request.
  *
- * Cost, measured 2026-10-09 on this repo: ~11ms per call, against ~507ms for the scan it guards.
- * That is paid once per request whenever APCu is enabled, and is the deliberate price of not having a
- * window in which the kernel enforces the previous deploy's table ownership.
+ * Cost, measured 2026-10-09. Re-walking the tree with glob cost ~7.7ms per call on this repo — depth 3
+ * alone was 6.3ms and found NOTHING — and that was paid on every request. The walk now runs only when
+ * the tree actually changed: the state carries the directory mtimes and manifest stamps it was built
+ * from, so later calls revalidate with stat() instead of walking.
+ *
+ * A hand-rolled readdir walk was measured as an alternative and REJECTED: it produced an identical
+ * fingerprint in the same time (8.2ms vs 7.8ms). The cost is the number of directories visited, not
+ * glob's pattern engine, so replacing glob alone buys nothing.
+ *
+ * Reducing the depth bound was also measured (depth 2 gave an identical fingerprint, 3.7ms vs 8.6ms)
+ * and rejected: tests/module_manifest_cache_fingerprint_test.php pins the depth bound precisely so
+ * that assumption cannot rot silently, and a module one level deeper would go undiscovered.
+ *
+ * The remaining cost is deliberate: a manifest edit must invalidate on the very next request, so
+ * something has to look. For that to be cheap it must be stat(), not readdir().
  *
  * Depth is bounded deliberately: the fleet nests at modules/<id>/module.json and
  * modules/<suite>/<id>/module.json. tests/module_manifest_cache_fingerprint_test.php fails if a
@@ -1497,42 +1509,218 @@ function moduleManifestScanFingerprint(): string
         return 'nodir';
     }
 
-    $count = 0;
-    $parts = [];
-    foreach (['*', '*/*', '*/*/*'] as $pattern) {
-        $paths = glob($dir . '/' . $pattern . '/module.json');
-        if (!is_array($paths)) {
-            continue;
+    $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
+    $stateKey = 'kernel.module_manifest_state_v1';
+
+    if ($apcuEnabled) {
+        $state = apcu_fetch($stateKey, $hit);
+        if ($hit && is_array($state)
+            && ($state['dir'] ?? null) === $dir
+            && moduleManifestStateIsCurrent($dir, $state)) {
+            return (string)($state['fingerprint'] ?? '');
         }
-        foreach ($paths as $path) {
-            // Mirror discoverModulesScanAll(), which skips backup trees.
-            if (preg_match('#\.bak_\d{8}_\d{6}#', $path) === 1) {
+    }
+
+    $state = moduleManifestTreeState($dir);
+
+    // Only cache a state that can be revalidated in FULL, and only once its directory mtimes have
+    // settled. See moduleManifestStateIsCacheable() for why the second condition is load-bearing.
+    if ($apcuEnabled && moduleManifestStateIsCacheable($state)) {
+        apcu_store($stateKey, $state + ['dir' => $dir], 300);
+    }
+
+    return (string)$state['fingerprint'];
+}
+
+/**
+ * May this tree state be cached and later trusted on the strength of stat() alone?
+ *
+ * Two conditions, and the second one is the whole reason this is a named function.
+ *
+ * 1. `dirs_complete` — if any directory mtime could not be read, every later validation would fail,
+ *    and caching it would turn one slow request into a permanently slow install.
+ *
+ * 2. **Every watched directory mtime must be at least 2 seconds older than now.** `filemtime()` has
+ *    SECOND granularity, so a file added in the same second as the recorded mtime leaves the mtime
+ *    unchanged and the addition is invisible — the state would look current while the cached scan
+ *    still lists the old manifests. That is precisely the stale-`owns_tables` hard 500 of 2026-10-09.
+ *
+ *    Requiring the recorded mtime to be strictly in the past closes it: any later addition sets the
+ *    directory mtime to the then-current second, which is necessarily different from the recorded
+ *    one, so it is always detected. The cost is that immediately after a burst of changes (a deploy
+ *    writing many manifests) the state is not cached and the tree is re-walked for a second or two —
+ *    which is the period when correctness matters most anyway.
+ */
+function moduleManifestStateIsCacheable(array $state, ?int $now = null): bool
+{
+    if (($state['dirs_complete'] ?? false) !== true) {
+        return false;
+    }
+    if (($state['fingerprint'] ?? 'unstatable') === 'unstatable') {
+        return false;
+    }
+
+    $dirs = $state['dirs'] ?? null;
+    if (!is_array($dirs) || $dirs === []) {
+        return false;
+    }
+
+    $now ??= time();
+    foreach ($dirs as $mtime) {
+        if (!is_int($mtime) || $now - $mtime < 2) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * One walk of the manifest tree: the fingerprint, plus the observations needed to revalidate it later.
+ *
+ * Mirrors the glob version it replaces exactly, so the fingerprint string is unchanged for an unchanged
+ * tree — including that glob('*') does not match a leading dot, that backup trees are skipped, and that
+ * depth is bounded at modules/<suite>/<id>/module.json.
+ *
+ * `dirs_complete` is reported separately from the fingerprint rather than folded into it. A directory we
+ * could not stat must not change the KEY (that would make an install permanently un-cacheable), it must
+ * only disqualify the state from being cached at all.
+ *
+ * Never throws: boot correctness must not depend on a cache hint.
+ */
+function moduleManifestTreeState(string $dir): array
+{
+    $files = [];
+    $dirs = [];
+    $manifestUnstatable = false;
+    $dirsComplete = true;
+
+    $rootMtime = @filemtime($dir);
+    if ($rootMtime === false) {
+        $dirsComplete = false;
+    } else {
+        $dirs['.'] = $rootMtime;
+    }
+
+    $walk = static function (string $base, string $relative, int $depth) use (
+        &$walk,
+        &$files,
+        &$dirs,
+        &$manifestUnstatable,
+        &$dirsComplete
+    ): void {
+        $handle = @opendir($base);
+        if ($handle === false) {
+            $dirsComplete = false;
+
+            return;
+        }
+
+        $children = [];
+        while (($entry = readdir($handle)) !== false) {
+            if ($entry === '.' || $entry === '..' || $entry[0] === '.') {
                 continue;
             }
-            $mtime = @filemtime($path);
-            $size = @filesize($path);
-            if ($mtime === false || $size === false) {
-                // Cannot stat a manifest: return a distinct key so a stale scan is never served.
-                return 'unstatable';
+            $full = $base . '/' . $entry;
+            if (is_dir($full)) {
+                $children[] = [$full, $entry];
             }
-            $count++;
-            // Identify each manifest by its path RELATIVE to modules/, so the key does not depend on
-            // the install location (local vs /home1/... on Bluehost).
-            $parts[] = substr($path, strlen($dir) + 1) . ':' . $mtime . ':' . $size;
+        }
+        closedir($handle);
+
+        foreach ($children as [$full, $name]) {
+            $childRelative = $relative === '' ? $name : $relative . '/' . $name;
+
+            $manifest = $full . '/module.json';
+            if (is_file($manifest) && preg_match('#\.bak_\d{8}_\d{6}#', $manifest) !== 1) {
+                $mtime = @filemtime($manifest);
+                $size = @filesize($manifest);
+                if ($mtime === false || $size === false) {
+                    $manifestUnstatable = true;
+                } else {
+                    $files[$childRelative . '/module.json'] = $mtime . ':' . $size;
+                }
+            }
+
+            if ($depth < 3) {
+                // Watching this directory's mtime is what lets a manifest APPEARING beneath it be seen
+                // without walking: adding or removing an entry changes the directory's mtime.
+                $childMtime = @filemtime($full);
+                if ($childMtime === false) {
+                    $dirsComplete = false;
+                } else {
+                    $dirs[$childRelative] = $childMtime;
+                }
+                $walk($full, $childRelative, $depth + 1);
+            }
+        }
+    };
+
+    $walk($dir, '', 1);
+
+    if ($manifestUnstatable) {
+        return ['fingerprint' => 'unstatable', 'dirs' => $dirs, 'files' => $files, 'dirs_complete' => $dirsComplete];
+    }
+    if ($files === []) {
+        return ['fingerprint' => 'empty', 'dirs' => $dirs, 'files' => $files, 'dirs_complete' => $dirsComplete];
+    }
+
+    $parts = [];
+    foreach ($files as $relative => $stamp) {
+        $parts[] = $relative . ':' . $stamp;
+    }
+    sort($parts);
+
+    return [
+        'fingerprint' => count($parts) . '-' . substr(md5(implode('|', $parts)), 0, 12),
+        'dirs' => $dirs,
+        'files' => $files,
+        'dirs_complete' => $dirsComplete,
+    ];
+}
+
+/**
+ * Revalidate a cached tree state using stat() only — no directory listing.
+ *
+ * Two observations, and between them they cover every change the walk would have found:
+ *   - a manifest's mtime or size changed, or the file is gone      -> the file stamp differs
+ *   - a manifest was ADDED (including under a brand-new directory) -> the parent's mtime differs
+ *
+ * A directory mtime is the cheap part: POSIX updates it when an entry is created or removed, so a new
+ * subdirectory three levels down is visible from the depth-2 directory's mtime alone. That is why this
+ * needs no readdir at all.
+ *
+ * Anything unexpected returns false, which costs a walk. Failing towards the walk is the safe direction:
+ * the alternative is serving a stale owns_tables, which hard-500s live.
+ */
+function moduleManifestStateIsCurrent(string $dir, array $state): bool
+{
+    $dirs = $state['dirs'] ?? null;
+    $files = $state['files'] ?? null;
+    if (!is_array($dirs) || !is_array($files)) {
+        return false;
+    }
+
+    foreach ($dirs as $relative => $mtime) {
+        $path = $relative === '.' ? $dir : $dir . '/' . $relative;
+        if (@filemtime($path) !== $mtime) {
+            return false;
         }
     }
 
-    if ($count === 0) {
-        return 'empty';
+    foreach ($files as $relative => $stamp) {
+        $path = $dir . '/' . $relative;
+        $mtime = @filemtime($path);
+        if ($mtime === false) {
+            return false;
+        }
+        $size = @filesize($path);
+        if ($size === false || $mtime . ':' . $size !== $stamp) {
+            return false;
+        }
     }
 
-    // Hash every manifest, not just the newest mtime. `unzip` restores the mtimes stored in an
-    // archive, so a max-based key can survive a deploy unchanged; folding in size as well means a
-    // replaced manifest changes the key even when its mtime does not.
-    // glob() order is not guaranteed, so sort before hashing to keep an unchanged tree identical.
-    sort($parts);
-
-    return $count . '-' . substr(md5(implode('|', $parts)), 0, 12);
+    return true;
 }
 
 function discoverModules(): array

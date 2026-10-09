@@ -215,3 +215,70 @@ if (!function_exists('kernelPerfProbeOpcache')) {
         return $report;
     }
 }
+
+if (!function_exists('kernelPerfProbeManifestFingerprint')) {
+    /**
+     * Which path did the manifest fingerprint take, and what would the other one have cost?
+     *
+     * moduleManifestScanFingerprint() runs on every request to key the discovery cache. It used to
+     * re-walk the module tree each time; it now revalidates a cached tree state with stat() calls. A
+     * fast path that silently never engages looks EXACTLY like an optimization that did not work, so
+     * this row reports the path as well as the timing — `state_cached=false` on a warm page means the
+     * stat path was not taken, whatever the clock says.
+     */
+    function kernelPerfProbeManifestFingerprint(): array
+    {
+        $out = [
+            'available' => false,
+            'fingerprint_ms' => null,
+            'walk_ms' => null,
+            'validate_ms' => null,
+            'validate_ok' => null,
+            'dirs' => null,
+            'files' => null,
+            'dirs_complete' => null,
+            'apcu_usable' => false,
+            'state_cached' => false,
+        ];
+
+        if (!function_exists('modulesPath')
+            || !function_exists('moduleManifestScanFingerprint')
+            || !function_exists('moduleManifestTreeState')
+            || !function_exists('moduleManifestStateIsCurrent')) {
+            return $out;
+        }
+
+        $dir = modulesPath();
+        if (!is_dir($dir)) {
+            return $out;
+        }
+
+        $out['available'] = true;
+        $out['apcu_usable'] = function_exists('apcu_fetch')
+            && function_exists('apcu_store')
+            && (bool)ini_get('apc.enabled');
+
+        // The call discoverModules() actually makes, timed as the request made it.
+        $started = hrtime(true);
+        moduleManifestScanFingerprint();
+        $out['fingerprint_ms'] = kernelPerfProbeElapsedMs($started);
+
+        $cached = apcu_fetch('kernel.module_manifest_state_v1', $hit);
+        $out['state_cached'] = (bool)$hit;
+        unset($cached);
+
+        // What a full walk costs, versus what revalidating that state costs.
+        $started = hrtime(true);
+        $state = moduleManifestTreeState($dir);
+        $out['walk_ms'] = kernelPerfProbeElapsedMs($started);
+        $out['dirs'] = count($state['dirs']);
+        $out['files'] = count($state['files']);
+        $out['dirs_complete'] = (bool)$state['dirs_complete'];
+
+        $started = hrtime(true);
+        $out['validate_ok'] = moduleManifestStateIsCurrent($dir, $state);
+        $out['validate_ms'] = kernelPerfProbeElapsedMs($started);
+
+        return $out;
+    }
+}

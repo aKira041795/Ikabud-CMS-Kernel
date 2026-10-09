@@ -314,6 +314,7 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['total_ms'] = $requestElapsedMs === null ? null : round($requestElapsedMs, 2);
         $perfData['probe_self_ms'] = round((microtime(true) - $perfOverallStart) * 1000, 2);
         $perfOpcache = kernelPerfProbeOpcache();
+        $perfManifest = kernelPerfProbeManifestFingerprint();
         $perfData['php_version'] = PHP_VERSION;
         $perfData['peak_memory_kb'] = (int) round(memory_get_peak_usage(true) / 1024);
         $perfData['host'] = $_SERVER['HTTP_HOST'] ?? '';
@@ -365,6 +366,11 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ['DB ping (SELECT 1)', $perfData['db_ping_ms'], 'ms', $perfData['db_ok'] ? '' : 'FAIL'],
             ['Module discover (warm)', $perfData['module_discover_ms'], 'ms', ''],
             ['Module discover (cold scan)', $perfData['module_discover_cold_ms'], 'ms · ' . $perfData['module_discover_cold_count'] . ' modules', ''],
+            // The fingerprint keys the discovery cache and runs on EVERY request, so whether it took the
+            // stat path or the walk is the difference between ~1ms and ~8ms of every page in the app.
+            ['Manifest fingerprint', $perfManifest['available'] ? round((float)$perfManifest['fingerprint_ms'], 3) : 'not measured', 'ms', $perfManifest['state_cached'] ? 'revalidated by stat (fast path)' : 'full walk'],
+            ['Manifest tree walk (one-off)', $perfManifest['available'] ? round((float)$perfManifest['walk_ms'], 3) : 'not measured', 'ms', 'what the fast path avoids'],
+            ['Manifest state revalidate', $perfManifest['available'] ? round((float)$perfManifest['validate_ms'], 3) : 'not measured', 'ms · ' . ($perfManifest['dirs'] ?? '?') . ' dirs / ' . ($perfManifest['files'] ?? '?') . ' files', $perfManifest['dirs_complete'] ? '' : 'INCOMPLETE - state not cached'],
             ['Settings preload', $perfData['settings_preload_state'] === 'measured' ? $perfData['settings_preload_ms'] : 'skipped (no tenant)', $perfData['settings_preload_state'] === 'measured' ? 'ms · ' . $perfData['settings_preload_rows'] . ' rows' : '', ''],
             ['Cache round-trip', $perfData['cache_roundtrip_ms'], 'ms', $perfData['cache_ok'] ? '' : 'FAIL'],
             ['Cache hit rate', $perfData['cache_hit_rate_pct'], '%', ''],
