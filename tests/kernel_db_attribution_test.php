@@ -20,6 +20,31 @@ attributionAssert('fresh request has zero queries', $fresh['db']['queries'] === 
 attributionAssert('fresh request has exactly zero DB time', $fresh['db']['total_ms'] === 0.0, json_encode($fresh['db']));
 attributionAssert('unmarked phase is null, not zero', $fresh['phases']['dispatch'] === null, json_encode($fresh['phases']));
 
+// The accumulator must declare NO module. EventBus::fire() wraps any listener
+// that declares one in moduleWithContext() -> moduleContextFor() ->
+// discoverModules(), and discoverModules() sets its per-request memo only AFTER
+// its per-module loop. A module-declaring listener that observes a query fired
+// from inside that loop therefore re-enters discovery and recurses -- observed in
+// error.log on 2026-10-09 as a 128 MB memory-exhaustion fatal under concurrent
+// load. Passing 'kernel' here would silently reintroduce that path, so this
+// assertion is the must-refuse for it.
+$busReflection = new ReflectionClass(app()->events());
+$listenersProp = $busReflection->getProperty('listeners');
+$listenersProp->setAccessible(true);
+$dbEventListeners = $listenersProp->getValue(app()->events())['kernel.database.query.after'] ?? [];
+$moduleOwners = [];
+foreach ($dbEventListeners as $entry) {
+    $owner = (string)($entry['module'] ?? '');
+    if ($owner !== '') {
+        $moduleOwners[] = $owner;
+    }
+}
+attributionAssert(
+    'DB accumulator declares no module (avoids discoverModules re-entry)',
+    $moduleOwners === [],
+    'listeners=' . count($dbEventListeners) . ' module-owners=' . json_encode($moduleOwners)
+);
+
 kernelPerfMarkRequestPhase('not-a-phase');
 $afterUnknownPhase = kernelPerfProbeRequestAttribution();
 attributionAssert('unknown phase is refused', $afterUnknownPhase['phases'] === $fresh['phases'], json_encode($afterUnknownPhase['phases']));

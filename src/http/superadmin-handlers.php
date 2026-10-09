@@ -956,10 +956,25 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
         ];
     }
 
-    // ── 6. DiSyL template render ({extends} path) ─────────────
+    // ── 6. DiSyL template render ──────────────────────────────
+    // Two separate renders. A key must report what its name says: reporting one
+    // measurement under both names made `disyl_render_login_ms` describe a
+    // different template than its label claims. Keeping the key alive is right
+    // for API consumers; keeping it pointed at the wrong work is not.
+    $disylLoginStart = microtime(true);
+    $disylLoginOk = false;
+    try {
+        ob_start();
+        app()->render('pages/login.disyl', ['page_title' => '__perf_probe__', 'base_url' => external_base_url()]);
+        ob_get_clean();
+        $disylLoginOk = true;
+    } catch (Throwable $e) {
+        ob_get_clean();
+    }
+
     $disylRender = kernelPerfProbeDisylRender();
-    // Preserve the existing key for API consumers while changing what it measures.
-    $perfResults['disyl_render_login_ms'] = round((float)$disylRender['ms'], 2);
+    $perfResults['disyl_render_login_ms'] = round((microtime(true) - $disylLoginStart) * 1000, 2);
+    $perfResults['disyl_render_login_ok'] = $disylLoginOk;
     $perfResults['disyl_render_extends_ms'] = round((float)$disylRender['ms'], 2);
     $perfResults['disyl_template'] = (string)$disylRender['template'];
     $perfResults['disyl_extends'] = !empty($disylRender['extends']);

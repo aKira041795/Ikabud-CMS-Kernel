@@ -116,7 +116,21 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                 }
             },
             10,
-            'kernel'
+            // No module owner on purpose. EventBus::fire() wraps any listener that
+            // declares a module in moduleWithContext(), which calls
+            // moduleContextFor() -> discoverModules(). discoverModules() sets its
+            // per-request memo only AFTER its per-module loop, so a listener that
+            // declares a module and observes a query fired from inside that loop
+            // re-enters discovery and recurses (observed in error.log on
+            // 2026-10-09 as a 128 MB memory-exhaustion fatal under concurrent
+            // load). This accumulator needs no module context, so declaring one is
+            // pure risk.
+            //
+            // listen() auto-resolves moduleCurrentId() when '' is passed, so this
+            // is only safe because no module context is active yet at include time
+            // (public/index.php:155, before loadModuleRoutes()). That invariant is
+            // asserted by tests/kernel_db_attribution_test.php.
+            ''
         );
     } catch (Throwable $ignored) {
         // The app/event bus may not yet be usable in narrow CLI contexts.
