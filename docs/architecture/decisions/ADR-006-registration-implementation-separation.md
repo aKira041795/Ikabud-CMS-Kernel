@@ -38,8 +38,12 @@ Measured on the live host (`/superadmin/perf`), before and after a deployment th
 | `OPcache restarts (OOM / hash)` | not measured | 0 / 0 |
 | `Module routes: registration` | 70.37 ms | 16.31 ms |
 | `Dispatch segment: module routes` | 83.12 ms | 30.30 ms |
-| `Request phase: dispatch` | 107.19 ms | 61.68 ms |
-| framework (boot + dispatch) | 123.07 ms | 80.55 ms |
+| `Request phase: dispatch` (the framework cost) | 107.19 ms | 61.68 ms |
+
+> **Not `boot + dispatch`.** The phase marks are CUMULATIVE from request start, and the deltas are chained
+> from `boot` (`src/http/perf-attribution.php:213-221`), so `boot` is a span INSIDE `dispatch`. Adding them
+> double-counts boot. Framework cost = `dispatch` = **61.68 ms**, of which boot is the first 18.87 ms. An
+> earlier revision of this section stated 123.07 → 80.55 ms; that was this error, corrected here.
 
 **Interpretation.** The file count and byte size are identical, so nothing about *what is included* changed;
 the same work simply stopped being compiled. The 64 ms was a transient cold-OPcache state — the earlier
@@ -63,8 +67,18 @@ the local web-SAPI figure (7.24 ms) to within 1.4×.
 - Still unmeasured, and now the more interesting question: what a **real page** costs. The probe page's own
   measurement overhead is **75.07 ms of its 136.75 ms total (55%)**, of which the forced cold module scan
   is 67.36 ms. Its total is now measured correctly, but it is largely a measurement of itself.
-- Residual framework cost is **boot 18.87 + dispatch 61.68 = 80.55 ms**, spread across registration 16.31,
-  route match 12.24, module discovery 11.31 and boot 18.87 — no longer concentrated in one place.
+- Residual framework cost is **61.68 ms** (= `dispatch`; `boot` is its first 18.87 ms, not an addition to it),
+  and after this week's fixes it is no longer concentrated in the include path. Composition:
+
+  | component | ms | share | ever examined? |
+  |---|---|---|---|
+  | boot | 18.87 | 31% | **no** |
+  | module routes | 30.30 | 49% | partly — discovery 11.31 **no**, registration 16.31 yes (include 9.79, route merge 4.51), contract drift 1.41 **no**, event flush 1.18 **no** |
+  | route match | 12.24 | 20% | **no** |
+  | all other segments | 0.27 | 0% | no |
+
+  So **42.42 ms — 69% of the framework — sits in three components this work never examined** (boot, module
+  discovery, route match), which is now a better place to look than anything in this ADR.
   `route match` rose from 7.93 to 12.24 ms (+54%) between the same two readings and is unexplained; it
   should be re-measured before anything is attributed to it.
 
