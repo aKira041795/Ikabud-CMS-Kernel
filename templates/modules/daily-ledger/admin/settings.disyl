@@ -8,6 +8,21 @@
     </div>
 </div>
 
+<nav class="settings-nav" aria-label="Settings sections">
+    <a href="#settings-branding">Branding</a>
+    <a href="#settings-shift">Shift &amp; clock</a>
+    <a href="#settings-consignees">Consignees</a>
+    <a href="#settings-day">Day close</a>
+    <a href="#settings-offline">Offline</a>
+    <a href="#settings-access">Features &amp; permissions</a>
+    <a href="#settings-data">Backup &amp; resets</a>
+</nav>
+
+<div class="settings-section settings-section-first" id="settings-branding">
+    <h3>Branding</h3>
+    <p>Names, logo and favicon used across the module and on printed sheets.</p>
+</div>
+
 <div class="card mb-6">
     <div class="card-header">
         <span>Branding</span>
@@ -69,6 +84,11 @@
         </div>
     </div>
 </div>
+<div class="settings-section" id="settings-shift">
+    <h3>Shift &amp; operating clock</h3>
+    <p>When a shift hands over, and which clock the ledger follows.</p>
+</div>
+
 <div class="card mb-6">
     <div class="card-header">
         <span>Shifts</span>
@@ -127,6 +147,11 @@
     </div>
 </div>
 
+<div class="settings-section" id="settings-consignees">
+    <h3>Consignees</h3>
+    <p>How consignee sales are treated in the ledger.</p>
+</div>
+
 <div class="card mb-6" id="consignee-sales-mode-settings">
     <div class="card-header">
         <span>Consignee Sales Treatment</span>
@@ -157,6 +182,11 @@
     </div>
 </div>
 
+<div class="settings-section" id="settings-day">
+    <h3>Day close</h3>
+    <p>What must be true before a day can be closed, and when it closes on its own.</p>
+</div>
+
 <div class="card mb-6">
     <div class="card-header">
         <span>Close of Day</span>
@@ -185,6 +215,11 @@
     </div>
 </div>
 
+<div class="settings-section" id="settings-offline">
+    <h3>Offline</h3>
+    <p>What a device may do without a connection, and for how long.</p>
+</div>
+
 <div class="card mb-6">
     <div class="card-header">
         <span>Offline Access</span>
@@ -203,6 +238,11 @@
             </div>
         </div>
     </div>
+</div>
+
+<div class="settings-section" id="settings-access">
+    <h3>Features &amp; permissions</h3>
+    <p>Turn optional parts of the module on or off, and choose what each role may do.</p>
 </div>
 
 <div class="card mb-6">
@@ -455,6 +495,11 @@
             <button type="button" class="btn btn-primary" id="save-perm-btn" onclick="saveRolePermissions()">Save Settings</button>
         </div>
     </div>
+</div>
+
+<div class="settings-section" id="settings-data">
+    <h3>Backup &amp; resets</h3>
+    <p>Backups, and the reset operations. Read each warning: resets delete data.</p>
 </div>
 
 <div class="card mb-6">

@@ -649,6 +649,17 @@
     #tab-daily-sheet tbody .dl-sheet-sticky-variance {
         background: #fff;
     }
+    /* Alternating rows, for tracking a wide row from the product on the left to the figure on the
+       right. The pinned columns above paint their OWN white background, so both the stripe and the
+       hover tint must be repeated on every cell: a row-level colour cannot show through a cell that
+       has one, which would leave the pinned column white while the rest of the row stripes. These
+       selectors carry two ids, so they outrank the pinned-cell rule above. */
+    #tab-daily-sheet #production-ledger-table.dl-zebra tbody tr:nth-child(even) > td {
+        background: rgb(248 250 252);
+    }
+    #tab-daily-sheet #production-ledger-table.dl-zebra tbody tr:hover > td {
+        background: rgb(241 245 249);
+    }
     /* A sticky element sticks to its NEAREST scrollport, and .table-wrap is one: `overflow-x: auto`
        forces the other axis to compute to `auto` too (CSS turns a `visible` axis into `auto` when
        its sibling is not visible). It never scrolled vertically because nothing bounded its height,
@@ -1712,7 +1723,7 @@
         {set sheet_numeric_column_count = sheet_branch_column_count + 3}
         {/if}
         <div class="table-wrap dl-sheet-scroll">
-            <table class="production-ledger-table" id="production-ledger-table" style="--sheet-numeric-cols: {sheet_numeric_column_count}">
+            <table class="production-ledger-table dl-zebra" id="production-ledger-table" style="--sheet-numeric-cols: {sheet_numeric_column_count}">
                 <thead>
                     <tr>
                         <th class="dl-sheet-sticky-product">Product</th>

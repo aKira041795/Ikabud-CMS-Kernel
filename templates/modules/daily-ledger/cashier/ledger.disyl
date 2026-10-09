@@ -287,7 +287,7 @@
 
 <div class="card">
     <div class="table-wrap">
-        <table>
+        <table class="dl-zebra">
             <thead>
                 <tr>
                     <th class="text-left w-14">#</th>
