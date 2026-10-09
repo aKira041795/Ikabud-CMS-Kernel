@@ -1,15 +1,72 @@
 # ADR-006: Kernel Registration / Implementation Separation
 
 ## Status
-**Proposed (2026-10-09).** This is an architectural decision, **not** implementation approval. It states
-the direction and the evidence required before implementing it. The measurements in
-[Open questions that gate implementation](#open-questions-that-gate-implementation) come first; until they
-are taken, the performance claim behind this ADR is unproven and the ADR must not be cited as if it were.
+**Proposed (2026-10-09) — and gate 1 has since fired its own reopening trigger.** This is an architectural
+decision, **not** implementation approval. The measurements in
+[Open questions that gate implementation](#open-questions-that-gate-implementation) come first.
+
+> **Gate 1 answered the same day, and it removed this ADR's urgency.** The live host now reports
+> `OPcache enabled: yes`, **`OPcache scripts compiled this request: 16`** (not 347), 2,923 cached /
+> 7,963 keys, restarts 0/0 — and `helpers_load` fell from 64.06 ms to **9.79 ms (−84.7%) across the
+> identical 347 files / 5,007.78 KB**. Nothing about the include path changed; only OPcache state did.
+> **There is no 64 ms to win.** The remaining steady-state include cost is ~9.8 ms, and removing all of
+> it would buy under 10 ms per request. See [Gate 1 result](#gate-1-result-2026-10-09) before reading the
+> rest of this document as a case for doing anything.
 
 Informed by an external review of the measurements. That text sits at
 `.ai/consult/kernel-perf-module-load-reply.md`, which is **gitignored** (`.gitignore:119` excludes `.ai/*`),
 so this ADR deliberately does not depend on it: the conclusions it changed are restated below, and the
 central measurement is reproducible with `php tools/chair-module-registration-audit.php`.
+
+The review's sharpest correction is recorded here because the live data vindicated it: it warned that
+presenting a **local OPcache-off** share of include cost as a latency saving was *"the biggest measurement
+issue"*, and that moving work from startup to handler activation does not remove it. That is exactly what
+happened — the 64 ms was a cold-OPcache artefact, not a cost waiting to be deferred.
+
+## Gate 1 result (2026-10-09)
+
+Measured on the live host (`/superadmin/perf`), before and after a deployment the same day:
+
+| row | pre-deploy 15:41 | post-deploy 16:30 |
+|---|---|---|
+| `Registration: newly included files` | 347 files / 5,007.78 KB | **347 files / 5,007.78 KB (identical)** |
+| `Registration: newly included size` | 5,007.78 KB | **5,007.78 KB (identical)** |
+| `Registration: helpers load` | 64.06 ms | **9.79 ms (−84.7%)** |
+| `OPcache scripts compiled this request` | not measured | **16** |
+| `OPcache enabled` | not measured | yes |
+| `OPcache cached scripts / max keys` | not measured | 2,923 / 7,963 |
+| `OPcache restarts (OOM / hash)` | not measured | 0 / 0 |
+| `Module routes: registration` | 70.37 ms | 16.31 ms |
+| `Dispatch segment: module routes` | 83.12 ms | 30.30 ms |
+| `Request phase: dispatch` | 107.19 ms | 61.68 ms |
+| framework (boot + dispatch) | 123.07 ms | 80.55 ms |
+
+**Interpretation.** The file count and byte size are identical, so nothing about *what is included* changed;
+the same work simply stopped being compiled. The 64 ms was a transient cold-OPcache state — the earlier
+reading predates the deployment, when OPcache had not yet cached the working set. Steady state agrees with
+the local web-SAPI figure (7.24 ms) to within 1.4×.
+
+**Consequences for this ADR.**
+
+- The include cost is **~9.8 ms, not ~64 ms**. Deferring all of it buys under 10 ms per request.
+- Gate 1's own wording anticipated this outcome — *"if OPcache is the cause, host configuration is the
+  larger and cheaper lever and this ADR is not the first thing to do"* — so this ADR is **not justified by
+  performance**.
+- It remains a candidate on its own architectural merits: an explicit rather than accidental dependency
+  graph, capability availability no longer inferred from `function_exists()`, and registration that is
+  checkable. Those merits do not depend on the measurement that turned out to be wrong, but neither does
+  the 64 ms urgency.
+- A new operational risk is visible in the same reading: **`OPcache memory used / free = 127.8 / 0 MB`.**
+  Zero free with 0 OOM/hash restarts means the cache is full but not yet thrashing. A full cache that
+  cannot admit new scripts is a plausible source of the 64 ms reading, so it is worth watching rather than
+  assuming it cannot recur.
+- Still unmeasured, and now the more interesting question: what a **real page** costs. The probe page's own
+  measurement overhead is **75.07 ms of its 136.75 ms total (55%)**, of which the forced cold module scan
+  is 67.36 ms. Its total is now measured correctly, but it is largely a measurement of itself.
+- Residual framework cost is **boot 18.87 + dispatch 61.68 = 80.55 ms**, spread across registration 16.31,
+  route match 12.24, module discovery 11.31 and boot 18.87 — no longer concentrated in one place.
+  `route match` rose from 7.93 to 12.24 ms (+54%) between the same two readings and is unexplained; it
+  should be re-measured before anything is attributed to it.
 
 ## Context
 
@@ -20,12 +77,13 @@ from the merged route table afterwards.
 **Measured, not inferred:**
 
 1. **68 modules are enabled.** Including every module's `helpers.php` costs ~310 ms locally with OPcache
-   off, against **7.24 ms** in the web SAPI for the same ~5 MB — a ~40× difference, i.e. that cost is
-   largely compilation. The live host (`kernelappos.ikabudkernel.com`, PHP 8.3.35) reports **64.06 ms for
-   347 files / 5,007 KB**, which is 8.8× *slower* than local-with-OPcache while being **faster at every
-   other phase** (module discovery 10.49 vs 116.73 ms; contract drift 1.24 vs 80.67 ms; route match 7.93
-   vs 34.67 ms). A slow filesystem would slow the directory walks too. That asymmetry points at
-   compilation, and it is unconfirmed — see gate 1.
+   off, against **7.24 ms** in the web SAPI for the same ~5 MB — a ~40× difference. **The OPcache-off
+   figure is not representative of production and must not be read as one:** in steady state the live host
+   pays **9.79 ms** for the same 347 files / 5,007.78 KB (`helpers_load`, 2026-10-09T16:30). A reading
+   taken earlier the same day, before a deployment, showed **64.06 ms** for the identical file set and
+   size — 8.5× slower — with OPcache reporting only 16 scripts compiled at the later reading. That 64 ms
+   was a cold/invalidated-OPcache state, not a structural cost. See
+   [Gate 1 result](#gate-1-result-2026-10-09).
 2. **16 of the 68 modules register something at include time**, measured by diffing EventBus listeners,
    Hooks listeners and user constants around each include (reproduce: `php tools/chair-module-registration-audit.php`):
    - `cms` — 10 events (`cms.content.created/updated/deleted/published/bulk`,
@@ -122,9 +180,10 @@ disabled for it. Nothing is switched off globally.
 
 ## Open questions that gate implementation
 
-1. **Is the compilation hypothesis true on the live host?** The probe now reports
-   `OPcache scripts compiled this request` — one reload answers it. **If OPcache is the cause, host
-   configuration is the larger and cheaper lever and this ADR is not the first thing to do.**
+1. **Is the compilation hypothesis true on the live host?** — **ANSWERED, 2026-10-09: no.** OPcache reports
+   only 16 scripts compiled for the request; `helpers_load` is 9.79 ms in steady state for the same files
+   that cost 64.06 ms cold. See [Gate 1 result](#gate-1-result-2026-10-09). Gate 1 was the gate, and it
+   closed in the direction that removes this ADR's urgency.
 2. **`T_composition`, `T_implementation_load` and `T_total_request`, measured separately.** Moving work
    from startup to handler invocation does not remove it. Without these three, "64% deferrable" is an
    architectural opportunity, not a latency claim.
