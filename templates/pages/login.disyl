@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{page_title | default:'Sign In'} — {gui.app_name}</title>
     {if login_favicon_url}<link rel="icon" href="{login_favicon_url}">{/if}
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+      {# htmx was removed here: this page never used it. The template has no hx- attributes and no
+         htmx.* calls, and its submit handler uses fetch(). It was a 16 KB synchronous third-party
+         script on the first page a user sees, on mobile. Do not re-add it without a usage to go with it. #}
     {if gui.font_url}<link href="{gui.font_url}" rel="stylesheet">{/if}
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
