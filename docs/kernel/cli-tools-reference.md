@@ -6,6 +6,15 @@
 The `php ikabud` CLI provides developer tools for architecture enforcement,
 entity inspection, scaffolding, diagnostics, and module management.
 
+## Route ambiguity mode
+
+`APP_ROUTE_AMBIGUITY_MODE` remains an accepted compatibility setting and may be
+reported by runtime diagnostics. Its `warn` and `block` values produce identical
+route maps: the setting does not scan, warn about, reject, or otherwise affect
+route registration. In particular, `block` provides no ambiguity protection.
+Exact same-method, same-pattern registrations are still rejected by the separate
+duplicate-ownership guard.
+
 ---
 
 ## Cache Maintenance

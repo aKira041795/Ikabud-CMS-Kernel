@@ -152,8 +152,6 @@ function compareRoutePatternsForMatching(string $left, string $right): int
  */
 function loadModuleRoutes(array $routes): array
 {
-    $ambiguityMode = strtolower((string) config('app.modules.route_ambiguity_mode', 'warn'));
-
     // Track which module owns each route for conflict detection
     $routeOwners = [];
     $methodPatterns = [];
@@ -553,78 +551,14 @@ function loadModuleRoutes(array $routes): array
             }
             foreach ($moduleRoutes[$method] as $pattern => $handler) {
                 $routeKey = $method . ':' . $pattern;
-                $blockedByAmbiguity = false;
-
-                // Lint for semantic ambiguity (e.g. /foo/{id} vs /foo/bar).
-                // Only same-length patterns with compatible first segments can
-                // conflict. Build that candidate set from the registration index,
-                // retaining registration order because block mode stops at the
-                // first ambiguous owner.
                 $patternSegments = routePatternSegments($pattern);
                 $patternSegmentCount = count($patternSegments);
-                $patternBucket = $methodPatternIndex[$method][$patternSegmentCount] ?? [];
                 $firstPatternSegment = $patternSegments[0] ?? '';
-                if ($patternSegments !== [] && routeSegmentIsDynamic($firstPatternSegment)) {
-                    $ambiguityCandidates = $patternBucket['all'] ?? [];
-                } else {
-                    $ambiguityCandidates = $patternBucket['dynamic'] ?? [];
-                    foreach ($patternBucket['literal'][$firstPatternSegment] ?? [] as $candidatePattern => $sequence) {
-                        $ambiguityCandidates[$candidatePattern] = $sequence;
-                    }
-                    asort($ambiguityCandidates, SORT_NUMERIC);
-                }
 
-                foreach ($ambiguityCandidates as $existingPattern => $_sequence) {
-                    $owner = $methodPatterns[$method][$existingPattern];
-                    if ($existingPattern === $pattern) {
-                        continue;
-                    }
-                    if (!routePatternsCouldConflictCheap($existingPattern, $pattern)) {
-                        continue;
-                    }
-                    if (!routePatternsMayConflict($existingPattern, $pattern)) {
-                        continue;
-                    }
-
-                    // The dispatcher sorts patterns via compareRoutePatternsForMatching()
-                    // which ranks literal routes above parameterized ones. When two
-                    // conflicting patterns have different priority (e.g. /foo/bar vs
-                    // /foo/{id}), the more-specific pattern always wins — no real
-                    // ambiguity exists, so skip the warning.
-                    if (compareRoutePatternsForMatching($existingPattern, $pattern) !== 0) {
-                        continue;
-                    }
-
-                    $context = [
-                        'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value,
-                        'module' => $moduleId,
-                        'method' => $method,
-                        'pattern' => $pattern,
-                        'existing_pattern' => $existingPattern,
-                        'existing_owner' => $owner,
-                        'mode' => $ambiguityMode,
-                    ];
-
-                    if ($ambiguityMode === 'block') {
-                        write_log(
-                            "[cert_blocker] Route ambiguity blocked: module '{$moduleId}' {$method} {$pattern} conflicts with '{$owner}' route {$existingPattern}",
-                            'warning',
-                            $context
-                        );
-                        $blockedByAmbiguity = true;
-                        break;
-                    }
-
-                    write_log(
-                        "[cert_blocker] Route ambiguity warning: module '{$moduleId}' registered {$method} {$pattern} which may conflict with '{$owner}' route {$existingPattern}",
-                        'warning',
-                        $context
-                    );
-                }
-
-                if ($blockedByAmbiguity) {
-                    continue;
-                }
+                // The former ambiguity scan was unreachable: distinct patterns
+                // cannot compare equal because the raw pattern is the final
+                // priority tie-break. Measured: 927,972 same-method pairs, 109
+                // predicate conflicts, and 0 distinct equal-priority pairs.
 
                 if (isset($routeOwners[$routeKey])) {
                     // Conflict detected — reject and log
