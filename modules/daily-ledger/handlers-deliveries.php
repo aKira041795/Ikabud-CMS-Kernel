@@ -3104,6 +3104,13 @@ function dl_layoutFlags(): array
         'feature_price_groups'      => dl_settingToBool($s['price_groups_enabled'] ?? true),
         'feature_pos'               => dl_settingToBool($s['pos_enabled'] ?? false),
         'feature_branch_products'   => dl_settingToBool($s['branch_product_self_management'] ?? '0'),
+        // Opt-in, default off (owner, 2026-10-09).
+        'feature_cash_paper_check'  => dl_settingToBool($s['cash_paper_check_enabled'] ?? false),
+        // The consignee dispatch report already had its own switch; expose it so the nav honours the
+        // switch instead of offering a link to a report this tenant has turned off.
+        'feature_consignee'         => function_exists('dl_isConsigneeEnabled')
+            ? dl_isConsigneeEnabled()
+            : dl_settingToBool($s['consignee_enabled'] ?? false),
     ];
 }
 

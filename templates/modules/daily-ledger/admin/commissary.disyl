@@ -877,12 +877,14 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Variances</span>
                 </a>
 
+                {if feature_cash_paper_check}
                 <a href="{base_url}/admin/reconciliation"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'reconciliation'}bg-white/10 ring-1 ring-white/10{/if}"
                    aria-label="Cash and Paper Check">
                     <i class="fas fa-money-bill-wave w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Cash &amp; Paper Check</span>
                 </a>
+                {/if}
                 {/if}
 
                 <!-- Reports are read-only PDF/CSV exports, so the business owner

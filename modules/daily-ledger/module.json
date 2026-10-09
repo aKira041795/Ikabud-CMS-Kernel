@@ -444,6 +444,13 @@
       "description": "Allow authorized cashiers to record itemized POS sales. When off, only the manual stock ledger is available."
     },
     {
+      "key": "cash_paper_check_enabled",
+      "type": "checkbox",
+      "label": "Enable Cash & Paper Check",
+      "default": "0",
+      "description": "Shift reconciliation of the paper sheet and cash remitted against the ledger. Off by default: the page and its nav entry stay hidden until an admin enables it."
+    },
+    {
       "key": "pos_allowed_tenders",
       "type": "text",
       "label": "POS Allowed Tenders",

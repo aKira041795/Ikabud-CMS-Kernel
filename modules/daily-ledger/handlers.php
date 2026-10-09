@@ -706,6 +706,8 @@ function dl_featureSettings(): array
         'consignee_enabled' => dl_normalizeConsigneeEnabled($settings['consignee_enabled'] ?? true),
         'pos_enabled' => dl_settingToBool($settings['pos_enabled'] ?? false),
         'pos_sort_by_sales' => dl_settingToBool($settings['pos_sort_by_sales'] ?? true),
+        // Opt-in, default off (owner, 2026-10-09).
+        'cash_paper_check_enabled' => dl_settingToBool($settings['cash_paper_check_enabled'] ?? false),
     ];
 }
 
@@ -13226,6 +13228,7 @@ function handleAdminSettings(array $params = []): void
         'pos_enabled' => $featureSettings['pos_enabled'],
         'pos_sort_by_sales' => $featureSettings['pos_sort_by_sales'],
         'branch_product_self_management' => dl_branchProductSelfManagementEnabled(),
+        'cash_paper_check_enabled' => $featureSettings['cash_paper_check_enabled'],
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
         'logo_url' => dlLogoUrl(),
         'favicon_url' => dlFaviconUrl(),
@@ -13504,6 +13507,7 @@ function apiSaveRolePermissions(array $params = []): void
     $consigneeEnabled = $featureSettings['consignee_enabled'];
     $posEnabled = $featureSettings['pos_enabled'];
     $posSortBySales = $featureSettings['pos_sort_by_sales'];
+    $cashPaperCheckEnabled = $featureSettings['cash_paper_check_enabled'];
     $branchProductSelfManagement = dl_branchProductSelfManagementEnabled();
     $backupBeforeResetEnabled = $backupSettings['backup_before_reset_enabled'];
     $backupIncludeUsers = $backupSettings['backup_include_users'];
@@ -13530,6 +13534,7 @@ function apiSaveRolePermissions(array $params = []): void
         'pos_enabled' => &$posEnabled,
         'pos_sort_by_sales' => &$posSortBySales,
         'branch_product_self_management' => &$branchProductSelfManagement,
+        'cash_paper_check_enabled' => &$cashPaperCheckEnabled,
     ] as $key => &$ref) {
         if (array_key_exists($key, $input)) {
             if (!$canManageFeatureActivation) {
@@ -13616,6 +13621,7 @@ function apiSaveRolePermissions(array $params = []): void
         'pos_enabled' => $posEnabled ? '1' : '0',
         'pos_sort_by_sales' => $posSortBySales ? '1' : '0',
         'branch_product_self_management' => $branchProductSelfManagement ? '1' : '0',
+        'cash_paper_check_enabled' => $cashPaperCheckEnabled ? '1' : '0',
         'backup_before_reset_enabled' => $backupBeforeResetEnabled ? '1' : '0',
         'backup_include_users' => $backupIncludeUsers ? '1' : '0',
         'backup_retention_days' => (string)$backupRetentionDays,
@@ -13772,6 +13778,14 @@ function handleAdminReconciliation(array $params = []): void
     }
 
     $user = dlCurrentUser(['admin', 'supervisor', 'auditor']);
+    // Cash & Paper Check is opt-in and off by default. The nav entry and the settings toggle are
+    // hidden when it is off; this refuses a direct URL as well, so hiding the link is not the only
+    // guard. Placed AFTER the auth check so an unauthorised caller learns nothing about the setting.
+    if (!dl_settingToBool(dlModuleSettings()['cash_paper_check_enabled'] ?? false)) {
+        http_response_code(403);
+        echo 'Cash &amp; Paper Check is disabled for this tenant.';
+        return;
+    }
     $role = (string)($user['role'] ?? '');
     $canManage = in_array($role, ['admin', 'supervisor'], true);
 

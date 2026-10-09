@@ -332,6 +332,25 @@
                 {/if}
             </div>
 
+            <div>
+                <p class="text-sm text-gray-700 font-medium">Cash &amp; Paper Check</p>
+                <p class="mt-1 text-sm text-gray-500">Shift reconciliation of the paper sheet and cash remitted against the ledger. OFF by default.</p>
+            </div>
+            <div>
+                {if can_manage_feature_activation}
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="feature-cash-paper-check" {if cash_paper_check_enabled}checked{/if}>
+                    Enable Cash &amp; Paper Check
+                </label>
+                <p class="mt-2 text-sm text-gray-500">When off, the page is refused and the sidebar hides its link.</p>
+                {/if}
+                {if !can_manage_feature_activation}
+                <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if cash_paper_check_enabled}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !cash_paper_check_enabled}bg-gray-100 text-gray-700 ring-gray-300{/if}">
+                    Cash &amp; Paper Check is {if cash_paper_check_enabled}Enabled{/if}{if !cash_paper_check_enabled}Disabled{/if}
+                </div>
+                {/if}
+            </div>
+
         </div>
     </div>
 </div>
@@ -995,6 +1014,10 @@
         var featurePosSortSales = document.getElementById('feature-pos-sort-sales');
         if (featurePosSortSales) {
             payload.pos_sort_by_sales = featurePosSortSales.checked;
+        }
+        var featureCashPaperCheck = document.getElementById('feature-cash-paper-check');
+        if (featureCashPaperCheck) {
+            payload.cash_paper_check_enabled = featureCashPaperCheck.checked;
         }
 
         var appNameInput = document.getElementById('app-name');
