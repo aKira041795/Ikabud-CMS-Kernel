@@ -46,6 +46,31 @@ if ($archiveExitCode !== 0 || !is_file($codeArchivePath)) {
     exit(1);
 }
 
+// ── An upgrade must not overwrite the document root's .htaccess ──────────
+// cPanel's MultiPHP Manager stores its PHP selection as an AddHandler line inside the document
+// root's .htaccess. This kit ships a root .htaccess (rewrites + deny rules, no handler), so
+// extracting it over a live install REMOVES cPanel's line and the site silently drops back to the
+// account's default PHP version.
+//
+// Measured 2026-10-09: after a deploy the live host served 8.3.35 while cPanel still showed 8.5 —
+// which is only possible if something inside the docroot overrode it. The cost was not subtle: the
+// 8.3 profile caps OPcache at 7,963 keys / 128 MB and it sat FULL at 128/0, so the next request
+// compiled 954 scripts and dispatch went 46.55 -> 138.16 ms. Re-selecting 8.5 in cPanel restored
+// it, which is why this is fixed here rather than documented as a quirk.
+//
+// A FRESH install still needs the file (it carries the rewrite to public/), so
+// create-bluehost-archive.php keeps shipping it. Only the upgrade path drops it.
+$stripHtaccess = new ZipArchive();
+if ($stripHtaccess->open($codeArchivePath) === true) {
+    if ($stripHtaccess->locateName('.htaccess') !== false) {
+        $stripHtaccess->deleteName('.htaccess');
+        echo "  [strip] root .htaccess excluded — it is host-owned (see README-UPGRADE.txt)\n";
+    }
+    $stripHtaccess->close();
+} else {
+    fwrite(STDERR, "Warning: could not re-open {$codeArchiveName} to exclude .htaccess.\n");
+}
+
 $appSqlFiles = [
     'migrations/001_kernel_events_and_triggers.sql',
     'migrations/004_remove_legacy_kernel_roles.sql',
@@ -337,6 +362,12 @@ function buildReadme(string $codeArchiveName): string
         '- Some legacy-reconciliation migrations may remove obsolete tables only after data is backfilled into canonical replacements.',
         '- Do not rerun public/lock.php as an upgrade path for an existing production install.',
         '- Do not replace the live .env with .env.example.',
+        '- The root .htaccess is NOT in this kit, on purpose. cPanel stores its PHP version choice as an',
+        '  AddHandler line inside it, so shipping the file would silently revert the site to the account',
+        '  default PHP (measured 2026-10-09: 8.5 -> 8.3, which left OPcache full at 128 MB with 7,963',
+        '  keys and cost 954 compiled scripts and 138 ms of dispatch on the next request). Do not copy it',
+        '  by hand either. If the site is on the wrong PHP version after an upgrade, re-apply the version',
+        '  in cPanel and confirm the probe reports the version you expect.',
         '- OPcache belongs to the PHP pool, not to the site, so run the warm-up once per distinct host. The',
         '  cache is shared by every worker in that pool, so one pass is enough - and warming from the CLI',
         '  would not help at all, which is why scripts/warm-opcache.php issues real HTTP requests.',
