@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{if storefront.page.title}{storefront.page.title}{else}{page_title}{/if}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Rollback: replace the compiled stylesheet below with the previous Tailwind runtime script. -->
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     {# CMS structural base — builder node geometry, prose typography, lightbox and
        UI primitives. CMS-owned contract (cms_public_css_url); linked BEFORE the

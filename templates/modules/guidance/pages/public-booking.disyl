@@ -12,7 +12,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book an Appointment - Guidance Office</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Rollback: replace the compiled stylesheet below with the previous Tailwind runtime script. -->
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/assets/guidance/css/app.css">

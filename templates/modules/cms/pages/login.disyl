@@ -4,23 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In — CMS</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Rollback: replace the compiled stylesheet below with the previous Tailwind runtime script. -->
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        cms: {
-                            50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc',
-                            400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1',
-                            800: '#075985', 900: '#0c4a6e', 950: '#082f49',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 flex items-center justify-center px-4">
     <div class="w-full max-w-md">

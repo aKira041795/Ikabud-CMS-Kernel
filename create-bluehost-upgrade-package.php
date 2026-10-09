@@ -341,6 +341,7 @@ function buildReadme(string $codeArchiveName): string
         '',
         'Recommended order',
         '-----------------',
+        'Before creating this package, run npm run build:tailwind:app and commit public/assets/tailwind/app.css.',
         '1. Back up files and all databases first.',
         '2. Import db/app-upgrade.sql into the live application DB.',
         '3. If multi-tenant is enabled, import db/control-upgrade.sql into the control DB.',

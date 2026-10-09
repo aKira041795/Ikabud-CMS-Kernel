@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Payslip — {employee_name|default:'Employee'}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Rollback: replace the compiled stylesheet below with the previous Tailwind runtime script. -->
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
     <style>
         @media print { @page { margin: 0.5in; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
         body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }

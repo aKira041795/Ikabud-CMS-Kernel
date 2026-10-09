@@ -4,16 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title} — Shop Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Rollback: replace the compiled stylesheet below with the previous Tailwind runtime script. -->
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script>
-        tailwind.config = {
-            theme: { extend: { colors: {
-                ec: { 50:'#fff7ed',100:'#ffedd5',200:'#fed7aa',300:'#fdba74',400:'#fb923c',500:'#f97316',600:'#ea580c',700:'#c2410c',800:'#9a3412',900:'#7c2d12' }
-            }}}
-        }
-    </script>
     <style>
         [x-cloak]{ display:none !important; }
         .ec-admin { color:#1f2937; -webkit-font-smoothing:antialiased; }

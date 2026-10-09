@@ -26,7 +26,8 @@
     <link rel="icon" type="image/svg+xml" href="/assets/guidance/favicon.svg">
 
     {!-- Tailwind CSS --}
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Rollback: replace the compiled stylesheet below with the previous Tailwind runtime script. -->
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
 
     {!-- Font Awesome Icons --}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">

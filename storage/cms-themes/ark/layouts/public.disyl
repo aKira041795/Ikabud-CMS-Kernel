@@ -28,7 +28,8 @@
     {if custom_css}{custom_css|raw}{/if}
     {if head_code}{head_code|raw}{/if}
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Rollback: replace the compiled stylesheet below with the previous Tailwind runtime script. -->
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js"></script>
 
     {if !theme_style_url}<style>

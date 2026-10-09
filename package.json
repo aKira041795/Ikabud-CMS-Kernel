@@ -2,6 +2,7 @@
     "private": true,
     "scripts": {
         "build:tailwind": "php scripts/build-tailwind.php",
+        "build:tailwind:app": "php scripts/build-tailwind-app.php",
         "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch",
         "test": "npx playwright test",
         "test:pwa": "node tests/browser/modules/daily-ledger/pwa/run-pwa-tests.js",
