@@ -20566,6 +20566,13 @@ function handleAdminCommissary(): void
         'pm_flag' => $pmFlag,
         'day_status' => $sheetSourceBranchId > 0 ? dl_getDayStatus($sheetSourceBranchId, $rawDate) : 'open',
         'production_reference_only' => !in_array($role, ['admin', 'supervisor', 'production_in_charge'], true) || $shift === null,
+        // WHY the beginning is read-only, separately from WHETHER it is. A beginning
+        // belongs to ONE shift (dl_fetchCommissaryBeginningSuggestions reads a single
+        // shift's ending, and the ledger row it writes is keyed by shift), so in the
+        // All-shifts view there is no shift for it to belong to. Exposed as its own
+        // flag because the cell next to it (the ADDTL trigger and the ACTUAL BAL
+        // input) stayed editable, which made a deliberate lock read as a broken cell.
+        'production_beg_shift_locked' => $shift === null,
         'historical_unshifted_count' => $historicalUnshiftedCount,
         'can_view_production_management' => $canViewProductionManagement,
         'can_close_day' => $canCloseDay,

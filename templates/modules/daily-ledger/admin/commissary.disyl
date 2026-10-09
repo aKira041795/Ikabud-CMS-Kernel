@@ -1700,6 +1700,19 @@
             <button type="button" class="btn btn-outline btn-sm hidden" id="production-carry-beginnings-btn" onclick="carryProductionBeginnings()">Carry beginnings forward</button>
             <span class="hidden text-xs text-amber-700" id="production-carry-beginnings-note"></span>
         </div>
+        {* A beginning is per shift, so it cannot be recorded in the All view: the carry reads
+           ONE shift's ending and the ledger row it writes carries a shift. That lock used to be
+           silent while the ADDTL trigger and the ACTUAL BAL cell in the same row stayed editable,
+           so the operator met a dead cell with no reason and no way on. Name the reason and the
+           control. Shown only where the cell would otherwise be editable (open day, unfinalized
+           shift) so the two reasons never stack, and only for a role that HAS the Shift selector. *}
+        {if production_beg_shift_locked && can_view_production_management && day_status != 'closed' && shift_status != 'finalized'}
+        <div id="production-beg-shift-locked-note" class="mx-4 mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 print-hidden" role="status">
+            <span class="font-semibold">Beginnings are recorded per shift.</span>
+            This is the <span class="font-semibold">All</span> view, where a beginning has no single shift to belong to, so the BEG column is read-only.
+            Choose <span class="font-semibold">AM</span> or <span class="font-semibold">PM</span> in the Shift selector above to record one — the ending of the earlier shift is offered there as the carry.
+        </div>
+        {/if}
         {if historical_unshifted_count > 0}
         <div class="mx-4 mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">{historical_unshifted_count} pre-shift row(s) exist for this date. They remain unshifted historical data and are not included in AM or PM.</div>
         {/if}
