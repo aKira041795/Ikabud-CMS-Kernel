@@ -1495,6 +1495,12 @@ function dl_generateDatabaseBackup(array $user, string $reason, ?bool $includeUs
         'include_users' => $includeUsersFlag,
         'retention_days' => (int) $backupSettings['backup_retention_days'],
         'deleted_old_backups' => $result['deleted_old_backups'],
+        // Surfaced so the panel can state what the file carries. Settings are NOT module tables,
+        // so a backup that omits them restores with the module's whole configuration gone while
+        // still looking complete; that is exactly how this was discovered.
+        'settings_included' => (bool) ($result['settings']['included'] ?? false),
+        'settings_rows' => (int) ($result['settings']['rows'] ?? 0),
+        'settings_note' => (string) ($result['settings']['reason'] ?? ''),
     ];
 
     dl_auditLog('database_backup_created', null, 'module_settings', 'daily-ledger', null, [
@@ -1504,6 +1510,7 @@ function dl_generateDatabaseBackup(array $user, string $reason, ?bool $includeUs
         'total_rows' => $contract['total_rows'],
         'include_users' => $includeUsersFlag,
         'deleted_old_backups' => $contract['deleted_old_backups'],
+        'settings_rows' => $contract['settings_rows'],
         'performed_by_role' => (string) ($user['role'] ?? ''),
         'performed_by_source' => (string) ($user['source'] ?? ''),
     ]);

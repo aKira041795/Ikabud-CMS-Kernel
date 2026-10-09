@@ -466,6 +466,7 @@
         <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
             <p class="font-semibold">Generate SQL backups from Settings and auto-backup before deployment reset.</p>
             <p class="mt-2">Backups are stored under <span class="font-mono">storage/backups/daily-ledger</span> and old files are auto-cleaned using retention days.</p>
+            <p class="mt-2">Each backup also carries the module settings (feature flags, role permissions, branding, consignee settings), which are not module tables and would otherwise be lost on restore.</p>
         </div>
 
         <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -727,6 +728,19 @@
         html += '<div class="mt-1 text-xs text-slate-600">File: ' + String(backup.file_name || '') + '</div>';
         html += '<div class="mt-1 text-xs text-slate-600">Size: ' + String(backup.file_size_bytes || 0) + ' bytes</div>';
         html += '<div class="mt-1 text-xs text-slate-600">Rows: ' + String(backup.total_rows || 0) + '</div>';
+        // Settings are NOT module tables, so the row count above does not include them. Say so on
+        // the panel: a backup that silently omits them looks complete and restores without the
+        // module's configuration (feature flags, permissions, branding, consignee settings).
+        if (backup.settings_included) {
+            html += '<div class="mt-1 text-xs text-emerald-700">\u2713 Includes '
+                + String(backup.settings_rows || 0)
+                + ' module setting' + (Number(backup.settings_rows) === 1 ? '' : 's')
+                + ' (feature flags, permissions, branding)</div>';
+        } else {
+            html += '<div class="mt-1 text-xs font-semibold text-amber-700">\u26a0 This file carries NO module settings'
+                + (backup.settings_note ? ': ' + String(backup.settings_note) : '')
+                + '. Restoring it will not restore the module configuration.</div>';
+        }
         html += renderBackupDownloadHtml(backup);
 
         box.innerHTML = html;
