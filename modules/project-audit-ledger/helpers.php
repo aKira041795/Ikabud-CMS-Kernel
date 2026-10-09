@@ -885,7 +885,7 @@ function palBuildPrintingShellContext(array $ctx): array
 
     $shell->addExtraStyle($palAssetVer('/assets/pal/pal-ui.css'));
     $shell->addExtraScript('https://unpkg.com/htmx.org@1.9.12');
-    $shell->addExtraScript('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
+    $shell->addExtraScript('https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js');
     $shell->addExtraScript($palAssetVer('/assets/pal/pal-routes.js'));
     $shell->addExtraScript($palAssetVer('/assets/pal/pal-core.js'));
     $shell->addExtraScript($palAssetVer('/assets/pal/pal-forms.js'));
@@ -995,7 +995,7 @@ function palBuildShellContext(array $ctx): array
     $shell->addExtraStyle($palAssetVer('/assets/pal/pal-ui.css'));
 
     $shell->addExtraScript('https://unpkg.com/htmx.org@1.9.12');
-    $shell->addExtraScript('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
+    $shell->addExtraScript('https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js');
     $shell->addExtraScript($palAssetVer('/assets/pal/pal-routes.js'));
     $shell->addExtraScript($palAssetVer('/assets/pal/pal-core.js'));
     $shell->addExtraScript($palAssetVer('/assets/pal/pal-forms.js'));

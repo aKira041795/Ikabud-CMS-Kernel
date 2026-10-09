@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
 <link rel="stylesheet" href="/assets/workbench/workbench.css?v=7">
 <link rel="stylesheet" href="/assets/pal/pal-ui.css?v=1">
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js"></script>
 </head>
 <body class="wb-app-shell">
     {csrf_field | raw}

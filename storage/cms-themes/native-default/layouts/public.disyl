@@ -20,7 +20,9 @@
     {set builder_enabled = builder_enabled|default:false}
     {set show_header = show_header|default:true}
     {set show_footer = show_footer|default:true}
-    {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
+    {# theme_style_url is already linked near the top of <head>. It was linked a second time here,
+       after the guard block, which emitted the same render-blocking stylesheet twice. Nothing is
+       emitted between the two positions, so the effective order is unchanged. #}
     <link rel="stylesheet" href="{cms_public_css_url|default:'/assets/cms/cms-public.css'}">
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}

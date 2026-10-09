@@ -1169,14 +1169,26 @@ function cms_cap_report_request_approval_1(mixed $payload, string $capabilityId 
     }
 
     try {
-        $user = \app()->user();
-        $actorId = (int)($user['id'] ?? 0);
-        $stmt = \app()->db()->prepare(
-            'INSERT INTO report_approvals (export_source, export_format, title, status, requested_by, created_at) '
-            . 'VALUES (:src, :fmt, :title, :st, :req, NOW())'
-        );
-        $stmt->execute([':src' => $source, ':fmt' => $format, ':title' => $title, ':st' => 'pending', ':req' => $actorId ?: null]);
-        return ['ok' => true, 'data' => ['approval_id' => (int)\app()->db()->lastInsertId()]];
+        // report_approvals is a KERNEL-owned table (database/migrations/022_report_approvals.sql). A
+        // module capability touching it must hold the kernel DB escalation counter, or the module
+        // sandbox denies the query. This is the same wrapper the module's own admin page already
+        // uses (handlers/78-import-export.php:166-177); the raw \app()->db() here bypassed it.
+        $work = static function () use ($source, $format, $title): array {
+            $user = \app()->user();
+            $actorId = (int)($user['id'] ?? 0);
+            $db = \app()->db();
+            $stmt = $db->prepare(
+                'INSERT INTO report_approvals (export_source, export_format, title, status, requested_by, created_at) '
+                . 'VALUES (:src, :fmt, :title, :st, :req, NOW())'
+            );
+            $stmt->execute([':src' => $source, ':fmt' => $format, ':title' => $title, ':st' => 'pending', ':req' => $actorId ?: null]);
+
+            return ['approval_id' => (int)$db->lastInsertId()];
+        };
+
+        return ['ok' => true, 'data' => \function_exists('moduleCatalogWithKernelDbEscalation')
+            ? moduleCatalogWithKernelDbEscalation($work)
+            : $work()];
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
     }
@@ -1190,11 +1202,20 @@ function cms_cap_report_approve_1(mixed $payload, string $capabilityId = '', str
     }
 
     try {
-        $user = \app()->user();
-        $actorId = (int)($user['id'] ?? 0);
-        \app()->db()->prepare(
-            'UPDATE report_approvals SET status = :st, approved_by = :by, updated_at = NOW() WHERE id = :id AND status = :ps'
-        )->execute([':st' => 'approved', ':by' => $actorId, ':id' => $approvalId, ':ps' => 'pending']);
+        $work = static function () use ($approvalId): bool {
+            $user = \app()->user();
+            $actorId = (int)($user['id'] ?? 0);
+            \app()->db()->prepare(
+                'UPDATE report_approvals SET status = :st, approved_by = :by, updated_at = NOW() WHERE id = :id AND status = :ps'
+            )->execute([':st' => 'approved', ':by' => $actorId, ':id' => $approvalId, ':ps' => 'pending']);
+
+            return true;
+        };
+
+        \function_exists('moduleCatalogWithKernelDbEscalation')
+            ? moduleCatalogWithKernelDbEscalation($work)
+            : $work();
+
         return ['ok' => true, 'data' => ['approval_id' => $approvalId, 'status' => 'approved']];
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
@@ -1212,9 +1233,19 @@ function cms_cap_report_reject_1(mixed $payload, string $capabilityId = '', stri
         $user = \app()->user();
         $actorId = (int)($user['id'] ?? 0);
         $reason = trim((string)($payload['reason'] ?? ''));
-        \app()->db()->prepare(
-            'UPDATE report_approvals SET status = :st, rejected_by = :by, reject_reason = :rr, updated_at = NOW() WHERE id = :id AND status = :ps'
-        )->execute([':st' => 'rejected', ':by' => $actorId, ':rr' => $reason, ':id' => $approvalId, ':ps' => 'pending']);
+
+        $work = static function () use ($approvalId, $actorId, $reason): bool {
+            \app()->db()->prepare(
+                'UPDATE report_approvals SET status = :st, rejected_by = :by, reject_reason = :rr, updated_at = NOW() WHERE id = :id AND status = :ps'
+            )->execute([':st' => 'rejected', ':by' => $actorId, ':rr' => $reason, ':id' => $approvalId, ':ps' => 'pending']);
+
+            return true;
+        };
+
+        \function_exists('moduleCatalogWithKernelDbEscalation')
+            ? moduleCatalogWithKernelDbEscalation($work)
+            : $work();
+
         return ['ok' => true, 'data' => ['approval_id' => $approvalId, 'status' => 'rejected']];
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
@@ -1224,12 +1255,19 @@ function cms_cap_report_reject_1(mixed $payload, string $capabilityId = '', stri
 function cms_cap_report_list_pending_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     try {
-        $stmt = \app()->db()->query(
-            'SELECT id, export_source, export_format, title, status, created_at FROM report_approvals '
-            . "WHERE status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 50"
-        );
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return ['ok' => true, 'data' => is_array($rows) ? $rows : []];
+        $work = static function (): array {
+            $stmt = \app()->db()->query(
+                'SELECT id, export_source, export_format, title, status, created_at FROM report_approvals '
+                . "WHERE status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 50"
+            );
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            return is_array($rows) ? $rows : [];
+        };
+
+        return ['ok' => true, 'data' => \function_exists('moduleCatalogWithKernelDbEscalation')
+            ? moduleCatalogWithKernelDbEscalation($work)
+            : $work()];
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
     }

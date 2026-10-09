@@ -35,7 +35,7 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 
     {!-- Alpine.js for client-side interactivity --}
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.17.4/dist/cdn.min.js"></script>
     {!-- ikbInlineEdit — Alpine component for inline field editing --}
     <script src="/admin/assets/js/ikb-inline-edit.js"></script>
 
