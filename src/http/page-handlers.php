@@ -400,7 +400,9 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">';
         echo '<meta name="viewport" content="width=device-width,initial-scale=1">';
         echo '<title>Server Performance &mdash; ' . htmlspecialchars((string)$perfData['host']) . '</title>';
-        echo '<script src="https://cdn.tailwindcss.com"></script>';
+        // Compiled stylesheet, not Tailwind's runtime JIT. This page emits its HTML from PHP rather
+        // than a DiSyL template, so the template sweep for the runtime CDN missed it entirely.
+        echo '<link rel="stylesheet" href="' . htmlspecialchars($baseUrl) . '/assets/tailwind/app.css">';
         echo '</head><body class="bg-slate-100 min-h-screen font-sans">';
         echo '<div class="max-w-2xl mx-auto py-10 px-4">';
         echo '<div class="flex items-center justify-between mb-6">';

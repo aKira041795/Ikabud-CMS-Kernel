@@ -121,7 +121,7 @@ function ecRequireStoreAccess(int $storeId, array $minRoles = ['owner', 'manager
     http_response_code(403);
     header('Content-Type: text/html; charset=utf-8');
     echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Access Denied</title>'
-        . '<script src="https://cdn.tailwindcss.com"></script></head>'
+        . '<link rel="stylesheet" href="/assets/tailwind/app.css"></head>'
         . '<body class="min-h-screen bg-gray-50 flex items-center justify-center"><div class="text-center space-y-4">'
         . '<h1 class="text-xl font-bold text-gray-800">Access Denied</h1>'
         . '<p class="text-slate-500 text-sm">You are not assigned to manage this store.</p>'

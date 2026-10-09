@@ -4,6 +4,14 @@ module.exports = {
         './templates/**/*.disyl',
         './modules/**/*.disyl',
         './storage/**/*.disyl',
+        // PHP emits Tailwind markup from raw strings too (superadmin perf page, module error
+        // pages, capability-rendered fragments). Without these globs a utility used only in
+        // PHP-emitted HTML silently vanishes from the build and the page renders unstyled.
+        './src/**/*.php',
+        './modules/**/*.php',
+        './kernel/**/*.php',
+        './templates/**/*.php',
+        './public/**/*.php',
     ],
     theme: {
         extend: {
