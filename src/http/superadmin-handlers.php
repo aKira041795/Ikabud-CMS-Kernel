@@ -975,6 +975,14 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
     $perfResults['timestamp'] = date('c');
     $perfResults['host'] = $_SERVER['HTTP_HOST'] ?? '';
 
+    $requestAttribution = kernelPerfProbeRequestAttribution();
+    $perfResults['attribution'] = [
+        'db_queries' => (int)$requestAttribution['db']['queries'],
+        'db_total_ms' => (float)$requestAttribution['db']['total_ms'],
+        'db_slowest' => $requestAttribution['db']['slowest'],
+        'phases' => $requestAttribution['phases'],
+    ];
+
     echo json_encode(['ok' => true, 'perf' => $perfResults], JSON_PRETTY_PRINT);
     exit;
     }

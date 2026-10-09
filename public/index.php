@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+// Monotonic request origin used once the attribution listener is loaded.
+$GLOBALS['kernel_perf_request_started_ns'] = hrtime(true);
+
 // ── Fast-path page cache: serve cached pages WITHOUT booting the kernel ──
 // This runs before bootstrap.php / autoloader / module-manager / DB.
 // On a cache hit the response is served in ~5–20 ms and PHP exits.
@@ -149,12 +152,14 @@ require_once __DIR__ . '/../src/http/tenant-entry-modules.php';
 require_once __DIR__ . '/../src/http/core-routes.php';
 require_once __DIR__ . '/../src/http/admin-handlers.php';
 require_once __DIR__ . '/../src/http/perf-probe.php';
+require_once __DIR__ . '/../src/http/perf-attribution.php';
 require_once __DIR__ . '/../src/http/page-handlers.php';
 require_once __DIR__ . '/../src/http/integration-handlers.php';
 require_once __DIR__ . '/../src/http/superadmin-handlers.php';
 require_once __DIR__ . '/../src/http/superadmin-observability-handlers.php';
 require_once __DIR__ . '/../src/http/auth-handlers.php';
 
+kernelPerfMarkRequestPhase('boot');
 
 // ── Conditional session: skip for stateless API routes ─────
 $isApiRequest = function_exists('kernel_is_api_request') && kernel_is_api_request();
@@ -564,6 +569,8 @@ if ($handler === null) {
         : app()->render('pages/404.disyl', ['page_title' => 'Not Found']);
     exit;
 }
+
+kernelPerfMarkRequestPhase('dispatch');
 
 if (str_contains($handler, ':')) {
     executeModuleHandler($handler, $params);

@@ -567,6 +567,27 @@ Notes:
 - Uses `tests/kernel_load_test.php` JSON output
 - Enforces **aggregate load delta only**; it does not claim per-request latency SLOs
 
+### `php tools/concurrency-gate.php --url=BASE [options]`
+
+Measures the same HTTP endpoint sequentially and with genuinely overlapping
+`curl_multi` requests, then gates on `p95_concurrent / p50_sequential`.
+
+```
+php tools/concurrency-gate.php --url=http://127.0.0.1 --path=/login
+php tools/concurrency-gate.php --url=http://127.0.0.1 --path=/login \
+  --host-header=applicationos.test --concurrency=10 --requests=40 \
+  --fail-on-ratio=4.0 --json
+```
+
+Options default to `--path=/login`, `--concurrency=10`, `--requests=40`, and
+`--fail-on-ratio=4.0`. The report includes sequential and concurrent throughput,
+concurrent p50/p95/p99/max, concurrent error rate, and the p95 ratio.
+
+Exit codes are deliberately distinct: `0` = pass, `1` = measured failure
+(ratio exceeded or any request error/timeout), and `2` = not measured (for
+example, an unreachable URL or a phase with no successful samples). A run that
+cannot measure the target never reports pass.
+
 ### `php tools/module-certification-gate.php`
 
 Checks fleet-wide certification rate.

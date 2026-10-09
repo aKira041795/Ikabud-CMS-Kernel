@@ -311,7 +311,23 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['host'] = $_SERVER['HTTP_HOST'] ?? '';
         $perfData['timestamp'] = date('c');
 
+        $requestAttribution = kernelPerfProbeRequestAttribution();
+        $perfData['db_queries'] = (int)$requestAttribution['db']['queries'];
+        $perfData['db_total_ms'] = round((float)$requestAttribution['db']['total_ms'], 2);
+        $perfData['db_slowest'] = $requestAttribution['db']['slowest'][0] ?? null;
+        $perfData['phases'] = $requestAttribution['phases'];
+        $slowestQuery = is_array($perfData['db_slowest'])
+            ? round((float)$perfData['db_slowest']['ms'], 2) . ' ms · ' . (string)$perfData['db_slowest']['sql']
+            : 'not measured';
+
         $perfRows = [
+            ['Request DB queries', $perfData['db_queries'], 'queries', ''],
+            ['Request DB total', $perfData['db_total_ms'], 'ms', ''],
+            ['Request slowest query', $slowestQuery, '', ''],
+            ['Request phase: boot', $perfData['phases']['boot'] ?? 'not measured', 'ms elapsed', ''],
+            ['Request phase: dispatch', $perfData['phases']['dispatch'] ?? 'not measured', 'ms elapsed', ''],
+            ['Request phase: render', $perfData['phases']['render'] ?? 'not measured', 'ms elapsed', ''],
+            ['Request phase: shutdown', $perfData['phases']['shutdown'] ?? 'not measured', 'ms elapsed', ''],
             ['DB ping (SELECT 1)', $perfData['db_ping_ms'], 'ms', $perfData['db_ok'] ? '' : 'FAIL'],
             ['Module discover (warm)', $perfData['module_discover_ms'], 'ms', ''],
             ['Module discover (cold scan)', $perfData['module_discover_cold_ms'], 'ms · ' . $perfData['module_discover_cold_count'] . ' modules', ''],
