@@ -23,7 +23,9 @@ declare(strict_types=1);
  * The write path is dl_setBranchProductActive(), the same function the admin picker and the
  * branch self-management screen call, so this tests what the operator actually does.
  *
- * LIVE DATA: pairs are snapshotted and restored in a finally block, and the restore is verified.
+ * FIXTURE SAFETY: the branch records are live, but the product and assignment pairs are isolated,
+ * high-id fixtures. This avoids confusing a legitimate unassignment refusal on a live product with
+ * a failure of branch/commissary listing independence.
  */
 ob_start();
 require_once __DIR__ . '/../harness/TestHarness.php';
@@ -41,7 +43,7 @@ $db = $ctx->db();
 
 $BRANCH = 8;        // Miputak, retail
 $COMMISSARY = 18;   // RIZAL-COMMIS, commissary
-$PRODUCT = 13;      // CHEESE STREUSEL -- active pair at both, no ledger activity today
+$PRODUCT = 997913;  // Isolated product: no activity can legitimately block unassignment.
 $ACTOR = 20;
 
 $date = dl_businessDate();
@@ -68,26 +70,33 @@ $sheetProducts = static function (int $branchId) use ($db): array {
     return array_keys($ids);
 };
 
-$pairState = static function (int $branchId) use ($db): ?int {
+$pairState = static function (int $branchId) use ($db, $PRODUCT): ?int {
     $stmt = $db->prepare('SELECT is_active FROM dl_branch_products WHERE branch_id = :b AND product_id = :p LIMIT 1');
-    $stmt->execute([':b' => $branchId, ':p' => 13]);
+    $stmt->execute([':b' => $branchId, ':p' => $PRODUCT]);
     $v = $stmt->fetchColumn();
     return $v === false ? null : (int)$v;
 };
 
+// Recover cleanly from an interrupted prior run, then create a product with no ledger activity.
+$db->prepare('DELETE FROM dl_branch_products WHERE product_id = ?')->execute([$PRODUCT]);
+$db->prepare('DELETE FROM dl_products WHERE id = ?')->execute([$PRODUCT]);
 $snapshot = ['branch' => $pairState($BRANCH), 'commissary' => $pairState($COMMISSARY)];
-echo 'snapshot: branch8=' . var_export($snapshot['branch'], true)
-    . ' commissary18=' . var_export($snapshot['commissary'], true) . "\n";
+$db->prepare('INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active) VALUES (?, ?, ?, 10, 0, 1)')
+    ->execute([$PRODUCT, 'LISTING-PROBE-' . $PRODUCT, 'Listing Independence Probe']);
+$db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1), (?, ?, 1)')
+    ->execute([$BRANCH, $PRODUCT, $COMMISSARY, $PRODUCT]);
+
+echo 'fixture: product=' . $PRODUCT . ' branch8=1 commissary18=1' . "\n";
 
 try {
     // Baseline: both surfaces must currently offer the product.
     $h->test(
-        'baseline: branch 8 offers product 13 on its cashier list',
+        'baseline: branch 8 offers the isolated product on its cashier list',
         in_array($PRODUCT, $cashierProducts($BRANCH), true),
         'cashier list for branch 8 contains ' . $PRODUCT
     );
     $h->test(
-        'baseline: commissary 18 offers product 13 on its production sheet',
+        'baseline: commissary 18 offers the isolated product on its production sheet',
         in_array($PRODUCT, $sheetProducts($COMMISSARY), true),
         'sheet for branch 18 contains ' . $PRODUCT
     );
@@ -100,13 +109,13 @@ try {
     $h->test(
         'A1 hiding at the BRANCH removes it from that branch\'s cashier list',
         !in_array($PRODUCT, $branchList, true),
-        'branch 8 list has ' . count($branchList) . ' products, contains 13: '
+        'branch 8 list has ' . count($branchList) . ' products, contains fixture: '
             . (in_array($PRODUCT, $branchList, true) ? 'yes' : 'no')
     );
     $h->test(
         'A1 INDEPENDENCE: the COMMISSARY sheet is unaffected by a branch hide',
         in_array($PRODUCT, $commList, true),
-        'branch 18 sheet has ' . count($commList) . ' products, contains 13: '
+        'branch 18 sheet has ' . count($commList) . ' products, contains fixture: '
             . (in_array($PRODUCT, $commList, true) ? 'yes' : 'no')
     );
 
@@ -119,13 +128,13 @@ try {
     $h->test(
         'A2 hiding at the COMMISSARY removes it from that commissary\'s production sheet',
         !in_array($PRODUCT, $commList2, true),
-        'branch 18 sheet has ' . count($commList2) . ' products, contains 13: '
+        'branch 18 sheet has ' . count($commList2) . ' products, contains fixture: '
             . (in_array($PRODUCT, $commList2, true) ? 'yes' : 'no')
     );
     $h->test(
         'A2 INDEPENDENCE: the BRANCH cashier list is unaffected by a commissary hide',
         in_array($PRODUCT, $branchList2, true),
-        'branch 8 list has ' . count($branchList2) . ' products, contains 13: '
+        'branch 8 list has ' . count($branchList2) . ' products, contains fixture: '
             . (in_array($PRODUCT, $branchList2, true) ? 'yes' : 'no')
     );
 
@@ -142,16 +151,13 @@ try {
             . ' -- one branch_id = one pair row, read by both surfaces'
     );
 } finally {
-    // Restore exactly what was there before.
-    if ($snapshot['branch'] !== null) {
-        dl_setBranchProductActive($db, $BRANCH, $PRODUCT, $snapshot['branch'] === 1, $ACTOR);
-    }
-    if ($snapshot['commissary'] !== null) {
-        dl_setBranchProductActive($db, $COMMISSARY, $PRODUCT, $snapshot['commissary'] === 1, $ACTOR);
-    }
+    $db->prepare('DELETE FROM dl_branch_products WHERE product_id = ?')->execute([$PRODUCT]);
+    $db->prepare('DELETE FROM dl_products WHERE id = ?')->execute([$PRODUCT]);
+    $db->prepare("DELETE FROM audit_logs WHERE entity_type = 'dl_branch_products' AND entity_id IN (?, ?)")
+        ->execute([$BRANCH . '-' . $PRODUCT, $COMMISSARY . '-' . $PRODUCT]);
 
     $after = ['branch' => $pairState($BRANCH), 'commissary' => $pairState($COMMISSARY)];
-    echo 'restored: branch8=' . var_export($after['branch'], true)
+    echo 'cleaned: branch8=' . var_export($after['branch'], true)
         . ' commissary18=' . var_export($after['commissary'], true) . "\n";
     $h->test(
         'pairs restored to their snapshot values (no lasting change to live data)',

@@ -75,6 +75,7 @@
                 "/daily-ledger/logout",
                 "/daily-ledger/pos",
                 "/daily-ledger/pos/receipt",
+                "/daily-ledger/products",
                 "/daily-ledger/reset-password",
                 "/daily-ledger/api/v1/cashier/ledger/delivery-detail",
                 "/daily-ledger/api/v1/offline/status",
@@ -142,6 +143,7 @@
                 "/daily-ledger/api/v1/production/reverse",
                 "/daily-ledger/api/v1/production/sync-batch",
                 "/daily-ledger/api/v1/production/withdrawal",
+                "/daily-ledger/api/v1/products/toggle",
                 "/daily-ledger/api/v1/receivings/create",
                 "/daily-ledger/api/v1/receivings/post",
                 "/daily-ledger/api/v1/receivings/void",
@@ -152,7 +154,8 @@
                 "/daily-ledger/api/v1/offline/reconcile",
                 "/daily-ledger/api/v1/commissary/settle-endings",
                 "/daily-ledger/api/v1/commissary/verify-endings",
-                "/daily-ledger/api/v1/commissary/revert-endings"
+                "/daily-ledger/api/v1/commissary/revert-endings",
+                "/daily-ledger/api/v1/deliveries/consignee-return"
             ],
             "PUT": [],
             "PATCH": [],
