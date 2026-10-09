@@ -56,7 +56,8 @@ function chairAuditHookSnapshot(): array
     try {
         $hooks = \Ikabud\Kernel\Hooks::getInstance();
         $prop = (new ReflectionClass($hooks))->getProperty('listeners');
-        $prop->setAccessible(true);
+        // No setAccessible(): a no-op since PHP 8.1, and deprecated on 8.5, where it
+        // wrote 69 deprecation lines into storage/logs/error.log per run.
         $counts = [];
         foreach ((array)$prop->getValue($hooks) as $hook => $entries) {
             $counts[(string)$hook] = is_array($entries) ? count($entries) : 0;
