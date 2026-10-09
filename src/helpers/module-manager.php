@@ -1468,6 +1468,73 @@ require_once __DIR__ . '/module-routes.php';
  * Discover ALL modules in modules/ directory (regardless of enabled state).
  * @return array<string, array<string, mixed>>
  */
+/**
+ * Cheap fingerprint of every module.json that discovery can see.
+ *
+ * The cross-request cache in discoverModules() must be invalidated by a DEPLOY, not by a timer.
+ * A 300s TTL was racy: after an upload that changes a manifest, the kernel kept serving the previous
+ * owns_tables for up to five minutes, and ModuleDB::enforceAccess() then denied a table the deployed
+ * manifest DOES declare -- a hard 500 on live (measured 2026-10-09, dl_consignees).
+ *
+ * This stats the manifests without parsing or validating them (the expensive part of
+ * discoverModulesScanAll()), then folds count + a hash of every manifest into the cache key, so a
+ * manifest edit invalidates on the very next request.
+ *
+ * Cost, measured 2026-10-09 on this repo: ~11ms per call, against ~507ms for the scan it guards.
+ * That is paid once per request whenever APCu is enabled, and is the deliberate price of not having a
+ * window in which the kernel enforces the previous deploy's table ownership.
+ *
+ * Depth is bounded deliberately: the fleet nests at modules/<id>/module.json and
+ * modules/<suite>/<id>/module.json. tests/module_manifest_cache_fingerprint_test.php fails if a
+ * manifest ever appears deeper, so this assumption cannot rot silently.
+ *
+ * Never throws: boot correctness must not depend on a cache hint.
+ */
+function moduleManifestScanFingerprint(): string
+{
+    $dir = modulesPath();
+    if (!is_dir($dir)) {
+        return 'nodir';
+    }
+
+    $count = 0;
+    $parts = [];
+    foreach (['*', '*/*', '*/*/*'] as $pattern) {
+        $paths = glob($dir . '/' . $pattern . '/module.json');
+        if (!is_array($paths)) {
+            continue;
+        }
+        foreach ($paths as $path) {
+            // Mirror discoverModulesScanAll(), which skips backup trees.
+            if (preg_match('#\.bak_\d{8}_\d{6}#', $path) === 1) {
+                continue;
+            }
+            $mtime = @filemtime($path);
+            $size = @filesize($path);
+            if ($mtime === false || $size === false) {
+                // Cannot stat a manifest: return a distinct key so a stale scan is never served.
+                return 'unstatable';
+            }
+            $count++;
+            // Identify each manifest by its path RELATIVE to modules/, so the key does not depend on
+            // the install location (local vs /home1/... on Bluehost).
+            $parts[] = substr($path, strlen($dir) + 1) . ':' . $mtime . ':' . $size;
+        }
+    }
+
+    if ($count === 0) {
+        return 'empty';
+    }
+
+    // Hash every manifest, not just the newest mtime. `unzip` restores the mtimes stored in an
+    // archive, so a max-based key can survive a deploy unchanged; folding in size as well means a
+    // replaced manifest changes the key even when its mtime does not.
+    // glob() order is not guaranteed, so sort before hashing to keep an unchanged tree identical.
+    sort($parts);
+
+    return $count . '-' . substr(md5(implode('|', $parts)), 0, 12);
+}
+
 function discoverModules(): array
 {
     // Per-request cache: avoid repeated fs scans + DB queries
@@ -1478,10 +1545,18 @@ function discoverModules(): array
     // Cross-request cache of the expensive recursive scan + manifest
     // validation (~700ms across 60+ modules). Only the scan/validation
     // result is cached; the per-call enabled state and ReadContractRegistry
-    // registrations below are applied fresh on every request so module
-    // enable/disable and table-ownership stay correct.
-    $cacheKey = 'kernel.discovered_modules_scan_v1';
+    // registrations below are applied fresh on every request.
+    //
+    // The key carries a manifest fingerprint, so a DEPLOY invalidates this on the
+    // next request. It must not rely on the 300s TTL: table-ownership lives in the
+    // cached manifest, and after a module.json upload a stale owns_tables made
+    // ModuleDB::enforceAccess() deny a table the deployed manifest DOES declare
+    // (hard 500 on live, 2026-10-09).
     $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
+    // Only pay for the fingerprint when there is a cache to key. Without APCu the scan runs on every
+    // request anyway, so stat-ing every manifest would be pure added cost.
+    $cacheKey = 'kernel.discovered_modules_scan_v2_'
+        . ($apcuEnabled ? moduleManifestScanFingerprint() : 'nocache');
     $result = null;
     if ($apcuEnabled) {
         $cached = apcu_fetch($cacheKey, $success);

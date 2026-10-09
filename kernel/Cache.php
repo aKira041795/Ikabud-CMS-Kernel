@@ -1146,5 +1146,11 @@ class Cache
         apcu_delete('kernel.capability_map_' . self::KERNEL_STATE_VERSION);
         apcu_delete('kernel.entity_presets_' . self::KERNEL_STATE_VERSION);
         apcu_delete('kernel.discovered_modules_scan_v1');
+        // The live discovery key carries a manifest fingerprint, so it cannot be named exactly.
+        // Only the variant matching the CURRENT fingerprint can be in use -- a changed fingerprint
+        // means a new key, so the orphaned old entry simply expires unread.
+        if (function_exists('moduleManifestScanFingerprint')) {
+            apcu_delete('kernel.discovered_modules_scan_v2_' . moduleManifestScanFingerprint());
+        }
     }
 }
