@@ -1,0 +1,16 @@
+arm	sort	total
+A	11.36820800000001	11.643213000000003
+B	20.731975000000006	21.074917
+B	20.16919299999998	20.53835699999999
+A	7.535997000000009	7.867582999999996
+A	9.135008	9.523811999999992
+B	22.88906	23.565911
+B	23.59656000000001	24.126678
+A	8.362687999999991	9.046001999999987
+--- restored ---
+memoisation restored OK
+ M public/index.php
+ M src/helpers/module-routes.php
+ M src/http/perf-attribution.php
+ M tools/harpp-bridge/chatgpt_page.js
+?? docs/reviews/windows-desktop-client-feasibility-2026-10-07.md
