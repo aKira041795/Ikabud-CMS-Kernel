@@ -2011,6 +2011,12 @@ function apiPosSaleDetail(array $params = []): void
 function dl_pos_querySales($db, array $user, array $filters): array
 {
     $accessible = dl_accessibleBranchIds($user);
+    if (($user['role'] ?? '') === 'admin' && function_exists('dl_adminAreaScope')) {
+        $viewScope = dl_adminAreaScope($user, $filters);
+        if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+            $accessible = array_values(array_intersect($accessible, array_map('intval', $viewScope['branch_ids'] ?? [])));
+        }
+    }
     if ($accessible === []) { $accessible = [0]; }
     $placeholders = implode(',', array_fill(0, count($accessible), '?'));
 

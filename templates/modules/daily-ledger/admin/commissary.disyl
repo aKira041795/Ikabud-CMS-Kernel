@@ -1610,6 +1610,13 @@
             </div>
         </div>
     </div>
+    {if omitted_sheet_branch_count > 0}
+    <div id="daily-sheet-branch-limit-notice" class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+        <span class="font-semibold">{omitted_sheet_branch_count} branch column(s) omitted.</span>
+        The Daily Sheet renders at most {sheet_destination_limit} destinations at once so it stays reliable on tablets and below the template safety limit.
+        Choose a branch, commissary, or area scope to narrow the sheet; an explicitly selected branch is always included.
+    </div>
+    {/if}
     <div class="card mb-6">
         <div class="card-header">
             <div>

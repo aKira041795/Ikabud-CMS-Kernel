@@ -27,6 +27,9 @@ $_SERVER['REQUEST_URI'] = '/daily-ledger/admin/commissary';
 
 $app = kernelCliBootstrap($basePath);
 $app->tenant()->setTenantId(207);
+// The repository cache may be owned by the web worker; interpreted mode keeps
+// this CLI order oracle independent of cache-directory ownership.
+$app->templates()->enableCompiledMode(false);
 
 require_once $basePath . '/src/helpers/module-manager.php';
 require_once $basePath . '/modules/daily-ledger/handlers.php';

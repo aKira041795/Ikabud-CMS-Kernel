@@ -49,6 +49,13 @@ function dl_reportFilters(array $input, array $user): array
         array_map('intval', dl_accessibleBranchIds($user)),
         static fn(int $id): bool => $id > 0
     )));
+    $viewScope = function_exists('dl_adminAreaScope') ? dl_adminAreaScope($user, $input) : ['type' => 'ALL', 'branch_ids' => [], 'value' => 'ALL'];
+    if (($user['role'] ?? '') === 'admin' && ($viewScope['type'] ?? 'ALL') !== 'ALL') {
+        // This narrows report presentation only. The canonical authorization set
+        // above is computed first and is never replaced or persisted from scope.
+        $visible = array_map('intval', $viewScope['branch_ids'] ?? []);
+        $accessible = array_values(array_intersect($accessible, $visible));
+    }
     $requestedBranch = max(0, (int)($input['branch_id'] ?? 0));
     // Preserve an explicit inaccessible branch so the downstream IN + equality
     // predicates return no rows. Falling back to zero here would silently widen
@@ -66,6 +73,8 @@ function dl_reportFilters(array $input, array $user): array
         'product_id' => max(0, (int)($input['product_id'] ?? 0)),
         'shift' => $shift,
         'accessible_branch_ids' => $accessible ?: [0],
+        'view_scope' => (string)($viewScope['value'] ?? 'ALL'),
+        'view_scope_label' => (string)($viewScope['label'] ?? 'All branches'),
         // Exports are the complete ledger record, so rows with no ending balance
         // stay in and their state shows through the status_label column. The
         // Business Overview applies its own pending filter on top of this.

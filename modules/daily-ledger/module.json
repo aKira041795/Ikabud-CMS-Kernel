@@ -26,6 +26,7 @@
     "dl_user_branches",
     "dl_admins",
     "dl_branches",
+    "dl_areas",
     "dl_cashiers",
     "dl_supervisors",
     "dl_supervisor_branches",
@@ -172,7 +173,9 @@
     "database/migrations/086_backfill_commissary_consignee_depletion.sql",
     "database/migrations/087_add_consignee_sort_order.sql",
     "database/migrations/088_consignee_return_effects.sql",
-    "database/migrations/089_assign_pagadian_branch_commissary.sql"
+    "database/migrations/089_assign_pagadian_branch_commissary.sql",
+    "database/migrations/090_correct_hybrid_supply_modes.sql",
+    "database/migrations/091_canonical_areas.sql"
   ],
   "capabilities": {
     "exposes": [

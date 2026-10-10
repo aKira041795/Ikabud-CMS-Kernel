@@ -143,7 +143,7 @@
                     <td>
                         <div class="flex items-center gap-1">
                             <a class="btn btn-sm btn-outline" href="{base_url}/admin/products?tab=assignment&branch_id={b.id}" data-branch-products="{b.id}">Products</a>
-                            <button class="btn btn-sm btn-outline" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area | json}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0})'>Edit</button>
+                            <button class="btn btn-sm btn-outline" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0})'>Edit</button>
                         </div>
                     </td>
                 </tr>
@@ -174,7 +174,10 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Area</label>
-                        <input class="form-input" type="text" id="add-area" placeholder="e.g. Dipolog, Rizal, Pagadian">
+                        <select class="form-input" id="add-area-id">
+                            <option value="">— No area —</option>
+                            {foreach areas as area}{if area.is_active == 1}<option value="{area.id}">{area.name} ({area.code})</option>{/if}{/foreach}
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Address</label>
@@ -252,7 +255,10 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Area</label>
-                        <input class="form-input" type="text" id="edit-area" placeholder="e.g. Dipolog, Rizal, Pagadian">
+                        <select class="form-input" id="edit-area-id">
+                            <option value="">— No area —</option>
+                            {foreach areas as area}{if area.is_active == 1}<option value="{area.id}">{area.name} ({area.code})</option>{/if}{/foreach}
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Address</label>
@@ -339,7 +345,7 @@
             <td>{c.commissary_code} — {c.commissary_name}</td>
             <td>{if c.is_active == 1}<span class="text-emerald-700">Active</span>{else}<span class="text-rose-700">Inactive</span>{/if}</td>
             <td class="text-sm text-muted">{c.sort_order}</td>
-            <td class="text-right"><button class="btn btn-sm btn-outline" onclick='openConsignee({c.id}, {c.code | json}, {c.name | json}, {c.assigned_commissary_id}, {c.is_active}, {c.area | json}, {c.address | json}, {c.price_group_id | default:"null"}, {c.sort_order | default:0})'>Edit</button></td>
+            <td class="text-right"><button class="btn btn-sm btn-outline" onclick='openConsignee({c.id}, {c.code | json}, {c.name | json}, {c.assigned_commissary_id}, {c.is_active}, {c.area_id | default:"null"}, {c.address | json}, {c.price_group_id | default:"null"}, {c.sort_order | default:0})'>Edit</button></td>
         </tr>{/foreach}</tbody>
     </table></div></div>
 </div>
@@ -365,7 +371,10 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Area</label>
-                        <input class="form-input" type="text" id="consignee-area" placeholder="e.g. Dipolog, Rizal, Pagadian">
+                        <select class="form-input" id="consignee-area-id">
+                            <option value="">— No area —</option>
+                            {foreach areas as area}{if area.is_active == 1}<option value="{area.id}">{area.name} ({area.code})</option>{/if}{/foreach}
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Address</label>
@@ -433,11 +442,11 @@
 
     function openAddBranch() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-code').focus(); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-    function openConsignee(id, code, name, commissaryId, active, area, address, priceGroupId, sortOrder) {
+    function openConsignee(id, code, name, commissaryId, active, areaId, address, priceGroupId, sortOrder) {
         document.getElementById('consignee-id').value = id || '';
         document.getElementById('consignee-code').value = code || '';
         document.getElementById('consignee-name').value = name || '';
-        document.getElementById('consignee-area').value = area || '';
+        document.getElementById('consignee-area-id').value = areaId ? String(areaId) : '';
         document.getElementById('consignee-address').value = address || '';
         document.getElementById('consignee-commissary').value = commissaryId ? String(commissaryId) : '';
         document.getElementById('consignee-price-group').value = priceGroupId ? String(priceGroupId) : '';
@@ -464,7 +473,7 @@
                 consignee_id: id,
                 code: document.getElementById('consignee-code').value.toUpperCase(),
                 name: document.getElementById('consignee-name').value,
-                area: document.getElementById('consignee-area').value,
+                area_id: document.getElementById('consignee-area-id').value === '' ? null : parseInt(document.getElementById('consignee-area-id').value, 10),
                 address: document.getElementById('consignee-address').value,
                 assigned_commissary_id: parseInt(document.getElementById('consignee-commissary').value, 10) || 0,
                 price_group_id: document.getElementById('consignee-price-group').value === '' ? null : parseInt(document.getElementById('consignee-price-group').value, 10),
@@ -478,11 +487,11 @@
         }).catch(function(e) { showToast(e.message || 'Failed'); btn.disabled = false; });
     }
 
-    function openEditBranch(id, name, address, area, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder) {
+    function openEditBranch(id, name, address, areaId, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name || '';
         document.getElementById('edit-address').value = address || '';
-        document.getElementById('edit-area').value = area || '';
+        document.getElementById('edit-area-id').value = areaId ? String(areaId) : '';
         document.getElementById('edit-active').value = active;
         document.getElementById('edit-sort').value = sortOrder == null ? 0 : sortOrder;
         document.getElementById('edit-supply-mode').value = supplyMode || 'self_managed';
@@ -507,7 +516,7 @@
             body: JSON.stringify({
                 code: document.getElementById('add-code').value.toUpperCase(),
                 name: document.getElementById('add-name').value,
-                area: document.getElementById('add-area').value,
+                area_id: document.getElementById('add-area-id').value === '' ? null : parseInt(document.getElementById('add-area-id').value, 10),
                 address: document.getElementById('add-address').value,
                 default_supply_mode: document.getElementById('add-supply-mode').value,
                 assigned_commissary_id: commissaryVal === '' ? null : parseInt(commissaryVal, 10),
@@ -538,7 +547,7 @@
             body: JSON.stringify({
                 branch_id: parseInt(document.getElementById('edit-id').value),
                 name: document.getElementById('edit-name').value,
-                area: document.getElementById('edit-area').value,
+                area_id: document.getElementById('edit-area-id').value === '' ? null : parseInt(document.getElementById('edit-area-id').value, 10),
                 address: document.getElementById('edit-address').value,
                 is_active: parseInt(document.getElementById('edit-active').value),
                 sort_order: parseInt(document.getElementById('edit-sort').value, 10) || 0,

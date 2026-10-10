@@ -17916,6 +17916,21 @@ function apiRepriceProduct(array $params = []): void
 
 // ─── Admin: Branches ───────────────────────────────────────────────────
 
+/** Resolve a picker value to its canonical row; NULL means no area. */
+function dl_resolveCanonicalArea($db, mixed $value): array
+{
+    if ($value === null || $value === '' || (int)$value <= 0) {
+        return ['id' => null, 'name' => null];
+    }
+    $stmt = $db->prepare('SELECT id, name FROM dl_areas WHERE id = :id AND is_active = 1 LIMIT 1');
+    $stmt->execute([':id' => (int)$value]);
+    $area = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$area) {
+        throw new \InvalidArgumentException('Select an active canonical area.');
+    }
+    return ['id' => (int)$area['id'], 'name' => (string)$area['name']];
+}
+
 function handleAdminBranches(array $params = []): void
 {
     $ctx = module();
@@ -17927,20 +17942,26 @@ function handleAdminBranches(array $params = []): void
 
     $user = dlCurrentUser(['admin']);
     $input = $ctx->input();
+    $viewScope = dl_adminAreaScope($user, $input);
+    $viewBranchIds = ($viewScope['type'] ?? 'ALL') === 'ALL' ? [] : array_map('intval', $viewScope['branch_ids'] ?? []);
     $search = trim((string)($input['q'] ?? ''));
     $selectedPriceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== ''
         ? (int)$input['price_group_id'] : 0;
 
-    $sql = 'SELECT b.*, pg.name AS price_group_name,
+    $sql = 'SELECT b.*, a.name AS area, pg.name AS price_group_name,
                 ac.code AS assigned_commissary_code,
                 ac.name AS assigned_commissary_name,
                 (SELECT COUNT(*) FROM dl_user_branches ub INNER JOIN dl_users u ON u.id = ub.user_id WHERE ub.branch_id = b.id AND u.role = \'cashier\' AND u.is_active = 1 AND u.deleted_at IS NULL) AS user_count,
                 (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.branch_id = b.id AND bp.is_active = 1) AS product_count
             FROM dl_branches b
+            LEFT JOIN dl_areas a ON a.id = b.area_id
             LEFT JOIN dl_price_groups pg ON pg.id = b.price_group_id
             LEFT JOIN dl_branches ac ON ac.id = b.assigned_commissary_id
             WHERE 1=1';
     $bind = [];
+    if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+        $sql .= ' AND b.id IN (' . ($viewBranchIds === [] ? '0' : implode(',', $viewBranchIds)) . ')';
+    }
     if ($selectedPriceGroupId > 0) {
         $sql .= ' AND b.price_group_id = :price_group_id';
         $bind[':price_group_id'] = $selectedPriceGroupId;
@@ -17959,8 +17980,13 @@ function handleAdminBranches(array $params = []): void
     // Commissary candidates for the supply-mode picker (any active branch flagged as commissary).
     $commStmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name');
     $commissaries = $commStmt ? ($commStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
-    $consigneeSql = 'SELECT c.id, c.code, c.name, c.area, c.address, c.price_group_id, c.assigned_commissary_id, c.is_active, c.sort_order, b.code AS commissary_code, b.name AS commissary_name, pg.name AS price_group_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id LEFT JOIN dl_price_groups pg ON pg.id = c.price_group_id WHERE 1=1';
+    $consigneeSql = 'SELECT c.id, c.code, c.name, c.area_id, a.name AS area, c.address, c.price_group_id, c.assigned_commissary_id, c.is_active, c.sort_order, b.code AS commissary_code, b.name AS commissary_name, pg.name AS price_group_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id LEFT JOIN dl_areas a ON a.id = c.area_id LEFT JOIN dl_price_groups pg ON pg.id = c.price_group_id WHERE 1=1';
     $consigneeBind = [];
+    if (($viewScope['type'] ?? 'ALL') === 'AREA') {
+        $consigneeSql .= ' AND c.area_id = ' . (int)($viewScope['id'] ?? 0);
+    } elseif (($viewScope['type'] ?? 'ALL') === 'COMMISSARY') {
+        $consigneeSql .= ' AND c.assigned_commissary_id = ' . (int)($viewScope['id'] ?? 0);
+    }
     if ($search !== '') {
         $consigneeSql .= ' AND (c.name LIKE :cq OR c.code LIKE :cq2)';
         $consigneeBind = [':cq' => "%{$search}%", ':cq2' => "%{$search}%"];
@@ -17969,6 +17995,8 @@ function handleAdminBranches(array $params = []): void
     $consigneeStmt = $ctx->db()->prepare($consigneeSql);
     $consigneeStmt->execute($consigneeBind);
     $consignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $areasStmt = $ctx->db()->query('SELECT id, code, name, is_active FROM dl_areas ORDER BY is_active DESC, sort_order ASC, name ASC');
+    $areas = $areasStmt ? ($areasStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     $priceGroupsStmt = $ctx->db()->query('SELECT id, name, type, is_default FROM dl_price_groups WHERE is_active = 1 ORDER BY is_default DESC, name');
     $priceGroups = $priceGroupsStmt ? ($priceGroupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     $selectedPriceGroupName = null;
@@ -17992,6 +18020,7 @@ function handleAdminBranches(array $params = []): void
         'commissaries' => $commissaries,
         'consignees' => $consignees,
         'price_groups' => $priceGroups,
+        'areas' => $areas,
         'search' => $search,
         'selected_price_group_id' => $selectedPriceGroupId,
         'selected_price_group_name' => $selectedPriceGroupName,
@@ -18012,7 +18041,12 @@ function apiSaveConsignee(array $params = []): void
     }
     $code = strtoupper(trim((string)($input['code'] ?? '')));
     $name = trim((string)($input['name'] ?? ''));
-    $area = trim((string)($input['area'] ?? ''));
+    try {
+        $area = dl_resolveCanonicalArea($ctx->db(), $input['area_id'] ?? null);
+    } catch (\InvalidArgumentException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    }
     $address = trim((string)($input['address'] ?? ''));
     $commissaryId = (int)($input['assigned_commissary_id'] ?? 0);
     $priceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== '' && $input['price_group_id'] !== null
@@ -18039,8 +18073,8 @@ function apiSaveConsignee(array $params = []): void
     }
     try {
         if ($id > 0) {
-            $stmt = $ctx->db()->prepare('UPDATE dl_consignees SET code = :code, name = :name, area = :area, address = :address, assigned_commissary_id = :commissary, price_group_id = :price_group, is_active = :active, sort_order = :sort_order WHERE id = :id');
-            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':sort_order' => $sortOrder, ':id' => $id]);
+            $stmt = $ctx->db()->prepare('UPDATE dl_consignees SET code = :code, name = :name, area_id = :area_id, area = :area, address = :address, assigned_commissary_id = :commissary, price_group_id = :price_group, is_active = :active, sort_order = :sort_order WHERE id = :id');
+            $stmt->execute([':code' => $code, ':name' => $name, ':area_id' => $area['id'], ':area' => $area['name'], ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':sort_order' => $sortOrder, ':id' => $id]);
             if ($stmt->rowCount() === 0) {
                 $found = $ctx->db()->prepare('SELECT id FROM dl_consignees WHERE id = :id');
                 $found->execute([':id' => $id]);
@@ -18048,8 +18082,8 @@ function apiSaveConsignee(array $params = []): void
             }
             $action = 'consignee_updated';
         } else {
-            $stmt = $ctx->db()->prepare('INSERT INTO dl_consignees (code, name, area, address, assigned_commissary_id, price_group_id, is_active, sort_order) VALUES (:code, :name, :area, :address, :commissary, :price_group, :active, :sort_order)');
-            $stmt->execute([':code' => $code, ':name' => $name, ':area' => $area !== '' ? $area : null, ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':sort_order' => $sortOrder]);
+            $stmt = $ctx->db()->prepare('INSERT INTO dl_consignees (code, name, area_id, area, address, assigned_commissary_id, price_group_id, is_active, sort_order) VALUES (:code, :name, :area_id, :area, :address, :commissary, :price_group, :active, :sort_order)');
+            $stmt->execute([':code' => $code, ':name' => $name, ':area_id' => $area['id'], ':area' => $area['name'], ':address' => $address !== '' ? $address : null, ':commissary' => $commissaryId, ':price_group' => $priceGroupId, ':active' => $active, ':sort_order' => $sortOrder]);
             $id = (int)$ctx->db()->lastInsertId();
             $action = 'consignee_created';
 
@@ -18064,7 +18098,7 @@ function apiSaveConsignee(array $params = []): void
                 )->execute([':cid' => $id, ':pid' => (int)$p['id']]);
             }
         }
-        dl_auditLog($action, $commissaryId, 'dl_consignees', (string)$id, null, ['code' => $code, 'name' => $name, 'area' => $area !== '' ? $area : null, 'address' => $address !== '' ? $address : null, 'assigned_commissary_id' => $commissaryId, 'price_group_id' => $priceGroupId, 'is_active' => $active, 'actor_id' => dl_getActorUserId($user)]);
+        dl_auditLog($action, $commissaryId, 'dl_consignees', (string)$id, null, ['code' => $code, 'name' => $name, 'area_id' => $area['id'], 'area' => $area['name'], 'address' => $address !== '' ? $address : null, 'assigned_commissary_id' => $commissaryId, 'price_group_id' => $priceGroupId, 'is_active' => $active, 'actor_id' => dl_getActorUserId($user)]);
         $ctx->json(['ok' => true, 'consignee_id' => $id]);
     } catch (\Throwable $e) {
         $status = $e instanceof \RuntimeException && in_array($e->getCode(), [404, 422], true) ? $e->getCode() : 422;
@@ -18087,7 +18121,12 @@ function apiCreateBranch(array $params = []): void
     $code    = strtoupper(trim((string)($input['code'] ?? '')));
     $name    = trim((string)($input['name'] ?? ''));
     $address = trim((string)($input['address'] ?? ''));
-    $area    = trim((string)($input['area'] ?? ''));
+    try {
+        $area = dl_resolveCanonicalArea($ctx->db(), $input['area_id'] ?? null);
+    } catch (\InvalidArgumentException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    }
     $supplyMode = (string)($input['default_supply_mode'] ?? 'self_managed');
     if (!in_array($supplyMode, ['commissary_supplied','self_managed','hybrid'], true)) {
         $supplyMode = 'self_managed';
@@ -18118,11 +18157,11 @@ function apiCreateBranch(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_branches (code, name, address, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary)
-             VALUES (:code, :name, :addr, :area, :mode, :ac, :pg, :ic)'
+            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary)
+             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic)'
         )->execute([
             ':code' => $code, ':name' => $name, ':addr' => $address,
-            ':area' => $area !== '' ? $area : null,
+            ':area_id' => $area['id'], ':area' => $area['name'],
             ':mode' => $supplyMode, ':ac' => $assignedCommissaryId, ':pg' => $priceGroupId, ':ic' => $isCommissary,
         ]);
 
@@ -18139,7 +18178,7 @@ function apiCreateBranch(array $params = []): void
         }
 
         dl_auditLog('create_branch', $branchId, 'branch', (string)$branchId, null, [
-            'code' => $code, 'name' => $name, 'area' => $area,
+            'code' => $code, 'name' => $name, 'area_id' => $area['id'], 'area' => $area['name'],
             'default_supply_mode' => $supplyMode,
             'assigned_commissary_id' => $assignedCommissaryId,
             'price_group_id' => $priceGroupId,
@@ -18169,7 +18208,12 @@ function apiUpdateBranch(array $params = []): void
     $branchId = (int)($input['branch_id'] ?? 0);
     $name     = trim((string)($input['name'] ?? ''));
     $address  = trim((string)($input['address'] ?? ''));
-    $area     = trim((string)($input['area'] ?? ''));
+    try {
+        $area = dl_resolveCanonicalArea($ctx->db(), $input['area_id'] ?? null);
+    } catch (\InvalidArgumentException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    }
     $isActive = (int)($input['is_active'] ?? 1);
     $sortOrder = (int)($input['sort_order'] ?? 0);
     $supplyMode = (string)($input['default_supply_mode'] ?? '');
@@ -18210,8 +18254,8 @@ function apiUpdateBranch(array $params = []): void
         $beforeStmt->execute([':id' => $branchId]);
         $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-        $sets = ['name = :name', 'address = :addr', 'area = :area', 'is_active = :active', 'sort_order = :sort'];
-        $bind = [':name' => $name, ':addr' => $address, ':area' => $area !== '' ? $area : null, ':active' => $isActive, ':sort' => $sortOrder, ':id' => $branchId];
+        $sets = ['name = :name', 'address = :addr', 'area_id = :area_id', 'area = :area', 'is_active = :active', 'sort_order = :sort'];
+        $bind = [':name' => $name, ':addr' => $address, ':area_id' => $area['id'], ':area' => $area['name'], ':active' => $isActive, ':sort' => $sortOrder, ':id' => $branchId];
         if (in_array($supplyMode, ['commissary_supplied','self_managed','hybrid'], true)) {
             $sets[] = 'default_supply_mode = :mode';
             $bind[':mode'] = $supplyMode;
@@ -19871,6 +19915,9 @@ function handleAdminCommissary(): void
     $canReopenDay = dl_roleHasPermission($role, 'ledger.override');
     $db = $ctx->db();
     $input = $ctx->input();
+    $viewScope = dl_adminAreaScope($user, $input);
+    $viewBranchIds = ($viewScope['type'] ?? 'ALL') === 'ALL' ? [] : array_map('intval', $viewScope['branch_ids'] ?? []);
+    $viewBranchSql = $viewBranchIds === [] ? '0' : implode(',', $viewBranchIds);
     // A real calendar date only. An invalid date falls back to the current
     // business date for everyone; a future date falls back only on the
     // production view (the picker's max is today). Management keeps its
@@ -19904,7 +19951,8 @@ function handleAdminCommissary(): void
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
-    $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
+    $commissaryScopeSql = ($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : " AND id IN ({$viewBranchSql})";
+    $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1{$commissaryScopeSql} ORDER BY name ASC");
     $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableCommissaryIds = array_map('intval', array_column($commissaries, 'id'));
     // Default to All (0). Historical deliveries carry origin_id = NULL, so a
@@ -19926,13 +19974,15 @@ function handleAdminCommissary(): void
                  AND d.status = 'posted'
                  AND d.delivery_date = :date
               WHERE b.is_active = 1
+                " . (($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : "AND b.id IN ({$viewBranchSql})") . "
                 AND (b.assigned_commissary_id = :cid2 OR d.id IS NOT NULL)
               ORDER BY b.name ASC"
         );
         $branchesStmt->execute([':cid' => $selectedCommissaryId, ':cid2' => $selectedCommissaryId, ':date' => $rawDate]);
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } else {
-        $branchesStmt = $db->query("SELECT id, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+        $branchScopeSql = ($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : " AND id IN ({$viewBranchSql})";
+        $branchesStmt = $db->query("SELECT id, name, is_commissary FROM dl_branches WHERE is_active = 1{$branchScopeSql} ORDER BY name ASC");
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
     $availableBranchIds = array_map('intval', array_column($branches, 'id'));
@@ -19967,6 +20017,9 @@ function handleAdminCommissary(): void
           WHERE cpl.ledger_date = :date
             AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0 OR cpl.wastage_qty > 0)";
     $inventoryBind = [':date' => $rawDate];
+    if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+        $inventorySql .= " AND cpl.commissary_branch_id IN ({$viewBranchSql})";
+    }
     if ($selectedCommissaryId > 0) {
         $inventorySql .= ' AND cpl.commissary_branch_id = :cid';
         $inventoryBind[':cid'] = $selectedCommissaryId;
@@ -19989,6 +20042,7 @@ function handleAdminCommissary(): void
            FROM dl_commissary_product_ledger cpl
            INNER JOIN dl_products p ON p.id = cpl.product_id AND p.is_active = 1
            LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
+          " . (($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : "WHERE cpl.commissary_branch_id IN ({$viewBranchSql})") . "
           GROUP BY cpl.commissary_branch_id, cpl.product_id, b.name, p.name, p.sku
          HAVING cumulative_remaining > 0
           ORDER BY p.name ASC"
@@ -20019,6 +20073,9 @@ function handleAdminCommissary(): void
                       AND d.destination_type = 'branch'
                       AND d.delivery_date = :date";
     $deliveryBind = [':date' => $rawDate];
+    if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+        $deliverySql .= " AND d.destination_id IN ({$viewBranchSql})";
+    }
     if ($selectedBranchId > 0) {
         $deliverySql .= ' AND d.destination_id = :branch';
         $deliveryBind[':branch'] = $selectedBranchId;
@@ -20057,6 +20114,9 @@ function handleAdminCommissary(): void
                      AND d.status = 'posted'
                      AND d.delivery_date = :date";
     $pulloutBind = [':date' => $rawDate];
+    if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+        $pulloutSql .= " AND d.origin_id IN ({$viewBranchSql})";
+    }
     if ($selectedBranchId > 0) {
         $pulloutSql .= ' AND d.origin_id = :branch';
         $pulloutBind[':branch'] = $selectedBranchId;
@@ -20149,11 +20209,50 @@ function handleAdminCommissary(): void
     // can never jump to the front. With every branch still at 0 the leading
     // flag ties for every row, so the whole clause collapses to plain
     // alphabetical order -- i.e. exactly the pre-order behaviour.
+    $sheetScopeSql = ($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : " AND id IN ({$viewBranchSql})";
     $sheetBranchesStmt = $db->query(
-        'SELECT id, code, name FROM dl_branches WHERE is_active = 1
+        'SELECT id, code, name FROM dl_branches WHERE is_active = 1' . $sheetScopeSql . '
           ORDER BY ' . dl_entityOrderBySql()
     );
-    $sheetBranches = $sheetBranchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $allSheetBranches = $sheetBranchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Keep the production sheet bounded by construction. A branch adds one
+    // rendered cell to every product row, so an unbounded destination list can
+    // exceed DiSyL's output safety limit even when today's data is valid. Keep
+    // the paper form usable on mobile while always retaining its source and an
+    // explicitly selected destination. The omitted count is rendered visibly;
+    // admins can use the existing branch/commissary selectors (and area scope)
+    // to narrow the sheet rather than receiving a partial page or HTTP 500.
+    $sheetDestinationLimit = 10;
+    $requiredSheetBranchIds = array_values(array_filter([$sheetSourceBranchId, $selectedBranchId], static fn(int $id): bool => $id > 0));
+    $includedSheetBranchIds = array_fill_keys($requiredSheetBranchIds, true);
+    $chosenDestinationCount = $selectedBranchId > 0 && $selectedBranchId !== $sheetSourceBranchId ? 1 : 0;
+    foreach ($allSheetBranches as $candidate) {
+        $candidateId = (int)($candidate['id'] ?? 0);
+        if ($candidateId === $sheetSourceBranchId || isset($includedSheetBranchIds[$candidateId])) {
+            continue;
+        }
+        if ($chosenDestinationCount >= $sheetDestinationLimit) {
+            break;
+        }
+        $includedSheetBranchIds[$candidateId] = true;
+        $chosenDestinationCount++;
+    }
+    // Re-project in configured paper order after selecting the bounded set.
+    $sheetBranches = array_values(array_filter(
+        $allSheetBranches,
+        static fn(array $branch): bool => isset($includedSheetBranchIds[(int)($branch['id'] ?? 0)])
+    ));
+    $allDestinationCount = count(array_filter(
+        $allSheetBranches,
+        static fn(array $branch): bool => (int)($branch['id'] ?? 0) !== $sheetSourceBranchId
+    ));
+    $renderedDestinationCount = count(array_filter(
+        $sheetBranches,
+        static fn(array $branch): bool => (int)($branch['id'] ?? 0) !== $sheetSourceBranchId
+    ));
+    $omittedSheetBranchCount = max(0, $allDestinationCount - $renderedDestinationCount);
+
     $sheetProducts = dl_fetchProductionSheetProducts(
         $db,
         $selectedCommissaryId > 0 ? $sheetSourceBranchId : 0
@@ -20639,6 +20738,8 @@ function handleAdminCommissary(): void
         'consignee_sales_mode' => $consigneeSalesMode,
         'consignee_enabled' => dl_isConsigneeEnabled(),
         'sheet_branches' => $sheetBranches,
+        'omitted_sheet_branch_count' => $omittedSheetBranchCount,
+        'sheet_destination_limit' => $sheetDestinationLimit,
         'sheet_source_branch_id' => $sheetSourceBranchId,
         'sheet_source_branch_name' => $sheetSourceBranchName,
         'production_log' => $productionLog,

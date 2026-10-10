@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/helpers/admin-area-scope.php';
+
 /**
  * Raised when a cashier withdrawal insert hits the DB-level dedup guard
  * (uq_dl_cw_dedup on dedup_hash). Carries HTTP 409 so the online handler can
@@ -1232,6 +1234,44 @@ function dlRender(string $template, array $context = []): string
     // payload so the cashier's entered full name shows beside the branch-shift
     // username. Non-fatal: on failure the layout falls back to user_name/role.
     $context = dl_navUserContext($context);
+    if (($context['user_role'] ?? '') === 'admin' && function_exists('dl_adminAreaScope')) {
+        $scopeUser = function_exists('dlUserFromRequest') ? (dlUserFromRequest() ?? []) : [];
+        if (!is_array($scopeUser) || ($scopeUser['role'] ?? '') !== 'admin') {
+            $scopeUser = ['role' => 'admin', 'id' => (int)($context['user_id'] ?? 0)];
+        }
+        try {
+            $context['admin_view_scope'] = dl_adminAreaScope($scopeUser);
+            $scope = $context['admin_view_scope'];
+            if (($scope['type'] ?? 'ALL') !== 'ALL') {
+                $allowed = array_fill_keys(array_map('intval', $scope['branch_ids'] ?? []), true);
+                // Final presentation guard shared by every admin template. Handlers
+                // should still scope SQL for totals; this prevents a missed list
+                // context from leaking rows while that migration is completed.
+                foreach ($context as $key => $rows) {
+                    if (!is_array($rows) || !array_is_list($rows) || $key === 'admin_view_scope') {
+                        continue;
+                    }
+                    if ($key === 'branches' || $key === 'sheet_branches') {
+                        $context[$key] = array_values(array_filter($rows, static fn($row): bool => !is_array($row) || isset($allowed[(int)($row['id'] ?? 0)])));
+                        continue;
+                    }
+                    $context[$key] = array_values(array_filter($rows, static function ($row) use ($allowed): bool {
+                        if (!is_array($row)) {
+                            return true;
+                        }
+                        foreach (['branch_id', 'destination_branch_id', 'destination_id', 'from_branch_id'] as $field) {
+                            if (isset($row[$field]) && (int)$row[$field] > 0) {
+                                return isset($allowed[(int)$row[$field]]);
+                            }
+                        }
+                        return true;
+                    }));
+                }
+            }
+        } catch (Throwable $e) {
+            $context['admin_view_scope'] = null;
+        }
+    }
     return dlCtx()->render($template, kernelPrepareRenderContext($template, $context));
 }
 

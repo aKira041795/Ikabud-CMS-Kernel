@@ -75,15 +75,16 @@ $report['area_values_raw'] = $raw;
 
 // ── Near-duplicates: same value after trim/lower/collapse ─────────────────────
 echo "\nNEAR-DUPLICATE area values (same after normalisation — decide by hand, do NOT auto-merge)\n";
+$normalizationRows = $pdo->query(
+    "SELECT DISTINCT area FROM dl_branches WHERE area IS NOT NULL AND TRIM(area) <> ''"
+    . " UNION SELECT DISTINCT area FROM dl_consignees WHERE area IS NOT NULL AND TRIM(area) <> ''"
+)->fetchAll();
 $norm = [];
-foreach ($raw as $r) {
-    if ($r['area'] === null) {
-        continue;
-    }
+foreach ($normalizationRows as $r) {
     $key = strtolower(preg_replace('/\s+/', ' ', trim((string) $r['area'])) ?? '');
     $norm[$key][] = (string) $r['area'];
 }
-$dupes = array_filter($norm, static fn(array $v): bool => count($v) > 1);
+$dupes = array_filter($norm, static fn(array $v): bool => count(array_unique($v)) > 1);
 if ($dupes === []) {
     echo "  none — every stored value is already distinct when normalised\n";
 } else {
@@ -92,6 +93,28 @@ if ($dupes === []) {
     }
 }
 $report['area_near_duplicates'] = $dupes;
+
+// ── Canonical-area compatibility phase verification ───────────────────────────
+$hasAreas = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'dl_areas'")->fetchColumn() === 1;
+if ($hasAreas) {
+    echo "\nCANONICAL AREA MAPPING (legacy text retained during compatibility phase)\n";
+    $canonical = $pdo->query(
+        'SELECT a.id, a.code, a.name,'
+        . ' (SELECT COUNT(*) FROM dl_branches b WHERE b.area_id = a.id) AS branches,'
+        . ' (SELECT COUNT(*) FROM dl_consignees c WHERE c.area_id = a.id) AS consignees'
+        . ' FROM dl_areas a ORDER BY a.sort_order, a.name'
+    )->fetchAll();
+    foreach ($canonical as $area) {
+        printf("  %-12s %-20s branches=%-4s consignees=%s\n", $area['code'], $area['name'], $area['branches'], $area['consignees']);
+    }
+    $unmapped = (int)$pdo->query(
+        "SELECT (SELECT COUNT(*) FROM dl_branches WHERE area IS NOT NULL AND TRIM(area) <> '' AND area_id IS NULL)"
+        . " + (SELECT COUNT(*) FROM dl_consignees WHERE area IS NOT NULL AND TRIM(area) <> '' AND area_id IS NULL)"
+    )->fetchColumn();
+    printf("  nonempty legacy values without canonical id: %d\n", $unmapped);
+    $report['canonical_areas'] = $canonical;
+    $report['canonical_unmapped_nonempty'] = $unmapped;
+}
 
 // ── Supply integrity: the fields that contradict each other today ─────────────
 echo "\nSUPPLY INTEGRITY (these are the fields the rollout must not break)\n";
