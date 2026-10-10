@@ -84,3 +84,59 @@ faster and emptier.
    such difference must be listed and justified individually.
 3. The `{#runner-fleet{...}}` CSS must survive compilation.
 4. The identified trigger for the truncation must be stated from measurement, not inference.
+
+---
+
+# ROUND 2 — ACCEPTED
+
+Sol's second pass found the **actual** root cause, which was more precise than my own reading. I had said
+"the nested `{` after `@media(min-width:700px)` appears to swallow the rest of the document". The real
+mechanism:
+
+> `{#runner-fleet{...}}` inside `<style>` was parsed as a DiSyL **`{# ... #}` hash comment**. With no `#}`
+> terminator, `parseHashComment()` consumed the remainder of the template — including `{/block}`, and the
+> `content` and `scripts` blocks.
+
+Minimal reproduction Sol measured: `<style>@media(x){#x{a:b}}</style>TAIL` — 37 source bytes producing 16
+output bytes before, 37 after.
+
+## The change
+
+`{#` is now a comment **only when its `#}` terminator falls inside the same raw body**
+(`hasRawHashCommentTerminator()`, using the existing `rawContextRanges`). Null-coalescing was moved ahead
+of the raw-context guard and tightened to `^{identifier} ?? …$` so the documented `{sales_count ?? 0}`
+interpolation keeps working — Sol cross-referenced `processScriptVariables()` parity explicitly. The
+round-1 guards are retained. Cache version 17 -> 18.
+
+## Independently verified — every claim reproduced, not accepted
+
+| check | result |
+|---|---|
+| **Output differential**, 555 templates, re-run by me against the committed baseline | **exactly 3 differ**, and the hashes match Sol's reported values exactly |
+| those 3 diffs inspected by hand | all are the intended repairs: `menus.disyl` `const node={label:...}` brace restored; `users.disyl` `{userId: [{store_id, store_name, role}]}` restored inside a JS comment; `dc-cafe/settings/index.disyl` `{name: this.editBaseName[id]}` payload restored |
+| `runners`/`status`/`session-end` | **no longer differ** — compiled output now equals the previously-correct interpreted output |
+| `Template_runners_v18_*.php` | all three `setBlockIfAbsent` present: `head` (:43), `content` (:52), `scripts` (:61) |
+| fallback sweep, re-run by me | `compiled 479 \| fallback 0 \| interpreted 72 \| THREW 4` |
+| new regression test | **9 passed / 3 failed without the fix**, 12 passed / 0 failed with it — it discriminates |
+| `tools/disyl-conformance-check.php` | `lane_green=YES`, `promoted=41 partial=0`, `disagreements: none` |
+| 5 known pre-existing failures | exit=1 each, unchanged |
+| templates modified | **0** |
+| logs | `error.log` empty; `app.log` fallbacks 0 |
+
+## What this cost, and the lesson worth keeping
+
+The fix required two rounds, and **the first round's brief was the reason**. I made
+`probe-fallback-sweep.php` reporting `fallback 0` the primary acceptance criterion. That measures *which
+pipeline ran*, not *whether the output is right* — so it passed while `runners.disyl` silently lost its
+content section and its script tag. Sol satisfied the criterion exactly as written.
+
+**The rule, now recorded permanently: the sweep proves the fix *applies*; the differential proves it is
+*safe*. Neither alone is sufficient.** Every acceptance set for a compiler change must include
+`probe-output-diff.php` against a committed baseline, and every changed template must be listed and
+justified individually. `output-before.txt` is that baseline and must not be regenerated after a fix.
+
+A second, quieter value came out of the same instrument: the unfixed engine was **already corrupting
+JavaScript** in three templates — eating object-literal braces and an API payload — one of which carried
+the comment `// ternary (0) is mangled by DiSyL`, a developer documenting the damage and coding around it.
+The fallback had been masking all of it. Fixing the trigger exposed both the corruption and a latent
+truncation, and neither would have been visible from the pipeline tally alone.

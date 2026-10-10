@@ -419,7 +419,8 @@ final class Parser
         if (isset($peek[0]) && $peek[0] === '*') {
             return $this->parseStarComment();
         }
-        if (isset($peek[0]) && $peek[0] === '#') {
+        if (isset($peek[0]) && $peek[0] === '#'
+            && (!$this->inRawOutputContext || $this->hasRawHashCommentTerminator($savedPos))) {
             return $this->parseHashComment();
         }
 
@@ -509,9 +510,30 @@ final class Parser
             return false;
         }
 
-        // Null-coalescing: {var ?? fallback}
+        // Null-coalescing is a documented script/style interpolation form as
+        // well as an HTML expression (for example {sales_count ?? 0}). Keep it
+        // ahead of raw host-language isolation so the compiled path retains
+        // parity with processScriptVariables().
         if (str_contains($expr, '??')) {
-            return true;
+            return preg_match('/^[a-zA-Z_][\w.]*\s*\?\?\s*[^}]+$/', $expr) === 1;
+        }
+
+        // Script/style bodies are host-language text, not general DiSyL
+        // expression contexts. Preserve the documented {known} interpolation
+        // form (and its filters), but never interpret CSS/JS operators inside
+        // a brace block as DiSyL arithmetic.
+        if ($this->inRawOutputContext) {
+            return preg_match('/^[a-zA-Z_][\w.]*(?:\s*\|\s*[^}]+)?$/', $expr) === 1;
+        }
+
+        // JavaScript statement blocks inside quoted HTML attributes are also
+        // host-language syntax. In particular, Alpine handlers commonly use
+        // `{let ...}` blocks containing + or - operators; those operators must
+        // not make the block a DiSyL expression. Keep dotted variables such as
+        // {case.status} valid by requiring statement punctuation after the
+        // JavaScript keyword.
+        if (preg_match('/^(?:let|const|var|function|return|new|typeof|delete|void|yield|debugger|class|import|export|try|catch|finally|throw|switch|case|default|do|if|else|for|while|with|instanceof|in|of|async|await)(?=[\s=(])/', $expr)) {
+            return false;
         }
 
         $qPos = $this->findUnquotedChar($expr, '?');
@@ -594,6 +616,32 @@ final class Parser
         $content = substr($this->source, $this->pos + 2, $end - $this->pos - 2);
         $this->pos = $end + 2;
         return new CommentNode([], trim($content));
+    }
+
+    /**
+     * Whether a {# opener inside a script/style body has its #} terminator
+     * before that raw body ends. CSS commonly places an ID selector directly
+     * after an opening rule brace (`{#id{...}}`); without this boundary check,
+     * parseHashComment() treats that selector as an unterminated comment and
+     * consumes the rest of the template.
+     */
+    private function hasRawHashCommentTerminator(int $start): bool
+    {
+        $terminator = strpos($this->source, '#}', $start + 2);
+        if ($terminator === false) {
+            return false;
+        }
+
+        foreach ($this->rawContextRanges as [$bodyStart, $bodyEnd]) {
+            if ($start < $bodyStart) {
+                return false;
+            }
+            if ($start < $bodyEnd) {
+                return $terminator < $bodyEnd;
+            }
+        }
+
+        return false;
     }
 
     /** {# comment #} (Twig/Jinja-style block comment) */
