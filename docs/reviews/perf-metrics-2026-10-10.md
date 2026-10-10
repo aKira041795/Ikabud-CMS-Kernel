@@ -428,6 +428,113 @@ are unchanged — this is a DiSyL compiled-template concern for a separate look,
 
 ---
 
+## 4f. First map of the render path — and why it is the blind spot
+
+Asked 2026-10-10: where else, aside from the kernel? The answer is that rendering is the **least
+observed** part of the system, so the first task is instrumentation, not optimisation.
+
+### Why there is no render attribution at all
+
+`kernelPerfMarkRequestPhase('render')` is called from inside `register_shutdown_function()`
+(`src/http/perf-attribution.php:381-384`), i.e. after the response is built. The perf payload is
+assembled *during* the request, so `render` and `shutdown` can never appear in the request's own
+payload — which is exactly why every reading, local and live, shows
+
+    Request phase: render    not measured
+    Request phase: shutdown  not measured
+
+Everything after handler dispatch is therefore unattributed. `dispatch` is marked at
+`public/index.php:600`, before the handler runs, so the entire handler + render + output cost is
+invisible. The kernel work was possible because the kernel was measurable; the render path is not.
+
+### The harness measures ops, not pages
+
+`composer benchmark:disyl` (µs/op, PHP 8.5.11, iterations=3000 samples=5):
+
+| scenario | median µs/op |
+|---|---:|
+| `processControlStructures nested` | **184.93** |
+| `renderString script-aware` | 111.00 |
+| `processVariables filtered` | 83.03 |
+| `renderString variables` | 44.63 |
+| `processVariables simple` | 32.90 |
+| `processScriptVariables simple` | 12.77 |
+| `buildOutputCacheKey` fast / fallback | 10.05 / 13.45 |
+| `resolveValue` plain / dot-path / filtered | 3.03 / 4.28 / 11.44 |
+
+Useful per-op, but it cannot say where a page's render time goes, because **nothing counts the
+operations per page**. µs/op without ops/page is not a budget. That is the missing half, and it is
+cheap to add.
+
+### A hypothesis of mine that the probe FALSIFIED
+
+Reading `IncludeResolver::processIncludes()` (`kernel/DiSyL/Component/IncludeResolver.php:58-76`)
+I concluded it was O(N x content): `processNextInclude()` finds ONE `{include }`, replaces it and
+`return`s (line 168-170), so N sibling includes need N passes each re-scanning from position 0.
+That would be quadratic, and worth fixing.
+
+`probe-include-scaling.php` measured it at a fixed page size over N = 1..20:
+
+| includes | content B | median ms | ms per include |
+|---:|---:|---:|---:|
+| 1 | 834 | 0.018 | 0.0182 |
+| 4 | 3336 | 0.073 | 0.0182 |
+| 8 | 6672 | 0.162 | 0.0202 |
+| 20 | 16690 | 0.397 | 0.0198 |
+
+**Per-include cost is flat — linear, not quadratic.** The loop really does make N passes, but the
+per-pass scan is a C-level `strpos`, so the quadratic term is negligible at page sizes; what remains
+is the per-include work in `processIncludeTag()`. So include *resolution* is not a hotspot:
+9 ark includes = ~0.17 ms.
+
+**Scope limit of that probe, stated because it changes the conclusion:** it deliberately passed a
+trivial `$compile` to isolate the resolver's own scanning. It therefore does **not** measure the
+cost that actually matters — see below.
+
+### Where the known render cost really is
+
+Not include scanning: **per-request compilation of included content**. `{include}` has no compiled
+cache — `processIncludeTag()` recurses into the compile path per request. The 2026-09-26 measurement
+of two style partials (113.47 ms + 53.43 ms locally, `styles_ms: 20.77` / `includes_ms: 30.81` live)
+was `compileStyleBody()` over 38 KB of CSS, i.e. **proportional to bytes, not to include count**.
+
+**Status of that specific case — corrected 2026-10-10, the note was stale:**
+
+| theme | then | now |
+|---|---|---|
+| `native-default` | 24,554 B + 13,714 B partials | **partials removed, 0 includes — fix held** |
+| `ark` | same pattern, "larger" | 324 B + 5,268 B, **9 includes remain** |
+
+So the big win was already taken on both; ark retains ~5.6 KB compiled per request. The residual cost
+has not been measured and will not be extrapolated from bytes.
+
+### The trap that must be controlled for
+
+`TemplateEngine::render()` carries an **APCu shared output cache**
+(`kernel/DiSyL/TemplateEngine.php:395` fetch, `:482`/`:559`/`:575` store). This is what produced the
+retracted "compiled is 2.5x faster" claim on 2026-09-16 (interpreted 950 vs compiled 376 ms) — the
+real alternating A/B was 912/919 and 967/924, i.e. noise. **Any render-path A/B must defeat that
+cache or it will measure cache hits.** The related sanity rule stands: the render is a fraction of the
+request, so a claimed 2.5x page-load speedup is arithmetically impossible and should be refused on
+sight.
+
+### Ranked candidates in the render path
+
+1. **Instrument render properly** — the enabling step. No live attribution exists today.
+2. **Count ops per page** in the harness, turning the table above into an actual budget.
+3. **Compiled output cache for `{include}`** — the measured mechanism, affects every theme.
+4. **`{extends}` blocks compiled mode fleet-wide** (`TemplateEngine.php:4038`): every theme page is on
+   the interpreted pipeline and the `disyl.interpreted.deprecated` warning is unactionable. Blocked on
+   parity — there is a known pre-existing divergence where compiled HTML-escapes in script context
+   while interpreted does not, which breaks JS in any compiled template with script interpolation.
+   That is a correctness item ahead of any perf item here.
+5. **`getCompiledEligibilityCachePath()`** keys on root template path + root mtime while the walk
+   covers includes/extends -> stale eligibility when a partial changes. Correctness.
+6. Ops, no repo code: `APP_TIMING_LOGS` on in production with `APP_TIMING_THRESHOLD_MS=0` (~4-6 locked
+   log appends per page view).
+
+---
+
 ## 5. Live baseline — for scale, not comparisonFrom [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
 
 | block | ms | share of dispatch |
