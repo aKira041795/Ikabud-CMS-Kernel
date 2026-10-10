@@ -826,6 +826,49 @@ plausible mechanism over a measurement.
 
 ---
 
+## 4j. It is not one template: 7 fall back, and the operator is not always `+`
+
+4i established the trigger for `theme-customizer`. That was found by measuring **nine hand-picked**
+templates. Nine is not a survey, so `probe-fallback-sweep.php` rendered **all 555 `.disyl` files** under
+`templates/` once through the compiled path and classified each from its own log line (fallback checked
+first, so a compiled failure is not mistaken for an interpreted render).
+
+| pipeline | count |
+|---|---:|
+| compiled | **472** |
+| **fallback (compiled threw, re-rendered interpreted)** | **7** |
+| interpreted (compiled-ineligible by design) | 72 |
+| no timing line | 0 |
+| THREW (context-related) | 4 |
+
+**The seven:**
+
+| template | reason |
+|---|---|
+| `modules/cms/admin/theme-customizer.disyl` | `string + null` |
+| `modules/harpp/deploy.disyl` | `string - string` |
+| `modules/harpp/messenger.disyl` | `string - null` |
+| `modules/harpp/runners.disyl` | `string - string` |
+| `modules/harpp/settings.disyl` | `string - string` |
+| `modules/harpp/status.disyl` | `null - string` |
+| `modules/harpp/workspaces.disyl` | `null - string` |
+
+**Two things this changes.** First, this is a **class** of defect affecting 7 templates, not one admin
+page — and six are in the HARPP harness UI, which is in daily use. Each one silently pays the interpreted
+render, ~10x the compiled cost. Second, **the operator is `-` at least as often as `+`**, which widens the
+mechanism beyond string concatenation and is consistent with JavaScript arithmetic in attributes being
+evaluated as DiSyL expressions.
+
+**A fallback is a compiler-level event.** The compiled class was produced and then failed at *execution*,
+so unlike the 4 THREW cases it does not depend on the context being complete. That is what makes the
+sweep trustworthy without full handler context.
+
+The 72 `interpreted` are a different question: compiled-ineligible by design (component tags, macros),
+not a defect. They are worth sizing separately — 13% of templates on an ~10x slower path — but they are
+not silent failures and nothing is broken.
+
+---
+
 ## 5. Live baseline — for scale, not comparison
 
 From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
