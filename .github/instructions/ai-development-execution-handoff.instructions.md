@@ -639,6 +639,26 @@ test, a commit, or a choice between two equivalent implementations.
 **The failure mode to avoid is the opposite of recklessness: asking about what was already
 decidable.** Once a decision is made and recorded, do not re-ask it — proceed.
 
+### A decision is not the end of a turn
+
+Recording a decision and then stopping is the same stall in a different costume: the owner still has
+to prompt again, which is precisely what this directive removes.
+
+- **Do not end a turn with an implicit question.** "unless…", "want me to…", "say the word and…" are
+  requests for permission wearing a statement's clothes.
+- **`task_complete` means the WORK is finished, not that the turn has run long.** Never call it while
+  a decided work item is still open. A commit is not a completion signal either — it is one step.
+- **If the work is larger than the turn, SPLIT it and execute the first piece now.** Do not present
+  the whole plan and stop.
+- **Distinguish "I have spent a lot of budget" from "the work is done".** Only the second ends a turn.
+  Budget pressure is a reason to scope smaller, never a reason to defer a decided action.
+- Announcements are not progress. "Next, decided: X" followed by the end of the turn is a plan, not
+  execution, and the owner experiences it exactly as being asked for permission.
+
+Measured 2026-10-10: the agent decided a follow-up, wrote "**Next, decided:** …", implied a condition
+("unless the numbers turn out to be worth keeping"), and ended the turn with that work untouched. The
+owner had to prompt for it. The decision was correct and the stopping undid it.
+
 ---
 
 # 13. BOUNDED REPAIR LOOP
