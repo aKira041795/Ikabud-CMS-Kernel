@@ -1055,43 +1055,63 @@ class TemplateEngine
         $chunks = [];
         $insideDisylTag = false;
         
+        // Walk only the BRACES, not the characters between them. The previous form appended one array
+        // element per character, so a 26 KB script body produced 26,081 chunks in order to serve 308
+        // braces — measured at 8.25 ms of the 8.51 ms this whole method cost, i.e. 97% of it was building
+        // an array of single characters (probe-script-pass-split.php). Runs of text between braces are now
+        // copied with substr and the loop runs once per brace. Marker semantics are unchanged.
         $len = strlen($body);
         $i = 0;
+        $runStart = 0;
         while ($i < $len) {
-            $char = $body[$i];
+            $open = strpos($body, '{', $i);
+            $close = strpos($body, '}', $i);
+            if ($open === false && $close === false) {
+                break;
+            }
+            if ($open === false) {
+                $brace = $close;
+            } elseif ($close === false) {
+                $brace = $open;
+            } else {
+                $brace = $open < $close ? $open : $close;
+            }
 
-            if ($char === '{') {
+            if ($body[$brace] === '{') {
                 // Check if this looks like a DiSyL tag. Anchored at the offset (see the `A` modifier on
-                // $disylPattern): a miss costs one attempt, not a scan to the end of the body. The old
-                // form used PREG_OFFSET_CAPTURE and compared $m[0][1] to $i, which meant PCRE scanned
-                // forward from every brace in a script-heavy template — the very O(n^2) step 1 of this
-                // method claims to avoid. The test is semantically identical.
-                if (preg_match($disylPattern, $body, $m, 0, $i) === 1) {
+                // $disylPattern): a miss costs one attempt, not a scan to the end of the body.
+                if (preg_match($disylPattern, $body, $m, 0, $brace) === 1) {
+                    // A real DiSyL tag: the brace stays verbatim, so it remains part of the current run.
                     $insideDisylTag = true;
-                    $chunks[] = $char;
-                    $i++;
+                    $i = $brace + 1;
                     continue;
                 }
 
+                $chunks[] = substr($body, $runStart, $brace - $runStart);
                 $marker = "___JSCURLY_OPEN_{$markerCount}___";
                 $jsMarkers[$marker] = '{';
                 $chunks[] = $marker;
                 $markerCount++;
-            } elseif ($char === '}') {
+                $runStart = $brace + 1;
+            } else {
                 if ($insideDisylTag) {
+                    // Closing brace of a DiSyL tag — also stays verbatim.
                     $insideDisylTag = false;
-                    $chunks[] = $char;
                 } else {
+                    $chunks[] = substr($body, $runStart, $brace - $runStart);
                     $marker = "___JSCURLY_CLOSE_{$markerCount}___";
                     $jsMarkers[$marker] = '}';
                     $chunks[] = $marker;
                     $markerCount++;
+                    $runStart = $brace + 1;
                 }
-            } else {
-                $chunks[] = $char;
             }
 
-            $i++;
+            $i = $brace + 1;
+        }
+
+        if ($runStart < $len) {
+            $chunks[] = substr($body, $runStart);
         }
 
         $body = implode('', $chunks);

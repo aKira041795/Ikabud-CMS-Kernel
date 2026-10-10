@@ -1016,6 +1016,16 @@ and reports offset 3; at offset 0 or 4 it does not match at all. Without `A` it 
 the whole cost. The replacement is **semantically identical** to the previous
 `PREG_OFFSET_CAPTURE` + `$m[0][1] === $i` test, which is why the output differential below is unchanged.
 
+### The brace-protection loops: walk the braces, not the characters
+
+`probe-script-pass-split.php` attributed `compileScriptBody()` (8.51 ms on the slowest template) the same
+way, and the answer was again not where the code comment said. It claimed step 1 *"avoids O(n^2) behavior
+on script-heavy templates"* — true of the string mutation it replaced, false of what it did instead: one
+array element **per character**, so a 26 KB script body built **26,081 chunks to serve 308 braces**.
+
+The loop now uses `strpos` to land on the next `{` or `}` and copies the text between braces with
+`substr`, so it runs once per brace. Marker semantics are unchanged, and the differential confirms it.
+
 ### Aggregate effect across all 76 ineligible templates
 
 `probe-ineligible-cost.php`, engine choosing its own pipeline, fresh engine per render, cold and warm
@@ -1023,10 +1033,16 @@ separate:
 
 | metric | before | after |
 |---|---:|---:|
-| median warm | 9.33 ms | **3.89 ms** (−58%) |
-| min warm | 0.40 ms | 0.32 ms |
-| max warm | 201.84 ms | **40.56 ms** (−80%) |
-| templates ≥ 20 ms | 22 of 72 | **5 of 72** |
+| median warm | 9.33 ms | **4.26 ms** (−54%; a separate run measured 3.89) |
+| min warm | 0.40 ms | 0.27 ms |
+| max warm | 201.84 ms | **31.30 ms** (−84%) |
+| templates ≥ 20 ms | 22 of 72 | **3 of 72** |
+
+**On the median, read the range and not the digit.** This host drifts ±10–30% between runs by the caveat at
+the top of this document, and the brace-loop rewrite moved the median between 3.89 and 4.26 across runs —
+within that band. What the rewrite demonstrably moved is the **tail** (max 40.56 → 31.30, ≥20 ms 5 → 3),
+which is what it should do: it removes work proportional to body length, so it helps large script bodies and
+is noise on small ones. Claiming a median win from it would be reading a drift as a result.
 
 ### A correction to my own intermediate number
 
@@ -1052,6 +1068,14 @@ stronger evidence for a language-pass change than any single suite.
 
 ### Still open, deliberately
 
+- **~5 ms inside `compileScriptBody()` is still unattributed**, and it cannot be measured from outside the
+  class: the remaining pass is `processScriptVariables()`, which **throws when handed an unprotected body**
+  because the brace markers are what stop it parsing JavaScript object literals as DiSyL expressions. So it
+  must be timed *in place*, not via a probe that calls it directly — do not "discover" that it throws and
+  conclude it is broken. It is up to four whole-body `preg_replace_callback` passes
+  (`??`, ternary, arithmetic, variables-with-filters). Note that its **escaping semantics are
+  load-bearing** (`escapeScriptValue()`), so it is a different risk class from the loops above and was
+  deliberately left alone rather than optimised blind.
 - **`cms/public/{home,page,single,archive}` are ineligible because of `{cache }`.** Making that tag
   compiled-eligible would move the four public pages onto the compiled path — a much larger win than
   anything above, and a language feature, not a micro-optimisation.
