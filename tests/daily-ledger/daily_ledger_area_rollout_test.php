@@ -318,6 +318,31 @@ $h->test(
     json_encode(['expected_network_count' => $rizalNetworkCount, 'view' => $adminRizalView])
 );
 
+// A presentation option-builder must never be callable without an explicit branch scope. This one
+// defaulted to null, and null meant `SELECT id FROM dl_branches` - every branch in the tenant - so a
+// future caller that forgot the argument would silently widen an operational user's options. The
+// assertion is on the SIGNATURE because that is what makes the mistake impossible rather than merely
+// documented, and it is falsifiable: restoring `= null` turns this red.
+$optionsBuilderParam = (new ReflectionFunction('dl_consigneeDispatchFilterOptions'))->getParameters()[1] ?? null;
+$h->test(
+    'consignee dispatch filter options require an explicit branch scope',
+    $optionsBuilderParam !== null
+        && !$optionsBuilderParam->isDefaultValueAvailable()
+        && !$optionsBuilderParam->allowsNull(),
+    json_encode([
+        'param' => $optionsBuilderParam ? $optionsBuilderParam->getName() : null,
+        'has_default' => $optionsBuilderParam ? $optionsBuilderParam->isDefaultValueAvailable() : null,
+        'allows_null' => $optionsBuilderParam ? $optionsBuilderParam->allowsNull() : null,
+    ])
+);
+// And the empty scope must yield NOTHING rather than falling back to everything.
+$emptyScopeOptions = dl_consigneeDispatchFilterOptions($db, []);
+$h->test(
+    'an empty branch scope yields no consignee dispatch options rather than all of them',
+    ($emptyScopeOptions['consignees'] ?? []) === [] && ($emptyScopeOptions['products'] ?? []) === [],
+    json_encode(['consignees' => count($emptyScopeOptions['consignees'] ?? []), 'products' => count($emptyScopeOptions['products'] ?? [])])
+);
+
 $h->section('Commissary output bound');
 $temporaryIds = [];
 $beforeCount = (int)$db->query("SELECT COUNT(*) FROM dl_branches WHERE code LIKE 'BOUND-%'")->fetchColumn();

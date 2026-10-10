@@ -13275,11 +13275,16 @@ function handleAdminConsigneeDispatchReport(array $params = []): void
  *
  * @return array{consignees: array<int, array<string, mixed>>, products: array<int, array<string, mixed>>}
  */
-function dl_consigneeDispatchFilterOptions($db, ?array $branchIds = null): array
+function dl_consigneeDispatchFilterOptions($db, array $branchIds): array
 {
-    $scopeSql = $branchIds === null
-        ? 'SELECT id FROM dl_branches'
-        : ($branchIds === [] ? '0' : implode(',', array_map('intval', $branchIds)));
+    // $branchIds is REQUIRED and must be the caller's presentation scope
+    // (dl_adminViewBranchIds()). It used to default to null, which silently meant
+    // `SELECT id FROM dl_branches` - every branch in the tenant - so a future caller that
+    // omitted the argument would have widened an operational user's consignee and product
+    // options to the whole estate. That is the same failure class as the RIZAL sheet showing
+    // Pagadian branches; making the scope mandatory removes the foot-gun rather than
+    // documenting it. An empty scope correctly yields no options ('0' matches nothing).
+    $scopeSql = $branchIds === [] ? '0' : implode(',', array_map('intval', $branchIds));
     $consignees = $db->query(
         'SELECT c.id, c.code, c.name, c.sort_order'
         . ' FROM dl_consignee_ledger l'
