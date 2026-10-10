@@ -1,0 +1,122 @@
+{
+  "doc_root": {
+    "wRatio": 1,
+    "w": 1600,
+    "h": 651,
+    "dy": 32,
+    "display": "block",
+    "flexDirection": "row"
+  },
+  "p_section": {
+    "wRatio": 0.8,
+    "w": 1280,
+    "h": 530,
+    "dy": 0,
+    "display": "flex",
+    "flexDirection": "column"
+  },
+  "p_container": {
+    "wRatio": 0.9375,
+    "w": 1200,
+    "h": 434,
+    "dy": 48,
+    "display": "block",
+    "flexDirection": "row"
+  },
+  "p_intro": {
+    "wRatio": 0.96,
+    "w": 1152,
+    "h": 38,
+    "dy": 27,
+    "display": "block",
+    "flexDirection": "row"
+  },
+  "p_row": {
+    "wRatio": 0.96,
+    "w": 1152,
+    "h": 88,
+    "dy": 91,
+    "display": "flex",
+    "flexDirection": "row"
+  },
+  "p_col_left": {
+    "wRatio": 0.3231,
+    "w": 372,
+    "h": 88,
+    "dy": 0,
+    "display": "flex",
+    "flexDirection": "column"
+  },
+  "p_text_left": {
+    "wRatio": 1,
+    "w": 372,
+    "h": 26,
+    "dy": 0,
+    "display": "block",
+    "flexDirection": "row"
+  },
+  "p_col_right": {
+    "wRatio": 0.656,
+    "w": 756,
+    "h": 88,
+    "dy": 0,
+    "display": "flex",
+    "flexDirection": "column"
+  },
+  "p_text_right": {
+    "wRatio": 1,
+    "w": 756,
+    "h": 26,
+    "dy": 0,
+    "display": "block",
+    "flexDirection": "row"
+  },
+  "p_button": {
+    "wRatio": 1,
+    "w": 756,
+    "h": 46,
+    "dy": 42,
+    "display": "flex",
+    "flexDirection": "row"
+  },
+  "p_divider": {
+    "wRatio": 0.96,
+    "w": 1152,
+    "h": 1,
+    "dy": 203,
+    "display": "block",
+    "flexDirection": "row"
+  },
+  "p_spacer": {
+    "wRatio": 0.96,
+    "w": 1152,
+    "h": 48,
+    "dy": 228,
+    "display": "block",
+    "flexDirection": "row"
+  },
+  "p_icon_box": {
+    "wRatio": 0.96,
+    "w": 1152,
+    "h": 157,
+    "dy": 276,
+    "display": "flex",
+    "flexDirection": "column"
+  },
+  "p_fullbleed": {
+    "wRatio": 1,
+    "w": 1600,
+    "h": 122,
+    "dy": 530,
+    "display": "flex",
+    "flexDirection": "column"
+  },
+  "p_fullbleed_text": {
+    "wRatio": 0.0717,
+    "w": 115,
+    "h": 26,
+    "dy": 48,
+    "display": "block",
+    "flexDirection": "row"
+  }
+}

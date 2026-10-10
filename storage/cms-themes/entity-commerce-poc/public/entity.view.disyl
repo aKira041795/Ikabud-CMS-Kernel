@@ -72,8 +72,8 @@
 
     {if post_html}
     <section class="poc-entity-view__body-wrap">
-        {if builder_enabled}
-        <div class="cms-entity-body poc-entity-view__body {builder_page_settings.container_class}">
+        {if content_presentation == 'composition'}
+        <div class="cms-entity-body poc-entity-view__body {builder_page_settings.container_class|default:''}">
             {post_html | raw}
         </div>
         {else}
@@ -142,8 +142,8 @@
     </section>
 
     <section class="poc-entity-view__body-wrap">
-        {if builder_enabled}
-        <div class="cms-entity-body poc-entity-view__body {builder_page_settings.container_class}">
+        {if content_presentation == 'composition'}
+        <div class="cms-entity-body poc-entity-view__body {builder_page_settings.container_class|default:''}">
             {post_html | raw}
         </div>
         {else}

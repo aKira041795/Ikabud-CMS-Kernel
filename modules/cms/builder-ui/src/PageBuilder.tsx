@@ -1062,15 +1062,34 @@ export default function PageBuilder() {
         builder.redo();
       }
 
+      // Copy Style: Ctrl/Cmd + Alt + C
+      // Handled BEFORE the node-clipboard bindings, and those below now ignore
+      // the Alt chord — otherwise Ctrl+Alt+C would copy the node as well.
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key === 'c' && builder.selectedNode) {
+        if (isInputFocused) return;
+        e.preventDefault();
+        builder.copyStyle(builder.selectedNode.id);
+        return;
+      }
+
+      // Paste Style: Ctrl/Cmd + Alt + V — applies to the whole selection, and is
+      // a single action, so one paste is one undo step.
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key === 'v' && builder.hasStyleClipboard && builder.selectedIds.length > 0) {
+        if (isInputFocused) return;
+        e.preventDefault();
+        builder.pasteStyle(builder.selectedIds);
+        return;
+      }
+
       // Copy: Ctrl/Cmd + C
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && builder.selectedIds.length > 0) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === 'c' && builder.selectedIds.length > 0) {
         if (isInputFocused) return;
         e.preventDefault();
         builder.copyNodes(builder.selectedIds);
       }
 
       // Paste: Ctrl/Cmd + V
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && builder.clipboard) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === 'v' && builder.clipboard) {
         if (isInputFocused) return;
         e.preventDefault();
         const parentId = builder.selectedNode?.id || builder.document.id;
@@ -1662,6 +1681,12 @@ export default function PageBuilder() {
                     }}
                     onDuplicate={() => builder.duplicateNode(contextMenu.nodeId)}
                     onDelete={() => builder.deleteNode(contextMenu.nodeId)}
+                    onCopyStyle={() => builder.copyStyle(contextMenu.nodeId)}
+                    onPasteStyle={() => {
+                      const targets = builder.selectedIds.length > 0 ? builder.selectedIds : [contextMenu.nodeId];
+                      builder.pasteStyle(targets);
+                    }}
+                    canPasteStyle={builder.hasStyleClipboard}
                     onMoveUp={() => handleMoveNode('up')}
                     onMoveDown={() => handleMoveNode('down')}
                     onSaveAsBlock={() => {

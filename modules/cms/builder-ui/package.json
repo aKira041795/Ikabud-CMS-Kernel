@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:core": "tsc -p scripts/tsconfig.core.json && node scripts/verify-builder-core.cjs"
   },
   "dependencies": {
     "@tinymce/tinymce-react": "^6.3.0",

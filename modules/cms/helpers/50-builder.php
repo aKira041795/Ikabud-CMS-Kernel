@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+// cmsBuilderRenderNode() calls cmsBuilderGetAnimationAttrs() on EVERY node, and
+// that helper lives in the module's animation-definitions.php. Load it here so
+// the renderer is self-sufficient: a caller that loads only this file plus
+// builder-renderers.php — a CLI job, a test — would otherwise fatal on the FIRST
+// rendered node. require_once keeps this idempotent against helpers/00-bootstrap.php,
+// which loads the same file.
+require_once dirname(__DIR__) . '/animation-definitions.php';
+
 function cmsBuilderDefaultDocument(array $overrides = []): array
 {
     // DB storage envelope: {schema_version, document: {React node tree}}
@@ -395,6 +403,23 @@ function cmsBuilderLoadNestingConstraints(): array
                 ? array_values(array_filter(array_map('strval', $definition['allowed_parents'])))
                 : null;
 
+            // Theme block definitions name the page root `page`; the builder's root
+            // node type is `document`. Translate the alias HERE, because this is the
+            // layer that maps theme vocabulary onto builder vocabulary — and because
+            // a governed rule takes precedence over the component definition, so an
+            // untranslated alias silently makes TOP-LEVEL composition impossible:
+            // "Cannot insert template element section in that governed location."
+            // 24 of ARK's 57 block definitions carry the alias, so this is the
+            // systemic fix rather than a patch to each theme file.
+            $translateRootAlias = static function (array $types): array {
+                return array_values(array_map(
+                    static fn(string $t): string => $t === 'page' ? 'document' : $t,
+                    $types
+                ));
+            };
+            $allowedChildren = $allowedChildren !== null ? $translateRootAlias($allowedChildren) : null;
+            $allowedParents = $allowedParents !== null ? $translateRootAlias($allowedParents) : null;
+
             if ($allowedChildren !== null || $allowedParents !== null) {
                 $constraints[$blockType] = [];
                 if ($allowedChildren !== null) {
@@ -426,10 +451,9 @@ function cmsBuilderConstraintThemeDir(): ?string
     }
 
     if (defined('CMS_THEME_SYMLINK')) {
-        $symlinkTarget = realpath((string)CMS_THEME_SYMLINK);
-        if (is_string($symlinkTarget) && $symlinkTarget !== '') {
-            $candidates[] = $symlinkTarget;
-        }
+        // Deliberately NOT a candidate: the symlink is one global path, so a stale or
+        // other-tenant target would hand a theme another theme's block definitions.
+        // The active theme is authoritative; storage/cms-themes/ark is the last resort.
     }
 
     $fallbackArk = rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : BASE_PATH . '/storage'), '/') . '/cms-themes/ark';
@@ -968,6 +992,27 @@ function cmsBuilderNodeContent(array $props): string
 {
     $content = $props['content'] ?? $props['html'] ?? $props['text'] ?? '';
     return is_string($content) ? $content : '';
+}
+
+/**
+ * Content for an element that may only hold INLINE content — <h1>–<h6>, <a>.
+ *
+ * The inline editor saves block-wrapped content: TinyMCE emits `<p>…</p>`. Dropped
+ * into a heading that produces `<h2><p>…</p></h2>`, which is INVALID HTML — the
+ * parser hoists the paragraph out, leaving an EMPTY heading and the text as a
+ * stray paragraph beside it. The heading is then visually wrong and semantically
+ * absent (no heading for assistive tech or search engines). Block wrappers are
+ * therefore flattened here; inline markup (<strong>, <em>, <a>) is preserved.
+ */
+function cmsBuilderInlineContent(array $props): string
+{
+    $content = trim(cmsBuilderNodeContent($props));
+    if ($content === '') {
+        return '';
+    }
+    // Separate paragraphs rather than running them together, then collapse.
+    $content = (string) preg_replace('!\s*</?(?:p|div)\b[^>]*>\s*!i', ' ', $content);
+    return trim((string) preg_replace('/\s+/', ' ', $content));
 }
 
 function cmsBuilderEsc(mixed $value): string
@@ -1697,9 +1742,15 @@ function cmsBuilderRenderDocument(array $document, array $context = []): string
     }
     // Generate responsive CSS for tablet/mobile overrides stored per-node
     $responsiveCss = cmsBuilderRenderResponsiveCss($normalized['document'] ?? [], $scopeClass);
+    // The root carries the same marker as every other node. The editor stamps
+    // data-node-id on the document root too, so without this the root is the one
+    // node that exists in the canvas but has no join key in the published HTML.
+    $rootNodeId = (string)($normalized['document']['id'] ?? '');
     return cmsBuilderRenderGlobalStyleTag($globalStyles, $scopeClass)
         . $responsiveCss
-        . '<div class="cms-builder-document ' . cmsBuilderEsc($scopeClass) . '">'
+        . '<div class="cms-builder-document ' . cmsBuilderEsc($scopeClass) . '"'
+        . ($rootNodeId !== '' ? ' data-node-id="' . cmsBuilderEsc($rootNodeId) . '"' : '')
+        . '>'
         . $html
         . '</div>';
 }

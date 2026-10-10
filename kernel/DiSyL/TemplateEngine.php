@@ -5367,11 +5367,18 @@ class TemplateEngine
             return $componentPath;
         }
 
-        if (str_starts_with($template, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
-            $resolvedPath = cmsResolveThemeTemplateAliasPath($template);
+        if (str_starts_with($template, '_cms_active_theme/')) {
+            // Terminal whether or not the CMS resolver is loaded: falling through would
+            // resolve the alias as a relative path under templates/_cms_active_theme -
+            // the global symlink - and could serve another theme's file.
+            $resolvedPath = function_exists('cmsResolveThemeTemplateAliasPath')
+                ? cmsResolveThemeTemplateAliasPath($template)
+                : '';
             if ($resolvedPath !== '') {
                 return $resolvedPath;
             }
+            $this->logError("Theme template alias did not resolve: {$template}");
+            return '';
         }
 
         if (str_starts_with($template, '/')) {

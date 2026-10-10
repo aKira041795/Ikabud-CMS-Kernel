@@ -13,6 +13,8 @@ import {
   Layers,
   Bookmark,
   WrapText,
+  Paintbrush,
+  PaintBucket,
 } from 'lucide-react';
 
 interface ContextMenuProps {
@@ -23,6 +25,8 @@ interface ContextMenuProps {
   onClose: () => void;
   onCopy: () => void;
   onPaste: () => void;
+  onCopyStyle: () => void;
+  onPasteStyle: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onMoveUp: () => void;
@@ -31,6 +35,7 @@ interface ContextMenuProps {
   onWrapInContainer?: () => void;
   canPaste: boolean;
   canPasteReason?: string | null;
+  canPasteStyle: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
 }
@@ -84,6 +89,8 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
   onClose,
   onCopy,
   onPaste,
+  onCopyStyle,
+  onPasteStyle,
   onDuplicate,
   onDelete,
   onMoveUp,
@@ -92,6 +99,7 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
   onWrapInContainer,
   canPaste,
   canPasteReason,
+  canPasteStyle,
   canMoveUp,
   canMoveDown,
 }) => {
@@ -167,6 +175,19 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
         label="Duplicate"
         shortcut="Ctrl+D"
         onClick={() => { onDuplicate(); onClose(); }}
+      />
+      <MenuItem
+        icon={<Paintbrush className="w-3.5 h-3.5" />}
+        label="Copy Style"
+        shortcut="Ctrl+Alt+C"
+        onClick={() => { onCopyStyle(); onClose(); }}
+      />
+      <MenuItem
+        icon={<PaintBucket className="w-3.5 h-3.5" />}
+        label="Paste Style"
+        shortcut="Ctrl+Alt+V"
+        onClick={() => { onPasteStyle(); onClose(); }}
+        disabled={!canPasteStyle}
       />
 
       <MenuDivider />

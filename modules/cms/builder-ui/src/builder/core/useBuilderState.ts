@@ -31,6 +31,7 @@ const initialState: BuilderState = {
   zoom: 100,
   viewport: 'desktop',
   clipboard: null,
+  styleClipboard: null,
 };
 
 // =============================================================================
@@ -169,7 +170,9 @@ function findValidParent(root: DiSyLNode, startId: string, childType: string): s
 // Reducer
 // =============================================================================
 
-function builderReducer(state: BuilderState, action: BuilderAction): BuilderState {
+// Exported so the document mutations can be exercised directly, without a React
+// renderer: the reducer is pure and is where the builder's correctness lives.
+export function builderReducer(state: BuilderState, action: BuilderAction): BuilderState {
   switch (action.type) {
     case 'SELECT_NODE': {
       if (action.addToSelection) {
@@ -365,6 +368,47 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
       };
     }
 
+    case 'COPY_STYLE': {
+      // Capture the source node's style, responsive overrides included. Style
+      // only — props, content and identity deliberately stay behind.
+      const styleSource = findNode(state.document, action.nodeId);
+      if (!styleSource) return state;
+      return {
+        ...state,
+        styleClipboard: JSON.parse(JSON.stringify(styleSource.style)) as NodeStyle,
+      };
+    }
+
+    case 'PASTE_STYLE': {
+      const styleSource = state.styleClipboard;
+      if (!styleSource || action.nodeIds.length === 0) return state;
+
+      // Merge over each target, matching UPDATE_STYLE's semantics: copied keys
+      // win, keys the source did not carry survive. NodeStyle is ONE flat,
+      // uniform schema rather than a per-widget shape, so this needs no
+      // cross-widget translator and no renderer change — cmsRenderWidget_*
+      // already maps style keys to --b-* custom properties generically.
+      // Every target is applied in a single action, so one paste is one undo
+      // step: history records document identity, not individual mutations.
+      let pasteDoc = state.document;
+      let appliedCount = 0;
+      action.nodeIds.forEach((targetId) => {
+        if (!findNode(pasteDoc, targetId)) return;
+        pasteDoc = updateNodeInTree(pasteDoc, targetId, node => ({
+          ...node,
+          style: { ...node.style, ...styleSource },
+        }));
+        appliedCount++;
+      });
+      if (appliedCount === 0) return state;
+
+      return {
+        ...state,
+        document: pasteDoc,
+        isDirty: true,
+      };
+    }
+
     case 'SET_DOCUMENT':
       return {
         ...state,
@@ -483,6 +527,16 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
     dispatch({ type: 'PASTE_NODES', parentId, index });
   }, []);
 
+  // Style clipboard — Copy Style / Paste Style. Style only, so it is a separate
+  // channel from the node clipboard and can be pasted across widget types.
+  const copyStyle = useCallback((nodeId: string) => {
+    dispatch({ type: 'COPY_STYLE', nodeId });
+  }, []);
+
+  const pasteStyle = useCallback((nodeIds: string[]) => {
+    dispatch({ type: 'PASTE_STYLE', nodeIds });
+  }, []);
+
   // Document actions
   const setDocument = useCallback((document: DiSyLNode) => {
     dispatch({ type: 'SET_DOCUMENT', document });
@@ -581,6 +635,8 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
     zoom: state.zoom,
     sidebarTab: state.sidebarTab,
     clipboard: state.clipboard,
+    styleClipboard: state.styleClipboard,
+    hasStyleClipboard: state.styleClipboard !== null,
 
     // Undo/Redo
     canUndo,
@@ -603,6 +659,8 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
     duplicateNode,
     copyNodes,
     pasteNodes,
+    copyStyle,
+    pasteStyle,
     setDocument,
     markClean,
     setViewport,

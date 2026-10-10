@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "target": "es2020",
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "jsx": "react",
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "strict": false,
+        "noEmitOnError": false,
+        "baseUrl": "../src",
+        "paths": {
+            "@/*": [
+                "*"
+            ]
+        },
+        "outDir": "../.corecheck"
+    },
+    "files": [
+        "../src/builder/core/useBuilderState.ts"
+    ]
+}

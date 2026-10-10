@@ -144,6 +144,28 @@
     width: 100%;
 }
 
+/* ─── Section gutter (builder-owned) ─────────────────────────────────────
+   Stable contract §12: builder nodes belong to the builder, so a theme must
+   not reach in and set a width on them. A theme declares its gutter as
+   --ikb-content-max-width on one of its OWN elements (ARK does so on
+   .ark-main) and the builder applies it here. Undeclared resolves to `none`,
+   which leaves themes that want no gutter exactly as they were. */
+.cms-builder-document>.cms-builder-node--section {
+    max-width: var(--ikb-content-max-width, none);
+    margin-inline: auto;
+}
+
+/* A section that carries a full-bleed node keeps no gutter, so the author's
+   edge-to-edge intent is not clipped back to a content column. Both forms are
+   required: a section can be full-bleed ITSELF (fullWidth on the section, which
+   cmsRenderWidget_layout applies to the section element), or it can merely
+   CONTAIN a full-bleed node. Matching only the :has() descendant form capped an
+   author's full-bleed band at the theme gutter. */
+.cms-builder-document>.cms-builder-node--section:has([style*="--ikb-fullbleed-width"]),
+.cms-builder-document>.cms-builder-node--section[style*="--ikb-fullbleed-width"] {
+    max-width: none;
+}
+
 /* Only apply width:100% to containers that are direct section children (page-width wrappers).
    Containers nested inside flex/grid parents must auto-size to participate correctly in layout. */
 .cms-builder-node--section>.cms-builder-node--container {
@@ -790,6 +812,7 @@
  * here (grid collapse, visibility toggles, min-height/padding polish).
  */
 @media (max-width: 640px) {
+
     /* Grid layouts collapse to single column (not computed per-node) */
     .cms-builder-node--container[style*="grid-template-columns"] {
         grid-template-columns: 1fr !important;
@@ -885,12 +908,14 @@
 
 /* Text/heading widgets: prevent overflow on mobile */
 @media (max-width: 640px) {
+
     .cms-builder-node--text,
     .cms-builder-node--heading {
         word-break: break-word !important;
         overflow-wrap: break-word !important;
     }
 }
+
 /* ── Relocated builder responsive component rules ─────────── */
 /* ─── Responsive Visibility ──────────────────────────────────────────── */
 .cms-builder-visible--desktop-only {

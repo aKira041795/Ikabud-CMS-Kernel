@@ -235,7 +235,9 @@ function cmsRenderWidget_layout(array $props, array $style, array $attrs, string
 function cmsRenderWidget_heading(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $tag = cmsBuilderNormalizeHeadingTag($props['level'] ?? 'h2');
-    return '<' . $tag . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsBuilderNodeContent($props) . '</' . $tag . '>';
+    // Inline content only: a heading cannot legally contain a block element, and
+    // editor-saved `<p>` wrappers would be hoisted out, emptying the heading.
+    return '<' . $tag . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsBuilderInlineContent($props) . '</' . $tag . '>';
 }
 
 function cmsRenderWidget_text(array $props, array $style, array $attrs, string $children, array $node, array $context): string
@@ -312,7 +314,8 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
 function cmsRenderWidget_button(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $href = (string)($props['href'] ?? $props['url'] ?? $props['buttonUrl'] ?? '#');
-    $label = cmsBuilderNodeContent($props);
+    // Inline content only: an <a> label cannot legally contain a block element.
+    $label = cmsBuilderInlineContent($props);
     if ($label === '') {
         $label = (string)($props['buttonText'] ?? $props['text'] ?? 'Click here');
     }
@@ -2894,8 +2897,20 @@ function cmsRenderWidget_ai_block(array $props, array $style, array $attrs, stri
         // Empty placeholder — visible only inside the editor preview.
         $isEditor = !empty($context['is_editor_preview']);
         if ($isEditor) {
-            return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style)
-                . ' data-ai-block-empty="1" style="padding:16px;border:1px dashed #cbd5e1;color:#64748b;font-size:13px;text-align:center;border-radius:8px;">'
+            // Exactly ONE style attribute. Merging into the authored style (authored
+            // wins) matches the canvas, which spreads the placeholder first. Emitting
+            // a second, literal `style` attribute would be invalid HTML, and a browser
+            // keeps the first — silently discarding the dashed-placeholder styling.
+            $placeholderStyle = array_merge([
+                'padding'      => '16px',
+                'border'       => '1px dashed #cbd5e1',
+                'color'        => '#64748b',
+                'fontSize'     => '13px',
+                'textAlign'    => 'center',
+                'borderRadius' => '8px',
+            ], $style);
+            return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($placeholderStyle)
+                . ' data-ai-block-empty="1">'
                 . 'AI Text Block — no content yet. Open Properties → AI to generate.'
                 . '</div>';
         }

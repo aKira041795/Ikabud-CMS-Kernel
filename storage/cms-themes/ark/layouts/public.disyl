@@ -124,6 +124,12 @@
     {ikb_slot name="site.after" /}
     {ikb_slot name="notifications" /}
 
+    {* The builder runtime drives the animation attributes builder nodes emit. It is not
+       optional: without it a composed page renders statically. Loaded only for the
+       composition presentation, matching every other shipped theme. The theme's own
+       script.js is optional_assets and stays on demand. *}
+    {if content_presentation == 'composition'}<script src="{base_url}/assets/cms/builder-public.js" defer></script>{/if}
+
     {if body_end_code}{body_end_code|raw}{/if}
     {block scripts}{/block}
 </body>

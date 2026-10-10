@@ -78,7 +78,7 @@
     {/if}
 
     {if theme_script_url}<script src="{theme_script_url}" defer></script>{/if}
-    {if builder_enabled}<script src="{base_url}/assets/cms/builder-public.js" defer></script>{/if}
+    {if content_presentation == 'composition'}<script src="{base_url}/assets/cms/builder-public.js" defer></script>{/if}
     {if body_end_code}{body_end_code|raw}{/if}
 </body>
 </html>

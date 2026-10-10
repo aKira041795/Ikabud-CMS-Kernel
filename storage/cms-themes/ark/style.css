@@ -260,23 +260,27 @@ button:disabled {
     max-width: none;
 }
 
-.cms-builder-document>.cms-builder-node--section {
-    max-width: var(--ark-max-width, 1280px);
-    margin-inline: auto;
-}
-
-.cms-builder-document>.cms-builder-node--section:has([style*="--ikb-fullbleed-width"]) {
-    max-width: none;
-}
+/* The section gutter itself is deliberately NOT set here. Stable contract §12
+ * owns builder nodes to the builder: a theme styles *around* builder output,
+ * never restyles it. ARK therefore only declares its gutter as a design token
+ * on its own shell element (--ikb-content-max-width, below), and
+ * cms-public.css applies it to builder sections. A section whose subtree
+ * carries a full-bleed node is left unguttered by the builder, so the author's
+ * width intent reaches the edge. */
 
 .ark-main {
     flex: 1;
     min-width: 0;
     max-width: 100%;
-    /* Defaults for the builder's full-bleed custom properties. ARK resolves them
-     * on its own shell element; other themes inherit the legacy viewport escape.
-     * ARK needs no viewport escape because the shell cap is released above for
-     * builder documents, so 100% here means the full shell width. */
+    /* The builder's design-token contract. ARK resolves BOTH of these on its
+     * own element, so no selector in this file names a builder node class.
+     *
+     * --ikb-content-max-width: the gutter cms-public.css applies to builder
+     *   sections. Value is identical to the rule this replaces.
+     * --ikb-fullbleed-*: ARK needs no viewport escape because the shell cap is
+     *   released above for builder documents, so 100% means the full shell
+     *   width and the breakout lands exactly on the content box. */
+    --ikb-content-max-width: var(--ark-max-width, 1280px);
     --ikb-fullbleed-width: 100%;
     --ikb-fullbleed-margin-left: 0;
     overflow-x: clip;

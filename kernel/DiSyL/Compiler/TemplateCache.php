@@ -309,11 +309,17 @@ class TemplateCache
         if (str_starts_with($extendsTarget, '/')) {
             return $extendsTarget;
         }
-        if (str_starts_with($extendsTarget, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
-            $resolved = cmsResolveThemeTemplateAliasPath($extendsTarget);
+        if (str_starts_with($extendsTarget, '_cms_active_theme/')) {
+            // Terminal whether or not the resolver is loaded: never fall through to relative
+            // resolution, which would re-enter templates/_cms_active_theme via the global
+            // symlink and render another theme.
+            $resolved = function_exists('cmsResolveThemeTemplateAliasPath')
+                ? cmsResolveThemeTemplateAliasPath($extendsTarget)
+                : '';
             if ($resolved !== '') {
                 return $resolved;
             }
+            return null;
         }
         // Resolve relative to the child template's directory
         $dir = dirname($childPath);
@@ -340,8 +346,10 @@ class TemplateCache
             }
             return null;
         }
-        if (str_starts_with($includeTarget, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
-            $resolved = cmsResolveThemeTemplateAliasPath($includeTarget);
+        if (str_starts_with($includeTarget, '_cms_active_theme/')) {
+            $resolved = function_exists('cmsResolveThemeTemplateAliasPath')
+                ? cmsResolveThemeTemplateAliasPath($includeTarget)
+                : '';
             if ($resolved !== '' && file_exists($resolved)) {
                 return realpath($resolved) ?: $resolved;
             }

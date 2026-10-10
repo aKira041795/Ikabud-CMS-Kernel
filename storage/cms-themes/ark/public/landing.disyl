@@ -53,7 +53,7 @@
     {# Body content (builder sections below the fold) #}
     {if post_html or entity.body or body}
     <div class="ark-detail__body ark-content ark-landing__body">
-        {if builder_enabled}{post_html|raw}
+        {if content_presentation == 'composition'}{post_html|raw}
         {else if post_html}{post_html|raw}
         {else if entity.body}{entity.body|raw}
         {else if body}{body|raw}

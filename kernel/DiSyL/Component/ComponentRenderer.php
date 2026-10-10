@@ -2108,7 +2108,10 @@ final class ComponentRenderer
         }
 
         if (empty($rows)) {
-            $msg = (string)($attrs['empty'] ?: $resolved['view']['empty_state'] ?? 'No records found.');
+            // `empty` is an optional attribute. Read it defensively so an
+            // unsupplied attribute falls through to the view's empty state
+            // instead of emitting "Undefined array key" on every render.
+            $msg = (string)(($attrs['empty'] ?? '') ?: ($resolved['view']['empty_state'] ?? 'No records found.'));
             return '<div class="ikb-entity-list--empty text-center py-8 text-gray-500 ' . (string)($attrs['class'] ?? '') . '">' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</div>';
         }
 

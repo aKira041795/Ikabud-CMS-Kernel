@@ -1,0 +1,4 @@
+# Regenerated on every run by tools/builder-parity-render.php (and by the spec's
+# beforeAll), so it is a build artifact, not source. The baseline snapshot IS
+# tracked: it is the thing a layout change has to be reconciled against.
+builder-parity.html

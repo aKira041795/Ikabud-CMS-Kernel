@@ -737,7 +737,19 @@ function cmsResolveThemeTemplateAliasPath(string $template): string
         }
     }
 
-    return (string)CMS_THEME_SYMLINK . '/' . $relativePath;
+    // Theme-relative fallback: the CMS module default for the same relative path
+    // (for example public/blocks/x.block.disyl -> templates/modules/cms/...).
+    // Falling back to CMS_THEME_SYMLINK was wrong: that link is a single global
+    // path, so a theme missing a file could silently render ANOTHER theme's - or
+    // another tenant's - markup. An unresolvable alias now returns '' so the
+    // caller fails visibly instead of rendering the wrong theme.
+    $moduleDefault = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3))
+        . '/templates/modules/cms/' . $relativePath;
+    if (is_file($moduleDefault)) {
+        return $moduleDefault;
+    }
+
+    return '';
 }
 
 function cmsActiveThemeTemplateExists(string $template): bool
@@ -897,8 +909,13 @@ function cmsEnsureThemeSymlink(): void
  *
  * Usage: cmsResolveTemplate('public/single.disyl')
  * This checks:
- *   1. _cms_active_theme/{subPath} (symlink to active theme)
+ *   1. the active theme's own {subPath}, returned as the `_cms_active_theme/` alias,
+ *      which the kernel resolves through cmsResolveThemeTemplateAliasPath()
  *   2. modules/cms/{subPath} (default)
+ *
+ * The alias is a logical name, NOT the templates/_cms_active_theme symlink: that link is a
+ * single global path, so resolving through it could serve another theme's - or another
+ * tenant's - file. The symlink is no longer on the render path.
  *
  * Returns a path relative to templates/ that the kernel TemplateEngine can resolve.
  * Only public templates are themeable — admin templates always use defaults.

@@ -447,6 +447,11 @@ export interface BuilderState {
 
   // Clipboard
   clipboard: DiSyLNode[] | null;
+
+  // Style clipboard — Copy Style / Paste Style. Deliberately separate from the
+  // node clipboard above: it carries STYLE and nothing else, so a paste can never
+  // move a widget's content, props or identity onto another widget.
+  styleClipboard: NodeStyle | null;
 }
 
 // =============================================================================
@@ -467,6 +472,8 @@ export type BuilderAction =
   | { type: 'DUPLICATE_NODE'; nodeId: string }
   | { type: 'COPY_NODES'; nodeIds: string[] }
   | { type: 'PASTE_NODES'; parentId: string; index: number }
+  | { type: 'COPY_STYLE'; nodeId: string }
+  | { type: 'PASTE_STYLE'; nodeIds: string[] }
   | { type: 'SET_DOCUMENT'; document: DiSyLNode }
   | { type: 'SET_VIEWPORT'; viewport: 'desktop' | 'tablet' | 'mobile' }
   | { type: 'SET_ZOOM'; zoom: number }

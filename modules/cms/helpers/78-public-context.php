@@ -177,6 +177,22 @@ function cmsResetPublicContextRequestCache(): void
 
 function cmsPublicContext(array $extra = []): array
 {
+    // Normalise the semantic presentation BEFORE the per-request cache comparison below.
+    // The CMS owns the presentation decision; the theme owns how each presentation looks.
+    // Constrained to the known vocabulary so an unrecognised value falls back rather than
+    // reaching a theme, where it would never match and silently render the article
+    // presentation. Migration contract: builder_enabled implies composition.
+    //
+    // This must NOT move below the comparison: $cachedExtra is stored post-normalisation,
+    // so mutating $extra afterwards would make every call miss the fast path because the
+    // cached copy carries the derived key and the incoming one does not.
+    $requestedPresentation = isset($extra['content_presentation'])
+        ? strtolower(trim((string)$extra['content_presentation']))
+        : '';
+    $extra['content_presentation'] = in_array($requestedPresentation, ['composition', 'article'], true)
+        ? $requestedPresentation
+        : (!empty($extra['builder_enabled']) ? 'composition' : 'article');
+
     // Per-request cache: avoid rebuilding menus, customizer, and theme
     // context when multiple handlers call cmsPublicContext() in the same request.
     static $cached = null;
@@ -759,6 +775,7 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
             'entity_back_link_label' => 'Back',
             'post_html' => '',
             'builder_enabled' => false,
+            'content_presentation' => 'article',
             'builder_page_settings' => [],
             'cms_head' => '',
             'structured_data' => '',
@@ -792,6 +809,7 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
             'entity_taxonomies',
             'post_html',
             'builder_enabled',
+            'content_presentation',
             'builder_page_settings',
             'cart_enabled',
             'cart_action_url',

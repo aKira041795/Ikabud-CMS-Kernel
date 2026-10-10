@@ -2105,6 +2105,89 @@ function cmsPublicEntityList(array $params = []): void
 // INTERNAL HELPERS
 // ═══════════════════════════════════════════════════════════════════════
 
+/**
+ * Resolve a template reference to a REAL file, never through the global
+ * `_cms_active_theme` symlink. Returns '' when it cannot be resolved.
+ *
+ * The alias branch deliberately returns '' rather than falling back to
+ * templates/_cms_active_theme/<rel>: that path is the symlink, which is a single global
+ * resource pointing at whichever theme was activated last - possibly another tenant's.
+ * Letting it back in would restore the stale-fingerprint bug this exists to prevent.
+ */
+function cmsPublicResolveTemplateAbsolutePath(string $templatePath): string
+{
+    $templatePath = ltrim(trim($templatePath), '/');
+    if ($templatePath === '') {
+        return '';
+    }
+
+    if (str_starts_with($templatePath, '_cms_active_theme/')) {
+        if (!function_exists('cmsResolveThemeTemplateAliasPath')) {
+            return '';
+        }
+        $resolved = cmsResolveThemeTemplateAliasPath($templatePath);
+        return ($resolved !== '' && is_file($resolved)) ? $resolved : '';
+    }
+
+    $absolute = BASE_PATH . '/templates/' . $templatePath;
+    return is_file($absolute) ? $absolute : '';
+}
+
+/**
+ * Collect modification times for a template and every layout it extends.
+ *
+ * The page cache is keyed on the rendered template, but a page is rendered by its
+ * template AND the layout it extends. Fingerprinting only the template meant an edit to
+ * a layout - for example adding the builder runtime script to a theme - left the key
+ * unchanged and the cached page was served indefinitely.
+ *
+ * Depth matches TemplateCache's own {extends} scan (10) so the fingerprint cannot claim
+ * a shallower chain than the compiler actually walks. Cycles terminate on the cap.
+ * `{include}` partials are deliberately NOT walked: they are numerous and change far less
+ * often than layouts. Upgrade by tracking include mtimes here if a stale partial is seen.
+ * // lean-ctx: extends chain only, add includes when a stale partial appears
+ */
+function cmsPublicTemplateDependencyMtimes(string $templatePath, int $depth = 0): array
+{
+    if ($depth > 10 || trim($templatePath) === '') {
+        return [];
+    }
+
+    $absolute = cmsPublicResolveTemplateAbsolutePath($templatePath);
+    if ($absolute === '') {
+        return [];
+    }
+
+    $mtimes = [ltrim($templatePath, '/') => (int)@filemtime($absolute)];
+    $source = @file_get_contents($absolute);
+    if ($source === false) {
+        // Unreadable: key on what we could stat and stop, rather than pretending the
+        // chain has no further dependencies.
+        return $mtimes;
+    }
+
+    if (preg_match_all('/\{extends\s+["\']([^"\']+)["\']/', $source, $matches)) {
+        $childDir = dirname(ltrim($templatePath, '/'));
+        foreach (array_unique($matches[1]) as $parent) {
+            $parentRef = (string)$parent;
+            // A relative extends resolves against the CHILD's directory, matching
+            // TemplateCache::resolveExtendsPath(). Namespaced and alias forms are absolute.
+            if (!str_starts_with($parentRef, '_cms_active_theme/')
+                && !str_starts_with($parentRef, '/')
+                && !str_starts_with($parentRef, 'modules/')
+                && !preg_match('/^[a-z][a-z0-9_-]*:/', $parentRef)
+            ) {
+                $parentRef = ($childDir === '.' ? '' : $childDir . '/') . $parentRef;
+            }
+            foreach (cmsPublicTemplateDependencyMtimes($parentRef, $depth + 1) as $key => $mtime) {
+                $mtimes[$key] = $mtime;
+            }
+        }
+    }
+
+    return $mtimes;
+}
+
 function cmsPublicResolvedTemplateCacheKey(
     string $baseKey,
     string $defaultSubPath,
@@ -2113,18 +2196,28 @@ function cmsPublicResolvedTemplateCacheKey(
     array $context = []
 ): string {
     $templatePath = cmsResolveContentTemplate($defaultSubPath, $meta, $contentType, $context);
-    $templateAbsolutePath = BASE_PATH . '/templates/' . ltrim($templatePath, '/');
+    // Theme templates resolve through the `_cms_active_theme` alias. Reading the mtime
+    // through that alias follows the symlink to whatever theme it currently points at —
+    // not necessarily the active theme — so an edit to the ACTIVE theme's template left
+    // the fingerprint unchanged and the cached page was served indefinitely.
+    // cmsPublicResolveTemplateAbsolutePath() never returns the symlink path.
+    $templateAbsolutePath = cmsPublicResolveTemplateAbsolutePath($templatePath);
     $activeTheme = function_exists('cmsActiveTheme') ? (cmsActiveTheme() ?? 'native') : 'native';
     $fingerprint = md5((string)json_encode([
         'default_sub_path' => $defaultSubPath,
         'content_type' => $contentType,
         'template_slug' => trim((string)($meta['_template'] ?? '')),
         'resolved_template' => $templatePath,
-        'template_mtime' => is_file($templateAbsolutePath) ? (int)@filemtime($templateAbsolutePath) : 0,
+        'template_mtime' => $templateAbsolutePath !== '' ? (int)@filemtime($templateAbsolutePath) : 0,
+        'template_dependency_mtimes' => cmsPublicTemplateDependencyMtimes($templatePath),
         'active_theme' => $activeTheme,
         'public_render_origin' => (string)($context['public_render_origin'] ?? ''),
         'public_route_kind' => (string)($context['public_route_kind'] ?? ''),
         'public_presentation_mode' => (string)($context['public_presentation_mode'] ?? ''),
+        // The same content can be rendered under either presentation, so the presentation
+        // is part of the identity of the rendered HTML. Without it a caller override could
+        // reuse HTML cached under the other presentation.
+        'content_presentation' => (string)($context['content_presentation'] ?? ''),
     ]));
 
     return $baseKey . ':tpl:' . $fingerprint;

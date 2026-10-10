@@ -38,7 +38,9 @@
 
     {# Body — full-width, unconstrained #}
     <div class="ark-detail__body ark-content ark-detail__body--wide">
-        {if builder_enabled}
+        {* content_presentation is decided by the CMS. A comparison rather than a bare test:
+           in DiSyL a bare test on an absent variable is truthy. *}
+        {if content_presentation == 'composition'}
         <div class="{builder_page_settings.container_class|default:''}">
             {post_html|raw}
         </div>

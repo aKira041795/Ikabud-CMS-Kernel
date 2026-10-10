@@ -28,9 +28,38 @@ function uxAssert(string $label, bool $condition, string $detail = ''): void
 uxAssert('text-safe ARK primary uses primary-dark', str_contains($css, '--ark-primary: var(--color-primary-dark, #4f46e5)'));
 uxAssert('skip link uses the compliant dark primary', preg_match('/\.ark-skip\s*\{[^}]*background:\s*var\(--ark-primary-dark\)/s', $css) === 1);
 uxAssert('mobile toggle has an explicit focus indicator', preg_match('/\.ark-header__mobile-toggle:focus-visible\s*\{[^}]*(outline|box-shadow):/s', $css) === 1);
-// Section 12 (builder output outranks the theme): builder-namespace styling is
-// the builder's job and lives in cms-public.css, never in the ARK theme.
-uxAssert('ARK theme no longer targets a builder namespace', preg_match('/cms-builder|cms-kb|cms-lightbox/', $css) !== 1);
+// Section 12 (builder output outranks the theme): STYLING builder output is the
+// builder's job and lives in cms-public.css, never in the ARK theme. A theme is
+// still allowed to DETECT that a builder document is present from one of its own
+// elements — `.ark-content-area:has(.cms-builder-document)` releases ARK's own
+// content cap — so this asserts the styling ban, not a textual one. The full
+// ownership contract (token-driven gutter, overridable full-bleed, retained
+// overflow guard) is asserted in tests/builder_precedence_over_theme_test.php.
+$builderTargets = [];
+if (preg_match_all('/([^{}]+)\{/', (string) preg_replace('!/\*.*?\*/!s', '', $css), $preludes) > 0) {
+    foreach ($preludes[1] as $prelude) {
+        $prelude = trim($prelude);
+        if ($prelude === '' || $prelude[0] === '@') {
+            continue;
+        }
+        foreach (explode(',', $prelude) as $selector) {
+            $selector = trim($selector);
+            if ($selector === '' || preg_match('/cms-builder|cms-kb|cms-lightbox/', $selector) !== 1) {
+                continue;
+            }
+            // Detector form on a theme-owned subject: `.ark-…:has(.cms-builder-…)`.
+            if (str_starts_with($selector, '.ark-') && str_contains($selector, ':has(')) {
+                continue;
+            }
+            $builderTargets[] = $selector;
+        }
+    }
+}
+uxAssert(
+    'ARK theme does not style builder output',
+    $builderTargets === [],
+    implode(' | ', $builderTargets)
+);
 uxAssert('slider caption headings inherit their dark-surface colour (builder stylesheet)', preg_match('/\.cms-builder-node--slideshow \.cms-builder-slide h3\s*\{[^}]*color:\s*inherit/s', $cmsPublicCss) === 1);
 uxAssert('authored blue builder eyebrow gets a contrast-safe surface (builder stylesheet)', str_contains($cmsPublicCss, '.cms-builder-node--text[style*="--b-color:#3B82F6"]'));
 uxAssert('storefront muted text declares secondary token #475569', str_contains($css, '.ark-commerce-muted { color: var(--color-text-secondary, #475569); }'));

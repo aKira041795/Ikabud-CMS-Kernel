@@ -22,8 +22,8 @@
     </div>
     {/if}
 
-    {if builder_enabled}
-    <div class="{builder_page_settings.container_class}">
+    {if content_presentation == 'composition'}
+    <div class="{builder_page_settings.container_class|default:''}">
         {post_html | raw}
     </div>
     {else}

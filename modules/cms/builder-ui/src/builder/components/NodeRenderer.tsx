@@ -4452,6 +4452,59 @@ const HtmlEmbedRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties 
   );
 });
 
+/**
+ * AI text block. Mirrors cmsRenderWidget_ai_block() in
+ * modules/cms/builder-renderers.php: content is frozen at author time and
+ * rendered as a plain string, so the canvas and the public page agree without
+ * any provider call. Paragraph breaks are the LLM's `\n\n` separators.
+ */
+const AIBlockRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const content = typeof node.props.content === 'string' ? node.props.content : '';
+
+  // PHP treats only the EXACT empty string as empty (cmsRenderWidget_ai_block), so
+  // `'   '` falls through to its paragraph path and publishes `<p>   </p>`. Match
+  // that exactly, so what the canvas shows stays what gets published.
+  if (content === '') {
+    return (
+      <div
+        data-ai-block-empty="1"
+        style={{
+          padding: '16px',
+          border: '1px dashed #cbd5e1',
+          color: '#64748b',
+          fontSize: '13px',
+          textAlign: 'center',
+          borderRadius: '8px',
+          ...style,
+        }}
+      >
+        AI Text Block — no content yet. Open Properties → AI to generate.
+      </div>
+    );
+  }
+
+  const paragraphs = content.trim().split(/\n{2,}/).map((p) => p.trim()).filter((p) => p !== '');
+  // PHP falls back to nl2br($content) on the UNTRIMMED content when every
+  // paragraph is empty, so the fallback keeps `content` as-is too.
+  const blocks = paragraphs.length > 0 ? paragraphs : [content];
+
+  return (
+    <div data-ai-block="1" style={{ ...style }}>
+      {blocks.map((paragraph, index) => (
+        <p key={index}>
+          {/* nl2br() also treats a lone \r as a break; the canvas matches. */}
+          {paragraph.split(/\r\n|\r|\n/).map((line, lineIndex) => (
+            <React.Fragment key={lineIndex}>
+              {lineIndex > 0 && <br />}
+              {line}
+            </React.Fragment>
+          ))}
+        </p>
+      ))}
+    </div>
+  );
+});
+
 // =============================================================================
 // Main Node Renderer
 // =============================================================================
@@ -5051,6 +5104,8 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         return <AudioRenderer node={node} style={style} />;
       case 'html_embed':
         return <HtmlEmbedRenderer node={node} style={style} />;
+      case 'ai_block':
+        return <AIBlockRenderer node={node} style={style} />;
       default:
         return <div style={style}>{renderChildren()}</div>;
     }

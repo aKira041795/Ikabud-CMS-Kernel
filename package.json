@@ -5,6 +5,8 @@
         "build:tailwind:app": "php scripts/build-tailwind-app.php",
         "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch",
         "test": "npx playwright test",
+        "test:parity": "npx playwright test tests/browser/builder-render-parity.spec.js",
+        "test:parity:live": "npx playwright test tests/browser/builder-live-parity.spec.js",
         "test:pwa": "node tests/browser/modules/daily-ledger/pwa/run-pwa-tests.js",
         "test:ark": "./scripts/ark-test",
         "test:ark:coverage": "./scripts/ark-test --mode coverage",

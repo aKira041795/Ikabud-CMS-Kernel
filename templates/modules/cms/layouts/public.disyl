@@ -8,6 +8,13 @@
     <link rel="stylesheet" href="/assets/tailwind/app.css">
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
     <script defer src="{base_url}/assets/js/ikb-components.js"></script>
+    {# CMS structural base — builder node geometry, prose typography, lightbox,
+       UI primitives and the section gutter. This is a CMS-owned contract
+       (cms_public_css_url); any layout that renders builder content must load
+       it. Linked before the theme stylesheet to match the ARK theme layout.
+       This layout previously omitted it entirely, so builder output served
+       through the fallback had no builder CSS at all. #}
+    <link rel="stylesheet" href="{cms_public_css_url|default:'/assets/cms/cms-public.css'}">
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
