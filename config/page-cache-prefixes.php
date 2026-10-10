@@ -36,7 +36,18 @@ return [
     // page is per-user operational data (ledger sheets, cashier views, area-scoped admin), so it
     // must never be cached. Prefixed on '/daily-ledger/' to cover the whole module, including any
     // route added later.
+    // Module pages that carry a per-session token or per-user operational data must never be cached.
+    // These five modules each declare their own auth_cookie, so they have authenticated per-user
+    // pages, but their route prefixes were never registered here (the same gap that made
+    // /daily-ledger/ cacheable and left a deployed fix invisible). Audit rule: any enabled module
+    // whose routes.php declares its own top-level path AND whose manifest declares auth_cookie
+    // belongs in this list. `.ai/dl-audit.php` check 1 re-runs that comparison.
     '/daily-ledger/',
+    '/wms/',
+    '/bakeshop/',
+    '/guidance/',
+    '/project-audit-ledger/',
+    '/inventory-scanner/',
     '/assets/',
     // HARPP pages embed a session-bound CSRF token in a <meta name="csrf-token">
     // tag (modules/harpp templates layout.disyl). Caching them would serve a stale

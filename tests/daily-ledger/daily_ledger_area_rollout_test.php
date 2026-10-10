@@ -98,7 +98,68 @@ $ignored = AdminAreaScope::resolve(['scope' => 'AREA:' . $areaId], $session, $ca
 $authAfter = dl_accessibleBranchIds($cashier);
 $h->test('cashier authorized branch set is unchanged while admin area scope is active', $authBefore !== [] && $authBefore === $authAfter && $ignored['type'] === 'ALL', json_encode([$authBefore, $authAfter, $ignored]));
 $allScope = AdminAreaScope::resolve(['scope' => 'ALL'], $session, $admin);
-$h->test('ALL requires and accepts an explicit reset', $allScope['value'] === 'ALL' && ($session['daily_ledger.admin_view_scope.1'] ?? '') === 'ALL');
+$allPersisted = AdminAreaScope::resolve([], $session, $admin);
+// The persisted slot is keyed per ACTOR **and per VIEW**. Asserting the bare actor key here (as this
+// oracle used to) is asserting the shape that made one selection global across every view, so its
+// presence is treated as the regression. No CLI REQUEST_URI means every resolve above lands in the
+// single `default` view slot. The actor id is derived, not hardcoded, so the assertion survives a
+// change to how the actor is identified.
+$scopeSlots = array_values(array_filter(array_keys($session), static fn ($k) => str_starts_with((string)$k, 'daily_ledger.admin_view_scope.')));
+$defaultSlots = array_values(array_filter($scopeSlots, static fn ($k) => str_ends_with((string)$k, '.default')));
+$actorOnlyKeys = array_values(array_filter(array_keys($session), static fn ($k) => preg_match('/^daily_ledger\.admin_view_scope\.\d+$/', (string)$k) === 1));
+$defaultKey = count($defaultSlots) === 1 ? (string)$defaultSlots[0] : '';
+$h->test(
+    'ALL requires and accepts an explicit reset',
+    $allScope['value'] === 'ALL'
+        && $allPersisted['value'] === 'ALL'
+        && count($scopeSlots) === 1
+        && count($defaultSlots) === 1
+        && $actorOnlyKeys === []
+        && ($session[$defaultKey] ?? '') === 'ALL',
+    json_encode(['explicit' => $allScope['value'], 'persisted' => $allPersisted['value'], 'slots' => $scopeSlots, 'actor_only_keys' => $actorOnlyKeys])
+);
+
+$h->section('Area scope belongs to the view, not the administrator');
+$viewAdmin = ['id' => 4242, 'role' => 'admin'];
+$viewSession = [];
+$restoreUri = $_SERVER['REQUEST_URI'] ?? null;
+$_SERVER['REQUEST_URI'] = '/daily-ledger/ledger/rows?scope=AREA:' . $areaId;
+$ledgerSet = AdminAreaScope::resolve(['scope' => 'AREA:' . $areaId], $viewSession, $viewAdmin);
+$_SERVER['REQUEST_URI'] = '/daily-ledger/admin/overview';
+$overviewInherited = AdminAreaScope::resolve([], $viewSession, $viewAdmin);
+$_SERVER['REQUEST_URI'] = '/daily-ledger/admin/commissary';
+$commissaryInherited = AdminAreaScope::resolve([], $viewSession, $viewAdmin);
+$_SERVER['REQUEST_URI'] = '/daily-ledger/ledger/rows';
+$ledgerRemembered = AdminAreaScope::resolve([], $viewSession, $viewAdmin);
+$_SERVER['REQUEST_URI'] = '/daily-ledger/admin/overview';
+$overviewReset = AdminAreaScope::resolve(['scope' => 'ALL'], $viewSession, $viewAdmin);
+$_SERVER['REQUEST_URI'] = '/daily-ledger/ledger/rows';
+$ledgerAfterOverviewReset = AdminAreaScope::resolve([], $viewSession, $viewAdmin);
+if ($restoreUri === null) {
+    unset($_SERVER['REQUEST_URI']);
+} else {
+    $_SERVER['REQUEST_URI'] = $restoreUri;
+}
+// The reported defect: an area picked on the Ledger narrowed Overview, Commissary and every other
+// view, and resetting it in one view either followed the admin everywhere or was cleared by
+// navigating away. Each half is asserted here so neither can regress alone.
+$h->test(
+    'a scope set on one view neither leaks into nor is cleared by another view',
+    $ledgerSet['value'] === 'AREA:' . $areaId
+        && $overviewInherited['type'] === 'ALL'
+        && $commissaryInherited['type'] === 'ALL'
+        && $ledgerRemembered['value'] === 'AREA:' . $areaId
+        && $overviewReset['value'] === 'ALL'
+        && $ledgerAfterOverviewReset['value'] === 'AREA:' . $areaId,
+    json_encode([
+        'ledger_set' => $ledgerSet['value'],
+        'overview_inherited' => $overviewInherited['value'],
+        'commissary_inherited' => $commissaryInherited['value'],
+        'ledger_remembered' => $ledgerRemembered['value'],
+        'overview_after_reset' => $overviewReset['value'],
+        'ledger_after_overview_reset' => $ledgerAfterOverviewReset['value'],
+    ])
+);
 
 $h->section('Area dropdown changes branch-scoped view rows');
 $areaFixtures = $db->query('SELECT id, name FROM dl_areas WHERE is_active = 1 ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_ASSOC) ?: [];
