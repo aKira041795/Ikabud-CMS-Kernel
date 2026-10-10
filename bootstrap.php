@@ -744,7 +744,18 @@ function write_log(string $message, string $level = 'error', array $context = []
         );
     }
 
-    @file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX);
+    if (@file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX) === false) {
+        // The @ is deliberate (write_log is hot), but a silently dropped write means ALL web-side
+        // logging disappears without a trace. Measured 2026-10-10: app.log was 664
+        // kajagogoo:kajagogoo while the web user is www-data, so every write_log() from a web
+        // request was discarded - route-conflict warnings and module errors included - and nothing
+        // anywhere said so. Surface it once per request through the SAPI log instead.
+        static $kernelWriteLogFailureReported = false;
+        if (!$kernelWriteLogFailureReported) {
+            $kernelWriteLogFailureReported = true;
+            error_log('write_log: could not append to ' . $logDir . '/app.log - check ownership and permissions');
+        }
+    }
 }
 
 
