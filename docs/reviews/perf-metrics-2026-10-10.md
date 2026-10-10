@@ -659,8 +659,25 @@ fails identically with the change stashed, so none is caused by this work:
 | `disyl_assoc_test`, `disyl_engine_test`, `disyl_v4_compiler_test`, `disyl_v4_test` | exit=1 with AND without the change |
 | `phase0_disyl_script_expression_leak_test` | `6 passed, 1 failed` both ways |
 
-The single `phase0` failure is *"ordinary apostrophe value preserved"* — the script-context escaping
-divergence, i.e. the correctness item flagged in 4f, not a perf one.
+The single `phase0` failure is *"ordinary apostrophe value preserved"*. **Investigated before ranking it,
+and it is not the bug it looks like — do not "fix" it on sight.**
+
+```php
+$engine->renderString("<script>var n='{name}';</script>", ['name' => "O'Brien"]);
+// expected: <script>var n='O'Brien';</script>      <- what the test asserts
+// actual:   <script>var n='O\u0027Brien';</script>  <- what the engine emits
+```
+
+`\u0027` **is** U+0027, so the emitted JavaScript evaluates to the string `O'Brien` — the correct value,
+and it cannot terminate the single-quoted literal early. **So this is not data corruption**, and the
+2026-09-16 note's `&amp;`/`&lt;`/`&quot;` HTML-entity claim does not describe current behaviour
+(someone has evidently moved it to JSON-style escaping). The test encodes the interpreted path's raw
+output; the compiled path escapes. That is a **test/implementation disagreement about escaping style**,
+which per this repo's own rule means "a red test is evidence of disagreement, not of a bug — establish
+which side is stale before choosing one". It needs a decision, not a patch.
+
+This replaces an earlier draft of this paragraph that called it user-visible corruption. Checking the
+actual output is what caught that — the same lesson as the rest of this document.
 
 ---
 
