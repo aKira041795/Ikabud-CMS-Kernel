@@ -3922,7 +3922,9 @@ function dl_commissaryLedgerSnapshot($db, int $branchId, int $productId, string 
  */
 function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actorId): array
 {
-    $headStmt = $db->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, consignee_id, delivery_date, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
+    // production_shift is REQUIRED by the ledger delta below: without it the dispatch lands in the
+    // legacy NULL bucket, which the AM/PM-keyed Daily Sheet cannot see.
+    $headStmt = $db->prepare('SELECT id, origin_type, origin_id, resolved_origin_id, destination_type, destination_id, consignee_id, delivery_date, production_shift, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
     $headStmt->execute([':id' => $deliveryId]);
     $head = $headStmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if (!$head || (string)$head['status'] !== 'posted') {
@@ -3957,7 +3959,13 @@ function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actor
         $exists->execute([':id' => (int)$item['id']]);
         if ($exists->fetchColumn() !== false) continue;
         $before = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
-        $state = dl_applyCommissaryProductLedgerDelta($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], 0, (int)$item['quantity'], $actorId);
+        // Apply the dispatch to the shift bucket the delivery belongs to. Omitting the shift wrote
+        // it to the legacy NULL bucket instead, where the AM/PM-keyed Daily Sheet cannot see it,
+        // while the same physical dispatch was also recorded in its shift bucket — a double count
+        // that drove commissary remainings negative (measured: 3,754 unexplained dispatched on
+        // 2026-10-09 for RIZAL-COMMIS1 alone). A NULL shift here now means only that the delivery
+        // itself carries no shift, i.e. genuine legacy data, which is untouched by this change.
+        $state = dl_applyCommissaryProductLedgerDelta($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], 0, (int)$item['quantity'], $actorId, 0, false, $head['production_shift'] ?? null);
         if (!empty($state['skipped'])) throw new RuntimeException('Resolved origin is not an active commissary.');
         $after = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
         $insert->execute([
@@ -3995,11 +4003,18 @@ function dl_reversePostedDeliveryCommissaryLedger($db, int $deliveryId, int $act
     $effects = $db->prepare('SELECT * FROM dl_delivery_ledger_effects WHERE delivery_id = :id ORDER BY id FOR UPDATE');
     $effects->execute([':id' => $deliveryId]);
     $rows = $effects->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // A reversal MUST hit the same shift bucket the dispatch was applied to. Reversing into the
+    // NULL bucket while the original sits in AM leaves the dispatch standing in its own bucket,
+    // so the correction appears to do nothing and the day never balances.
+    $shiftStmt = $db->prepare('SELECT production_shift FROM dl_deliveries WHERE id = :id LIMIT 1');
+    $shiftStmt->execute([':id' => $deliveryId]);
+    $rawDeliveryShift = $shiftStmt->fetchColumn();
+    $deliveryShift = ($rawDeliveryShift === false || $rawDeliveryShift === null) ? null : (string)$rawDeliveryShift;
     $reversed = 0;
     foreach ($rows as $effect) {
         if ((string)$effect['effect_status'] !== 'applied') continue;
         $before = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date']);
-        dl_applyCommissaryProductLedgerDelta($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date'], 0, -((int)$effect['quantity']), $actorId, 0, true);
+        dl_applyCommissaryProductLedgerDelta($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date'], 0, -((int)$effect['quantity']), $actorId, 0, true, $deliveryShift);
         $after = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date']);
         $db->prepare('UPDATE dl_delivery_ledger_effects SET effect_status = "reversed", reversed_by = :u, reversed_at = NOW(), reverse_before_dispatched_qty = :bd, reverse_after_dispatched_qty = :ad, reverse_before_remaining_qty = :br, reverse_after_remaining_qty = :ar WHERE id = :id AND effect_status = "applied"')
             ->execute([':u' => $actorId ?: null, ':bd' => $before['dispatched_qty'], ':ad' => $after['dispatched_qty'], ':br' => $before['remaining_qty'], ':ar' => $after['remaining_qty'], ':id' => (int)$effect['id']]);
@@ -5635,7 +5650,10 @@ function dl_processProductionMovement(array $user, string $movementType, array $
                 $drNumber,
                 $actorId,
                 $movementId,
-                $commissaryBranchId
+                $commissaryBranchId,
+                false,
+                // The movement above already carries this shift; the ledger debit must match it.
+                $productionShift
             );
         }
 
@@ -5697,7 +5715,8 @@ function dl_upsertCommissaryOutputDeliveryItem(
     int $actorId,
     int $movementId,
     ?int $commissaryBranchId = null,
-    bool $allowEmptyDr = false
+    bool $allowEmptyDr = false,
+    ?string $shift = null
 ): int {
     // S10: a Daily Sheet entry is a delivery with no paper DR. Only that explicit
     // caller may omit the DR; every formal production-output delivery still requires
@@ -5744,7 +5763,9 @@ function dl_upsertCommissaryOutputDeliveryItem(
 
         // Debit commissary dispatched_qty for the added quantity
         if ($commissaryBranchId !== null) {
-            dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $deliveryDate, 0, $quantity, $actorId);
+            // $shift keeps this in the delivery's own shift bucket. Without it the delta lands in
+            // the legacy NULL bucket and is invisible to the AM/PM-keyed Daily Sheet.
+            dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $deliveryDate, 0, $quantity, $actorId, 0, false, $shift);
         }
 
         dl_auditLog('update_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
@@ -5798,7 +5819,8 @@ function dl_upsertCommissaryOutputDeliveryItem(
 
     // Debit commissary dispatched_qty for the new delivery
     if ($commissaryBranchId !== null) {
-        dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $deliveryDate, 0, $quantity, $actorId);
+        // Same shift requirement as the update branch above, for the same reason.
+        dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $deliveryDate, 0, $quantity, $actorId, 0, false, $shift);
     }
 
     $itemStmt = $db->prepare(
@@ -8291,6 +8313,21 @@ function handleCashierLedger(array $params = []): void
         return;
     }
     $branchId   = $authResult['branch_id'];
+    // The default branch must follow the active AREA scope. Authorization alone resolved it, so
+    // selecting an area that does not contain the current branch left the header badge showing a
+    // branch the area picker no longer offered (observed: "Miputak" while the picker listed only
+    // that area's branches) - the scope narrowed the picker but not the default. Corrected here,
+    // before the branch name and every downstream query, so badge, day status and shift agree on
+    // one branch that is inside the area.
+    if (function_exists('dl_adminAreaScope')) {
+        $ledgerAreaScope = dl_adminAreaScope($user, $input);
+        if (($ledgerAreaScope['type'] ?? 'ALL') !== 'ALL' && !empty($ledgerAreaScope['branch_ids'])) {
+            $ledgerAreaIds = array_map('intval', $ledgerAreaScope['branch_ids']);
+            if (!in_array((int)$branchId, $ledgerAreaIds, true)) {
+                $branchId = (int)$ledgerAreaIds[0];
+            }
+        }
+    }
     $today      = dl_businessDate();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
     $shiftResolved = dl_resolveLedgerShift($user, $input);
@@ -8331,6 +8368,21 @@ function handleCashierLedger(array $params = []): void
             );
             $stmt->execute($accessible);
             $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
+    }
+
+    // The area scope must narrow the SELECTABLE branches, not just the ledger rows. Filtering only
+    // the rows left the picker still offering branches outside the chosen area, so selecting an area
+    // looked like it had no effect on the picker. Accessible branches remain the outer bound: the
+    // scope can only ever remove options, never add a branch the actor could not already see.
+    if (function_exists('dl_adminAreaScope')) {
+        $ledgerScope = dl_adminAreaScope($user, $ctx->input());
+        if (($ledgerScope['type'] ?? 'ALL') !== 'ALL') {
+            $inScope = array_fill_keys(array_map('intval', $ledgerScope['branch_ids'] ?? []), true);
+            $branches = array_values(array_filter(
+                $branches,
+                static fn(array $branch): bool => isset($inScope[(int)$branch['id']])
+            ));
         }
     }
 
@@ -8429,6 +8481,9 @@ function handleCashierLedger(array $params = []): void
         'dl_user_id'  => $actorId > 0 ? $actorId : '',
         'tenant_scope' => $tenantScope,
         'current_page'=> 'ledger',
+        // Opt this view into the shared area scope. helpers.php injects admin_view_scope only
+        // when the handler sets this flag, so without it the area filter renders as nothing.
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token'    => (string)kernelCookie(dlCookieName(), ''),
         'branch_id'   => $branchId,
@@ -9200,12 +9255,14 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     if ($isWastage) {
                         dl_applyCommissaryProductLedgerDelta(
                             $ctx->db(), $targetBranchId, $pid, $date,
-                            0, 0, $actorId, $qty  // wastage_qty += qty
+                            0, 0, $actorId, $qty, // wastage_qty += qty
+                            false, $shift
                         );
                     } elseif ($isSaleableReturn) {
                         dl_applyCommissaryProductLedgerDelta(
                             $ctx->db(), $targetBranchId, $pid, $date,
-                            $qty, 0, $actorId, 0  // produced_qty += qty
+                            $qty, 0, $actorId, 0, // produced_qty += qty
+                            false, $shift
                         );
                     }
                     // else: consumed at the branch -- no commissary ledger delta.
@@ -12092,7 +12149,7 @@ function handleAdminDashboard(array $params = []): void
     $input = $ctx->input();
 
     $today    = dl_businessDate();
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) {
         $accessibleBranchIds = [0]; // Ensure empty result
     }
@@ -12183,8 +12240,9 @@ function handleAdminDashboard(array $params = []): void
         $dayStatuses[(int)$s['branch_id']] = $s['status'];
     }
 
-    // Unreviewed variance count
-    $varStmt = $ctx->db()->query('SELECT COUNT(*) FROM dl_variance_flags WHERE resolution_status = "unreviewed"');
+    // Unreviewed variance count in the same branch set as the cards.
+    $varStmt = $ctx->db()->prepare('SELECT COUNT(*) FROM dl_variance_flags WHERE resolution_status = "unreviewed" AND branch_id IN (' . $branchPlaceholders . ')');
+    $varStmt->execute($accessibleBranchIds);
     $unreviewedVariances = (int)$varStmt->fetchColumn();
 
     // Recent encoder activity (last 20) — human-readable + branch-scoped for non-admins.
@@ -12206,15 +12264,13 @@ function handleAdminDashboard(array $params = []): void
                     ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0') . '
                     WHERE a.module = \'daily-ledger\'';
     $activityBind = [];
-    if ($role !== 'admin') {
-        $activityBranchPlaceholders = [];
-        foreach (array_values($accessibleBranchIds) as $index => $accessibleBranchId) {
-            $placeholder = ':dash_branch_' . $index;
-            $activityBranchPlaceholders[] = $placeholder;
-            $activityBind[$placeholder] = (int)$accessibleBranchId;
-        }
-        $activitySql .= ' AND (a.branch_id IS NULL OR a.branch_id IN (' . implode(',', $activityBranchPlaceholders) . '))';
+    $activityBranchPlaceholders = [];
+    foreach (array_values($accessibleBranchIds) as $index => $accessibleBranchId) {
+        $placeholder = ':dash_branch_' . $index;
+        $activityBranchPlaceholders[] = $placeholder;
+        $activityBind[$placeholder] = (int)$accessibleBranchId;
     }
+    $activitySql .= ' AND (a.branch_id IS NULL OR a.branch_id IN (' . implode(',', $activityBranchPlaceholders) . '))';
     $activitySql .= ' ORDER BY a.created_at DESC LIMIT 20';
     $activityStmt = $ctx->db()->prepare($activitySql);
     $activityStmt->execute($activityBind);
@@ -12323,6 +12379,11 @@ function handleAdminDashboard(array $params = []): void
     if (in_array($role, ['admin', 'supervisor', 'auditor'], true)) {
         try {
             $unsyncedDevices = dl_offlineUnsyncedDevices($user, 20);
+            $dashboardScopeSet = array_fill_keys($accessibleBranchIds, true);
+            $unsyncedDevices = array_values(array_filter(
+                $unsyncedDevices,
+                static fn(array $device): bool => isset($dashboardScopeSet[(int)($device['branch_id'] ?? 0)])
+            ));
         } catch (\Throwable $e) {
             // Column may be missing until migration 053 runs; degrade to empty.
             write_log('daily-ledger unsynced-devices query failed', 'warning', ['message' => $e->getMessage()]);
@@ -12338,6 +12399,7 @@ function handleAdminDashboard(array $params = []): void
         'user_name'             => $userName,
         'user_role'             => $role,
         'current_page'          => 'dashboard',
+        'admin_area_filter'    => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token'              => (string)kernelCookie(dlCookieName(), ''),
         'today'                 => $today,
@@ -12403,7 +12465,7 @@ function handleAdminOverview(array $params = []): void
     // counted; the checkbox lets the viewer include them.
     $pendingRowsMode = dl_overviewPendingRowsMode($input['pending_rows'] ?? null);
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) {
         $accessibleBranchIds = [0];
     }
@@ -12566,6 +12628,7 @@ function handleAdminOverview(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'overview',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'date_from' => $dateFrom,
@@ -12672,6 +12735,7 @@ function dl_handleAdminReport(string $type): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),
         'landing' => false,
+        'admin_area_filter' => true,
         'report_packs' => [],
         'archives' => [],
         'report_type' => $type,
@@ -12752,6 +12816,7 @@ function handleAdminForecast(array $params = []): void
         'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
         'user_role' => (string)($user['role'] ?? ''),
         'current_page' => 'forecast',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),
@@ -12826,7 +12891,7 @@ function handleAdminSales(array $params = []): void
         ['value' => 'variance', 'label' => 'Variance'],
     ];
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
     $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
@@ -12972,7 +13037,8 @@ function handleAdminSales(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    // Reuse the already-resolved view branch set; recalculating authorization here
+    // would widen the coverage query and branch picker back outside the area.
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
     $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
@@ -13085,6 +13151,7 @@ function handleAdminSales(array $params = []): void
         'user_name'    => $userName,
         'user_role'    => $role,
         'current_page' => 'sales',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
         'date_from'    => $dateFrom,
@@ -13160,15 +13227,17 @@ function handleAdminConsigneeDispatchReport(array $params = []): void
         $shiftFilter = '';
     }
 
+    $viewBranchIds = dl_adminViewBranchIds($user, $input);
     $report = dl_fetchConsigneeDispatchReport($ctx->db(), [
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
         'consignee_id' => $consigneeFilter,
         'product_id' => $productFilter,
         'shift' => $shiftFilter,
+        'accessible_branch_ids' => $viewBranchIds,
     ]);
 
-    $filterOptions = dl_consigneeDispatchFilterOptions($ctx->db());
+    $filterOptions = dl_consigneeDispatchFilterOptions($ctx->db(), $viewBranchIds);
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
 
@@ -13177,6 +13246,7 @@ function handleAdminConsigneeDispatchReport(array $params = []): void
         'user_name' => $userName,
         'user_role' => (string)($user['role'] ?? 'unknown'),
         'current_page' => 'consignee_dispatch',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'date_from' => $dateFrom,
@@ -13205,12 +13275,16 @@ function handleAdminConsigneeDispatchReport(array $params = []): void
  *
  * @return array{consignees: array<int, array<string, mixed>>, products: array<int, array<string, mixed>>}
  */
-function dl_consigneeDispatchFilterOptions($db): array
+function dl_consigneeDispatchFilterOptions($db, ?array $branchIds = null): array
 {
+    $scopeSql = $branchIds === null
+        ? 'SELECT id FROM dl_branches'
+        : ($branchIds === [] ? '0' : implode(',', array_map('intval', $branchIds)));
     $consignees = $db->query(
         'SELECT c.id, c.code, c.name, c.sort_order'
         . ' FROM dl_consignee_ledger l'
         . ' INNER JOIN dl_consignees c ON c.id = l.consignee_id'
+        . ' WHERE c.assigned_commissary_id IN (' . $scopeSql . ')'
         . ' GROUP BY c.id, c.code, c.name, c.sort_order'
         . ' ORDER BY ' . dl_entityOrderBySql('c.')
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -13219,6 +13293,8 @@ function dl_consigneeDispatchFilterOptions($db): array
         'SELECT p.id, p.name, p.sku'
         . ' FROM dl_consignee_ledger l'
         . ' INNER JOIN dl_products p ON p.id = l.product_id'
+        . ' INNER JOIN dl_consignees c ON c.id = l.consignee_id'
+        . ' WHERE c.assigned_commissary_id IN (' . $scopeSql . ')'
         . ' GROUP BY p.id, p.name, p.sku'
         . ' ORDER BY p.name ASC'
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -13853,7 +13929,7 @@ function handleAdminReconciliation(array $params = []): void
     $only = strtolower(trim((string)($input['only'] ?? '')));
     $onlyFilter = in_array($only, ['attention', 'checked', 'unchecked'], true) ? $only : '';
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
     $branchStmt = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
@@ -13958,6 +14034,7 @@ function handleAdminReconciliation(array $params = []): void
         'user_name'    => $userName,
         'user_role'    => $role,
         'current_page' => 'reconciliation',
+        'admin_area_filter' => true,
         'base_url'     => dlGetBaseUrl(),
         'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
         'date_from'    => $dateFrom,
@@ -14011,12 +14088,17 @@ function handleAdminVariances(array $params = []): void
         $supervisorBranchIds = array_map('intval', $sbStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
     $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($branchId && !in_array($branchId, $accessibleBranchIds, true)) {
+        // Valid authorization but outside the selected view scope: return an
+        // empty view rather than treating a presentation filter as permission.
+        $branchId = -1;
+    }
 
     // Self-healing: refresh variances for the viewed day on open days so the
     // page surfaces anomalies even when rows entered before the variance
@@ -14058,6 +14140,14 @@ function handleAdminVariances(array $params = []): void
     if ($branchId) {
         $whereScope .= ' AND vf.branch_id = :bid';
         $bind[':bid'] = $branchId;
+    } elseif ($role === 'admin') {
+        $scopePlaceholders = [];
+        foreach (array_values($accessibleBranchIds) as $index => $scopeBranchId) {
+            $key = ':area_branch_' . $index;
+            $scopePlaceholders[] = $key;
+            $bind[$key] = $scopeBranchId;
+        }
+        $whereScope .= ' AND vf.branch_id IN (' . implode(',', $scopePlaceholders) . ')';
     } elseif ($isSupervisor && !empty($supervisorBranchIds)) {
         // Auto-scope to supervisor branches when no explicit filter
         $placeholders = [];
@@ -14291,6 +14381,7 @@ function handleAdminVariances(array $params = []): void
         'user_name'     => $userName,
         'user_role'     => $role,
         'current_page'  => 'variances',
+        'admin_area_filter' => true,
         'base_url'      => dlGetBaseUrl(),
         'dl_token'      => (string)kernelCookie(dlCookieName(), ''),
         'date'          => $dateTo !== '' ? $dateTo : ($dateFrom !== '' ? $dateFrom : dl_businessDate()),
@@ -15183,12 +15274,13 @@ function handleAdminTrace(array $params = []): void
         'variance_id' => (int)($input['variance_id'] ?? 0),
     ];
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
-    if ($filters['branch_id'] > 0 && !in_array($filters['branch_id'], $accessibleBranchIds, true)) {
+    $authorizedBranchIds = dl_accessibleBranchIds($user);
+    if ($filters['branch_id'] > 0 && !in_array($filters['branch_id'], $authorizedBranchIds, true)) {
         http_response_code(403);
         echo 'Branch not authorized';
         return;
     }
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
 
     // Default the shown date range the same way the builder does, so the form
     // reflects exactly what is being viewed.
@@ -15227,6 +15319,7 @@ function handleAdminTrace(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'trace',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'dr' => $filters['dr'],
@@ -15469,7 +15562,7 @@ function handleAdminActivity(array $params = []): void
         ['value' => 'consignee', 'label' => 'Consignee Activities'],
     ];
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
     $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
@@ -15670,6 +15763,14 @@ function handleAdminActivity(array $params = []): void
     $where = "a.module = 'daily-ledger'
               AND DATE(a.created_at) BETWEEN :df AND :dt";
     $bind = [':df' => $dateFrom, ':dt' => $dateTo];
+
+    $scopeAuditPlaceholders = [];
+    foreach (array_values($accessibleBranchIds) as $index => $scopeBranchId) {
+        $key = ':activity_scope_' . $index;
+        $scopeAuditPlaceholders[] = $key;
+        $bind[$key] = (int)$scopeBranchId;
+    }
+    $where .= ' AND (a.branch_id IS NULL OR a.branch_id IN (' . implode(',', $scopeAuditPlaceholders) . '))';
 
     if ($branchId) {
         $where .= ' AND a.branch_id = :bid';
@@ -16535,6 +16636,7 @@ function handleAdminActivity(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'activity',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'activities' => $activities,
@@ -16726,12 +16828,14 @@ function handleAdminProducts(array $params = []): void
     $selectedConsigneeId = isset($input['consignee_id']) && $input['consignee_id'] !== '' ? (int)$input['consignee_id'] : 0;
     $today = dl_businessDate();
     $effectivePrice = dl_effectivePriceSql('p', ':product_price_at');
+    $viewBranchIds = dl_adminViewBranchIds($user, $input);
+    $viewBranchSql = $viewBranchIds === [] ? '0' : implode(',', array_map('intval', $viewBranchIds));
 
     $products = [];
     if ($tab !== 'assignment' && $tab !== 'consignee_assignment') {
         $sql = 'SELECT p.*, ' . $effectivePrice . ' AS current_price,
-                   (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS branch_count,
-                   (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1) AS assigned_branch_ids,
+                   (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1 AND bp.branch_id IN (' . $viewBranchSql . ')) AS branch_count,
+                   (SELECT GROUP_CONCAT(bp.branch_id ORDER BY bp.branch_id) FROM dl_branch_products bp WHERE bp.product_id = p.id AND bp.is_active = 1 AND bp.branch_id IN (' . $viewBranchSql . ')) AS assigned_branch_ids,
                    (SELECT GROUP_CONCAT(cp.consignee_id ORDER BY cp.consignee_id) FROM dl_consignee_products cp WHERE cp.product_id = p.id AND cp.is_active = 1) AS assigned_consignee_ids,
                    (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
                      WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
@@ -16749,9 +16853,9 @@ function handleAdminProducts(array $params = []): void
     }
 
     // Shared by the assignment selector and the product modal's branch pickers.
-    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $consignees = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $consignees = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 AND assigned_commissary_id IN (' . $viewBranchSql . ') ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // ── Assignment tabs: one destination's full checklist ───────────────
     $assignmentBranch = null;
@@ -16862,6 +16966,7 @@ function handleAdminProducts(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'products',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'products' => $products,
@@ -18014,6 +18119,7 @@ function handleAdminBranches(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'branches',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'branches' => $branches,
@@ -18312,6 +18418,9 @@ function handleAdminUsers(array $params = []): void
         $tab = 'active';
     }
 
+    $viewBranchIds = dl_adminViewBranchIds($user, $input);
+    $viewBranchSql = $viewBranchIds === [] ? '0' : implode(',', array_map('intval', $viewBranchIds));
+
     $statusSql = match ($tab) {
         'inactive' => ' AND u.deleted_at IS NULL AND u.is_active = 0',
         'deleted' => ' AND u.deleted_at IS NOT NULL',
@@ -18333,7 +18442,8 @@ function handleAdminUsers(array $params = []): void
                       FROM dl_user_branches ub
                       WHERE ub.user_id = u.id) AS branch_ids_csv
             FROM dl_users u
-            WHERE 1=1" . $statusSql;
+            WHERE (NOT EXISTS (SELECT 1 FROM dl_user_branches scope_any WHERE scope_any.user_id = u.id)
+                   OR EXISTS (SELECT 1 FROM dl_user_branches scope_match WHERE scope_match.user_id = u.id AND scope_match.branch_id IN ({$viewBranchSql})))" . $statusSql;
     $bind = [];
     if ($search !== '') {
         $emailSearch = $usersHaveEmail ? ' OR u.email LIKE :q2' : '';
@@ -18364,7 +18474,9 @@ function handleAdminUsers(array $params = []): void
             SUM(CASE WHEN deleted_at IS NULL AND is_active = 1 THEN 1 ELSE 0 END) AS active_count,
             SUM(CASE WHEN deleted_at IS NULL AND is_active = 0 THEN 1 ELSE 0 END) AS inactive_count,
             SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_count
-         FROM dl_users"
+         FROM dl_users u
+         WHERE NOT EXISTS (SELECT 1 FROM dl_user_branches scope_any WHERE scope_any.user_id = u.id)
+            OR EXISTS (SELECT 1 FROM dl_user_branches scope_match WHERE scope_match.user_id = u.id AND scope_match.branch_id IN ({$viewBranchSql}))"
     )->fetch(PDO::FETCH_ASSOC) ?: [];
     $counts = [
         'active_count' => (int)($countRow['active_count'] ?? 0),
@@ -18372,7 +18484,7 @@ function handleAdminUsers(array $params = []): void
         'deleted_count' => (int)($countRow['deleted_count'] ?? 0),
     ];
 
-    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -18381,6 +18493,7 @@ function handleAdminUsers(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'users',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'users' => $users,
@@ -19205,7 +19318,11 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
         $ledgerMap[(int)$r['raw_material_id']] = $r;
     }
 
-    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+    $accessibleBranchIds = dl_adminViewBranchIds($user);
+    $pickerBranchIds = $accessibleBranchIds === [] ? [0] : $accessibleBranchIds;
+    $branchPlaceholders = implode(',', array_fill(0, count($pickerBranchIds), '?'));
+    $branchesStmt = $db->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name ASC");
+    $branchesStmt->execute($pickerBranchIds);
     $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableBranchIds = array_map('intval', array_column($branches, 'id'));
 
@@ -19397,7 +19514,6 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
     // Load net production output movements for the date (scoped to accessible branches).
     // Used on the commissary page to auto-populate yield fields when a branch is selected.
     // "Net" = output movements that have not been reversed.
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
     $outputByBranch = [];
     if (count($accessibleBranchIds) > 0) {
         $bPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
@@ -19514,6 +19630,7 @@ function handleAdminUsage(): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),
         'current_page' => 'usage',
+        'admin_area_filter' => true,
         'user' => $user,
         'user_name' => $user['full_name'] ?? $user['username'] ?? 'User',
         'user_role' => $user['role'] ?? 'unknown',
@@ -19581,7 +19698,12 @@ function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?strin
  *        so the parameter is intentionally untyped (as the other dl_fetch helpers are).
  * @return array{beg_addtl:array<int,array{beg:int,addtl:int}>,cells:array<int,array<int,int>>,entries:array<int,array<int,bool>>,assignments:array<int,array<int,bool>>,consignees:array<int,array{code:string,name:string}>}
  */
-function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissaryId, ?string $shift): array
+// $areaId is the AREA scope's id (an area id, NOT a branch id). Consignees are
+// not branches, so the scope's branch_ids cannot express a filter for them; the
+// AREA scope's id already IS the area id and dl_consignees carries area_id,
+// which is exactly how the Branches view filters its consignee list. Optional so
+// existing callers and tests keep working unchanged.
+function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissaryId, ?string $shift, ?int $areaId = null): array
 {
     $shift = $shift === null ? null : dl_normalizeShift($shift);
 
@@ -19655,6 +19777,13 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
         $cellSql .= ' AND c.assigned_commissary_id = :cid';
         $cellBind[':cid'] = $commissaryId;
     }
+    // An area selection must reach consignees as well. Without this the sheet
+    // kept every consignee column under an AREA scope, so the scope selector
+    // looked broken on this view while it worked on the Branch columns.
+    if ($areaId !== null && $areaId > 0) {
+        $cellSql .= ' AND c.area_id = :area_id';
+        $cellBind[':area_id'] = $areaId;
+    }
     $cellSql .= ' GROUP BY l.product_id, l.consignee_id, l.ledger_date';
     $cellStmt = $db->prepare($cellSql);
     $cellStmt->execute($cellBind);
@@ -19679,6 +19808,13 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
     if ($commissaryId > 0) {
         $assignmentSql .= ' AND c.assigned_commissary_id = :cid';
         $assignmentBind[':cid'] = $commissaryId;
+    }
+    // Same area filter as the cell query above: the assignment set decides which
+    // consignee columns exist at all, so filtering only one of the two would
+    // still leave out-of-area consignee columns on the sheet.
+    if ($areaId !== null && $areaId > 0) {
+        $assignmentSql .= ' AND c.area_id = :area_id';
+        $assignmentBind[':area_id'] = $areaId;
     }
     $assignmentStmt = $db->prepare($assignmentSql);
     $assignmentStmt->execute($assignmentBind);
@@ -19735,7 +19871,7 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
  * MySQL 5.7-safe: a plain LEFT JOIN to a grouped derived table (no CTE, no
  * window function, no JSON_TABLE).
  *
- * @param array{date_from?:string,date_to?:string,consignee_id?:int,product_id?:int,shift?:string} $filters
+ * @param array{date_from?:string,date_to?:string,consignee_id?:int,product_id?:int,shift?:string,accessible_branch_ids?:array<int,int>} $filters
  * @return array{sales_mode:string,consignee_enabled:bool,rows:array<int,array<string,mixed>>,total_value:?float,row_count:int}
  */
 function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
@@ -19812,6 +19948,11 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
              WHERE l.addtl > 0
                AND l.ledger_date BETWEEN :date_from AND :date_to';
     $bind = [':date_from' => $dateFrom, ':date_to' => $dateTo];
+
+    if (array_key_exists('accessible_branch_ids', $filters)) {
+        $branchIds = array_values(array_unique(array_map('intval', (array)$filters['accessible_branch_ids'])));
+        $sql .= ' AND c.assigned_commissary_id IN (' . ($branchIds === [] ? '0' : implode(',', $branchIds)) . ')';
+    }
 
     $consigneeId = (int)($filters['consignee_id'] ?? 0);
     if ($consigneeId > 0) {
@@ -19951,13 +20092,19 @@ function handleAdminCommissary(): void
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
-    $commissaryScopeSql = ($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : " AND id IN ({$viewBranchSql})";
-    $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1{$commissaryScopeSql} ORDER BY name ASC");
+    // A commissary is a supply hub, NOT a geographic area. Narrowing this list by the AREA scope's
+    // branch ids emptied it whenever the selected area happened to contain no commissary: measured
+    // with scope=AREA:2 the query became `is_commissary=1 AND id IN (13,14,17)` -> 0 rows, because
+    // those three are branches and the two live commissaries sit in areas 1 and 3. The area scope
+    // narrows geographic branch lists (correct, and kept below); it must not narrow this selector.
+    // Authorization is enforced on the sheet queries, not by hiding options from the picker.
+    $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
     $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableCommissaryIds = array_map('intval', array_column($commissaries, 'id'));
-    // Default to All (0). Historical deliveries carry origin_id = NULL, so a
-    // default commissary filter blanked every branch cell; only an explicitly
-    // selected, available commissary narrows the sheet.
+    // Default to All (0) - the landing sheet must not hide a network. The rows that made a default
+    // commissary filter look catastrophic before were NOT absent: they carry origin_id = NULL and a
+    // plain `origin_id = :cid` filtered them out. The delivery query below now attributes those rows
+    // through the destination branch, so choosing a specific commissary no longer drops them.
     $selectedCommissaryId = in_array($requestedCommissaryId, $availableCommissaryIds, true)
         ? $requestedCommissaryId
         : 0;
@@ -20081,8 +20228,21 @@ function handleAdminCommissary(): void
         $deliveryBind[':branch'] = $selectedBranchId;
     }
     if ($selectedCommissaryId > 0) {
-        $deliverySql .= ' AND d.origin_id = :cid';
+        // Attribute ORIGIN-LESS deliveries to the selected commissary through the destination branch's
+        // assigned_commissary_id. Without this a plain `origin_id = :cid` silently drops them from the
+        // sheet: measured 2026-10-10, 129 of 416 deliveries carry origin_id = NULL and ALL 129 resolve
+        // to their commissary through assigned_commissary_id (none unattributable, checked). That is
+        // also what made a default commissary filter "blank every branch cell" historically - the rows
+        // were not absent, they were filtered out. `b` is the destination branch (JOIN ... b.id =
+        // d.destination_id).
+        //
+        // NOTE: two DISTINCT placeholders, not :cid twice. One named parameter may not be bound to two
+        // positions here - PDO throws SQLSTATE[HY093] Invalid parameter number when a named placeholder
+        // repeats (measured: this 500'd the whole page for any specific commissary). The module's
+        // existing convention for a duplicate is a numeric suffix, e.g. :cid2 elsewhere in this file.
+        $deliverySql .= ' AND (d.origin_id = :cid OR (d.origin_id IS NULL AND b.assigned_commissary_id = :cid2))';
         $deliveryBind[':cid'] = $selectedCommissaryId;
+        $deliveryBind[':cid2'] = $selectedCommissaryId;
     }
     $deliverySql .= ' ORDER BY d.delivery_date DESC, b.name ASC, p.name ASC, d.id DESC';
     $deliveryStmt = $db->prepare($deliverySql);
@@ -20193,8 +20353,27 @@ function handleAdminCommissary(): void
     // The product set is exactly the cashier set for the selected production
     // branch (or the first active commissary when the all filter is used).
     $sheetSourceBranchId = $selectedCommissaryId;
-    if ($sheetSourceBranchId <= 0 && $commissaries !== []) {
-        $sheetSourceBranchId = (int)$commissaries[0]['id'];
+    if ($sheetSourceBranchId <= 0) {
+        // Prefer the commissary the actor is ACTUALLY bound to, when there is exactly one.
+        // The fallback below is $commissaries[0], i.e. the alphabetically-first active
+        // commissary, and $commissaries is ordered by name — so "Pagadian Commisary" beat
+        // "RIZAL-COMMIS" on a letter and prod-rizal, bound to RIZAL-COMMIS1, opened Pagadian's
+        // sheet. An actor with a single accessible commissary has no such ambiguity.
+        // An actor with several (an unbound admin sees both) keeps the previous behaviour.
+        $accessibleCommissaryIds = [];
+        foreach (dl_accessibleBranchIds($user) as $accessibleBranchId) {
+            foreach ($commissaries as $candidateRow) {
+                if ((int)$candidateRow['id'] === (int)$accessibleBranchId) {
+                    $accessibleCommissaryIds[] = (int)$accessibleBranchId;
+                    break;
+                }
+            }
+        }
+        if (count($accessibleCommissaryIds) === 1) {
+            $sheetSourceBranchId = $accessibleCommissaryIds[0];
+        } elseif ($commissaries !== []) {
+            $sheetSourceBranchId = (int)$commissaries[0]['id'];
+        }
     }
     $sheetSourceBranchName = '';
     foreach ($commissaries as $commissaryRow) {
@@ -20210,10 +20389,26 @@ function handleAdminCommissary(): void
     // flag ties for every row, so the whole clause collapses to plain
     // alphabetical order -- i.e. exactly the pre-order behaviour.
     $sheetScopeSql = ($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : " AND id IN ({$viewBranchSql})";
-    $sheetBranchesStmt = $db->query(
-        'SELECT id, code, name FROM dl_branches WHERE is_active = 1' . $sheetScopeSql . '
+    // A selected Commissary must narrow the sheet's DESTINATIONS, not just the
+    // branch list further up. The destination set is what becomes the sheet's
+    // columns, so without this the Commissary selector changed nothing here.
+    // The source branch is always retained (id = :sheet_cid), because
+    // $sheetSourceBranchId === $selectedCommissaryId, so the sheet keeps its own
+    // BEG/ADDTL column; the rest are the branches that commissary actually
+    // supplies, matching the branch selector's own semantics.
+    $sheetCommissarySql = $selectedCommissaryId > 0
+        ? ' AND (id = :sheet_cid OR assigned_commissary_id = :sheet_cid2)'
+        : '';
+    $sheetBranchesStmt = $db->prepare(
+        'SELECT id, code, name FROM dl_branches WHERE is_active = 1' . $sheetScopeSql . $sheetCommissarySql . '
           ORDER BY ' . dl_entityOrderBySql()
     );
+    $sheetBranchesBind = [];
+    if ($selectedCommissaryId > 0) {
+        $sheetBranchesBind[':sheet_cid'] = $selectedCommissaryId;
+        $sheetBranchesBind[':sheet_cid2'] = $selectedCommissaryId;
+    }
+    $sheetBranchesStmt->execute($sheetBranchesBind);
     $allSheetBranches = $sheetBranchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Keep the production sheet bounded by construction. A branch adds one
@@ -20450,7 +20645,15 @@ function handleAdminCommissary(): void
     // COLUMN. The custody columns (WITHDRAWALS / ENDING) are gone from this
     // sub-tab. Dispatch legitimately originates at a branch (the cashier
     // ledger credits the consignee), so no origin_type filter applies here.
-    $consigneeCellPayload = dl_fetchProductionSheetConsigneeCells($db, $rawDate, $sheetSourceBranchId, $shift);
+    $consigneeCellPayload = dl_fetchProductionSheetConsigneeCells(
+        $db,
+        $rawDate,
+        $sheetSourceBranchId,
+        $shift,
+        // Only an AREA scope is expressible for consignees (COMMISSARY already
+        // arrives above as $sheetSourceBranchId, and ALL means no filter).
+        ($viewScope['type'] ?? 'ALL') === 'AREA' ? (int)($viewScope['id'] ?? 0) : null
+    );
     $consigneeSheetColumns = [];
     foreach (($consigneeCellPayload['consignees'] ?? []) as $consigneeId => $consigneeMeta) {
         $consigneeSheetColumns[] = [
@@ -20695,6 +20898,7 @@ function handleAdminCommissary(): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),
         'current_page' => 'commissary',
+        'admin_area_filter' => true,
         'user' => $user,
         'user_name' => $user['full_name'] ?? $user['username'] ?? 'User',
         'user_role' => $user['role'] ?? 'unknown',
@@ -20943,7 +21147,7 @@ function dl_saveProductionRun(array $user, array $input): array
 
         if ($destBranchId > 0) {
             $stmt = $db->prepare(
-                "SELECT id, commissary_movement_id, destination_branch_id, dr_number
+                "SELECT id, commissary_movement_id, destination_branch_id, dr_number, shift
                  FROM dl_production_runs
                  WHERE ledger_date = :d AND product_id = :p AND destination_branch_id = :dest
                  LIMIT 1"
@@ -20951,7 +21155,7 @@ function dl_saveProductionRun(array $user, array $input): array
             $stmt->execute([':d' => $date, ':p' => $productId, ':dest' => $destBranchId]);
         } else {
             $stmt = $db->prepare(
-                "SELECT id, commissary_movement_id, destination_branch_id, dr_number
+                "SELECT id, commissary_movement_id, destination_branch_id, dr_number, shift
                  FROM dl_production_runs
                  WHERE ledger_date = :d AND product_id = :p AND destination_branch_id IS NULL
                  LIMIT 1"
@@ -20961,6 +21165,17 @@ function dl_saveProductionRun(array $user, array $input): array
         $existing = $stmt->fetch(PDO::FETCH_ASSOC);
         $previousDestBranchId = $existing ? (int)($existing['destination_branch_id'] ?? 0) : 0;
         $previousDrNumber = $existing ? trim((string)($existing['dr_number'] ?? '')) : '';
+        // The run's shift is part of its identity, so an edit must never move it between AM and PM.
+        // Prefer the STORED run's shift, then the request's, and leave it unset only when neither
+        // exists (genuine legacy). Without this the two commissary ledger deltas below were applied
+        // with no shift at all and landed in the legacy NULL bucket, which the AM/PM-keyed Daily
+        // Sheet cannot see — the same class of defect as the branch-sales leak.
+        $runShift = null;
+        if ($existing && ($existing['shift'] ?? null) !== null && (string)$existing['shift'] !== '') {
+            $runShift = dl_normalizeShift((string)$existing['shift']);
+        } elseif (isset($input['shift']) && (string)$input['shift'] !== '') {
+            $runShift = dl_normalizeShift((string)$input['shift']);
+        }
         $formalDeliveryEnabled = dl_isFormalDeliveryEnabled();
 
         // ─── Same-location internal-release eligibility ──────────────────────
@@ -21009,7 +21224,7 @@ function dl_saveProductionRun(array $user, array $input): array
         } elseif ($existing) {
             $stmt = $db->prepare(
                 "UPDATE dl_production_runs
-                 SET baker_name = :baker, primary_input_qty = :iqty, primary_input_type = :itype, yield_qty = :yqty, dr_number = :dr, destination_branch_id = :dest, recorded_by = :actor
+                 SET baker_name = :baker, primary_input_qty = :iqty, primary_input_type = :itype, yield_qty = :yqty, dr_number = :dr, destination_branch_id = :dest, recorded_by = :actor, shift = :shift
                  WHERE id = :id"
             );
             $stmt->execute([
@@ -21020,15 +21235,17 @@ function dl_saveProductionRun(array $user, array $input): array
                 ':dr'    => $drNumber !== '' ? $drNumber : null,
                 ':dest'  => $destBranchId > 0 ? $destBranchId : null,
                 ':actor' => $actorId > 0 ? $actorId : null,
+                ':shift' => $runShift,
                 ':id'    => $existing['id'],
             ]);
         } else {
             $stmt = $db->prepare(
-                "INSERT INTO dl_production_runs (ledger_date, product_id, baker_name, run_type, primary_input_qty, primary_input_type, yield_qty, dr_number, destination_branch_id, recorded_by)
-                 VALUES (:date, :pid, :baker, :type, :iqty, :itype, :yqty, :dr, :dest, :actor)"
+                "INSERT INTO dl_production_runs (ledger_date, shift, product_id, baker_name, run_type, primary_input_qty, primary_input_type, yield_qty, dr_number, destination_branch_id, recorded_by)
+                 VALUES (:date, :shift, :pid, :baker, :type, :iqty, :itype, :yqty, :dr, :dest, :actor)"
             );
             $stmt->execute([
                 ':date'  => $date,
+                ':shift' => $runShift,
                 ':pid'   => $productId,
                 ':baker' => $bakerName,
                 ':type'  => $type,
@@ -21070,10 +21287,10 @@ function dl_saveProductionRun(array $user, array $input): array
         // Local closure: undo a prior bridge movement. Internal releases also
         // reverse the commissary produced/dispatched ledger so the same pieces are
         // not left available for a second dispatch.
-        $reverseBridge = function (int $refBridgeId, array $prior, bool $priorInternal, string $overrideReason) use ($db, $productId, $actorId, $role): void {
+        $reverseBridge = function (int $refBridgeId, array $prior, bool $priorInternal, string $overrideReason) use ($db, $productId, $actorId, $role, $runShift): void {
             dl_applyLedgerDelta((int)$prior['branch'], $productId, (string)$prior['date'], -((int)$prior['qty']), $actorId, 'addtl');
             if ($priorInternal) {
-                dl_applyCommissaryProductLedgerDelta($db, (int)$prior['branch'], $productId, (string)$prior['date'], -((int)$prior['qty']), -((int)$prior['qty']), $actorId);
+                dl_applyCommissaryProductLedgerDelta($db, (int)$prior['branch'], $productId, (string)$prior['date'], -((int)$prior['qty']), -((int)$prior['qty']), $actorId, 0, false, $runShift);
             }
             $revUuid = dl_generateMovementUuid();
             $db->prepare(
@@ -21194,7 +21411,7 @@ function dl_saveProductionRun(array $user, array $input): array
             if ($isSameLocationRelease) {
                 // Record produced + dispatched so the same pieces are not left
                 // available for a second dispatch from the commissary.
-                dl_applyCommissaryProductLedgerDelta($db, $destBranchId, $productId, $date, $yieldQty, $yieldQty, $actorId);
+                dl_applyCommissaryProductLedgerDelta($db, $destBranchId, $productId, $date, $yieldQty, $yieldQty, $actorId, 0, false, $runShift);
             }
 
             $newMoveUuid = dl_generateMovementUuid();
@@ -21965,9 +22182,17 @@ function apiDailyLedgerMe(array $params = []): void
 function handleBranchSummaryRedirect(): void
 {
     $ctx = module();
-    if ($ctx) {
-        $ctx->redirect(dlGetBaseUrl() . '/admin/sales');
+    if (!$ctx) { return; }
+    // Carry an explicit scope across the redirect. The query string is otherwise dropped, so a
+    // link to branch-summary?scope=AREA:2 landed on /admin/sales with a bare URL and appeared to
+    // ignore the area the caller had asked for. An absent scope is still left absent so the
+    // resolver's persisted session value continues to apply (missing is not a reset).
+    $scope = (string)($ctx->input()['scope'] ?? '');
+    $target = dlGetBaseUrl() . '/admin/sales';
+    if ($scope !== '') {
+        $target .= '?scope=' . rawurlencode($scope);
     }
+    $ctx->redirect($target);
 }
 
 function handleAdminWithdrawals(): void
@@ -21993,11 +22218,11 @@ function handleAdminWithdrawals(): void
     $commissaryId = (int)($input['commissary_id'] ?? 0);
     $search = trim((string)($input['q'] ?? ''));
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) {
         $accessibleBranchIds = [0];
     }
-    if ((string)($user['role'] ?? '') !== 'admin' && $branchId > 0 && !in_array($branchId, $accessibleBranchIds, true)) {
+    if ($branchId > 0 && !in_array($branchId, $accessibleBranchIds, true)) {
         $branchId = 0;
     }
 
@@ -22112,6 +22337,7 @@ function handleAdminWithdrawals(): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'stock-adjustments',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'withdrawals' => $rows,

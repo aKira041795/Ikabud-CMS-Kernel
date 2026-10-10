@@ -10,17 +10,33 @@ $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
 require_once $base . '/modules/daily-ledger/handlers.php';
 $h->fingerprint('modules/daily-ledger/handlers.php');
+$h->fingerprint('modules/daily-ledger/handlers-deliveries.php');
+$h->fingerprint('modules/daily-ledger/handlers-pos.php');
+$h->fingerprint('modules/daily-ledger/helpers.php');
 $h->fingerprint('modules/daily-ledger/helpers/admin-area-scope.php');
 $h->fingerprint('modules/daily-ledger/database/migrations/090_correct_hybrid_supply_modes.sql');
 $h->fingerprint('modules/daily-ledger/database/migrations/091_canonical_areas.sql');
 $h->fingerprint('templates/modules/daily-ledger/admin/commissary.disyl');
 $h->fingerprint('templates/modules/daily-ledger/admin/branches.disyl');
+$h->fingerprint('templates/modules/daily-ledger/layouts/app.disyl');
 $h->fingerprint('tests/daily-ledger/daily_ledger_area_rollout_harness.php');
+$h->fingerprint('tests/daily-ledger/daily_ledger_admin_area_filters_harness.php');
 $h->allowLogLines('disyl.compile.phases');
+// The kernel rebuilds its module registry cache whenever module or template files change, and logs
+// that fact. It is deliberate engine telemetry, not a defect, and admin_trace_test already allows the
+// same line. Without this the app.log hygiene assertion here is FLAKY: it fails only on a run that
+// happens to land right after an edit (measured: 22/23 then 22/22 on consecutive runs).
+$h->allowLogLines('kernel_state_cache: module_registry rebuilt');
 // Existing kernel catalog bootstrap probes DDL through ModuleDB on a fresh CLI
 // request; ModuleDB correctly denies and logs it. Unrelated to this module data.
 $h->allowLogLines("ModuleDB DENIED: DDL/DCL statement 'CREATE' is forbidden for modules");
 $h->allowLogLines('disyl.interpreted_fallback');
+// DiSyL engine timing telemetry from TemplateEngine, emitted on the render/compile paths under
+// function_exists('log_timing'). Same class as disyl.compile.phases above: deliberate engine
+// telemetry, asserted by disyl_compiled_render_instrumentation_test, not a defect. It appears
+// transiently on the run that follows a template edit (compiled cache miss) - which is exactly
+// the run that renders cashier/ledger.disyl after this suite's fixture edits.
+$h->allowLogLines('disyl.render.breakdown');
 app()->tenant()->setTenantId(207);
 $ctx = modulePushContext('daily-ledger');
 $db = $ctx->db();
@@ -47,6 +63,17 @@ $unmapped = (int)$db->query("SELECT (SELECT COUNT(*) FROM dl_branches WHERE area
 $h->test('every nonempty historical area maps exactly once', $unmapped === 0, 'unmapped=' . $unmapped);
 $tpl = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/branches.disyl');
 $h->test('all three free-text area controls are canonical pickers', str_contains($tpl, 'id="add-area-id"') && str_contains($tpl, 'id="edit-area-id"') && str_contains($tpl, 'id="consignee-area-id"') && !str_contains($tpl, 'id="add-area"') && !str_contains($tpl, 'id="edit-area"') && !str_contains($tpl, 'id="consignee-area"'));
+// The canonical Area control lives in the shared partial, not in the layout banner. It moved there
+// when the banner's own dropdown was removed as redundant: the banner now only reports the active
+// scope, so the control is rendered once per branch-scoped view from this single source. The
+// assertion keeps its original intent (ONE canonical control, "All areas" first) and now also
+// proves the sharing it names - every probed branch-scoped view must include that one partial.
+$scopeTpl = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/partials/scope-filter.disyl');
+$scopeShared = true;
+foreach (['branches', 'dashboard', 'overview', 'sales'] as $scopeView) {
+    $scopeShared = $scopeShared && str_contains((string)file_get_contents($base . '/templates/modules/daily-ledger/admin/' . $scopeView . '.disyl'), 'scope-filter.disyl');
+}
+$h->test('branch-scoped admin views share one canonical Area control with All areas first', str_contains($scopeTpl, 'id="admin-scope-filter"') && strpos($scopeTpl, '<label') !== false && strpos($scopeTpl, '<label') < strpos($scopeTpl, '<select') && strpos($scopeTpl, '>All areas</option>') < strpos($scopeTpl, 'value="AREA:{scope_area.id}"') && $scopeShared);
 
 $h->section('Admin view scope is not authorization');
 $admin = ['id' => 1, 'role' => 'admin'];
@@ -72,6 +99,89 @@ $authAfter = dl_accessibleBranchIds($cashier);
 $h->test('cashier authorized branch set is unchanged while admin area scope is active', $authBefore !== [] && $authBefore === $authAfter && $ignored['type'] === 'ALL', json_encode([$authBefore, $authAfter, $ignored]));
 $allScope = AdminAreaScope::resolve(['scope' => 'ALL'], $session, $admin);
 $h->test('ALL requires and accepts an explicit reset', $allScope['value'] === 'ALL' && ($session['daily_ledger.admin_view_scope.1'] ?? '') === 'ALL');
+
+$h->section('Area dropdown changes branch-scoped view rows');
+$areaFixtures = $db->query('SELECT id, name FROM dl_areas WHERE is_active = 1 ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$filterFixtureIds = ['branches' => [], 'products' => []];
+try {
+    if (count($areaFixtures) < 2) {
+        throw new RuntimeException('Two canonical areas are required for the area-filter fixture.');
+    }
+    $suffix = (string)random_int(10000, 99999);
+    $branchNames = ['Area filter A ' . $suffix, 'Area filter B ' . $suffix];
+    $insertBranch = $db->prepare("INSERT INTO dl_branches (code, name, area_id, area, is_active, default_supply_mode) VALUES (?, ?, ?, ?, 1, 'self_managed')");
+    foreach ([0, 1] as $index) {
+        $insertBranch->execute([
+            'AF-' . $suffix . '-' . ($index + 1),
+            $branchNames[$index],
+            (int)$areaFixtures[$index]['id'],
+            (string)$areaFixtures[$index]['name'],
+        ]);
+        $filterFixtureIds['branches'][] = (int)$db->lastInsertId();
+    }
+    $insertProduct = $db->prepare("INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, is_active) VALUES (?, ?, 'bread', 10, 0, 1)");
+    $insertProduct->execute(['AF-P-' . $suffix, 'Area filter product ' . $suffix]);
+    $productId = (int)$db->lastInsertId();
+    $filterFixtureIds['products'][] = $productId;
+    $insertAssignment = $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)');
+    $insertLedger = $db->prepare('INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales) VALUES (?, ?, ?, \'AM\', 10, 10, 0, 0, 5, 5)');
+    foreach ($filterFixtureIds['branches'] as $fixtureBranchId) {
+        $insertAssignment->execute([$fixtureBranchId, $productId]);
+        $insertLedger->execute([$fixtureBranchId, $productId, dl_businessDate()]);
+    }
+
+    $runView = static function (string $view, string $scope, string $markerA, string $markerB): array {
+        $output = [];
+        $exit = 0;
+        exec(
+            escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/daily_ledger_admin_area_filters_harness.php')
+            . ' ' . escapeshellarg($view) . ' ' . escapeshellarg($scope)
+            . ' ' . escapeshellarg($markerA) . ' ' . escapeshellarg($markerB) . ' 2>&1',
+            $output,
+            $exit
+        );
+        $decoded = json_decode(implode("\n", $output), true);
+        return ['exit' => $exit, 'data' => is_array($decoded) ? $decoded : [], 'raw' => implode("\n", $output)];
+    };
+
+    foreach (['branches', 'dashboard', 'overview', 'sales'] as $view) {
+        $areaAResult = $runView($view, 'AREA:' . (int)$areaFixtures[0]['id'], $branchNames[0], $branchNames[1]);
+        $areaBResult = $runView($view, 'AREA:' . (int)$areaFixtures[1]['id'], $branchNames[0], $branchNames[1]);
+        $a = $areaAResult['data'];
+        $b = $areaBResult['data'];
+        $h->test(
+            $view . ' area selection returns a different branch row set',
+            $areaAResult['exit'] === 0 && $areaBResult['exit'] === 0
+                && ($a['status'] ?? 0) === 200 && ($b['status'] ?? 0) === 200
+                && !empty($a['has_area_filter']) && !empty($b['has_area_filter'])
+                && !empty($a['has_a']) && empty($a['has_b'])
+                && empty($b['has_a']) && !empty($b['has_b']),
+            json_encode([$areaAResult, $areaBResult])
+        );
+    }
+
+    $settingsA = $runView('settings', 'AREA:' . (int)$areaFixtures[0]['id'], $branchNames[0], $branchNames[1]);
+    $settingsB = $runView('settings', 'AREA:' . (int)$areaFixtures[1]['id'], $branchNames[0], $branchNames[1]);
+    $h->test(
+        'non-branch settings view is unchanged and has no decorative Area dropdown',
+        $settingsA['exit'] === 0 && $settingsB['exit'] === 0
+            && ($settingsA['data']['status'] ?? 0) === 200 && ($settingsB['data']['status'] ?? 0) === 200
+            && empty($settingsA['data']['has_area_filter']) && empty($settingsB['data']['has_area_filter'])
+            && (int)($settingsA['data']['row_count'] ?? 0) > 0
+            && (int)($settingsA['data']['row_count'] ?? -1) === (int)($settingsB['data']['row_count'] ?? -2),
+        json_encode([$settingsA, $settingsB])
+    );
+} finally {
+    if ($filterFixtureIds['branches'] !== []) {
+        $ids = implode(',', array_map('intval', $filterFixtureIds['branches']));
+        $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id IN (' . $ids . ')');
+        $db->execute('DELETE FROM dl_branch_products WHERE branch_id IN (' . $ids . ')');
+        $db->execute('DELETE FROM dl_branches WHERE id IN (' . $ids . ')');
+    }
+    if ($filterFixtureIds['products'] !== []) {
+        $db->execute('DELETE FROM dl_products WHERE id IN (' . implode(',', array_map('intval', $filterFixtureIds['products'])) . ')');
+    }
+}
 
 $h->section('Commissary output bound');
 $temporaryIds = [];

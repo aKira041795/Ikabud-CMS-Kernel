@@ -58,7 +58,7 @@
             {if day_status == 'closed'}
             <span class="pos-badge bg-red-100 text-red-800">Day closed</span>
             {/if}
-            <a class="btn btn-outline" href="{base_url}/ledger">Manual Ledger</a>
+            <a class="btn btn-accent" href="{base_url}/ledger">Manual Ledger</a>
         </div>
     </div>
 </div>
@@ -93,7 +93,7 @@
             </p>
             <div class="flex gap-2 flex-wrap">
                 <button type="button" id="pos-select-pos" class="btn btn-primary">Use POS</button>
-                <button type="button" id="pos-select-manual" class="btn btn-outline">Use Manual Ledger</button>
+                <button type="button" id="pos-select-manual" class="btn btn-accent">Use Manual Ledger</button>
             </div>
         </div>
     </div>
@@ -103,7 +103,7 @@
         <div class="card-body">
             <p class="text-sm font-semibold text-amber-800">This day switched from POS to Manual via a supervisor checkpoint.</p>
             <p class="text-xs text-gray-500 mt-1">POS checkout is disabled. Record remaining sales in the manual ledger.</p>
-            <a class="btn btn-outline mt-3" href="{base_url}/ledger">Open Manual Ledger</a>
+            <a class="btn btn-accent mt-3" href="{base_url}/ledger">Open Manual Ledger</a>
         </div>
     </div>
 
@@ -115,7 +115,7 @@
                     <span>Products <span id="pos-product-count" class="font-normal"></span></span>
                     <div class="pos-search-wrap">
                         <input type="search" id="pos-search" class="form-input" style="max-width:14rem" placeholder="Search products…" aria-label="Search products">
-                        <button type="button" id="pos-search-clear" class="btn btn-outline px-2 hidden" aria-label="Clear search">×</button>
+                        <button type="button" id="pos-search-clear" class="btn btn-accent px-2 hidden" aria-label="Clear search">×</button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -152,7 +152,7 @@
                         <div class="flex justify-between text-sm mt-2"><span class="text-gray-500">Change</span><span id="pos-change">PHP 0.00</span></div>
                     </div>
                     <button type="button" id="pos-charge" class="btn w-full mt-4 pos-charge-btn" disabled>Charge</button>
-                    <button type="button" id="pos-clear" class="btn btn-outline w-full mt-2">Clear cart</button>
+                    <button type="button" id="pos-clear" class="btn btn-accent w-full mt-2">Clear cart</button>
                     <p class="text-xs text-gray-500 mt-2">A success response means the sale is saved. There is no offline POS queue.</p>
                 </div>
             </div>
@@ -164,7 +164,7 @@
                 <p class="text-sm font-semibold text-emerald-800">Sale recorded: <span id="pos-receipt-no"></span></p>
                 <p class="text-sm text-gray-600 mt-1">Total <span id="pos-receipt-total"></span> · Change <span id="pos-receipt-change"></span></p>
                 <div class="flex gap-2 mt-3">
-                    <a id="pos-receipt-link" class="btn btn-outline" href="#" target="_blank" rel="noopener">Print receipt</a>
+                    <a id="pos-receipt-link" class="btn btn-accent" href="#" target="_blank" rel="noopener">Print receipt</a>
                     <button type="button" id="pos-new-sale" class="btn btn-primary">New sale</button>
                 </div>
             </div>
@@ -313,9 +313,9 @@
             var tr = document.createElement('tr');
             tr.setAttribute('data-pid', l.product_id);
             tr.innerHTML = '<td></td>'
-                + '<td class="text-right whitespace-nowrap"><button type="button" class="btn btn-outline px-2 pos-qty-btn" data-act="dec" aria-label="Decrease">−</button> '
+                + '<td class="text-right whitespace-nowrap"><button type="button" class="btn btn-accent px-2 pos-qty-btn" data-act="dec" aria-label="Decrease">−</button> '
                 + '<span class="mx-1"></span> '
-                + '<button type="button" class="btn btn-outline px-2 pos-qty-btn" data-act="inc" aria-label="Increase">+</button></td>'
+                + '<button type="button" class="btn btn-accent px-2 pos-qty-btn" data-act="inc" aria-label="Increase">+</button></td>'
                 + '<td class="text-right"></td>'
                 + '<td class="text-right"><button type="button" class="text-red-600 text-xs" data-act="rm">Remove</button></td>';
             tr.children[0].textContent = l.name;

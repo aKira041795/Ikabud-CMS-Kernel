@@ -2010,13 +2010,7 @@ function apiPosSaleDetail(array $params = []): void
  */
 function dl_pos_querySales($db, array $user, array $filters): array
 {
-    $accessible = dl_accessibleBranchIds($user);
-    if (($user['role'] ?? '') === 'admin' && function_exists('dl_adminAreaScope')) {
-        $viewScope = dl_adminAreaScope($user, $filters);
-        if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
-            $accessible = array_values(array_intersect($accessible, array_map('intval', $viewScope['branch_ids'] ?? [])));
-        }
-    }
+    $accessible = dl_adminViewBranchIds($user, $filters);
     if ($accessible === []) { $accessible = [0]; }
     $placeholders = implode(',', array_fill(0, count($accessible), '?'));
 
@@ -2181,7 +2175,7 @@ function handleAdminPosSales(array $params = []): void
     $input = $ctx->input();
     $db = $ctx->db();
 
-    $accessible = dl_accessibleBranchIds($user);
+    $accessible = dl_adminViewBranchIds($user, is_array($input) ? $input : []);
     if ($accessible === []) { $accessible = [0]; }
     $placeholders = implode(',', array_fill(0, count($accessible), '?'));
     $branchStmt = $db->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$placeholders}) ORDER BY name");
@@ -2197,6 +2191,7 @@ function handleAdminPosSales(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'pos_sales',
+        'admin_area_filter' => true,
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'branches' => $branches,

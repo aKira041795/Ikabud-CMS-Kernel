@@ -51,7 +51,7 @@
         <button type="button" class="btn btn-primary" id="close-day-btn" onclick="closeDay()" data-online-action="Day close">Close Day</button>
         {/if}
 
-        <button type="button" class="btn btn-outline btn-sm" id="recompute-sales-btn"
+        <button type="button" class="btn btn-accent btn-sm" id="recompute-sales-btn"
                 onclick="window.dlRecomputeSales()"
                 title="Re-read the saved counts and repaint the Sales column. Sales = beginning + additional − withdrawals − ending; an unrecorded ending remains Pending. Needs an open day.">
             Recompute sales
@@ -71,7 +71,7 @@
     <span id="settled-unverified-count">{settled_summary.unverified} settled ending(s) awaiting verification</span>
     <span id="settled-verified-count">{settled_summary.verified} verified</span>
     {if settled_summary.can_settle && settled_summary.pending > 0}
-    <button type="button" class="btn btn-outline btn-sm ml-auto" id="settle-pending-endings"
+    <button type="button" class="btn btn-accent btn-sm ml-auto" id="settle-pending-endings"
             onclick="window.dlSettlePendingEndings()"
             title="Settle every pending ending in this shift as a derived, unverified ending. An admin can revert it.">Settle pending endings</button>
     {/if}
@@ -79,7 +79,7 @@
     <button type="button" class="btn btn-primary btn-sm" id="verify-settled-endings"
             onclick="window.dlVerifySettledEndings()"
             title="Admin only: certify the settled endings as counted numbers. This is audited.">Verify for finality</button>
-    <button type="button" class="btn btn-outline btn-sm" id="revert-settled-endings"
+    <button type="button" class="btn btn-accent btn-sm" id="revert-settled-endings"
             onclick="window.dlRevertSettledEndings()"
             title="Admin only: return the settled endings to pending, discarding the derived numbers.">Revert to pending</button>
     {/if}
@@ -116,6 +116,9 @@
             <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
             {/foreach}
         </select>
+        <div class="form-group">
+            {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+        </div>
         <input type="date" class="form-input mt-0 w-auto min-w-40" id="ledger-date" value="{ledger_date}" max="{today}" name="date"
                onchange="window.dlReloadLedger()">
         {/if}
@@ -133,8 +136,8 @@
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-300">Locked to {shift} Shift</span>
         {else}
         <div class="inline-flex items-center rounded-full bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-300" role="group" aria-label="Shift">
-            <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=AM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'AM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">AM</a>
-            <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=PM" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'PM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">PM</a>
+            <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=AM{if admin_view_scope}&scope={admin_view_scope.value}{/if}" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'AM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">AM</a>
+            <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=PM{if admin_view_scope}&scope={admin_view_scope.value}{/if}" class="rounded-full px-3 py-1 text-xs font-semibold {if shift == 'PM'}bg-white text-indigo-700 shadow-sm{else}text-slate-500 hover:text-slate-700{/if}">PM</a>
         </div>
         {/if}
 
@@ -147,7 +150,7 @@
         <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Mode: Manual</span>
         {/if}
         {if can_pos_sell}
-        <a href="{base_url}/pos" class="btn btn-outline" data-online-action="POS">POS</a>
+        <a href="{base_url}/pos" class="btn btn-accent" data-online-action="POS">POS</a>
         {/if}
         {/if}
 
@@ -158,7 +161,7 @@
               id="global-status" data-cashier-save-status role="status" aria-live="polite">All saved</span>
         <span id="held-actions"></span>
         <span id="offline-ready-badge" class="hidden inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">Offline ready</span>
-        <button type="button" class="btn btn-outline" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>
+        <button type="button" class="btn btn-accent" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>
         {if shift == 'PM' && day_status == 'open' && !reference_only}
         {if pm_pending}
         <button type="button" class="btn btn-primary" id="finalize-pm-btn" onclick="finalizePmShift()">Close PM Shift</button>
@@ -166,7 +169,7 @@
         <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">PM Shift Finalized</span>
         {/if}
         {/if}
-        <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
+        <button type="button" class="btn btn-accent" onclick="printCashierLedger()">Print</button>
     </div>
 </div>
 
@@ -179,7 +182,7 @@
 <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
     <span class="font-semibold">PM ending pending for {prior_pending_day.date}.</span>
     <span class="ml-1 text-amber-800">That business date is still open because its PM shift was not finalized. Enter the late counts, then close the PM shift.</span>
-    <a class="ml-2 font-semibold text-amber-900 underline" href="{base_url}/ledger?date={prior_pending_day.date}&branch_id={branch_id}&shift=PM">Open prior PM ledger</a>
+    <a class="ml-2 font-semibold text-amber-900 underline" href="{base_url}/ledger?date={prior_pending_day.date}&branch_id={branch_id}&shift=PM{if admin_view_scope}&scope={admin_view_scope.value}{/if}">Open prior PM ledger</a>
 </div>
 {/if}
 
@@ -192,7 +195,7 @@
     <span class="font-semibold">The {shift} shift for {ledger_date} is finalized.</span>
     <span class="ml-1">Beginning balance, ending count and stock adjustments are locked so the signed-off shift cannot change without a trace.</span>
     {if can_ledger_override}
-    <button type="button" class="btn btn-outline btn-sm ml-2" onclick="reopenDay()" data-online-action="Shift reopen">Reopen {shift} shift to correct</button>
+    <button type="button" class="btn btn-accent btn-sm ml-2" onclick="reopenDay()" data-online-action="Shift reopen">Reopen {shift} shift to correct</button>
     {else}
     <span class="ml-1">Ask an admin or supervisor to reopen the shift if it needs correcting.</span>
     {/if}
@@ -218,7 +221,7 @@
                    placeholder="PIN" class="form-input mt-0 w-28 text-center"
                    onkeydown="if(event.key === 'Enter') window.dlUnlockVaultAndSync()">
             <button type="button" class="btn btn-primary btn-sm" id="offline-sync-btn" onclick="window.dlUnlockVaultAndSync()">Sync now</button>
-            <button type="button" class="btn btn-outline btn-sm" id="offline-sync-later" onclick="dlDismissPendingSync()">Later</button>
+            <button type="button" class="btn btn-accent btn-sm" id="offline-sync-later" onclick="dlDismissPendingSync()">Later</button>
         </div>
     </div>
     <p id="offline-pin-msg" class="mt-1 text-xs text-rose-600 hidden"></p>
@@ -237,7 +240,7 @@
         </div>
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-indigo-900 ring-1 ring-inset ring-indigo-200">Best for: stock that has already reached this branch.</div>
         <div class="mt-4">
-            <button type="button" class="btn btn-outline w-full justify-center" onclick="openReceiveModal()">Open Receive Stock</button>
+            <button type="button" class="btn btn-accent w-full justify-center" onclick="openReceiveModal()">Open Receive Stock</button>
         </div>
     </div>
     {if formal_delivery_enabled}
@@ -261,7 +264,7 @@
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-amber-900 ring-1 ring-inset ring-amber-200">Best for: non-transfer corrections inside this branch only.</div>
         <div class="mt-4">
             {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
-            <button type="button" class="btn btn-outline w-full justify-center" onclick="openWithdrawalModal()">Open Stock Adjustment</button>
+            <button type="button" class="btn btn-accent w-full justify-center" onclick="openWithdrawalModal()">Open Stock Adjustment</button>
             {/if}
             {if day_status != 'open' || reference_only || shift_status == 'finalized'}
             <div class="rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-xs text-amber-900">Unavailable while this day is closed, this shift is finalized, or in reference-only mode.</div>
@@ -275,7 +278,7 @@
         <div class="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[11px] leading-5 text-sky-900 ring-1 ring-inset ring-sky-200">Best for: correcting a delivery captured from a paper DR.</div>
         <div class="mt-4">
             {if day_status == 'open' && !reference_only && shift_status != 'finalized'}
-            <button type="button" class="btn btn-outline w-full justify-center" onclick="openEditDeliveryModal()">Open Correct Delivery by DR</button>
+            <button type="button" class="btn btn-accent w-full justify-center" onclick="openEditDeliveryModal()">Open Correct Delivery by DR</button>
             {/if}
             {if day_status != 'open' || reference_only || shift_status == 'finalized'}
             <div class="rounded-lg border border-sky-200 bg-white/70 px-3 py-2 text-xs text-sky-900">Unavailable while this day is closed, this shift is finalized, or in reference-only mode.</div>
@@ -328,7 +331,7 @@
             <div class="text-sm font-semibold text-gray-900">Today's Adjustments</div>
             <p class="text-xs text-gray-500">Correct your own entries after a slow-connection retry. Every change is audit-logged.</p>
         </div>
-        <button type="button" class="btn btn-outline btn-sm" onclick="window.dlRefreshTodayAdjustments()">Refresh</button>
+        <button type="button" class="btn btn-accent btn-sm" onclick="window.dlRefreshTodayAdjustments()">Refresh</button>
     </div>
     <div id="today-adjustments" class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div class="px-4 py-6 text-center text-sm text-gray-400">Loading…</div>
@@ -414,12 +417,20 @@
     window.dlReloadLedger = function() {
         var dateEl = document.getElementById('ledger-date');
         var branchEl = document.getElementById('branch-select');
-        var date = dateEl ? dateEl.value : '';
-        var branch = branchEl ? branchEl.value : '';
-        var url = BASE + '/ledger?date=' + encodeURIComponent(date) + '&branch_id=' + encodeURIComponent(branch) + '&shift=' + encodeURIComponent(SHIFT || 'AM');
-        window.dlLoadUrl(url, false);
-    };
-
+          var areaEl = document.getElementById('admin-scope-filter');
+          var date = dateEl ? dateEl.value : '';
+          var branch = branchEl ? branchEl.value : '';
+          // Carry the area scope. Without it this reload dropped the area the user had chosen, so the
+          // branch dropdown snapped back to every branch and the two selectors stopped acting in
+          // tandem — the reload looked like it had ignored the area filter entirely.
+          var area = areaEl ? areaEl.value : '';
+          var url = BASE + '/ledger?date=' + encodeURIComponent(date) + '&branch_id=' + encodeURIComponent(branch) + '&shift=' + encodeURIComponent(SHIFT || 'AM');
+          if (area !== '') { url += '&scope=' + encodeURIComponent(area); }
+           // Carry the scope through the reload. Dropping it here was why the area and branch
+           // selectors never acted in tandem: changing the branch reloaded without the area, so the
+           // branch list snapped back to every branch the admin can see.
+           window.dlLoadUrl(url, false);
+     };
     // ── Today's Adjustments (cashier edit-own withdrawal) ───────────────
     var __dlTodayAdjCache = [];
     function dlAdjTypeLabel(t) {
@@ -463,7 +474,7 @@
                 if (r.custom_reason) reason += ' — ' + r.custom_reason;
                 var time = String(r.created_at || '').slice(11, 16);
                 var btn = (r.editable && window.DAY_STATUS === 'open' && window.SHIFT_STATUS !== 'finalized')
-                    ? '<button type="button" class="btn btn-outline btn-xs" data-adj-edit="' + r.id + '">Edit</button>'
+                    ? '<button type="button" class="btn btn-accent btn-xs" data-adj-edit="' + r.id + '">Edit</button>'
                     : '';
                 html += '<tr class="border-b border-gray-100">' +
                     '<td class="px-4 py-2 font-medium text-gray-900">' + dlEscHtml(r.product_name) + '</td>' +

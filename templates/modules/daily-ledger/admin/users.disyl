@@ -12,9 +12,12 @@
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <form class="flex gap-2" action="{base_url}/admin/users" method="GET"
       onsubmit="return window.dlLoadForm(this)">
+            <div class="form-group">
+                {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+            </div>
             <input type="hidden" name="tab" value="{tab}">
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name, username, email, or role...">
-            <button type="submit" class="btn btn-outline">Search</button>
+            <button type="submit" class="btn btn-primary">Search</button>
         </form>
         <button class="btn btn-primary" onclick="openAddUser()">+ Add User</button>
     </div>
@@ -89,9 +92,9 @@
                     </td>
                     <td>
                         {if u.deleted_at}
-                        <button class="btn btn-sm btn-outline restore-user-btn" data-id="{u.id}" data-role="{u.role}" data-fullname="{u.full_name}">Restore</button>
+                        <button class="btn btn-sm btn-accent restore-user-btn" data-id="{u.id}" data-role="{u.role}" data-fullname="{u.full_name}">Restore</button>
                         {else}
-                        <button class="btn btn-sm btn-outline edit-user-btn"
+                        <button class="btn btn-sm btn-accent edit-user-btn"
                             data-id="{u.id}"
                             data-email="{u.email}"
                             data-fullname="{u.full_name}"
@@ -102,7 +105,7 @@
                             data-branch-ids-csv="{u.branch_ids_csv}"
 
                         >Edit</button>
-                        <button class="btn btn-sm btn-outline delete-user-btn" data-id="{u.id}" data-role="{u.role}" data-fullname="{u.full_name}">Delete</button>
+                        <button class="btn btn-sm btn-accent delete-user-btn" data-id="{u.id}" data-role="{u.role}" data-fullname="{u.full_name}">Delete</button>
                         {/if}
                     </td>
                 </tr>
@@ -170,7 +173,7 @@
         </div>
 
         <div class="modal-actions">
-            <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
+            <button class="btn btn-accent" onclick="closeModal('add-modal')">Cancel</button>
             <button class="btn btn-primary" id="add-submit" onclick="submitAddUser()">Add User</button>
         </div>
     </div>
@@ -238,7 +241,7 @@
             </select>
         </div>
         <div class="modal-actions">
-            <button class="btn btn-outline" onclick="closeModal('edit-modal')">Cancel</button>
+            <button class="btn btn-accent" onclick="closeModal('edit-modal')">Cancel</button>
             <button class="btn btn-primary" id="edit-submit" onclick="submitEditUser()">Save Changes</button>
         </div>
     </div>

@@ -12,6 +12,9 @@
     <div class="flex items-center gap-2">
         <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/usage"
       onsubmit="return window.dlLoadForm(this)">
+            <div class="form-group">
+                {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+            </div>
             <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.requestSubmit()">
             <select class="form-input" name="branch_id" onchange="this.form.requestSubmit()">
                 <option value="0">All Branches</option>
@@ -20,8 +23,8 @@
                 {/foreach}
             </select>
         </form>
-        <a class="btn btn-outline" href="{base_url}/admin/production-output?date={date}">Production Output</a>
-        <a class="btn btn-outline" href="{base_url}/admin/commissary?date={date}">Commissary</a>
+        <a class="btn btn-accent" href="{base_url}/admin/production-output?date={date}">Production Output</a>
+        <a class="btn btn-accent" href="{base_url}/admin/commissary?date={date}">Commissary</a>
     </div>
 </div>
 

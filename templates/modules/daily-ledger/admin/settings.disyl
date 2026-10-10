@@ -55,7 +55,7 @@
                     <input type="text" id="logo-url" class="form-input" value="{logo_url}" placeholder="/uploads/daily-ledger/... or https://...">
                     <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                         <input type="file" id="logo-file" class="block w-full text-sm text-slate-600" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
-                        <button type="button" class="btn btn-outline whitespace-nowrap" id="logo-upload-btn" onclick="uploadBrandAsset('logo')">Upload Logo</button>
+                        <button type="button" class="btn btn-accent whitespace-nowrap" id="logo-upload-btn" onclick="uploadBrandAsset('logo')">Upload Logo</button>
                     </div>
                 </div>
                 <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
@@ -77,7 +77,7 @@
                     <input type="text" id="favicon-url" class="form-input" value="{favicon_url}" placeholder="/uploads/daily-ledger/... or https://...">
                     <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                         <input type="file" id="favicon-file" class="block w-full text-sm text-slate-600" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.ico">
-                        <button type="button" class="btn btn-outline whitespace-nowrap" id="favicon-upload-btn" onclick="uploadBrandAsset('favicon')">Upload Favicon</button>
+                        <button type="button" class="btn btn-accent whitespace-nowrap" id="favicon-upload-btn" onclick="uploadBrandAsset('favicon')">Upload Favicon</button>
                     </div>
                 </div>
             </div>
@@ -530,7 +530,7 @@
         </div>
 
         <div class="mt-4 flex flex-wrap gap-2">
-            <button type="button" class="btn btn-outline" id="backup-generate-btn" onclick="runManualBackup()">Generate Backup Now</button>
+            <button type="button" class="btn btn-accent" id="backup-generate-btn" onclick="runManualBackup()">Generate Backup Now</button>
         </div>
 
         <div id="backup-result" class="mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"></div>
@@ -563,7 +563,7 @@
         </div>
 
         <div class="mt-4 flex flex-wrap gap-2">
-            <button type="button" class="btn btn-outline" id="sales-reset-preview-btn" onclick="runSalesDataReset(true)">Preview Reset Scope</button>
+            <button type="button" class="btn btn-accent" id="sales-reset-preview-btn" onclick="runSalesDataReset(true)">Preview Reset Scope</button>
             <button type="button" class="btn btn-danger" id="sales-reset-run-btn" onclick="runSalesDataReset(false)">Reset Sales Data</button>
         </div>
 
@@ -611,7 +611,7 @@
         </div>
 
         <div class="mt-4 flex flex-wrap gap-2">
-            <button type="button" class="btn btn-outline" id="deployment-reset-preview-btn" onclick="runDeploymentReset(true)">Preview Reset Scope</button>
+            <button type="button" class="btn btn-accent" id="deployment-reset-preview-btn" onclick="runDeploymentReset(true)">Preview Reset Scope</button>
             <button type="button" class="btn btn-danger" id="deployment-reset-run-btn" onclick="runDeploymentReset(false)">Reset Operational Data</button>
         </div>
 

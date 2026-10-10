@@ -117,3 +117,28 @@ function dl_adminAreaScope(array $user, ?array $request = null): array
     }
     return AdminAreaScope::resolve($request ?? (module()?->input() ?? []), $_SESSION, $user);
 }
+
+/**
+ * Branch ids for an admin VIEW query: authorization first, then the persisted
+ * area/network presentation scope. Operational roles never consult that scope.
+ *
+ * @return int[]
+ */
+function dl_adminViewBranchIds(array $user, ?array $request = null): array
+{
+    $authorized = array_values(array_unique(array_map('intval', dl_accessibleBranchIds($user))));
+    if (($user['role'] ?? '') !== 'admin') {
+        return $authorized;
+    }
+
+    $scope = dl_adminAreaScope($user, $request);
+    if (($scope['type'] ?? 'ALL') === 'ALL') {
+        return $authorized;
+    }
+
+    $allowed = array_fill_keys(array_map('intval', $scope['branch_ids'] ?? []), true);
+    return array_values(array_filter(
+        $authorized,
+        static fn(int $branchId): bool => isset($allowed[$branchId])
+    ));
+}

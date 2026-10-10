@@ -113,7 +113,7 @@
         <form class="flex gap-2" action="{base_url}/admin/branch-summary" method="GET"
       onsubmit="return window.dlLoadForm(this)">
             <input type="date" class="form-input w-full sm:w-44" name="date" value="{date}">
-            <button type="submit" class="btn btn-outline">View</button>
+            <button type="submit" class="btn btn-primary">View</button>
         </form>
     </div>
 </div>

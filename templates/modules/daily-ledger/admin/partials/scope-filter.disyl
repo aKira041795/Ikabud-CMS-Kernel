@@ -1,0 +1,31 @@
+<!--
+  Shared admin AREA filter.
+
+  Rendered INSIDE each view's own filter <form>, so the control sits beside
+  Date / Shift / Branch instead of existing only as the global banner above the content.
+
+  AREAS ONLY. A commissary is not an area, and listing commissaries in an "area"
+  dropdown made them look like areas. Commissary filtering lives on the commissary
+  view, which has its own commissary selector.
+
+  It binds to the existing ?scope= parameter, which AdminAreaScope already validates and
+  persists per actor, so this adds NO second source of truth and NO per-view SQL.
+
+  The select is wrapped in {if admin_view_scope} because that context key is only
+  injected for role=admin; supervisors and production users get no control and no error.
+-->
+{if admin_view_scope}
+<!-- The visible label is load-bearing, not decoration. Every sibling control in these filter bars is
+     <div class="form-group"><label class="form-label">...</label><control>, and the bar centres its
+     flex items. Without the label this control measured 39px tall against 66px for its siblings, so
+     centring pushed it ~14px BELOW them (measured on Overview: top 305 vs 284/289). Adding the label
+     gives it the same box, which is what puts it on the same line as From/To/Branch. -->
+<label class="form-label" for="admin-scope-filter">Area</label>
+<select class="form-input" id="admin-scope-filter" name="scope"
+        onchange="var h=location.href.replace(/[?&]scope=[^&]*/,'').replace(/[?&]$/,'');location.assign(h+(h.indexOf('?')<0?'?':'&')+'scope='+encodeURIComponent(this.value))">
+    <option value="ALL" {if admin_view_scope.value == 'ALL'}selected{/if}>All areas</option>
+    {foreach admin_view_scope.areas as scope_area}
+    <option value="AREA:{scope_area.id}" {if scope_area.selected}selected{/if}>{scope_area.name}</option>
+    {/foreach}
+</select>
+{/if}

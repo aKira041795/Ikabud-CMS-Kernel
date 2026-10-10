@@ -38,7 +38,7 @@
                             </span>
                         </td>
                         <td class="text-right">
-                            <button type="button" class="btn btn-outline" data-product-toggle="{product.id}" data-active="{product.branch_is_active}">
+                            <button type="button" class="btn btn-accent" data-product-toggle="{product.id}" data-active="{product.branch_is_active}">
                                 {if product.branch_is_active == 1}Hide{/if}{if product.branch_is_active != 1}Show{/if}
                             </button>
                         </td>

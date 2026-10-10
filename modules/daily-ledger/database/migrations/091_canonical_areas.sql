@@ -21,12 +21,12 @@ SET @dl_area_near_duplicates := (
     SELECT COUNT(*) FROM (
         SELECT normalized
           FROM (
-              SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) AS normalized,
-                     TRIM(area) AS raw_value
+              SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) COLLATE utf8mb4_unicode_ci AS normalized,
+                     TRIM(area) COLLATE utf8mb4_unicode_ci AS raw_value
                 FROM dl_branches WHERE area IS NOT NULL AND TRIM(area) <> ''
               UNION
-              SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) AS normalized,
-                     TRIM(area) AS raw_value
+              SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) COLLATE utf8mb4_unicode_ci AS normalized,
+                     TRIM(area) COLLATE utf8mb4_unicode_ci AS raw_value
                 FROM dl_consignees WHERE area IS NOT NULL AND TRIM(area) <> ''
           ) values_by_spelling
          GROUP BY normalized
@@ -50,12 +50,12 @@ SELECT CASE normalized
        1,
        0
   FROM (
-      SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) AS normalized,
-             TRIM(area) AS raw_value
+      SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) COLLATE utf8mb4_unicode_ci AS normalized,
+             TRIM(area) COLLATE utf8mb4_unicode_ci AS raw_value
         FROM dl_branches WHERE area IS NOT NULL AND TRIM(area) <> ''
       UNION
-      SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) AS normalized,
-             TRIM(area) AS raw_value
+      SELECT LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) COLLATE utf8mb4_unicode_ci AS normalized,
+             TRIM(area) COLLATE utf8mb4_unicode_ci AS raw_value
         FROM dl_consignees WHERE area IS NOT NULL AND TRIM(area) <> ''
   ) historical_areas
  GROUP BY normalized;
@@ -69,12 +69,12 @@ SET @sql := IF(@column_exists = 0, 'ALTER TABLE dl_consignees ADD COLUMN area_id
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 UPDATE dl_branches b
-JOIN dl_areas a ON LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(b.area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) = LOWER(TRIM(a.name))
+JOIN dl_areas a ON LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(b.area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) COLLATE utf8mb4_unicode_ci = LOWER(TRIM(a.name)) COLLATE utf8mb4_unicode_ci
 SET b.area_id = a.id
 WHERE b.area IS NOT NULL AND TRIM(b.area) <> '';
 
 UPDATE dl_consignees c
-JOIN dl_areas a ON LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) = LOWER(TRIM(a.name))
+JOIN dl_areas a ON LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(c.area, '\t', ' '), '\n', ' '), '  ', ' '), '  ', ' '), '  ', ' '))) COLLATE utf8mb4_unicode_ci = LOWER(TRIM(a.name)) COLLATE utf8mb4_unicode_ci
 SET c.area_id = a.id
 WHERE c.area IS NOT NULL AND TRIM(c.area) <> '';
 

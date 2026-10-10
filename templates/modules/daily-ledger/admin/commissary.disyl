@@ -24,6 +24,9 @@
         .btn-primary:hover { background: rgb(67 56 202); }
         .btn-outline { background: #fff; color: rgb(15 23 42); border: 1px solid rgb(203 213 225); }
         .btn-outline:hover { background: rgb(249 250 251); }
+        /* Accent for secondary actions; keep in step with layouts/app.disyl. */
+        .btn-accent { background: #3E7A6B; color: #fff; }
+        .btn-accent:hover { background: #34695C; }
         .btn-danger { background: rgb(225 29 72); color: #fff; }
         .btn-danger:hover { background: rgb(190 18 60); }
 
@@ -35,19 +38,24 @@
         }
 
         .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(31 41 55); }
-        .form-input { margin-top: .25rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        /* Keep in step with layouts/app.disyl: one control height across every view. */
+        textarea.form-input { height: auto; }
+        /* Keep in step with layouts/app.disyl: one radius, 3px, across every view. Universal because
+           this page's own rules below set 999px, so a utility list would not be enough. */
+        * { border-radius: 3px !important; }
         .form-input:focus { outline: none; border-color: rgb(99 102 241); box-shadow: 0 0 0 3px rgba(99,102,241,.22); }
         .form-input::placeholder { color: rgb(100 116 139); }
         .form-group { margin-bottom: 1rem; }
 
-        .card { border-radius: 3px; border: 1px solid rgb(226 232 240); background: #fff; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(226 232 240); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(15 23 42); }
+        .card { border-radius: 3px; border: 1px solid rgb(203 213 225); background: #F8F9FA; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(203 213 225); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(15 23 42); }
         .card-body { padding: 1rem; color: rgb(15 23 42); }
 
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
-        thead th { white-space: nowrap; border-bottom: 1px solid rgb(226 232 240); background: rgb(248 250 252); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(51 65 85); }
-        tbody td { border-bottom: 1px solid rgb(241 245 249); padding: .75rem 1rem; font-size: .875rem; color: rgb(15 23 42); }
+        thead th { white-space: nowrap; border-bottom: 1px solid rgb(203 213 225); background: rgb(248 250 252); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(51 65 85); }
+        tbody td { border-bottom: 1px solid rgb(226 232 240); padding: .75rem 1rem; font-size: .875rem; color: rgb(15 23 42); }
         tbody tr:hover { background: rgb(249 250 251); }
 
         .text-left { text-align: left; }
@@ -58,7 +66,7 @@
 
         .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
         .modal-overlay.show { display: flex; }
-        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #fff; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
+        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #F8F9FA; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
         .modal h3 { margin-bottom: 1rem; font-size: 1rem; font-weight: 600; color: rgb(15 23 42); }
         .modal-actions { margin-top: 1.5rem; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
 
@@ -956,7 +964,7 @@
             </div>
             <div class="flex shrink-0 items-center gap-2">
                 <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="window.dlRetryWriteFailure()">Retry — safe, will not duplicate</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
+                <button type="button" class="btn btn-accent btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
             </div>
         </div>
     </div>
@@ -1042,12 +1050,14 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
                 </a>
 
+                {if feature_consignee}
                 <a href="{base_url}/admin/consignee-dispatch-report"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'consignee_dispatch'}bg-white/10 ring-1 ring-white/10{/if}"
-                   aria-label="Consignee Dispatch Report">
+                   aria-label="Consignee Dispatch Ledger">
                     <i class="fas fa-file-invoice w-6" aria-hidden="true"></i>
-                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Consignee Dispatch</span>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Consignee Dispatch Ledger</span>
                 </a>
+                {/if}
 
                 {if feature_pos}
                 <a href="{base_url}/admin/pos-sales"
@@ -1144,6 +1154,15 @@
                    aria-label="Stock Adjustments">
                     <i class="fas fa-arrow-right-from-bracket w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Stock Adjustments</span>
+                </a>
+                {/if}
+
+                {if feature_branch_products && (user_role == 'cashier' || user_role == 'supervisor' || user_role == 'production_in_charge' || user_role == 'admin')}
+                <a href="{base_url}/products"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branch-products'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Branch Products">
+                    <i class="fas fa-boxes-stacked w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branch Products</span>
                 </a>
                 {/if}
 
@@ -1245,6 +1264,10 @@
             </div>
             <div class="form-group mb-0">
                 <label class="form-label">Commissary</label>
+                <!-- All is the DEFAULT: the landing sheet must not hide a network. When a specific
+                     commissary IS chosen the handler attributes the origin-less deliveries to it
+                     through the destination branch, so selecting one does not drop rows. The options
+                     are name-ordered (handler ORDER BY name ASC), so the list reads alphabetically. -->
                 <select class="form-input" name="commissary_id">
                     <option value="">All Commissaries</option>
                     {foreach commissaries as c}
@@ -1263,7 +1286,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <button type="submit" class="btn btn-primary">Apply</button>
-                {if can_view_production_management}<a class="btn btn-outline" href="{base_url}/admin/usage?date={date}">Open Usage</a>{/if}
+                {if can_view_production_management}<a class="btn btn-accent" href="{base_url}/admin/usage?date={date}">Open Usage</a>{/if}
             </div>
         </div>
     </div>
@@ -1395,7 +1418,7 @@
                                     data-original="{if row.actual_end_qty !== null}{row.actual_end_qty}{/if}"
                                     value="{if row.actual_end_qty !== null}{row.actual_end_qty}{else}{row.book_balance}{/if}"
                                     title="Suggested book balance: {row.book_balance}">
-                                <button type="button" class="btn btn-outline btn-sm print-hidden" onclick="saveProductionCount(this)">Save</button>
+                                <button type="button" class="btn btn-accent btn-sm print-hidden" onclick="saveProductionCount(this)">Save</button>
                             </div>
                             <div class="text-xs text-gray-500">suggested {row.book_balance}; blank = not counted</div>
                         </td>
@@ -1654,11 +1677,11 @@
                 </div>
                 {/if}
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
-                {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-outline btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
-                {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-outline btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
-                {if can_close_day && day_status != 'closed'}<button type="button" class="btn btn-outline btn-sm" id="production-close-day" onclick="closeProductionDay()">Close Day</button>{/if}
-                {if can_reopen_day && day_status == 'closed'}<button type="button" class="btn btn-outline btn-sm" id="production-reopen-day" onclick="reopenProductionDay()">Reopen Day</button>{/if}
-                <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">Print Daily Sheet</button>
+                {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-accent btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
+                {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
+                {if can_close_day && day_status != 'closed'}<button type="button" class="btn btn-accent btn-sm" id="production-close-day" onclick="closeProductionDay()">Close Day</button>{/if}
+                {if can_reopen_day && day_status == 'closed'}<button type="button" class="btn btn-accent btn-sm" id="production-reopen-day" onclick="reopenProductionDay()">Reopen Day</button>{/if}
+                <button type="button" class="btn btn-accent btn-sm" onclick="window.print()">Print Daily Sheet</button>
             </div>
         </div>
         {* Settled-ending lifecycle (R1/R2). The three data-* counts are read by the acceptance
@@ -1673,7 +1696,7 @@
             <span id="settled-unverified-count">{settled_summary.unverified} settled ending(s) awaiting verification</span>
             <span id="settled-verified-count">{settled_summary.verified} verified</span>
             {if settled_summary.can_settle && settled_summary.pending > 0}
-            <button type="button" class="btn btn-outline btn-sm ml-auto" id="settle-pending-endings"
+            <button type="button" class="btn btn-accent btn-sm ml-auto" id="settle-pending-endings"
                     onclick="window.dlSettlePendingEndings()"
                     title="Settle every pending ending in this shift as a derived, unverified ending. An admin can revert it.">Settle pending endings</button>
             {/if}
@@ -1681,7 +1704,7 @@
             <button type="button" class="btn btn-primary btn-sm" id="verify-settled-endings"
                     onclick="window.dlVerifySettledEndings()"
                     title="Admin only: certify the settled endings as counted numbers. This is audited.">Verify for finality</button>
-            <button type="button" class="btn btn-outline btn-sm" id="revert-settled-endings"
+            <button type="button" class="btn btn-accent btn-sm" id="revert-settled-endings"
                     onclick="window.dlRevertSettledEndings()"
                     title="Admin only: return the settled endings to pending, discarding the derived numbers.">Revert to pending</button>
             {/if}
@@ -1706,7 +1729,7 @@
         <div class="mx-4 mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">The {shift} shift is finalized and locked.</div>
         {/if}
         <div class="mx-4 mt-4 flex items-center gap-3 print-hidden">
-            <button type="button" class="btn btn-outline btn-sm hidden" id="production-carry-beginnings-btn" onclick="carryProductionBeginnings()">Carry beginnings forward</button>
+            <button type="button" class="btn btn-accent btn-sm hidden" id="production-carry-beginnings-btn" onclick="carryProductionBeginnings()">Carry beginnings forward</button>
             <span class="hidden text-xs text-amber-700" id="production-carry-beginnings-note"></span>
         </div>
         {* A beginning is per shift, so it cannot be recorded in the All view: the carry reads
@@ -1972,7 +1995,7 @@
                             {* A branch-cell correction is append-only by design: its target is
                                corrected from the branch cell trigger, never overwritten in place. *}
                             {if production_can_override && entry.source != 'branch_entry' && entry.source != 'send' && entry.source != 'receiving'}
-                            <button type="button" class="btn btn-outline btn-sm" onclick="editProductionLogRow(this)">Edit</button>
+                            <button type="button" class="btn btn-accent btn-sm" onclick="editProductionLogRow(this)">Edit</button>
                             {/if}
                         </td>
                     </tr>
@@ -2010,7 +2033,7 @@
                 </div>
                 <div id="production-addition-status" class="text-sm text-rose-600" aria-live="polite"></div>
                 <div class="flex justify-end gap-2">
-                    <button type="button" class="btn btn-outline" onclick="closeProductionAdditionModal()">Cancel</button>
+                    <button type="button" class="btn btn-accent" onclick="closeProductionAdditionModal()">Cancel</button>
                     <button type="button" class="btn btn-primary" id="production-addition-submit" onclick="submitProductionAddition()">Record Addition</button>
                 </div>
             </div>
@@ -2096,7 +2119,7 @@
                 </div>
                 <div id="branch-cell-status" class="text-sm text-rose-600" aria-live="polite"></div>
                 <div class="flex justify-end gap-2">
-                    <button type="button" class="btn btn-outline" onclick="closeBranchCellModal()">Cancel</button>
+                    <button type="button" class="btn btn-accent" onclick="closeBranchCellModal()">Cancel</button>
                     <button type="button" class="btn btn-primary" id="branch-cell-submit" onclick="submitBranchCellEntry()">Save Entry</button>
                 </div>
             </div>
@@ -2124,7 +2147,7 @@
                     <div class="form-group mb-0 hidden" id="consignee-cell-custom-reason-wrap"><label class="form-label">Custom Reason <span class="text-rose-500">*</span></label><input type="text" id="consignee-cell-custom-reason" class="form-input" maxlength="255"></div>
                 </div>
                 <div id="consignee-cell-status" class="text-sm text-rose-600" aria-live="polite"></div>
-                <div class="flex justify-end gap-2"><button type="button" class="btn btn-outline" onclick="closeConsigneeCellModal()">Cancel</button><button type="button" class="btn btn-primary" id="consignee-cell-submit" onclick="submitConsigneeCellEntry()">Save Entry</button></div>
+                <div class="flex justify-end gap-2"><button type="button" class="btn btn-accent" onclick="closeConsigneeCellModal()">Cancel</button><button type="button" class="btn btn-primary" id="consignee-cell-submit" onclick="submitConsigneeCellEntry()">Save Entry</button></div>
             </div>
         </div>
     </div>
@@ -2659,7 +2682,7 @@
         }
         if (actionCell) {
             actionCell.innerHTML = '<button type="button" class="btn btn-primary btn-sm" onclick="saveProductionLogEdit(this)">Save</button> ' +
-                '<button type="button" class="btn btn-outline btn-sm" onclick="cancelProductionLogEdit(this)">Cancel</button>';
+                '<button type="button" class="btn btn-accent btn-sm" onclick="cancelProductionLogEdit(this)">Cancel</button>';
         }
     }
 

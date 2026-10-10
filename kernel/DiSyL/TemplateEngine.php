@@ -1041,11 +1041,21 @@ class TemplateEngine
 
         // Pattern matching DiSyL tags — opening/closing control structures,
         // variables (letter/underscore start), filters, set, include, etc.
+        //
+        // The variable alternative must NOT be followed by a colon (optionally after spaces), because
+        // that is a JavaScript object-literal key, not a DiSyL tag. Without this `{consignee_id: id}`
+        // and `{a: X ? 1 : 0}` matched as the variables `consignee_id` / `a`, so the rest of the object
+        // literal was evaluated as a DiSyL expression and collapsed to a false branch — the served page
+        // contained `JSON.stringify(0)`, which silently corrupted the request payload.
+        //
+        // Deliberately a NEGATIVE lookahead rather than a terminator allow-list: a real tag can be
+        // followed by anything (`"{title}"`, `{count};`, `{n})`, `{user.name}`), and an allow-list
+        // breaks those. Only the colon is disqualifying.
         $disylPattern = '/\{(?:'             // Opening brace followed by:
             . '\/(?:if|for|foreach|each|literal|verbatim)\}'  // Closing tags
             . '|(?:if|elseif|for|foreach|each|set|math|include|literal|verbatim|else)\s' // Opening tags with space
             . '|else\}'                       // {else}
-            . '|[a-zA-Z_][\w.]*'              // Variables: {name}, {user.email}
+            . '|[a-zA-Z_][\w.]*(?!\s*:)'      // Variables: {name}, {user.email}, {name | filter}
             . ')/sA';                         // A: anchored at the offset, so a miss cannot scan forward
         
         // Step 1: Protect JS curly braces in a single pass without repeatedly
@@ -1176,12 +1186,16 @@ class TemplateEngine
             return $body;
         }
 
-        // Pattern matching DiSyL tags — same as script body
+        // Pattern matching DiSyL tags — same as script body.
+        //
+        // The variable alternative carries the same colon guard as the script body: a CSS declaration
+        // block (`a{color:red}` — minified, so no space after the brace) would otherwise match as the
+        // variable `color` and be evaluated as a DiSyL expression, mangling the stylesheet.
         $disylPattern = '/\{(?:'
             . '\/(?:if|for|foreach|each|literal|verbatim)\}'
             . '|(?:if|elseif|for|foreach|each|set|include|literal|verbatim|else)\s'
             . '|else\}'
-            . '|[a-zA-Z_][\w.]*'
+            . '|[a-zA-Z_][\w.]*(?!\s*:)'
             . ')/sA';                         // A: anchored at the offset, so a miss cannot scan forward
         $insideDisylTag = false;
         

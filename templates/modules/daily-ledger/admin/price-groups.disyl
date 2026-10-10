@@ -303,7 +303,7 @@
                 </div>
                 <p class="mt-2 text-xs text-gray-500" x-show="editGroup.is_default">Default groups stay selectable, but prices still fall back to current product price when no override exists.</p>
                 <div class="mt-4 flex justify-end gap-2">
-                    <button class="btn btn-outline" @click="closeEditor()">Close</button>
+                    <button class="btn btn-accent" @click="closeEditor()">Close</button>
                     <button class="btn btn-primary" @click="submitEdit()" :disabled="savingGroup" x-text="savingGroup ? 'Saving…' : 'Save Price Group'"></button>
                 </div>
             </div>
@@ -379,7 +379,7 @@
             <div x-show="selectedGroup" class="price-groups-table-footer mt-0 flex items-center justify-between" x-cloak>
                 <p class="text-sm text-gray-500">Saving applies the current effective date to all changed prices in this group.</p>
                 <div class="flex items-center gap-2">
-                    <button class="btn btn-outline" @click="closeEditor()">Close</button>
+                    <button class="btn btn-accent" @click="closeEditor()">Close</button>
                     <button class="btn btn-primary" @click="saveAllPrices()" :disabled="savingPrices || dirtyCount === 0" x-text="savingPrices ? 'Saving Prices…' : 'Save All Prices'"></button>
                 </div>
             </div>
@@ -407,7 +407,7 @@
                 </select>
             </div>
             <div class="modal-actions">
-                <button class="btn btn-outline" @click="createOpen = false">Cancel</button>
+                <button class="btn btn-accent" @click="createOpen = false">Cancel</button>
                 <button class="btn btn-primary" @click="submitCreate()">Create</button>
             </div>
         </div>

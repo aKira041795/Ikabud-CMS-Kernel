@@ -6,7 +6,7 @@
         <h2 class="text-lg font-semibold text-gray-900">{report_title}</h2>
         <p class="text-sm text-gray-500">Governed PDF and CSV deliverables. Exports are archived and audited.</p>
     </div>
-    {if !landing}<a class="btn btn-outline" href="{base_url}/admin/reports">All Reports</a>{/if}
+    {if !landing}<a class="btn btn-accent" href="{base_url}/admin/reports">All Reports</a>{/if}
 </div>
 
 {if landing}
@@ -46,6 +46,9 @@
 {/if}
 <form class="card mb-6" action="{base_url}/admin/reports/{report_type}" method="GET" onsubmit="return window.dlLoadForm(this)">
     <div class="card-body grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+        <div class="form-group">
+            {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+        </div>
         <div class="form-group"><label class="form-label">From</label><input class="form-input" type="date" name="date_from" value="{filters.date_from}"></div>
         <div class="form-group"><label class="form-label">To</label><input class="form-input" type="date" name="date_to" value="{filters.date_to}"></div>
         <div class="form-group"><label class="form-label">Branch</label><select class="form-input" name="branch_id"><option value="">All</option>{foreach branches as branch}<option value="{branch.id}" {if branch.id == filters.branch_id}selected{/if}>{branch.name}</option>{/foreach}</select></div>
@@ -56,7 +59,7 @@
 </form>
 
 <div class="flex gap-2 justify-end mb-4">
-    <a class="btn btn-outline" href="{base_url}/admin/reports/{report_type}/export?format=csv&date_from={filters.date_from}&date_to={filters.date_to}&branch_id={filters.branch_id}&product_id={filters.product_id}&shift={filters.shift}">Download CSV</a>
+    <a class="btn btn-accent" href="{base_url}/admin/reports/{report_type}/export?format=csv&date_from={filters.date_from}&date_to={filters.date_to}&branch_id={filters.branch_id}&product_id={filters.product_id}&shift={filters.shift}">Download CSV</a>
     <a class="btn btn-primary" href="{base_url}/admin/reports/{report_type}/export?format=pdf&date_from={filters.date_from}&date_to={filters.date_to}&branch_id={filters.branch_id}&product_id={filters.product_id}&shift={filters.shift}">Download PDF</a>
 </div>
 

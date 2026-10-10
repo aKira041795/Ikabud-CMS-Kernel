@@ -155,7 +155,7 @@
                         </table>
                     </div>
 
-                    <button type="button" @click="addEmptyLine()" class="btn btn-outline w-full justify-center mb-4">+ Add Product</button>
+                    <button type="button" @click="addEmptyLine()" class="btn btn-accent w-full justify-center mb-4">+ Add Product</button>
 
                     <div x-show="errorMsg" class="mb-3 flex items-start gap-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2">
                         <i class="fas fa-triangle-exclamation mt-0.5 text-rose-600" aria-hidden="true"></i>

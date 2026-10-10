@@ -1294,6 +1294,44 @@ check(
     $engine->renderString('<script>const x = {a: 1, b: 2};</script>', [])
 );
 
+// Regression: a JavaScript object literal whose FIRST key is immediately followed by a colon was
+// matched as the DiSyL variable `a`, so the rest of the literal was evaluated as a DiSyL expression
+// and collapsed to its false branch. The served page then contained `JSON.stringify(0)` instead of
+// the payload, which silently corrupted the request. Verified on live data: the admin consignee save
+// and the dc-cafe settings payload were both mangled by this. Falsifiable — reverting the `(?!\s*:)`
+// guard in $disylPattern turns both assertions red.
+check(
+    'object literal with a ternary in a script is not evaluated as DiSyL',
+    '<script>body: JSON.stringify({a: X ? 1 : 0})</script>',
+    $engine->renderString('<script>body: JSON.stringify({a: X ? 1 : 0})</script>', [])
+);
+
+check(
+    'object literal with a ternary and spaces after the colon is preserved',
+    '<script>body: JSON.stringify({a: X ? 1 : 0, b: 2})</script>',
+    $engine->renderString('<script>body: JSON.stringify({a: X ? 1 : 0, b: 2})</script>', [])
+);
+
+// The colon guard must not cost a legitimate variable that is followed by a quote or punctuation —
+// an allow-list of terminators would pass the two checks above but break these three.
+check(
+    'variable inside a JS string is still resolved',
+    '<script>const t = "Bob";</script>',
+    $engine->renderString('<script>const t = "{title}";</script>', ['title' => 'Bob'])
+);
+
+check(
+    'variable followed by a semicolon is still resolved',
+    '<script>const n = 7;</script>',
+    $engine->renderString('<script>const n = {count};</script>', ['count' => 7])
+);
+
+check(
+    'variable followed by a closing paren is still resolved',
+    '<script>log(42)</script>',
+    $engine->renderString('<script>log({value})</script>', ['value' => 42])
+);
+
 check(
     'DiSyL variables resolved inside script',
     '<script>const name = "Alice";</script>',

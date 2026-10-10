@@ -1234,7 +1234,9 @@ function dlRender(string $template, array $context = []): string
     // payload so the cashier's entered full name shows beside the branch-shift
     // username. Non-fatal: on failure the layout falls back to user_name/role.
     $context = dl_navUserContext($context);
-    if (($context['user_role'] ?? '') === 'admin' && function_exists('dl_adminAreaScope')) {
+    if (($context['user_role'] ?? '') === 'admin'
+        && !empty($context['admin_area_filter'])
+        && function_exists('dl_adminAreaScope')) {
         $scopeUser = function_exists('dlUserFromRequest') ? (dlUserFromRequest() ?? []) : [];
         if (!is_array($scopeUser) || ($scopeUser['role'] ?? '') !== 'admin') {
             $scopeUser = ['role' => 'admin', 'id' => (int)($context['user_id'] ?? 0)];

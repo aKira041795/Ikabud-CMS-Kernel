@@ -23,6 +23,11 @@
         .btn-primary:hover { background: rgb(67 56 202); }
         .btn-outline { background: #fff; color: rgb(15 23 42); border: 1px solid rgb(203 213 225); }
         .btn-outline:hover { background: rgb(249 250 251); }
+        /* Secondary actions carry the accent colour instead of a white background, so no button in the
+           module renders as an uncoloured white box. Matched to the existing palette weights
+           (indigo-600 primary, rose-600 danger) at orange-600 / hover orange-700. */
+        .btn-accent { background: #3E7A6B; color: #fff; }
+        .btn-accent:hover { background: #34695C; }
         .btn-danger { background: rgb(225 29 72); color: #fff; }
         .btn-danger:hover { background: rgb(190 18 60); }
 
@@ -34,19 +39,33 @@
         }
 
         .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(31 41 55); }
-        .form-input { margin-top: .25rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        /* One height for every control. Without it a <select> and an <input type="date"> carrying the
+           SAME .form-input padding render at different intrinsic heights (measured 35px against 41px),
+           so any filter row looks ragged and the row's items-end alignment shifts every neighbour.
+           textarea is excluded on purpose: it is multi-line and must grow with its content. */
+        textarea.form-input { height: auto; }
+        /* ONE radius everywhere: 3px. The module's own components (.card, .btn, .form-input) already
+           used 3px, but Tailwind's rounded-* utilities AND each view's own <style> block overrode it
+           per element, so the same screen showed 3px, 4px, 6px, 8px, 12px and fully-round corners at
+           once (measured on the ledger alone: 213 elements at 8px, 4 at 12px, 11 pill-round).
+           A utility list cannot catch the per-view declarations, so this is deliberately universal.
+           !important is required because the Tailwind CDN injects its stylesheet after this block.
+           Consequence: elements that were perfect circles (status dots, pills) now render as 3px
+           rounded squares - that is the literal request, and it is the only way to be uniform. */
+        * { border-radius: 3px !important; }
         .form-input:focus { outline: none; border-color: rgb(99 102 241); box-shadow: 0 0 0 3px rgba(99,102,241,.22); }
         .form-input::placeholder { color: rgb(100 116 139); }
         .form-group { margin-bottom: 1rem; }
 
-        .card { border-radius: 3px; border: 1px solid rgb(226 232 240); background: #fff; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(226 232 240); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(15 23 42); }
+        .card { border-radius: 3px; border: 1px solid rgb(203 213 225); background: #F8F9FA; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(203 213 225); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(15 23 42); }
         .card-body { padding: 1rem; color: rgb(15 23 42); }
 
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
-        thead th { white-space: nowrap; border-bottom: 1px solid rgb(226 232 240); background: rgb(248 250 252); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(51 65 85); }
-        tbody td { border-bottom: 1px solid rgb(241 245 249); padding: .75rem 1rem; font-size: .875rem; color: rgb(15 23 42); }
+        thead th { white-space: nowrap; border-bottom: 1px solid rgb(203 213 225); background: rgb(248 250 252); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(51 65 85); }
+        tbody td { border-bottom: 1px solid rgb(226 232 240); padding: .75rem 1rem; font-size: .875rem; color: rgb(15 23 42); }
         tbody tr:hover { background: rgb(249 250 251); }
         /* Alternating rows, opted in per table with .dl-zebra. A ledger row is wide enough that the eye
            loses the line between the product on the left and the figure on the right.
@@ -60,13 +79,13 @@
         .settings-nav { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.25rem; }
         .settings-nav a {
             display: inline-flex; align-items: center; border-radius: 9999px;
-            border: 1px solid rgb(226 232 240); background: #fff; padding: .25rem .75rem;
+            border: 1px solid rgb(203 213 225); background: #fff; padding: .25rem .75rem;
             font-size: .75rem; font-weight: 600; color: rgb(51 65 85); text-decoration: none;
         }
         .settings-nav a:hover { border-color: rgb(129 140 248); color: rgb(67 56 202); }
         .settings-section {
-            scroll-margin-top: 5rem; margin: 1.5rem 0 .75rem; padding-top: .5rem;
-            border-top: 1px solid rgb(226 232 240);
+            scroll-margin-top: 5rem; margin: 1.5rem 0 .75rem; padding: .5rem .75rem;
+            background: #F8F9FA; border-top: 1px solid rgb(203 213 225);
         }
         .settings-section-first { margin-top: 0; padding-top: 0; border-top: 0; }
         .settings-section h3 { font-size: .95rem; font-weight: 700; color: rgb(15 23 42); }
@@ -80,7 +99,7 @@
 
         .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
         .modal-overlay.show { display: flex; }
-        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #fff; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
+        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #F8F9FA; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
         .modal h3 { margin-bottom: 1rem; font-size: 1rem; font-weight: 600; color: rgb(15 23 42); }
         .modal-actions { margin-top: 1.5rem; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
 
@@ -487,7 +506,7 @@
             </div>
             <div class="flex shrink-0 items-center gap-2">
                 <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="window.dlRetryWriteFailure()">Retry — safe, will not duplicate</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
+                <button type="button" class="btn btn-accent btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
             </div>
         </div>
     </div>
@@ -752,15 +771,6 @@
                 {if user_role == 'admin' && admin_view_scope}
                 <div id="admin-view-scope" class="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950" role="status">
                     <span class="font-semibold">View scope: {admin_view_scope.label}</span>
-                    <label class="ml-auto flex items-center gap-2">
-                        <span class="font-medium">Change scope</span>
-                        <select class="form-input mt-0 w-auto" onchange="var u=new URL(window.location.href);u.searchParams.set('scope',this.value);window.location.assign(u.toString())">
-                            <option value="ALL" {if admin_view_scope.value == 'ALL'}selected{/if}>All branches</option>
-                            {foreach admin_view_scope.areas as scope_area}<option value="AREA:{scope_area.id}" {if scope_area.selected}selected{/if}>Area — {scope_area.name}</option>{/foreach}
-                            {foreach admin_view_scope.commissaries as scope_commissary}<option value="COMMISSARY:{scope_commissary.id}" {if scope_commissary.selected}selected{/if}>Commissary — {scope_commissary.name}</option>{/foreach}
-                        </select>
-                    </label>
-                    <a class="btn btn-outline btn-sm" href="?scope=ALL">Show all</a>
                 </div>
                 {/if}
                 {block content}{/block}

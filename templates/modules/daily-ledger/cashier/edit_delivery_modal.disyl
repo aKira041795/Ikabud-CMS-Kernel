@@ -29,7 +29,7 @@
                             <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR Number <span class="text-rose-500">*</span></label>
                             <div class="flex gap-2">
                                 <input type="text" x-model="drNumber" class="form-input mt-0 w-full font-mono uppercase" placeholder="e.g. 12345">
-                                <button type="button" class="btn btn-outline whitespace-nowrap" @click="loadDelivery()" x-bind:disabled="loading">
+                                <button type="button" class="btn btn-accent whitespace-nowrap" @click="loadDelivery()" x-bind:disabled="loading">
                                     <span x-text="loading ? 'Loading...' : 'Load'"></span>
                                 </button>
                             </div>
@@ -82,7 +82,7 @@
                                 </template>
                             </tbody>
                         </table>
-                        <button type="button" @click="addEmptyLine()" class="btn btn-outline w-full justify-center mt-3">+ Add Missed Item</button>
+                        <button type="button" @click="addEmptyLine()" class="btn btn-accent w-full justify-center mt-3">+ Add Missed Item</button>
                         <p class="mt-2 text-xs text-gray-500">Set a quantity to 0 or remove a row to drop that item from the delivery.</p>
                     </div>
 

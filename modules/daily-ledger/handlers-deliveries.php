@@ -1459,7 +1459,7 @@ function apiListDeliveries(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
         return;
     }
-    $accessibleBranchIds = $authResult['accessible'];
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $_GET);
     $status = (string)($_GET['status'] ?? '');
     $destType = (string)($_GET['destination_type'] ?? '');
     $destId   = isset($_GET['destination_id']) ? (int)$_GET['destination_id'] : 0;
@@ -1483,27 +1483,27 @@ function apiListDeliveries(array $params = []): void
     $where = [];
     $bind = [];
 
-    // Admins own the tenant-wide operational view; other roles are branch-scoped.
-    if ((string)($user['role'] ?? '') !== 'admin') {
-        if (count($accessibleBranchIds) === 0) {
-            $where[] = '1 = 0';
-        } else {
-            $originPlaceholders = [];
-            $destinationPlaceholders = [];
-            foreach (array_values($accessibleBranchIds) as $index => $accessibleBranchId) {
-                $originKey = ':origin_branch_' . $index;
-                $destinationKey = ':destination_branch_' . $index;
-                $originPlaceholders[] = $originKey;
-                $destinationPlaceholders[] = $destinationKey;
-                $bind[$originKey] = (int)$accessibleBranchId;
-                $bind[$destinationKey] = (int)$accessibleBranchId;
-            }
-            $where[] = "((d.origin_type IN ('branch', 'commissary') AND d.origin_id IN ("
-                . implode(',', $originPlaceholders)
-                . ")) OR (d.destination_type = 'branch' AND d.destination_id IN ("
-                . implode(',', $destinationPlaceholders)
-                . ')))';
+    // Every operational view is constrained to its resolved branch set. For
+    // non-admins this is authorization; for admins it is authorization
+    // intersected with the persisted area presentation scope.
+    if (count($accessibleBranchIds) === 0) {
+        $where[] = '1 = 0';
+    } else {
+        $originPlaceholders = [];
+        $destinationPlaceholders = [];
+        foreach (array_values($accessibleBranchIds) as $index => $accessibleBranchId) {
+            $originKey = ':origin_branch_' . $index;
+            $destinationKey = ':destination_branch_' . $index;
+            $originPlaceholders[] = $originKey;
+            $destinationPlaceholders[] = $destinationKey;
+            $bind[$originKey] = (int)$accessibleBranchId;
+            $bind[$destinationKey] = (int)$accessibleBranchId;
         }
+        $where[] = "((d.origin_type IN ('branch', 'commissary') AND d.origin_id IN ("
+            . implode(',', $originPlaceholders)
+            . ")) OR (d.destination_type = 'branch' AND d.destination_id IN ("
+            . implode(',', $destinationPlaceholders)
+            . ')))';
     }
 
     $hasReceivingSql = 'EXISTS (
@@ -1534,10 +1534,6 @@ function apiListDeliveries(array $params = []): void
     }
     if ($destId > 0) { $where[] = 'd.destination_id = :did'; $bind[':did'] = $destId; }
     if ($branchFilterId > 0) {
-        if ((string)($user['role'] ?? '') !== 'admin' && !in_array($branchFilterId, $accessibleBranchIds, true)) {
-            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
-            return;
-        }
         $where[] = '((d.origin_type IN ("branch", "commissary") AND d.origin_id = :filter_branch_id)
                      OR (d.destination_type = "branch" AND d.destination_id = :filter_branch_id_destination))';
         $bind[':filter_branch_id'] = $branchFilterId;
@@ -3121,7 +3117,7 @@ function handleAdminDeliveries(array $params = []): void
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $input = $ctx->input();
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
     $branches = $ctx->db()->prepare("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
@@ -3152,6 +3148,7 @@ function handleAdminDeliveries(array $params = []): void
         'user_name'    => $userName,
         'user_role'    => $role,
         'current_page' => 'deliveries',
+        'admin_area_filter' => true,
         'base_url'     => dlGetBaseUrl(),
         'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
         'branches'     => $branches,

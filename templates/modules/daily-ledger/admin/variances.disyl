@@ -24,6 +24,9 @@
         .btn-primary:hover { background: rgb(67 56 202); }
         .btn-outline { background: #fff; color: rgb(15 23 42); border: 1px solid rgb(203 213 225); }
         .btn-outline:hover { background: rgb(249 250 251); }
+        /* Accent for secondary actions; keep in step with layouts/app.disyl. */
+        .btn-accent { background: #3E7A6B; color: #fff; }
+        .btn-accent:hover { background: #34695C; }
         .btn-danger { background: rgb(225 29 72); color: #fff; }
         .btn-danger:hover { background: rgb(190 18 60); }
 
@@ -35,19 +38,24 @@
         }
 
         .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(31 41 55); }
-        .form-input { margin-top: .25rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        /* Keep in step with layouts/app.disyl: one control height across every view. */
+        textarea.form-input { height: auto; }
+        /* Keep in step with layouts/app.disyl: one radius, 3px, across every view. Universal because
+           this page's own rules below set 999px, so a utility list would not be enough. */
+        * { border-radius: 3px !important; }
         .form-input:focus { outline: none; border-color: rgb(99 102 241); box-shadow: 0 0 0 3px rgba(99,102,241,.22); }
         .form-input::placeholder { color: rgb(100 116 139); }
         .form-group { margin-bottom: 1rem; }
 
-        .card { border-radius: 3px; border: 1px solid rgb(226 232 240); background: #fff; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(226 232 240); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(15 23 42); }
+        .card { border-radius: 3px; border: 1px solid rgb(203 213 225); background: #F8F9FA; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(203 213 225); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(15 23 42); }
         .card-body { padding: 1rem; color: rgb(15 23 42); }
 
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
-        thead th { white-space: nowrap; border-bottom: 1px solid rgb(226 232 240); background: rgb(248 250 252); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(51 65 85); }
-        tbody td { border-bottom: 1px solid rgb(241 245 249); padding: .75rem 1rem; font-size: .875rem; color: rgb(15 23 42); }
+        thead th { white-space: nowrap; border-bottom: 1px solid rgb(203 213 225); background: rgb(248 250 252); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(51 65 85); }
+        tbody td { border-bottom: 1px solid rgb(226 232 240); padding: .75rem 1rem; font-size: .875rem; color: rgb(15 23 42); }
         tbody tr:hover { background: rgb(249 250 251); }
 
         .text-left { text-align: left; }
@@ -58,7 +66,7 @@
 
         .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
         .modal-overlay.show { display: flex; }
-        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #fff; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
+        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #F8F9FA; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
         .modal h3 { margin-bottom: 1rem; font-size: 1rem; font-weight: 600; color: rgb(15 23 42); }
         .modal-actions { margin-top: 1.5rem; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
 
@@ -459,7 +467,7 @@
     }
     .variance-stat {
         border-radius: 3px;
-        border: 1px solid rgb(226 232 240);
+        border: 1px solid rgb(203 213 225);
         background: #fff;
         padding: 1rem 1.25rem;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
@@ -512,7 +520,7 @@
         padding: .35rem .85rem;
         font-size: .8125rem;
         font-weight: 600;
-        border: 1px solid rgb(226 232 240);
+        border: 1px solid rgb(203 213 225);
         background: #fff;
         color: rgb(71 85 105);
         cursor: pointer;
@@ -529,7 +537,7 @@
         font-weight: 700;
         padding: .1rem .4rem;
         border-radius: 999px;
-        background: rgb(241 245 249);
+        background: rgb(226 232 240);
         color: rgb(71 85 105);
     }
     .variance-filter-pill--active .variance-filter-pill-count {
@@ -572,7 +580,7 @@
 
     /* Branch-grouped view */
     .variance-branch-group {
-        border: 1px solid rgb(226 232 240);
+        border: 1px solid rgb(203 213 225);
         border-radius: 3px;
         background: #fff;
         margin-bottom: .75rem;
@@ -585,11 +593,11 @@
         padding: .75rem 1rem;
         cursor: pointer;
         background: rgb(248 250 252);
-        border-bottom: 1px solid rgb(226 232 240);
+        border-bottom: 1px solid rgb(203 213 225);
         transition: background-color .15s;
         user-select: none;
     }
-    .variance-branch-group-header:hover { background: rgb(241 245 249); }
+    .variance-branch-group-header:hover { background: rgb(226 232 240); }
     .variance-branch-group-header--expanded { background: rgb(238 242 255); border-bottom-color: rgb(199 210 254); }
     .variance-branch-group-name {
         font-weight: 600;
@@ -644,14 +652,16 @@
         font-size: .75rem;
         font-weight: 600;
         border: none;
-        background: #fff;
-        color: rgb(71 85 105);
+        /* Brand accent rather than white. The ACTIVE arm stays indigo so the segmented control still
+           reads as a choice: tinted teal = available, indigo = selected. */
+        background: rgb(240 249 246);
+        color: rgb(42 82 71);
         cursor: pointer;
         transition: all .15s;
     }
     .variance-view-toggle-btn:not(:last-child) { border-right: 1px solid rgb(203 213 225); }
     .variance-view-toggle-btn--active { background: rgb(79 70 229); color: #fff; }
-    .variance-view-toggle-btn:hover:not(.variance-view-toggle-btn--active) { background: rgb(248 250 252); }
+    .variance-view-toggle-btn:hover:not(.variance-view-toggle-btn--active) { background: rgb(204 227 220); }
 
     @media (max-width: 767px) {
         .variance-stat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -675,7 +685,7 @@
             </div>
             <div class="flex shrink-0 items-center gap-2">
                 <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="window.dlRetryWriteFailure()">Retry — safe, will not duplicate</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
+                <button type="button" class="btn btn-accent btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
             </div>
         </div>
     </div>
@@ -761,12 +771,14 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
                 </a>
 
+                {if feature_consignee}
                 <a href="{base_url}/admin/consignee-dispatch-report"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'consignee_dispatch'}bg-white/10 ring-1 ring-white/10{/if}"
-                   aria-label="Consignee Dispatch Report">
+                   aria-label="Consignee Dispatch Ledger">
                     <i class="fas fa-file-invoice w-6" aria-hidden="true"></i>
-                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Consignee Dispatch</span>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Consignee Dispatch Ledger</span>
                 </a>
+                {/if}
 
                 {if feature_pos}
                 <a href="{base_url}/admin/pos-sales"
@@ -866,6 +878,15 @@
                 </a>
                 {/if}
 
+                {if feature_branch_products && (user_role == 'cashier' || user_role == 'supervisor' || user_role == 'production_in_charge' || user_role == 'admin')}
+                <a href="{base_url}/products"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branch-products'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Branch Products">
+                    <i class="fas fa-boxes-stacked w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branch Products</span>
+                </a>
+                {/if}
+
                 {if user_role == 'admin'}
                 <a href="{base_url}/admin/products"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'products'}bg-white/10 ring-1 ring-white/10{/if}"
@@ -936,7 +957,7 @@
                 {if is_supervisor}Showing your assigned branches.{/if}
             </p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-end justify-end gap-3">
             <div class="variance-view-toggle">
                 <button class="variance-view-toggle-btn"
                     :class="{ 'variance-view-toggle-btn--active': view === 'grouped' }"
@@ -949,20 +970,29 @@
                     <i class="fas fa-list mr-1"></i> List
                 </button>
             </div>
-            <form class="flex gap-2" action="{base_url}/admin/variances" method="GET"
+            <!-- items-end + gap-3, matching every other filter bar in the module. The previous
+                 `flex gap-2` had NO alignment, so the labelled Area control and the unlabelled search
+                 box stretched against each other and the row read as cramped; the wrapper is a plain
+                 div because under items-end a .form-group's 16px bottom margin lifts this control out
+                 of line with its unlabelled neighbour. The submit is a full-size .btn: btn-sm made it
+                 visibly shorter than the 40px controls it sits beside. -->
+            <form class="flex flex-wrap items-end gap-3" action="{base_url}/admin/variances" method="GET"
       onsubmit="return window.dlLoadForm(this)">
+                <div class="min-w-40 w-40">
+                    {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+                </div>
                 <input type="hidden" name="view" :value="view">
                 <input type="hidden" name="status" value="{status_filter}">
                 {if branch_id}<input type="hidden" name="branch_id" value="{branch_id}">{/if}
                 {if date_from}<input type="hidden" name="date_from" value="{date_from}">{/if}
                 {if date_to}<input type="hidden" name="date_to" value="{date_to}">{/if}
-                <input type="text" class="form-input w-48" name="q" value="{search}" placeholder="Product or branch...">
-                <button type="submit" class="btn btn-outline btn-sm">Search</button>
+                <input type="text" class="form-input w-56" name="q" value="{search}" placeholder="Product or branch...">
+                <button type="submit" class="btn btn-primary h-10">Search</button>
             </form>
         </div>
     </div>
     <div class="flex items-center gap-2 mb-4">
-        <a class="btn btn-outline" href="{base_url}/admin/sales?date_from={sales_link_from}&date_to={sales_link_to}">Sales Summary</a>
+        <a class="btn btn-accent" href="{base_url}/admin/sales?date_from={sales_link_from}&date_to={sales_link_to}">Sales Summary</a>
     </div>
 
     {if integrity_notifications | length > 0}
@@ -1081,13 +1111,13 @@
     {if can_manage_variances}
     <div class="variance-bulk-bar" :class="{ 'variance-bulk-bar--visible': selectedIds.length > 0 }">
         <span x-text="selectedIds.length + ' selected'"></span>
-        <button class="btn btn-sm btn-outline" @click="bulkUpdateStatus('investigated')">
+        <button class="btn btn-sm btn-accent" @click="bulkUpdateStatus('investigated')">
             <i class="fas fa-search text-xs"></i> Mark Investigated
         </button>
-        <button class="btn btn-sm btn-outline" @click="bulkUpdateStatus('corrected')">
+        <button class="btn btn-sm btn-accent" @click="bulkUpdateStatus('corrected')">
             <i class="fas fa-check text-xs"></i> Mark Corrected
         </button>
-        <button class="btn btn-sm btn-outline" @click="selectedIds = []">Clear selection</button>
+        <button class="btn btn-sm btn-accent" @click="selectedIds = []">Clear selection</button>
     </div>
     {/if}
 
@@ -1211,8 +1241,8 @@
                                     <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-note-id="{v.id}" maxlength="500" placeholder="Note the decision…">
                                     {if v.decision_ready}
                                     <div class="mt-1 flex flex-wrap gap-1">
-                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'accept_production')">Accept production ({v.original_counted_qty} → {v.sent_qty})</button>
-                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'keep_as_evidence')">Keep as evidence ({v.original_counted_qty})</button>
+                                        <button type="button" class="btn btn-sm btn-accent" onclick="decideDeliveryVariance({v.id}, 'accept_production')">Accept production ({v.original_counted_qty} → {v.sent_qty})</button>
+                                        <button type="button" class="btn btn-sm btn-accent" onclick="decideDeliveryVariance({v.id}, 'keep_as_evidence')">Keep as evidence ({v.original_counted_qty})</button>
                                     </div>
                                     {else}
                                     <div class="mt-1 text-gray-500">Investigate, or reopen a corrected finding, to change the decision.</div>
@@ -1343,8 +1373,8 @@
                                     <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-note-id="{v.id}" maxlength="500" placeholder="Note the decision…">
                                     {if v.decision_ready}
                                     <div class="mt-1 flex flex-wrap gap-1">
-                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'accept_production')">Accept production ({v.original_counted_qty} → {v.sent_qty})</button>
-                                        <button type="button" class="btn btn-sm btn-outline" onclick="decideDeliveryVariance({v.id}, 'keep_as_evidence')">Keep as evidence ({v.original_counted_qty})</button>
+                                        <button type="button" class="btn btn-sm btn-accent" onclick="decideDeliveryVariance({v.id}, 'accept_production')">Accept production ({v.original_counted_qty} → {v.sent_qty})</button>
+                                        <button type="button" class="btn btn-sm btn-accent" onclick="decideDeliveryVariance({v.id}, 'keep_as_evidence')">Keep as evidence ({v.original_counted_qty})</button>
                                     </div>
                                     {else}
                                     <div class="mt-1 text-gray-500">Investigate, or reopen a corrected finding, to change the decision.</div>

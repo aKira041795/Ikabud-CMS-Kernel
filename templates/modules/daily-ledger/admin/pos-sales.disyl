@@ -7,7 +7,7 @@
             <h2 class="text-lg font-semibold text-gray-900">POS Sales</h2>
             <p class="text-sm text-gray-500">Itemized POS receipts, voids, and refunds. Manual stock-derived sales are on the Sales report.</p>
         </div>
-        <a class="btn btn-outline" href="{base_url}/admin/pos-sales/export?branch_id={filter_branch_id}&date_from={filter_date_from}&date_to={filter_date_to}&status={filter_status}&tender={filter_tender}&shift={filter_shift}">Export CSV</a>
+        <a class="btn btn-accent" href="{base_url}/admin/pos-sales/export?branch_id={filter_branch_id}&date_from={filter_date_from}&date_to={filter_date_to}&status={filter_status}&tender={filter_tender}&shift={filter_shift}">Export CSV</a>
     </div>
 </div>
 

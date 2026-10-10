@@ -19,6 +19,17 @@
         {/if}
     </div>
 
+    <!-- The view's own filter bar. Deliveries had no form at all, so the area scope was only
+         reachable from the global banner above the content. A plain GET (not dlLoadForm) because
+         this page is Alpine-driven and a full reload is the safe navigation here. -->
+    <form class="flex flex-col gap-2 sm:flex-row sm:items-end mb-5" method="GET"
+          action="{base_url}/admin/deliveries">
+        <div class="form-group">
+            {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+        </div>
+        <button type="submit" class="btn btn-primary">Apply</button>
+    </form>
+
     <div class="mb-5 flex gap-2 border-b border-gray-200">
         <button type="button" id="tab-delivery-branches" class="px-4 py-2 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-700" @click="showDestinationTab('branch')">Branches</button>
         <button type="button" id="tab-delivery-consignees" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-gray-500" @click="showDestinationTab('consignee')">Consignees</button>
@@ -40,7 +51,7 @@
             <div class="mt-1 text-sm font-semibold text-amber-900">Use this page only for missed or special cases</div>
             <p class="mt-1 text-xs leading-5 text-amber-800">Record a delivery here only when the normal branch steps were missed, the day is already closed, or the destination is not a branch.</p>
             {if can_create_delivery_docs}
-            <button class="btn btn-outline mt-4 w-full justify-center" @click="openCreate()">Open Missing Delivery Form</button>
+            <button class="btn btn-accent mt-4 w-full justify-center" @click="openCreate()">Open Missing Delivery Form</button>
             <p class="mt-2 text-[11px] text-amber-800">Opens a modal so the recovery form stays in view.</p>
             {/if}
         </div>
@@ -93,10 +104,10 @@
                 </select>
             </div>
             <div class="flex items-end">
-                <button class="btn btn-outline w-full" @click="reload()">Apply</button>
+                <button class="btn btn-accent w-full" @click="reload()">Apply</button>
             </div>
             <div class="flex items-end">
-                <button class="btn btn-outline w-full" @click="clearFilters()">Clear</button>
+                <button class="btn btn-accent w-full" @click="clearFilters()">Clear</button>
             </div>
         </div>
     </div>
@@ -172,26 +183,26 @@
                                 <template x-if="d.status === 'draft' && {if can_create_delivery_docs}true{else}false{/if}">
                                     <span>
                                         <button class="btn btn-sm btn-primary" @click="postDelivery(d.id)" :disabled="!{if formal_delivery_enabled}true{else}false{/if}">Finalize</button>
-                                        <button class="btn btn-sm btn-outline" @click="voidDelivery(d.id)">Cancel</button>
+                                        <button class="btn btn-sm btn-accent" @click="voidDelivery(d.id)">Cancel</button>
                                     </span>
                                 </template>
                                 <template x-if="d.is_provenance_reviewable == 1 && (d.provenance_status === 'paper_dr_pending' || d.provenance_status === 'none') && {if can_review_delivery_provenance}true{else}false{/if}">
                                     <span class="inline-flex gap-2">
                                         <button class="btn btn-sm btn-primary" @click="reviewProvenance(d.id, 'accepted')">Mark Verified</button>
                                         {if can_mark_delivery_discrepant}
-                                        <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'discrepant')">Mark Problem</button>
+                                        <button class="btn btn-sm btn-accent" @click="reviewProvenance(d.id, 'discrepant')">Mark Problem</button>
                                         {/if}
                                     </span>
                                 </template>
                                 <template x-if="d.is_provenance_reviewable == 1 && d.provenance_status !== 'paper_dr_pending' && d.provenance_status !== 'none' && {if can_mark_delivery_discrepant}true{else}false{/if}">
-                                    <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'reopen')">Reopen Review</button>
+                                    <button class="btn btn-sm btn-accent" @click="reviewProvenance(d.id, 'reopen')">Reopen Review</button>
                                 </template>
                                 <template x-if="d.status === 'received'">
-                                    <button class="btn btn-sm btn-outline" @click="toggleReceiving(d.id)"
+                                    <button class="btn btn-sm btn-accent" @click="toggleReceiving(d.id)"
                                             x-text="expandedId === d.id ? 'Hide' : 'View Receipt'"></button>
                                 </template>
                                 <template x-if="d.status === 'received' && {if can_change_destination}true{else}false{/if}">
-                                    <button class="btn btn-sm btn-outline" @click="openMoveModal(d)" title="Delivery was received at the wrong branch — repoint it to the correct branch">Move to Correct Branch</button>
+                                    <button class="btn btn-sm btn-accent" @click="openMoveModal(d)" title="Delivery was received at the wrong branch — repoint it to the correct branch">Move to Correct Branch</button>
                                 </template>
                             </td>
                         </tr>
@@ -361,7 +372,7 @@
             <div class="border-t border-gray-200 pt-3 mb-3">
                 <div class="flex items-center justify-between mb-2">
                     <h4 class="text-sm font-semibold">Items</h4>
-                    <button class="btn btn-sm btn-outline" @click="addItem()">+ Add Item</button>
+                    <button class="btn btn-sm btn-accent" @click="addItem()">+ Add Item</button>
                 </div>
                 <div class="space-y-2">
                     <template x-for="(it, idx) in form.items" :key="idx">
@@ -384,7 +395,7 @@
                                 <input class="form-input mt-0" type="text" x-model="it.unit" placeholder="pc">
                             </div>
                             <div class="col-span-1 flex justify-end">
-                                <button class="btn btn-sm btn-outline" @click="form.items.splice(idx, 1)">×</button>
+                                <button class="btn btn-sm btn-accent" @click="form.items.splice(idx, 1)">×</button>
                             </div>
                         </div>
                     </template>
@@ -393,7 +404,7 @@
             </div>
 
             <div class="modal-actions">
-                <button class="btn btn-outline" @click="createOpen = false">Cancel</button>
+                <button class="btn btn-accent" @click="createOpen = false">Cancel</button>
                 <button class="btn btn-primary" @click="submit()" :disabled="saving" x-text="saving ? 'Saving…' : 'Save as Draft Record'"></button>
             </div>
         </div>
@@ -434,7 +445,7 @@
             </div>
             <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse border-t border-gray-200 pt-4">
                 <button class="btn btn-primary" @click="moveSubmit()" :disabled="moveSaving" x-text="moveSaving ? 'Moving…' : 'Move Delivery'"></button>
-                <button class="btn btn-outline mr-2" @click="moveOpen = false" :disabled="moveSaving">Cancel</button>
+                <button class="btn btn-accent mr-2" @click="moveOpen = false" :disabled="moveSaving">Cancel</button>
             </div>
         </div>
     </div>

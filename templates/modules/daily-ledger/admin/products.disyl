@@ -158,8 +158,8 @@
 
 <div class="mb-3 flex flex-wrap items-center gap-2">
     <span class="text-sm font-medium text-gray-700">Bulk change:</span>
-    <button type="button" class="btn btn-outline btn-sm" id="picker-show-matching" onclick="pickerCheckAll(true)">Show all matching</button>
-    <button type="button" class="btn btn-outline btn-sm" id="picker-hide-matching" onclick="pickerCheckAll(false)">Hide all matching</button>
+    <button type="button" class="btn btn-accent btn-sm" id="picker-show-matching" onclick="pickerCheckAll(true)">Show all matching</button>
+    <button type="button" class="btn btn-accent btn-sm" id="picker-hide-matching" onclick="pickerCheckAll(false)">Hide all matching</button>
     <span class="text-xs text-gray-600">Only the products currently matching search + state are changed.</span>
 </div>
 <div id="picker-change-summary" class="mb-3 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" role="status" aria-live="polite" tabindex="-1">
@@ -188,7 +188,7 @@
                     <td class="picker-name font-medium text-gray-900"><label for="picker-product-{p.id}">{p.name}</label></td>
                     <td class="text-xs uppercase tracking-wider text-gray-600">{p.product_category}</td>
                     <td class="text-right">
-                        <button type="button" class="btn btn-sm btn-outline" aria-label="Open {p.name} product view" title="View details and all branch assignments"
+                        <button type="button" class="btn btn-sm btn-accent" aria-label="Open {p.name} product view" title="View details and all branch assignments"
                             data-price="{p.current_price}" data-sort="{p.sort_order}" data-active="{p.is_active}"
                             data-output-pieces="{p.output_pieces_per_batch | default:0}" data-output-unit="{p.output_unit_label | default:pcs}"
                             data-batch-kilo="{p.batch_input_qty | default:0}" data-batch-eggs="{p.batch_egg_qty | default:0}" data-pack="{p.pcs_per_pack | default:0}"
@@ -210,8 +210,8 @@
 <div id="picker-warning" class="hidden mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status" aria-live="polite" tabindex="-1" data-picker-save-warning></div>
 
 <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
-    <a href="{base_url}/admin/branches" class="btn btn-outline" onclick="return pickerLeaveAssignment(event, this.href)">Back to {if tab == 'assignment'}branches{else}consignees{/if}</a>
-    <button type="button" class="btn btn-outline" id="picker-discard" onclick="discardPickerChanges()" disabled>Discard changes</button>
+    <a href="{base_url}/admin/branches" class="btn btn-accent" onclick="return pickerLeaveAssignment(event, this.href)">Back to {if tab == 'assignment'}branches{else}consignees{/if}</a>
+    <button type="button" class="btn btn-accent" id="picker-discard" onclick="discardPickerChanges()" disabled>Discard changes</button>
     <button type="button" class="btn btn-primary" id="picker-save" onclick="submitPicker()" disabled data-picker-save>Save changes</button>
 </div>
 {else}
@@ -220,16 +220,24 @@
         <h2 class="text-lg font-semibold text-gray-900">Products</h2>
         <p class="text-sm text-gray-500">Manage master products and pricing.</p>
     </div>
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <form class="flex gap-2" action="{base_url}/admin/products" method="GET"
+    <!-- items-end + gap-3, matching the other filter bars in the module. The previous `flex gap-2`
+         with no alignment made the labelled Area control and the unlabelled search box stretch
+         against each other, and the buttons had no height so they sat 3px shorter than the 40px
+         fields. The wrapper is a plain div: under items-end a .form-group's 16px bottom margin lifts
+         this control out of line with its unlabelled neighbour. -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <form class="flex flex-wrap items-end gap-3" action="{base_url}/admin/products" method="GET"
       onsubmit="return window.dlLoadForm(this)">
+            <div class="min-w-40 w-40">
+                {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+            </div>
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or SKU...">
-            <button type="submit" class="btn btn-outline">Search</button>
+            <button type="submit" class="btn btn-primary h-10">Search</button>
         </form>
-        <div class="flex gap-2 sm:ml-2">
-            <a href="{base_url}/admin/products/export" class="btn btn-outline" download>Export CSV</a>
-            <button class="btn btn-outline" onclick="openImportProduct()">Import CSV</button>
-            <button class="btn btn-primary" onclick="openAddProduct()">+ Add</button>
+        <div class="flex flex-wrap gap-3 sm:ml-2">
+            <a href="{base_url}/admin/products/export" class="btn btn-accent h-10" download>Export CSV</a>
+            <button class="btn btn-accent h-10" onclick="openImportProduct()">Import CSV</button>
+            <button class="btn btn-primary h-10" onclick="openAddProduct()">+ Add</button>
         </div>
     </div>
 </div>
@@ -284,7 +292,7 @@
                         {if p.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}', '{p.assignment_mode | default:'all_active'}', '{p.assigned_branch_ids | default:''}', '{p.consignee_assignment_mode | default:'all_active'}', '{p.assigned_consignee_ids | default:''}')">Edit</button>
+                        <button class="btn btn-sm btn-accent" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}', '{p.assignment_mode | default:'all_active'}', '{p.assigned_branch_ids | default:''}', '{p.consignee_assignment_mode | default:'all_active'}', '{p.assigned_consignee_ids | default:''}')">Edit</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -388,7 +396,7 @@
             <p class="text-sm text-muted mt-4">SKU will be generated automatically.</p>
         </div>
         <div class="modal-actions product-modal__actions">
-            <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
+            <button class="btn btn-accent" onclick="closeModal('add-modal')">Cancel</button>
             <button class="btn btn-primary" id="add-submit" onclick="submitAddProduct()">Add Product</button>
         </div>
     </div>
@@ -517,7 +525,7 @@
             <p class="text-sm text-muted mt-4">Dated price changes update mutable daily-ledger snapshots only. Completed POS sales, deliveries, and selling-account snapshots are not repriced.</p>
         </div>
         <div class="modal-actions product-modal__actions">
-            <button class="btn btn-outline" onclick="closeModal('edit-modal')">Cancel</button>
+            <button class="btn btn-accent" onclick="closeModal('edit-modal')">Cancel</button>
             <button class="btn btn-primary" id="edit-submit" onclick="submitEditProduct()">Save Changes</button>
         </div>
     </div>
@@ -534,7 +542,7 @@
             <input class="form-input" type="file" id="import-file" accept=".csv">
         </div>
         <div class="modal-actions">
-            <button class="btn btn-outline" onclick="closeModal('import-modal')">Cancel</button>
+            <button class="btn btn-accent" onclick="closeModal('import-modal')">Cancel</button>
             <button class="btn btn-primary" id="import-submit" onclick="submitImportProduct()">Import File</button>
         </div>
     </div>

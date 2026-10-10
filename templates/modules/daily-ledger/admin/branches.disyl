@@ -70,9 +70,12 @@
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <form class="flex gap-2" action="{base_url}/admin/branches" method="GET"
       onsubmit="return window.dlLoadForm(this)">
+            <div class="form-group">
+                {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
+            </div>
             {if selected_price_group_id > 0}<input type="hidden" name="price_group_id" value="{selected_price_group_id}">{/if}
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or code...">
-            <button type="submit" class="btn btn-outline">Search</button>
+            <button type="submit" class="btn btn-primary">Search</button>
         </form>
         <button class="btn btn-primary" onclick="openAddBranch()">+ Add Branch</button>
     </div>
@@ -142,8 +145,8 @@
                     </td>
                     <td>
                         <div class="flex items-center gap-1">
-                            <a class="btn btn-sm btn-outline" href="{base_url}/admin/products?tab=assignment&branch_id={b.id}" data-branch-products="{b.id}">Products</a>
-                            <button class="btn btn-sm btn-outline" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0})'>Edit</button>
+                            <a class="btn btn-sm btn-accent" href="{base_url}/admin/products?tab=assignment&branch_id={b.id}" data-branch-products="{b.id}">Products</a>
+                            <button class="btn btn-sm btn-accent" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0})'>Edit</button>
                         </div>
                     </td>
                 </tr>
@@ -231,7 +234,7 @@
             </div>
         </div>
         <div class="modal-actions branch-modal__actions">
-            <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
+            <button class="btn btn-accent" onclick="closeModal('add-modal')">Cancel</button>
             <button class="btn btn-primary" id="add-submit" onclick="submitAddBranch()">Add Branch</button>
         </div>
     </div>
@@ -324,7 +327,7 @@
             </div>
         </div>
         <div class="modal-actions branch-modal__actions">
-            <button class="btn btn-outline" onclick="closeModal('edit-modal')">Cancel</button>
+            <button class="btn btn-accent" onclick="closeModal('edit-modal')">Cancel</button>
             <button class="btn btn-primary" id="edit-submit" onclick="submitEditBranch()">Save Changes</button>
         </div>
     </div>
@@ -345,7 +348,7 @@
             <td>{c.commissary_code} — {c.commissary_name}</td>
             <td>{if c.is_active == 1}<span class="text-emerald-700">Active</span>{else}<span class="text-rose-700">Inactive</span>{/if}</td>
             <td class="text-sm text-muted">{c.sort_order}</td>
-            <td class="text-right"><button class="btn btn-sm btn-outline" onclick='openConsignee({c.id}, {c.code | json}, {c.name | json}, {c.assigned_commissary_id}, {c.is_active}, {c.area_id | default:"null"}, {c.address | json}, {c.price_group_id | default:"null"}, {c.sort_order | default:0})'>Edit</button></td>
+            <td class="text-right"><button class="btn btn-sm btn-accent" onclick='openConsignee({c.id}, {c.code | json}, {c.name | json}, {c.assigned_commissary_id}, {c.is_active}, {c.area_id | default:"null"}, {c.address | json}, {c.price_group_id | default:"null"}, {c.sort_order | default:0})'>Edit</button></td>
         </tr>{/foreach}</tbody>
     </table></div></div>
 </div>
@@ -419,7 +422,7 @@
                 </div>
             </div>
         </div>
-        <div class="modal-actions branch-modal__actions"><button class="btn btn-outline" onclick="closeModal('consignee-modal')">Cancel</button><button class="btn btn-primary" id="consignee-submit" onclick="saveConsignee()">Save</button></div>
+        <div class="modal-actions branch-modal__actions"><button class="btn btn-accent" onclick="closeModal('consignee-modal')">Cancel</button><button class="btn btn-primary" id="consignee-submit" onclick="saveConsignee()">Save</button></div>
     </div>
 </div>
 {/block}
