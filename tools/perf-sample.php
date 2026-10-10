@@ -143,6 +143,7 @@ $metrics = [
 $values = array_fill_keys(array_keys($metrics), []);
 $missing = [];
 $readings = 0;
+$apcuReadings = [];
 
 for ($i = 0; $i < $samples; $i++) {
     [$status, $body] = request($base . '/api/v1/superadmin/perf', null, $authHeaders);
@@ -155,6 +156,9 @@ for ($i = 0; $i < $samples; $i++) {
         continue;
     }
     $readings++;
+    if (is_array($payload['perf']['apcu'] ?? null)) {
+        $apcuReadings[] = $payload['perf']['apcu'];
+    }
     foreach ($metrics as $name => [$group, $key]) {
         $value = $attribution[$group][$key] ?? null;
         if (is_numeric($value)) {
@@ -196,6 +200,52 @@ if ($missing !== []) {
     $report .= "\nIf boot_fastpath / boot_bootstrap / boot_requires / route_match_sort are listed\n";
     $report .= "here, the deployment does not include the 2026-10-10 instrumentation\n";
     $report .= "(commits c93446db, aef943d0).\n";
+}
+
+if ($apcuReadings !== []) {
+    $last = $apcuReadings[count($apcuReadings) - 1];
+    $fmt = static function ($v): string {
+        if ($v === null) {
+            return '-';
+        }
+        return is_float($v) ? sprintf('%.3f', $v) : (string)$v;
+    };
+
+    $report .= "\nAPCu — is there somewhere for a cross-request cache to live, and what does a round trip cost?\n";
+    $report .= sprintf("  usable=%s  roundtrip_ok=%s  entry_kb=%s  shm_size=%s\n",
+        $fmt($last['usable'] ?? null),
+        $fmt($last['roundtrip_ok'] ?? null),
+        $fmt($last['entry_kb'] ?? null),
+        $fmt($last['shm_size'] ?? null));
+    $report .= sprintf("  store_ms=%s  fetch_ms=%s  cache_hits=%s  cache_misses=%s  cache_mem_mb=%s\n",
+        $fmt($last['store_ms'] ?? null),
+        $fmt($last['fetch_ms'] ?? null),
+        $fmt($last['cache_hits'] ?? null),
+        $fmt($last['cache_misses'] ?? null),
+        $fmt($last['cache_mem_mb'] ?? null));
+
+    if (!empty($last['reason'])) {
+        $report .= "  reason: {$last['reason']}\n";
+    }
+
+    // A failed round trip DISCARDS the timings rather than reporting the cost of a failure as the
+    // cost of a hit. Seeing '-' here is the design working, not missing data.
+    if (($last['roundtrip_ok'] ?? null) === false) {
+        $report .= "  NOTE: store_ms/fetch_ms are '-' because the round trip failed - a fetch that\n";
+        $report .= "        did not happen is not a cheap fetch. Do not read this as zero cost.\n";
+    }
+
+    $differing = array_unique(array_map(
+        static fn(array $r): string => var_export($r['usable'] ?? null, true),
+        $apcuReadings
+    ));
+    if (count($differing) > 1) {
+        $report .= '  WARNING: usable differed across readings (' . implode(', ', $differing)
+            . ") - explain that before trusting it.\n";
+    }
+} else {
+    $report .= "\nAPCu — not reported by this host: the deployment predates kernelPerfProbeApcu(),\n";
+    $report .= "so whether a cross-request cache can live here is still unmeasured.\n";
 }
 
 $report .= "\nA median without its range is not evidence. Compare median AND range between two runs;\n";

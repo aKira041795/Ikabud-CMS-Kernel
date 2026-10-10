@@ -990,6 +990,10 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
     $perfResults['total_ms'] = $requestElapsedMs === null ? null : round($requestElapsedMs, 2);
     $perfResults['probe_self_ms'] = round((microtime(true) - $perfOverall) * 1000, 2);
     $perfResults['opcache'] = kernelPerfProbeOpcache();
+    // Whether APCu can hold a cross-request cache here, and what a round trip costs. Without this
+    // the CLI cannot answer it (apc.enable_cli is off), and any cross-request cache decision is a
+    // guess about the one fact that decides it.
+    $perfResults['apcu'] = function_exists('kernelPerfProbeApcu') ? kernelPerfProbeApcu() : null;
     $perfResults['manifest_fingerprint'] = kernelPerfProbeManifestFingerprint();
     $perfResults['php_version'] = PHP_VERSION;
     $perfResults['peak_memory_kb'] = (int) round(memory_get_peak_usage(true) / 1024);

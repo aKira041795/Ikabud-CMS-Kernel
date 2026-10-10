@@ -324,20 +324,35 @@ mathematical guarantee against every wrong-order hit.**
    `routePatternMatchPriority()` composes only those. Nothing reads config, globals or request state.
    All three live in `module-routes.php`, so one file covers the whole dependency set — which is also
    the natural invalidation key (see below).
-3. **Can production APCu deliver a measurable net saving?** **Unmeasured, and the probe refused to
-   pretend otherwise.** `apcu.enable_cli` is off, so store/fetch are no-ops here; the first draft of
-   the probe printed a **0.003 ms** "hit cost" that was really a failed fetch returning `false`
-   immediately — a number about a fetch that never happened. It now reports
-   `apcu DISABLED in this SAPI ... web-SAPI round-trip NOT measured` and discards the timing.
+3. **Can production APCu deliver a measurable net saving?** **Half answered — and the instrument that
+   finishes it now ships.** Three readings, in order of usefulness:
 
-### Decision: C (leave it), and what would reverse that
+   - **Live, from the kernel admin page: `APCu entries 212 entries`** (owner, 2026-10-10). This is the
+     decisive one — it proves APCu is **enabled and populated on the production host**, so a
+     cross-request cache has somewhere to live there. It does *not* price an entry.
+   - **Local web SAPI (mod_php), the new probe:** `usable=true roundtrip_ok=true`, **store 0.117 ms /
+     fetch 0.088 ms for a 51.7 KB entry**, `shm_size=32M`, `cache_hits/misses 58,259 / 175,588` — so
+     APCu is genuinely in use there, not merely loaded. 0.088 ms against a 2.714 ms live sort is a
+     ~30x margin.
+   - **CLI: still unmeasurable, by design.** `apc.enable_cli=0`, so store/fetch are no-ops. The probe's
+     first draft printed a **0.003 ms** "hit cost" that was really a failed fetch returning `false`
+     immediately — a number about a fetch that never happened. It now reports
+     `apcu DISABLED in this SAPI` and discards the timing rather than reporting the cost of a failure
+     as the cost of a hit.
 
-Not implemented. The gain is ~8% of dispatch and its **entire** basis is prerequisite 3, which is
-unmeasured — and if APCu is not live in the web SAPI the cache never hits while still paying 0.126 ms
-of key per request. Shipping a flag-gated path we may never enable is speculative work; the unlock is
-a *measurement*, not code.
+   Shipped to close the gap, following the existing `kernelPerfProbeOpcache()` pattern:
+   `kernelPerfProbeApcu()` in `src/http/perf-probe.php`, exposed as `perf.apcu` on
+   `GET /api/v1/superadmin/perf` and as four rows on `/superadmin/perf`, and reported by
+   `tools/perf-sample.php`. The rows had to be added explicitly — the page's row list is hardcoded,
+   so a new fact in the payload does not appear on its own.
 
-Should that change, the design that is already safe by construction:
+### Decision: C (leave it) — unchanged, but the blocker is now one deploy wide
+
+Not implemented, because the one remaining prerequisite is a **live** round-trip reading and the
+instrument that produces one is not deployed yet. Deploying it and reading it is now a single step,
+so this is a held decision rather than an open question.
+
+Should the live reading confirm the local numbers, the design that is already safe by construction:
 
 - key = pattern set **+ `filemtime('module-routes.php')`**, so a change to the comparator *or* either
   helper invalidates automatically — no hand-maintained version constant to forget to bump;
@@ -345,8 +360,9 @@ Should that change, the design that is already safe by construction:
   absent APCu — the failure mode is **slow, never misrouted**;
 - the comparator stays byte-identical, so route precedence cannot shift.
 
-**Unlock condition:** one web-SAPI reading proving APCu is enabled and that the cached path beats
-`usort` on the live host. Until then this is a named, evidenced, deferred decision — not a guess.
+**Unlock condition:** one live reading showing `APCu usable ... yes` with a round-trip cost far below
+the 2.714 ms sort. The local margin is ~30x, so the expected answer is clear; what the reading removes
+is the assumption that Bluehost's APCu behaves like mod_php's.
 
 ---
 

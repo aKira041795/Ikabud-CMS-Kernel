@@ -315,6 +315,25 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['probe_self_ms'] = round((microtime(true) - $perfOverallStart) * 1000, 2);
         $perfOpcache = kernelPerfProbeOpcache();
         $perfManifest = kernelPerfProbeManifestFingerprint();
+        // Whether APCu could carry a cross-request cache on THIS host, and what a round trip costs.
+        // The `APCu entries` row below proves the cache is populated; it cannot say whether an entry
+        // of the size a route-order cache needs is affordable, which is the fact a cross-request cache
+        // decision actually turns on. The CLI cannot answer it either (apc.enable_cli is off, so
+        // store/fetch are no-ops there), which makes this page the only place it can be seen.
+        $perfApcu = function_exists('kernelPerfProbeApcu') ? kernelPerfProbeApcu() : null;
+        $perfApcuUsable = is_array($perfApcu) ? (bool)$perfApcu['usable'] : null;
+        $perfApcuReason = is_array($perfApcu) ? (string)($perfApcu['reason'] ?? '') : '';
+        $perfApcuRoundTrip = 'not measured';
+        if (is_array($perfApcu) && $perfApcu['store_ms'] !== null && $perfApcu['fetch_ms'] !== null) {
+            $perfApcuRoundTrip = round((float)$perfApcu['store_ms'], 3) . ' store / '
+                . round((float)$perfApcu['fetch_ms'], 3) . ' fetch';
+        }
+        $perfApcuEntryLabel = is_array($perfApcu) && $perfApcu['entry_kb'] !== null
+            ? 'APCu round trip (' . $perfApcu['entry_kb'] . ' KB entry)'
+            : 'APCu round trip';
+        $perfApcuRoundTripNote = (is_array($perfApcu) && $perfApcu['roundtrip_ok'] === false)
+            ? 'round trip FAILED - timings discarded, not zero'
+            : '';
         $perfData['php_version'] = PHP_VERSION;
         $perfData['peak_memory_kb'] = (int) round(memory_get_peak_usage(true) / 1024);
         $perfData['host'] = $_SERVER['HTTP_HOST'] ?? '';
@@ -391,6 +410,14 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ['Cache eviction', $perfData['cache_eviction'], '', ''],
             ['Cache disk usage', $perfData['cache_total_size_mb'], 'MB', ''],
             ['APCu entries', $perfData['cache_apcu_entries'], $perfData['cache_apcu_available'] ? 'entries' : 'entries (APCu off)', ''],
+            // APCu readiness for a cross-request cache. `APCu entries` above proves it is populated
+            // on this host; these say whether an entry of the size such a cache needs is affordable.
+            // A failed round trip reports '-' and says so, rather than presenting the cost of a
+            // failure as the cost of a hit.
+            ['APCu usable for a cross-request cache', $perfApcuUsable === null ? 'not measured' : ($perfApcuUsable ? 'yes' : 'no'), $perfApcuReason, $perfApcuUsable === false ? 'OFF' : ''],
+            [$perfApcuEntryLabel, $perfApcuRoundTrip, 'ms', $perfApcuRoundTripNote],
+            ['APCu shared memory', is_array($perfApcu) ? ($perfApcu['shm_size'] ?? 'unknown') : 'not measured', '', ''],
+            ['APCu hits / misses', is_array($perfApcu) ? (($perfApcu['cache_hits'] ?? '?') . ' / ' . ($perfApcu['cache_misses'] ?? '?')) : 'not measured', '', ''],
             ['DiSyL render (extends)', $perfData['disyl_render_ms'], 'ms · ' . $perfData['disyl_template'] . ' · extends=' . ($perfData['disyl_extends'] ? 'true' : 'false'), $perfData['disyl_ok'] ? '' : 'FAIL'],
             // OPcache. `compiled_this_request` is the row that matters: a cached-script count cannot tell
             // "OPcache serves the module helper files" apart from "they are recompiled every request".

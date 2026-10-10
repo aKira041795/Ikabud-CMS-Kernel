@@ -216,6 +216,119 @@ if (!function_exists('kernelPerfProbeOpcache')) {
     }
 }
 
+if (!function_exists('kernelPerfProbeApcu')) {
+    /**
+     * Can APCu hold a cross-request cache on THIS host, and what does a round trip cost?
+     *
+     * Exists because this host cannot be asked from the CLI. apc.enable_cli is off, so under
+     * CLI apcu_store()/apcu_fetch() are no-ops and apcu_fetch() returns false immediately —
+     * the 2026-10-10 route-sort probe's first draft timed exactly that and reported 0.003 ms,
+     * which read as "a hit is nearly free" when no fetch had happened at all. A number about a
+     * fetch that did not occur is worse than no number.
+     *
+     * It also matters that "the cache never engaged" and "the optimisation did not pay" look
+     * identical on the clock, which is the same reason kernelPerfProbeOpcache() reports
+     * compiled_this_request rather than trusting a healthy-looking cache count.
+     *
+     * The payload is sized to the candidate entry (~45 KB, the measured serialised length of a
+     * tenant's sorted route-pattern list) so the timings describe the real question instead of a
+     * three-element array.
+     *
+     * Timings are null, never 0, when unmeasured, and a failed round trip DISCARDS them rather
+     * than reporting the cost of a failure as the cost of a hit.
+     */
+    function kernelPerfProbeApcu(): array
+    {
+        $report = [
+            'usable' => false,
+            'enabled' => null,
+            'enable_cli' => null,
+            'reason' => null,
+            'roundtrip_ok' => null,
+            'store_ms' => null,
+            'fetch_ms' => null,
+            'entry_kb' => null,
+            'shm_size' => null,
+            'cache_mem_mb' => null,
+            'cache_hits' => null,
+            'cache_misses' => null,
+        ];
+
+        if (!function_exists('apcu_fetch') || !function_exists('apcu_store')) {
+            $report['reason'] = 'apcu extension not loaded';
+            return $report;
+        }
+
+        // APCu keeps the APC ini names. ini_get() returns false for an unknown directive, so
+        // that is reported as unknown rather than silently read as off.
+        $enabled = ini_get('apc.enabled');
+        $report['enabled'] = $enabled === false ? null : (string)$enabled;
+        $enableCli = ini_get('apc.enable_cli');
+        $report['enable_cli'] = $enableCli === false ? null : (string)$enableCli;
+        $shm = ini_get('apc.shm_size');
+        if ($shm !== false) {
+            $report['shm_size'] = (string)$shm;
+        }
+
+        if (function_exists('apcu_enabled') && !apcu_enabled()) {
+            $report['reason'] = 'apcu disabled in this SAPI (apc.enabled=' . ($report['enabled'] ?? '?')
+                . ', apc.enable_cli=' . ($report['enable_cli'] ?? '?') . ')';
+            return $report;
+        }
+
+        $report['usable'] = true;
+
+        $payload = [];
+        for ($i = 0; $i < 1061; $i++) {
+            $payload[] = '/module-' . $i . '/segment-{id}/tail-' . str_pad((string)$i, 6, '0', STR_PAD_LEFT);
+        }
+        $report['entry_kb'] = round(strlen(serialize($payload)) / 1024, 1);
+
+        // uniqid() rather than random_bytes(): a probe must not be able to throw into the
+        // request it is measuring.
+        $key = 'kernel.perf.probe.apcu.' . uniqid('', true);
+
+        $started = hrtime(true);
+        $stored = apcu_store($key, $payload, 30);
+        $storeMs = kernelPerfProbeElapsedMs($started);
+
+        $started = hrtime(true);
+        $got = apcu_fetch($key, $hit);
+        $fetchMs = kernelPerfProbeElapsedMs($started);
+
+        $report['roundtrip_ok'] = (bool)$stored && (bool)$hit && $got === $payload;
+        if ($report['roundtrip_ok']) {
+            $report['store_ms'] = $storeMs;
+            $report['fetch_ms'] = $fetchMs;
+        } else {
+            $report['reason'] = 'apcu store/fetch did not round-trip - timings discarded, '
+                . 'NOT reported as a hit cost';
+        }
+
+        apcu_delete($key);
+        unset($got, $payload);
+
+        if (function_exists('apcu_cache_info')) {
+            try {
+                $info = @apcu_cache_info(true);
+                if (is_array($info)) {
+                    $report['cache_hits'] = isset($info['num_hits']) ? (int)$info['num_hits'] : null;
+                    $report['cache_misses'] = isset($info['num_misses']) ? (int)$info['num_misses'] : null;
+                    // APCu's cache_info reports memory USED by cached data, not free memory.
+                    // Naming it as though it were free would be its own small lie.
+                    $report['cache_mem_mb'] = isset($info['mem_size'])
+                        ? round((int)$info['mem_size'] / 1048576, 1)
+                        : null;
+                }
+            } catch (Throwable $ignored) {
+                // Instrumentation must never affect the request it measures.
+            }
+        }
+
+        return $report;
+    }
+}
+
 if (!function_exists('kernelPerfProbeManifestFingerprint')) {
     /**
      * Which path did the manifest fingerprint take, and what would the other one have cost?
