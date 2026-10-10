@@ -1580,12 +1580,22 @@ function apiListDeliveries(array $params = []): void
               LEFT JOIN dl_consignees dc ON dc.id = d.consignee_id AND d.destination_type = "consignee"
               LEFT JOIN dl_users ru ON ru.id = d.provenance_reviewed_by'
          . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '')
-         . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 200';
+         . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 201';
     $stmt = $ctx->db()->prepare($sql);
     $bind[':paper_dr_remark'] = dl_paperDrCaptureRemark();
     $bind[':paper_dr_remark2'] = dl_paperDrCaptureRemark();
     $stmt->execute($bind);
     $deliveries = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // Fetch one row PAST the display bound so an over-long result is reported instead of silently
+    // dropped. This list shipped a bare LIMIT 200 while the tenant already held 416 deliveries and
+    // 289 in the single current month, and the date range is optional, so the operator was shown a
+    // partial list that looked complete. Same defect class as the omitted-destination-column bug;
+    // same disclosure the activity and trace views already carry.
+    $deliveryRowLimit = 200;
+    $deliveriesTruncated = count($deliveries) > $deliveryRowLimit;
+    if ($deliveriesTruncated) {
+        $deliveries = array_slice($deliveries, 0, $deliveryRowLimit);
+    }
     $itemsByDelivery = [];
     if ($deliveries !== []) {
         $deliveryIds = array_map('intval', array_column($deliveries, 'id'));
@@ -1611,7 +1621,7 @@ function apiListDeliveries(array $params = []): void
         $deliveryRow['provenance_status_badge_classes'] = $provenanceMeta['badge_classes'];
     }
     unset($deliveryRow);
-    $ctx->json(['ok' => true, 'deliveries' => $deliveries]);
+    $ctx->json(['ok' => true, 'deliveries' => $deliveries, 'truncated' => $deliveriesTruncated, 'limit' => $deliveryRowLimit]);
 }
 
 /** @return array{receiving:array,items:array}|null */

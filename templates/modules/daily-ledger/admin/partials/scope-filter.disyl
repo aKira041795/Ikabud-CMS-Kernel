@@ -11,8 +11,10 @@
   It binds to the existing ?scope= parameter, which AdminAreaScope already validates and
   persists per actor, so this adds NO second source of truth and NO per-view SQL.
 
-  The select is wrapped in {if admin_view_scope} because that context key is only
-  injected for role=admin; supervisors and production users get no control and no error.
+  The select is wrapped in an admin_view_scope conditional because that context key is only
+  injected for role=admin; supervisors and production users get no control and no error. That
+  guard is written as a tag below; do NOT spell the tag out in this comment - the DiSyL linter
+  counts a tag written in prose as a real opening tag and fails the file for a mismatch.
 -->
 {if admin_view_scope}
 <!-- The visible label is load-bearing, not decoration. Every sibling control in these filter bars is

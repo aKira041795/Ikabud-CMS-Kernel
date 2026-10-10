@@ -113,6 +113,13 @@
     </div>
 
     <div class="card">
+        <template x-if="truncated">
+            <div class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <span x-text="'Showing the most recent ' + rowLimit + ' deliveries.'"></span>
+                <span class="font-semibold">Older matching deliveries are not shown.</span>
+                Narrow the date range or add a filter to reach them.
+            </div>
+        </template>
         <div class="table-wrap">
             <table>
                 <thead>
@@ -461,6 +468,8 @@ function deliveriesPage() {
         rows: [],
         activeDestination: 'branch',
         loadError: '',
+        truncated: false,
+        rowLimit: 200,
         filter: {
             status: '',
             destination_type: '',
@@ -540,6 +549,8 @@ function deliveriesPage() {
                     if (!j || !j.ok) {
                         this.loadError = (j && j.error) ? j.error : 'Failed to load deliveries.';
                     }
+                    this.truncated = !!(j && j.ok && j.truncated);
+                    this.rowLimit = (j && j.limit) ? j.limit : 200;
                 })
                 .catch(() => {
                     this.rows = [];
