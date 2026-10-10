@@ -708,9 +708,74 @@ actual output is what caught that — the same lesson as the rest of this docume
 
 ---
 
-## 5. Live baseline — for scale, not comparisonFrom [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
+## 4h. Render cost by template — the flat result, and one 988 ms outlier
 
-| block | ms | share of dispatch |
+Measuring heavy templates, because two light ones (4g) could not establish whether render cost
+matters. Cold vs warm are separated, and the pipeline is read from the log rather than assumed.
+
+| template | bytes | tags | pipeline | cold ms | **warm ms** |
+|---|---:|---:|---|---:|---:|
+| `pages/_perf-probe.disyl` | 100 | 2 | compiled | 0.67 | **0.27** |
+| `modules/cms/public/404.disyl` | 867 | 3 | compiled | 4.68 | **0.55** |
+| `pages/admin-kernel-triggers.disyl` | 73,352 | 3 | compiled | 2.99 | **0.66** |
+| `modules/dc-cafe/pos/index.disyl` | 74,163 | 3 | compiled | 2.15 | **0.62** |
+| `modules/daily-ledger/cashier/ledger.disyl` | 133,065 | 55 | compiled | 9.53 | **2.13** |
+| `modules/cms/admin/content-editor.disyl` | 184,621 | 50 | compiled | 9.43 | **1.73** |
+| `modules/daily-ledger/admin/commissary.disyl` | 180,092 | 167 | compiled | 13.90 | **1.70** |
+| `modules/bakeshop/pages/supervisor.disyl` | 270,731 | 41 | compiled | 10.50 | **3.67** |
+| **`modules/cms/admin/theme-customizer.disyl`** | **371,296** | 44 | **compiled→FAILED→interpreted** | **987.85** | 2.11 |
+
+**Compiled renders are cheap and nearly flat: 0.27-3.67 ms warm across 100 B to 270 KB.** A 270 KB
+template costs 3.67 ms. Size barely predicts cost, so "the big templates are the slow ones" is not true
+of templates on the compiled path. The warm 404 at 0.55 ms also reconciles with the 2.49 ms HTTP
+measurement in 4g.
+
+**The single outlier is ~270x the next heaviest and it is not a big CPU problem — it is a bug.**
+
+`theme-customizer.disyl` (371 KB) **throws on the compiled path and falls back to interpreted**:
+`disyl.compile.fallback`, reason `Unsupported operand types: string + null`, then the interpreted
+pipeline renders it — **987.85 ms cold**. Its warm 2.11 ms is **not a render**: the compiled attempt
+fails fast, then the interpreted result is served from the in-memory output cache, which is why no
+`disyl.compile.phases` line appears on the warm pass.
+
+**The exact expression, read out of the generated artifact**
+(`Template_theme_customizer_v16_e4a4697f.php:1869`):
+
+```php
+$output .= ... (((('let c=_mobileBgHex;...rgba(\'' + $ctx->get('r')) + ',') + $ctx->get('g')) ...
+```
+
+The compiler compiled **JavaScript from an HTML attribute** as **DiSyL arithmetic**. The source is
+`templates/modules/cms/admin/theme-customizer.disyl:1864`, an Alpine expression
+`@input="...headerSettings.mobile_bg_color='rgba('+r+','+g+','+b+...`.
+
+`r`, `g` and `b` are JavaScript locals; `$ctx->get('r')` is therefore null, so `'rgba(' + null` throws.
+The compiled path protects `<script>`/`<style>` **blocks** — this is inside an **HTML attribute**, which
+that protection does not cover. Per the repo's own rule this is an engine-level defect to fix in DiSyL,
+not by patching the template.
+
+**This is context-independent and so reaches production.** `r` is a JS variable, never a DiSyL context
+key, so the failure does not depend on what the handler passes in — unlike a null from missing data.
+Local ~988 ms means roughly ~330 ms of live request time on the CMS theme-customizer admin page, per
+request, with `DISYL_SHARED_OUTPUT_TTL=0`.
+
+**A defect in my own probe, same class as the ones this document keeps finding.** The first version
+tested `cache_path=compiled` and then `disyl.compile.phases`, so a **compiled failure** — which logs
+`disyl.compile.fallback` and *then* emits phases from the fallback — was labelled a plain "interpreted"
+render. That is how a compiler bug first appeared as an innocent pipeline choice. The probe now tests
+for fallback **first** and reports the reason.
+
+**Also corrected here:** 4g reported `modules/cms/public/404.disyl` at 25.46 ms wall, against 2.49 ms via
+HTTP. Those were measuring different things — the wall clock around `render()` includes compiled-mode
+boot and the `isCompiledEligibleTemplate()` graph walk, which the instrument's `duration_ms`
+deliberately excludes (documented in 4g). The cold/warm split above resolves it: the gap is boot plus
+eligibility, not rendering.
+
+---
+
+## 5. Live baseline — for scale, not comparison
+
+From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
 |---|---:|---:|
 | module routes | 24.76 | 52.6% |
 | – helpers load | 9.35 | 19.9% |
