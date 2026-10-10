@@ -9,6 +9,10 @@ $GLOBALS['kernel_perf_request_started_ns'] = hrtime(true);
 // This runs before bootstrap.php / autoloader / module-manager / DB.
 // On a cache hit the response is served in ~5–20 ms and PHP exits.
 require_once __DIR__ . '/../src/helpers/fast-path-cache.php';
+// Early boot boundary. kernelPerfMarkRequestPhase() cannot be called yet - it is not defined until
+// perf-attribution.php is required below - so this is a plain hrtime reading, published into the
+// attribution state once that file has loaded.
+$kernelBootNsAfterFastPath = hrtime(true);
 
 // ── Ultra-early health check ────────────────────────────────────────────
 // Serves GET /api/v1/health before booting the kernel.  Returns minimal
@@ -140,6 +144,7 @@ require_once __DIR__ . '/../src/helpers/fast-path-health.php';
 })();
 
 require_once __DIR__ . '/../bootstrap.php';
+$kernelBootNsAfterBootstrap = hrtime(true);
 require_once __DIR__ . '/../src/helpers/security.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../src/helpers/page-cache.php';
@@ -158,6 +163,18 @@ require_once __DIR__ . '/../src/http/integration-handlers.php';
 require_once __DIR__ . '/../src/http/superadmin-handlers.php';
 require_once __DIR__ . '/../src/http/superadmin-observability-handlers.php';
 require_once __DIR__ . '/../src/http/auth-handlers.php';
+$kernelBootNsAfterRequires = hrtime(true);
+
+// boot has always been a single opaque mark, so its ~14.88 ms could not be attributed to anything.
+// Publish the boundaries read above into the same phase store: same clock, same origin, so the
+// values are directly comparable with every other phase.
+if (function_exists('kernelPerfPublishBootBoundaries')) {
+    kernelPerfPublishBootBoundaries(
+        $kernelBootNsAfterFastPath,
+        $kernelBootNsAfterBootstrap,
+        $kernelBootNsAfterRequires
+    );
+}
 
 kernelPerfMarkRequestPhase('boot');
 

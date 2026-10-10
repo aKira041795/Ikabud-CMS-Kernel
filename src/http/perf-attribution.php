@@ -30,6 +30,9 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
         ],
         'phases' => [
             'boot' => null,
+            'boot_fastpath' => null,
+            'boot_bootstrap' => null,
+            'boot_requires' => null,
             'session' => null,
             'core_routes' => null,
             'settings_preload' => null,
@@ -78,7 +81,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
     function kernelPerfMarkRequestPhase(string $phase): void
     {
         try {
-            if (!in_array($phase, ['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match_sort', 'route_match', 'dispatch', 'render', 'shutdown'], true)) {
+            if (!in_array($phase, ['boot', 'boot_fastpath', 'boot_bootstrap', 'boot_requires', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match_sort', 'route_match', 'dispatch', 'render', 'shutdown'], true)) {
                 return;
             }
 
@@ -92,6 +95,41 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
 
             $startedNs = (int)($state['started_ns'] ?? hrtime(true));
             $state['phases'][$phase] = max(0.0, (hrtime(true) - $startedNs) / 1_000_000);
+        } catch (Throwable $ignored) {
+            // Attribution must never affect request handling.
+        }
+    }
+
+    /**
+     * Publish boot boundaries captured BEFORE this file was loaded.
+     *
+     * boot was a single opaque mark: kernelPerfMarkRequestPhase() is not defined until this file is
+     * required (public/index.php:155), so nothing between the request origin (:6) and the boot mark
+     * could be attributed to anything. The front controller therefore reads hrtime() at each
+     * boundary and hands the raw values here, once the state exists. They are converted on the same
+     * monotonic clock and the same origin as every other phase, so the results are comparable.
+     */
+    function kernelPerfPublishBootBoundaries(
+        int $afterFastPathNs,
+        int $afterBootstrapNs,
+        int $afterRequiresNs
+    ): void {
+        try {
+            $state = &$GLOBALS['kernel_perf_request_attribution'];
+            if (!is_array($state) || !isset($state['started_ns'])) {
+                return;
+            }
+            $startedNs = (int)$state['started_ns'];
+            foreach ([
+                'boot_fastpath' => $afterFastPathNs,
+                'boot_bootstrap' => $afterBootstrapNs,
+                'boot_requires' => $afterRequiresNs,
+            ] as $phase => $ns) {
+                if (!array_key_exists($phase, $state['phases'] ?? []) || $state['phases'][$phase] !== null) {
+                    continue;
+                }
+                $state['phases'][$phase] = max(0.0, ($ns - $startedNs) / 1_000_000);
+            }
         } catch (Throwable $ignored) {
             // Attribution must never affect request handling.
         }
@@ -207,12 +245,15 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             $phases = is_array($state['phases'] ?? null) ? $state['phases'] : [];
 
             $phaseValues = [];
-            foreach (['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match_sort', 'route_match', 'dispatch', 'render', 'shutdown'] as $phase) {
+            foreach (['boot', 'boot_fastpath', 'boot_bootstrap', 'boot_requires', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match_sort', 'route_match', 'dispatch', 'render', 'shutdown'] as $phase) {
                 $phaseValues[$phase] = isset($phases[$phase]) ? (float)$phases[$phase] : null;
             }
 
             $deltaPairs = [
                 'session' => ['boot', 'session'],
+                'boot_fastpath_to_bootstrap' => ['boot_fastpath', 'boot_bootstrap'],
+                'bootstrap_to_requires' => ['boot_bootstrap', 'boot_requires'],
+                'requires_to_boot' => ['boot_requires', 'boot'],
                 'core_routes' => ['session', 'core_routes'],
                 'settings_preload' => ['core_routes', 'settings_preload'],
                 'module_routes' => ['settings_preload', 'module_routes'],
