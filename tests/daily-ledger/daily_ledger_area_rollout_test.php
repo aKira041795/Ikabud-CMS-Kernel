@@ -343,6 +343,31 @@ $h->test(
     json_encode(['consignees' => count($emptyScopeOptions['consignees'] ?? []), 'products' => count($emptyScopeOptions['products'] ?? [])])
 );
 
+// WHAT YOU MAY ACT ON MUST MATCH WHAT YOU ARE SHOWN. These are two separate resolvers
+// (dl_accessibleBranchIds for authorization, dl_adminViewBranchIds for presentation) and they were
+// allowed to disagree once: prod-rizal could SELECT all 11 RIZAL network destinations in the Daily
+// Sheet while dl_processProductionMovement rejected every one of them. The authz suite did not notice
+// the correction, so the invariant is asserted here explicitly - equality, in both directions, plus
+// the sibling network still excluded.
+$prodAuthz = array_values(array_unique(array_map('intval', dl_accessibleBranchIds($prodRizal))));
+sort($prodAuthz);
+$h->test(
+    'production authorization equals its presentation scope and still excludes a sibling network',
+    $prodAuthz === $prodExpectedScope
+        && array_intersect($prodAuthz, $pagadianNetworkForScope) === []
+        && in_array($rizalCommissaryForScope, $prodAuthz, true),
+    json_encode(['authorized' => $prodAuthz, 'presentation' => $prodActualScope, 'pagadian' => $pagadianNetworkForScope])
+);
+// A cashier on an ordinary branch must NOT be expanded by any of this.
+$plainCashier = ['id' => (int)($db->query("SELECT u.id FROM dl_users u JOIN dl_user_branches ub ON ub.user_id = u.id JOIN dl_branches b ON b.id = ub.branch_id WHERE u.role = 'cashier' AND u.is_active = 1 AND u.deleted_at IS NULL AND b.is_commissary = 0 LIMIT 1")->fetchColumn() ?: 0), 'role' => 'cashier'];
+$plainCashierAssigned = $plainCashier['id'] > 0 ? array_map('intval', $db->query('SELECT branch_id FROM dl_user_branches WHERE user_id = ' . $plainCashier['id'])->fetchAll(PDO::FETCH_COLUMN) ?: []) : [];
+$h->test(
+    'a cashier assigned an ordinary branch is not expanded by the network rule',
+    $plainCashier['id'] > 0
+        && dl_assignedBranchNetwork($plainCashierAssigned) === $plainCashierAssigned,
+    json_encode(['cashier' => $plainCashier['id'], 'assigned' => $plainCashierAssigned])
+);
+
 $h->section('Commissary output bound');
 $temporaryIds = [];
 $beforeCount = (int)$db->query("SELECT COUNT(*) FROM dl_branches WHERE code LIKE 'BOUND-%'")->fetchColumn();

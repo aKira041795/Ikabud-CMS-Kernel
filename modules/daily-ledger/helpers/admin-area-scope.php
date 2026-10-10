@@ -175,7 +175,7 @@ function dl_adminViewBranchIds(array $user, ?array $request = null): array
 {
     $authorized = array_values(array_unique(array_map('intval', dl_accessibleBranchIds($user))));
     if (($user['role'] ?? '') !== 'admin') {
-        return dl_presentationBranchNetwork($authorized);
+        return dl_assignedBranchNetwork($authorized);
     }
 
     $scope = dl_adminAreaScope($user, $request);
@@ -191,18 +191,24 @@ function dl_adminViewBranchIds(array $user, ?array $request = null): array
 }
 
 /**
- * Presentation set for an operational actor: the assigned branches, plus the branches assigned to any
- * assigned branch that is a commissary.
+ * The branch set an operational actor OPERATES: the branches assigned to them, plus the branches
+ * assigned to any of those that is itself a commissary.
  *
- * A cashier assigned to an ordinary branch is unaffected (nothing to expand). A production user
- * assigned to a commissary gains exactly that commissary's network - the branches they dispatch to -
- * and nothing else. Never adds a branch the actor is not authorized for, because it only expands a
- * commissary the actor was ALREADY assigned.
+ * One definition, used by BOTH authorization (dl_accessibleBranchIds) and presentation
+ * (dl_adminViewBranchIds), so what an actor may act on and what they are shown agree by
+ * construction. They were allowed to disagree once and the result was measurable: prod-rizal could
+ * SELECT all 11 RIZAL network destinations in the Daily Sheet (presentation) while
+ * dl_processProductionMovement rejected every one of them with "Destination branch is not allowed
+ * for this user" (authorization) - the production lane could not record a dispatch at all.
+ *
+ * A cashier assigned an ordinary branch is unaffected (nothing to expand). It can never add a branch
+ * outside the network of a commissary the actor was ALREADY assigned, so it cannot widen access beyond
+ * the estate the actor was entrusted with.
  *
  * @param int[] $branchIds
  * @return int[]
  */
-function dl_presentationBranchNetwork(array $branchIds): array
+function dl_assignedBranchNetwork(array $branchIds): array
 {
     $ids = array_values(array_unique(array_filter(array_map('intval', $branchIds), static fn(int $id): bool => $id > 0)));
     $db = module()?->db();

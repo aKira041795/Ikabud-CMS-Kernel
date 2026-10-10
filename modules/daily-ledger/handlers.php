@@ -2573,7 +2573,10 @@ function dl_accessibleBranchIds(array $user): array
              ORDER BY b.id'
         );
         $stmt->execute([':sid' => $sid]);
-        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
+        // A supervisor assigned a commissary operates that commissary's network, exactly as the
+        // production lane does. Without this, authorization gave them the hub alone while the views
+        // showed the network they are expected to run.
+        return dl_assignedBranchNetwork(array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id')));
     }
 
     if ($role === 'production_in_charge') {
@@ -2589,7 +2592,11 @@ function dl_accessibleBranchIds(array $user): array
              ORDER BY b.id'
         );
         $stmt->execute([':pid' => $pid]);
-        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
+        // The production lane dispatches TO the commissary's branches, so those branches must be
+        // authorized, not merely visible. Measured before this: prod-rizal (#27) was authorized for
+        // [18] only and dl_processProductionMovement threw "Destination branch is not allowed" for
+        // all 11 network destinations, so the lane's core action could not complete.
+        return dl_assignedBranchNetwork(array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id')));
     }
 
     $branchId = dl_getUserBranchId();
@@ -2606,8 +2613,10 @@ function dl_accessibleBranchIds(array $user): array
  * explicitly requested one.
  *
  * - Admins: accessible = all active tenant branches, default = first active.
- * - Supervisors: accessible = assigned active branches via dl_user_branches.
- * - Production in-charge: accessible = assigned active branches.
+ * - Supervisors: accessible = assigned active branches via dl_user_branches, extended by the
+ *   network of any assigned branch that is a commissary.
+ * - Production in-charge: accessible = assigned active branches, extended by the network of an
+ *   assigned commissary (they dispatch to it).
  * - Cashiers: locked to single assigned branch (accessible = that branch only).
  */
 function dl_authorizeBranch(array $user, array $input = []): array
