@@ -20057,8 +20057,13 @@ function handleAdminCommissary(): void
     $db = $ctx->db();
     $input = $ctx->input();
     $viewScope = dl_adminAreaScope($user, $input);
-    $viewBranchIds = ($viewScope['type'] ?? 'ALL') === 'ALL' ? [] : array_map('intval', $viewScope['branch_ids'] ?? []);
+    // Presentation scope is authorization-bounded for every role. AdminAreaScope intentionally
+    // resolves to ALL for operational actors, so using it alone made their branch pickers, rows,
+    // and Daily Sheet columns tenant-wide. Keep authorization in dl_accessibleBranchIds(); this
+    // helper only supplies the ids a view may display.
+    $viewBranchIds = dl_adminViewBranchIds($user, $input);
     $viewBranchSql = $viewBranchIds === [] ? '0' : implode(',', $viewBranchIds);
+    $applyViewBranchFilter = $role !== 'admin' || ($viewScope['type'] ?? 'ALL') !== 'ALL';
     // A real calendar date only. An invalid date falls back to the current
     // business date for everyone; a future date falls back only on the
     // production view (the picker's max is today). Management keeps its
@@ -20092,17 +20097,20 @@ function handleAdminCommissary(): void
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
-    // A commissary is a supply hub, NOT a geographic area. Narrowing this list by the AREA scope's
-    // branch ids emptied it whenever the selected area happened to contain no commissary: measured
-    // with scope=AREA:2 the query became `is_commissary=1 AND id IN (13,14,17)` -> 0 rows, because
-    // those three are branches and the two live commissaries sit in areas 1 and 3. The area scope
-    // narrows geographic branch lists (correct, and kept below); it must not narrow this selector.
-    // Authorization is enforced on the sheet queries, not by hiding options from the picker.
-    $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
+    // A commissary is a supply hub, NOT a geographic area. An ADMIN area selection must not narrow
+    // this selector: an area's ordinary branch ids may contain no hub at all. Operational actors are
+    // different: their presentation set is always their assigned set, so an unrelated hub must not
+    // appear as an option. This is display filtering only; authorization remains unchanged.
+    if ($applyViewBranchFilter) {
+        $commissariesStmt = $db->query("SELECT b.id, b.code, b.name FROM dl_branches b WHERE b.is_commissary = 1 AND b.is_active = 1 AND b.id IN ({$viewBranchSql}) ORDER BY b.name ASC");
+    } else {
+        $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
+    }
     $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableCommissaryIds = array_map('intval', array_column($commissaries, 'id'));
-    // Default to All (0) - the landing sheet must not hide a network. The rows that made a default
-    // commissary filter look catastrophic before were NOT absent: they carry origin_id = NULL and a
+    // Admins default to All (0), while the operational presentation gate still keeps that landing
+    // view inside the actor's assigned set. The rows that made a default commissary filter look
+    // catastrophic before were NOT absent: they carry origin_id = NULL and a
     // plain `origin_id = :cid` filtered them out. The delivery query below now attributes those rows
     // through the destination branch, so choosing a specific commissary no longer drops them.
     $selectedCommissaryId = in_array($requestedCommissaryId, $availableCommissaryIds, true)
@@ -20121,14 +20129,14 @@ function handleAdminCommissary(): void
                  AND d.status = 'posted'
                  AND d.delivery_date = :date
               WHERE b.is_active = 1
-                " . (($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : "AND b.id IN ({$viewBranchSql})") . "
+                " . ($applyViewBranchFilter ? "AND b.id IN ({$viewBranchSql})" : '') . "
                 AND (b.assigned_commissary_id = :cid2 OR d.id IS NOT NULL)
               ORDER BY b.name ASC"
         );
         $branchesStmt->execute([':cid' => $selectedCommissaryId, ':cid2' => $selectedCommissaryId, ':date' => $rawDate]);
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } else {
-        $branchScopeSql = ($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : " AND id IN ({$viewBranchSql})";
+        $branchScopeSql = $applyViewBranchFilter ? " AND id IN ({$viewBranchSql})" : '';
         $branchesStmt = $db->query("SELECT id, name, is_commissary FROM dl_branches WHERE is_active = 1{$branchScopeSql} ORDER BY name ASC");
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -20164,7 +20172,7 @@ function handleAdminCommissary(): void
           WHERE cpl.ledger_date = :date
             AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0 OR cpl.wastage_qty > 0)";
     $inventoryBind = [':date' => $rawDate];
-    if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+    if ($applyViewBranchFilter) {
         $inventorySql .= " AND cpl.commissary_branch_id IN ({$viewBranchSql})";
     }
     if ($selectedCommissaryId > 0) {
@@ -20189,7 +20197,7 @@ function handleAdminCommissary(): void
            FROM dl_commissary_product_ledger cpl
            INNER JOIN dl_products p ON p.id = cpl.product_id AND p.is_active = 1
            LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
-          " . (($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : "WHERE cpl.commissary_branch_id IN ({$viewBranchSql})") . "
+          " . ($applyViewBranchFilter ? "WHERE cpl.commissary_branch_id IN ({$viewBranchSql})" : '') . "
           GROUP BY cpl.commissary_branch_id, cpl.product_id, b.name, p.name, p.sku
          HAVING cumulative_remaining > 0
           ORDER BY p.name ASC"
@@ -20220,7 +20228,7 @@ function handleAdminCommissary(): void
                       AND d.destination_type = 'branch'
                       AND d.delivery_date = :date";
     $deliveryBind = [':date' => $rawDate];
-    if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+    if ($applyViewBranchFilter) {
         $deliverySql .= " AND d.destination_id IN ({$viewBranchSql})";
     }
     if ($selectedBranchId > 0) {
@@ -20274,7 +20282,7 @@ function handleAdminCommissary(): void
                      AND d.status = 'posted'
                      AND d.delivery_date = :date";
     $pulloutBind = [':date' => $rawDate];
-    if (($viewScope['type'] ?? 'ALL') !== 'ALL') {
+    if ($applyViewBranchFilter) {
         $pulloutSql .= " AND d.origin_id IN ({$viewBranchSql})";
     }
     if ($selectedBranchId > 0) {
@@ -20388,7 +20396,7 @@ function handleAdminCommissary(): void
     // can never jump to the front. With every branch still at 0 the leading
     // flag ties for every row, so the whole clause collapses to plain
     // alphabetical order -- i.e. exactly the pre-order behaviour.
-    $sheetScopeSql = ($viewScope['type'] ?? 'ALL') === 'ALL' ? '' : " AND id IN ({$viewBranchSql})";
+    $sheetScopeSql = $applyViewBranchFilter ? " AND id IN ({$viewBranchSql})" : '';
     // A selected Commissary must narrow the sheet's DESTINATIONS, not just the
     // branch list further up. The destination set is what becomes the sheet's
     // columns, so without this the Commissary selector changed nothing here.
@@ -20431,7 +20439,7 @@ function handleAdminCommissary(): void
     // 15 destinations is ~3.75MB, still ~25% inside the guard. The unscoped sheet keeps 10 because
     // the estate has no natural bound. The omission banner is unchanged, so any scope that ever
     // exceeds the cap still says so rather than silently truncating.
-    $sheetDestinationLimit = ($selectedCommissaryId > 0 || ($viewScope['type'] ?? 'ALL') !== 'ALL') ? 15 : 10;
+    $sheetDestinationLimit = ($selectedCommissaryId > 0 || $applyViewBranchFilter) ? 15 : 10;
     $requiredSheetBranchIds = array_values(array_filter([$sheetSourceBranchId, $selectedBranchId], static fn(int $id): bool => $id > 0));
     $includedSheetBranchIds = array_fill_keys($requiredSheetBranchIds, true);
     $chosenDestinationCount = $selectedBranchId > 0 && $selectedBranchId !== $sheetSourceBranchId ? 1 : 0;

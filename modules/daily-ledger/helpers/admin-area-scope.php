@@ -151,8 +151,23 @@ function dl_adminAreaScope(array $user, ?array $request = null): array
 }
 
 /**
- * Branch ids for an admin VIEW query: authorization first, then the persisted
- * area/network presentation scope. Operational roles never consult that scope.
+ * Branch ids for a VIEW query (a picker, a list, a Daily Sheet column set).
+ *
+ * Authorization comes first and is never widened or narrowed here: the result is always a subset of
+ * dl_accessibleBranchIds(). On top of that:
+ *
+ * - an ADMIN's set is narrowed by the persisted area/network scope;
+ * - an OPERATIONAL actor's set is their assigned branches, extended by the network of any assigned
+ *   branch that is itself a commissary.
+ *
+ * The operational half is the 2026-10-10 correction. Using the assignment alone made a production
+ * user assigned to a commissary present that one branch instead of the network they dispatch to, so
+ * the Daily Sheet rendered ZERO destination columns (measured: prod-rizal, RIZAL-COMMIS1 -> columns=0).
+ * Using the raw set instead (what AdminAreaScope's ALL-for-operational-roles fallback produced) put
+ * every branch in the tenant in the sheet, which is the reported "Rizal Commissary includes Pagadian
+ * commissary branches". The network keeps the commissary's own branches - which legitimately span
+ * more than one area, RIZAL-COMMIS1 covers both Dapitan and Dipolog - and still excludes a sibling
+ * commissary's network.
  *
  * @return int[]
  */
@@ -160,7 +175,7 @@ function dl_adminViewBranchIds(array $user, ?array $request = null): array
 {
     $authorized = array_values(array_unique(array_map('intval', dl_accessibleBranchIds($user))));
     if (($user['role'] ?? '') !== 'admin') {
-        return $authorized;
+        return dl_presentationBranchNetwork($authorized);
     }
 
     $scope = dl_adminAreaScope($user, $request);
@@ -173,4 +188,40 @@ function dl_adminViewBranchIds(array $user, ?array $request = null): array
         $authorized,
         static fn(int $branchId): bool => isset($allowed[$branchId])
     ));
+}
+
+/**
+ * Presentation set for an operational actor: the assigned branches, plus the branches assigned to any
+ * assigned branch that is a commissary.
+ *
+ * A cashier assigned to an ordinary branch is unaffected (nothing to expand). A production user
+ * assigned to a commissary gains exactly that commissary's network - the branches they dispatch to -
+ * and nothing else. Never adds a branch the actor is not authorized for, because it only expands a
+ * commissary the actor was ALREADY assigned.
+ *
+ * @param int[] $branchIds
+ * @return int[]
+ */
+function dl_presentationBranchNetwork(array $branchIds): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $branchIds), static fn(int $id): bool => $id > 0)));
+    $db = module()?->db();
+    if ($db === null || $ids === []) {
+        return $ids;
+    }
+
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $commissaryStmt = $db->prepare("SELECT id FROM dl_branches WHERE is_active = 1 AND is_commissary = 1 AND id IN ({$marks})");
+    $commissaryStmt->execute($ids);
+    $commissaryIds = array_map('intval', array_column($commissaryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
+    if ($commissaryIds === []) {
+        return $ids;
+    }
+
+    $netMarks = implode(',', array_fill(0, count($commissaryIds), '?'));
+    $netStmt = $db->prepare("SELECT id FROM dl_branches WHERE is_active = 1 AND assigned_commissary_id IN ({$netMarks})");
+    $netStmt->execute($commissaryIds);
+    $network = array_map('intval', array_column($netStmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
+
+    return array_values(array_unique(array_merge($ids, $network)));
 }

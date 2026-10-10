@@ -244,6 +244,80 @@ try {
     }
 }
 
+$h->section('Operational presentation branch scope');
+$operationalBindingViolations = $db->query(
+    "SELECT u.id, u.role, COUNT(ub.branch_id) AS bindings
+       FROM dl_users u
+       LEFT JOIN dl_user_branches ub ON ub.user_id = u.id
+      WHERE u.is_active = 1 AND u.deleted_at IS NULL
+        AND u.role IN ('cashier', 'production_in_charge', 'supervisor')
+      GROUP BY u.id, u.role
+     HAVING COUNT(ub.branch_id) <> 1"
+)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$h->test(
+    'every active operational account has exactly one assigned branch',
+    $operationalBindingViolations === [],
+    json_encode($operationalBindingViolations)
+);
+$prodRizal = ['id' => 27, 'sub' => 'production_in_charge:27', 'role' => 'production_in_charge'];
+$prodAssigned = array_map('intval', $db->query('SELECT branch_id FROM dl_user_branches WHERE user_id = 27 ORDER BY branch_id')->fetchAll(PDO::FETCH_COLUMN) ?: []);
+$rizalCommissaryForScope = (int)$db->query("SELECT id FROM dl_branches WHERE code = 'RIZAL-COMMIS1'")->fetchColumn();
+$rizalNetworkForScope = array_map('intval', $db->query("SELECT id FROM dl_branches WHERE is_active = 1 AND assigned_commissary_id = {$rizalCommissaryForScope} ORDER BY id")->fetchAll(PDO::FETCH_COLUMN) ?: []);
+$pagadianNetworkForScope = array_map('intval', $db->query("SELECT id FROM dl_branches WHERE is_active = 1 AND assigned_commissary_id = (SELECT id FROM dl_branches WHERE code = 'PAG-COMMISARY1') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN) ?: []);
+$prodExpectedScope = array_values(array_unique(array_merge($prodAssigned, $rizalNetworkForScope)));
+$prodActualScope = array_values(array_unique(array_map('intval', dl_adminViewBranchIds($prodRizal, ['scope' => 'ALL']))));
+sort($prodExpectedScope);
+sort($prodActualScope);
+// The presentation set is the assignment PLUS the network of an assigned commissary. Asserting the
+// assignment alone (as this oracle first did) is asserting a set that renders ZERO Daily Sheet
+// destination columns - measured: prod-rizal with RIZAL selected went columns=10 -> columns=0. A
+// production user dispatches TO the commissary's branches, so those branches must be present while a
+// sibling commissary's network must not.
+$h->test(
+    'production presentation scope is its assigned branch plus that commissary network',
+    $prodActualScope === $prodExpectedScope
+        && $rizalNetworkForScope !== []
+        && array_intersect($prodActualScope, $pagadianNetworkForScope) === [],
+    json_encode(['view' => $prodActualScope, 'expected' => $prodExpectedScope, 'assigned' => $prodAssigned])
+);
+
+$runCommissaryView = static function (string $role, int $userId, int $commissaryId = 0): array {
+    $output = [];
+    $exit = 0;
+    exec(
+        escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/daily_ledger_area_rollout_harness.php')
+        . ' 0 ' . escapeshellarg($role) . ' ' . $userId . ' ' . $commissaryId . ' 2>&1',
+        $output,
+        $exit
+    );
+    $raw = implode("\n", $output);
+    $decoded = json_decode($raw, true);
+    return ['exit' => $exit, 'data' => is_array($decoded) ? $decoded : [], 'raw' => $raw];
+};
+$productionView = $runCommissaryView('production_in_charge', 27);
+$productionRendered = array_map('intval', $productionView['data']['rendered_branch_ids'] ?? []);
+$h->test(
+    'production Daily Sheet and branch picker render the assigned network, not a sibling network',
+    $productionView['exit'] === 0
+        && ($productionView['data']['status'] ?? 0) === 200
+        && array_diff($productionRendered, $prodExpectedScope) === []
+        && count(array_intersect($productionRendered, $rizalNetworkForScope)) === count($rizalNetworkForScope)
+        && count(array_intersect($productionRendered, $pagadianNetworkForScope)) === 0
+        && ($productionView['data']['pagadian_branch_ids_rendered'] ?? []) === [],
+    json_encode(['rendered' => $productionRendered, 'expected' => $prodExpectedScope, 'columns' => $productionView['data']['columns'] ?? null])
+);
+$rizalCommissaryId = (int)$db->query("SELECT id FROM dl_branches WHERE code = 'RIZAL-COMMIS1'")->fetchColumn();
+$rizalNetworkCount = (int)$db->query("SELECT COUNT(*) FROM dl_branches WHERE is_active = 1 AND assigned_commissary_id = {$rizalCommissaryId}")->fetchColumn();
+$adminRizalView = $runCommissaryView('admin', 1, $rizalCommissaryId);
+$h->test(
+    'RIZAL commissary selection still renders its complete Dapitan plus Dipolog network',
+    $adminRizalView['exit'] === 0
+        && $rizalNetworkCount === 11
+        && count($adminRizalView['data']['rizal_network_ids_rendered'] ?? []) === $rizalNetworkCount
+        && ($adminRizalView['data']['pagadian_branch_ids_rendered'] ?? []) === [],
+    json_encode(['expected_network_count' => $rizalNetworkCount, 'view' => $adminRizalView])
+);
+
 $h->section('Commissary output bound');
 $temporaryIds = [];
 $beforeCount = (int)$db->query("SELECT COUNT(*) FROM dl_branches WHERE code LIKE 'BOUND-%'")->fetchColumn();
