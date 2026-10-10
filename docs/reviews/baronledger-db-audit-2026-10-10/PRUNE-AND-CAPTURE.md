@@ -148,6 +148,7 @@ users, and a process-lifetime static cache would go stale in long-running CLI wo
 |---|---|
 | `test-prune-safety.php` | **8 passed, 0 failed** — protected sets, partition invariant, CASCADE, idempotence |
 | `test-capture-fix.php` | **12 passed, 0 failed** — incl. a **control arm** reproducing the defect |
+| `test-capture-efficiency.php` | **6 real recompute cycles → 1 notification row** (below) |
 | module tests (`delivery_variance_visibility`, `preserve_cashier_variance`) | **identical with and without the fix** (14/20, 25/29) → the 10 failures are pre-existing |
 | partition invariant | `protected 3,049 + candidates 115,936 == 118,985` exactly |
 
@@ -160,6 +161,36 @@ fixed key total rows: 1 | old key total rows: 2
 
 Three recomputes on the fixed key → one row, `finding_count` 1 → 2 → 3, same notification id.
 Two recomputes on the surrogate key → two rows.
+
+### How efficient is the root fix — measured end-to-end
+
+`test-capture-efficiency.php` drives the **real** `dl_upsertVarianceFlag()` through six
+delete-and-re-derive cycles — precisely what a recompute does to those flags, and the trigger for the whole
+defect. The flag id changes every cycle (as it must); the notification does not:
+
+| cycle | `flag_id` | notification rows | `finding_count` |
+|---:|---:|---:|---:|
+| 1 | 1955147 | 1 | 1 |
+| 2 | 1955148 | 1 | 2 |
+| 3 | 1955149 | 1 | 3 |
+| 4 | 1955150 | 1 | 4 |
+| 5 | 1955151 | 1 | 5 |
+| 6 | 1955152 | 1 | 6 |
+
+Before the fix, cycle *N* produced notification *N* (plus its recipient pair). Six cycles now cost one row.
+
+**The churn factor, from the data:** 118,902 variance-notification rows were written for **982 distinct
+natural findings** — a **121×** re-notification rate. Findings per ledger date average **43.3** (range 10–78).
+
+| | before | after |
+|---|---:|---:|
+| notification rows written per day | ~13,221 | **~43** (−99.7%) |
+| recipient rows written per day | ~27,200 | **~86** (−99.7%) |
+| growth shape | unbounded, linear | **bounded by distinct findings** |
+
+So the fix does not merely slow the growth — it removes the coupling between *how often a day is recomputed*
+and *how much is stored*. That coupling was the entire defect.
+
 
 ## 6. Operations runbook
 
