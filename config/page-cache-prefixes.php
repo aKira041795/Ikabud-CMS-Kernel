@@ -28,6 +28,15 @@ return [
     '/portal',
     '/ehr/queue-monitor',
     '/attendance-wage/',
+    // daily-ledger was missing from this list while every sibling module (cms, ecommerce,
+    // attendance-wage, harpp, portal) was registered, so its pages remained page-cacheable. That
+    // served a STALE page after each deploy: the fix was on the server, the operator kept seeing the
+    // old render, and the only way through was the developer-only ?disyl_nocache flag - which no
+    // user knows about, and which also happens to be this cache's own bypass. Every daily-ledger
+    // page is per-user operational data (ledger sheets, cashier views, area-scoped admin), so it
+    // must never be cached. Prefixed on '/daily-ledger/' to cover the whole module, including any
+    // route added later.
+    '/daily-ledger/',
     '/assets/',
     // HARPP pages embed a session-bound CSRF token in a <meta name="csrf-token">
     // tag (modules/harpp templates layout.disyl). Caching them would serve a stale
