@@ -10,7 +10,9 @@ Raw measurement sets behind the two changes shipped on 2026-10-10. Companion to
   direction to re-test, not a result. Two of the seven figures below are in that category and are
   labelled.
 - **The local box is ~3x slower than the live host on `route_match`** (22 ms local vs 7.17 ms live).
-  **Percentages transfer; absolute milliseconds do not.**
+  **Percentages appear to transfer; absolute milliseconds do not** — but that is a working assumption
+  on one supporting observation, not a rule, and section 4c explains why the live confirmation is
+  weaker than it first appears.
 - `compiled_this_request = 0` on every reading, so every saving here is **execution**, not
   compilation.
 - Every comparison is an **interleaved A/B with alternating order** (A-first and B-first alternate
@@ -215,14 +217,41 @@ prove it themselves: **values present = kernel changes live; "not measured" = th
 | `helpers_load` | 9.35 | 7.597 | 7.435 | 11.205 | -1.75 (-18.8%) |
 | `discovery` | 9.06 | 7.764 | 6.393 | 62.486 | -1.30 (-14.3%) |
 
-**The two phases this work touched improved beyond the entire observed range.** Every one of the 8
-`route_match` samples (max 4.495) is below the 7.17 baseline, and every `route_merge` sample
-(max 2.673) is below the 3.17 baseline. That is stronger than a median comparison and does not depend
-on the baseline having been typical.
+**Every sample on both touched phases beats the baseline.** All 8 `route_match` samples (max 4.495)
+are below the 7.17 baseline; all 8 `route_merge` samples (max 2.673) are below 3.17.
 
-**The local prediction transferred almost exactly.** Local `route_match` fell 58.4%; live it fell
-59.5%. This is the first evidence that the local A/B percentages do carry to the live host even though
-the absolute milliseconds do not (local 22 ms vs live 7.17 ms at baseline).
+**But that is NOT the independent confirmation it looks like, and an earlier draft of this section
+claimed it was.** The claim made was "stronger than a median comparison and does not depend on the
+baseline having been typical". Both halves are wrong:
+
+- **It *is* a median comparison.** "Every sample beats the baseline" only exceeds a median if the
+  baseline is a single point that the ranges straddle — and here the same host's own spread
+  (`dispatch` 29.5-86.6 ms across eight *consecutive* samples) is far larger than the effect.
+- **It depends on the baseline more than a median would, not less**, because with n=1 the baseline
+  *is* the whole reference arm.
+
+**The confound: four metrics this work does not touch moved the same direction.** `boot` -41.8%
+(nothing in these commits changes boot — it was only *marked*), `helpers_load` -18.8%,
+`discovery` -14.3%. When unrelated metrics all fall, the two readings differ in host or
+runtime state as well as in code, and a comparison across them cannot separate the two. The baseline
+at 2026-10-09 20:24 plausibly ran with a colder cache (4b records 724 cached scripts then vs 779 now),
+which raises *every* metric.
+
+So the honest reading: **the live delta is consistent in direction with a change whose severity was
+established elsewhere, but its magnitude here is not attributable to these two commits.** The
+load-bearing evidence is section 2 — same machine, both arms interleaved with alternating order,
+disjoint ranges. That is what justifies keeping the change; this section corroborates it.
+
+**What the live agreement does and does not show.** Local `route_match` fell 58.4%, live 59.5%. Two
+independent measurements landing within 1.1 points of each other is unlikely to be pure coincidence,
+so this is *suggestive* that local A/B percentages transfer to the live host even though the absolute
+milliseconds do not (local 22 ms vs live 7.17 ms at baseline). It is not proof: a global shift of the
+size seen above could produce a similar figure from a smaller true effect. Treat "percentages
+transfer" as a working assumption with one supporting observation, not an established rule.
+
+**The decisive test, if the magnitude is ever needed, is interleaved — not before/after.** Reverting
+one commit on the live host and alternating it on/off within a single session would isolate the code
+from host state. Nothing in the ship/no-ship decision needs it: the local A/B already settled that.
 
 **The earlier single reading was an outlier, and I called its direction wrongly.** Section 4b reported
 `route_match` at 8.82 ms and concluded the change had gone the wrong way. It is outside the range of
