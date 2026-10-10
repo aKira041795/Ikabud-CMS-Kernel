@@ -92,11 +92,21 @@ def main(argv=None) -> int:
         # Never retrieve the transcript being written.  It holds this very prompt and, on a
         # continued session, the previous reply; feeding it back as "conclusions" crowds out
         # the repository and lets the model cite the discussion instead of the code.
+        # The adapter is handed a FILE to read as its prompt. For a session that file used to be the
+        # transcript itself - which is appended to every turn, so the prompt grew without bound and
+        # eventually could not be typed into the composer at all. Measured 2026-10-10: turn 1 ~10 KB
+        # and turn 2 ~25 KB fine, turn 3 ~35 KB hit a Playwright fill timeout, and the ~80 KB
+        # transcript then exceeded the 340 s adapter budget. Prior turns are already carried by
+        # _history_from (capped), so the adapter only needs the CURRENT turn.
+        adapter_prompt_path = out_path
+        if session_path:
+            adapter_prompt_path = out_path.with_name(out_path.stem + ".turn" + out_path.suffix)
         excluded: list[str] = []
-        try:
-            excluded = [out_path.resolve().relative_to(workspace).as_posix()]
-        except ValueError:
-            pass
+        for candidate in (out_path, adapter_prompt_path):
+            try:
+                excluded.append(candidate.resolve().relative_to(workspace).as_posix())
+            except ValueError:
+                pass
         pack = context_pack.build_context_pack(args.query, str(workspace), args.budget,
                                                exclude_paths=excluded)
         prompt = _compose(str(args.query), str(args.instruction), pack, history)
@@ -106,6 +116,8 @@ def main(argv=None) -> int:
             # A discussion accumulates turns; a one-shot consult is just inspectable.
             with out_path.open("a", encoding="utf-8") as handle:
                 handle.write(prompt + "\n\n")
+            # ...but the adapter gets only this turn, so the prompt stays bounded.
+            adapter_prompt_path.write_text(prompt, encoding="utf-8")
         else:
             out_path.write_text(prompt, encoding="utf-8")
 
@@ -129,7 +141,7 @@ def main(argv=None) -> int:
             / "harpp" / "chatgpt-profile"
         )
         proc = subprocess.run(
-            [node, str(script), "run", "--prompt", str(out_path), "--profile", str(profile)],
+            [node, str(script), "run", "--prompt", str(adapter_prompt_path), "--profile", str(profile)],
             capture_output=True, text=True, timeout=340, check=False,
         )
         result = None
