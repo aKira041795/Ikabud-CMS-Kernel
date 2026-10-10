@@ -13,6 +13,34 @@ final class AdminAreaScope
 {
     private const SESSION_PREFIX = 'daily_ledger.admin_view_scope.';
 
+    /**
+     * Identity of the view whose scope is being resolved.
+     *
+     * `/daily-ledger/admin/overview` -> `admin.overview`, `/daily-ledger/admin/commissary` ->
+     * `admin.commissary`, `/daily-ledger/ledger` -> `ledger`. Ledger SUB-routes resolve to the ledger
+     * itself, because the htmx `/ledger/rows` partial must read the scope its own page set - giving
+     * it a separate key would silently show it unfiltered rows.
+     *
+     * No REQUEST_URI (CLI, tests) degrades to a single stable key, which is what the existing oracles
+     * exercise.
+     */
+    private static function viewKey(): string
+    {
+        $path = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+        $path = trim((string)preg_replace('#^.*?/daily-ledger/?#', '', $path), '/');
+        if ($path === '') {
+            return 'default';
+        }
+        $parts = explode('/', $path);
+        if ($parts[0] === 'ledger') {
+            return 'ledger';
+        }
+        if ($parts[0] === 'admin' && isset($parts[1]) && $parts[1] !== '') {
+            return 'admin.' . $parts[1];
+        }
+        return $parts[0];
+    }
+
     /** @return array{type:string,id:int,label:string,branch_ids:array<int,int>,value:string,areas:array,commissaries:array} */
     public static function resolve(array $request, array &$session, array $user): array
     {
@@ -31,7 +59,11 @@ final class AdminAreaScope
         }
 
         $actorId = function_exists('dl_getActorUserId') ? dl_getActorUserId($user) : (int)($user['id'] ?? 0);
-        $sessionKey = self::SESSION_PREFIX . max(0, $actorId);
+        // Keyed per ACTOR **and per VIEW**. Keying on the actor alone made one selection global: an
+        // area set on the Ledger narrowed Overview, Commissary, Sales and every other view, and it
+        // never cleared when navigating away. A view scope is a property of the view, not of the
+        // administrator, so each view keeps its own; a view that was never set resolves to ALL.
+        $sessionKey = self::SESSION_PREFIX . max(0, $actorId) . '.' . self::viewKey();
         $explicit = array_key_exists('scope', $request) ? strtoupper(trim((string)$request['scope'])) : null;
         $selection = null;
         if ($explicit !== null) {
