@@ -869,6 +869,201 @@ not silent failures and nothing is broken.
 
 ---
 
+## 4k. Resolution — the fallback class is fixed at the engine level
+
+Commit `ceae734f`. **No template was edited.** Cache version 16 → 18.
+
+4i closed with *"that must be established before any fix"*. It was established — by Sol, on a second pass —
+and the mechanism is more precise than the one I had inferred from reading the document. I had written that
+"the nested `{` after `@media(min-width:700px)` appears to swallow the rest of the document". Measured:
+
+> `{#runner-fleet{...}}` inside a `<style>` body was parsed as a DiSyL `{# … #}` **hash comment**. With no
+> `#}` terminator, `parseHashComment()` consumed the remainder of the template, **including `{/block}`**, and
+> with it the `content` and `scripts` blocks.
+
+Minimal reproduction: `<style>@media(x){#x{a:b}}</style>TAIL` — **16 output bytes before, 37 after.**
+
+That accounts for the `-`/`+` operator spread 4j found. All seven were one class: **braced content that is
+host language, not DiSyL.**
+
+| construct | before | after |
+|---|---|---|
+| `{#runner-fleet{grid-template-columns:…}}` in `<style>` | `{#` opened an unterminated hash comment and ate the document | `#` is only a comment when `#}` lands **inside the same raw body** |
+| `{flex-direction:column}` in `<style>` | `('display:flex;flex' - 'direction:column;gap:.5rem')` → `Unsupported operand types: string - string` | inside a raw context, only a bare/dotted identifier with optional filters is an expression |
+| `{…}` brace block opening with a JS keyword | parsed as DiSyL | a block starting `let`/`const`/`return`/… is host-language text |
+
+`{sales_count ?? 0}` was re-checked explicitly, because tightening the raw-context guard could have broken it:
+null-coalescing was moved **ahead** of that guard and narrowed to `^{identifier} ?? …$`, matching
+`processScriptVariables()`.
+
+### The part 4i did not predict: this was a correctness bug, not just a perf bug
+
+The interpreted fallback had been **masking active corruption**. With the trigger fixed, the compiled output
+in three templates changes — and all three changes are repairs:
+
+| template | before | after |
+|---|---|---|
+| `modules/cms/admin/menus.disyl` | `const node=label:item.label` — the object brace eaten | `const node={label:…}` |
+| `modules/cms/admin/users.disyl` | an object literal lost from inside a JS comment | `{userId: [{store_id, store_name, role}]}` |
+| `modules/dc-cafe/settings/index.disyl` | `this.api(…, 'PUT', )` — the payload argument gone | `this.api(…, 'PUT', {name: this.editBaseName[id]})` |
+
+`menus.disyl` carries the comment **`// ternary (0) is mangled by DiSyL`** — a developer had documented the
+damage and coded around it. So the "7 templates paying 10x" framing in 4j was too narrow: for at least three
+of them the compiled path was returning **wrong output**, and the fallback was the only reason the pages
+rendered correctly at all.
+
+### Verified before accepting — not taken from the lane's report
+
+| check | result |
+|---|---|
+| output differential, all 555 templates vs committed baseline | exactly **3 differ**, hashes matching the lane's report exactly, each inspected by hand as an intended repair |
+| `runners` / `status` / `session-end` | **no longer differ** — compiled output now equals the previously-correct interpreted output |
+| fallback sweep | `compiled 479 · fallback 0 · interpreted 72 · THREW 4` |
+| new regression test | **9 passed / 3 failed WITHOUT the fix**, 12 / 0 with it — it discriminates |
+| `disyl-conformance-check.php` | `lane_green=YES`, `promoted=41 partial=0`, `disagreements: none` |
+| 5 pre-existing failures | unchanged, exit=1 both ways |
+
+### Round 1 was rejected, and the brief was why — the lesson this section exists for
+
+Round 1 came back **PASS with its own suite green**, and was wrong: it made `runners.disyl` lose its
+`content` block and its `<script>`. **My brief was the cause.** I had made `probe-fallback-sweep.php`
+reporting `fallback 0` the primary acceptance criterion. That measures **which pipeline ran**, not whether
+the output is *right* — so the fix satisfied it exactly as written while the page emptied.
+
+> **The sweep proves the fix APPLIES. The differential proves it is SAFE. Neither alone is sufficient.**
+
+Every acceptance set for a compiler change must now include `probe-output-diff.php` against
+`output-before.txt`, with **each changed template listed and justified individually**; an unexplained diff
+is a rejection. `output-before.txt` must not be regenerated after a fix — it is the reference arm.
+
+---
+
+## 4l. The interpreted path was three-quarters unmeasured — and the cost was in the untimed passes
+
+4j left one open line: *"the 72 `interpreted` are … compiled-ineligible by design (component tags, macros),
+not a defect"*. That was an assertion I had not measured, and the trigger list made it worth checking —
+`{ikb_}` is the project's **primary entity-view rendering engine**, so "ineligible by design" would mean the
+most-used pages in the app never touch the compiled path.
+
+### First: the count is 76, not 72 — and that reconciles
+
+`probe-eligibility-reasons.php` takes the verdict from the engine's own predicate
+(`isCompiledEligibleTemplate()` via reflection) and uses a local scan **only** for the reason, then
+cross-checks the two. The self-check reported no drift in either direction, so the attribution is sound.
+
+| reason | templates |
+|---|---:|
+| `{ikb_…}` component/entity tags | **51** (46 direct + 5 via the extends/include graph) |
+| user macros (`{macro}`/`{call}`) | **20** (the `attendance-wage` layout + everything inheriting it) |
+| `{cache }` and the async/cache/ai tag family | **5** — `cms/public/{home,page,single,archive}` |
+
+76 ineligible = **72 that render interpreted + 4 that threw** on minimal context. The sweep's
+`interpreted 72` and `THREW 4` were both counting the same ineligible set.
+
+So 4j's claim is **directionally right and misleadingly framed**: it is by design, and the design puts the
+entity-view engine and the four public CMS pages on the interpreted path. The public homepage is excluded
+by `{cache }` — a deliberate interpreted-only tag — not by anything incidental.
+
+### The real defect: the instrument covered a quarter of the render
+
+`home.disyl` logged `total_ms: 28.29` while its named phases summed to **6.54 ms**. Only six passes were
+timed (`extends`, `scripts`, `styles`, `control`, `includes`, `variables`); untimed were `{literal}`,
+`{set}`, HTML-tag conversion, `processComponents`, capability/on/debug/math tags, `expandMacroCalls` and
+the restores. **The two largest ineligibility classes were exactly the uninstrumented ones.**
+
+Instrumentation was therefore the first fix, not an optimisation: timings on each pass above, plus a
+`unattributed_ms` **self-check** that subtracts every named phase from the total. It is reported rather than
+folded into another phase, so an incomplete instrument says so instead of reading as complete. After the
+change `unattributed_ms` is 0.18 of 19.37 ms — **99.1% attributed**, and the reader can verify that.
+
+### What the measurement then said — and it was not what I had predicted
+
+I had spent the previous section proving `compileStyleBody()` is quadratic, and it is
+(`probe-interpreted-phases.php` section B: 4 KB → 65 ms, 32 KB → 3357 ms on the `{ }` shape, ms/KB doubling
+per doubling of size). **It is also nearly irrelevant here:** for `home.disyl` `styles_ms` is 0.06 ms, and
+the style body is only passed through that loop when `bodyContainsDisylConstruct()` is true. I was one step
+from optimising a pass that does not run.
+
+The dominant phase was:
+
+| phase | ms | share |
+|---|---:|---:|
+| **`set_ms`** | **16.26** | **83.9%** |
+| control | 1.61 | 8.3% |
+| scripts | 0.80 | 4.1% |
+| everything else | 0.70 | 3.7% |
+
+`processSetStatements()` was O(n²) and the mechanism is one line:
+
+```php
+while ($i < $len) {
+    $rest = substr($content, $i);        // copies the whole remaining tail
+    ...                                  // and the loop advances ONE character at a time
+```
+
+A 22 KB document therefore copied ~11 KB on each of ~22,000 iterations.
+
+### Two fixes, each measured separately
+
+| change | effect on `home.disyl` |
+|---|---|
+| **1.** `substr($content, $i)` + `/^…/` → `strpos` to the next `{` + `/A` anchored match | `set_ms` 16.26 → **7.85 ms**; total 19.37 → 10.96 |
+| **2.** jump to braces instead of testing every position (22,203 PCRE calls were ~7.8 ms of pure call overhead) | `set_ms` → **0.69 ms**; total → **3.45 ms** |
+| **3.** same anchor fix on the `compileScriptBody` / `compileStyleBody` tag probe | `scripts_ms` no longer scans forward; median improves again below |
+
+The anchor was verified against PCRE directly before being relied on: `/{set/A` with offset 3 matches at 3
+and reports offset 3; at offset 0 or 4 it does not match at all. Without `A` it scans forward — which is
+the whole cost. The replacement is **semantically identical** to the previous
+`PREG_OFFSET_CAPTURE` + `$m[0][1] === $i` test, which is why the output differential below is unchanged.
+
+### Aggregate effect across all 76 ineligible templates
+
+`probe-ineligible-cost.php`, engine choosing its own pipeline, fresh engine per render, cold and warm
+separate:
+
+| metric | before | after |
+|---|---:|---:|
+| median warm | 9.33 ms | **3.89 ms** (−58%) |
+| min warm | 0.40 ms | 0.32 ms |
+| max warm | 201.84 ms | **40.56 ms** (−80%) |
+| templates ≥ 20 ms | 22 of 72 | **5 of 72** |
+
+### A correction to my own intermediate number
+
+While measuring this I produced a "median 243x, worst 958x" interpreted-vs-compiled ratio
+(`probe-pipeline-multiplier.php`). It is **not a production cost** and must not be quoted as one: it was
+obtained by forcing `enableCompiledMode(false)` on templates that are compiled-**eligible**, which
+production never does for them. The faithful measurement of the interpreted path is the 76 ineligible
+templates above. The ratio is still true *of the pipeline*; it just does not apply to those templates.
+
+### Verification
+
+| check | result |
+|---|---|
+| 555-template output differential vs `output-before.txt` | **byte-identical apart from the 3 known templates** (the intended repairs from 4k) — checked after each of the three changes |
+| `disyl_conformance_test.php` | 229 passed, 0 failed |
+| `disyl_raw_context_expression_test.php` | 12 passed, 0 failed |
+| `tools/disyl-conformance-check.php` | `lane_green=YES`, `promoted=41 partial=0`, `disagreements: none` |
+| 5 known pre-existing failures | exit=1, unchanged |
+| templates modified | **0** |
+
+The differential is the load-bearing check here: it covers every template in the repository, which is
+stronger evidence for a language-pass change than any single suite.
+
+### Still open, deliberately
+
+- **`cms/public/{home,page,single,archive}` are ineligible because of `{cache }`.** Making that tag
+  compiled-eligible would move the four public pages onto the compiled path — a much larger win than
+  anything above, and a language feature, not a micro-optimisation.
+- `control_ms` is now the largest single phase on several templates (~10 ms for `guidance/pages/settings`),
+  and `scripts_ms` (which internally spans set + control + variables for script bodies) is larger still.
+  Neither has been attributed to a specific pass yet; the instrument now makes that a measurement rather
+  than a guess.
+- `compileStyleBody()` remains quadratic. Proven, and currently not worth fixing because its guard keeps it
+  off the hot path — recorded so it is not "rediscovered" as a win.
+
+---
+
 ## 5. Live baseline — for scale, not comparison
 
 From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:

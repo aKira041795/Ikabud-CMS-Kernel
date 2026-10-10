@@ -838,16 +838,20 @@ class TemplateEngine
         //    control structures, so they work correctly inside loop bodies
         $literals = [];
         if (str_contains($content, '{literal')) {
+            $t = microtime(true);
             $content = preg_replace_callback('/\{literal\}(.*?)\{\/literal\}/s', function($match) use (&$literals) {
                 $key = '___LITERAL_' . count($literals) . '___';
                 $literals[$key] = $match[1];
                 return $key;
             }, $content);
+            $phases['literal_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
         // 6. Process {set var = expr} assignments (mutates context)
         if (str_contains($content, '{set ')) {
+            $t = microtime(true);
             $content = $this->processSetStatements($content, $context);
+            $phases['set_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
         // 7. Process control structures (if/for/foreach) - token-based for proper nesting
@@ -899,28 +903,38 @@ class TemplateEngine
 
         // 9. Process components
         if (str_contains($content, '{ikb_') || str_contains($content, '{island') || str_contains($content, '{state')) {
+            $t = microtime(true);
             $content = $this->processComponents($content, $context);
+            $phases['components_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
 
         // 9a. Process {capability} tags (capability-driven template calls)
         if (str_contains($content, '{capability ')) {
+            $t = microtime(true);
             $content = $this->processCapabilityTags($content, $context);
+            $phases['capability_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
 
         // 9b. Process {on} event-conditional rendering
         if (str_contains($content, '{on ')) {
+            $t = microtime(true);
             $content = $this->processOnTags($content, $context);
+            $phases['on_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
 
         // 9c. Process {debug expr} — pretty-print any variable for development
         if (str_contains($content, '{debug ')) {
+            $t = microtime(true);
             $content = $this->processDebugTags($content, $context);
+            $phases['debug_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
 
         // 9d. Process {math equation="..."} tags (must run BEFORE processVariables
         //     so the whole tag is consumed as a unit, not evaluated as a variable).
         if (str_contains($content, '{math')) {
+            $t = microtime(true);
             $content = $this->processMathTags($content, $context);
+            $phases['math_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
 
         // 10. Process remaining variables (including arithmetic and ternary expressions)
@@ -932,7 +946,9 @@ class TemplateEngine
 
         // 10.5. Expand {call name(args)} — substitute macro bodies with resolved args
         if ($this->macroProcessor()->hasMacros() && str_contains($content, '{call ')) {
+            $t = microtime(true);
             $content = $this->expandMacroCalls($content, $context);
+            $phases['macro_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
         // 11. Restore {literal} blocks (raw, no processing)
@@ -957,6 +973,7 @@ class TemplateEngine
 
         // 14. Emit template manifest for tooling (top-level compile only)
         if ($isTopLevel && $this->currentTemplatePath !== null) {
+            $t = microtime(true);
             try {
                 if (class_exists(\Ikabud\Kernel\DiSyL\Compiler\TemplateManifest::class, true)) {
                     \Ikabud\Kernel\DiSyL\Compiler\TemplateManifest::build(
@@ -968,9 +985,24 @@ class TemplateEngine
             } catch (\Throwable $e) {
                 // Manifest emission is non-critical
             }
+            $phases['manifest_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
 
         // Emit phase breakdown (guarded by APP_TIMING_LOGS)
+        //
+        // Self-check: whatever the named phases do not account for. Before this was added the
+        // breakdown covered as little as 23% of a real render (home.disyl: 6.54 ms of 28.29 ms)
+        // while reading as if it were complete — the dominant passes were simply not timed.
+        // A large unattributed_ms means the instrument is still incomplete and the attribution
+        // should not be trusted; it is reported rather than quietly folded into another phase.
+        $namedMs = 0.0;
+        foreach ($phases as $phaseKey => $phaseValue) {
+            if ($phaseKey !== 'total_ms' && is_numeric($phaseValue) && str_ends_with((string)$phaseKey, '_ms')) {
+                $namedMs += (float)$phaseValue;
+            }
+        }
+        $phases['unattributed_ms'] = round(((microtime(true) - $compileStartedAt) * 1000) - $namedMs, 2);
+
         $phases['total_ms'] = round((microtime(true) - $compileStartedAt) * 1000, 2);
         $phases['content_bytes'] = strlen($content);
         if (function_exists('log_timing')) {
@@ -1014,7 +1046,7 @@ class TemplateEngine
             . '|(?:if|elseif|for|foreach|each|set|math|include|literal|verbatim|else)\s' // Opening tags with space
             . '|else\}'                       // {else}
             . '|[a-zA-Z_][\w.]*'              // Variables: {name}, {user.email}
-            . ')/s';
+            . ')/sA';                         // A: anchored at the offset, so a miss cannot scan forward
         
         // Step 1: Protect JS curly braces in a single pass without repeatedly
         // mutating the string, which avoids O(n^2) behavior on script-heavy templates.
@@ -1029,8 +1061,12 @@ class TemplateEngine
             $char = $body[$i];
 
             if ($char === '{') {
-                // Check if this looks like a DiSyL tag
-                if (preg_match($disylPattern, $body, $m, PREG_OFFSET_CAPTURE, $i) === 1 && ($m[0][1] ?? -1) === $i) {
+                // Check if this looks like a DiSyL tag. Anchored at the offset (see the `A` modifier on
+                // $disylPattern): a miss costs one attempt, not a scan to the end of the body. The old
+                // form used PREG_OFFSET_CAPTURE and compared $m[0][1] to $i, which meant PCRE scanned
+                // forward from every brace in a script-heavy template — the very O(n^2) step 1 of this
+                // method claims to avoid. The test is semantically identical.
+                if (preg_match($disylPattern, $body, $m, 0, $i) === 1) {
                     $insideDisylTag = true;
                     $chunks[] = $char;
                     $i++;
@@ -1126,12 +1162,7 @@ class TemplateEngine
             . '|(?:if|elseif|for|foreach|each|set|include|literal|verbatim|else)\s'
             . '|else\}'
             . '|[a-zA-Z_][\w.]*'
-            . ')/s';
-        
-        // Step 1: Protect CSS curly braces that aren't DiSyL tags
-        $cssMarkers = [];
-        $markerCount = 0;
-        $chunks = [];
+            . ')/sA';                         // A: anchored at the offset, so a miss cannot scan forward
         $insideDisylTag = false;
         
         $len = strlen($body);
@@ -1140,7 +1171,10 @@ class TemplateEngine
             $char = $body[$i];
 
             if ($char === '{') {
-                if (preg_match($disylPattern, $body, $m, PREG_OFFSET_CAPTURE, $i) === 1 && ($m[0][1] ?? -1) === $i) {
+                // Anchored at the offset (`A` modifier on $disylPattern): a miss costs one attempt
+                // instead of a scan to the end of the body. Semantically identical to the previous
+                // PREG_OFFSET_CAPTURE + `$m[0][1] === $i` test.
+                if (preg_match($disylPattern, $body, $m, 0, $i) === 1) {
                     $insideDisylTag = true;
                     $chunks[] = $char;
                     $i++;
@@ -1449,14 +1483,31 @@ class TemplateEngine
         $i = 0;
 
         while ($i < $len) {
-            // Look for {set at current position
-            $rest = substr($content, $i);
-            if (preg_match('/^\{set\s+(\w+)(?::\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*(?:(?:([+\-*\/]))?\s*=\s*|(\+\+|--)\})/', $rest, $m, PREG_OFFSET_CAPTURE)) {
-                $matchStart = $i + $m[0][1];
+            // Jump straight to the next '{' instead of testing every character. Two costs were removed
+            // here, both measured on modules/cms/public/home.disyl (22,203-byte content):
+            //   1. `$rest = substr($content, $i)` once per character copied the whole tail every
+            //      iteration — O(n^2), 16.26 ms of a 19.37 ms render (83.9% of the page)
+            //   2. even after fixing that, calling preg_match at every position meant 22,203 PCRE
+            //      invocations, ~7.8 ms of pure per-call overhead
+            // strpos scans in C and skips the ~99% of positions that cannot start a tag, so the two
+            // preg_match calls below run only on actual '{' characters. The `A` modifier anchors each
+            // match at the offset, so a miss costs one attempt instead of a scan to end-of-subject.
+            $brace = strpos($content, '{', $i);
+            if ($brace === false) {
+                $result .= substr($content, $i);
+                break;
+            }
+            if ($brace > $i) {
+                $result .= substr($content, $i, $brace - $i);
+                $i = $brace;
+            }
+
+            if (preg_match('/\{set\s+(\w+)(?::\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*(?:(?:([+\-*\/]))?\s*=\s*|(\+\+|--)\})/A', $content, $m, PREG_OFFSET_CAPTURE, $i)) {
+                $matchStart = $m[0][1];
                 $matchLen = strlen($m[0][0]);
 
-                // Output everything before this match
-                $result .= substr($content, $i, $m[0][1]);
+                // Empty by construction: the anchored match starts exactly at $i.
+                $result .= substr($content, $i, $matchStart - $i);
 
                 $varName = $m[1][0];
                 $varType = isset($m[2]) && $m[2][0] !== '' ? trim($m[2][0]) : null;
@@ -1506,8 +1557,8 @@ class TemplateEngine
             }
 
             // Also normalize shorthand {var = expr} (no 'set' keyword)
-            if (preg_match('/^\{(\w+)\s*=\s*/', $rest, $sm, PREG_OFFSET_CAPTURE)) {
-                $matchStart = $i + $sm[0][1];
+            if (preg_match('/\{(\w+)\s*=\s*/A', $content, $sm, PREG_OFFSET_CAPTURE, $i)) {
+                $matchStart = $sm[0][1];
                 $varName = $sm[1][0];
                 $eqPos = strlen($sm[0][0]);
                 $valStart = $matchStart + $eqPos;
@@ -1517,13 +1568,13 @@ class TemplateEngine
                     $expr = trim(substr($content, $valStart, $valEnd - $valStart));
                     $value = $this->resolveSetValue($expr, $context, null);
                     $context[$varName] = $value;
-                    $result .= substr($content, $i, $sm[0][1]);
+                    $result .= substr($content, $i, $matchStart - $i);
                     $i = $valEnd + 1;
                     continue;
                 }
             }
 
-            $result .= $content[$i];
+            $result .= '{';
             $i++;
         }
 
