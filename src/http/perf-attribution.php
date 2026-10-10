@@ -45,6 +45,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             'module_routes_contract_drift' => null,
             'module_routes' => null,
             'dispatch_hooks' => null,
+            'route_match_sort' => null,
             'route_match' => null,
             'dispatch' => null,
             'render' => null,
@@ -77,7 +78,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
     function kernelPerfMarkRequestPhase(string $phase): void
     {
         try {
-            if (!in_array($phase, ['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'], true)) {
+            if (!in_array($phase, ['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_routes_registration', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match_sort', 'route_match', 'dispatch', 'render', 'shutdown'], true)) {
                 return;
             }
 
@@ -206,7 +207,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             $phases = is_array($state['phases'] ?? null) ? $state['phases'] : [];
 
             $phaseValues = [];
-            foreach (['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match', 'dispatch', 'render', 'shutdown'] as $phase) {
+            foreach (['boot', 'session', 'core_routes', 'settings_preload', 'module_routes_discovery', 'module_reg_helpers_load', 'module_reg_capability_validate', 'module_reg_capability_register', 'module_reg_entity_context', 'module_reg_entity_sources', 'module_reg_route_merge', 'module_routes_registration', 'module_routes_event_flush', 'module_routes_contract_drift', 'module_routes', 'dispatch_hooks', 'route_match_sort', 'route_match', 'dispatch', 'render', 'shutdown'] as $phase) {
                 $phaseValues[$phase] = isset($phases[$phase]) ? (float)$phases[$phase] : null;
             }
 
@@ -217,6 +218,8 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                 'module_routes' => ['settings_preload', 'module_routes'],
                 'dispatch_hooks' => ['module_routes', 'dispatch_hooks'],
                 'route_match' => ['dispatch_hooks', 'route_match'],
+                'route_match_sort' => ['dispatch_hooks', 'route_match_sort'],
+                'route_match_scan' => ['route_match_sort', 'route_match'],
                 'dispatch_tail' => ['route_match', 'dispatch'],
             ];
             $phaseDeltas = [];

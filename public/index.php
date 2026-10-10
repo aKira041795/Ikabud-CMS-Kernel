@@ -541,6 +541,10 @@ if ($csrfAutoEnforce
 
 $routePatterns = array_keys($routes[$method] ?? []);
 usort($routePatterns, 'compareRoutePatternsForMatching');
+// Split route_match so the sort's share is separable from the URI-dependent regex scan. The two
+// have different ceilings: the sort is request-invariant work that can be removed entirely, the
+// scan cannot. Without this split, choosing between them is a guess.
+kernelPerfMarkRequestPhase('route_match_sort');
 
 $handler = null;
 $params = [];
