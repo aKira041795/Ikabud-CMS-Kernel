@@ -155,7 +155,7 @@ async function submitPrompt(page, composer, prompt) {
         filled = true;
     } catch { /* fall through to the fallback */ }
     if (!filled) {
-        await composer.click({ force: true, timeout: 5000 }).catch(() => {});
+        await composer.click({ force: true, timeout: 5000 }).catch(() => { });
         await page.keyboard.insertText(prompt);
     }
     // page.keyboard, not composer.press(): both paths above leave the composer focused, and
