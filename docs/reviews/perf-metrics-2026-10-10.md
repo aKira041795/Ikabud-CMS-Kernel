@@ -518,51 +518,78 @@ cache or it will measure cache hits.** The related sanity rule stands: the rende
 request, so a claimed 2.5x page-load speedup is arithmetically impossible and should be refused on
 sight.
 
-### The render breakdown already exists — in the log, unread (corrected)
+### What is actually logged — and the pipeline that logs NOTHING (corrected twice)
 
-The obvious conclusion from the section above is "build render instrumentation". That is wrong, and
-checking beat building:
+There are **two** timing lines in the render path, and they sit on **different pipelines**.
 
-`kernel/DiSyL/TemplateEngine.php:934-939` already emits a **per-compile phase breakdown**:
+**1. `disyl.render.breakdown`** — emitted in `render()`, from two sites: the APCu output-cache hit
+(`TemplateEngine.php:400`) and the interpreted path (`:540`).
 
-```php
-$phases['total_ms'] = round((microtime(true) - $compileStartedAt) * 1000, 2);
-$phases['content_bytes'] = strlen($content);
-log_timing('disyl.compile.phases', $compileStartedAt, $phases);
-```
+| field | meaning |
+|---|---|
+| `template` | template name |
+| `cache_path` | `apcu_output_hit` or `interpreted_cached` — which path served it |
+| `source_read_ms` | read cost |
+| `source_bytes` / `output_bytes` | in/out sizes |
+| `duration_ms` | added by `log_timing()` |
 
-Because `processIncludeTag()` recurses into `compile()`, this fires **once per include as well as once
-per template**, carrying `content_bytes` with each. That is precisely the attribution that item 1
-below was going to build.
+**2. `disyl.compile.phases`** — emitted at the end of `compile()` (`:935-938`), once per template
+**and once per include**, since `processIncludeTag()` recurses into `compile()`.
 
-**And it is already running in production.** The 2026-09-26 note records the live host as
-`APP_TIMING_LOGS` on with `APP_TIMING_THRESHOLD_MS=0`, so every compile logs. The data is being
-written today; nothing aggregates it. (Config is read at boot from `.env`; this is the production
-setting, not a change made here.)
+| field | meaning |
+|---|---|
+| `extends_ms` | extends/block-inheritance resolution |
+| `scripts_ms` | `<script>` body compilation |
+| `styles_ms` | `<style>` body compilation (`compileStyleBody()`) |
+| `control_ms` | control-structure scan |
+| `includes_ms` | `{include}` processing |
+| `variables_ms` | variable/expression resolution |
+| `total_ms`, `content_bytes` | whole-compile total and output size |
+| `duration_ms` | added by `log_timing()` (same start as `total_ms`) |
 
-**Trap for anyone reading this locally:** this repo's local `.env` has
-`APP_TIMING_LOGS=true` but `APP_TIMING_THRESHOLD_MS=10`, so individual compiles are filtered out and
-`grep -c "disyl.compile.phases" storage/logs/app.log` returns **0**. Concluding "no render data
-exists" from a local grep is wrong — it is the threshold, not the instrumentation. Measured
-2026-10-10: 0 local lines at threshold 10, with `cms.public_context.total` and `slow_request` still
-present, which is what made the difference visible.
+A field appears only if that step ran — a template with no `{include}` has no `includes_ms`.
 
-So the cheapest real win in the render path is an **aggregator over an existing log**, not new
-instrumentation — with the caveat that the 2026-09-26 note also flags this as ~4-6 locked log appends
-per page view, which is itself a per-request cost to weigh.
+**The correction that matters: the compiled pipeline emits NEITHER.** `render()` lines 421-484 take the
+compiled branch and `return` at :484 without calling `compile()`, and there is no timing on that branch
+at all. So on the compiled path a render produces **no measurement whatsoever** — no phase split, no
+`cache_path`, no byte counts.
+
+**And the compiled path is the default.** `DISYL_COMPILED_MODE=true` in `.env`, 52 compiled templates
+present in `storage/cache/compiled`, and the source itself notes "compiled mode is the default (v4.7+)"
+at `:415`.
+
+**Empirical confirmation, with the controls stated.** I cleared `app.log`, forced
+`$_ENV['APP_TIMING_LOGS']='true'` and `APP_TIMING_THRESHOLD_MS=0` in-process (no `.env` change — the
+getters read `$_ENV` per call), and rendered `pages/_perf-probe.disyl` through the real
+`app()->render()`: **ok=true, 72.41 ms, and zero `disyl.*` lines written**. A separate diagnostic in
+the same SAPI confirmed `timing_logs_enabled()=true`, threshold 0, and that both `write_log()` and
+`log_timing()` do write. So the mechanism works and the compiled path was taken — which is why nothing
+was logged.
+
+**Two errors in my previous revision of this section, both from trusting the stale 2026-09-26 note:**
+
+1. I wrote that `{extends}` blocks compiled mode fleet-wide and every theme page is on the interpreted
+   pipeline. **False.** `templateGraphUsesComponentTags()` only blocks extends when
+   `!compiledExtendsEnabled()` (`:4125`), and that flag is env-driven
+   (`DISYL_EXTENDS_COMPILED`, `:4154-4161`). With it true — as here — extends does **not** block.
+2. I wrote that "the render breakdown already exists, so read the log instead of building
+   instrumentation". **Half true, and the wrong half mattered.** The split exists only for the
+   INTERPRETED pipeline. The default (compiled) pipeline has no instrumentation, so the render path is
+   not "already measured" — it is measured on the legacy path and blind on the default one.
+
+The 2026-09-26 note's live `styles_ms: 20.77` / `includes_ms: 30.81` are therefore evidence about
+templates that were on the interpreted pipeline **at that time**, not a standing property.
 
 ### Ranked candidates in the render path
 
-0. **Read the log that already exists** — aggregate `disyl.compile.phases` (per template AND per
-   include, with `content_bytes`) into a per-page render budget. This supersedes "build
-   instrumentation": the data is already written on production and unread.
-1. **Count ops per page** in the harness, turning the µs/op table above into an actual budget.
-2. **Compiled output cache for `{include}`** — the measured mechanism, affects every theme.
-3. **`{extends}` blocks compiled mode fleet-wide** (`TemplateEngine.php:4038`): every theme page is on
-   the interpreted pipeline and the `disyl.interpreted.deprecated` warning is unactionable. Blocked on
-   parity — there is a known pre-existing divergence where compiled HTML-escapes in script context
-   while interpreted does not, which breaks JS in any compiled template with script interpolation.
-   That is a correctness item ahead of any perf item here.
+0. **Instrument the compiled path.** This supersedes both earlier framings. The default pipeline emits
+   nothing, so the render is unmeasurable exactly where it now runs — the same class of gap as
+   `render` never being marked on the perf page, and the reason the earlier "just read the log"
+   conclusion did not hold.
+1. Expect the interpreted-pipeline log to shrink toward zero as templates migrate; do not read its
+   absence as "rendering is free".
+2. **Count ops per page** in the harness, turning the µs/op table above into an actual budget.
+3. **Compiled output cache for `{include}`** — the measured mechanism, affects every theme.
 4. **`getCompiledEligibilityCachePath()`** keys on root template path + root mtime while the walk
    covers includes/extends -> stale eligibility when a partial changes. Correctness.
 5. Ops, no repo code: `APP_TIMING_THRESHOLD_MS=0` in production (~4-6 locked log appends per page
