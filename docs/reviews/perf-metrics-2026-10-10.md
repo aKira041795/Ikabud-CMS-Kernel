@@ -773,9 +773,64 @@ eligibility, not rendering.
 
 ---
 
+## 4i. The fallback trigger, confirmed by A/B on the real document
+
+### First, a correction to 4h
+
+4h said the failing source was `theme-customizer.disyl:1864`. **That was wrong** — 1864 and 1869 are
+lines in the **generated artifact**, not in the template, and I labelled them as source. The real
+source lines are **1605, 1607, 1612, 2024** (`grep -n _mobileBgOpacity`). The expression identified was
+right; the line reference was not.
+
+### Isolated constructs do NOT reproduce — `probe-attr-repro.php`
+
+Six attribute forms rendered through the compiled path, each in its own tiny template: a bare `+` in an
+attribute with no braces; `+` inside a JS brace block; the `{6}` regex quantifier alone; braces in a
+non-script attribute; the full real 1605 attribute; and a control DiSyL tag. **All six rendered `ok`.**
+So the trigger needs document context, and no small fixture will show it.
+
+### The A/B that settled it — `probe-attr-bisect.php`
+
+One process, two arms, on the real 371 KB document. Arm 2 is the same document with every occurrence of
+`'rgba('+r+','+g+','+b+','+(_mobileBgOpacity/100)+')'` (6 of them) replaced by a literal colour. The
+modified copy is written as an untracked temp template inside the templates dir so `{extends}` still
+resolves, and deleted afterwards; the tracked template is never modified, and `git status` on
+`templates/` was clean after the run.
+
+| arm | pipeline | cold ms | reason |
+|---|---|---:|---|
+| original | `compiled->FAILED->interpreted` | **825.53** | `Unsupported operand types: string + null` |
+| expression replaced | **`compiled`** | **95.20** | — |
+
+**The expression is the trigger.** The control arm reproduced in the same run, so the two arms are
+comparable — which matters, because a bisection whose control arm does not reproduce proves nothing,
+and the probe says so itself rather than reporting a conclusion.
+
+**Magnitude:** ~730 ms saved on a cold render of that page, 8.7x. 95.20 ms is still a *cold* compiled
+render (first compilation of 371 KB plus the layout); the warm compiled steady state is single-digit ms
+per the 4h table. On production, with `DISYL_SHARED_OUTPUT_TTL=0` and no persistent cache on the
+interpreted path, the current behaviour means every request pays the interpreted render.
+
+### Still NOT established: why the compiler compiles it
+
+I know the trigger expression and its magnitude; I do not know the mechanism. Isolated forms all pass,
+so something earlier in the document puts the compiler into a state where that attribute is treated as
+a DiSyL expression instead of markup. Candidate class: brace-scan drift, where an earlier `{`/`}` —
+possibly a JS regex quantifier like `{6}` on line 1607 — leaves the scanner with a different idea of
+where an expression region starts and ends.
+
+**That must be established before any fix.** The working A/B harness above is the tool for it: shrink the
+document around the trigger until the minimal failing context is found. A fix built on a guessed
+mechanism is how a wrong fix gets shipped, and this document already has three examples of trusting a
+plausible mechanism over a measurement.
+
+---
+
 ## 5. Live baseline — for scale, not comparison
 
 From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
+
+| block | ms | share of dispatch |
 |---|---:|---:|
 | module routes | 24.76 | 52.6% |
 | – helpers load | 9.35 | 19.9% |
