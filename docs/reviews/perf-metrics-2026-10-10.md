@@ -1057,6 +1057,7 @@ templates above. The ratio is still true *of the pipeline*; it just does not app
 | check | result |
 |---|---|
 | 555-template output differential vs `output-before.txt` | **byte-identical apart from the 3 known templates** (the intended repairs from 4k) — checked after each of the three changes |
+| `tests/disyl_set_and_brace_pass_test.php` (new) | 30 passed, 0 failed — all `{set}` forms, plus JS/CSS brace shapes and a 200-object-literal scale case |
 | `disyl_conformance_test.php` | 229 passed, 0 failed |
 | `disyl_raw_context_expression_test.php` | 12 passed, 0 failed |
 | `tools/disyl-conformance-check.php` | `lane_green=YES`, `promoted=41 partial=0`, `disagreements: none` |
@@ -1065,6 +1066,11 @@ templates above. The ratio is still true *of the pipeline*; it just does not app
 
 The differential is the load-bearing check here: it covers every template in the repository, which is
 stronger evidence for a language-pass change than any single suite.
+
+**The new test does not discriminate these changes, and says so in its own header.** It passes 30/30
+against the pre-refactor engine as well, which is expected — a behaviour-neutral refactor has no behaviour
+to discriminate it, and pretending otherwise would be false assurance. It exists to go red if a *future*
+change alters those shapes. The thing that proves the refactor is the byte-comparison, not the test.
 
 ### Still open, deliberately
 
