@@ -1,0 +1,29 @@
+=== dl_integrity_notifications ===
+  id:bigint unsigned  aggregate_key:varchar  finding_type:enum  branch_id:int unsigned  entity_type:varchar  entity_id:bigint unsigned  finding_count:int unsigned  title:varchar  detail:text  raised_at:datetime
+  idx PRIMARY                            (id!)
+  idx uq_dl_integrity_notification_key   (aggregate_key!)
+  idx idx_dl_integrity_notification_branch (branch_id,raised_at)
+
+=== dl_integrity_notification_recipients ===
+  notification_id:bigint unsigned  user_id:int unsigned  notified_at:datetime  seen_at:datetime
+  idx PRIMARY                            (notification_id!,user_id!)
+  idx idx_dl_integrity_recipient_unseen  (user_id,seen_at)
+
+=== audit_logs ===
+  id:bigint unsigned  module:varchar  actor_user_id:int unsigned  actor_module_user_id:int  actor_source:varchar  branch_id:int unsigned  action:varchar  entity_type:varchar  entity_id:varchar  old_data:json  new_data:json  metadata_json:json  created_at:datetime
+  idx PRIMARY                            (id!)
+  idx idx_al_module                      (module)
+  idx idx_al_actor                       (actor_user_id)
+  idx idx_al_created                     (created_at)
+  idx idx_al_branch                      (branch_id)
+  idx idx_al_module_created              (module,created_at)
+
+=== dl_daily_ledger ===
+  id:bigint unsigned  branch_id:int unsigned  product_id:int unsigned  ledger_date:date  shift:enum  price_snapshot:decimal  beg_bal:int  addtl:int  withdraw:int  bal_end:int  end_source:varchar  end_settled_at:datetime  end_verified_by:int unsigned  end_verified_at:datetime  sales:int  encoded_by:int unsigned  updated_by:int unsigned  created_at:datetime  updated_at:datetime
+  idx PRIMARY                            (id!)
+  idx uq_dl_ledger_entry                 (branch_id!,product_id!,ledger_date!,shift!)
+  idx fk_dl_ledger_product               (product_id)
+  idx idx_dl_ledger_date                 (ledger_date)
+  idx idx_dl_ledger_branch_date          (branch_id,ledger_date)
+  idx idx_dl_ledger_shift_date           (shift,ledger_date)
+

@@ -1,0 +1,45 @@
+=== dl_variance_flags (the underlying findings) ===
+  flags_now                982
+  min_id                   130
+  max_id                   1954966
+  first_                   2026-08-15 08:32:23
+  last_                    2026-10-09 23:28:13
+
+=== notification entity_ids vs surviving flags ===
+  variance_notifs          118902
+  distinct_entity_ids      118902
+  min_eid                  1835481
+  max_eid                  1954970
+
+  orphan_notifs            118491
+
+  live_notifs              411
+
+=== notification volume per day ===
+  2026-10-01    23,008 rows    23,125 findings
+  2026-10-02     1,434 rows     1,434 findings
+  2026-10-03     3,292 rows     3,292 findings
+  2026-10-04     8,959 rows     8,959 findings
+  2026-10-05    13,830 rows    13,830 findings
+  2026-10-06    26,468 rows    26,468 findings
+  2026-10-07    31,798 rows    31,798 findings
+  2026-10-08     8,723 rows     8,723 findings
+  2026-10-09     1,473 rows     1,473 findings
+
+=== payload per row ===
+  avg_title                27
+  avg_detail               64.1
+  max_detail               305
+  distinct_titles          6
+
+  entity_id                -
+  len                      305
+  sample                   Branch #99402 business date 2026-10-08 reached the close-of-day cutoff while its PM shift was still open. The 
+  entity_id                -
+  len                      305
+  sample                   Branch #98991 business date 2026-10-08 reached the close-of-day cutoff while its PM shift was still open. The 
+
+=== recipients reachability ===
+  recipient_rows           244928
+  orphan_recipients        0
+

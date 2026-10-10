@@ -1,0 +1,42 @@
+=== dl_variance_flags ===
+  id                         bigint unsigned              NOT NULL
+  branch_id                  int unsigned                 NOT NULL
+  product_id                 int unsigned                 NOT NULL
+  ledger_date                date                         NOT NULL
+  kind                       enum('overnight','handoff','ending','sales','delivery') NOT NULL
+  shift                      enum('AM','PM')              NULL
+  delivery_id                bigint unsigned              NULL
+  receiving_id               bigint unsigned              NULL
+  sent_qty                   int                          NULL
+  received_qty               int                          NULL
+  original_counted_qty       int                          NULL
+  counted_by                 int unsigned                 NULL
+  resolution_choice          varchar(40)                  NULL
+  prev_bal_end               int                          NULL
+  current_beg_bal            int                          NULL
+  addtl                      int                          NULL
+  withdraw                   int                          NULL
+  expected_end_bal           int                          NULL
+  recorded_end_bal           int                          NULL
+  variance                   int                          NOT NULL
+  is_reviewed                tinyint(1)                   NOT NULL
+  resolution_status          enum('unreviewed','investigated','corrected') NOT NULL
+  reviewed_by                int unsigned                 NULL
+  reviewed_at                datetime                     NULL
+  frozen_at                  datetime                     NULL
+  review_note                text                         NULL
+  auto_clear_note            varchar(190)                 NULL
+  created_at                 datetime                     NOT NULL
+
+=== dl_ledger_day_status ===
+  id                         int unsigned                 NOT NULL
+  branch_id                  int unsigned                 NOT NULL
+  ledger_date                date                         NOT NULL
+  status                     enum('open','closed')        NOT NULL
+  closed_by                  int unsigned                 NULL
+  closed_at                  datetime                     NULL
+  reopened_by                int unsigned                 NULL
+  reopened_at                datetime                     NULL
+  created_at                 datetime                     NOT NULL
+  updated_at                 datetime                     NOT NULL
+

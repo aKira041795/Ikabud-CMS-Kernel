@@ -1,0 +1,69 @@
+=== dl_integrity_notifications ===
+  rows_            118985
+  distinct_keys    118985
+  sum_findings     119102
+  first_           2026-10-01 00:57:54
+  last_            2026-10-09 23:29:09
+  days_            9
+
+  by finding_type:
+    variance                     rows=118902   sum_finding_count=118902
+    closed_without_pm_finalize   rows=48       sum_finding_count=48
+    uncounted_receipt            rows=23       sum_finding_count=23
+    unresolved_origin            rows=11       sum_finding_count=11
+    historical_digest            rows=1        sum_finding_count=118
+
+  by entity_type:
+    dl_variance_flags            118902
+    dl_ledger_day_status         48
+    dl_branch_receivings         24
+    dl_deliveries                11
+
+  busiest days:
+    2026-10-07 rows=31798   findings=31798
+    2026-10-06 rows=26468   findings=26468
+    2026-10-01 rows=23008   findings=23125
+    2026-10-05 rows=13830   findings=13830
+    2026-10-04 rows=8959    findings=8959
+    2026-10-08 rows=8723    findings=8723
+
+  sample aggregate_key values:
+    delivery-variance-1954970                                    entity=1954970 count=1 2026-10-09 23:29:09
+    delivery-variance-1954969                                    entity=1954969 count=1 2026-10-09 23:29:02
+    variance-1954966                                             entity=1954966 count=1 2026-10-09 23:28:13
+    variance-1954965                                             entity=1954965 count=1 2026-10-09 23:28:13
+    variance-1954964                                             entity=1954964 count=1 2026-10-09 23:28:12
+
+=== dl_integrity_notification_recipients ===
+  rows_              244928
+  distinct_notifs    118985
+  distinct_users     27
+  seen_              235273
+  unseen_            9655
+
+  rows per notification distribution:
+    1 recipient(s): 1 notifications
+    2 recipient(s): 118695 notifications
+    26 recipient(s): 266 notifications
+    27 recipient(s): 23 notifications
+
+=== audit_logs ===
+  rows_          25452
+  first_         2026-09-04 15:46:09
+  last_          2026-10-09 23:29:58
+  days_          26
+
+  top actions:
+    daily-ledger   withdrawal                         7830
+    daily-ledger   auto_close_day                     2436
+    daily-ledger   login                              2405
+    daily-ledger   field_update                       2150
+    daily-ledger   production_ledger_change           1936
+    daily-ledger   save_commissary_product_count      1933
+    daily-ledger   revert_derived_ending              1691
+    daily-ledger   settle_derived_ending              1691
+
+  payload size (the json columns):
+    old_mb       0.40 MB
+    new_mb       3.10 MB
+    meta_mb      0.73 MB

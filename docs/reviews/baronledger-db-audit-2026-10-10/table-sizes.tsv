@@ -1,0 +1,70 @@
+table	engine	exact_rows	est_rows	data_mb	index_mb	total_mb	free_mb	avg_row_bytes
+dl_integrity_notifications	InnoDB	118985	117432	24.109	8.031	32.141	7	212
+dl_integrity_notification_recipients	InnoDB	244928	240279	12.031	7.016	19.047	4	51
+audit_logs	InnoDB	25452	25649	9.516	6.453	15.969	4	392
+dl_daily_ledger	InnoDB	14573	14616	2.016	2.625	4.641	4	145
+dl_cashier_withdrawals	InnoDB	1573	1575	0.219	0.438	0.656	0	145
+dl_branch_receiving_items	InnoDB	2267	2267	0.172	0.234	0.406	0	79
+dl_delivery_items	InnoDB	2595	2595	0.188	0.156	0.344	0	75
+dl_branch_products	InnoDB	2138	2138	0.109	0.141	0.25	0	53
+dl_variance_flags	InnoDB	982	982	0.109	0.141	0.25	4	116
+dl_deliveries	InnoDB	262	263	0.063	0.109	0.172	0	250
+dl_pos_sales	InnoDB	0	0	0.016	0.125	0.141	0	
+dl_offline_device_enrollments	InnoDB	1	2	0.016	0.109	0.125	0	16384
+kernel_trigger_executions	InnoDB	0	0	0.016	0.109	0.125	0	
+dl_production_movements	InnoDB	22	22	0.016	0.109	0.125	0	744
+dl_users	InnoDB	68	68	0.016	0.094	0.109	0	240
+dl_consignee_ledger_effects	InnoDB	36	36	0.016	0.094	0.109	0	455
+dl_ledger_shift_status	InnoDB	609	609	0.063	0.031	0.094	0	107
+dl_consignee_products	InnoDB	890	890	0.063	0.031	0.094	0	73
+dl_commissary_product_ledger	InnoDB	248	248	0.047	0.047	0.094	0	198
+dl_branches	InnoDB	15	15	0.016	0.078	0.094	0	1092
+dl_branch_receivings	InnoDB	141	141	0.016	0.078	0.094	0	116
+kernel_event_triggers	InnoDB	2	2	0.016	0.063	0.078	0	8192
+dl_password_resets	InnoDB	0	0	0.016	0.063	0.078	0	
+dl_selling_account_ledger	InnoDB	0	0	0.016	0.063	0.078	0	
+dl_selling_accounts	InnoDB	0	0	0.016	0.063	0.078	0	
+dl_branch_product_supply_rules	InnoDB	0	0	0.016	0.063	0.078	0	
+dl_delivery_variance_flags	InnoDB	0	0	0.016	0.063	0.078	0	
+dl_cashiers	InnoDB	0	0	0.016	0.063	0.078	0	
+dl_delivery_ledger_effects	InnoDB	75	75	0.016	0.063	0.078	0	218
+dl_consignees	InnoDB	5	5	0.016	0.047	0.063	0	3276
+dl_products	InnoDB	182	182	0.016	0.047	0.063	0	90
+dl_supervisors	InnoDB	0	0	0.016	0.047	0.063	0	
+dl_production_incharges	InnoDB	0	0	0.016	0.047	0.063	0	
+dl_user_selling_accounts	InnoDB	0	0	0.016	0.047	0.063	0	
+dl_product_prices	InnoDB	0	0	0.016	0.047	0.063	0	
+dl_ledger_day_status	InnoDB	328	328	0.047	0.016	0.063	0	149
+tenant_module_settings	InnoDB	46	46	0.016	0.047	0.063	0	356
+dl_consignee_ledger	InnoDB	35	35	0.016	0.047	0.063	0	468
+refresh_tokens	InnoDB	0	0	0.016	0.047	0.063	0	
+dl_offline_sync_receipts	InnoDB	0	0	0.016	0.047	0.063	0	
+dl_admins	InnoDB	0	0	0.016	0.047	0.063	0	
+workflow_definitions	InnoDB	1	0	0.016	0.031	0.047	0	16384
+dl_supervisor_branches	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_shift_reconciliation	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_user_branches	InnoDB	38	38	0.016	0.031	0.047	0	431
+kernel_events	InnoDB	5	5	0.016	0.031	0.047	0	3276
+kernel_jobs	InnoDB	0	0	0.016	0.031	0.047	0	
+workflow_instances	InnoDB	0	0	0.016	0.031	0.047	0	
+workflow_transition_logs	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_sales_day_modes	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_commissary_depletion_backfill	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_production_incharge_branches	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_commissary_ledger	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_price_groups	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_pos_sale_items	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_pos_sale_events	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_pos_fallback_checkpoint_items	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_pos_fallback_checkpoints	InnoDB	0	0	0.016	0.031	0.047	0	
+dl_pos_payments	InnoDB	0	0	0.016	0.031	0.047	0	
+_migrations	InnoDB	143	143	0.016	0.016	0.031	0	114
+dl_selling_account_day_status	InnoDB	0	0	0.016	0.016	0.031	0	
+rate_limits	InnoDB	1	1	0.016	0.016	0.031	0	16384
+kernel_integrations	InnoDB	0	0	0.016	0.016	0.031	0	
+kernel_integration_logs	InnoDB	0	0	0.016	0.016	0.031	0	
+kernel_failed_jobs	InnoDB	0	0	0.016	0.016	0.031	0	
+dl_product_price_history	InnoDB	372	372	0.016	0.016	0.031	0	44
+dl_production_runs	InnoDB	21	21	0.016	0.016	0.031	0	780
+cli_tenant_migrate_a87da734	InnoDB	0	0	0.016	0	0.016	0	
+dl_raw_materials	InnoDB	0	0	0.016	0	0.016	0	

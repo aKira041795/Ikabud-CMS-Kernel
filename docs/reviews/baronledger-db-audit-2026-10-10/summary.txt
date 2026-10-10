@@ -1,0 +1,39 @@
+tenant 207 (baron-001, entry module daily-ledger)
+  db_host : localhost:3306
+  db_name : baronledger
+  db_user : root
+  db_pass : *** encrypted (using local .env credentials instead)
+
+schema totals: 49.61 MB data + 27.97 MB index = 77.58 MB over 69 tables
+reclaimable free space (data_free): 23.00 MB
+
+table                                      exact_rows   est_rows   data_mb  index_mb avg_row_B
+------------------------------------------------------------------------------------------------
+dl_integrity_notifications                    118,985    117,432    24.109     8.031       212
+dl_integrity_notification_recipients          244,928    240,279    12.031     7.016        51
+audit_logs                                     25,452     25,649     9.516     6.453       392
+dl_daily_ledger                                14,573     14,616     2.016     2.625       145
+dl_cashier_withdrawals                          1,573      1,575     0.219     0.438       145
+dl_branch_receiving_items                       2,267      2,267     0.172     0.234        79
+dl_delivery_items                               2,595      2,595     0.188     0.156        75
+dl_branch_products                              2,138      2,138     0.109     0.141        53
+dl_variance_flags                                 982        982     0.109     0.141       116
+dl_deliveries                                     262        263     0.063     0.109       250
+dl_pos_sales                                        0          0     0.016     0.125         -
+dl_offline_device_enrollments                       1          2     0.016     0.109    16,384
+kernel_trigger_executions                           0          0     0.016     0.109         -
+dl_production_movements                            22         22     0.016     0.109       744
+dl_users                                           68         68     0.016     0.094       240
+dl_consignee_ledger_effects                        36         36     0.016     0.094       455
+dl_ledger_shift_status                            609        609     0.063     0.031       107
+dl_consignee_products                             890        890     0.063     0.031        73
+dl_commissary_product_ledger                      248        248     0.047     0.047       198
+dl_branches                                        15         15     0.016     0.078     1,092
+dl_branch_receivings                              141        141     0.016     0.078       116
+kernel_event_triggers                               2          2     0.016     0.063     8,192
+dl_password_resets                                  0          0     0.016     0.063         -
+dl_selling_account_ledger                           0          0     0.016     0.063         -
+dl_selling_accounts                                 0          0     0.016     0.063         -
+
+top 25 tables = 75.39 MB of 77.58 MB (97.2%)
+full report: /var/www/html/applicationostest/docs/reviews/baronledger-db-audit-2026-10-10/table-sizes.tsv
