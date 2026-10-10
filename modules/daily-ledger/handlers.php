@@ -20419,14 +20419,19 @@ function handleAdminCommissary(): void
     // admins can use the existing branch/commissary selectors (and area scope)
     // to narrow the sheet rather than receiving a partial page or HTTP 500.
     //
-    // The cap is higher when the sheet is SCOPED (a commissary or an area is selected) because that
-    // set is bounded by the scope itself: an operator who picks a commissary expects to see all of
-    // THAT commissary's branches, and at 10 the largest network silently lost one of its own (RIZAL
-    // has 11 -> "1 branch column(s) omitted"). Measured 2026-10-10: DiSyL's guard is
-    // MAX_OUTPUT_BYTES = 5MB, one destination column costs ~250KB, and the 10-column RIZAL sheet
-    // renders at 2.5MB - so 12 columns (~3.0MB) stays well inside the guard. The unscoped sheet
-    // keeps 10 because it can list every branch in the estate.
-    $sheetDestinationLimit = ($selectedCommissaryId > 0 || ($viewScope['type'] ?? 'ALL') !== 'ALL') ? 12 : 10;
+    // The cap is deliberately generous when the sheet is SCOPED (a commissary or an area is
+    // selected) because that set is bounded by the scope itself. A network's own branch must never
+    // be silently reduced: an operator reconciling against a sheet that omits a branch reads a wrong
+    // total, and the omission shows up as that branch having no column AND no id at all. At 10 the
+    // largest network lost one of its own (RIZAL = 11 destinations -> "1 branch column(s) omitted").
+    //
+    // 15 rather than a tight number, so a network that grows does not silently start losing a branch
+    // again. Measured 2026-10-10: DiSyL's guard is MAX_OUTPUT_BYTES = 5MB (TemplateEngine), one
+    // destination column costs ~236-250KB, and the 11-destination RIZAL sheet renders at 2.60MB - so
+    // 15 destinations is ~3.75MB, still ~25% inside the guard. The unscoped sheet keeps 10 because
+    // the estate has no natural bound. The omission banner is unchanged, so any scope that ever
+    // exceeds the cap still says so rather than silently truncating.
+    $sheetDestinationLimit = ($selectedCommissaryId > 0 || ($viewScope['type'] ?? 'ALL') !== 'ALL') ? 15 : 10;
     $requiredSheetBranchIds = array_values(array_filter([$sheetSourceBranchId, $selectedBranchId], static fn(int $id): bool => $id > 0));
     $includedSheetBranchIds = array_fill_keys($requiredSheetBranchIds, true);
     $chosenDestinationCount = $selectedBranchId > 0 && $selectedBranchId !== $sheetSourceBranchId ? 1 : 0;
