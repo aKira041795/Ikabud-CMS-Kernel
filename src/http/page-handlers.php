@@ -340,6 +340,12 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ['Request DB total', $perfData['db_total_ms'], 'ms', ''],
             ['Request slowest query', $slowestQuery, '', ''],
             ['Request phase: boot', $perfData['phases']['boot'] ?? 'not measured', 'ms elapsed', ''],
+            // Boot was one opaque mark until 2026-10-10. These are the boundaries behind it, published
+            // by kernelPerfPublishBootBoundaries(): same clock and same request origin as every other
+            // row, so these four MUST sum to the boot row above. If they do not, the origin is wrong.
+            ['Boot: fast-path cache', $perfData['phases']['boot_fastpath'] ?? 'not measured', 'ms elapsed', ''],
+            ['Boot: -> bootstrap.php', $perfData['phases']['boot_bootstrap'] ?? 'not measured', 'ms elapsed', ''],
+            ['Boot: -> require block', $perfData['phases']['boot_requires'] ?? 'not measured', 'ms elapsed', ''],
             ['Request phase: dispatch', $perfData['phases']['dispatch'] ?? 'not measured', 'ms elapsed', ''],
             ['Request phase: render', $perfData['phases']['render'] ?? 'not measured', 'ms elapsed', ''],
             ['Request phase: shutdown', $perfData['phases']['shutdown'] ?? 'not measured', 'ms elapsed', ''],
@@ -362,6 +368,11 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ['Module routes: tail', $perfData['module_route_deltas']['tail'] ?? 'not measured', 'ms', ''],
             ['Dispatch segment: dispatch hooks', $perfData['phase_deltas']['dispatch_hooks'] ?? 'not measured', 'ms', ''],
             ['Dispatch segment: route match', $perfData['phase_deltas']['route_match'] ?? 'not measured', 'ms', ''],
+            // The split that decided the memoisation: the sort is request-invariant work that can be
+            // removed, the scan is URI-dependent and cannot. Measured 2026-10-10 the sort was ~98% of
+            // route match, which is what justified optimising it rather than the scan.
+            ['Route match: sort (request-invariant)', $perfData['phase_deltas']['route_match_sort'] ?? 'not measured', 'ms', ''],
+            ['Route match: regex scan', $perfData['phase_deltas']['route_match_scan'] ?? 'not measured', 'ms', ''],
             ['Dispatch segment: tail', $perfData['phase_deltas']['dispatch_tail'] ?? 'not measured', 'ms', ''],
             ['DB ping (SELECT 1)', $perfData['db_ping_ms'], 'ms', $perfData['db_ok'] ? '' : 'FAIL'],
             ['Module discover (warm)', $perfData['module_discover_ms'], 'ms', ''],

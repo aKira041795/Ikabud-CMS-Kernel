@@ -1,0 +1,191 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * tools/perf-sample.php — take N readings of the perf API and report median + range, not one sample.
+ *
+ * WHY THIS EXISTS
+ * /superadmin/perf renders a SINGLE request. This host drifts +/-10-30% between readings, and
+ * route_match alone was recorded moving 7.93 -> 12.24 ms with no explanation, so one sample cannot
+ * tell a real change from noise. Every claim made about these metrics is backed by a median with a
+ * range; this is the tool that produces one for the live host.
+ *
+ * It does NOT add an API route. GET /api/v1/superadmin/perf already exists and returns the same
+ * payload the page renders. What it does is take several readings and reduce them, because that is
+ * the form in which the numbers are comparable.
+ *
+ * It needs a superadmin session on the target host, so run it where that session can be created.
+ * Credentials come from the environment and are never echoed, logged, or written to disk.
+ *
+ * Usage:
+ *   PERF_USER=superadmin PERF_PASS='...' \
+ *     php tools/perf-sample.php --base=https://kernelappos.ikabudkernel.com --samples=8
+ *
+ * Local:
+ *   PERF_USER=superadmin PERF_PASS='...' \
+ *     php tools/perf-sample.php --base=http://127.0.0.1 --host-header=applicationos.test
+ *
+ * Exit codes: 0 = sampled, 1 = could not authenticate, 2 = endpoint did not answer.
+ */
+
+function argValue(array $argv, string $name, ?string $default = null): ?string
+{
+    foreach ($argv as $arg) {
+        if (str_starts_with($arg, $name . '=')) {
+            return substr($arg, strlen($name) + 1);
+        }
+    }
+    return $default;
+}
+
+$base = rtrim((string)argValue($argv, '--base', ''), '/');
+$samples = (int)argValue($argv, '--samples', '8');
+$hostHeader = argValue($argv, '--host-header');
+$user = (string)(getenv('PERF_USER') ?: '');
+$pass = (string)(getenv('PERF_PASS') ?: '');
+
+if ($base === '' || $user === '' || $pass === '') {
+    fwrite(STDERR, "usage: PERF_USER=... PERF_PASS=... php tools/perf-sample.php --base=URL [--samples=N] [--host-header=H]\n");
+    exit(1);
+}
+if ($samples < 1) {
+    $samples = 1;
+}
+
+/** One HTTP request. Returns [status, body, cookieValues[]]. */
+function request(string $url, ?string $body, array $headers): array
+{
+    $context = stream_context_create(['http' => [
+        'method' => $body === null ? 'GET' : 'POST',
+        'header' => $headers,
+        'content' => $body ?? '',
+        'ignore_errors' => true,
+        'timeout' => 30,
+    ]]);
+    $response = @file_get_contents($url, false, $context);
+    $cookies = [];
+    foreach ($http_response_header ?? [] as $line) {
+        if (stripos($line, 'Set-Cookie:') === 0) {
+            // Keep EVERY cookie, not just the first: login sets the JWT cookie AND a PHPSESSID, and
+            // sending only the first one is why an earlier version of this tool saw 403 from the
+            // perf endpoint while curl (which stores the whole jar) worked.
+            $cookies[] = trim(explode(';', substr($line, strlen('Set-Cookie:')))[0]);
+        }
+    }
+    $status = 0;
+    if (isset($http_response_header[0]) && preg_match('#\s(\d{3})\s#', $http_response_header[0], $m)) {
+        $status = (int)$m[1];
+    }
+    return [$status, (string)$response, $cookies];
+}
+
+$common = ['Accept: application/json'];
+if ($hostHeader !== null && $hostHeader !== '') {
+    $common[] = 'Host: ' . $hostHeader;
+}
+
+// ── authenticate ────────────────────────────────────────────────────────────────────────────────
+[$status, $body, $setCookies] = request(
+    $base . '/api/v1/auth/login',
+    json_encode(['username' => $user, 'password' => $pass], JSON_UNESCAPED_SLASHES),
+    array_merge($common, ['Content-Type: application/json'])
+);
+
+if ($status === 0) {
+    fwrite(STDERR, "perf-sample: no response from {$base}/api/v1/auth/login\n");
+    exit(2);
+}
+$auth = json_decode($body, true);
+if (!is_array($auth) || empty($auth['ok'])) {
+    // Deliberately does not echo the body: a failed login response can carry the username back.
+    fwrite(STDERR, "perf-sample: authentication failed (HTTP {$status}). Check PERF_USER / PERF_PASS.\n");
+    exit(1);
+}
+if ($setCookies === []) {
+    fwrite(STDERR, "perf-sample: logged in but no session cookie was returned - cannot sample.\n");
+    exit(2);
+}
+
+// Send BOTH credentials the login handed back: every session cookie, and the JWT from the body.
+// A real browser presents the cookies; the API issues the token. Sending both removes the whole
+// class of "works in curl, 403 here" differences and costs nothing.
+$authHeaders = $common;
+$authHeaders[] = 'Cookie: ' . implode('; ', $setCookies);
+if (isset($auth['token']) && is_string($auth['token']) && $auth['token'] !== '') {
+    $authHeaders[] = 'Authorization: Bearer ' . $auth['token'];
+}
+
+// ── sample ──────────────────────────────────────────────────────────────────────────────────────
+$metrics = [
+    'boot'                  => ['phases', 'boot'],
+    'boot_fastpath'         => ['phases', 'boot_fastpath'],
+    'boot_bootstrap'        => ['phases', 'boot_bootstrap'],
+    'boot_requires'         => ['phases', 'boot_requires'],
+    'dispatch'              => ['phases', 'dispatch'],
+    'route_match'           => ['phase_deltas', 'route_match'],
+    'route_match_sort'      => ['phase_deltas', 'route_match_sort'],
+    'route_match_scan'      => ['phase_deltas', 'route_match_scan'],
+    'route_merge'           => ['registration_deltas', 'route_merge'],
+    'helpers_load'          => ['registration_deltas', 'helpers_load'],
+    'discovery'             => ['module_route_deltas', 'discovery'],
+];
+$values = array_fill_keys(array_keys($metrics), []);
+$missing = [];
+$readings = 0;
+
+for ($i = 0; $i < $samples; $i++) {
+    [$status, $body] = request($base . '/api/v1/superadmin/perf', null, $authHeaders);
+    if ($status !== 200) {
+        continue;
+    }
+    $payload = json_decode($body, true);
+    $attribution = $payload['perf']['attribution'] ?? null;
+    if (!is_array($attribution)) {
+        continue;
+    }
+    $readings++;
+    foreach ($metrics as $name => [$group, $key]) {
+        $value = $attribution[$group][$key] ?? null;
+        if (is_numeric($value)) {
+            $values[$name][] = (float)$value;
+        } else {
+            $missing[$name] = true;
+        }
+    }
+}
+
+if ($readings === 0) {
+    fwrite(STDERR, "perf-sample: no usable readings (endpoint returned no attribution payload).\n");
+    exit(2);
+}
+
+// ── report ──────────────────────────────────────────────────────────────────────────────────────
+printf("%s  —  %d reading(s)\n\n", $base, $readings);
+printf("%-20s%12s%12s%12s%10s\n", 'metric', 'median', 'min', 'max', 'n');
+foreach ($metrics as $name => $_) {
+    $series = $values[$name];
+    if ($series === []) {
+        printf("%-20s%12s%12s%12s%10s\n", $name, '-', '-', '-', '0');
+        continue;
+    }
+    sort($series);
+    $count = count($series);
+    $median = $count % 2
+        ? $series[intdiv($count, 2)]
+        : ($series[$count / 2 - 1] + $series[$count / 2]) / 2;
+    printf("%-20s%12.3f%12.3f%12.3f%10d\n", $name, $median, $series[0], $series[$count - 1], $count);
+}
+
+if ($missing !== []) {
+    echo "\nnot reported by this host (instrumentation absent or phase never marked):\n";
+    foreach (array_keys($missing) as $name) {
+        echo "  - {$name}\n";
+    }
+    echo "\nIf boot_fastpath / boot_bootstrap / boot_requires / route_match_sort are listed here, the\n";
+    echo "deployment does not include the 2026-10-10 instrumentation (commits c93446db, aef943d0).\n";
+}
+
+echo "\nA median without its range is not evidence. Compare median AND range between two runs; if the\n";
+echo "ranges overlap, the difference is not established.\n";

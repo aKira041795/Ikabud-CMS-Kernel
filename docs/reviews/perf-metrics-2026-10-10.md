@@ -159,9 +159,46 @@ capability discovery, authorization and handler resolution exactly — and note 
 
 ---
 
-## 5. Live baseline — for scale, not comparison
+## 4b. Post-deploy live reading — 2026-10-10T11:18:35+08:00, PHP 8.5.11
 
-From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
+Deployed by the owner; `/superadmin/perf` on `kernelappos.ikabudkernel.com`. **Single sample**, so it
+is compared to the 2026-10-09 baseline as *one reading against one reading* — the same mistake this
+document warns about everywhere else. It is recorded because a live reading is evidence even when it
+is insufficient, and because the direction of one row matters.
+
+| phase | baseline (10-09 20:24) | now (10-10 11:18) | delta |
+|---|---:|---:|---:|
+| `dispatch` | 47.06 | 44.65 | -2.41 (-5.1%) |
+| `route_match` | 7.17 | **8.82** | **+1.65 (+23.0%)** |
+| `route_merge` | 3.17 | 2.47 | -0.70 (-22.1%) |
+| module routes | 24.76 | 26.17 | +1.41 (+5.7%) |
+| – helpers load | 9.35 | 10.73 | +1.38 (+14.8%) |
+| – discovery | 9.06 | 8.28 | -0.78 (-8.6%) |
+| `boot` | 14.88 | 9.40 | -5.48 (-36.8%) |
+
+**Verdict: INCONCLUSIVE, and one row is the wrong direction.** Reasons, in order of importance:
+
+1. **`route_match` got *worse*, not better** (+23%), against a local A/B showing -58.4% on disjoint
+   ranges. This is the signal that matters and it is unexplained.
+2. **The host drifts +/-10-30% between readings.** A 5.1% dispatch change cannot be distinguished
+   from that. Neither can -22% on `route_merge`.
+3. **Live `route_match` is demonstrably unstable**: this repo already records it moving 7.93 -> 12.24
+   (+54%) between two readings with no explanation. A single sample cannot settle a 1.65 ms change.
+4. **`boot` was not changed by this work** — only *marked*. Its -5.48 ms is therefore not
+   attributable to these commits; OPcache holds more scripts now (779 cached vs 724, 1 compiled this
+   request) and that is the likelier cause.
+
+**What would settle it:** 6-10 readings of the same deployment, compared as median *and range* —
+the discipline that made the local result trustworthy. One sample against one sample cannot.
+
+**Deploy-inclusion check.** This reading was taken from a page whose row list is hardcoded in
+`src/http/page-handlers.php`, so the new `Boot: -> require block` and `Route match: sort` rows do not
+appear in it and cannot tell us whether the instrumentation shipped. After redeploying, those rows
+prove it themselves: **values present = kernel changes live; "not measured" = they are not.**
+
+---
+
+## 5. Live baseline — for scale, not comparisonFrom [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
 
 | block | ms | share of dispatch |
 |---|---:|---:|
@@ -196,6 +233,20 @@ session-local:
 The probe **modifies `public/index.php`** and must be reverted afterwards — it writes a backup first,
 and the tree was verified identical to HEAD after the run. It exits without writing if its anchor is
 not found, so a changed front controller fails loudly rather than silently mis-timing.
+
+**Sampling the live host:** `tools/perf-sample.php` takes N readings of the perf API and prints
+median + min + max per phase, because one reading of `/superadmin/perf` cannot distinguish a real
+change from this host's drift.
+
+```
+PERF_USER=... PERF_PASS='...' \
+  php tools/perf-sample.php --base=https://kernelappos.ikabudkernel.com --samples=8
+```
+
+**It takes no credentials as arguments and prints none** — they come from the environment. Do not
+paste a production password anywhere it can be recorded; the output is numbers, which is all that is
+needed. If a phase is missing from the host the script names it, which doubles as a deploy-inclusion
+check: `boot_requires` / `route_match_sort` present means the 2026-10-10 instrumentation shipped.
 
 Live phase readings: `/superadmin/perf` with a superadmin session; "Scripts compiled this request" is
 the row that distinguishes warm from cold.
