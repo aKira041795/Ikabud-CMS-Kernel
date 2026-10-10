@@ -140,8 +140,27 @@ async function startFreshChat(page) {
 }
 
 async function submitPrompt(page, composer, prompt) {
-    await composer.fill(prompt);
-    await composer.press("Enter");
+    // ChatGPT's composer animates, and Playwright's fill() waits for a STABLE bounding box.
+    // When that animation does not settle the actionability check never passes and fill()
+    // burns its whole timeout without typing anything. Measured 2026-10-10:
+    //   `locator.fill: Timeout 30000ms exceeded` on '#prompt-textarea, div[contenteditable="true"]'
+    // - twice in a row, on a locator that had already resolved AND passed a visible wait, while a
+    // 68-byte prompt and a ~17 KB prompt both succeeded through the same code path. So the fill is
+    // bounded and a failure falls through to click({force}) + insertText, neither of which waits
+    // for stability. CHATGPT_FILL_TIMEOUT_MS exists so the fallback can be exercised deliberately.
+    const fillTimeout = Number(process.env.CHATGPT_FILL_TIMEOUT_MS || 15000);
+    let filled = false;
+    try {
+        await composer.fill(prompt, { timeout: fillTimeout });
+        filled = true;
+    } catch { /* fall through to the fallback */ }
+    if (!filled) {
+        await composer.click({ force: true, timeout: 5000 }).catch(() => {});
+        await page.keyboard.insertText(prompt);
+    }
+    // page.keyboard, not composer.press(): both paths above leave the composer focused, and
+    // pressing on the locator would re-run the same actionability wait that just failed.
+    await page.keyboard.press("Enter");
     // Some layouts render Enter as a newline until the first keystroke; retry submit.
     try {
         await page.locator('button[data-testid="send-button"], button[aria-label*="Send"]').first()
