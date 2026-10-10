@@ -154,27 +154,9 @@ function loadModuleRoutes(array $routes): array
 {
     // Track which module owns each route for conflict detection
     $routeOwners = [];
-    $methodPatterns = [];
-    $methodPatternIndex = [];
-    $methodPatternSequence = [];
     foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $m) {
-        $methodPatterns[$m] = [];
-        $methodPatternIndex[$m] = [];
-        $methodPatternSequence[$m] = 0;
         foreach ($routes[$m] ?? [] as $pattern => $_) {
             $routeOwners[$m . ':' . $pattern] = '_kernel';
-            $methodPatterns[$m][$pattern] = '_kernel';
-
-            $segments = routePatternSegments($pattern);
-            $segmentCount = count($segments);
-            $sequence = $methodPatternSequence[$m]++;
-            $methodPatternIndex[$m][$segmentCount]['all'][$pattern] = $sequence;
-            if ($segments !== [] && routeSegmentIsDynamic($segments[0])) {
-                $methodPatternIndex[$m][$segmentCount]['dynamic'][$pattern] = $sequence;
-            } else {
-                $firstSegment = $segments[0] ?? '';
-                $methodPatternIndex[$m][$segmentCount]['literal'][$firstSegment][$pattern] = $sequence;
-            }
         }
     }
 
@@ -551,14 +533,13 @@ function loadModuleRoutes(array $routes): array
             }
             foreach ($moduleRoutes[$method] as $pattern => $handler) {
                 $routeKey = $method . ':' . $pattern;
-                $patternSegments = routePatternSegments($pattern);
-                $patternSegmentCount = count($patternSegments);
-                $firstPatternSegment = $patternSegments[0] ?? '';
 
                 // The former ambiguity scan was unreachable: distinct patterns
                 // cannot compare equal because the raw pattern is the final
                 // priority tie-break. Measured: 927,972 same-method pairs, 109
                 // predicate conflicts, and 0 distinct equal-priority pairs.
+                // Its index construction went with it: $methodPatterns and
+                // $methodPatternIndex had no readers left after the deletion.
 
                 if (isset($routeOwners[$routeKey])) {
                     // Conflict detected — reject and log
@@ -573,15 +554,6 @@ function loadModuleRoutes(array $routes): array
 
                 $routes[$method][$pattern] = $handler;
                 $routeOwners[$routeKey] = $moduleId;
-                $methodPatterns[$method][$pattern] = $moduleId;
-
-                $sequence = $methodPatternSequence[$method]++;
-                $methodPatternIndex[$method][$patternSegmentCount]['all'][$pattern] = $sequence;
-                if ($patternSegments !== [] && routeSegmentIsDynamic($firstPatternSegment)) {
-                    $methodPatternIndex[$method][$patternSegmentCount]['dynamic'][$pattern] = $sequence;
-                } else {
-                    $methodPatternIndex[$method][$patternSegmentCount]['literal'][$firstPatternSegment][$pattern] = $sequence;
-                }
             }
         }
         } finally {
