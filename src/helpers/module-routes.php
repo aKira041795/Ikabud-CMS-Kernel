@@ -157,6 +157,112 @@ function compareRoutePatternsForMatching(string $left, string $right): int
 // ─── Route Loading ────────────────────────────────────────────────────────
 
 /**
+ * Cache key for the precedence order of one method's routes.
+ *
+ * Both halves of the dependency are in the key: the complete ordered input sequence (so a changed
+ * route map is a different key), and a stamp for the comparator source (so a changed ordering rule
+ * is a different key). Nothing else affects the order — see routePatternsInMatchOrder().
+ *
+ * Split out from routePatternsInMatchOrder() so it is testable where APCu is not available: the CLI
+ * runs with apc.enable_cli=0, so a test that went through the cache would exercise only the fallback
+ * and would pass whatever the key did.
+ *
+ * @param array<string, mixed> $methodRoutes
+ */
+function routeOrderCacheKey(array $methodRoutes, string $method, int $sourceStamp): string
+{
+    return 'kernel:route_order:' . $method . ':'
+        . md5($sourceStamp . '|' . implode("\n", array_keys($methodRoutes)));
+}
+
+/**
+ * Is a cached order usable for this route map?
+ *
+ * Length plus DISTINCT membership, which together are set equality. Both halves are required:
+ * without the duplicate check a cached [A, A] would match a map of {A, B}, satisfy the length test,
+ * and silently drop B from the scan order — a misroute, not a slowdown.
+ *
+ * @param mixed $cached
+ * @param array<string, mixed> $methodRoutes
+ */
+function routeOrderCachedIsValid($cached, array $methodRoutes): bool
+{
+    if (!is_array($cached) || count($cached) !== count($methodRoutes)) {
+        return false;
+    }
+
+    $seen = [];
+    foreach ($cached as $pattern) {
+        if (!is_string($pattern) || !isset($methodRoutes[$pattern]) || isset($seen[$pattern])) {
+            return false;
+        }
+        $seen[$pattern] = true;
+    }
+
+    return true;
+}
+
+/**
+ * The route patterns for one method, in precedence order, without re-sorting them every request.
+ *
+ * WHY THIS IS SAFE TO CACHE
+ * compareRoutePatternsForMatching() reads ONLY the pattern strings, and everything it reaches
+ * (routePatternSegments, routeSegmentIsDynamic) is a pure function of those strings, living in THIS
+ * file. So the sorted order is a pure function of (pattern set, code in this file) — and both are in
+ * the key, so nothing needs to remember to invalidate anything.
+ *
+ * The kernel_route_conflict_guard test also proves across all 927,972 same-method pairs in the real
+ * corpus that no two distinct patterns compare equal. With no ties the order does not depend on
+ * input order, so usort's PHP 8 stability is irrelevant.
+ *
+ * WHY IT FAILS SLOW, NEVER MISROUTED
+ * A cached value is accepted only if routeOrderCachedIsValid() says it is a set-equal permutation of
+ * the current patterns. Absent APCu, a miss, a malformed or poisoned entry, a changed route map, a
+ * changed comparator source — every one of those falls through to the original, untouched usort. The
+ * worst outcome of every failure path is the sort we already had.
+ *
+ * Sorting fewer than two patterns is a no-op, so those skip the cache rather than pay a key for it.
+ *
+ * @param array<string, mixed> $methodRoutes
+ * @return list<string>
+ */
+function routePatternsInMatchOrder(array $methodRoutes, string $method): array
+{
+    $patterns = array_keys($methodRoutes);
+    $count = count($patterns);
+
+    if ($count < 2) {
+        return $patterns;
+    }
+
+    $apcuUsable = function_exists('apcu_fetch')
+        && function_exists('apcu_store')
+        && (!function_exists('apcu_enabled') || apcu_enabled());
+
+    if (!$apcuUsable) {
+        usort($patterns, 'compareRoutePatternsForMatching');
+        return $patterns;
+    }
+
+    // filemtime is stat-cached for the request: a few microseconds against a 2.97 ms live sort.
+    $sourceStamp = @filemtime(__FILE__);
+    $cacheKey = routeOrderCacheKey($methodRoutes, $method, (int)($sourceStamp ?: 0));
+
+    $cached = apcu_fetch($cacheKey, $hit);
+    if ($hit && routeOrderCachedIsValid($cached, $methodRoutes)) {
+        return array_values($cached);
+    }
+
+    usort($patterns, 'compareRoutePatternsForMatching');
+
+    // Bounded TTL so an entry that somehow cannot be validated ages out rather than lingering. It is
+    // not a correctness requirement: the key already covers every input the order depends on.
+    apcu_store($cacheKey, $patterns, 300);
+
+    return $patterns;
+}
+
+/**
  * Load routes from all ENABLED modules.
  * @param array<string, array<string, string>> $routes
  * @return array<string, array<string, string>>

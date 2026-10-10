@@ -366,6 +366,68 @@ is the assumption that Bluehost's APCu behaves like mod_php's.
 
 ---
 
+## 4e. Route-order cache — SHIPPED (the sort is now gone on a hit)
+
+The live reading in 4d met the unlock condition, so the deferred decision was taken up.
+
+**Live facts that unlocked it** (`kernelappos.ikabudkernel.com`, 2026-10-10T12:56, one reading):
+`APCu usable for a cross-request cache = yes`, `APCu round trip (51.7 KB entry) = 0.064 store /
+0.027 fetch ms`, `APCu shared memory = 32M`, and `Route match: sort = 2.971 ms`. **0.027 ms against
+2.971 ms is a ~110x margin** — and it is a ratio *within a single reading*, so it does not depend on
+the host being in a normal state. Note this reading's `dispatch` (151.4 ms) is ~4.6x the 33.05 ms
+median from 4c and it recorded `Module discover (cold scan) 47.63 ms` — a cold-cache reading. That
+does not weaken the APCu rows (ratios) and it does not support any claim about regression either.
+
+**What shipped.** `routePatternsInMatchOrder()` in `src/helpers/module-routes.php`, called from
+`public/index.php` where `array_keys` + `usort` used to be. The comparator is **byte-identical** and
+still runs on every miss.
+
+- **Key** = method + the complete ordered input sequence + `filemtime(module-routes.php)`. Both halves
+  of the dependency are covered: a changed route map is a different key, and a changed ordering rule
+  is a different key — so invalidation needs nothing remembered. Every part of the comparator
+  (`routePatternSegments`, `routeSegmentIsDynamic`) lives in that same file, which is what makes one
+  mtime sufficient rather than a hand-maintained version constant.
+- **Validation** = length **plus distinct membership**, which together are set equality. Both halves
+  are required: without the duplicate check, a cached `[A, A]` matches a map of `{A, B}`, passes on
+  length, and silently drops `B` from the scan order — a misroute, not a slowdown.
+- **Fallback** = the untouched `usort` on every failure path: no APCu, miss, malformed entry, changed
+  map, changed comparator source. The worst outcome of any failure is the sort we already had.
+
+**Measured locally — same function, same machine, disjoint ranges:**
+
+| path | median | range | n |
+|---|---:|---|---:|
+| CLI, fallback (APCu off, so the real sort runs) | **9.730 ms** | [8.246, 12.616] | 6 |
+| web SAPI, cache hit | **0.597 ms** | [0.447, 0.988] | 6 |
+
+**-93.9%, ranges disjoint.** The two arms are different *paths of the same function* rather than
+different builds, which is why this comparison survives the host-drift problem that made 4b and 4c so
+careful. On the live host the equivalent is 2.971 ms -> ~0.18 ms, i.e. ~2.8 ms of a 33 ms dispatch.
+
+**Correctness, which is the part that matters here.** A speed test would have been the wrong test:
+
+- **Order equivalence on the real corpus**: the production path returns the comparator order for all
+  **1,968 patterns across 5 methods**, position for position.
+- **The hit path, by composition.** The CLI cannot reach the cache (`apc.enable_cli=0`), so a CLI
+  test of it would have silently tested only the fallback — the vacuous-check trap. Instead: the
+  fallback's output *is* the comparator's order (asserted), and that exact order passes
+  `routeOrderCachedIsValid()` (asserted), so a cache holding it is accepted and returned verbatim.
+  The test prints which case it actually covered rather than implying more.
+- **Must-refuse cases**, all six asserted: duplicate-that-matches-length, shorter, longer, foreign
+  pattern, non-string element, non-array, null.
+- **Must-allow cases**: key stable for identical input, comparator order accepted.
+- **Key discriminates**: source stamp changed, route map changed, method changed, input order changed.
+- **Route map unchanged**: `{"count":1968,"hash":"cf47a110930f5733"}` identical in warn and block
+  modes; `/nonexistent-route-xyz` still resolves to a 404.
+- Suites: 56/56 across the route and perf tests; both logs clean.
+
+**Unrelated, observed while smoke-testing:** `disyl.strict.Blank compiled include rejected`
+(`kernel/DiSyL/Compiler/CompiledTemplate.php:239`) appears when the themed 404 renders. Route order
+cannot influence a template name, and the order is proven identical, so the handler and render path
+are unchanged — this is a DiSyL compiled-template concern for a separate look, not a regression here.
+
+---
+
 ## 5. Live baseline — for scale, not comparisonFrom [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
 
 | block | ms | share of dispatch |
