@@ -518,20 +518,55 @@ cache or it will measure cache hits.** The related sanity rule stands: the rende
 request, so a claimed 2.5x page-load speedup is arithmetically impossible and should be refused on
 sight.
 
+### The render breakdown already exists — in the log, unread (corrected)
+
+The obvious conclusion from the section above is "build render instrumentation". That is wrong, and
+checking beat building:
+
+`kernel/DiSyL/TemplateEngine.php:934-939` already emits a **per-compile phase breakdown**:
+
+```php
+$phases['total_ms'] = round((microtime(true) - $compileStartedAt) * 1000, 2);
+$phases['content_bytes'] = strlen($content);
+log_timing('disyl.compile.phases', $compileStartedAt, $phases);
+```
+
+Because `processIncludeTag()` recurses into `compile()`, this fires **once per include as well as once
+per template**, carrying `content_bytes` with each. That is precisely the attribution that item 1
+below was going to build.
+
+**And it is already running in production.** The 2026-09-26 note records the live host as
+`APP_TIMING_LOGS` on with `APP_TIMING_THRESHOLD_MS=0`, so every compile logs. The data is being
+written today; nothing aggregates it. (Config is read at boot from `.env`; this is the production
+setting, not a change made here.)
+
+**Trap for anyone reading this locally:** this repo's local `.env` has
+`APP_TIMING_LOGS=true` but `APP_TIMING_THRESHOLD_MS=10`, so individual compiles are filtered out and
+`grep -c "disyl.compile.phases" storage/logs/app.log` returns **0**. Concluding "no render data
+exists" from a local grep is wrong — it is the threshold, not the instrumentation. Measured
+2026-10-10: 0 local lines at threshold 10, with `cms.public_context.total` and `slow_request` still
+present, which is what made the difference visible.
+
+So the cheapest real win in the render path is an **aggregator over an existing log**, not new
+instrumentation — with the caveat that the 2026-09-26 note also flags this as ~4-6 locked log appends
+per page view, which is itself a per-request cost to weigh.
+
 ### Ranked candidates in the render path
 
-1. **Instrument render properly** — the enabling step. No live attribution exists today.
-2. **Count ops per page** in the harness, turning the table above into an actual budget.
-3. **Compiled output cache for `{include}`** — the measured mechanism, affects every theme.
-4. **`{extends}` blocks compiled mode fleet-wide** (`TemplateEngine.php:4038`): every theme page is on
+0. **Read the log that already exists** — aggregate `disyl.compile.phases` (per template AND per
+   include, with `content_bytes`) into a per-page render budget. This supersedes "build
+   instrumentation": the data is already written on production and unread.
+1. **Count ops per page** in the harness, turning the µs/op table above into an actual budget.
+2. **Compiled output cache for `{include}`** — the measured mechanism, affects every theme.
+3. **`{extends}` blocks compiled mode fleet-wide** (`TemplateEngine.php:4038`): every theme page is on
    the interpreted pipeline and the `disyl.interpreted.deprecated` warning is unactionable. Blocked on
    parity — there is a known pre-existing divergence where compiled HTML-escapes in script context
    while interpreted does not, which breaks JS in any compiled template with script interpolation.
    That is a correctness item ahead of any perf item here.
-5. **`getCompiledEligibilityCachePath()`** keys on root template path + root mtime while the walk
+4. **`getCompiledEligibilityCachePath()`** keys on root template path + root mtime while the walk
    covers includes/extends -> stale eligibility when a partial changes. Correctness.
-6. Ops, no repo code: `APP_TIMING_LOGS` on in production with `APP_TIMING_THRESHOLD_MS=0` (~4-6 locked
-   log appends per page view).
+5. Ops, no repo code: `APP_TIMING_THRESHOLD_MS=0` in production (~4-6 locked log appends per page
+   view).
 
 ---
 
