@@ -196,6 +196,58 @@ the discipline that made the local result trustworthy. One sample against one sa
 appear in it and cannot tell us whether the instrumentation shipped. After redeploying, those rows
 prove it themselves: **values present = kernel changes live; "not measured" = they are not.**
 
+## 4c. Live, 8 samples — the distribution resolves it
+
+`tools/perf-sample.php --samples=8` against `https://kernelappos.ikabudkernel.com`, 2026-10-10 11:30.
+**All new phases were reported**, so the kernel instrumentation is deployed.
+
+| metric | baseline (10-09 20:24, 1 sample) | median | min | max | delta vs baseline |
+|---|---:|---:|---:|---:|---:|
+| `dispatch` | 47.06 | **33.050** | 29.516 | 86.632 | -14.01 (-29.8%) |
+| `route_match` | 7.17 | **2.907** | 2.837 | 4.495 | **-4.26 (-59.5%)** |
+| – sort | — | 2.714 | 2.628 | 3.193 | — |
+| – regex scan | — | 0.199 | 0.181 | 1.363 | — |
+| `route_merge` | 3.17 | **1.672** | 1.618 | 2.673 | **-1.50 (-47.3%)** |
+| `boot` | 14.88 | 8.655 | 8.234 | 12.204 | -6.23 (-41.8%) |
+| – fast-path | — | 0.084 | 0.072 | 0.093 | — |
+| – -> bootstrap.php | — | 5.566 | 5.432 | 7.509 | — |
+| – -> require block | — | 8.651 | 8.231 | 12.200 | — |
+| `helpers_load` | 9.35 | 7.597 | 7.435 | 11.205 | -1.75 (-18.8%) |
+| `discovery` | 9.06 | 7.764 | 6.393 | 62.486 | -1.30 (-14.3%) |
+
+**The two phases this work touched improved beyond the entire observed range.** Every one of the 8
+`route_match` samples (max 4.495) is below the 7.17 baseline, and every `route_merge` sample
+(max 2.673) is below the 3.17 baseline. That is stronger than a median comparison and does not depend
+on the baseline having been typical.
+
+**The local prediction transferred almost exactly.** Local `route_match` fell 58.4%; live it fell
+59.5%. This is the first evidence that the local A/B percentages do carry to the live host even though
+the absolute milliseconds do not (local 22 ms vs live 7.17 ms at baseline).
+
+**The earlier single reading was an outlier, and I called its direction wrongly.** Section 4b reported
+`route_match` at 8.82 ms and concluded the change had gone the wrong way. It is outside the range of
+all 8 subsequent samples; the probable cause is a cold OPcache immediately after deploy (that reading
+recorded `compiled_this_request = 1`). A single sample was never going to be adequate, which is the
+whole reason this section exists.
+
+**Boot's profile is host-specific — the local conclusion does NOT transfer.** Locally the require
+block was 71% of boot and `bootstrap.php` 23%. Live it is inverted: the `bootstrap.php` region is
+5.48 ms (63%) and the require block 3.09 ms (36%). The blocks reconcile exactly
+(0.084 + 5.482 + 3.085 + 0.004 = 8.655). So "boot is the require block" is a true statement about the
+dev box only. The chair's STOP on splitting still stands — this changes where a future attempt would
+have to look, not whether it is worth doing.
+
+**The sort share holds live**: `route_match_sort` is 93.4% of `route_match` (2.714 of 2.907), against
+96-98% locally.
+
+**Attribution discipline.** Only `route_match` and `route_merge` can be attributed to these commits.
+`boot`, `helpers_load` and `discovery` also moved, but nothing in this work changed them, and
+`discovery` has a 62.5 ms outlier against a 7.8 ms median — treat those three as unexplained.
+
+**Range warning for future readings:** `dispatch` spans 29.5-86.6 ms and `discovery` 6.4-62.5 ms
+across eight *consecutive* samples on a warm host. A single reading of this host is not a measurement
+of anything.
+
 ---
 
 ## 5. Live baseline — for scale, not comparisonFrom [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
