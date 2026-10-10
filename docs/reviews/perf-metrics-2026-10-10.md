@@ -277,6 +277,77 @@ have to look, not whether it is worth doing.
 across eight *consecutive* samples on a warm host. A single reading of this host is not a measurement
 of anything.
 
+## 4d. "Memoisation is moot" — tested, and the sort is the real prize
+
+Raised by the owner 2026-10-10. Tested rather than agreed with, because it is checkable.
+
+**The memoisation is not moot.** It is measured at -58.4% on `route_match` with disjoint ranges
+(section 2), and it is what makes the live sort 2.714 ms rather than ~7 ms. Removing it would cost
+real time.
+
+**But the owner's instinct points at something real, and my own code already said it.** The memo is a
+`static $cache` — per-PROCESS. Every request starts cold and pays the full sort: the memo turns ~43k
+calls into 1968 misses plus hits, but it cannot remove the sort itself. `public/index.php:561-563`,
+added the same day, reads:
+
+> the sort is request-invariant work that **can be removed entirely**, the scan cannot
+
+So the memo is the weaker rung of a two-rung ladder. Measured with
+`probe-route-sort-cache.php` (fresh process per sample, n=8, because the memo is per-process):
+
+| | median | range |
+|---|---:|---|
+| `array_keys` + memoised `usort`, GET (1061 patterns) | **10.005 ms** | [8.060, 37.002] |
+| cache key: `md5(implode("\n", $patterns))` | **0.126 ms** | [0.099, 0.178] |
+| net if the sorted order were cached | **~9.88 ms** | — |
+
+Live, the same thing is `route_match_sort` 2.714 ms of a 33.05 ms dispatch — **8.2% of dispatch on
+every request**, permanently, whatever the memo does.
+
+### Chair verdict (2026-10-10)
+
+Ranked 1) cache the sorted order, *experimental and flag-disabled by default*; 2) leave it, as the
+production fallback; 3) reject the Schwartzian rewrite — "avoid reimplementing precedence semantics".
+Explicit: **GO for a flagged experiment, NO-GO for unconditional production deployment.** And a
+correction worth keeping: the proposed safeguards give **fail-slow against detectable failures, not a
+mathematical guarantee against every wrong-order hit.**
+
+### The three prerequisites it named — two are now proven, one is not
+
+1. **Can the comparator return 0 for distinct patterns?** **No.** `kernel_route_conflict_guard_test.php`
+   enumerates all 927,972 same-method pairs in the real corpus and all 109 conflicting pairs, plus 36
+   adversarial patterns: `distinct_compare_zero=0`. That is stronger than it looks — **no ties means the
+   sorted order is a pure function of the pattern SET, independent of input order**, so `usort`'s PHP 8
+   stability is irrelevant and a set-keyed cache is deterministic by construction.
+2. **Does its behaviour depend on anything beyond the pattern strings?** **No.** `routePatternSegments()`
+   (trim/explode/array_filter) and `routeSegmentIsDynamic()` (one fixed `preg_match`) are pure, and
+   `routePatternMatchPriority()` composes only those. Nothing reads config, globals or request state.
+   All three live in `module-routes.php`, so one file covers the whole dependency set — which is also
+   the natural invalidation key (see below).
+3. **Can production APCu deliver a measurable net saving?** **Unmeasured, and the probe refused to
+   pretend otherwise.** `apcu.enable_cli` is off, so store/fetch are no-ops here; the first draft of
+   the probe printed a **0.003 ms** "hit cost" that was really a failed fetch returning `false`
+   immediately — a number about a fetch that never happened. It now reports
+   `apcu DISABLED in this SAPI ... web-SAPI round-trip NOT measured` and discards the timing.
+
+### Decision: C (leave it), and what would reverse that
+
+Not implemented. The gain is ~8% of dispatch and its **entire** basis is prerequisite 3, which is
+unmeasured — and if APCu is not live in the web SAPI the cache never hits while still paying 0.126 ms
+of key per request. Shipping a flag-gated path we may never enable is speculative work; the unlock is
+a *measurement*, not code.
+
+Should that change, the design that is already safe by construction:
+
+- key = pattern set **+ `filemtime('module-routes.php')`**, so a change to the comparator *or* either
+  helper invalidates automatically — no hand-maintained version constant to forget to bump;
+- validate membership on every hit, fall back to the untouched `usort` on any miss, mismatch or
+  absent APCu — the failure mode is **slow, never misrouted**;
+- the comparator stays byte-identical, so route precedence cannot shift.
+
+**Unlock condition:** one web-SAPI reading proving APCu is enabled and that the cached path beats
+`usort` on the live host. Until then this is a named, evidenced, deferred decision — not a guess.
+
 ---
 
 ## 5. Live baseline — for scale, not comparisonFrom [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
@@ -310,6 +381,7 @@ session-local:
 | [`perf-metrics-2026-10-10/boot.tsv`](perf-metrics-2026-10-10/boot.tsv) | boot decomposition rows |
 | [`perf-metrics-2026-10-10/bootprobe.jsonl`](perf-metrics-2026-10-10/bootprobe.jsonl) | 22 per-require samples (one JSON object per request) |
 | [`perf-metrics-2026-10-10/probe-per-require.py`](perf-metrics-2026-10-10/probe-per-require.py) | the per-require probe: patches `public/index.php`, backs it up to `/tmp/index.php.bootprobe.bak`, emits one row per request |
+| [`perf-metrics-2026-10-10/probe-route-sort-cache.php`](perf-metrics-2026-10-10/probe-route-sort-cache.php) | sort vs cache-key cost, one JSON row per process. Run as `for i in $(seq 1 8); do php probe-route-sort-cache.php; done` — one process per sample, because the memo is per-process. Read-only; also asserts the comparator is deterministic and that the key discriminates. Reports `apcu DISABLED ... not measured` rather than a timing from a fetch that did not happen |
 
 The probe **modifies `public/index.php`** and must be reverted afterwards — it writes a backup first,
 and the tree was verified identical to HEAD after the run. It exits without writing if its anchor is
