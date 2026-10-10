@@ -597,6 +597,73 @@ templates that were on the interpreted pipeline **at that time**, not a standing
 
 ---
 
+## 4g. Instrumenting the compiled path — test-first, then Sol review
+
+The gap in 4f was that the compiled branch emits nothing. Closed in three steps, in this order.
+
+**1. The test came first, and it was run against the unfixed tree.** `tests/disyl_compiled_render_instrumentation_test.php`
+renders a compiled-eligible fixture twice and asserts a timing line appears. On the unfixed tree it
+reported **2 PASS / 1 FAIL**, `log lines total: 0` — two successful renders that produced no log output
+at all. A test that passes before the change asserts something already true, so this is the evidence
+that it discriminates.
+
+It also carries a **vacuity guard**: "no compiled line" has two very different causes — the compiled
+path ran and is uninstrumented, or the fixture was interpreted so the compiled path never ran. The test
+distinguishes them by asserting that no `disyl.compile.phases` line appeared, and fails with a distinct
+reason if the fixture drifts onto the interpreted pipeline rather than passing quietly.
+
+**2. The instrument.** `disyl.render.breakdown` is now emitted on the compiled branch with
+`cache_path => 'compiled'` — the same message and field as `apcu_output_hit` and `interpreted_cached`,
+so `cache_path` reads as **one timeline with three values** rather than a third log dialect.
+
+Measured on `pages/_perf-probe.disyl`: **3.16 ms cold, 0.33 ms warm.** The earlier 72 ms number could
+not separate those, which is exactly why the instrument was needed.
+
+**3. Sol review — CHANGES_REQUIRED, two items accepted.** Both were real:
+
+- **`log_timing()` sat inside the compiled `try`.** Had it thrown, the `catch` below would have treated
+  it as a compiled failure, **discarded an already-successful render**, and re-rendered on the
+  interpreted path. Instrumentation able to change what is rendered is a defect, and it contradicts the
+  invariant the perf probes state explicitly ("instrumentation must never affect the request"). Now
+  wrapped in its own `try`/`catch (Throwable)`.
+- **The test was not discriminating enough, with a concrete false pass named:** a mutation that logged
+  only on the *first* render would still satisfy `$compiledLines > 0` while the warm path stayed
+  unmeasured — and warm is the case that matters in production. Tightened to `$rendered === 2` and
+  `$compiledLines === 2`, plus matching the `template` field so an unrelated compiled render cannot
+  satisfy the assertion.
+
+Also accepted: document the **timing boundary**, since `duration_ms` deliberately excludes
+`enableCompiledMode()` boot and `isCompiledEligibleTemplate()`'s graph walk (moving the clock earlier
+would charge their cost to interpreted renders too). It means "execution after eligibility was
+decided", not the whole render.
+
+**Deferred, recorded rather than done:** a failed compiled attempt is still untimed, so total fallback
+latency is under-reported. Sol's point that it should be a **separate event** (`disyl.render.compiled_failed`)
+rather than another successful-looking `cache_path=compiled` line is right and is the shape to use.
+
+**Pre-existing defect Sol noticed while reviewing:** the compiled `catch` comment reads
+`// re-throw size limit errors`, but the clause rethrows **all** `RuntimeException`s, not only
+size-limit ones. Not introduced here; worth a separate look.
+
+**Operational note:** with `APP_TIMING_LOGS=true` and `APP_TIMING_THRESHOLD_MS=0` (the production
+setting) this adds one **locked** log append per top-level compiled render. It is per render, not per
+include. `log_timing()` computes `duration_ms` *before* `write_log()`, so the append's own latency is
+excluded from the number it reports — the cost is real and invisible in the measurement. The threshold
+is the operational control.
+
+**Pre-existing test failures — established by A/B, so they are not misattributed later.** Each of these
+fails identically with the change stashed, so none is caused by this work:
+
+| suite | status |
+|---|---|
+| `disyl_assoc_test`, `disyl_engine_test`, `disyl_v4_compiler_test`, `disyl_v4_test` | exit=1 with AND without the change |
+| `phase0_disyl_script_expression_leak_test` | `6 passed, 1 failed` both ways |
+
+The single `phase0` failure is *"ordinary apostrophe value preserved"* — the script-context escaping
+divergence, i.e. the correctness item flagged in 4f, not a perf one.
+
+---
+
 ## 5. Live baseline — for scale, not comparisonFrom [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
 
 | block | ms | share of dispatch |

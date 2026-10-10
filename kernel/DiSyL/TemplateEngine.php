@@ -419,6 +419,7 @@ class TemplateEngine
             $this->enableCompiledMode(true);
         }
         if ($this->compiledMode && $this->compiledCache !== null && $this->isCompiledEligibleTemplate($templatePath)) {
+            $compiledStartedAt = microtime(true);
             try {
                 $compiled = $this->compiledCache->get($templatePath);
                 
@@ -481,6 +482,44 @@ class TemplateEngine
                 if ($sharedCacheKey !== null) {
                     apcu_store($sharedCacheKey, $result, $this->templateRenderer()->sharedOutputCacheTtl());
                 }
+
+                // This branch returns WITHOUT calling compile(), so neither existing timing line
+                // fires on it: disyl.compile.phases lives at the end of compile() (:935) and
+                // disyl.render.breakdown is emitted only by the APCu output-hit (:400) and
+                // interpreted (:540) paths. Compiled mode is the default, so the default pipeline was
+                // the unmeasured one — a render here produced no timing at all. Pinned by
+                // tests/disyl_compiled_render_instrumentation_test.php, which fails without this.
+                //
+                // Deliberately the same message and the same cache_path field as the other two
+                // paths, so a reader sees one timeline whose cache_path is one of
+                // apcu_output_hit | interpreted_cached | compiled, rather than a third log dialect.
+                //
+                // SCOPE: duration_ms covers compiledCache->get(), the loader/registry wiring, and
+                // executeWithInheritance() — i.e. execution AFTER compiled eligibility was decided.
+                // It does NOT cover enableCompiledMode() boot or isCompiledEligibleTemplate()'s
+                // graph walk. Those are deliberately outside: moving the clock earlier would charge
+                // their cost to interpreted renders too. Do not read this as the whole render cost.
+                //
+                // COST: with APP_TIMING_LOGS off, log_timing() returns before touching the log. With
+                // it on, this appends one line per top-level render — not per include, since includes
+                // go through the loader below rather than through render(). Note that log_timing()
+                // computes duration_ms BEFORE write_log(), so the append's own latency is excluded.
+                //
+                // Wrapped because instrumentation must never alter rendering: a throw here would be
+                // caught below as a compiled failure, discard an already-successful result, and
+                // re-render the template on the interpreted path. Same rule as the perf probes.
+                if (function_exists('log_timing')) {
+                    try {
+                        log_timing('disyl.render.breakdown', $compiledStartedAt, [
+                            'template' => $template,
+                            'cache_path' => 'compiled',
+                            'output_bytes' => strlen($result),
+                        ]);
+                    } catch (\Throwable $ignored) {
+                        // Never let measurement change what is rendered.
+                    }
+                }
+
                 return $result;
             } catch (\RuntimeException $e) {
                 throw $e; // re-throw size limit errors
