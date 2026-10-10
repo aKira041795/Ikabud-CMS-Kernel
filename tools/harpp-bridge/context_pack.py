@@ -244,8 +244,15 @@ def _without_embedded_packs(lines: list[str]) -> list[tuple[int, str]]:
 
 
 def _conclusion_entries(root: Path, terms: list[str], phrase: str,
-                        entries: list, seen: set) -> None:
-    """Read saved chair conclusions directly, including untracked files."""
+                        entries: list, seen: set,
+                        exclude: set[str] | None = None) -> None:
+    """Read saved chair conclusions directly, including untracked files.
+
+    ``exclude`` holds workspace-relative paths that must not be retrieved - chiefly the
+    transcript the caller is currently writing, which contains this very prompt and would
+    otherwise be cited back as repository evidence.
+    """
+    skip = exclude or set()
     candidates: list[tuple[int, str, list[str]]] = []
     patterns = (".ai/consult/*.md", ".ai/debate/plan-*.md")
     for pattern in patterns:
@@ -254,7 +261,7 @@ def _conclusion_entries(root: Path, terms: list[str], phrase: str,
                 if not file_path.is_file() or file_path.is_symlink():
                     continue
                 relative = file_path.relative_to(root).as_posix()
-                if _SECRET_PATH.search(relative):
+                if relative in skip or _SECRET_PATH.search(relative):
                     continue
                 lines = _without_embedded_packs(
                     file_path.read_text(encoding="utf-8", errors="replace").splitlines())
@@ -283,7 +290,8 @@ def _conclusion_entries(root: Path, terms: list[str], phrase: str,
 
 
 def build_context_pack(query: str, workspace: str | None, budget_chars: int = 6000,
-                       extra_facts: str | None = "") -> str:
+                       extra_facts: str | None = "",
+                       exclude_paths: list[str] | None = None) -> str:
     """Return a cited context pack, or ``""`` for invalid/unavailable input.
 
     Failures are intentionally swallowed: retrieval is grounding assistance and must not
@@ -296,11 +304,18 @@ def build_context_pack(query: str, workspace: str | None, budget_chars: int = 60
         if not query or root is None or not root.is_dir() or budget <= 0:
             return ""
         tracked = {p for p in _git(root, ["ls-files"]).splitlines() if p}
+        excluded: set[str] = set()
+        for raw in (exclude_paths or []):
+            candidate = str(raw).replace("\\", "/")
+            while candidate.startswith("./"):
+                candidate = candidate[2:]
+            if candidate:
+                excluded.add(candidate)
         terms = _terms(query)
         phrase = query.lower()
         entries: list[tuple[int, int, str, str]] = []
         seen: set[tuple[str, int]] = set()
-        _conclusion_entries(root, terms, phrase, entries, seen)
+        _conclusion_entries(root, terms, phrase, entries, seen, excluded)
         conclusion_count = len(entries)
         names, doc_text = _doc_entries(root, tracked, terms, phrase, entries, seen)
         _module_entries(root, tracked, terms, phrase, names, doc_text, entries, seen)

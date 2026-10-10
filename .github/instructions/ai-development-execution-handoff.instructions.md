@@ -80,6 +80,88 @@ Do not dump unnecessary repository context into the contract.
 
 ---
 
+## `/chair-consult` — the ChatGPT decision gate
+
+ChatGPT is a standing participant in planning and decision-making. It is a decision gate, not an
+execution gate: it does not run on every patch.
+
+Consult it when the decision is one the harness cannot settle mechanically:
+
+- architecture tradeoffs;
+- contract or compatibility changes;
+- competing implementation strategies;
+- evidence that contradicts the current plan;
+- acceptance criteria that require judgement;
+- decisions with substantial rollback cost.
+
+Do NOT consult it for mechanical refactoring, known dead-code deletion, routine test execution,
+formatting or lint, already-defined acceptance checks, or straightforward isolated fixes.
+
+Three consultation points on substantial work:
+
+1. before implementation — what should change, what must stay invariant, which proposed complexity
+   is unjustified;
+2. at a genuine decision fork — only when new evidence changes the recommended approach;
+3. before accepting an architectural change — was the objective met without an unacceptable
+   contract or operational burden.
+
+Point 3 is not mandatory for every patch. A mandatory consultation for every patch reproduces the
+failure mode this directive exists to avoid: maximising procedural evidence instead of delivering
+software.
+
+Invocation:
+
+```
+python3 tools/harpp-bridge/chair_consult.py \
+  --query "<idea>" --instruction "<direction>" --session <name>
+```
+
+`--session` continues one discussion instead of restarting it. The ChatGPT subscription profile is
+resolved automatically (override with `CHAIR_CONSULT_PROFILE`); the tool excludes its own transcript
+from retrieval. A chair opinion is advice, not evidence — verify its repository claims before acting.
+
+---
+
+## `/sol` — the review and edit lane
+
+Sol (`openai-codex/gpt-5.6-sol`) is a standing participant for **code review**, and for **code edits
+it is efficient with**. It is not a second implementation lane: §2 still assigns high-volume
+mechanical development and iterative repair to DeepSeek-flash, because that is cheaper per unit of
+work and Sol's cap is finite.
+
+Dispatch Sol for:
+
+- review of a diff, a contract, or an area where the reasoning *is* the work;
+- judging whether a change met its objective without imposing an unacceptable contract;
+- surgical edits where the design is already settled and the value is care, not volume;
+- a second opinion on a decision the chair has already given — disagreement between the two is
+  information, and both are advice rather than evidence.
+
+Do NOT dispatch Sol for repetitive repair loops, bulk mechanical edits, or routine test execution.
+
+**Health gate — use the existing mechanism, never a hand-written model list.** The chain in
+`tools/model-chain.txt` already lists Sol first with fallback to `deepseek-v4-flash` and
+`openai-codex/gpt-5.6-terra`, and `tools/lane-model.sh` falls back automatically. Check availability
+before an expensive dispatch:
+
+```bash
+source tools/model-availability.sh
+model_is_available "openai-codex/gpt-5.6-sol"   # 0 = usable, 1 = inside cooldown
+model_availability_line                          # one-line report
+```
+
+The ledger is fail-open by design: an unreadable ledger degrades to "available" rather than stalling
+dispatch. A model that is inside cooldown is skipped, not retried — `st13b` burned 8 paid attempts
+in 40 minutes rediscovering one exhaustion.
+
+**Sol's quota is finite and has run out mid-session.** When it is close, switch BEFORE dispatching:
+a lane that dies mid-edit leaves a half-edited tree and no report, which is worse than not starting.
+Before restarting a lane on a different model, check `git status --porcelain` against the last
+verified state — if the tree is unchanged the lane was still analysing and a clean re-dispatch is
+free; if it has already edited, let it finish.
+
+---
+
 # 2. `/implement` — EXECUTION
 
 Primary implementation role: **DeepSeek**
@@ -723,6 +805,19 @@ CODEX
     Constraints
     High-value reasoning
     Architectural review
+
+SOL (openai-codex/gpt-5.6-sol)
+    Code review of a diff or contract
+    Surgical edits where the design is settled
+    Judgement where reasoning is the work
+    Never a second high-volume implementation lane
+    Gated on model_is_available; skip when inside cooldown
+
+CHATGPT / CHAIR CONSULT
+    Planning and decision gate
+    Competing strategies and tradeoffs
+    Contract and rollback-cost questions
+    Advice only - never the evidence
 
 DEEPSEEK
     Implementation

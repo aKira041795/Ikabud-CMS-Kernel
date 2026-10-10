@@ -63,6 +63,10 @@ def _compose(query: str, instruction: str, pack: str, history: str = "") -> str:
 
 def _emit(args, payload: dict, error: str = "") -> None:
     if args.as_json:
+        # The reason must survive JSON mode: without it a caller sees ok:false and an empty
+        # reply, with no way to tell a login failure from a rate limit.
+        if error:
+            payload = {**payload, "error": error}
         print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
     elif error:
         print(f"chair_consult: {error}", file=sys.stderr)
@@ -83,11 +87,20 @@ def main(argv=None) -> int:
         history = ""
         if session_path and session_path.is_file():
             history = _history_from(session_path.read_text(encoding="utf-8", errors="replace"))
-        pack = context_pack.build_context_pack(args.query, str(workspace), args.budget)
-        prompt = _compose(str(args.query), str(args.instruction), pack, history)
-        citations = len(_CITATION.findall(pack))
         out_path = session_path or (Path(args.out).expanduser() if args.out
                                     else _default_out(workspace, args.query))
+        # Never retrieve the transcript being written.  It holds this very prompt and, on a
+        # continued session, the previous reply; feeding it back as "conclusions" crowds out
+        # the repository and lets the model cite the discussion instead of the code.
+        excluded: list[str] = []
+        try:
+            excluded = [out_path.resolve().relative_to(workspace).as_posix()]
+        except ValueError:
+            pass
+        pack = context_pack.build_context_pack(args.query, str(workspace), args.budget,
+                                               exclude_paths=excluded)
+        prompt = _compose(str(args.query), str(args.instruction), pack, history)
+        citations = len(_CITATION.findall(pack))
         out_path.parent.mkdir(parents=True, exist_ok=True)
         if session_path:
             # A discussion accumulates turns; a one-shot consult is just inspectable.
@@ -106,10 +119,14 @@ def main(argv=None) -> int:
         # This is the browser profile holding the ChatGPT SUBSCRIPTION login (cookies) - not an API
         # key, and no key is ever written here. Overridable so an existing profile can be reused
         # without a fresh login:  CHAIR_CONSULT_PROFILE=/path/to/profile
+        # The ChatGPT SUBSCRIPTION login lives in this browser profile (cookies; no API key is
+        # ever written here).  Measured 2026-10-10: ~/.config/chair-consult/chatgpt-profile is
+        # logged OUT while the harness profile is logged in, so default to the harness profile -
+        # the same path harpp_wake.py uses as ADVISOR_DEFAULT_PROFILE - and keep the override.
         profile = Path(
             os.environ.get("CHAIR_CONSULT_PROFILE")
             or Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
-            / "chair-consult" / "chatgpt-profile"
+            / "harpp" / "chatgpt-profile"
         )
         proc = subprocess.run(
             [node, str(script), "run", "--prompt", str(out_path), "--profile", str(profile)],
