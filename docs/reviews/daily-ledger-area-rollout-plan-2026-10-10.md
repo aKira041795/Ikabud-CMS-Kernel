@@ -22,10 +22,46 @@ Reviewed with the ChatGPT chair (`--session dl-areas-rollout`, transcript `.ai/c
 Users: `dl_users.role` (admin, supervisor, cashier, production_in_charge, + auditor, viewer) and
 `dl_user_branches (user_id, branch_id)` — multi-branch binding already exists.
 
-**Live data:** Dapitan 3 branches, Dipolog 9 (1 commissary RIZAL-COMMIS id 18), **Molave 1
-(MOL-MOLAVE1 id 100015)**, **Pagadian 1 (PAG-COMMIS1 id 100016, is_commissary=1)**. Mahayag does not
-exist. 35 cashiers all bound to exactly one branch; 27 admins all with ZERO bindings; **no user
-straddles two areas.** Three synthetic area-NULL branches (99401-3 Overview Alpha/Beta/Gamma).
+**Live data (re-measured after the owner imported a live dump into the local tenant, 2026-10-10).**
+This supersedes the earlier local-only figures — several of them were local test data, not reality:
+21 branches across 5 areas; **2 admins** (both unbound), 27 cashiers, 2 production, 1 viewer. No
+supervisor, no auditor. Every bound user sits in exactly one area. No NULL-area branches in live
+(the synthetic Overview branches were local-only).
+
+| area string (as stored) | branches | commissary |
+|---|---:|---|
+| `Dapitan` | 3 | — |
+| `Dipolog` | 9 | RIZAL-COMMIS1 (18) |
+| `Mahayag` | 1 | — |
+| `MOLAVE` | 1 | — |
+| `Pagadian City` | 7 | PAG-COMMISARY1 (21) |
+
+**The functional gap: Pagadian's supply relationship is not established.** PAG-COMMISARY1 is flagged
+`is_commissary = 1`, and the area holds six retail branches (GATAS, DUMALINAO, LUMBIA, SAN JOSE,
+LABANGAN, PULMONES) — but **all six carry `assigned_commissary_id = NULL` and
+`default_supply_mode = 'self_managed'`**. So "the branches in the area are supplied by the
+commissary" is not yet true in data; the snapshot reports exactly 1 commissary with no supplying
+branches. Linking those six is concrete Phase 2 work.
+
+**Naming to confirm with the admin before the canonical registry is built** (these look like entry
+slips, and a canonical backfill would freeze them as identities):
+- Branch 27 `PAG-MOLAVE1` sits in area **MOLAVE**, while branch 28 `MOLAVE1` sits in area
+  **Mahayag** — the names appear crossed.
+- The commissary code `PAG-COMMISARY1` is misspelled (COMMIS**S**ARY).
+- Area casing is inconsistent: `MOLAVE` is upper case while the others are title case, and the area
+  reads `Pagadian City` where the plan assumed `Pagadian`. Canonical codes should be
+  `MOLAVE` / `PAGADIAN` regardless, but the display names need one decision, not three spellings.
+
+**Chair's HOLD confirmed in live data:** 11 branches still carry an assigned commissary while
+declaring `default_supply_mode = 'self_managed'` — this is not a local artifact. Cross-area supply
+is 3 (the Dapitan branches supplied from the Dipolog commissary).
+
+**Admin UI, verified by logging in as an admin:** the Branches page renders `CODE | NAME | AREA |
+ADDRESS | PRICE GROUP | SUPPLY MODE | COMMISSARY | USERS | PRODUCTS | STATUS`, so `area` is already
+displayed. But there is **no area filter of any kind**, and `area` is entered through **three
+separate free-text inputs** (`add-area`, `edit-area`, `consignee-area`, all placeholder "e.g.
+Dipolog, Rizal, Pagadian"). Supply mode and commissary are already dropdowns. So requirement 5 is
+unmet in the UI, and the picker must replace all three text inputs, not one.
 
 **So the model is ~80% there.** The work is identity, data, scoping and UI — not a new dimension.
 
