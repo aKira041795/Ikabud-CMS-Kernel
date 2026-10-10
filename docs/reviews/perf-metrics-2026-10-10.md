@@ -651,7 +651,34 @@ include. `log_timing()` computes `duration_ms` *before* `write_log()`, so the ap
 excluded from the number it reports — the cost is real and invisible in the measurement. The threshold
 is the operational control.
 
-**Pre-existing test failures — established by A/B, so they are not misattributed later.** Each of these
+**First real-page measurement (local, 2026-10-10).** Local `.env` sets
+`APP_TIMING_THRESHOLD_MS=10`, which **silently suppresses every render line** — the compiled renders
+are all under it, so a local `grep` returns 0 and reads as "nothing renders". Lowered temporarily to 0
+(backed up and restored; `.env` is gitignored) and driven with real HTTP requests:
+
+| requests | compiled renders logged | cache_path | template | total ms |
+|---:|---:|---|---|---:|
+| 3 | 3 | `compiled` | `pages/_perf-probe.disyl` | 3.19 |
+| | | `compiled` | `modules/cms/public/404.disyl` | 2.49 |
+
+Two things follow, and the second matters more than the first:
+
+1. **One line per top-level render, not per include** — confirmed. The extends chain is inside
+   `executeWithInheritance()`, so it is already counted in that single number.
+2. **The render is SMALL on the pages measured: ~2.5-3.2 ms locally.** This is the first evidence that
+   *challenges* the "DiSyL is where the performance is" hypothesis rather than supporting it. It is
+   only two templates though, and both are light — a themed 404 and a probe page. **Entity lists,
+   storefront/product grids and builder-content pages are the heavy ones and remain unmeasured.** The
+   live reading's large numbers (module discovery 57.97 ms, 347 files / 5011 KB newly included, 250 DB
+   queries) are all outside DiSyL, so the biggest known costs are still on the module side.
+
+So the next honest step is to measure the heavy templates before optimising anything, on the same
+principle that made the kernel work possible.
+
+**Note for anyone measuring locally:** `APP_TIMING_THRESHOLD_MS=10` here vs **0 in production** means
+local greps under-report render activity for a reason that has nothing to do with the code.
+
+--- Each of these
 fails identically with the change stashed, so none is caused by this work:
 
 | suite | status |
