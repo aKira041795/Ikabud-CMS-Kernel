@@ -604,6 +604,41 @@ DeepSeek must not autonomously:
 - bypass tests;
 - expand scope without escalation.
 
+### Decision autonomy — the owner has pre-approved decisions you can make
+
+Standing owner directive:
+
+> "if you can decide for it, whether thru probe, discussion, you have my approval. set this in the
+> harness so we don't stall on decision making you can very well decide."
+
+**Decide, do not ask.** A decision settleable by a probe or a chair consultation is not a question
+for the owner. Turning it into one is a stall, and a stall costs more than a wrong call the evidence
+corrects.
+
+How to decide:
+
+1. **Probe it** when the answer is measurable. Prefer a measurement over an opinion.
+2. **Consult the chair** (`/chair-consult`) when it is a tradeoff, a contract question, or a fork
+   between competing strategies. The chair is a decision *input*, never a permission gate.
+3. **Decide, then record** — the decision, its evidence, and the falsifier that would reverse it, in
+   the commit message, in memory, or in the consult transcript.
+
+Autonomy is safe because it is **auditable**, not because it is approved.
+
+Escalate to the owner only for:
+
+- product direction, or a change a user experiences as a contract change;
+- destructive or hard-to-reverse operations (data deletion, history rewrite, force push);
+- overriding a deterministic release-gate result;
+- spending money or making an external commitment;
+- anything the owner has explicitly reserved.
+
+A reversible in-repo change is not on that list. Neither are a tooling or instrumentation fix, a
+test, a commit, or a choice between two equivalent implementations.
+
+**The failure mode to avoid is the opposite of recklessness: asking about what was already
+decidable.** Once a decision is made and recorded, do not re-ask it — proceed.
+
 ---
 
 # 13. BOUNDED REPAIR LOOP
