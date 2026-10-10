@@ -117,11 +117,49 @@ final class SecurityHeaders
             'Permissions-Policy: geolocation=self, camera=self, microphone=(), payment=(), usb=()',
         ];
 
+        // Which build is answering? Written into the package by the upgrade-kit builder, so one
+        // curl answers "did the deploy land" instead of needing a login or a version endpoint.
+        // Absent on a plain checkout, and a missing or malformed file must never affect a response.
+        $build = $this->buildIdentity();
+        if ($build !== '') {
+            $headers[] = 'X-App-Build: ' . $build;
+        }
+
         if ($this->isHttps()) {
             $headers[] = 'Strict-Transport-Security: max-age=31536000; includeSubDomains';
         }
 
         return $headers;
+    }
+
+    /**
+     * The packaged build id (commit sha plus package timestamp), or '' when this install was not
+     * produced by the upgrade-kit builder. Deliberately total: any failure yields '' so a bad or
+     * absent file cannot break a response.
+     */
+    private function buildIdentity(): string
+    {
+        try {
+            $path = dirname(__DIR__, 2) . '/config/build-info.json';
+            if (!is_readable($path)) {
+                return '';
+            }
+            $info = json_decode((string)file_get_contents($path), true);
+            if (!is_array($info)) {
+                return '';
+            }
+            $sha = (string)($info['commit'] ?? '');
+            $built = (string)($info['built_at'] ?? '');
+            // Keep it to a header-safe token; never echo an arbitrary file's contents.
+            if ($sha === '' || preg_match('/^[0-9a-f]{7,40}$/', $sha) !== 1) {
+                return '';
+            }
+            $suffix = preg_match('/^[0-9]{8}T[0-9]{6}Z$/', $built) === 1 ? '-' . $built : '';
+
+            return $sha . $suffix;
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
     
     /**

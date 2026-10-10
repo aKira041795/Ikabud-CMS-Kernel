@@ -66,6 +66,26 @@ if ($stripHtaccess->open($codeArchivePath) === true) {
         $stripHtaccess->deleteName('.htaccess');
         echo "  [strip] root .htaccess excluded — it is host-owned (see README-UPGRADE.txt)\n";
     }
+
+    // Stamp WHICH build this package is, inside the package. Without it, "did the
+    // deploy land?" is unanswerable from outside: twice on 2026-10-10 a deploy could
+    // only be confirmed by logging in as the right role and observing a fix's effect,
+    // and the two PHP-only commits that day left no outward marker at all. The
+    // SecurityHeaders class emits this as X-App-Build, so one unauthenticated request
+    // answers it. Written into the archive rather than the working tree so the repo
+    // stays clean and a plain checkout simply has no marker.
+    $commitSha = trim((string)@shell_exec('git -C ' . escapeshellarg($root) . ' rev-parse --short=12 HEAD 2>/dev/null'));
+    if ($commitSha === '') {
+        echo "  [build] git sha unavailable — X-App-Build will be omitted from this package\n";
+    } else {
+        $stripHtaccess->addFromString('config/build-info.json', json_encode([
+            'commit' => $commitSha,
+            'built_at' => gmdate('Ymd\THis\Z'),
+            'package' => $codeArchiveName,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        echo "  [build] stamped config/build-info.json -> commit {$commitSha}\n";
+    }
+
     $stripHtaccess->close();
 } else {
     fwrite(STDERR, "Warning: could not re-open {$codeArchiveName} to exclude .htaccess.\n");
