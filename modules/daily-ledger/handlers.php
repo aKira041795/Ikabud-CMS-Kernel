@@ -20418,7 +20418,15 @@ function handleAdminCommissary(): void
     // explicitly selected destination. The omitted count is rendered visibly;
     // admins can use the existing branch/commissary selectors (and area scope)
     // to narrow the sheet rather than receiving a partial page or HTTP 500.
-    $sheetDestinationLimit = 10;
+    //
+    // The cap is higher when the sheet is SCOPED (a commissary or an area is selected) because that
+    // set is bounded by the scope itself: an operator who picks a commissary expects to see all of
+    // THAT commissary's branches, and at 10 the largest network silently lost one of its own (RIZAL
+    // has 11 -> "1 branch column(s) omitted"). Measured 2026-10-10: DiSyL's guard is
+    // MAX_OUTPUT_BYTES = 5MB, one destination column costs ~250KB, and the 10-column RIZAL sheet
+    // renders at 2.5MB - so 12 columns (~3.0MB) stays well inside the guard. The unscoped sheet
+    // keeps 10 because it can list every branch in the estate.
+    $sheetDestinationLimit = ($selectedCommissaryId > 0 || ($viewScope['type'] ?? 'ALL') !== 'ALL') ? 12 : 10;
     $requiredSheetBranchIds = array_values(array_filter([$sheetSourceBranchId, $selectedBranchId], static fn(int $id): bool => $id > 0));
     $includedSheetBranchIds = array_fill_keys($requiredSheetBranchIds, true);
     $chosenDestinationCount = $selectedBranchId > 0 && $selectedBranchId !== $sheetSourceBranchId ? 1 : 0;
