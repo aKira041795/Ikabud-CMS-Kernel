@@ -3840,10 +3840,20 @@ function dl_respondThenFlushMail(array $payload, int $status = 200): void
 /** Record one integrity finding and address it to active admins/supervisors with authority over the branch. */
 function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $branchId, ?string $entityType, ?int $entityId, string $title, string $detail = '', bool $email = false): ?int
 {
+    // ON DUPLICATE KEY UPDATE, not INSERT IGNORE. aggregate_key is UNIQUE and finding_count exists
+    // precisely so a repeated finding collapses into one row whose count increments; INSERT IGNORE
+    // discarded the repeat instead, so the count stayed 1 and the occurrence was silently lost.
+    // rowCount() is 1 for an insert and 2 for an update, so $created still means "first time this key was
+    // seen" and the email-once rule below is preserved. entity_id is refreshed so the row points at the
+    // CURRENT flag, which keeps the orphan check used by the prune worker accurate.
     $insert = $db->prepare(
-        'INSERT IGNORE INTO dl_integrity_notifications
+        'INSERT INTO dl_integrity_notifications
             (aggregate_key, finding_type, branch_id, entity_type, entity_id, title, detail)
-         VALUES (:k, :t, :b, :et, :eid, :title, :detail)'
+         VALUES (:k, :t, :b, :et, :eid, :title, :detail)
+         ON DUPLICATE KEY UPDATE
+            finding_count = finding_count + 1,
+            entity_id = VALUES(entity_id),
+            detail = VALUES(detail)'
     );
     $insert->execute([':k' => $key, ':t' => $type, ':b' => $branchId, ':et' => $entityType, ':eid' => $entityId, ':title' => $title, ':detail' => $detail !== '' ? $detail : null]);
     $created = $insert->rowCount() === 1;
@@ -3860,10 +3870,24 @@ function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $bra
     $recipients = $db->prepare($recipientSql);
     $recipients->execute([':branch' => $branchId ?? 0]);
     $recipientRows = $recipients->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $address = $db->prepare('INSERT IGNORE INTO dl_integrity_notification_recipients (notification_id, user_id) VALUES (:n, :u)');
-    foreach ($recipientRows as $recipient) {
-        $address->execute([':n' => $notificationId, ':u' => (int)$recipient['id']]);
-        if ($created && $email && function_exists('sendEmail')) {
+    // One statement for the whole recipient set instead of one per recipient. This path runs once per
+    // finding during a recompute and the fan-out reaches 27 rows, so the old loop issued up to 27
+    // round-trips per finding. INSERT IGNORE keeps it idempotent, so re-addressing an already-notified
+    // user remains a cheap no-op.
+    if ($recipientRows !== []) {
+        $placeholders = implode(',', array_fill(0, count($recipientRows), '(?,?)'));
+        $params = [];
+        foreach ($recipientRows as $recipient) {
+            $params[] = $notificationId;
+            $params[] = (int)$recipient['id'];
+        }
+        $db->prepare(
+            'INSERT IGNORE INTO dl_integrity_notification_recipients (notification_id, user_id) VALUES ' . $placeholders
+        )->execute($params);
+    }
+
+    if ($created && $email && function_exists('sendEmail')) {
+        foreach ($recipientRows as $recipient) {
             $to = trim((string)($recipient['email'] ?? ''));
             if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL)) {
                 // Deferred: queued here, sent after the HTTP response is finished
@@ -7043,8 +7067,24 @@ function dl_upsertVarianceFlag($db, int $branchId, int $productId, string $date,
     $flagStmt->execute([':b' => $branchId, ':p' => $productId, ':d' => $date, ':k' => $kind, ':s' => $shift]);
     $flagId = (int)($flagStmt->fetchColumn() ?: 0);
     if ($flagId > 0) {
-        dl_raiseIntegrityNotification($db, 'variance-' . $flagId, 'variance', $branchId, 'dl_variance_flags', $flagId,
-            'Inventory variance surfaced', 'Variance flag #' . $flagId . ' requires investigation before correction.');
+        // Key on the flag's NATURAL identity — uq_dl_variance is (branch_id, product_id, ledger_date, kind,
+        // shift) — and NEVER on its auto-increment id. The recompute above deliberately deletes unreviewed
+        // derived flags and re-derives them, so the surrogate id changes every time the same variance is
+        // recomputed. Keying on it minted a fresh notification plus its recipient rows on every recompute,
+        // forever. Measured on tenant 207 before this fix: 118,902 variance notifications in 9 days, of
+        // which 118,491 pointed at a flag that no longer existed, accumulating ~3.6 MB/day (~1.3 GB/year).
+        // The natural key is stable across delete/re-insert, so a recompute now re-raises the SAME row and
+        // increments finding_count instead of appending another one.
+        dl_raiseIntegrityNotification(
+            $db,
+            'variance-b' . $branchId . '-p' . $productId . '-' . $date . '-' . $kind . '-' . ($shift ?? 'any'),
+            'variance',
+            $branchId,
+            'dl_variance_flags',
+            $flagId,
+            'Inventory variance surfaced',
+            'Variance flag #' . $flagId . ' requires investigation before correction.'
+        );
     }
 }
 
