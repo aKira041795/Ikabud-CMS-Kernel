@@ -19,9 +19,17 @@ declare(strict_types=1);
  * It needs a superadmin session on the target host, so run it where that session can be created.
  * Credentials come from the environment and are never echoed, logged, or written to disk.
  *
- * Usage:
- *   PERF_USER=superadmin PERF_PASS='...' \
- *     php tools/perf-sample.php --base=https://kernelappos.ikabudkernel.com --samples=8
+ * Usage — PREFER THE `read -s` FORM. Putting the password on the command line puts it in your shell
+ * history and in the process list, and a single line of terminal output can carry it into a
+ * transcript where it cannot be un-sent. That happened on 2026-10-10 with this very script.
+ *
+ *   read -rs -p "perf password: " PERF_PASS && export PERF_PASS
+ *   PERF_USER=<user> php tools/perf-sample.php \
+ *     --base=https://kernelappos.ikabudkernel.com --samples=8 --out=/tmp/perf.txt
+ *   unset PERF_PASS
+ *
+ * --out writes the same table to a file, so a run does not have to be repeated (nor the password
+ * re-entered) just to be read. The file contains phase timings only - never a credential.
  *
  * Local:
  *   PERF_USER=superadmin PERF_PASS='...' \
@@ -43,6 +51,7 @@ function argValue(array $argv, string $name, ?string $default = null): ?string
 $base = rtrim((string)argValue($argv, '--base', ''), '/');
 $samples = (int)argValue($argv, '--samples', '8');
 $hostHeader = argValue($argv, '--host-header');
+$out = argValue($argv, '--out');
 $user = (string)(getenv('PERF_USER') ?: '');
 $pass = (string)(getenv('PERF_PASS') ?: '');
 
@@ -162,12 +171,12 @@ if ($readings === 0) {
 }
 
 // ── report ──────────────────────────────────────────────────────────────────────────────────────
-printf("%s  —  %d reading(s)\n\n", $base, $readings);
-printf("%-20s%12s%12s%12s%10s\n", 'metric', 'median', 'min', 'max', 'n');
+$report = sprintf("%s  —  %d reading(s)\n\n", $base, $readings);
+$report .= sprintf("%-20s%12s%12s%12s%10s\n", 'metric', 'median', 'min', 'max', 'n');
 foreach ($metrics as $name => $_) {
     $series = $values[$name];
     if ($series === []) {
-        printf("%-20s%12s%12s%12s%10s\n", $name, '-', '-', '-', '0');
+        $report .= sprintf("%-20s%12s%12s%12s%10s\n", $name, '-', '-', '-', '0');
         continue;
     }
     sort($series);
@@ -175,17 +184,31 @@ foreach ($metrics as $name => $_) {
     $median = $count % 2
         ? $series[intdiv($count, 2)]
         : ($series[$count / 2 - 1] + $series[$count / 2]) / 2;
-    printf("%-20s%12.3f%12.3f%12.3f%10d\n", $name, $median, $series[0], $series[$count - 1], $count);
+    $report .= sprintf("%-20s%12.3f%12.3f%12.3f%10d\n", $name, $median, $series[0],
+        $series[$count - 1], $count);
 }
 
 if ($missing !== []) {
-    echo "\nnot reported by this host (instrumentation absent or phase never marked):\n";
+    $report .= "\nnot reported by this host (instrumentation absent or phase never marked):\n";
     foreach (array_keys($missing) as $name) {
-        echo "  - {$name}\n";
+        $report .= "  - {$name}\n";
     }
-    echo "\nIf boot_fastpath / boot_bootstrap / boot_requires / route_match_sort are listed here, the\n";
-    echo "deployment does not include the 2026-10-10 instrumentation (commits c93446db, aef943d0).\n";
+    $report .= "\nIf boot_fastpath / boot_bootstrap / boot_requires / route_match_sort are listed\n";
+    $report .= "here, the deployment does not include the 2026-10-10 instrumentation\n";
+    $report .= "(commits c93446db, aef943d0).\n";
 }
 
-echo "\nA median without its range is not evidence. Compare median AND range between two runs; if the\n";
-echo "ranges overlap, the difference is not established.\n";
+$report .= "\nA median without its range is not evidence. Compare median AND range between two runs;\n";
+$report .= "if the ranges overlap, the difference is not established.\n";
+
+echo $report;
+
+// --out exists so a run does not have to be repeated to be read: the numbers land in a file the
+// same way they land on the terminal. Contains no credentials - only phase timings.
+if ($out !== null && $out !== '') {
+    if (@file_put_contents($out, $report) === false) {
+        fwrite(STDERR, "perf-sample: could not write {$out}\n");
+        exit(2);
+    }
+    fwrite(STDERR, "written: {$out}\n");
+}
