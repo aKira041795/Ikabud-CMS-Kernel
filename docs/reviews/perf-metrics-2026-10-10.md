@@ -202,11 +202,25 @@ the row that distinguishes warm from cold.
 
 **Two traps hit while measuring, both worth repeating:**
 
-1. **`write_log()` from a WEB request writes nothing, silently.** `storage/logs/app.log` is
-   `-rw-rw-r-- kajagogoo:kajagogoo` and the web user is `uid=33(www-data) groups=33(www-data)` — not
-   the owner and not in that group, so `@file_put_contents` (`bootstrap.php:747`) fails invisibly.
-   Any "0 new log lines" check made against a curl/web request is therefore **vacuous**; CLI-run
-   tests are unaffected. Write probes to a new file in `storage/logs/` (the directory is 777) instead.
-2. **OPcache `revalidate_freq=2`** means a newly patched PHP file is not served for ~2 s. A probe
+1. **`write_log()` from a WEB request wrote nothing, silently — fixed 2026-10-10.** `app.log` was
+   `-rw-rw-r-- kajagogoo:kajagogoo` while the web user is `uid=33(www-data) groups=33(www-data)` —
+   not the owner and not in that group — so `@file_put_contents` (`bootstrap.php:747`) failed
+   invisibly. Every "0 new log lines" check made against a curl/web request **before** the fix is
+   therefore **vacuous**; CLI-run tests are unaffected.
+   - Proven, not inferred: `write_log()` from a web request produced 0 lines, while a plain write to
+     a **new** file in the same directory (which is 777) produced 22. The directory was never the
+     problem — only the file's mode.
+   - **Mode fixed on this host** (`666`, matching `error.log`, and matching the directory's existing
+     777 so the delta is nil). This is **host state, not code** — it is not in git, so a deploy or
+     rotation that recreates the file can regress it.
+   - **Guard added** (`926829a7`): a failed append now reports itself once per request via
+     `error_log()`. Verified both directions — `chmod 444` gave 3 attempts / 3 messages / 0 lines
+     written; a writable target gave 1 line and 0 messages.
+2. **`error_log()` does not go to stderr here.** `bootstrap.php:70` calls
+   `ini_set('error_log', STORAGE_PATH . '/logs/error.log')`, so anything written with `error_log()`
+   after bootstrap lands in `storage/logs/error.log`. A probe that watches stderr will report such a
+   guard as **not firing when it is working** — which is how this guard was nearly mis-diagnosed as
+   broken. Check `error.log`, not stderr.
+3. **OPcache `revalidate_freq=2`** means a newly patched PHP file is not served for ~2 s. A probe
    must warm with real requests and *verify the file appears* before collecting, or it reports zero
    samples for a reason that has nothing to do with the code under test.
