@@ -55,8 +55,15 @@ echo "--- name contract ---\n";
 mscAssert('the cache file name embeds the fingerprint', str_contains(basename($file), $fingerprint));
 mscAssert(
     'the payload is not stored as executable PHP',
-    str_ends_with($file, '.cache'),
+    !str_ends_with($file, '.php'),
     'a .php cache file could be executed if the directory were ever exposed'
+);
+mscAssert(
+    'the payload does NOT use the .cache extension',
+    !str_ends_with($file, '.cache'),
+    'Cache::getAllCachedFiles() globs */\*.cache and would apply ITS expiry rule to this file, '
+    . 'which has no _cache_expires_at - so the hourly sweep would delete this ~350 KB cache every '
+    . 'hour (measured 2026-10-11 on a live install)'
 );
 mscAssert(
     'a different fingerprint selects a different file',

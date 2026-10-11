@@ -4905,7 +4905,8 @@ MD;
                 . '  ->  php ikabud cache:prune');
             out('      ' . dim('Retention is bounded automatically (hourly sweep). A cron entry is'));
             out('      ' . dim('optional and only reclaims expiry space sooner:'));
-            out('      ' . dim('  15 4 * * *  cd <app-root> && php ikabud cache:prune >/dev/null 2>&1'));        } catch (\Throwable $e) {
+            out('      ' . dim('  15 4 * * *  cd <app-root> && php ikabud cache:prune >/dev/null 2>&1'));
+        } catch (\Throwable $e) {
             out('  ' . yellow('!') . ' expired scan unavailable: ' . $e->getMessage());
         }
         out('');
@@ -5071,7 +5072,7 @@ MD;
         if (!$disylOnly && !$apcuOnly) {
             $scanCleared = 0;
             $scanFailed = [];
-            foreach (glob(STORAGE_PATH . '/cache/kernel/modules_*.cache') ?: [] as $scanFile) {
+            foreach (glob(STORAGE_PATH . '/cache/kernel/modules_*') ?: [] as $scanFile) {
                 if (@unlink($scanFile)) {
                     $scanCleared++;
                 } else {

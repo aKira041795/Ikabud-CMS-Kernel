@@ -55,7 +55,22 @@ $instance = pageCacheInstance();
 $uri = '/__page-cache-invalidation-test__';
 $key = pageCacheKey($uri);
 
-echo "instance: {$instance}\n\n";
+// ── Test-owned fixture instances ──────────────────────────────────────────────
+// `pageCacheInstanceNames()` globs `<base>_t*` DIRECTORIES. On a machine with no tenant
+// cache dirs - the normal state after `php ikabud cache:clear`, which removes them - the
+// tenant-coverage assertion at (d) degenerates: `$expectedTenants` is empty and
+// `array_diff([], [])` is trivially true. Section (g) then prints "the ordering guard is
+// vacuous here" and skips itself. A guard that cannot fail is worse than no guard because
+// it is trusted, so create the instances this test needs rather than inheriting whatever
+// happens to be on disk. Removed again in the teardown below.
+$fixtureBase = defined('PAGE_CACHE_INSTANCE') ? (string)PAGE_CACHE_INSTANCE : 'pagecache';
+$fixtureInstances = [$fixtureBase . '_t901', $fixtureBase . '_t902'];
+foreach ($fixtureInstances as $fixtureInstance) {
+    @mkdir(STORAGE_PATH . '/cache/' . $fixtureInstance, 0775, true);
+}
+
+echo "instance: {$instance}\n";
+echo 'fixture instances: ' . implode(', ', $fixtureInstances) . "\n\n";
 
 // ── Baseline: a written entry is served ───────────────────────────────────────
 app()->cache()->clearByUrlPattern($instance, $uri);
@@ -158,8 +173,14 @@ if ($tenantInstances === []) {
 } else {
     foreach ($tenantInstances as $inst) {
         $dir = STORAGE_PATH . '/cache/' . $inst;
-        foreach (glob($dir . '/*') ?: [] as $file) {
-            @unlink($file);
+        // GLOB_BRACE for `.*` is required: the purge writes `.cache_version` and `.flush`,
+        // and plain `glob('dir/*')` does not match dotfiles, so those two survive and the
+        // rmdir below fails silently - leaving the directory in place while this section
+        // claims to have removed it.
+        foreach (glob($dir . '/{*,.*}', GLOB_BRACE) ?: [] as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
         }
         @rmdir($dir);
     }
@@ -185,6 +206,19 @@ if ($tenantInstances === []) {
 pciAssert('a purged entry is no longer served', pageCacheGet($uri) === null);
 
 app()->cache()->clearByUrlPattern($instance, $uri);
+
+// ── Teardown: remove only the fixture instances this test created ─────────────
+// Section (g) already deletes them; tolerate that. Never touch a real tenant's directory -
+// only the two names this test minted.
+foreach ($fixtureInstances as $fixtureInstance) {
+    $fixtureDir = STORAGE_PATH . '/cache/' . $fixtureInstance;
+    foreach (glob($fixtureDir . '/{*,.*}', GLOB_BRACE) ?: [] as $fixtureFile) {
+        if (is_file($fixtureFile)) {
+            @unlink($fixtureFile);
+        }
+    }
+    @rmdir($fixtureDir);
+}
 
 echo "\n============================================================\n";
 echo "Page cache invalidation tests: {$passed} passed, {$failed} failed\n";

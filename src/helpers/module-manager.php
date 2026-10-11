@@ -1745,7 +1745,21 @@ function moduleScanSharedCacheFile(string $fingerprint): string
         : (defined('BASE_PATH') ? BASE_PATH . '/storage' : dirname(__DIR__, 2) . '/storage');
     $safe = preg_replace('/[^A-Za-z0-9_.\-]/', '', $fingerprint);
 
-    return rtrim($storage, '/') . '/cache/kernel/modules_' . ($safe !== '' ? $safe : 'nofp') . '.cache';
+    // NOT `.cache`, deliberately.
+    //
+    // `Cache::getAllCachedFiles()` globs `<cacheDir>/*/*.cache`, and `Cache::sweepExpiredCacheFiles()`
+    // then applies ITS OWN freshness rule to whatever it finds. This file is written by this class and
+    // carries its own model - a `_fingerprint` that is revalidated on every read, plus the age-gated
+    // stale cleanup below - and it has no `_cache_expires_at`. Under a `.cache` name the sweep finds no
+    // expiry stamp, concludes `$expiresAt === 0` means prunable, and deletes this ~350 KB hot cache on
+    // every hourly sweep (measured 2026-10-11 on a live install: 351,306 of 388,305 reclaimable bytes
+    // were this one file). Safe, since it is rebuilt on demand, but it threw away the scan the cache
+    // exists to avoid.
+    //
+    // The rule this restores: a cache that is not a `Cache` instance must not carry an extension that
+    // `Cache` globs. `.scan` is still not executable PHP, which is the property that matters for
+    // leaving it under a served directory.
+    return rtrim($storage, '/') . '/cache/kernel/modules_' . ($safe !== '' ? $safe : 'nofp') . '.scan';
 }
 
 /**
@@ -1843,7 +1857,9 @@ function moduleScanSharedCacheWrite(string $fingerprint, array $modules): bool
     // fingerprint either side of a deploy) delete each other's publication. Age-gating keeps the
     // growth bounded without that race.
     $staleCutoff = time() - 3600;
-    foreach (glob($dir . '/modules_*.cache') ?: [] as $stale) {
+    // Also matches the legacy `modules_*.cache` name so an upgrade cleans up the file that the old
+    // build wrote (and that Cache's sweep would otherwise keep deleting).
+    foreach (glob($dir . '/modules_*') ?: [] as $stale) {
         if ($stale === $file) {
             continue;
         }
