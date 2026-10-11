@@ -13291,6 +13291,105 @@ function handleAdminReportMonthEndExport(array $params = []): void { dl_handleAd
 function handleAdminReportCategorySalesExport(array $params = []): void { dl_handleAdminReportExport('category-sales'); }
 function handleAdminReportDataIntegrityExport(array $params = []): void { dl_handleAdminReportExport('data-integrity'); }
 
+/**
+ * Production Efficiency - its own read-only surface, a peer of Health /
+ * Products / Forecast / Reports.
+ *
+ * Produced and wasted come from dl_commissary_product_ledger (produced_qty /
+ * wastage_qty, migration 037); sold from dl_daily_ledger through the same
+ * quantity expression the product ranking sums. The view names the unit and
+ * the official/provisional basis, and never treats generated remaining_qty as
+ * waste. The production-vs-pullout control is a GET param on this page; the
+ * pullout lens uses the existing withdrawal reason vocabulary.
+ */
+function handleAdminProductionEfficiency(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+
+    // Same read-only gate as Health / Products / Reports: the owner reviews as
+    // `viewer`, so a viewer must render without an authorisation refusal.
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
+    $role = (string)($user['role'] ?? '');
+    $input = $ctx->input();
+
+    // Reuse the report filter contract for date normalisation/limits, branch
+    // authorisation, and the area/branch intersection; do not assemble a second
+    // scope consumer. Units follow the product ranking (a provisional row
+    // contributes units); money is official-only and this view shows none.
+    $filters = dl_reportFilters($input, $user);
+    $filters['pending_rows_mode'] = 'include';
+
+    // The production-vs-pullout filter. GET only, on the same page; unknown
+    // values fall back to the default so a tampered request cannot pick a fourth
+    // state. The template carries scope/branch/date through it.
+    $movementView = strtolower(trim((string)($input['movement_view'] ?? 'production')));
+    if (!in_array($movementView, ['production', 'pullout', 'all'], true)) {
+        $movementView = 'production';
+    }
+
+    $db = $ctx->db();
+    $data = dl_productionEfficiencyData($db, $filters);
+
+    $dateFrom = (string)($filters['date_from'] ?? '');
+    $dateTo = (string)($filters['date_to'] ?? '');
+    $periodLabel = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
+    // Requested-period length, and whether the production ledger actually spans
+    // it. A ratio of period sales to a narrower production window is not an
+    // efficiency; the template states this instead of printing the raw overlap.
+    $periodDays = 0;
+    try {
+        $periodDays = (int)(new DateTimeImmutable($dateFrom))->diff(new DateTimeImmutable($dateTo))->days + 1;
+    } catch (Throwable) {
+        $periodDays = 0;
+    }
+    $coverageComplete = $data['production_days'] > 0
+        && $data['production_min_date'] !== null
+        && $data['production_min_date'] <= $dateFrom
+        && $data['production_max_date'] >= $dateTo;
+
+    echo dlRender('modules/daily-ledger/admin/production-efficiency.disyl', [
+        'page_title' => 'Production Efficiency',
+        'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
+        'user_role' => $role,
+        'current_page' => 'production-efficiency',
+        // Opt into the shared Area scope so the control renders for admin/viewer.
+        'admin_area_filter' => true,
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'filters' => $filters,
+        'view_scope' => (string)($filters['view_scope'] ?? 'ALL'),
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'period_label' => $periodLabel,
+        'branch_id' => (int)($filters['branch_id'] ?? 0),
+        'branches' => dl_reportFilterBranches($db, $filters),
+        'movement_view' => $movementView,
+        'produced' => (int)$data['produced'],
+        'sold' => (int)$data['sold'],
+        'wasted' => (int)$data['wasted'],
+        'dispatched' => (int)$data['dispatched'],
+        'beg' => (int)$data['beg'],
+        'net_remaining' => (int)$data['net_remaining'],
+        'book_balance' => (int)$data['book_balance'],
+        'counted_variance' => (int)$data['counted_variance'],
+        'efficiency_pct' => $data['efficiency_pct'],
+        'wastage_rate_pct' => $data['wastage_rate_pct'],
+        'efficiency_available' => $data['efficiency_pct'] !== null,
+        'wastage_rate_available' => $data['wastage_rate_pct'] !== null,
+        'efficiency_exceeds' => $data['efficiency_pct'] !== null && $data['efficiency_pct'] > 100,
+        'coverage_complete' => $coverageComplete,
+        'period_days' => $periodDays,
+        'production_days' => (int)$data['production_days'],
+        'production_min_date' => $data['production_min_date'],
+        'production_max_date' => $data['production_max_date'],
+        'products' => $data['products'],
+        'product_count' => count($data['products']),
+        'pullout_rows' => $data['pullout_rows'],
+        'pullout_totals' => $data['pullout_totals'],
+    ]);
+}
+
 function handleAdminForecast(array $params = []): void
 {
     $ctx = module();

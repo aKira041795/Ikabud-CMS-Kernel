@@ -1954,3 +1954,313 @@ function dl_overviewForecastSummary(array $forecastRows, string $period = 'daily
         'total_units' => array_sum(array_map(static fn(array $product): int => (int)$product['projected_units'], $products)),
     ];
 }
+
+// ─── Production Efficiency (own view) ───────────────────────────────────
+// Read-only aggregates for /daily-ledger/admin/production-efficiency. All SQL
+// is set-based and MySQL 5.7 compatible (no CTE, window function, or JSON_TABLE).
+
+/**
+ * How a pullout/return reason maps onto the efficiency panel.
+ *
+ * This is deliberately NOT a new vocabulary: it labels the result of
+ * dl_classifyPulloutReturnReason(), which is the module's existing owner-ruling
+ * on what counts as loss. 'wastage' is spoilage/damage; 'consumed_no_delta' is
+ * goods consumed at the branch (staff meal, sampling, testing, promo, donation)
+ * that never came back; everything else returned saleable stock.
+ */
+function dl_productionEfficiencyClassificationLabel(string $classification): string
+{
+    return match ($classification) {
+        'wastage' => 'Wastage (spoilage/damage)',
+        'consumed_no_delta' => 'Consumed at branch (not waste, not stock)',
+        default => 'Returned saleable (back to stock)',
+    };
+}
+
+/**
+ * Production efficiency aggregates for the selected period and scope.
+ *
+ * READ-ONLY. The columns already exist and the invariant is already in the code:
+ *   - produced_qty / wastage_qty / remaining_qty (migration 037)
+ *   - beg_qty / actual_end_qty / calc_variance (migration 064)
+ *   - the balance is beg_qty + produced_qty - dispatched_qty - wastage_qty
+ *   - sales units are read through dl_ledgerSalesQuantitySql(), the SAME integer
+ *     quantity the product ranking sums
+ *
+ * All quantities are INTEGERS IN ONE UNIT (pieces), so sold/produced and
+ * wastage/produced are real ratios.
+ *
+ * remaining_qty is a GENERATED column equal to produced - dispatched - wastage.
+ * It is STOCK, never waste; the wastage rate divides by PRODUCED, never by it.
+ *
+ * A ratio is only computed when produced > 0. A row that cannot support one
+ * carries an explicit state string instead of a 0 that would read as failure.
+ *
+ * @param array<string,mixed> $filters dl_reportFilters() output
+ * @return array<string,mixed>
+ */
+function dl_productionEfficiencyData(DatabaseContract $db, array $filters): array
+{
+    $empty = [
+        'produced' => 0,
+        'sold' => 0,
+        'wasted' => 0,
+        'dispatched' => 0,
+        'beg' => 0,
+        'net_remaining' => 0,
+        'book_balance' => 0,
+        'counted_variance' => 0,
+        'efficiency_pct' => null,
+        'wastage_rate_pct' => null,
+        'production_min_date' => null,
+        'production_max_date' => null,
+        'production_days' => 0,
+        'products' => [],
+        'pullout_rows' => [],
+        'pullout_totals' => ['wastage_qty' => 0, 'consumed_qty' => 0, 'saleable_qty' => 0, 'movements' => 0],
+    ];
+
+    $ids = array_values(array_filter(
+        array_map('intval', $filters['accessible_branch_ids'] ?? []),
+        static fn(int $id): bool => $id > 0
+    ));
+    if (($filters['branch_id'] ?? 0) > 0) {
+        $ids = in_array((int)$filters['branch_id'], $ids, true) ? [(int)$filters['branch_id']] : [];
+    }
+    if ($ids === []) {
+        return $empty;
+    }
+
+    $dateFrom = (string)($filters['date_from'] ?? '');
+    $dateTo = (string)($filters['date_to'] ?? '');
+    $productId = (int)($filters['product_id'] ?? 0);
+    $shift = strtoupper(trim((string)($filters['shift'] ?? '')));
+    if (!in_array($shift, ['AM', 'PM'], true)) {
+        $shift = '';
+    }
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+
+    // ── Production side, per product ──
+    $prodSql = "SELECT cpl.product_id, p.name AS product_name, p.sku,
+                       COALESCE(SUM(cpl.beg_qty), 0) AS beg_qty,
+                       COALESCE(SUM(cpl.produced_qty), 0) AS produced_qty,
+                       COALESCE(SUM(cpl.dispatched_qty), 0) AS dispatched_qty,
+                       COALESCE(SUM(cpl.wastage_qty), 0) AS wastage_qty,
+                       COALESCE(SUM(cpl.remaining_qty), 0) AS remaining_qty,
+                       COALESCE(SUM(CASE WHEN cpl.actual_end_qty IS NOT NULL THEN cpl.calc_variance ELSE 0 END), 0) AS counted_variance
+                  FROM dl_commissary_product_ledger cpl
+                  INNER JOIN dl_products p ON p.id = cpl.product_id
+                 WHERE cpl.ledger_date BETWEEN ? AND ?
+                   AND cpl.commissary_branch_id IN ({$marks})";
+    $prodBind = array_merge([$dateFrom, $dateTo], $ids);
+    if ($productId > 0) {
+        $prodSql .= ' AND cpl.product_id = ?';
+        $prodBind[] = $productId;
+    }
+    if ($shift !== '') {
+        $prodSql .= ' AND cpl.shift = ?';
+        $prodBind[] = $shift;
+    }
+    $prodSql .= ' GROUP BY cpl.product_id, p.name, p.sku';
+    $prodStmt = $db->prepare($prodSql);
+    $prodStmt->execute($prodBind);
+    $prodRows = $prodStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // The production ledger's own date coverage. The efficiency ratio compares
+    // the selected period's SALES with the days that actually carry output
+    // records; when those windows differ (a newly enabled production ledger, or
+    // a branch with no production rows), the ratio is NOT period-matched and the
+    // view must say so rather than print a percentage that looks like an
+    // efficiency. Measured on tenant 207: production rows cover 4 days of a
+    // 41-day period, so raw sold/produced reads 1162%.
+    $coverageSql = "SELECT MIN(cpl.ledger_date) AS min_date,
+                           MAX(cpl.ledger_date) AS max_date,
+                           COUNT(DISTINCT cpl.ledger_date) AS days
+                      FROM dl_commissary_product_ledger cpl
+                     WHERE cpl.ledger_date BETWEEN ? AND ?
+                       AND cpl.commissary_branch_id IN ({$marks})";
+    $coverageBind = array_merge([$dateFrom, $dateTo], $ids);
+    if ($productId > 0) {
+        $coverageSql .= ' AND cpl.product_id = ?';
+        $coverageBind[] = $productId;
+    }
+    if ($shift !== '') {
+        $coverageSql .= ' AND cpl.shift = ?';
+        $coverageBind[] = $shift;
+    }
+    $coverageStmt = $db->prepare($coverageSql);
+    $coverageStmt->execute($coverageBind);
+    $coverage = $coverageStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $productionMinDate = isset($coverage['min_date']) && $coverage['min_date'] !== null ? (string)$coverage['min_date'] : null;
+    $productionMaxDate = isset($coverage['max_date']) && $coverage['max_date'] !== null ? (string)$coverage['max_date'] : null;
+    $productionDays = (int)($coverage['days'] ?? 0);
+
+    // ── Sales side, per product (the ranking's own quantity expression) ──
+    $qty = dl_ledgerSalesQuantitySql('dl');
+    $salesSql = "SELECT dl.product_id, p.name AS product_name, p.sku,
+                        COALESCE(SUM({$qty}), 0) AS sold_qty
+                   FROM dl_daily_ledger dl
+                   INNER JOIN dl_products p ON p.id = dl.product_id
+                  WHERE dl.ledger_date BETWEEN ? AND ?
+                    AND dl.branch_id IN ({$marks})";
+    $salesBind = array_merge([$dateFrom, $dateTo], $ids);
+    if ($productId > 0) {
+        $salesSql .= ' AND dl.product_id = ?';
+        $salesBind[] = $productId;
+    }
+    if ($shift !== '') {
+        $salesSql .= ' AND dl.shift = ?';
+        $salesBind[] = $shift;
+    }
+    $salesSql .= ' GROUP BY dl.product_id, p.name, p.sku';
+    $salesStmt = $db->prepare($salesSql);
+    $salesStmt->execute($salesBind);
+    $salesRows = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $products = [];
+    $producedTotal = 0;
+    $wastedTotal = 0;
+    $dispatchedTotal = 0;
+    $begTotal = 0;
+    $netRemaining = 0;
+    $countedVariance = 0;
+    foreach ($prodRows as $row) {
+        $pid = (int)$row['product_id'];
+        $products[$pid] = [
+            'product_id' => $pid,
+            'product_name' => (string)($row['product_name'] ?? ''),
+            'sku' => (string)($row['sku'] ?? ''),
+            'produced' => (int)$row['produced_qty'],
+            'sold' => 0,
+            'wasted' => (int)$row['wastage_qty'],
+            'dispatched' => (int)$row['dispatched_qty'],
+            'net_remaining' => (int)$row['remaining_qty'],
+            'counted_variance' => (int)$row['counted_variance'],
+        ];
+        $producedTotal += (int)$row['produced_qty'];
+        $wastedTotal += (int)$row['wastage_qty'];
+        $dispatchedTotal += (int)$row['dispatched_qty'];
+        $begTotal += (int)$row['beg_qty'];
+        $netRemaining += (int)$row['remaining_qty'];
+        $countedVariance += (int)$row['counted_variance'];
+    }
+
+    // A product that SOLD but has no production row this period was produced in
+    // an earlier period. It must still appear, with produced = 0 and an explicit
+    // "not computable" state, rather than being dropped or shown as 0% failure.
+    foreach ($salesRows as $row) {
+        $pid = (int)$row['product_id'];
+        $sold = (int)$row['sold_qty'];
+        if (!isset($products[$pid])) {
+            $products[$pid] = [
+                'product_id' => $pid,
+                'product_name' => (string)($row['product_name'] ?? ''),
+                'sku' => (string)($row['sku'] ?? ''),
+                'produced' => 0,
+                'sold' => 0,
+                'wasted' => 0,
+                'dispatched' => 0,
+                'net_remaining' => 0,
+                'counted_variance' => 0,
+            ];
+        }
+        $products[$pid]['sold'] = $sold;
+    }
+
+    $soldTotal = 0;
+    foreach ($products as &$product) {
+        $soldTotal += (int)$product['sold'];
+        $produced = (int)$product['produced'];
+        if ($produced > 0) {
+            $product['efficiency_pct'] = round(((int)$product['sold']) / $produced * 100, 2);
+            $product['wastage_rate_pct'] = round(((int)$product['wasted']) / $produced * 100, 2);
+            $product['efficiency_state'] = '';
+            $product['wastage_state'] = '';
+            // Sales above this product's own output are real, but they are not
+            // attributable to this period's production; the row marks it rather
+            // than presenting >100% as an efficiency the product achieved.
+            $product['efficiency_exceeds'] = $product['efficiency_pct'] > 100;
+        } else {
+            $product['efficiency_pct'] = null;
+            $product['wastage_rate_pct'] = null;
+            $product['efficiency_state'] = (int)$product['sold'] > 0
+                ? 'not computable: sold units came from an earlier period'
+                : 'not computable: nothing produced in this period';
+            $product['wastage_state'] = 'not computable: nothing produced in this period';
+            $product['efficiency_exceeds'] = false;
+        }
+        $product['unit'] = 'pcs';
+    }
+    unset($product);
+    // Heaviest output first; a sale-only row (produced 0) sorts after real output.
+    usort($products, static function (array $a, array $b): int {
+        return [$b['produced'], $b['sold'], $a['product_name']] <=> [$a['produced'], $a['sold'], $b['product_name']];
+    });
+
+    // ── Pullout / unsellable movements, by the existing reason vocabulary ──
+    $pulloutRows = [];
+    $pulloutTotals = $empty['pullout_totals'];
+    $pullSql = "SELECT cw.product_id, p.name AS product_name, p.sku, cw.reason_code,
+                       COUNT(*) AS movements, COALESCE(SUM(cw.quantity), 0) AS qty
+                  FROM dl_cashier_withdrawals cw
+                  INNER JOIN dl_products p ON p.id = cw.product_id
+                 WHERE cw.ledger_date BETWEEN ? AND ?
+                   AND cw.branch_id IN ({$marks})
+                   AND cw.withdrawal_type = 'pullout'";
+    $pullBind = array_merge([$dateFrom, $dateTo], $ids);
+    if ($productId > 0) {
+        $pullSql .= ' AND cw.product_id = ?';
+        $pullBind[] = $productId;
+    }
+    if ($shift !== '') {
+        $pullSql .= ' AND cw.shift = ?';
+        $pullBind[] = $shift;
+    }
+    $pullSql .= ' GROUP BY cw.product_id, p.name, p.sku, cw.reason_code ORDER BY p.name ASC, qty DESC';
+    $pullStmt = $db->prepare($pullSql);
+    $pullStmt->execute($pullBind);
+    foreach ($pullStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $reason = (string)($row['reason_code'] ?? '');
+        $classification = dl_classifyPulloutReturnReason($reason);
+        $qty = (int)$row['qty'];
+        $pulloutRows[] = [
+            'product_id' => (int)$row['product_id'],
+            'product_name' => (string)($row['product_name'] ?? ''),
+            'sku' => (string)($row['sku'] ?? ''),
+            'reason_code' => $reason,
+            'reason_label' => $reason === '' ? 'Unspecified' : dlHumanizeToken($reason),
+            'classification' => $classification,
+            'classification_label' => dl_productionEfficiencyClassificationLabel($classification),
+            'movements' => (int)$row['movements'],
+            'qty' => $qty,
+        ];
+        $pulloutTotals['movements'] += (int)$row['movements'];
+        if ($classification === 'wastage') {
+            $pulloutTotals['wastage_qty'] += $qty;
+        } elseif ($classification === 'consumed_no_delta') {
+            $pulloutTotals['consumed_qty'] += $qty;
+        } else {
+            $pulloutTotals['saleable_qty'] += $qty;
+        }
+    }
+
+    return [
+        'produced' => $producedTotal,
+        'sold' => $soldTotal,
+        'wasted' => $wastedTotal,
+        'dispatched' => $dispatchedTotal,
+        'beg' => $begTotal,
+        // The production invariant already in the code: beg + produced - dispatched - wastage.
+        'net_remaining' => $netRemaining,
+        'book_balance' => $begTotal + $producedTotal - $dispatchedTotal - $wastedTotal,
+        'counted_variance' => $countedVariance,
+        'efficiency_pct' => $producedTotal > 0 ? round($soldTotal / $producedTotal * 100, 2) : null,
+        'wastage_rate_pct' => $producedTotal > 0 ? round($wastedTotal / $producedTotal * 100, 2) : null,
+        'production_min_date' => $productionMinDate,
+        'production_max_date' => $productionMaxDate,
+        'production_days' => $productionDays,
+        'products' => array_values($products),
+        'pullout_rows' => $pulloutRows,
+        'pullout_totals' => $pulloutTotals,
+    ];
+}

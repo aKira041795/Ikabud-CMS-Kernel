@@ -37,6 +37,9 @@ return [
         '/daily-ledger/admin/reports/data-integrity' => 'daily-ledger:handleAdminReportDataIntegrity',
         '/daily-ledger/admin/reports/data-integrity/export' => 'daily-ledger:handleAdminReportDataIntegrityExport',
         '/daily-ledger/admin/forecast'             => 'daily-ledger:handleAdminForecast',
+        // Production efficiency is its own read-only surface, a peer of Health / Products /
+        // Forecast / Reports (chair decision 2026-10-11). The forecast route above is untouched.
+        '/daily-ledger/admin/production-efficiency' => 'daily-ledger:handleAdminProductionEfficiency',
         '/daily-ledger/admin/products'             => 'daily-ledger:handleAdminProducts',
         '/daily-ledger/admin/products/export'      => 'daily-ledger:handleProductsCsvExport',
         // Product PERFORMANCE (analytical) is a separate page from product
