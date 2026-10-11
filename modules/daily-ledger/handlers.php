@@ -12474,10 +12474,12 @@ function handleAdminOverview(array $params = []): void
     // counted; the checkbox lets the viewer include them.
     $pendingRowsMode = dl_overviewPendingRowsMode($input['pending_rows'] ?? null);
 
-    $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
-    if (count($accessibleBranchIds) === 0) {
-        $accessibleBranchIds = [0];
-    }
+    // Reuse the report filter contract rather than assembling a fourth scope consumer inline.
+    // Overview-specific pending semantics are layered on below; branch visibility comes from the
+    // same dl_adminViewBranchIds() helper as reports and exports.
+    $filters = dl_reportFilters($input, $user);
+    $filters['pending_rows_mode'] = $pendingRowsMode;
+    $accessibleBranchIds = array_values(array_map('intval', $filters['accessible_branch_ids'] ?? [0]));
 
     // Branch selection narrows the displayed scope. An explicitly requested
     // branch that is not accessible yields an empty scope instead of widening
@@ -12506,16 +12508,6 @@ function handleAdminOverview(array $params = []): void
             }
         }
     }
-
-    $filters = [
-        'date_from' => $dateFrom,
-        'date_to' => $dateTo,
-        'branch_id' => $branchId,
-        'product_id' => 0,
-        'shift' => '',
-        'accessible_branch_ids' => $accessibleBranchIds,
-        'pending_rows_mode' => $pendingRowsMode,
-    ];
 
     // Overall product totals feed both the ranked tables and the Pareto
     // accumulation. Products with no completed sales are already excluded by the

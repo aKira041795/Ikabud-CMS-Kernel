@@ -85,6 +85,34 @@ $persistedScope = AdminAreaScope::resolve([], $session, $admin);
 $h->test('validated explicit AREA filters and persists when parameter is absent', $areaScope['branch_ids'] === $expectedArea && $persistedScope['value'] === $areaScope['value'], json_encode($areaScope));
 $reportFilters = dl_reportFilters(['scope' => 'AREA:' . $areaId], $admin);
 $h->test('displayed reports and their exports share the area branch criteria', $reportFilters['accessible_branch_ids'] === $expectedArea && ($reportFilters['view_scope'] ?? '') === 'AREA:' . $areaId, json_encode($reportFilters));
+
+// Every consumer must agree for the viewer too. This is deliberately behavioural: removing viewer
+// from the one predicate, bypassing dl_adminViewBranchIds() in report filters, or rebuilding the
+// Overview scope independently makes one of these sets differ and turns the guard red.
+$viewer = ['id' => 21, 'role' => 'viewer'];
+$viewerSession = [];
+$viewerResolved = AdminAreaScope::resolve(['scope' => 'AREA:' . $areaId], $viewerSession, $viewer);
+$viewerViewIds = dl_adminViewBranchIds($viewer, ['scope' => 'AREA:' . $areaId]);
+$viewerReportFilters = dl_reportFilters(['scope' => 'AREA:' . $areaId], $viewer);
+$h->test(
+    'resolver, view queries, and report/overview filters agree on the viewer area scope',
+    AdminAreaScope::appliesTo('viewer')
+        && $viewerResolved['branch_ids'] === $expectedArea
+        && $viewerViewIds === $expectedArea
+        && ($viewerReportFilters['accessible_branch_ids'] ?? []) === $expectedArea,
+    json_encode(['resolved' => $viewerResolved['branch_ids'], 'view' => $viewerViewIds, 'report' => $viewerReportFilters['accessible_branch_ids'] ?? []])
+);
+$areaScopeSource = (string)file_get_contents($base . '/modules/daily-ledger/helpers/admin-area-scope.php');
+$reportingScopeSource = (string)file_get_contents($base . '/modules/daily-ledger/helpers/reporting.php');
+$renderScopeSource = (string)file_get_contents($base . '/modules/daily-ledger/helpers.php');
+$h->test(
+    'the scoped role list has one owner and consumers do not hard-code it again',
+    substr_count($areaScopeSource . $reportingScopeSource . $renderScopeSource, "['admin', 'viewer']") === 1
+        && !str_contains($reportingScopeSource, 'AdminAreaScope::appliesTo(')
+        && !str_contains($renderScopeSource, '$scopedViewRoles')
+        && str_contains($reportingScopeSource, 'dl_adminViewBranchIds($user, $input)'),
+    'scoped role literals=' . substr_count($areaScopeSource . $reportingScopeSource . $renderScopeSource, "['admin', 'viewer']")
+);
 $commissaryId = (int)$db->query("SELECT id FROM dl_branches WHERE code = 'RIZAL-COMMIS1'")->fetchColumn();
 $networkScope = AdminAreaScope::resolve(['scope' => 'COMMISSARY:' . $commissaryId], $session, $admin);
 $expectedNetwork = array_map('intval', $db->query("SELECT id FROM dl_branches WHERE is_active = 1 AND (id = {$commissaryId} OR assigned_commissary_id = {$commissaryId}) ORDER BY id")->fetchAll(PDO::FETCH_COLUMN) ?: []);
@@ -191,13 +219,13 @@ try {
         $insertLedger->execute([$fixtureBranchId, $productId, dl_businessDate()]);
     }
 
-    $runView = static function (string $view, string $scope, string $markerA, string $markerB): array {
+    $runView = static function (string $view, string $scope, string $markerA, string $markerB, string $role = 'admin'): array {
         $output = [];
         $exit = 0;
         exec(
             escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/daily_ledger_admin_area_filters_harness.php')
             . ' ' . escapeshellarg($view) . ' ' . escapeshellarg($scope)
-            . ' ' . escapeshellarg($markerA) . ' ' . escapeshellarg($markerB) . ' 2>&1',
+            . ' ' . escapeshellarg($markerA) . ' ' . escapeshellarg($markerB) . ' ' . escapeshellarg($role) . ' 2>&1',
             $output,
             $exit
         );
@@ -220,6 +248,18 @@ try {
             json_encode([$areaAResult, $areaBResult])
         );
     }
+
+    // The viewer's actual product is Overview. Check below the filter form so a narrowed dropdown
+    // cannot make this pass while the business data remains unchanged.
+    $viewerAreaA = $runView('overview', 'AREA:' . (int)$areaFixtures[0]['id'], $branchNames[0], $branchNames[1], 'viewer');
+    $viewerAreaB = $runView('overview', 'AREA:' . (int)$areaFixtures[1]['id'], $branchNames[0], $branchNames[1], 'viewer');
+    $h->test(
+        'viewer Area selection changes the rendered Overview business rows, not only its dropdown',
+        $viewerAreaA['exit'] === 0 && $viewerAreaB['exit'] === 0
+            && !empty($viewerAreaA['data']['analytics_has_a']) && empty($viewerAreaA['data']['analytics_has_b'])
+            && empty($viewerAreaB['data']['analytics_has_a']) && !empty($viewerAreaB['data']['analytics_has_b']),
+        json_encode([$viewerAreaA, $viewerAreaB])
+    );
 
     $settingsA = $runView('settings', 'AREA:' . (int)$areaFixtures[0]['id'], $branchNames[0], $branchNames[1]);
     $settingsB = $runView('settings', 'AREA:' . (int)$areaFixtures[1]['id'], $branchNames[0], $branchNames[1]);

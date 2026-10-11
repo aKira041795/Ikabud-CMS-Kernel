@@ -1234,16 +1234,17 @@ function dlRender(string $template, array $context = []): string
     // payload so the cashier's entered full name shows beside the branch-shift
     // username. Non-fatal: on failure the layout falls back to user_name/role.
     $context = dl_navUserContext($context);
-    // Admin and viewer both browse every branch, so both get the per-view area scope. Operational
-    // roles are excluded on purpose: their scope is their assignment (dl_assignedBranchNetwork), and
-    // letting a view filter act as an authorization input for them is the bug this guards against.
-    $scopedViewRoles = ['admin', 'viewer'];
-    if (in_array(($context['user_role'] ?? ''), $scopedViewRoles, true)
+    // Ask the same predicate used by the resolver and every data consumer. Operational roles are
+    // excluded on purpose: their scope is their assignment (dl_assignedBranchNetwork), and a view
+    // filter must not become an authorization input for them.
+    $contextRole = (string)($context['user_role'] ?? '');
+    if (class_exists('AdminAreaScope')
+        && AdminAreaScope::appliesTo($contextRole)
         && !empty($context['admin_area_filter'])
         && function_exists('dl_adminAreaScope')) {
         $scopeUser = function_exists('dlUserFromRequest') ? (dlUserFromRequest() ?? []) : [];
-        if (!is_array($scopeUser) || !in_array(($scopeUser['role'] ?? ''), $scopedViewRoles, true)) {
-            $scopeUser = ['role' => (string)($context['user_role'] ?? 'admin'), 'id' => (int)($context['user_id'] ?? 0)];
+        if (!is_array($scopeUser) || !AdminAreaScope::appliesTo((string)($scopeUser['role'] ?? ''))) {
+            $scopeUser = ['role' => $contextRole, 'id' => (int)($context['user_id'] ?? 0)];
         }
         try {
             $context['admin_view_scope'] = dl_adminAreaScope($scopeUser);

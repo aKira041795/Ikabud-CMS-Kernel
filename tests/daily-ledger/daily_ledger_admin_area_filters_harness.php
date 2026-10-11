@@ -10,6 +10,7 @@ $view = (string)($argv[1] ?? 'branches');
 $scope = (string)($argv[2] ?? 'ALL');
 $markerA = (string)($argv[3] ?? '');
 $markerB = (string)($argv[4] ?? '');
+$role = (string)($argv[5] ?? 'admin');
 $_SERVER['HTTP_HOST'] = 'baronledger.test';
 $_SERVER['SERVER_NAME'] = 'baronledger.test';
 $_SERVER['REQUEST_URI'] = '/daily-ledger/admin/' . $view . '?scope=' . rawurlencode($scope);
@@ -22,9 +23,10 @@ $app->templates()->enableCompiledMode(false);
 require_once $base . '/src/helpers/module-manager.php';
 require_once $base . '/modules/daily-ledger/handlers.php';
 modulePushContext('daily-ledger');
+$actorId = $role === 'viewer' ? 21 : 1;
 $tokens = dl_generateAuthTokens([
-    'sub' => 'admin:1', 'id' => 1, 'username' => 'area-filter-admin',
-    'name' => 'Area Filter Admin', 'role' => 'admin', 'source' => 'daily-ledger',
+    'sub' => $role . ':' . $actorId, 'id' => $actorId, 'username' => 'area-filter-' . $role,
+    'name' => 'Area Filter ' . ucfirst($role), 'role' => $role, 'source' => 'daily-ledger',
 ]);
 $_COOKIE[dlCookieName()] = $tokens['token'];
 
@@ -45,6 +47,8 @@ ob_start();
 $handlers[$view]();
 $html = (string)ob_get_clean();
 $status = http_response_code();
+$formEnd = strpos($html, '</form>');
+$analytics = $formEnd === false ? $html : substr($html, $formEnd + 7);
 echo json_encode([
     'status' => is_int($status) ? $status : 200,
     // The canonical Area control moved from the layout banner into the shared partial
@@ -53,5 +57,7 @@ echo json_encode([
     'has_area_filter' => str_contains($html, 'id="admin-scope-filter"'),
     'has_a' => $markerA !== '' && str_contains($html, $markerA),
     'has_b' => $markerB !== '' && str_contains($html, $markerB),
+    'analytics_has_a' => $markerA !== '' && str_contains($analytics, $markerA),
+    'analytics_has_b' => $markerB !== '' && str_contains($analytics, $markerB),
     'row_count' => substr_count($html, '<tr'),
 ], JSON_THROW_ON_ERROR);

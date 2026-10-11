@@ -45,23 +45,14 @@ function dl_reportFilters(array $input, array $user): array
         $dateFrom = $to->modify('-' . (DL_REPORT_MAX_DAYS - 1) . ' days')->format('Y-m-d');
     }
 
+    // One presentation-scope consumer for reports, exports, and the Overview. Do not repeat the
+    // role predicate or the authorization/scope intersection here: that was how the viewer picker
+    // and report data were allowed to disagree.
     $accessible = array_values(array_unique(array_filter(
-        array_map('intval', dl_accessibleBranchIds($user)),
+        array_map('intval', dl_adminViewBranchIds($user, $input)),
         static fn(int $id): bool => $id > 0
     )));
     $viewScope = function_exists('dl_adminAreaScope') ? dl_adminAreaScope($user, $input) : ['type' => 'ALL', 'branch_ids' => [], 'value' => 'ALL'];
-    // THE THIRD GATE. Admin used to be hard-coded here as well as in AdminAreaScope::resolve() and
-    // dl_adminViewBranchIds(). On 2026-10-11 the viewer role was added to the other two and this one
-    // was missed, which is exactly what made the half-fix visible: the Area picker read "Dipolog" and
-    // the branch dropdown narrowed 22 -> 10, while every table and total stayed business-wide because
-    // they are built from accessible_branch_ids, which this predicate controls. All three now ask
-    // AdminAreaScope::appliesTo(), so the role list exists in one place.
-    if (AdminAreaScope::appliesTo((string)($user['role'] ?? '')) && ($viewScope['type'] ?? 'ALL') !== 'ALL') {
-        // This narrows report presentation only. The canonical authorization set
-        // above is computed first and is never replaced or persisted from scope.
-        $visible = array_map('intval', $viewScope['branch_ids'] ?? []);
-        $accessible = array_values(array_intersect($accessible, $visible));
-    }
     $requestedBranch = max(0, (int)($input['branch_id'] ?? 0));
     // Preserve an explicit inaccessible branch so the downstream IN + equality
     // predicates return no rows. Falling back to zero here would silently widen
