@@ -12897,6 +12897,175 @@ function handleAdminProductsPerformance(array $params = []): void
     $periodLabel = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
 
+    // --- Pareto pie (owner request 2026-10-11) ---------------------------------
+    // Slices are the biggest contributors BY CUMULATIVE SHARE. A contributor row carries a
+    // CUMULATIVE share, so one product's own slice is the step between it and the row above -
+    // treating cumulative_share as the slice size would overstate every product after the first.
+    // The wheel shows the top DL_PIE_SLICE_LIMIT contributors and folds everything else into one
+    // grey remainder slice. Measured: the 80% set is 30 products here, and 30 slices in a 176px
+    // wheel is unreadable - the full detail lives in the ranked list below, so the pie is the
+    // shape and the list is the detail. The remainder still makes the wheel reach 100%, so it
+    // never implies the shown slices are the whole business.
+    $piePalette = [
+        '#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444',
+        '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
+    ];
+    $pieSliceLimit = 10;
+    $pieSlices = [];
+    $pieColorByName = [];
+    // Both p.id and a normalised name are registered as lookup keys for each slice, because the
+    // Pareto helper's contributor rows and dl_overviewProductTotals' rows do not expose the same
+    // fields. Keying on one alone left every ranked row at data-slice-row="-1" (measured).
+    $pieIndexById = [];
+    $pieKeyOf = static function (array $row): string {
+        $id = (int)($row['id'] ?? $row['product_id'] ?? 0);
+        return $id > 0 ? 'id:' . $id : 'name:' . strtolower(trim((string)($row['name'] ?? '')));
+    };
+    $pieCursor = 0.0;
+    $pieShownAmount = 0.0;
+    $previousCumulative = 0.0;
+    foreach ($pareto['contributors'] as $pieContributor) {
+        if (count($pieSlices) >= $pieSliceLimit) {
+            break;
+        }
+        $cumulative = (float)($pieContributor['cumulative_share'] ?? 0);
+        $sliceShare = max(0.0, round($cumulative - $previousCumulative, 4));
+        $previousCumulative = $cumulative;
+        if ($sliceShare <= 0.0) {
+            continue;
+        }
+        $color = $piePalette[count($pieSlices) % count($piePalette)];
+        $pieName = (string)($pieContributor['name'] ?? '');
+        $pieColorByName[$pieName] = $color;
+        // The slice's own position is the index its wedge will carry: the wedge loop below walks
+        // this same array in order, including the 'Other' slice. Using $wedgeIndex here was wrong -
+        // that variable is not initialised until the later loop, so every entry stored null and
+        // every ranked row fell through to data-slice-row="-1" (measured).
+        $sliceIndex = count($pieSlices);
+        $pieIndexById[$pieKeyOf((array)$pieContributor)] = $sliceIndex;
+        $contributorId = (int)($pieContributor['id'] ?? $pieContributor['product_id'] ?? 0);
+        if ($contributorId > 0) {
+            $pieIndexById['id:' . $contributorId] = $sliceIndex;
+        }
+        $pieIndexById['name:' . strtolower(trim($pieName))] = $sliceIndex;
+        $pieAmount = (float)($pieContributor['amount'] ?? 0);
+        $pieShownAmount += $pieAmount;
+        $pieSlices[] = [
+            'name' => $pieName,
+            'amount' => $pieAmount,
+            'share' => $sliceShare,
+            'percent' => round($pieCursor + $sliceShare, 3),
+            'start' => round($pieCursor, 3),
+            'color' => $color,
+            'is_other' => false,
+        ];
+        $pieCursor += $sliceShare;
+    }
+    $pieShownCount = count($pieSlices);
+    $remainderShare = max(0.0, round(100.0 - $pieCursor, 4));
+    if ($remainderShare > 0.0) {
+        $pieSlices[] = [
+            'name' => 'Other products',
+            'amount' => max(0.0, $grandAmount - $pieShownAmount),
+            'share' => $remainderShare,
+            'percent' => round($pieCursor + $remainderShare, 3),
+            'start' => round($pieCursor, 3),
+            'color' => '#9ca3af',
+            'is_other' => true,
+        ];
+        $pieCursor += $remainderShare;
+    }
+    $pieStops = [];
+    $wedgeIndex = 0;
+    foreach ($pieSlices as &$pieSliceForWedge) {
+        $pieStops[] = $pieSliceForWedge['color'] . ' ' . $pieSliceForWedge['start'] . '% ' . $pieSliceForWedge['percent'] . '%';
+        // A conic-gradient cannot tell which slice the pointer is over, so each slice also gets an
+        // invisible SVG wedge laid over the wheel: that is the hover target and it carries the
+        // tooltip. Angles start at 12 o'clock and run clockwise, the same as conic-gradient, so the
+        // wedge lines up with the arc it covers.
+        $startPercent = (float)$pieSliceForWedge['start'];
+        $endPercent = (float)$pieSliceForWedge['percent'];
+        $startAngle = deg2rad(-90.0 + ($startPercent * 3.6));
+        $endAngle = deg2rad(-90.0 + ($endPercent * 3.6));
+        $largeArc = ($endPercent - $startPercent) > 50.0 ? 1 : 0;
+        $pieSliceForWedge['path'] = sprintf(
+            'M 50 50 L %.4f %.4f A 50 50 0 %d 1 %.4f %.4f Z',
+            50.0 + (50.0 * cos($startAngle)),
+            50.0 + (50.0 * sin($startAngle)),
+            $largeArc,
+            50.0 + (50.0 * cos($endAngle)),
+            50.0 + (50.0 * sin($endAngle))
+        );
+        $pieSliceForWedge['index'] = $wedgeIndex;
+        $pieSliceForWedge['tooltip'] = $pieSliceForWedge['is_other']
+            ? sprintf(
+                'Other products: %s%% of sales (PHP %s)',
+                number_format((float)$pieSliceForWedge['share'], 1),
+                number_format((float)$pieSliceForWedge['amount'], 2)
+            )
+            : sprintf(
+                '%s: %s%% of sales (PHP %s)',
+                (string)$pieSliceForWedge['name'],
+                number_format((float)$pieSliceForWedge['share'], 1),
+                number_format((float)$pieSliceForWedge['amount'], 2)
+            );
+        $wedgeIndex++;
+    }
+    unset($pieSliceForWedge);
+    $pieGradient = $pieStops === []
+        ? 'conic-gradient(#e5e7eb 0% 100%)'
+        : 'conic-gradient(' . implode(', ', $pieStops) . ')';
+    $pieAria = $pareto['has_data']
+        ? sprintf(
+            'Sales share in %s: top %d product(s) %s%%, all other products %s%%. Slice sizes follow cumulative share; the ranked list below holds every product.',
+            $periodLabel,
+            $pieShownCount,
+            number_format($pieCursor - $remainderShare, 1),
+            number_format($remainderShare, 1)
+        )
+        : 'No finalized product sales in ' . $periodLabel . ', so no share breakdown can be shown.';
+
+    // --- Full ranked contributor list, top contributor down to least ------------
+    // The Pareto table stops at the 80% line. The owner asked for the ranking end to end, so this
+    // renders the WHOLE ranked set and lets the two filters narrow it. The filters affect the LIST
+    // only - the pie stays the period's true concentration, or a filtered list would make it look
+    // as though the filtered rows were the whole business.
+    $listQuery = trim((string)($input['product_q'] ?? ''));
+    $listMinShare = is_numeric($input['min_share'] ?? null)
+        ? max(0.0, min(100.0, (float)$input['min_share']))
+        : 0.0;
+    $rankedRows = [];
+    $listRank = 0;
+    // Running cumulative share, accumulated in RANKING order and before any filtering: the
+    // cumulative value is a property of the whole ranking, so a filter must not change it. The
+    // per-row cumulative_share the Pareto helper computes is only on ITS contributor rows, so
+    // reading it here printed a false 0.00% for every row - a wrong number is worse than no column.
+    $runningShare = 0.0;
+    foreach ($rankedProducts as $rankedRow) {
+        $rowAmount = (float)($rankedRow['amount'] ?? 0);
+        $rowShare = $grandAmount > 0.0 ? ($rowAmount / $grandAmount) * 100.0 : 0.0;
+        $rowName = (string)($rankedRow['name'] ?? '');
+        $runningShare = min(100.0, $runningShare + $rowShare);
+        $rankedRow['share'] = round($rowShare, 3);
+        $rankedRow['cumulative_share'] = round($runningShare, 3);
+        $rankedRow['slice_color'] = $pieColorByName[$rowName] ?? '';
+        $rankedRow['slice_index'] = $pieIndexById[$pieKeyOf((array)$rankedRow)] ?? -1;
+        $rankedRow['is_contributor'] = isset($pieColorByName[$rowName]);
+        if ($listMinShare > 0.0 && $rowShare + 0.0005 < $listMinShare) {
+            continue;
+        }
+        if ($listQuery !== '') {
+            $haystack = strtolower(
+                $rowName . ' ' . (string)($rankedRow['sku'] ?? '') . ' ' . (string)($rankedRow['category'] ?? '')
+            );
+            if (!str_contains($haystack, strtolower($listQuery))) {
+                continue;
+            }
+        }
+        $rankedRow['rank'] = ++$listRank;
+        $rankedRows[] = $rankedRow;
+    }
+
     echo dlRender('modules/daily-ledger/admin/products-performance.disyl', [
         'page_title' => 'Products Overview',
         'user_name' => $userName,
@@ -12924,6 +13093,20 @@ function handleAdminProductsPerformance(array $params = []): void
         'sort_dir' => $sortDir,
         'sort_label' => dl_overviewSortLabel($sortBy, $sortDir),
         'pareto' => $pareto,
+        // Pareto pie + the full ranked list (owner request 2026-10-11). The pie is the period's
+        // true concentration; ranked_products is the whole ranking, narrowed by the two filters.
+        'pie_slices' => $pieSlices,
+        'pie_gradient' => $pieGradient,
+        'pie_aria' => $pieAria,
+        'pie_has_data' => (bool)$pareto['has_data'],
+        'pie_shown_count' => $pieShownCount,
+        'pie_shown_amount' => $pieShownAmount,
+        'pie_remainder_share' => $remainderShare,
+        'ranked_products' => $rankedRows,
+        'ranked_total' => count($rankedProducts),
+        'ranked_shown' => count($rankedRows),
+        'product_q' => $listQuery,
+        'min_share' => $listMinShare,
         'branch_products' => $branchProductTotals,
     ]);
 }

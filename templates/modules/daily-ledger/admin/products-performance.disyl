@@ -86,29 +86,94 @@
     {/if}
 </div>
 
+<!-- Pareto: the pie shows the biggest contributors to sales; the list below runs the whole ranking,
+     top contributor down to least, filterable. Slice sizes come from CUMULATIVE shares, so each
+     product's own slice is its step up the cumulative curve. -->
 <div class="card mb-6">
-    <div class="card-header"><span>Pareto 80/20</span><span class="text-sm text-muted">{pareto.contributor_share | number_format:1}% from {pareto.contributor_count} of {pareto.scope_count} products</span></div>
-    {if pareto.has_data}
-    <div class="card-body border-b border-gray-200 text-sm text-gray-700">
-        <p>{pareto.contributor_count} of {pareto.scope_count} products drive {pareto.contributor_share | number_format:1}% (PHP {pareto.contributor_amount | number_format:2}) of PHP {pareto.total_amount | number_format:2}. The remaining {pareto.bottom_count} product(s) contribute the rest.</p>
+    <div class="card-header"><span>Pareto 80/20 - biggest contributors to sales</span><span class="text-sm text-muted">{pareto.contributor_share | number_format:1}% from {pareto.contributor_count} of {pareto.scope_count} products</span></div>
+    {if pie_has_data}
+    <div class="card-body border-b border-gray-200">
+        <div class="flex flex-col gap-6 sm:flex-row sm:items-center">
+            <div class="w-full sm:w-1/3" role="img" aria-label="{pie_aria}">
+                <!-- border-radius needs !important: a global stylesheet rule pins 3px on these divs
+                     and a plain inline radius loses to it, which rendered the pie as a square fan
+                     (measured in the browser: computed 3px, inline 50%). -->
+                <div class="relative mx-auto w-full" id="dl-pie-wrap" style="aspect-ratio:1/1;max-width:420px">
+                    <div class="absolute inset-0 border border-gray-200" style="background:{pie_gradient};border-radius:50% !important;overflow:hidden"></div>
+                    <!-- A conic-gradient cannot report which slice the pointer is over, so each slice
+                         gets an invisible wedge here. The wedge IS the hover target and holds the
+                         tooltip; its angles match the gradient so it lines up with its own arc.
+                         aria-hidden because the aria-label above and the legend already describe it. -->
+                    <svg class="absolute inset-0 h-full w-full" viewBox="0 0 100 100" id="dl-pareto-pie" aria-hidden="true">
+                        {foreach pie_slices as s}
+                        <path class="dl-pie-wedge" d="{s.path}" data-slice="{s.index}" fill="#111827" fill-opacity="0" style="cursor:pointer;transition:fill-opacity .12s"><title>{s.tooltip}</title></path>
+                        {/foreach}
+                    </svg>
+                    <div id="dl-pie-tip" class="pointer-events-none absolute z-20 hidden -translate-x-1/2 rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-white shadow-lg"></div>
+                </div>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm text-gray-700">The top {pie_shown_count} of {ranked_total} products account for PHP {pie_shown_amount | number_format:2} of PHP {pareto.total_amount | number_format:2} in {period_label}. The grey slice is every other product: {pie_remainder_share | number_format:1}% of sales. Slice sizes follow the cumulative-share ranking.</p>
+                <p class="mt-2 text-xs text-gray-500">{pareto.contributor_count} products in total reach the 80% Pareto line, driving {pareto.contributor_share | number_format:1}% of sales; the list below ranks all {ranked_total}.</p>
+                <ul class="mt-4 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+                    {foreach pie_slices as s}
+                    <li class="flex items-center gap-2">
+                        <span class="inline-block h-3 w-3 shrink-0 rounded-sm border border-black/10" style="background:{s.color}"></span>
+                        <span class="truncate">{s.name}</span>
+                        <span class="ml-auto shrink-0 font-medium text-gray-700">{s.share | number_format:1}%</span>
+                    </li>
+                    {/foreach}
+                </ul>
+            </div>
+        </div>
     </div>
+    {/if}
+    {if pie_has_data == false}
+    <div class="card-body text-sm text-gray-500">No finalized product sales in {period_label}; the 80/20 concentration cannot be computed.</div>
+    {/if}
+</div>
+
+<div class="card mb-6">
+    <div class="card-header"><span>Products ranked, biggest contributor down to least</span><span class="text-sm text-muted">{ranked_shown} of {ranked_total} shown</span></div>
+    <form class="card-body border-b border-gray-200 grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end" method="GET" action="{base_url}/admin/products/performance" onsubmit="return window.dlLoadForm(this)">
+        <input type="hidden" name="scope" value="{view_scope}">
+        <input type="hidden" name="branch_id" value="{branch_id}">
+        <input type="hidden" name="date_from" value="{date_from}">
+        <input type="hidden" name="date_to" value="{date_to}">
+        <input type="hidden" name="sort_by" value="{sort_by}">
+        <input type="hidden" name="sort_dir" value="{sort_dir}">
+        <label class="block">
+            <span class="form-label">Find product</span>
+            <input class="form-input" type="search" name="product_q" value="{product_q}" placeholder="name, SKU or category">
+        </label>
+        <label class="block">
+            <span class="form-label">Minimum share of sales %</span>
+            <input class="form-input" type="number" name="min_share" min="0" max="100" step="0.5" value="{min_share}" placeholder="0">
+        </label>
+        <button class="btn btn-primary" type="submit">Filter</button>
+        <span class="text-xs text-gray-500">Filtering narrows this list only - the pie keeps showing the whole period.</span>
+    </form>
+    {if ranked_shown == 0}
+    <div class="card-body text-sm text-gray-500">No product matches this filter in {period_label}. Clear the filter to see all {ranked_total} product(s).</div>
+    {/if}
+    {if ranked_shown > 0}
     <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Product</th><th class="text-right">Amount</th><th class="text-right">Cumulative</th><th class="text-right">Cumulative share</th></tr></thead>
+        <thead><tr><th>#</th><th></th><th>Product</th><th>SKU</th><th class="text-right">Units</th><th class="text-right">Amount</th><th class="text-right">Share of sales</th><th class="text-right">Cumulative share</th></tr></thead>
         <tbody>
-        {foreach pareto.contributors as c}
-        <tr>
-            <td>{c.rank}</td>
-            <td class="font-medium text-gray-900">{c.name}</td>
-            <td class="text-right">PHP {c.amount | number_format:2}</td>
-            <td class="text-right">PHP {c.cumulative_amount | number_format:2}</td>
-            <td class="text-right">{c.cumulative_share | number_format:1}%</td>
+        {foreach ranked_products as p}
+        <tr data-product-row data-slice-row="{p.slice_index}">
+            <td>{p.rank}</td>
+            <td>{if p.is_contributor}<span class="inline-block h-3 w-3 rounded-sm border border-black/10" style="background:{p.slice_color}"></span>{/if}</td>
+            <td class="font-medium text-gray-900">{p.name}</td>
+            <td class="text-xs text-gray-600">{p.sku}</td>
+            <td class="text-right">{p.units}</td>
+            <td class="text-right">PHP {p.amount | number_format:2}</td>
+            <td class="text-right">{p.share | number_format:2}%</td>
+            <td class="text-right">{p.cumulative_share | number_format:2}%</td>
         </tr>
         {/foreach}
         </tbody>
     </table></div>
-    {/if}
-    {if pareto.has_data == false}
-    <div class="card-body text-sm text-gray-500">No finalized product sales in {period_label}; the 80/20 concentration cannot be computed.</div>
     {/if}
 </div>
 
@@ -140,4 +205,53 @@
     {/if}
 </div>
 {/foreach}
-{/block}
+
+  <!-- Hover a slice -> read its share, and the matching ranked row lights up. Progressive
+       enhancement: each wedge already carries a native <title> tooltip, so this only adds the
+       cross-highlight between the wheel and the ranked list.
+       The block below is wrapped in a literal wrapper: a bare `{` in CSS/JS is a DiSyL tag boundary,
+       and those braces swallowed the closing block tag, which broke the whole template
+       (measured: 1 opening, 0 closing). Do not write the tag name inside this comment. -->
+  {literal}
+  <style>
+      tr.dl-slice-active { background: #eef2ff !important; }
+      tr.dl-slice-active td { font-weight: 600; color: #312e81; }
+  </style>
+  <script>
+  (function () {
+      var pie = document.getElementById('dl-pareto-pie');
+      var tip = document.getElementById('dl-pie-tip');
+      if (!pie) { return; }
+      var highlight = function (index, on) {
+          pie.querySelectorAll('[data-slice="' + index + '"]').forEach(function (wedge) {
+              wedge.setAttribute('fill-opacity', on ? '0.22' : '0');
+          });
+          document.querySelectorAll('tr[data-slice-row="' + index + '"]').forEach(function (el) {
+              if (on) { el.classList.add('dl-slice-active'); } else { el.classList.remove('dl-slice-active'); }
+          });
+      };
+      pie.querySelectorAll('.dl-pie-wedge').forEach(function (wedge) {
+          var index = wedge.getAttribute('data-slice');
+          wedge.addEventListener('mouseenter', function () {
+              highlight(index, true);
+              if (tip) {
+                  var title = wedge.querySelector('title');
+                  tip.textContent = title ? title.textContent : '';
+                  tip.classList.remove('hidden');
+              }
+          });
+          wedge.addEventListener('mousemove', function (e) {
+              if (!tip || !tip.parentElement) { return; }
+              var box = tip.parentElement.getBoundingClientRect();
+              tip.style.left = Math.min(Math.max(e.clientX - box.left, 20), box.width - 20) + 'px';
+              tip.style.top = Math.max(e.clientY - box.top - 34, 4) + 'px';
+          });
+          wedge.addEventListener('mouseleave', function () {
+              highlight(index, false);
+              if (tip) { tip.classList.add('hidden'); }
+          });
+      });
+  })();
+  </script>
+  {/literal}
+  {/block}
