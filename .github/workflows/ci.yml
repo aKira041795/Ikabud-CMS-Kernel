@@ -22,7 +22,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo, pdo_mysql, mbstring, json, openssl, zip
+          extensions: pdo, pdo_mysql, mbstring, json, openssl, zip, apcu
           coverage: none
 
       - name: Install Composer dependencies
@@ -42,6 +42,23 @@ jobs:
           php tests/manifest_schema_v1_test.php
           php tests/manifest_validator_parity_test.php
           php tests/module_route_declaration_runtime_test.php
+
+      - name: Prove cache invalidation and generation contracts
+        # Cache correctness is a CROSS-PROCESS property: php-fpm runs 10..30 workers and APCu is
+        # per-worker, so a regression here is invisible in a single-process smoke test but serves
+        # stale content (or drops a purge) in production. These suites are the only guard for it.
+        run: |
+          php tests/page_cache_invalidation_test.php
+          php tests/fast_path_cache_contract_test.php
+          php tests/module_scan_cache_test.php
+          php tests/kernel_cache_prune_test.php
+          # -d apc.enable_cli=1 is REQUIRED for this one. php.ini defaults apc.enable_cli=0, and the
+          # test asserts APCu is live and fails loudly rather than passing vacuously, because its
+          # central case (a warm per-worker APCu entry must be rejected after another worker bumps
+          # the shared generation file) is meaningless with APCu switched off.
+          php -d apc.enable_cli=1 tests/cache_generation_test.php
+          php ikabud cache:stats > /dev/null
+          php ikabud cache:prune --dry-run
 
       - name: Prove canonical module lifecycle
         run: php scripts/golden-module-ci.php
