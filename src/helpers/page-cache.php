@@ -650,6 +650,65 @@ function pageCacheLockDir(): string
 }
 
 /**
+ * Remove page locks left behind by URIs that will not be locked again soon.
+ *
+ * `pageCacheLockAcquire()` writes one `<md5(uri)>.lock` per distinct cache-miss URI and nothing
+ * removes it: `pageCacheLockRelease()` only unlocks and closes. The files are 0 bytes, so they are
+ * invisible to every measure we have. `Cache::getAllCachedFiles()` globs `*.cache` and the
+ * retention sweep evicts to a BYTE budget - so a lock file is neither discovered nor, being 0
+ * bytes, ever evictable. Measured on a live install 2026-10-11: 239 files across 10 tenants with
+ * only a handful of pages actually exercised. On a public storefront, where every filter
+ * permutation is its own URI, growth is monotonic in inodes and unbounded in time.
+ *
+ * That matters more than the bytes suggest: exhausting the inode quota on shared hosting fails
+ * WRITES - logs, sessions, uploads - not just caching, and it never appears in a size report.
+ *
+ * Deletion is AGE-based rather than unlink-on-release. Unlinking on release is the standard flock
+ * trap: process A holds the lock on inode X, B opens the path and blocks on X, A unlinks the path
+ * and releases, C then creates a NEW file at that path (inode Y) and locks it immediately - so B
+ * and C each hold "the" lock and both build the page. Stampede protection would fail exactly under
+ * the load it exists for. Age-based deletion only races with a build that outlives $maxAgeSeconds,
+ * which a page render does not.
+ *
+ * @param int         $maxAgeSeconds Locks older than this are stale.
+ * @param string|null $lockDir       Override the directory. Used by tests so they can exercise this
+ *                                   against a directory they own; the live lock directory is created
+ *                                   by the web user and is legitimately not writable from the CLI.
+ * @return int Number of stale lock files removed.
+ */
+function pageCacheSweepStaleLocks(int $maxAgeSeconds = 3600, ?string $lockDir = null): int
+{
+    $lockDir = $lockDir ?? pageCacheLockDir();
+    if (!is_dir($lockDir)) {
+        return 0;
+    }
+
+    // Rate-limited to one sweep per $maxAgeSeconds. Without this the glob below would run on every
+    // cache miss; with it, a miss pays a single stat and the directory stays bounded.
+    $marker = $lockDir . '/.swept';
+    $markerAge = @filemtime($marker);
+    if ($markerAge !== false && $markerAge > time() - $maxAgeSeconds) {
+        return 0;
+    }
+    @touch($marker);
+
+    $cutoff = time() - $maxAgeSeconds;
+    $removed = 0;
+    foreach (glob($lockDir . '/*.lock') ?: [] as $lockFile) {
+        $lockMtime = @filemtime($lockFile);
+        // An unreadable mtime is not evidence of staleness, so leave it alone rather than delete a
+        // lock on a guess.
+        if ($lockMtime !== false && $lockMtime < $cutoff) {
+            if (@unlink($lockFile)) {
+                $removed++;
+            }
+        }
+    }
+
+    return $removed;
+}
+
+/**
  * Try to acquire a non-blocking exclusive lock for a page URI.
  *
  * @return resource|false|null  resource on success (caller must release),
@@ -662,6 +721,11 @@ function pageCacheLockAcquire(string $uri): mixed
     if (!is_dir($lockDir)) {
         @mkdir($lockDir, 0775, true);
     }
+
+    // Bound the directory here, at the one place that creates lock files. Opportunistic and
+    // self-maintaining: it needs no cron entry and no operator action, which is the same property
+    // the cache retention sweep has.
+    pageCacheSweepStaleLocks();
 
     $lockFile = $lockDir . '/' . md5($uri) . '.lock';
     $fp = @fopen($lockFile, 'c');

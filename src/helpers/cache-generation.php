@@ -258,8 +258,28 @@ function cacheGenerationStatsNoteReject(string $namespace): void
     cacheGenerationEnsureDir($dir);
     $fp = @fopen($file, 'c+');
     if ($fp === false) {
+        // Silent here is worse than loud. `cache:stats` renders a namespace that has no rejects as
+        // 0.00%, and an operator reads that as "invalidation is healthy" - so a counter that stopped
+        // recording is indistinguishable from a counter with nothing to record. The checks
+        // themselves are unaffected; only the metric is lost, which is exactly why it needs a signal.
+        static $loggedOpenFailure = false;
+        if (!$loggedOpenFailure) {
+            $loggedOpenFailure = true;
+            @error_log(
+                'cache-generation: cannot open the shared reject counter for writing: ' . $file
+                . ' - generation checks are still enforced, but the stale-rejection metric will not advance'
+            );
+        }
         return;
     }
+
+    // The deploy account and the web account are different users, and fopen() creates the file with
+    // the process umask (0644) - so whichever account writes first leaves a file the other can never
+    // write, and the metric silently freezes from that point on. The generations tree is deliberately
+    // shared for exactly this reason (see cacheGenerationEnsureDir, which chmods 0777 up to the root),
+    // and the counter file inside it has to be shared too.
+    @chmod($file, 0666);
+
     if (!flock($fp, LOCK_EX)) {
         fclose($fp);
         return;

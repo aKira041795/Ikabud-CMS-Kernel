@@ -68,6 +68,12 @@ $fixtureInstances = [$fixtureBase . '_t901', $fixtureBase . '_t902'];
 foreach ($fixtureInstances as $fixtureInstance) {
     @mkdir(STORAGE_PATH . '/cache/' . $fixtureInstance, 0775, true);
 }
+// The instances this test may write to: it created the fixtures, and it owns the base directory.
+// A REAL tenant instance (`pagecache_t1` and friends) belongs to the web user, mode 755 - so a CLI
+// run can neither write a marker into it nor remove a file from it, and whether one exists at all
+// depends on which tenants happened to receive traffic. Asserting over those produces a false red
+// that teaches nothing, and deleting them would be destructive to live state.
+$ownedInstances = array_merge([$fixtureBase], $fixtureInstances);
 
 echo "instance: {$instance}\n";
 echo 'fixture instances: ' . implode(', ', $fixtureInstances) . "\n\n";
@@ -154,58 +160,101 @@ echo '      (instances: ' . implode(', ', array_keys($report)) . ")\n";
 // The fast path treats a missing `.flush` as "accept", so a purge that deletes the marker
 // and does not re-create it would leave every cached entry permanently valid.
 $markersOk = true;
+$markerChecked = [];
 foreach (array_keys($report) as $inst) {
+    if (!in_array($inst, $ownedInstances, true)) {
+        continue;
+    }
+    $markerChecked[] = $inst;
     if (!is_file(pageCacheFlushFilePath($inst))) {
         $markersOk = false;
     }
 }
-pciAssert('every purged instance has a flush marker afterwards', $markersOk);
+pciAssert(
+    'every purged instance has a flush marker afterwards',
+    $markersOk,
+    'checked: ' . implode(', ', $markerChecked)
+);
 
 // ── g) A captured instance list must survive its directories being deleted ────
 // This is the flaw `php ikabud cache:clear` had: it called clearAll() first, which removes the
 // tenant cache directories, and only then enumerated them - so the glob found nothing and those
 // tenants were never purged while the command reported success.
-$captured = pageCacheInstanceNames();
-$tenantInstances = array_values(array_filter($captured, static fn ($i) => $i !== $base));
-
-if ($tenantInstances === []) {
-    echo "      (no tenant instances on disk; the ordering guard is vacuous here)\n";
-} else {
-    foreach ($tenantInstances as $inst) {
-        $dir = STORAGE_PATH . '/cache/' . $inst;
-        // GLOB_BRACE for `.*` is required: the purge writes `.cache_version` and `.flush`,
-        // and plain `glob('dir/*')` does not match dotfiles, so those two survive and the
-        // rmdir below fails silently - leaving the directory in place while this section
-        // claims to have removed it.
-        foreach (glob($dir . '/{*,.*}', GLOB_BRACE) ?: [] as $file) {
-            if (is_file($file)) {
-                @unlink($file);
-            }
-        }
-        @rmdir($dir);
-    }
-
-    $afterRemoval = pageCacheInvalidateInstances($captured);
-    $uncovered = array_values(array_diff($captured, array_keys($afterRemoval)));
-    pciAssert(
-        'a pre-captured instance list still purges after the directories are removed',
-        $uncovered === [],
-        'not covered: ' . implode(', ', $uncovered)
-    );
-
-    $recreated = true;
-    foreach ($captured as $inst) {
-        if (!is_file(pageCacheFlushFilePath($inst))) {
-            $recreated = false;
+//
+// Removal is restricted to the fixtures. Deleting a real tenant directory would be destructive to
+// live state, and it fails silently anyway when the directory belongs to the web user - so the
+// guard has to act on state it controls to prove anything. Because the fixtures always exist this
+// branch no longer needs the "vacuous here" skip it used to print.
+$captured = array_merge([$fixtureBase], $fixtureInstances);
+foreach ($fixtureInstances as $inst) {
+    $dir = STORAGE_PATH . '/cache/' . $inst;
+    // GLOB_BRACE for `.*` is required: the purge writes `.cache_version` and `.flush`,
+    // and plain `glob('dir/*')` does not match dotfiles, so those two survive and the
+    // rmdir below fails silently - leaving the directory in place while this section
+    // claims to have removed it.
+    foreach (glob($dir . '/{*,.*}', GLOB_BRACE) ?: [] as $file) {
+        if (is_file($file)) {
+            @unlink($file);
         }
     }
-    pciAssert('purging a removed instance re-creates its flush marker', $recreated);
+    @rmdir($dir);
 }
+
+$afterRemoval = pageCacheInvalidateInstances($captured);
+$uncovered = array_values(array_diff($captured, array_keys($afterRemoval)));
+pciAssert(
+    'a pre-captured instance list still purges after the directories are removed',
+    $uncovered === [],
+    'not covered: ' . implode(', ', $uncovered)
+);
+
+$recreated = true;
+foreach ($captured as $inst) {
+    if (!is_file(pageCacheFlushFilePath($inst))) {
+        $recreated = false;
+    }
+}
+pciAssert('purging a removed instance re-creates its flush marker', $recreated);
 
 // ── f) The entry is gone after the purge ──────────────────────────────────────
 pciAssert('a purged entry is no longer served', pageCacheGet($uri) === null);
 
 app()->cache()->clearByUrlPattern($instance, $uri);
+
+// ── h) Stale page locks must not accumulate forever ───────────────────────────
+// Exercised against a directory this test OWNS. The live lock directory is created by the web user
+// (www-data, mode 755) and is legitimately not writable from the CLI: writing there returns false,
+// which made the "stale lock removed" assertion pass VACUOUSLY - the file was never created - while
+// "fresh lock kept" failed for the same reason. A guard must not be satisfiable by its own setup
+// failing, so the fixtures are written to a temp directory and their creation is asserted first.
+$lockDir = sys_get_temp_dir() . '/ikabud-page-lock-test-' . getmypid();
+@mkdir($lockDir, 0775, true);
+$staleLock = $lockDir . '/pctest-stale.lock';
+$freshLock = $lockDir . '/pctest-fresh.lock';
+
+$staleWritten = @file_put_contents($staleLock, '') !== false;
+$freshWritten = @file_put_contents($freshLock, '') !== false;
+pciAssert(
+    'the lock fixtures were created (so the sweep assertions are not vacuous)',
+    $staleWritten && $freshWritten
+);
+
+@touch($staleLock, time() - 7200);
+pageCacheSweepStaleLocks(3600, $lockDir);
+
+pciAssert('a stale page lock is removed', !is_file($staleLock));
+pciAssert('a page lock still in use is kept', is_file($freshLock));
+
+// Must-refuse: the rate limiter has to stop an immediate second sweep, so a lock created moments ago
+// cannot be collected by a sweep that is already due.
+@file_put_contents($staleLock, '');
+@touch($staleLock, time() - 7200);
+$secondPass = pageCacheSweepStaleLocks(3600, $lockDir);
+pciAssert(
+    'a second sweep within the interval removes nothing',
+    $secondPass === 0 && is_file($staleLock) && is_file($freshLock),
+    "sweep returned {$secondPass}"
+);
 
 // ── Teardown: remove only the fixture instances this test created ─────────────
 // Section (g) already deletes them; tolerate that. Never touch a real tenant's directory -
@@ -219,6 +268,16 @@ foreach ($fixtureInstances as $fixtureInstance) {
     }
     @rmdir($fixtureDir);
 }
+
+// Lock fixtures: remove the temp lock directory this test created, so no fixture state is left on
+// disk. The live lock directory is never touched - it is not writable from here, and nothing this
+// test does should depend on that changing.
+foreach (glob($lockDir . '/{*,.*}', GLOB_BRACE) ?: [] as $lockFile) {
+    if (is_file($lockFile)) {
+        @unlink($lockFile);
+    }
+}
+@rmdir($lockDir);
 
 echo "\n============================================================\n";
 echo "Page cache invalidation tests: {$passed} passed, {$failed} failed\n";
