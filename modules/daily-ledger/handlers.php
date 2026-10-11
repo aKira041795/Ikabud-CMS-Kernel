@@ -13443,9 +13443,10 @@ function handleAdminProductionEfficiency(array $params = []): void
     }
     $trendMetricKeys = [
         'yield' => 'yield_pct',
-        'sell_through' => 'sell_through_pct',
+        // Stock conversion replaces the old sold/produced sell-through: of the stock RECEIVED,
+        // how much was sold. The blended ratio divided a destination flow by a source flow.
+        'conversion' => 'conversion_pct',
         'wastage' => 'wastage_rate_pct',
-        'shrinkage' => 'shrinkage_pct',
     ];
     foreach ($data['products'] as &$productRow) {
         $priorProduct = $priorProducts[(int)$productRow['product_id']] ?? null;
@@ -13481,15 +13482,34 @@ function handleAdminProductionEfficiency(array $params = []): void
         'branch_id' => (int)($filters['branch_id'] ?? 0),
         'branches' => dl_reportFilterBranches($db, $filters),
         'movement_view' => $movementView,
+        // ── Source production panel (producers only). Zero produced here means "no production
+        // recorded in this scope", which the template renders as a named condition.
         'produced' => (int)$data['produced'],
-        'sold' => (int)$data['sold'],
         'wasted' => (int)$data['wasted'],
         'dispatched' => (int)$data['dispatched'],
-        'beg' => (int)$data['beg'],
-        'net_remaining' => (int)$data['net_remaining'],
-        'book_balance' => (int)$data['book_balance'],
+        'opening' => (int)$data['opening'],
+        'closing_calculated' => $data['closing_calculated'],
+        'closing_available' => $data['closing_calculated'] !== null,
+        'closing_state' => (string)($data['closing_state'] ?? ''),
+        'physical_end' => (int)$data['physical_end'],
+        'counted_rows' => (int)$data['counted_rows'],
         'counted_variance' => (int)$data['counted_variance'],
-        // Yield is the production-efficiency measure (output over the batch basis).
+        'has_producer_in_scope' => (bool)$data['has_producer_in_scope'],
+        'supplied_branches' => array_values($data['supplied_labels']),
+        'sources' => $data['sources'],
+        // ── Destination panel (every branch in scope).
+        'sold' => (int)$data['sold'],
+        'received' => (int)$data['received'],
+        'received_internal' => (int)$data['received_internal'],
+        'adjustment_add' => (int)$data['adjustment_add'],
+        'receipt_docs' => (int)$data['receipt_docs'],
+        'receipt_days' => (int)$data['receipt_days'],
+        'conversion_pct' => $data['conversion_pct'],
+        'conversion_available' => $data['conversion_pct'] !== null,
+        'conversion_state' => (string)($data['conversion_state'] ?? ''),
+        // A conversion above 100% is a COVERAGE finding, never a headline performance figure: the
+        // stock sold came partly from opening stock, which the period inflow does not contain.
+        'conversion_exceeds' => (bool)$data['conversion_exceeds'],
         'yield_pct' => $data['yield_pct'],
         'yield_available' => $data['yield_pct'] !== null,
         'yield_exceeds' => $data['yield_pct'] !== null && $data['yield_pct'] > 100,
@@ -13501,20 +13521,14 @@ function handleAdminProductionEfficiency(array $params = []): void
         'yield_theoretical_output' => (int)$data['theoretical_output'],
         'input_kilo' => $data['input_kilo'],
         'input_egg' => $data['input_egg'],
-        // Sell-through is demand conversion; it is no longer labelled efficiency.
-        'sell_through_pct' => $data['sell_through_pct'],
-        'sell_through_available' => $data['sell_through_pct'] !== null,
-        'sell_through_exceeds' => $data['sell_through_pct'] !== null && $data['sell_through_pct'] > 100,
         'wastage_rate_pct' => $data['wastage_rate_pct'],
         'wastage_rate_available' => $data['wastage_rate_pct'] !== null,
-        // Shrinkage is the unexplained part of the mass balance.
-        'shrinkage_pct' => $data['shrinkage_pct'],
-        'shrinkage_available' => $data['shrinkage_pct'] !== null,
-        'shrinkage_negative' => $data['shrinkage_pct'] !== null && $data['shrinkage_pct'] < 0,
-        'unaccounted' => (int)$data['unaccounted'],
         'coverage_complete' => $coverageComplete,
         'period_days' => $periodDays,
+        // Row-covered days and positive-output days are stated separately so "a day was
+        // recorded" is never read as "output happened".
         'production_days' => (int)$data['production_days'],
+        'production_positive_days' => (int)$data['production_positive_days'],
         'production_min_date' => $data['production_min_date'],
         'production_max_date' => $data['production_max_date'],
         'products' => $data['products'],

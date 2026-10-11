@@ -2010,6 +2010,182 @@ function dl_overviewForecastSummary(array $forecastRows, string $period = 'daily
 // is set-based and MySQL 5.7 compatible (no CTE, window function, or JSON_TABLE).
 
 /**
+ * Supply-source classification for the branches in scope, decided from EVIDENCE.
+ *
+ * Sol's review (docs/reviews/sol-production-attribution-2026-10-11.md) rejected a
+ * configuration-only predicate and the objection is correct: `default_supply_mode='hybrid'`
+ * says a branch MAY produce its own goods, not that it DOES. Branch 8 is hybrid and its
+ * production evidence is zero, so calling it a producer would fabricate output.
+ *
+ * Measured on tenant 207 for 2026-09-01..2026-10-11 - the evidence is not ambiguous:
+ *   dl_commissary_product_ledger with produced_qty > 0 : branch 18 = 69 rows; all others 0
+ *   dl_production_runs                                 : branch 18 = 41 rows; all others 0
+ *   posted receivings, origin_type='commissary'        : branches 8, 9, 11, 18
+ * So branch 18 produces; branches 8, 9 and 11 are supplied and produce nothing.
+ *
+ * Class per branch, from what was RECORDED:
+ *   producer - production evidence, no commissary receipts  -> it makes its own goods
+ *   supplied - commissary receipts, no production evidence  -> it is delivered to
+ *   mixed    - both                                        -> NEVER forced to one side
+ *   unknown  - neither; no source is declared anywhere
+ *
+ * The configuration is carried alongside (`mode`, `assigned`) so the page can show WHY a
+ * branch was classified as it was, without treating the configuration as the finding.
+ *
+ * @param array<int,int> $ids branches in scope
+ * @return array<int,array<string,mixed>> keyed by branch id
+ */
+function dl_efficiencySupplySources(DatabaseContract $db, array $ids, string $dateFrom, string $dateTo): array
+{
+    $ids = array_values(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0));
+    if ($ids === [] || $dateFrom === '' || $dateTo === '') {
+        return [];
+    }
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+
+    $branches = [];
+    $stmt = $db->prepare(
+        "SELECT id, name, is_commissary, default_supply_mode, assigned_commissary_id
+           FROM dl_branches WHERE id IN ({$marks})"
+    );
+    $stmt->execute($ids);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $id = (int)$row['id'];
+        $branches[$id] = [
+            'id' => $id,
+            'name' => (string)($row['name'] ?? ''),
+            'is_commissary' => (int)($row['is_commissary'] ?? 0) === 1,
+            'mode' => (string)($row['default_supply_mode'] ?? ''),
+            'assigned' => $row['assigned_commissary_id'] !== null ? (int)$row['assigned_commissary_id'] : null,
+            'production_rows' => 0,
+            'runs' => 0,
+            'commissary_qty' => 0,
+            'transfer_qty' => 0,
+            'class' => 'unknown',
+            'label' => 'source not declared',
+        ];
+    }
+    if ($branches === []) {
+        return [];
+    }
+
+    // Production evidence, from both ledgers that can carry it. A branch that ran a
+    // production run has produced even if its product ledger rows are not written yet.
+    $prodStmt = $db->prepare(
+        "SELECT commissary_branch_id AS id, COUNT(*) AS rows_n
+           FROM dl_commissary_product_ledger
+          WHERE ledger_date BETWEEN ? AND ? AND produced_qty > 0
+            AND commissary_branch_id IN ({$marks})
+          GROUP BY commissary_branch_id"
+    );
+    $prodStmt->execute(array_merge([$dateFrom, $dateTo], $ids));
+    foreach ($prodStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $id = (int)$row['id'];
+        if (isset($branches[$id])) {
+            $branches[$id]['production_rows'] = (int)$row['rows_n'];
+        }
+    }
+
+    $runStmt = $db->prepare(
+        "SELECT destination_branch_id AS id, COUNT(*) AS rows_n
+           FROM dl_production_runs
+          WHERE ledger_date BETWEEN ? AND ?
+            AND destination_branch_id IN ({$marks})
+          GROUP BY destination_branch_id"
+    );
+    $runStmt->execute(array_merge([$dateFrom, $dateTo], $ids));
+    foreach ($runStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $id = (int)$row['id'];
+        if (isset($branches[$id])) {
+            $branches[$id]['runs'] = (int)$row['rows_n'];
+        }
+    }
+
+    // Receipt evidence, split by who sent the stock. origin_type='branch' is an internal
+    // transfer: it is inflow to the destination and NOT new stock for the network.
+    $rcvStmt = $db->prepare(
+        "SELECT br.branch_id AS id, br.origin_type AS origin,
+                COALESCE(SUM(bri.quantity_received), 0) AS qty
+           FROM dl_branch_receivings br
+           INNER JOIN dl_branch_receiving_items bri ON bri.receiving_id = br.id
+          WHERE br.status = 'posted'
+            AND br.received_ledger_date BETWEEN ? AND ?
+            AND br.branch_id IN ({$marks})
+          GROUP BY br.branch_id, br.origin_type"
+    );
+    $rcvStmt->execute(array_merge([$dateFrom, $dateTo], $ids));
+    foreach ($rcvStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $id = (int)$row['id'];
+        if (!isset($branches[$id])) {
+            continue;
+        }
+        $qty = (int)$row['qty'];
+        if ((string)$row['origin'] === 'branch') {
+            $branches[$id]['transfer_qty'] += $qty;
+        } else {
+            $branches[$id]['commissary_qty'] += $qty;
+        }
+    }
+
+    foreach ($branches as $id => $info) {
+        $produces = $info['production_rows'] > 0 || $info['runs'] > 0;
+        $supplied = $info['commissary_qty'] > 0;
+        if ($produces && $supplied) {
+            $class = 'mixed';
+        } elseif ($produces) {
+            $class = 'producer';
+        } elseif ($supplied) {
+            $class = 'supplied';
+        } else {
+            $class = 'unknown';
+        }
+        $branches[$id]['class'] = $class;
+        $branches[$id]['label'] = match ($class) {
+            'producer' => 'produces its own output',
+            'supplied' => 'supplied by ' . ($branches[(int)($info['assigned'] ?? 0)]['name'] ?? 'a commissary'),
+            'mixed' => 'both own production and supplied stock',
+            default => 'source not declared',
+        };
+    }
+
+    // Fill in the supplying branch's NAME. The commissary is often OUTSIDE the selected scope (a
+    // single retail branch is selected but its commissary is not), so its name is resolved with one
+    // extra lookup rather than falling back to "branch 18" on the page an owner reads.
+    $missingNames = [];
+    foreach ($branches as $info) {
+        $assigned = $info['assigned'];
+        if ($assigned !== null && !isset($branches[$assigned])) {
+            $missingNames[$assigned] = true;
+        }
+    }
+    $externalNames = [];
+    if ($missingNames !== []) {
+        $missingIds = array_keys($missingNames);
+        $nameMarks = implode(',', array_fill(0, count($missingIds), '?'));
+        $nameStmt = $db->prepare("SELECT id, name FROM dl_branches WHERE id IN ({$nameMarks})");
+        $nameStmt->execute($missingIds);
+        foreach ($nameStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $nameRow) {
+            $externalNames[(int)$nameRow['id']] = (string)($nameRow['name'] ?? '');
+        }
+    }
+
+    foreach ($branches as $id => $info) {
+        if ($info['class'] !== 'supplied') {
+            continue;
+        }
+        $assigned = $info['assigned'];
+        if ($assigned === null) {
+            $branches[$id]['label'] = 'supplied by a commissary';
+            continue;
+        }
+        $sourceName = $branches[$assigned]['name'] ?? ($externalNames[$assigned] ?? ('branch ' . $assigned));
+        $branches[$id]['label'] = 'supplied by ' . $sourceName;
+    }
+
+    return $branches;
+}
+
+/**
  * How a pullout/return reason maps onto the efficiency panel.
  *
  * This is deliberately NOT a new vocabulary: it labels the result of
@@ -2174,25 +2350,23 @@ function dl_efficiencyPriorPeriod(string $dateFrom, string $dateTo): array
 function dl_productionEfficiencyData(DatabaseContract $db, array $filters): array
 {
     $empty = [
+        // Source production panel (producers only).
         'produced' => 0,
-        'sold' => 0,
         'wasted' => 0,
         'dispatched' => 0,
-        'beg' => 0,
-        'net_remaining' => 0,
-        'book_balance' => 0,
+        'opening' => 0,
+        'closing_calculated' => 0,
+        'closing_state' => '',
+        'physical_end' => 0,
+        'counted_rows' => 0,
         'counted_variance' => 0,
-        // Sell-through is demand conversion (sold / produced); yield is production
-        // efficiency (output / theoretical output on the batch basis). They are
-        // deliberately separate keys so the two can never be conflated again.
-        'sell_through_pct' => null,
-        'sell_through_state' => 'not computable: nothing produced in this period',
+        'has_producer_in_scope' => false,
+        'producer_branch_ids' => [],
+        'supplied_labels' => [],
+        'sources' => [],
         'wastage_rate_pct' => null,
         'yield_pct' => null,
         'yield_state' => 'not computable: no production input recorded in this period',
-        'shrinkage_pct' => null,
-        'shrinkage_state' => 'not computable: nothing produced in this period',
-        'unaccounted' => 0,
         'input_kilo' => 0.0,
         'input_egg' => 0.0,
         'theoretical_output' => 0,
@@ -2203,6 +2377,17 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         'production_min_date' => null,
         'production_max_date' => null,
         'production_days' => 0,
+        'production_positive_days' => 0,
+        // Destination panel.
+        'sold' => 0,
+        'received' => 0,
+        'received_internal' => 0,
+        'adjustment_add' => 0,
+        'receipt_docs' => 0,
+        'receipt_days' => 0,
+        'conversion_pct' => null,
+        'conversion_state' => 'no stock received and no sales in this period',
+        'conversion_exceeds' => false,
         'products' => [],
         'pullout_rows' => [],
         'pullout_totals' => ['wastage_qty' => 0, 'consumed_qty' => 0, 'saleable_qty' => 0, 'movements' => 0],
@@ -2226,22 +2411,50 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
     if (!in_array($shift, ['AM', 'PM'], true)) {
         $shift = '';
     }
+
+    // ── Which branches actually PRODUCE? ──
+    // This is the fix for the defect Sol confirmed (C1). The old aggregation ran the
+    // production ledger over EVERY selected branch, so a supplying branch had no
+    // production rows and rendered "0 produced, 0% wastage" as if that were a
+    // measurement. It then divided destination sales by source output, which is how
+    // the all-branch scope reported 1162.38% sell-through. Production is now computed
+    // for branches with production EVIDENCE only, and every other branch is named for
+    // what it is instead of being shown as producing nothing.
+    $sources = dl_efficiencySupplySources($db, $ids, $dateFrom, $dateTo);
+    $producerIds = [];
+    $suppliedLabels = [];
+    foreach ($sources as $sourceId => $sourceInfo) {
+        if (in_array($sourceInfo['class'], ['producer', 'mixed'], true)) {
+            $producerIds[] = (int)$sourceId;
+        } else {
+            $suppliedLabels[(int)$sourceId] = (string)$sourceInfo['label'];
+        }
+    }
+    $hasProducerInScope = $producerIds !== [];
+    $producerMarks = $producerIds === []
+        ? 'NULL'
+        : implode(',', array_fill(0, count($producerIds), '?'));
     $marks = implode(',', array_fill(0, count($ids), '?'));
 
-    // ── Production side, per product ──
+    // ── Production side, per product, for PRODUCERS ONLY ──
+    // remaining_qty is deliberately NOT selected. Migration 037 defines it as a GENERATED
+    // column equal to produced - dispatched - wastage, which omits opening stock: on tenant 207
+    // it sums to -3838 for branch 18 while the book balance including beg_qty is 74058. Reading
+    // it as closing stock is what produced a phantom deficit. Closing is calculated from the real
+    // flow instead, and only labelled a PHYSICAL closing when a count exists (actual_end_qty).
     $prodSql = "SELECT cpl.product_id, p.name AS product_name, p.sku,
                        p.batch_input_qty, p.batch_egg_qty, p.output_pieces_per_batch, p.output_unit_label,
-                       COALESCE(SUM(cpl.beg_qty), 0) AS beg_qty,
                        COALESCE(SUM(cpl.produced_qty), 0) AS produced_qty,
                        COALESCE(SUM(cpl.dispatched_qty), 0) AS dispatched_qty,
                        COALESCE(SUM(cpl.wastage_qty), 0) AS wastage_qty,
-                       COALESCE(SUM(cpl.remaining_qty), 0) AS remaining_qty,
+                       COALESCE(SUM(CASE WHEN cpl.actual_end_qty IS NOT NULL THEN cpl.actual_end_qty ELSE 0 END), 0) AS physical_end_qty,
+                       COALESCE(SUM(CASE WHEN cpl.actual_end_qty IS NOT NULL THEN 1 ELSE 0 END), 0) AS counted_rows,
                        COALESCE(SUM(CASE WHEN cpl.actual_end_qty IS NOT NULL THEN cpl.calc_variance ELSE 0 END), 0) AS counted_variance
                   FROM dl_commissary_product_ledger cpl
                   INNER JOIN dl_products p ON p.id = cpl.product_id
                  WHERE cpl.ledger_date BETWEEN ? AND ?
-                   AND cpl.commissary_branch_id IN ({$marks})";
-    $prodBind = array_merge([$dateFrom, $dateTo], $ids);
+                   AND cpl.commissary_branch_id IN ({$producerMarks})";
+    $prodBind = array_merge([$dateFrom, $dateTo], $producerIds);
     if ($productId > 0) {
         $prodSql .= ' AND cpl.product_id = ?';
         $prodBind[] = $productId;
@@ -2251,9 +2464,100 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $prodBind[] = $shift;
     }
     $prodSql .= ' GROUP BY cpl.product_id, p.name, p.sku, p.batch_input_qty, p.batch_egg_qty, p.output_pieces_per_batch, p.output_unit_label';
-    $prodStmt = $db->prepare($prodSql);
-    $prodStmt->execute($prodBind);
-    $prodRows = $prodStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $prodRows = [];
+    if ($hasProducerInScope) {
+        $prodStmt = $db->prepare($prodSql);
+        $prodStmt->execute($prodBind);
+        $prodRows = $prodStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    // Opening stock: beg_qty on each branch-product's FIRST covered day. This is a LEVEL
+    // taken once, never a sum of daily beginnings — summing them multiplies a month of
+    // openings into one meaningless total.
+    $openingByProduct = [];
+    if ($hasProducerInScope) {
+        $openingSql = "SELECT cpl.product_id, COALESCE(SUM(cpl.beg_qty), 0) AS opening_qty
+                         FROM dl_commissary_product_ledger cpl
+                         INNER JOIN (
+                              SELECT commissary_branch_id, product_id, MIN(ledger_date) AS first_date
+                                FROM dl_commissary_product_ledger
+                               WHERE ledger_date BETWEEN ? AND ?
+                                 AND commissary_branch_id IN ({$producerMarks})
+                               GROUP BY commissary_branch_id, product_id
+                         ) f ON f.commissary_branch_id = cpl.commissary_branch_id
+                            AND f.product_id = cpl.product_id
+                            AND f.first_date = cpl.ledger_date
+                        WHERE cpl.ledger_date BETWEEN ? AND ?
+                          AND cpl.commissary_branch_id IN ({$producerMarks})
+                          AND cpl.beg_qty > 0
+                        GROUP BY cpl.product_id";
+        $openingBind = array_merge([$dateFrom, $dateTo], $producerIds, [$dateFrom, $dateTo], $producerIds);
+        if ($productId > 0) {
+            $openingSql = str_replace('GROUP BY cpl.product_id', 'AND cpl.product_id = ? GROUP BY cpl.product_id', $openingSql);
+            $openingBind[] = $productId;
+        }
+        $openingStmt = $db->prepare($openingSql);
+        $openingStmt->execute($openingBind);
+        foreach ($openingStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $openingRow) {
+            $openingByProduct[(int)$openingRow['product_id']] = (int)$openingRow['opening_qty'];
+        }
+    }
+
+    // ── Destination inflow, from the RECEIVING tables, not from `addtl` ──
+    // `addtl` is NOT a stock-received series. Sol's review falsified that premise and the
+    // measurement agrees: on tenant 207 branch 8 has addtl 104210 against posted receipts of
+    // 83783 and cashier Add Stock (adjustment_add) of 23761 - the accumulator is receipts PLUS
+    // adjustments PLUS direct ledger edits (dl_applyLedgerDelta, handlers.php:10959 / 11337).
+    // Using it as "stock received" would fold operator corrections into a performance ratio.
+    // The receiving tables are the module's own declared evidence (dl_reconcileAddtl() sums
+    // exactly them), and they carry origin_type / origin_id, which is what attribution needs.
+    $receiptSql = "SELECT bri.product_id,
+                          COALESCE(SUM(bri.quantity_received), 0) AS received_qty,
+                          COALESCE(SUM(CASE WHEN br.origin_type = 'branch' THEN bri.quantity_received ELSE 0 END), 0) AS transfer_qty
+                     FROM dl_branch_receivings br
+                     INNER JOIN dl_branch_receiving_items bri ON bri.receiving_id = br.id
+                    WHERE br.status = 'posted'
+                      AND br.received_ledger_date BETWEEN ? AND ?
+                      AND br.branch_id IN ({$marks})";
+    $receiptBind = array_merge([$dateFrom, $dateTo], $ids);
+    if ($productId > 0) {
+        $receiptSql .= ' AND bri.product_id = ?';
+        $receiptBind[] = $productId;
+    }
+    $receiptSql .= ' GROUP BY bri.product_id';
+    $receiptStmt = $db->prepare($receiptSql);
+    $receiptStmt->execute($receiptBind);
+    $receivedByProduct = [];
+    $receivedTotal = 0;
+    $transferTotal = 0;
+    foreach ($receiptStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $receiptRow) {
+        $receivedByProduct[(int)$receiptRow['product_id']] = (int)$receiptRow['received_qty'];
+        $receivedTotal += (int)$receiptRow['received_qty'];
+        $transferTotal += (int)$receiptRow['transfer_qty'];
+    }
+
+    // Receipt coverage, so the page can state the window its inflow figure actually covers,
+    // and the Add Stock adjustment TOTAL, which is disclosed as a reconciliation figure and
+    // never counted as received production.
+    $receiptMeta = ['docs' => 0, 'days' => 0];
+    $receiptMetaStmt = $db->prepare(
+        "SELECT COUNT(DISTINCT br.id) AS docs, COUNT(DISTINCT br.received_ledger_date) AS days
+           FROM dl_branch_receivings br
+          WHERE br.status = 'posted' AND br.received_ledger_date BETWEEN ? AND ?
+            AND br.branch_id IN ({$marks})"
+    );
+    $receiptMetaStmt->execute(array_merge([$dateFrom, $dateTo], $ids));
+    $receiptMetaRow = $receiptMetaStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $receiptMeta = ['docs' => (int)($receiptMetaRow['docs'] ?? 0), 'days' => (int)($receiptMetaRow['days'] ?? 0)];
+
+    $adjustmentStmt = $db->prepare(
+        "SELECT COALESCE(SUM(quantity), 0) AS qty
+           FROM dl_cashier_withdrawals
+          WHERE withdrawal_type = 'adjustment_add' AND ledger_date BETWEEN ? AND ?
+            AND branch_id IN ({$marks})"
+    );
+    $adjustmentStmt->execute(array_merge([$dateFrom, $dateTo], $ids));
+    $adjustmentAddTotal = (int)$adjustmentStmt->fetchColumn();
 
     // The production ledger's own date coverage. The efficiency ratio compares
     // the selected period's SALES with the days that actually carry output
@@ -2262,13 +2566,18 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
     // view must say so rather than print a percentage that looks like an
     // efficiency. Measured on tenant 207: production rows cover 4 days of a
     // 41-day period, so raw sold/produced reads 1162%.
+    //
+    // Row-covered days and positive-output days are counted SEPARATELY. Four days carry
+    // rows for branch 18 but only three carry output, and reporting "4" alone equates
+    // "a day was recorded" with "output happened" — two different facts.
     $coverageSql = "SELECT MIN(cpl.ledger_date) AS min_date,
                            MAX(cpl.ledger_date) AS max_date,
-                           COUNT(DISTINCT cpl.ledger_date) AS days
+                           COUNT(DISTINCT cpl.ledger_date) AS days,
+                           COUNT(DISTINCT CASE WHEN cpl.produced_qty > 0 THEN cpl.ledger_date END) AS positive_days
                       FROM dl_commissary_product_ledger cpl
                      WHERE cpl.ledger_date BETWEEN ? AND ?
-                       AND cpl.commissary_branch_id IN ({$marks})";
-    $coverageBind = array_merge([$dateFrom, $dateTo], $ids);
+                       AND cpl.commissary_branch_id IN ({$producerMarks})";
+    $coverageBind = array_merge([$dateFrom, $dateTo], $producerIds);
     if ($productId > 0) {
         $coverageSql .= ' AND cpl.product_id = ?';
         $coverageBind[] = $productId;
@@ -2277,12 +2586,16 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $coverageSql .= ' AND cpl.shift = ?';
         $coverageBind[] = $shift;
     }
-    $coverageStmt = $db->prepare($coverageSql);
-    $coverageStmt->execute($coverageBind);
-    $coverage = $coverageStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $coverage = [];
+    if ($hasProducerInScope) {
+        $coverageStmt = $db->prepare($coverageSql);
+        $coverageStmt->execute($coverageBind);
+        $coverage = $coverageStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
     $productionMinDate = isset($coverage['min_date']) && $coverage['min_date'] !== null ? (string)$coverage['min_date'] : null;
     $productionMaxDate = isset($coverage['max_date']) && $coverage['max_date'] !== null ? (string)$coverage['max_date'] : null;
     $productionDays = (int)($coverage['days'] ?? 0);
+    $productionPositiveDays = (int)($coverage['positive_days'] ?? 0);
 
     // ── Sales side, per product (the ranking's own quantity expression) ──
     $qty = dl_ledgerSalesQuantitySql('dl');
@@ -2342,11 +2655,13 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
     $producedTotal = 0;
     $wastedTotal = 0;
     $dispatchedTotal = 0;
-    $begTotal = 0;
-    $netRemaining = 0;
+    $openingTotal = 0;
     $countedVariance = 0;
+    $countedRows = 0;
+    $physicalEndTotal = 0;
     foreach ($prodRows as $row) {
         $pid = (int)$row['product_id'];
+        $openingQty = (int)($openingByProduct[$pid] ?? 0);
         $products[$pid] = [
             'product_id' => $pid,
             'product_name' => (string)($row['product_name'] ?? ''),
@@ -2355,7 +2670,10 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
             'sold' => 0,
             'wasted' => (int)$row['wastage_qty'],
             'dispatched' => (int)$row['dispatched_qty'],
-            'net_remaining' => (int)$row['remaining_qty'],
+            'opening' => $openingQty,
+            'received' => 0,
+            'physical_end' => (int)$row['physical_end_qty'],
+            'counted_rows' => (int)$row['counted_rows'],
             'counted_variance' => (int)$row['counted_variance'],
             // The batch input basis (migration 016). NULL on the product means
             // "not configured", which is a stated yield gap, never 100%.
@@ -2367,9 +2685,10 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $producedTotal += (int)$row['produced_qty'];
         $wastedTotal += (int)$row['wastage_qty'];
         $dispatchedTotal += (int)$row['dispatched_qty'];
-        $begTotal += (int)$row['beg_qty'];
-        $netRemaining += (int)$row['remaining_qty'];
+        $openingTotal += $openingQty;
         $countedVariance += (int)$row['counted_variance'];
+        $countedRows += (int)$row['counted_rows'];
+        $physicalEndTotal += (int)$row['physical_end_qty'];
     }
 
     // A product that SOLD but has no production row this period was produced in
@@ -2387,7 +2706,10 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
                 'sold' => 0,
                 'wasted' => 0,
                 'dispatched' => 0,
-                'net_remaining' => 0,
+                'opening' => 0,
+                'received' => 0,
+                'physical_end' => 0,
+                'counted_rows' => 0,
                 'counted_variance' => 0,
                 'batch_input_qty' => 0.0,
                 'batch_egg_qty' => 0.0,
@@ -2404,6 +2726,7 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $refPid = (int)$productRef['product_id'];
         $productRef['input_kilo'] = $runInput[$refPid]['kilo'] ?? 0.0;
         $productRef['input_egg'] = $runInput[$refPid]['egg'] ?? 0.0;
+        $productRef['received'] = (int)($receivedByProduct[$refPid] ?? 0);
     }
     unset($productRef);
 
@@ -2420,7 +2743,9 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $produced = (int)$product['produced'];
         $sold = (int)$product['sold'];
         $wasted = (int)$product['wasted'];
-        $remaining = (int)$product['net_remaining'];
+        $dispatchedProduct = (int)$product['dispatched'];
+        $opening = (int)$product['opening'];
+        $received = (int)$product['received'];
         $yieldProductsTotal++;
 
         // Yield basis from migration 016: theoretical output is whole batches of
@@ -2471,32 +2796,54 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         }
 
         if ($produced > 0) {
-            // Sell-through: demand conversion, NOT production efficiency.
-            $product['sell_through_pct'] = round($sold / $produced * 100, 2);
+            // Wastage rate: producer-side loss against the output that could have carried it.
             $product['wastage_rate_pct'] = round($wasted / $produced * 100, 2);
-            // Shrinkage: the part of production the mass balance cannot explain
-            // (produced - sold - wasted - remaining).
-            $product['shrinkage_pct'] = round(($produced - $sold - $wasted - $remaining) / $produced * 100, 2);
-            $product['sell_through_state'] = '';
             $product['wastage_state'] = '';
-            $product['shrinkage_state'] = '';
-            // Sales above this product's own output are real, but they are not
-            // attributable to this period's production; the row marks it rather
-            // than presenting >100% as a rate the product achieved.
-            $product['sell_through_exceeds'] = $product['sell_through_pct'] > 100;
+            // Closing stock INCLUDES opening stock. The generated remaining_qty does not, which
+            // is why it reads -3838 for branch 18 where the book balance is 74058.
+            //
+            // A NEGATIVE result is not printed. Tenant 207 measures it: branch 18's first covered
+            // day (2026-10-08) carries beg_qty 50 while the next day carries 42320, so
+            // 50 + 8828 - 12547 - 119 = -3788 is arithmetically correct and factually meaningless.
+            // A negative stock figure is the same class of lie as the 1162% this change removes, so
+            // it becomes a named gap.
+            $closingProduct = $opening + $produced - $dispatchedProduct - $wasted;
+            if ($closingProduct < 0) {
+                $product['closing_calculated'] = null;
+                $product['closing_state'] = 'book balance does not close: no opening balance recorded for the first covered day';
+            } else {
+                $product['closing_calculated'] = $closingProduct;
+                $product['closing_state'] = '';
+            }
         } else {
-            $product['sell_through_pct'] = null;
             $product['wastage_rate_pct'] = null;
-            $product['shrinkage_pct'] = null;
-            $product['sell_through_state'] = $sold > 0
-                ? 'not computable: sold units came from an earlier period'
-                : 'not computable: nothing produced in this period';
-            $product['wastage_state'] = 'not computable: nothing produced in this period';
-            $product['shrinkage_state'] = 'not computable: nothing produced in this period';
-            $product['sell_through_exceeds'] = false;
+            $product['wastage_state'] = 'not recorded: no production for this product in this period';
+            $product['closing_calculated'] = null;
+            $product['closing_state'] = 'not recorded: no production for this product in this period';
         }
-        // The mass balance identity: produced = sold + wasted + remaining + unaccounted.
-        $product['unaccounted'] = $produced - $sold - $wasted - $remaining;
+
+        // Stock conversion is a DESTINATION measure: of the stock RECEIVED in this period, how
+        // much was sold. It is deliberately NOT sold/produced. The old sell-through divided a
+        // destination flow by a source flow, which is how the all-branch scope reported 1162.38%
+        // as if it were a performance figure.
+        if ($received > 0) {
+            $product['conversion_pct'] = round($sold / $received * 100, 2);
+            $product['conversion_state'] = '';
+            $product['conversion_exceeds'] = $product['conversion_pct'] > 100;
+        } else {
+            $product['conversion_pct'] = null;
+            $product['conversion_exceeds'] = false;
+            $product['conversion_state'] = $sold > 0
+                ? 'no stock received in this period; these units came from opening stock'
+                : 'no stock received and no sales in this period';
+        }
+
+        // Unexplained loss, the control the old "shrinkage" claimed to be: book closing against a
+        // PHYSICAL count. Only a product that was actually counted can carry one, so an uncounted
+        // product reports a stated gap rather than a residual invented from empty stock.
+        $product['unaccounted'] = ($produced > 0 && (int)$product['counted_rows'] > 0)
+            ? ($opening + $produced - $dispatchedProduct - $wasted) - (int)$product['physical_end']
+            : null;
         $product['unit'] = 'pcs';
     }
     unset($product);
@@ -2552,19 +2899,38 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         }
     }
 
+    // ── Source panel (producers only) vs destination panel (every branch in scope) ──
+    // They are returned as separate figures and are never divided by one another. The
+    // blended ratio this replaces reported 1162.38% at all-branch scope by dividing
+    // destination sales by source output over windows that do not match.
+    $closingCalculated = $openingTotal + $producedTotal - $dispatchedTotal - $wastedTotal;
+    // A negative book balance is reported as a named gap, never as a negative stock figure. Measured:
+    // branch 18's first covered day carries beg_qty 50 against 42320 the next day, so the balance
+    // does not close. Printing -3788 would be arithmetically correct and meaningless.
+    $closingState = '';
+    if ($producedTotal > 0 && $closingCalculated < 0) {
+        $closingState = 'book balance does not close: the production ledger records no opening balance for '
+            . 'its first covered day, so opening + produced - dispatched - wastage is negative. Reported as a gap.';
+        $closingCalculated = null;
+    }
+    $conversionPct = $receivedTotal > 0 ? round($soldTotal / $receivedTotal * 100, 2) : null;
+
     return [
+        // Source production. Zero here means "no production recorded in this scope", which the
+        // template renders as a named condition - never as a measured zero.
         'produced' => $producedTotal,
-        'sold' => $soldTotal,
         'wasted' => $wastedTotal,
         'dispatched' => $dispatchedTotal,
-        'beg' => $begTotal,
-        // The production invariant already in the code: beg + produced - dispatched - wastage.
-        'net_remaining' => $netRemaining,
-        'book_balance' => $begTotal + $producedTotal - $dispatchedTotal - $wastedTotal,
+        'opening' => $openingTotal,
+        'closing_calculated' => $closingCalculated,
+        'closing_state' => $closingState,
+        'physical_end' => $physicalEndTotal,
+        'counted_rows' => $countedRows,
         'counted_variance' => $countedVariance,
-        // Sell-through: demand conversion (sold / produced).
-        'sell_through_pct' => $producedTotal > 0 ? round($soldTotal / $producedTotal * 100, 2) : null,
-        'sell_through_state' => $producedTotal > 0 ? '' : 'not computable: nothing produced in this period',
+        'has_producer_in_scope' => $hasProducerInScope,
+        'producer_branch_ids' => $producerIds,
+        'supplied_labels' => $suppliedLabels,
+        'sources' => array_values($sources),
         // Yield: production efficiency (produced output / theoretical output on
         // the batch basis). NULL when no product in scope has a computable basis;
         // the coverage counts below carry the reason.
@@ -2575,12 +2941,6 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
                 ? 'not computable: no batch input basis configured for the products in this scope'
                 : 'not computable: no production input recorded in this period'),
         'wastage_rate_pct' => $producedTotal > 0 ? round($wastedTotal / $producedTotal * 100, 2) : null,
-        // Shrinkage: unexplained loss on the mass balance.
-        'shrinkage_pct' => $producedTotal > 0
-            ? round(($producedTotal - $soldTotal - $wastedTotal - $netRemaining) / $producedTotal * 100, 2)
-            : null,
-        'shrinkage_state' => $producedTotal > 0 ? '' : 'not computable: nothing produced in this period',
-        'unaccounted' => $producedTotal - $soldTotal - $wastedTotal - $netRemaining,
         'input_kilo' => round($inputKiloTotal, 3),
         'input_egg' => round($inputEggTotal, 3),
         'theoretical_output' => $theoreticalOutputTotal,
@@ -2590,7 +2950,28 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         'yield_products_missing_input' => $yieldProductsMissingInput,
         'production_min_date' => $productionMinDate,
         'production_max_date' => $productionMaxDate,
+        // Row-covered days and positive-output days are separate facts: 4 days carry rows for
+        // branch 18, only 3 carry output. Reporting one number equates "recorded" with "happened".
         'production_days' => $productionDays,
+        'production_positive_days' => $productionPositiveDays,
+
+        // Destination panel. `received` comes from the posted receiving tables, NOT from
+        // dl_daily_ledger.addtl: measured on tenant 207 branch 8 has addtl 104210 against
+        // receipts 83783 plus Add Stock adjustments 23761, so addtl is an accumulator of
+        // receipts and operator corrections and cannot serve as "stock received".
+        'sold' => $soldTotal,
+        'received' => $receivedTotal,
+        'received_internal' => $transferTotal,
+        'adjustment_add' => $adjustmentAddTotal,
+        'receipt_docs' => $receiptMeta['docs'],
+        'receipt_days' => $receiptMeta['days'],
+        'conversion_pct' => $conversionPct,
+        'conversion_state' => $receivedTotal > 0
+            ? ''
+            : ($soldTotal > 0
+                ? 'no stock received in this period; these units came from opening stock'
+                : 'no stock received and no sales in this period'),
+        'conversion_exceeds' => $conversionPct !== null && $conversionPct > 100.0,
         'products' => array_values($products),
         'pullout_rows' => $pulloutRows,
         'pullout_totals' => $pulloutTotals,

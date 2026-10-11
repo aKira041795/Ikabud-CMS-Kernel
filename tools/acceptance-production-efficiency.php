@@ -174,11 +174,28 @@ $check('E4', 'the view states its official/provisional and unit basis',
         preg_match('/official|provisional|finalized/i', $text) ? 'yes' : 'NO',
         preg_match('/\b(pieces?|pcs|units?)\b/i', $text) ? 'yes' : 'NO'));
 
-// --- E5: efficiency is sold over produced, and says so ------------------------------------------
-$check('E5', 'efficiency is stated as sold over produced',
-    (bool)preg_match('/efficien|yield|conversion/i', $text)
-        && (bool)preg_match('/sold\s*[\/÷]\s*produced|of what was produced|per (piece|unit) produced/i', $text),
-    'the ratio and its basis must both be named');
+// --- E5: each ratio is named with its OWN basis, and sold/produced is gone ----------------------
+// RE-ANCHORED 2026-10-11. The old E5 positively REQUIRED "sold over produced" in the text, so it
+// blessed the defect (Sol's Q6). After the split it still passed - by matching the sentence that
+// denies the ratio. It now requires both real measures to be named with their own denominators, and
+// requires the blended sold/produced RATE to be absent.
+$rateBasisOk = (bool)preg_match('/yield\s*%[^.]{0,90}theoretical output/i', $text)
+    && (bool)preg_match('/stock conversion\s*%[^.]{0,90}received/i', $text)
+    && !(bool)preg_match('/sell-through\s*%[^0-9%]{0,60}[0-9]/i', $text);
+$check('E5', 'yield names the batch basis and conversion names received stock', $rateBasisOk,
+    'the production measure must name the batch basis, the destination measure must name received stock, and no sell-through rate may render');
+
+// --- E7: a supplying branch is named as supplied, not shown as producing nothing ----------------
+// The opposite case of E1: having asked that produced/sold/wasted appear together, the page must also
+// NOT present an absent production figure as a measured zero for a branch that is supplied by a
+// commissary. Branch 8 (Miputak) is hybrid, assigned to commissary 18, and produced nothing.
+$b8Text = $plain($render(['branch_id' => '8']));
+$namesSupply = (bool)preg_match('/supplied by\s+[A-Za-z0-9\- ]+/i', $b8Text);
+$noMeasuredZero = !(bool)preg_match('/produced\D{0,30}\b0\b/i', $b8Text);
+$check('E7', 'a supplying branch is named as supplied, with no fabricated zero output',
+    $namesSupply && $noMeasuredZero,
+    sprintf('branch 8: supply source named=%s, no "0 produced" as a measurement=%s',
+        $namesSupply ? 'yes' : 'NO', $noMeasuredZero ? 'yes' : 'NO'));
 
 // --- E6: the forecast page itself survives ------------------------------------------------------
 $fk = $handler;                       // prove the forecast was not replaced by this view

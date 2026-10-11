@@ -4,7 +4,7 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Production Efficiency</h2>
-        <p class="text-sm text-gray-500">Output, sales and loss for {period_label}, with yield (production efficiency), sell-through and the loss rates that follow. Read-only: this page never changes production or ledger entries.</p>
+        <p class="text-sm text-gray-500">Two separate measures for {period_label}: production recorded by the branches that actually produce (output, yield, wastage), and stock movement across every branch in scope (received, sold, conversion). They are reported side by side and never divided by one another. Read-only: this page never changes production or ledger entries.</p>
     </div>
     <div class="flex gap-2">
         <a class="btn btn-outline" href="{base_url}/admin/forecast?date_from={date_from}&amp;date_to={date_to}&amp;branch_id={branch_id}">Forecast</a>
@@ -44,19 +44,53 @@
     </div>
 </form>
 
-<!-- The headline figures. Order matters: the base quantities first (produced, sold, wastage, net
-     remaining), then the rates derived from them (yield, sell-through, wastage rate, shrinkage).
-     The reader meets each base number before the rate that uses it. -->
-<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Produced</div><div class="mt-1 text-3xl font-semibold text-indigo-600">{produced} pcs</div><div class="text-sm text-gray-500">recorded output in {period_label}</div></div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Sold</div><div class="mt-1 text-3xl font-semibold text-emerald-600">{sold} pcs</div><div class="text-sm text-gray-500">official + provisional sales units</div></div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Wastage</div><div class="mt-1 text-3xl font-semibold text-rose-600">{wasted} pcs</div><div class="text-sm text-gray-500">spoilage / unsellable, from the production ledger</div></div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Net remaining</div><div class="mt-1 text-3xl font-semibold text-slate-600">{net_remaining} pcs</div><div class="text-sm text-gray-500">produced &minus; dispatched &minus; wastage: stock, not waste</div></div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Yield %</div><div class="mt-1 text-3xl font-semibold text-indigo-700">{if yield_available}{yield_pct | number_format:2}%{/if}{if yield_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">produced output / theoretical output from batch input</div>{if yield_exceeds}<div class="text-xs font-semibold text-rose-700">output exceeds the batch basis - see coverage note</div>{/if}</div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Sell-through %</div><div class="mt-1 text-3xl font-semibold text-emerald-700">{if sell_through_available}{sell_through_pct | number_format:2}%{/if}{if sell_through_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">sold / produced - demand conversion, not production efficiency</div>{if sell_through_exceeds}<div class="text-xs font-semibold text-rose-700">sales exceed recorded output - see coverage note</div>{/if}</div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Wastage rate</div><div class="mt-1 text-3xl font-semibold text-rose-700">{if wastage_rate_available}{wastage_rate_pct | number_format:2}%{/if}{if wastage_rate_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">wasted / produced</div></div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Shrinkage %</div><div class="mt-1 text-3xl font-semibold text-amber-700">{if shrinkage_available}{shrinkage_pct | number_format:2}%{/if}{if shrinkage_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">unexplained loss: (produced &minus; sold &minus; wasted &minus; remaining) / produced</div>{if shrinkage_negative}<div class="text-xs font-semibold text-amber-700">negative residual - sales span a wider window than output; see coverage note</div>{/if}</div></div>
+<!-- TWO PANELS, deliberately never merged into one ratio. SOURCE PRODUCTION is what the branches that
+     actually produce recorded; STOCK MOVEMENT is what every branch in scope received and sold. The
+     previous single panel divided destination sales by source output and reported 1,162.38%
+     sell-through at all-branch scope, because the two sides are different populations over
+     different windows. They are now reported side by side and never divided by one another. -->
+<div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Source production &mdash; producing branches only</div>
+{if has_producer_in_scope == false}
+<div class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 mb-4 ring-1 ring-inset ring-amber-200">
+    <strong>No producing branch in this scope: production is <em>not recorded</em> here, which is not the
+    same as zero.</strong>
+    None of the branches selected for {period_label} recorded production, so there is no output to report.
+    The stock they sold was <em>received</em>:
+    {foreach supplied_branches as supplied_label}<span class="inline-block mr-3 font-medium">{supplied_label}</span>{/foreach}
+    Rendering "0 produced" here would read as "this branch produced nothing and incurred no waste", which is a
+    different claim from "this branch is supplied". The stock-movement panel below reports what they received.
 </div>
+{/if}
+{if has_producer_in_scope}
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Produced</div><div class="mt-1 text-3xl font-semibold text-indigo-600">{produced} pcs</div><div class="text-sm text-gray-500">output recorded on {production_positive_days} day(s), of {production_days} day(s) carrying records</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Wastage</div><div class="mt-1 text-3xl font-semibold text-rose-600">{wasted} pcs</div><div class="text-sm text-gray-500">spoilage / unsellable, against the producer's own output</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Closing stock (calculated)</div><div class="mt-1 text-3xl font-semibold text-slate-600">{if closing_available}{closing_calculated} pcs{/if}{if closing_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">opening {opening} + produced {produced} &minus; dispatched {dispatched} &minus; wastage {wasted}. Opening stock is included, so this cannot read as a deficit.</div>{if closing_available == false}<div class="text-xs text-amber-700" title="{closing_state}">{closing_state}</div>{/if}{if counted_rows > 0}<div class="text-xs text-gray-500">Physical count on {counted_rows} row(s): {physical_end} pcs.</div>{/if}</div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Yield %</div><div class="mt-1 text-3xl font-semibold text-indigo-700">{if yield_available}{yield_pct | number_format:2}%{/if}{if yield_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">produced output / theoretical output from batch input</div>{if yield_exceeds}<div class="text-xs font-semibold text-rose-700">output exceeds the batch basis - see coverage note</div>{/if}</div></div>
+</div>
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Wastage rate</div><div class="mt-1 text-3xl font-semibold text-rose-700">{if wastage_rate_available}{wastage_rate_pct | number_format:2}%{/if}{if wastage_rate_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">wasted / produced</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Yield coverage</div><div class="mt-1 text-2xl font-semibold text-slate-600">{yield_products_computable} of {yield_products_total}</div><div class="text-sm text-gray-500">product(s) whose yield basis is computable</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Counted variance</div><div class="mt-1 text-2xl font-semibold text-slate-600">{counted_variance} pcs</div><div class="text-sm text-gray-500">physical count less book balance, only where a count exists. This is the unexplained-loss control.</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Dispatched</div><div class="mt-1 text-2xl font-semibold text-slate-600">{dispatched} pcs</div><div class="text-sm text-gray-500">output that left the producer</div></div></div>
+</div>
+{/if}
+
+<div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Stock movement &mdash; every branch in scope</div>
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Stock received</div><div class="mt-1 text-3xl font-semibold text-indigo-600">{received} pcs</div><div class="text-sm text-gray-500">posted receipts: {receipt_docs} document(s) across {receipt_days} day(s){if received_internal > 0}; {received_internal} pcs moved between branches inside this scope{/if}</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Sold</div><div class="mt-1 text-3xl font-semibold text-emerald-600">{sold} pcs</div><div class="text-sm text-gray-500">official + provisional sales units</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Stock conversion</div><div class="mt-1 text-3xl font-semibold text-emerald-700">{if conversion_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}{if conversion_available}{if conversion_exceeds}<span class="text-lg text-amber-700">above 100% - see note</span>{/if}{if conversion_exceeds == false}{conversion_pct | number_format:2}%{/if}{/if}</div><div class="text-sm text-gray-500">sold / stock received. This is conversion of received stock, never production efficiency.</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Add Stock adjustments</div><div class="mt-1 text-2xl font-semibold text-slate-600">{adjustment_add} pcs</div><div class="text-sm text-gray-500">operator corrections, disclosed separately and never counted as received production</div></div></div>
+</div>
+{if conversion_available == false || conversion_exceeds}
+<div class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 mb-4 ring-1 ring-inset ring-amber-200">
+    <strong>Stock conversion coverage.</strong> {conversion_state}
+    {if conversion_exceeds}Sold {sold} pcs against {received} pcs received. The units that sold came partly from
+    opening stock, which this period's receipts do not contain, so the figure is stated as a coverage finding
+    and never as a performance rate.{/if}
+</div>
+{/if}
 
 <!-- Direction key. The owner's rule is OPPOSITE on the two sides of this page, so the direction
      of "good" is stated per metric and the arrows are coloured accordingly. This is a key, not a
@@ -65,10 +99,10 @@
 <div class="rounded-lg bg-slate-50 p-4 text-sm text-slate-700 mb-4 ring-1 ring-inset ring-slate-200">
     <strong>Direction key: the colour follows improvement, not raw direction.</strong>
     <ul class="mt-1 list-disc pl-5">
-        <li><strong>Gain metrics - yield % and sell-through %: higher is better.</strong>
+        <li><strong>Gain metrics - yield % and stock conversion %: higher is better.</strong>
             A rise is <span class="{direction_key_gain_up_class} font-semibold" title="higher is better">&#9650;</span> green;
             a fall is <span class="{direction_key_gain_down_class} font-semibold" title="lower is worse">&#9660;</span> red.</li>
-        <li><strong>Loss metrics - wastage rate and residual (shrinkage) %: lower is better.</strong>
+        <li><strong>Loss metric - wastage rate: lower is better.</strong>
             A fall is <span class="{direction_key_loss_down_class} font-semibold" title="lower is better">&#9660;</span> green;
             a rise is <span class="{direction_key_loss_up_class} font-semibold" title="higher is worse">&#9650;</span> red.
             Each arrow compares this period with the immediately preceding period of the same length ({prior_period_label});
@@ -84,12 +118,17 @@
     <strong>official-only</strong>; this view reports no money at all, so a ratio here cannot be read as revenue.
 </div>
 
+{if has_producer_in_scope}
 {if coverage_complete == false}
 <div class="rounded-lg bg-rose-50 p-4 text-sm text-rose-900 mb-4 ring-1 ring-inset ring-rose-200">
-    <strong>Coverage warning: the rates are not all period-matched.</strong>
-    The requested period covers {period_days} day(s) ({period_label}), but the production ledger has output records for only {production_days} day(s){if production_min_date && production_max_date} ({production_min_date} to {production_max_date}){/if}.
-    The sales side covers the whole requested period, so sell-through (sold / produced) can exceed 100%: it compares a full period of sales with a narrower window of recorded output. Yield and the wastage rate are less exposed because their sides come from the same production rows. A negative shrinkage residual (unexplained loss) is expected when sales span a wider window than output.
+    <strong>Production coverage: the source panel is not period-matched.</strong>
+    The requested period covers {period_days} day(s) ({period_label}), but production records exist for only
+    {production_days} day(s){if production_min_date && production_max_date} ({production_min_date} to {production_max_date}){/if},
+    of which {production_positive_days} carry actual output. Sales and receipts below cover the whole requested
+    period. Each panel therefore states its own window and they are never combined into one ratio: comparing a full
+    period of sales against a narrower window of output is what produced the 1,162.38% this page used to show.
 </div>
+{/if}
 {/if}
 
 {if yield_products_missing_basis > 0 || yield_products_missing_input > 0}
@@ -105,14 +144,19 @@
 <div class="rounded-lg bg-slate-50 p-4 text-sm text-slate-700 mb-6 ring-1 ring-inset ring-slate-200">
     <strong>How each figure is measured, and where it cannot be.</strong>
     <ul class="mt-1 list-disc pl-5">
+        {if has_producer_in_scope}
         <li><strong>Yield % = produced output / theoretical output &times; 100</strong>. This is the production-efficiency measure, not sell-through. The theoretical output uses this repo's own batch basis (migration 016): <strong>theoretical output = FLOOR(input_qty / batch_input_qty) &times; output_pieces_per_batch</strong>, with batch_egg_qty in place of batch_input_qty for egg products. Input is the batch input recorded in the production runs (kilo or egg); output is pieces. A product with no batch input basis shows an explicit yield gap rather than 100%.</li>
-        <li><strong>Sell-through % = sold / produced &times; 100</strong>. This is demand conversion, not production efficiency: it says how much of the recorded output sales pulled, not how efficiently the input was converted into output.</li>
+        <li><strong>Stock conversion % = sold / stock received &times; 100</strong>. This is the DESTINATION measure: of the stock that arrived in {period_label}, how much was sold. It is not production efficiency, and it is not sold/produced. The figure that used to be here divided destination sales by source output over non-matching windows and reported 1,162.38% at all-branch scope. A product sold from opening stock with nothing received shows an explicit gap instead. When the period received no stock at all, the ratio is <em>n/a</em>, never 0%.</li>
+        <li><strong>Stock received</strong> is the sum of POSTED receiving documents ({receipt_docs} document(s) on {receipt_days} day(s)), taken from the receiving tables, not from <em>dl_daily_ledger.addtl</em>. <em>addtl</em> is an accumulator that also contains operator Add Stock corrections ({adjustment_add} pcs in this period), so using it as "stock received" would fold corrections into a performance ratio. Branch-to-branch transfers inside the selected scope are part of the receiving total and are stated; at network scope they are internal movement, not new stock.</li>
         <li><strong>Wastage rate = wasted / produced</strong>, never wasted / remaining. <em>remaining_qty</em> is a generated column that already subtracts wastage, so dividing by it would overstate loss by everything still on the shelf.</li>
-        <li><strong>Shrinkage % = (produced &minus; sold &minus; wasted &minus; remaining) / produced &times; 100</strong>. This is the unexplained loss: the part of recorded production the balance cannot attribute. The mass balance is <strong>produced = sold + wasted + remaining + unaccounted</strong>, so unaccounted in scope is {unaccounted} pcs. A negative residual is an unexplained gain (sales from output recorded in an earlier period).</li>
-        <li><strong>Produced but not sold is stock, not waste.</strong> This period's net movement is produced &minus; dispatched &minus; wastage = {net_remaining} pcs (negative when dispatches draw down opening stock). The book balance including opening stock is beg + produced &minus; dispatched &minus; wastage = {book_balance} pcs. Neither is counted as waste.</li>
+        <li><strong>Shrinkage is not reported as a percentage.</strong> The old residual divided one population by another: it subtracted destination sales from source output and divided by output, which is why it read -1,020.25%. Unexplained loss is now the <em>counted variance</em> above: physical count less book balance, and only for rows that were actually counted, so an uncounted product states a gap instead of inventing a residual.</li>
+        <li><strong>Produced but not sold is stock, not waste.</strong> Closing stock is <strong>opening + produced &minus; dispatched &minus; wastage</strong> = {closing_calculated} pcs, which includes the opening balance of {opening} pcs. The generated <em>remaining_qty</em> column omits opening stock and reads negative at a producer that drew on stock it already had, so it is not used as closing stock.</li>
+        {/if}
         <li><strong>Sales and output are both period flows.</strong> A unit sold in {period_label} may have been produced in an earlier period, and output produced now may still be in stock. The rates compare this period's output with this period's input or sales, not matched production lots.</li>
-        <li><strong>A product produced with no sales</strong> shows sell-through 0.00% (it made output and sold none). <strong>A product sold with no output this period</strong> shows an explicit <em>not computable</em> state. When the period produced nothing at all, the rates show <em>n/a</em>, never a 0% that reads as failure.</li>
+        <li><strong>A product with stock received but no sales</strong> shows conversion 0.00%. A product <strong>sold without any receipt in the period</strong> shows an explicit <em>not recorded</em> state naming opening stock, because the period's inflow does not account for those units. When the scope received nothing and sold nothing, the ratio is <em>n/a</em>, never a 0% that reads as failure.</li>
+        {if has_producer_in_scope}
         <li>Counted ending variance in scope: {counted_variance} pcs (physical count less the book balance, only for rows that were actually counted). Dispatched in scope: {dispatched} pcs.</li>
+        {/if}
     </ul>
 </div>
 
@@ -124,16 +168,15 @@
     {/if}
     {if products | count > 0}
     <div class="table-wrap"><table>
-        <thead><tr><th>Product</th><th>SKU</th><th class="text-right">Produced</th><th class="text-right">Sold</th><th class="text-right">Wastage</th><th class="text-right">Net remaining</th><th class="text-right">Yield</th><th class="text-right">Sell-through</th><th class="text-right">Wastage rate</th><th class="text-right">Shrinkage</th></tr></thead>
+        <thead><tr><th>Product</th><th>SKU</th>{if has_producer_in_scope}<th class="text-right">Produced</th><th class="text-right">Wasted</th><th class="text-right">Yield</th><th class="text-right">Wastage rate</th><th class="text-right">Closing stock</th>{/if}<th class="text-right">Received</th><th class="text-right">Sold</th><th class="text-right">Conversion</th></tr></thead>
         <tbody>
         {foreach products as row}
         <tr>
             <td class="font-medium text-gray-900">{row.product_name}</td>
             <td class="text-xs text-gray-500">{row.sku}</td>
+            {if has_producer_in_scope}
             <td class="text-right">{row.produced}</td>
-            <td class="text-right">{row.sold}</td>
             <td class="text-right">{row.wasted}</td>
-            <td class="text-right text-gray-500" title="Produced &minus; dispatched &minus; wastage. Stock, not waste.">{row.net_remaining}</td>
             <td class="text-right">
                 {if row.yield_state == ''}{row.yield_pct | number_format:2}%{/if}
                 {if row.yield_state == ''}<span class="ml-1 text-xs {row.yield_trend_class}" title="{row.yield_trend_title}" aria-label="yield trend {row.yield_trend}">{row.yield_trend_arrow}</span>{/if}
@@ -141,20 +184,22 @@
                 {if row.yield_state != ''}<span class="text-xs text-amber-700" title="{row.yield_state}">n/a</span>{/if}
             </td>
             <td class="text-right">
-                {if row.produced > 0}{row.sell_through_pct | number_format:2}%{/if}
-                {if row.produced > 0}<span class="ml-1 text-xs {row.sell_through_trend_class}" title="{row.sell_through_trend_title}" aria-label="sell-through trend {row.sell_through_trend}">{row.sell_through_trend_arrow}</span>{/if}
-                {if row.sell_through_exceeds}<span class="ml-1 rounded bg-rose-100 px-1 text-xs font-semibold text-rose-700" title="check this: units sold exceed this period's output for this product; sales include earlier production">exceeds</span>{/if}
-                {if row.produced == 0}<span class="text-xs text-amber-700" title="{row.sell_through_state}">n/a</span>{/if}
+                {if row.wastage_state == ''}{row.wastage_rate_pct | number_format:2}%{/if}
+                {if row.wastage_state == ''}<span class="ml-1 text-xs {row.wastage_trend_class}" title="{row.wastage_trend_title}" aria-label="wastage rate trend {row.wastage_trend}">{row.wastage_trend_arrow}</span>{/if}
+                {if row.wastage_state != ''}<span class="text-xs text-amber-700" title="{row.wastage_state}">not recorded</span>{/if}
             </td>
-            <td class="text-right">
-                {if row.produced > 0}{row.wastage_rate_pct | number_format:2}%{/if}
-                {if row.produced > 0}<span class="ml-1 text-xs {row.wastage_trend_class}" title="{row.wastage_trend_title}" aria-label="wastage rate trend {row.wastage_trend}">{row.wastage_trend_arrow}</span>{/if}
-                {if row.produced == 0}<span class="text-xs text-amber-700" title="{row.wastage_state}">n/a</span>{/if}
+            <td class="text-right text-gray-500" title="Opening + produced - dispatched - wastage. Includes opening stock, unlike the generated remaining_qty.">
+                {if row.closing_state == ''}{row.closing_calculated}{/if}
+                {if row.closing_state != ''}<span class="text-xs text-amber-700" title="{row.closing_state}">n/a</span>{/if}
             </td>
+            {/if}
+            <td class="text-right">{row.received}</td>
+            <td class="text-right">{row.sold}</td>
             <td class="text-right">
-                {if row.produced > 0}{row.shrinkage_pct | number_format:2}%{/if}
-                {if row.produced > 0}<span class="ml-1 text-xs {row.shrinkage_trend_class}" title="{row.shrinkage_trend_title}" aria-label="residual trend {row.shrinkage_trend}">{row.shrinkage_trend_arrow}</span>{/if}
-                {if row.produced == 0}<span class="text-xs text-amber-700" title="{row.shrinkage_state}">n/a</span>{/if}
+                {if row.conversion_state == ''}{if row.conversion_exceeds == false}{row.conversion_pct | number_format:2}%{/if}{/if}
+                {if row.conversion_state == ''}<span class="ml-1 text-xs {row.conversion_trend_class}" title="{row.conversion_trend_title}" aria-label="conversion trend {row.conversion_trend}">{row.conversion_trend_arrow}</span>{/if}
+                {if row.conversion_exceeds}<span class="ml-1 rounded bg-amber-100 px-1 text-xs font-semibold text-amber-800" title="sold more than was received in this period; the rest came from opening stock">from opening stock</span>{/if}
+                {if row.conversion_state != ''}<span class="text-xs text-amber-700" title="{row.conversion_state}">n/a</span>{/if}
             </td>
         </tr>
         {/foreach}

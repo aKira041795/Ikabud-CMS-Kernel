@@ -91,53 +91,44 @@ $hasSold = (bool)preg_match('/\b(sold|sales)\b/i', $text);
 $check('E1', 'produced, sold and wasted appear together, aggregated', $hasProduced && $hasWasted && $hasSold,
     sprintf('produced=%s wasted=%s sold=%s', $hasProduced ? 'yes' : 'NO', $hasWasted ? 'yes' : 'NO', $hasSold ? 'yes' : 'NO'));
 
-// --- E2: the production-vs-pullout filter the owner asked for -----------------------------------
-$hasFilter = (bool)preg_match('/name="(production_pullout|pullout_view|movement_view|view)"[^>]*/i', $html);
-$offersPullout = (bool)preg_match('/pullout|spoilage|unsellable|wastage/i', $html);
-$check('E2', 'a production-vs-pullout filter is offered', $hasFilter && $offersPullout,
-    sprintf('filter control=%s, pullout vocabulary present=%s', $hasFilter ? 'yes' : 'NO', $offersPullout ? 'yes' : 'NO'));
+// --- E2: the forecast page must NOT host the production-vs-pullout filter ----------------------
+// RE-ANCHORED 2026-10-11. This file was written when the plan was a block ON the forecast page; the
+// recorded decision (see the header of acceptance-production-efficiency.php) made it its own peer
+// view instead. The old E2 required the block to be HERE, so it demanded the reversed design and was
+// measured 4 RED before the source/destination change (verified by stashing the change and re-running).
+// The live requirement is the opposite, and it is worth guarding: the analysis must not be re-inlined
+// into the forecast page, because it would then be read as forecast output.
+$hasFilter = (bool)preg_match('/name="(production_pullout|pullout_view|movement_view)"[^>]*/i', $html);
+$hasEfficiencyBlock = (bool)preg_match('/production-efficiency/i', (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/forecast.disyl'));
+$check('E2', 'the forecast page does NOT host the production-vs-pullout block', !$hasFilter && !$hasEfficiencyBlock,
+    sprintf('forecast filter control present=%s, efficiency block linked from the forecast template=%s ' . '(the peer view owns it)',
+        $hasFilter ? 'YES (it must not)' : 'no', $hasEfficiencyBlock ? 'YES (it must not)' : 'no'));
 
-// --- E3: the wastage rate is measured against PRODUCED, and is arithmetically true --------------
-// Asserted from the rendered numbers, not from a string. remaining_qty is a generated column that
-// already subtracts wastage, so a rate taken against it would overstate waste by whatever is on the
-// shelf - the single most likely way this panel could mislead.
+// --- E3: no wastage rate is measured against produced ON the forecast page ---------------------
+// The forecast page has no production ledger, so any "wastage %" there could only be assembled from
+// the same non-matching populations the efficiency view used to blend. It must show none.
 $rate = null;
-$produced = null;
-$wasted = null;
 if (preg_match('/wastage[^0-9]{0,40}([0-9]+(?:\.[0-9]+)?)\s*%/i', $text, $rm)) {
     $rate = (float)$rm[1];
 }
-if (preg_match('/produced[^0-9]{0,40}([0-9][0-9,]*)/i', $text, $pm2)) {
-    $produced = (float)str_replace(',', '', $pm2[1]);
-}
-if (preg_match('/(?:wastage|wasted|spoilage)[^0-9]{0,40}([0-9][0-9,]*)/i', $text, $wm)) {
-    $wasted = (float)str_replace(',', '', $wm[1]);
-}
-$rateIsReal = $rate !== null;
-$rateMatchesProduced = false;
-if ($rateIsReal && $produced !== null && $wasted !== null && $produced > 0) {
-    $rateMatchesProduced = abs($rate - (($wasted / $produced) * 100.0)) < 1.5;
-}
-$check('E3', 'wastage rate is a real percentage measured against produced', $rateIsReal,
-    sprintf('rate read from the page=%s, produced=%s, wasted=%s%s',
-        $rate === null ? 'none' : $rate . '%',
-        $produced === null ? '?' : $produced,
-        $wasted === null ? '?' : $wasted,
-        $rateIsReal && $produced !== null && $wasted !== null
-            ? ($rateMatchesProduced ? ' - and it equals wasted/produced' : ' - WARNING: does not equal wasted/produced')
-            : ''));
+$check('E3', 'the forecast page states no wastage rate of its own', $rate === null,
+    $rate === null
+        ? 'no wastage rate is rendered on the forecast page - it belongs to the efficiency view'
+        : 'a wastage rate of ' . $rate . '% is rendered here; the forecast page has no production ledger to support one');
 
-// --- E4: the basis is stated, so the numbers cannot be read two ways ---------------------------
-$statesOfficial = (bool)preg_match('/official|provisional|finalized|unfinalized/i', $text);
-$statesUnit = (bool)preg_match('/\b(pieces?|pcs|units?)\b/i', $text);
-$check('E4', 'the panel states its official/provisional and unit basis', $statesOfficial && $statesUnit,
-    sprintf('official/provisional basis stated=%s, unit named=%s', $statesOfficial ? 'yes' : 'NO', $statesUnit ? 'yes' : 'NO'));
+// --- E4: the forecast states the horizon its numbers come from ---------------------------------
+$statesHorizon = (bool)preg_match('/window|history|target/i', $text);
+$check('E4', 'the forecast states its window/target horizon', $statesHorizon,
+    $statesHorizon ? 'a window/target horizon is stated' : 'the forecast does not state the horizon its averages come from');
 
-// --- E5: efficiency is sold over produced, and says so ------------------------------------------
-$hasEfficiency = (bool)preg_match('/efficien|yield|conversion/i', $text)
-    && (bool)preg_match('/sold\s*[\/÷]\s*produced|of what was produced|per (piece|unit) produced/i', $text);
-$check('E5', 'efficiency is stated as sold over produced', $hasEfficiency,
-    $hasEfficiency ? 'the ratio and its basis are both named' : 'no sold/produced efficiency statement');
+// --- E5: the forecast page must not present sold/produced as an efficiency ----------------------
+// RE-ANCHORED with E2: the old E5 positively required "sold over produced" here. The page must not
+// carry the blended ratio at all, in either direction.
+$statesBlendedRatio = (bool)preg_match('/sold\s*[\/÷]\s*produced/i', $text);
+$check('E5', 'the forecast page states no sold/produced ratio', !$statesBlendedRatio,
+    $statesBlendedRatio
+        ? 'a sold/produced ratio is rendered on the forecast page; that ratio blends a destination flow with a source flow'
+        : 'no sold/produced ratio is rendered here - the peer view reports conversion over received stock instead');
 
 // --- E6: regression - the forecast itself still works -------------------------------------------
 $check('E6', 'the forecast still renders its production output', (bool)preg_match('/forecast|target|window/i', $text),

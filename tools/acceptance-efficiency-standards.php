@@ -97,19 +97,34 @@ $check('F1', 'yield is shown AND its formula is stated', $hasYield && $definesYi
     sprintf('yield named=%s, formula stated (output over input / batch basis)=%s',
         $hasYield ? 'yes' : 'NO', $definesYield ? 'yes' : 'NO'));
 
-// --- F2: sell-through is named as sell-through, not as "efficiency" -----------------------------
-// The distinction matters: sold/produced measures demand conversion, not production efficiency.
-$hasSellThrough = (bool)preg_match('/sell[- ]?through|conversion rate/i', $text);
-$check('F2', 'sold/produced is named sell-through, not "efficiency"', $hasSellThrough,
-    $hasSellThrough ? 'sell-through (or conversion) is named'
-        : 'the sold/produced figure is still presented as efficiency, which conflates demand with production');
+// --- F2: the two measures are named for what they are -------------------------------------------
+// RE-ANCHORED 2026-10-11. The old F2 asked only whether the words "sell-through" or "conversion"
+// appeared. After the source/destination split it PASSED by matching the sentence that DENIES the
+// ratio ("it is not production efficiency, and it is not sold/produced"), which is a false pass: a
+// criterion satisfied by a disclaimer no longer describes what the page does. It now requires the
+// destination ratio to be NAMED with its basis, and requires the sold/produced RATE to be absent.
+$namesConversion = (bool)preg_match('/stock conversion/i', $text)
+    && (bool)preg_match('/sold\s*[\/÷]\s*stock received|conversion of received stock/i', $text);
+$noSoldOverProducedRate = !(bool)preg_match('/sell-through\s*%[^0-9%]{0,60}[0-9]/i', $text);
+$check('F2', 'the destination ratio is named stock conversion over received stock',
+    $namesConversion && $noSoldOverProducedRate,
+    sprintf('stock conversion named with its basis=%s; no sell-through rate renders=%s',
+        $namesConversion ? 'yes' : 'NO', $noSoldOverProducedRate ? 'yes' : 'NO'));
 
-// --- F3: waste rate and shrinkage are both present ----------------------------------------------
+// --- F3: a waste rate AND a real unexplained-loss control ---------------------------------------
+// RE-ANCHORED 2026-10-11. The old shrinkage formula (produced - sold - wasted - remaining)/produced
+// subtracted a destination flow from a source flow and rendered -1020.25% as a rate. The honest
+// control is the COUNTED VARIANCE: physical count less book balance, and only where a count exists.
+// This keeps the requirement the old F3 existed to create ("unexplained loss is the control an owner
+// needs") while forbidding the formula that could not deliver it.
 $hasWasteRate = (bool)preg_match('/waste|scrap|spoilage/i', $text) && (bool)preg_match('/\d+(\.\d+)?\s*%/i', $text);
-$hasShrinkage = (bool)preg_match('/shrink|unexplained|unaccounted|unreconciled/i', $text);
-$check('F3', 'waste rate and shrinkage (unexplained loss) are both shown', $hasWasteRate && $hasShrinkage,
-    sprintf('waste rate=%s, shrinkage/unaccounted=%s (unexplained loss is the control an owner needs)',
-        $hasWasteRate ? 'yes' : 'NO', $hasShrinkage ? 'yes' : 'NO'));
+$hasLossControl = (bool)preg_match('/counted variance|physical count less the book/i', $text);
+$noFakeShrinkageRate = !(bool)preg_match('/shrinkage\s*%[^0-9%]{0,60}[0-9]/i', $text);
+$check('F3', 'a waste rate and a real unexplained-loss control are both shown',
+    $hasWasteRate && $hasLossControl && $noFakeShrinkageRate,
+    sprintf('waste rate=%s, unexplained-loss control (counted variance)=%s, no shrinkage rate renders=%s',
+        $hasWasteRate ? 'yes' : 'NO', $hasLossControl ? 'yes' : 'NO',
+        $noFakeShrinkageRate ? 'yes' : 'NO'));
 
 // --- F4: the mass balance is stated -------------------------------------------------------------
 // produced = sold + wasted + remaining + unaccounted. Without it the ratios cannot be reconciled.
