@@ -13425,6 +13425,45 @@ function handleAdminProductionEfficiency(array $params = []): void
         && $data['production_min_date'] <= $dateFrom
         && $data['production_max_date'] >= $dateTo;
 
+    // Direction of "good" is metric-dependent on this page, so the trend is
+    // computed per metric against the immediately preceding period of the same
+    // length. The colour rule itself lives in dl_efficiencyTrendClass(), so a
+    // single inversion cannot paint a rising wastage rate green. When no prior
+    // period exists the marker is a stated dash, never an invented direction.
+    $priorProducts = [];
+    [$priorFrom, $priorTo] = dl_efficiencyPriorPeriod($dateFrom, $dateTo);
+    if ($priorFrom !== '' && $priorTo !== '' && $priorTo < $dateFrom) {
+        $priorFilters = $filters;
+        $priorFilters['date_from'] = $priorFrom;
+        $priorFilters['date_to'] = $priorTo;
+        $priorData = dl_productionEfficiencyData($db, $priorFilters);
+        foreach ($priorData['products'] as $priorProduct) {
+            $priorProducts[(int)$priorProduct['product_id']] = $priorProduct;
+        }
+    }
+    $trendMetricKeys = [
+        'yield' => 'yield_pct',
+        'sell_through' => 'sell_through_pct',
+        'wastage' => 'wastage_rate_pct',
+        'shrinkage' => 'shrinkage_pct',
+    ];
+    foreach ($data['products'] as &$productRow) {
+        $priorProduct = $priorProducts[(int)$productRow['product_id']] ?? null;
+        foreach ($trendMetricKeys as $trendMetric => $trendKey) {
+            $trendDirection = dl_efficiencyTrendDirection(
+                $productRow[$trendKey] ?? null,
+                $priorProduct[$trendKey] ?? null
+            );
+            $productRow[$trendMetric . '_trend'] = $trendDirection;
+            $productRow[$trendMetric . '_trend_class'] = dl_efficiencyTrendClass($trendMetric, $trendDirection);
+            $productRow[$trendMetric . '_trend_arrow'] = dl_efficiencyTrendArrow($trendDirection);
+            $productRow[$trendMetric . '_trend_title'] = dl_efficiencyTrendTitle($trendMetric, $trendDirection);
+            $productRow[$trendMetric . '_prior'] = $priorProduct[$trendKey] ?? null;
+        }
+    }
+    unset($productRow);
+    $priorPeriodLabel = $priorFrom !== '' ? $priorFrom . ' to ' . $priorTo : 'not available';
+
     echo dlRender('modules/daily-ledger/admin/production-efficiency.disyl', [
         'page_title' => 'Production Efficiency',
         'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
@@ -13480,6 +13519,14 @@ function handleAdminProductionEfficiency(array $params = []): void
         'production_max_date' => $data['production_max_date'],
         'products' => $data['products'],
         'product_count' => count($data['products']),
+        'prior_period_label' => $priorPeriodLabel,
+        // The direction key is rendered from the SAME mapping as the per-product
+        // arrows, so inverting the mapping inverts the key too and the colour
+        // guard cannot be satisfied by a correct sentence next to wrong colour.
+        'direction_key_gain_up_class' => dl_efficiencyTrendClass('yield', 'up'),
+        'direction_key_gain_down_class' => dl_efficiencyTrendClass('yield', 'down'),
+        'direction_key_loss_down_class' => dl_efficiencyTrendClass('wastage', 'down'),
+        'direction_key_loss_up_class' => dl_efficiencyTrendClass('wastage', 'up'),
         'pullout_rows' => $data['pullout_rows'],
         'pullout_totals' => $data['pullout_totals'],
     ]);
@@ -13496,6 +13543,21 @@ function handleAdminForecast(array $params = []): void
         ?: (new DateTimeImmutable(dl_businessDate()))->modify('+1 day')->format('Y-m-d');
     $window = max(3, min(90, (int)($input['window'] ?? 14)));
     $rows = dl_forecastRows($ctx->db(), $filters, $targetDate, $window);
+    // Coverage is stated per PRODUCT, not per shift row: the gap an owner needs
+    // to know about is the product whose spoilage rate could not be measured.
+    $spoilageProductsWithRate = [];
+    $spoilageProductsWithoutRate = [];
+    foreach ($rows as $row) {
+        $rowPid = (int)($row['product_id'] ?? 0);
+        if ($rowPid <= 0) {
+            continue;
+        }
+        if (($row['spoilage_available'] ?? false) === true) {
+            $spoilageProductsWithRate[$rowPid] = true;
+        } else {
+            $spoilageProductsWithoutRate[$rowPid] = true;
+        }
+    }
     echo dlRender('modules/daily-ledger/admin/forecast.disyl', [
         'page_title' => 'Production Forecast',
         'user_name' => (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User'),
@@ -13508,6 +13570,8 @@ function handleAdminForecast(array $params = []): void
         'target_date' => $targetDate,
         'window' => $window,
         'rows' => $rows,
+        'spoilage_products_with_rate' => count($spoilageProductsWithRate),
+        'spoilage_products_without_rate' => count($spoilageProductsWithoutRate),
         'filters' => $filters,
         'branches' => dl_reportFilterBranches($ctx->db(), $filters),
         'products' => dl_reportFilterProducts($ctx->db(), $filters),

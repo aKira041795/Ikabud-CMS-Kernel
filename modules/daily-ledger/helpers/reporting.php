@@ -1061,7 +1061,7 @@ function dl_reportFilterSummary(array $filters, string $branchLabel): string
  *
  * @return array<int,array<string,mixed>>
  */
-function dl_forecastDemand(array $salesRows, array $varianceRows, array $inventoryRows, int $window = 14, float $safetyRate = 0.10): array
+function dl_forecastDemand(array $salesRows, array $varianceRows, array $inventoryRows, int $window = 14, float $safetyRate = 0.10, ?array $spoilageRates = null): array
 {
     $window = max(1, min(90, $window));
     $variance = [];
@@ -1143,6 +1143,19 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
         $productIndexes[(int)$row['product_id']][] = $index;
     }
     foreach ($productIndexes as $indexes) {
+        $pid = (int)$result[$indexes[0]]['product_id'];
+        // Per-product spoilage for the standard gross-up. A rate at or above
+        // 100% cannot be grossed up (the target would be unbounded), so it is
+        // treated as a stated gap rather than silently clamped or invented.
+        $spoilageRate = null;
+        $spoilageAvailable = false;
+        if (is_array($spoilageRates) && array_key_exists($pid, $spoilageRates)) {
+            $candidate = $spoilageRates[$pid];
+            if (is_numeric($candidate) && (float)$candidate >= 0.0 && (float)$candidate < 1.0) {
+                $spoilageRate = (float)$candidate;
+                $spoilageAvailable = true;
+            }
+        }
         $demandTotal = array_sum(array_map(static fn(int $index): float => (float)$result[$index]['average_sales'], $indexes));
         $remainingAvailable = max(0, (int)$result[$indexes[0]]['remaining_qty']);
         foreach ($indexes as $index) {
@@ -1150,14 +1163,35 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
                 ? (float)$result[$index]['average_sales'] / $demandTotal
                 : 1.0 / count($indexes);
             $wastageAdjustment = (float)$result[$index]['product_wastage'] * $share;
-            $projected = (float)$result[$index]['average_sales'] + (float)$result[$index]['variance_adjustment'] + $wastageAdjustment;
-            $safety = $projected * max(0.0, min(1.0, $safetyRate));
-            $grossNeed = max(0, (int)ceil($projected + $safety));
+            if ($spoilageRates === null) {
+                // Legacy flat safety margin (kept for the pure forecast contract).
+                $expectedSales = (float)$result[$index]['average_sales']
+                    + (float)$result[$index]['variance_adjustment']
+                    + $wastageAdjustment;
+                $safety = $expectedSales * max(0.0, min(1.0, $safetyRate));
+                $target = $expectedSales + $safety;
+                $grossUp = $safety;
+            } else {
+                // Standard gross-up for expected loss:
+                //   target production = expected sales / (1 - spoilage rate)
+                // where the rate is the product's own wastage / produced, taken
+                // from the production-efficiency view rather than redefined here.
+                $expectedSales = (float)$result[$index]['average_sales']
+                    + (float)$result[$index]['variance_adjustment'];
+                $target = $spoilageAvailable ? $expectedSales / (1.0 - $spoilageRate) : $expectedSales;
+                $grossUp = $target - $expectedSales;
+            }
+            $grossNeed = max(0, (int)ceil($target));
             $inventoryApplied = min($remainingAvailable, $grossNeed);
             $remainingAvailable -= $inventoryApplied;
             $result[$index]['wastage_adjustment'] = round($wastageAdjustment, 2);
-            $result[$index]['projected_demand'] = round($projected, 2);
-            $result[$index]['safety_margin'] = round($safety, 2);
+            $result[$index]['expected_sales'] = round($expectedSales, 2);
+            $result[$index]['spoilage_rate'] = $spoilageAvailable ? round($spoilageRate * 100, 2) : null;
+            $result[$index]['spoilage_available'] = $spoilageAvailable;
+            $result[$index]['spoilage_gross_up'] = round($grossUp, 2);
+            $result[$index]['target_production'] = round($target, 2);
+            $result[$index]['projected_demand'] = round($expectedSales, 2);
+            $result[$index]['safety_margin'] = round($grossUp, 2);
             $result[$index]['inventory_applied'] = $inventoryApplied;
             $result[$index]['suggested_production'] = $grossNeed - $inventoryApplied;
             unset($result[$index]['product_wastage']);
@@ -1219,7 +1253,23 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $stmt = $db->prepare($inventorySql);
     $stmt->execute($inventoryBind);
     $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    return dl_forecastDemand($sales, $variance, $inventory, $window);
+
+    // Reuse the production-efficiency view's own spoilage rate (wasted / produced)
+    // instead of inventing a second definition. The efficiency aggregate runs over
+    // the SAME history window as the forecast, so the gross-up and the efficiency
+    // table cannot disagree about a product's rate. A product with no measurable
+    // rate is simply absent here; the forecast states that gap explicitly.
+    $spoilageRates = [];
+    $efficiency = dl_productionEfficiencyData($db, $historyFilters);
+    foreach ($efficiency['products'] as $efficiencyProduct) {
+        $efficiencyPid = (int)($efficiencyProduct['product_id'] ?? 0);
+        $ratePct = $efficiencyProduct['wastage_rate_pct'] ?? null;
+        if ($efficiencyPid > 0 && $ratePct !== null) {
+            $spoilageRates[$efficiencyPid] = (float)$ratePct / 100.0;
+        }
+    }
+
+    return dl_forecastDemand($sales, $variance, $inventory, $window, 0.10, $spoilageRates);
 }
 
 // ─── Business Overview Analytics ────────────────────────────────────────
@@ -1975,6 +2025,115 @@ function dl_productionEfficiencyClassificationLabel(string $classification): str
         'consumed_no_delta' => 'Consumed at branch (not waste, not stock)',
         default => 'Returned saleable (back to stock)',
     };
+}
+
+/**
+ * Direction of a per-product trend against a comparable prior figure.
+ *
+ * 'none' means there is NO comparable prior value - it is a stated gap, never
+ * zero movement. 'flat' means the two figures are equal within a small
+ * tolerance so rounding noise does not manufacture a direction.
+ */
+function dl_efficiencyTrendDirection(mixed $current, mixed $prior): string
+{
+    if (!is_numeric($current) || !is_numeric($prior)) {
+        return 'none';
+    }
+    $current = (float)$current;
+    $prior = (float)$prior;
+    if ($current > $prior + 0.005) {
+        return 'up';
+    }
+    if ($current < $prior - 0.005) {
+        return 'down';
+    }
+
+    return 'flat';
+}
+
+/**
+ * The direction of "good" is METRIC-DEPENDENT on the efficiency view:
+ *
+ *   gain metrics  yield %, sell-through %  up is good  -> green up,   red down
+ *   loss metrics  wastage %, residual %     up is bad   -> red up,     green down
+ *
+ * The returned class carries the metric slug and the direction, so one single
+ * inversion here cannot paint a rising wastage rate green: the slug lets a test
+ * assert that the loss metrics use the opposite mapping from the gain metrics.
+ */
+function dl_efficiencyTrendClass(string $metric, string $direction): string
+{
+    $slug = match ($metric) {
+        'yield' => 'yield-rate',
+        'sell_through' => 'sell-through-rate',
+        'wastage' => 'wastage-rate',
+        'shrinkage' => 'residual-rate',
+        default => 'rate',
+    };
+    if ($direction !== 'up' && $direction !== 'down') {
+        return $slug . ' trend-' . $direction . ' text-slate-400';
+    }
+    $isGain = in_array($metric, ['yield', 'sell_through'], true);
+    $improving = $isGain ? ($direction === 'up') : ($direction === 'down');
+
+    return $slug . ' trend-' . $direction . ' ' . ($improving ? 'text-emerald-700' : 'text-rose-700');
+}
+
+function dl_efficiencyTrendArrow(string $direction): string
+{
+    return match ($direction) {
+        'up' => "\u{25B2}",
+        'down' => "\u{25BC}",
+        'flat' => "\u{25A0}",
+        default => "\u{2014}",
+    };
+}
+
+function dl_efficiencyTrendTitle(string $metric, string $direction): string
+{
+    $isGain = in_array($metric, ['yield', 'sell_through'], true);
+    $metricLabel = match ($metric) {
+        'yield' => 'yield',
+        'sell_through' => 'sell-through',
+        'wastage' => 'wastage rate',
+        'shrinkage' => 'residual',
+        default => 'rate',
+    };
+
+    return match ($direction) {
+        'up' => $isGain
+            ? $metricLabel . ': higher than the previous period - improvement'
+            : $metricLabel . ': higher than the previous period - worse',
+        'down' => $isGain
+            ? $metricLabel . ': lower than the previous period - worse'
+            : $metricLabel . ': lower than the previous period - improvement',
+        'flat' => $metricLabel . ': unchanged from the previous period',
+        default => $metricLabel . ': no comparable previous period',
+    };
+}
+
+/**
+ * The immediately preceding period of the same inclusive length.
+ * Returns ['', ''] when the input dates are unusable.
+ *
+ * @return array{0:string,1:string}
+ */
+function dl_efficiencyPriorPeriod(string $dateFrom, string $dateTo): array
+{
+    try {
+        $from = new DateTimeImmutable($dateFrom);
+        $to = new DateTimeImmutable($dateTo);
+    } catch (Throwable) {
+        return ['', ''];
+    }
+    if ($to < $from) {
+        return ['', ''];
+    }
+    $days = $from->diff($to)->days + 1;
+    $priorTo = $from->modify('-1 day');
+    $priorFrom = $priorTo->modify('-' . max(0, $days - 1) . ' days');
+
+    return [$priorFrom->format('Y-m-d'), $priorTo->format('Y-m-d')];
 }
 
 /**

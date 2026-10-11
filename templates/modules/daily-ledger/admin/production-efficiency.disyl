@@ -58,6 +58,25 @@
     <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Shrinkage %</div><div class="mt-1 text-3xl font-semibold text-amber-700">{if shrinkage_available}{shrinkage_pct | number_format:2}%{/if}{if shrinkage_available == false}<span class="text-lg text-amber-700">n/a</span>{/if}</div><div class="text-sm text-gray-500">unexplained loss: (produced &minus; sold &minus; wasted &minus; remaining) / produced</div>{if shrinkage_negative}<div class="text-xs font-semibold text-amber-700">negative residual - sales span a wider window than output; see coverage note</div>{/if}</div></div>
 </div>
 
+<!-- Direction key. The owner's rule is OPPOSITE on the two sides of this page, so the direction
+     of "good" is stated per metric and the arrows are coloured accordingly. This is a key, not a
+     global "up is green" rule: gain metrics are green when they rise, loss metrics are green when
+     they FALL. -->
+<div class="rounded-lg bg-slate-50 p-4 text-sm text-slate-700 mb-4 ring-1 ring-inset ring-slate-200">
+    <strong>Direction key: the colour follows improvement, not raw direction.</strong>
+    <ul class="mt-1 list-disc pl-5">
+        <li><strong>Gain metrics - yield % and sell-through %: higher is better.</strong>
+            A rise is <span class="{direction_key_gain_up_class} font-semibold" title="higher is better">&#9650;</span> green;
+            a fall is <span class="{direction_key_gain_down_class} font-semibold" title="lower is worse">&#9660;</span> red.</li>
+        <li><strong>Loss metrics - wastage rate and residual (shrinkage) %: lower is better.</strong>
+            A fall is <span class="{direction_key_loss_down_class} font-semibold" title="lower is better">&#9660;</span> green;
+            a rise is <span class="{direction_key_loss_up_class} font-semibold" title="higher is worse">&#9650;</span> red.
+            Each arrow compares this period with the immediately preceding period of the same length ({prior_period_label});
+            when no prior period exists the marker is a stated dash, never an invented direction. The red
+            <em>exceeds</em> markers elsewhere are warnings to check the data, not direction indicators.</li>
+    </ul>
+</div>
+
 <div class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 mb-4 ring-1 ring-inset ring-amber-200">
     <strong>Basis.</strong> Every quantity on this page is an integer count of <strong>pieces (pcs)</strong>.
     Sales units follow the product ranking: a <strong>provisional</strong> (unfinalized) ledger row contributes
@@ -117,20 +136,24 @@
             <td class="text-right text-gray-500" title="Produced &minus; dispatched &minus; wastage. Stock, not waste.">{row.net_remaining}</td>
             <td class="text-right">
                 {if row.yield_state == ''}{row.yield_pct | number_format:2}%{/if}
-                {if row.yield_exceeds}<span class="text-xs text-rose-700" title="output exceeds the theoretical batch yield for this product">&#9650;</span>{/if}
+                {if row.yield_state == ''}<span class="ml-1 text-xs {row.yield_trend_class}" title="{row.yield_trend_title}" aria-label="yield trend {row.yield_trend}">{row.yield_trend_arrow}</span>{/if}
+                {if row.yield_exceeds}<span class="ml-1 rounded bg-rose-100 px-1 text-xs font-semibold text-rose-700" title="check this: output exceeds the theoretical batch yield for this product">exceeds</span>{/if}
                 {if row.yield_state != ''}<span class="text-xs text-amber-700" title="{row.yield_state}">n/a</span>{/if}
             </td>
             <td class="text-right">
                 {if row.produced > 0}{row.sell_through_pct | number_format:2}%{/if}
-                {if row.sell_through_exceeds}<span class="text-xs text-rose-700" title="units sold exceed this period's output for this product; sales include earlier production">&#9650;</span>{/if}
+                {if row.produced > 0}<span class="ml-1 text-xs {row.sell_through_trend_class}" title="{row.sell_through_trend_title}" aria-label="sell-through trend {row.sell_through_trend}">{row.sell_through_trend_arrow}</span>{/if}
+                {if row.sell_through_exceeds}<span class="ml-1 rounded bg-rose-100 px-1 text-xs font-semibold text-rose-700" title="check this: units sold exceed this period's output for this product; sales include earlier production">exceeds</span>{/if}
                 {if row.produced == 0}<span class="text-xs text-amber-700" title="{row.sell_through_state}">n/a</span>{/if}
             </td>
             <td class="text-right">
                 {if row.produced > 0}{row.wastage_rate_pct | number_format:2}%{/if}
+                {if row.produced > 0}<span class="ml-1 text-xs {row.wastage_trend_class}" title="{row.wastage_trend_title}" aria-label="wastage rate trend {row.wastage_trend}">{row.wastage_trend_arrow}</span>{/if}
                 {if row.produced == 0}<span class="text-xs text-amber-700" title="{row.wastage_state}">n/a</span>{/if}
             </td>
             <td class="text-right">
                 {if row.produced > 0}{row.shrinkage_pct | number_format:2}%{/if}
+                {if row.produced > 0}<span class="ml-1 text-xs {row.shrinkage_trend_class}" title="{row.shrinkage_trend_title}" aria-label="residual trend {row.shrinkage_trend}">{row.shrinkage_trend_arrow}</span>{/if}
                 {if row.produced == 0}<span class="text-xs text-amber-700" title="{row.shrinkage_state}">n/a</span>{/if}
             </td>
         </tr>
