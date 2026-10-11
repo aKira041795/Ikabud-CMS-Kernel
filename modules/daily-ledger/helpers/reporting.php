@@ -1987,14 +1987,27 @@ function dl_productionEfficiencyClassificationLabel(string $classification): str
  *   - sales units are read through dl_ledgerSalesQuantitySql(), the SAME integer
  *     quantity the product ranking sums
  *
- * All quantities are INTEGERS IN ONE UNIT (pieces), so sold/produced and
- * wastage/produced are real ratios.
+ * All quantities are INTEGERS IN ONE UNIT (pieces), so the rates are real ratios.
+ *
+ * FIVE MEASURES, each with its own formula and its own explicit-state rule:
+ *   Yield %        produced output / theoretical output * 100      (production efficiency)
+ *                  theoretical output = FLOOR(input_qty / batch_input_qty) * output_pieces_per_batch
+ *                  (migration 016; batch_egg_qty for egg products)
+ *   Sell-through % sold / produced * 100                           (demand conversion)
+ *   Waste rate %   wasted / produced * 100
+ *   Shrinkage %    (produced - sold - wasted - remaining) / produced * 100  (unexplained loss)
+ *   Mass balance   produced = sold + wasted + remaining + unaccounted
+ *
+ * Yield is NOT sell-through. sold/produced says how much output demand pulled;
+ * output/theoretical-output says how much saleable output the input produced.
+ * Presenting the first as the second is the defect this separation removes.
  *
  * remaining_qty is a GENERATED column equal to produced - dispatched - wastage.
  * It is STOCK, never waste; the wastage rate divides by PRODUCED, never by it.
  *
- * A ratio is only computed when produced > 0. A row that cannot support one
- * carries an explicit state string instead of a 0 that would read as failure.
+ * A ratio is computed only when its own denominator exists. A row that cannot
+ * support one carries an explicit state string instead of a 0 that would read as
+ * failure, and the yield coverage counts name how many products that affects.
  *
  * @param array<string,mixed> $filters dl_reportFilters() output
  * @return array<string,mixed>
@@ -2010,8 +2023,24 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         'net_remaining' => 0,
         'book_balance' => 0,
         'counted_variance' => 0,
-        'efficiency_pct' => null,
+        // Sell-through is demand conversion (sold / produced); yield is production
+        // efficiency (output / theoretical output on the batch basis). They are
+        // deliberately separate keys so the two can never be conflated again.
+        'sell_through_pct' => null,
+        'sell_through_state' => 'not computable: nothing produced in this period',
         'wastage_rate_pct' => null,
+        'yield_pct' => null,
+        'yield_state' => 'not computable: no production input recorded in this period',
+        'shrinkage_pct' => null,
+        'shrinkage_state' => 'not computable: nothing produced in this period',
+        'unaccounted' => 0,
+        'input_kilo' => 0.0,
+        'input_egg' => 0.0,
+        'theoretical_output' => 0,
+        'yield_products_total' => 0,
+        'yield_products_computable' => 0,
+        'yield_products_missing_basis' => 0,
+        'yield_products_missing_input' => 0,
         'production_min_date' => null,
         'production_max_date' => null,
         'production_days' => 0,
@@ -2042,6 +2071,7 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
 
     // ── Production side, per product ──
     $prodSql = "SELECT cpl.product_id, p.name AS product_name, p.sku,
+                       p.batch_input_qty, p.batch_egg_qty, p.output_pieces_per_batch, p.output_unit_label,
                        COALESCE(SUM(cpl.beg_qty), 0) AS beg_qty,
                        COALESCE(SUM(cpl.produced_qty), 0) AS produced_qty,
                        COALESCE(SUM(cpl.dispatched_qty), 0) AS dispatched_qty,
@@ -2061,7 +2091,7 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $prodSql .= ' AND cpl.shift = ?';
         $prodBind[] = $shift;
     }
-    $prodSql .= ' GROUP BY cpl.product_id, p.name, p.sku';
+    $prodSql .= ' GROUP BY cpl.product_id, p.name, p.sku, p.batch_input_qty, p.batch_egg_qty, p.output_pieces_per_batch, p.output_unit_label';
     $prodStmt = $db->prepare($prodSql);
     $prodStmt->execute($prodBind);
     $prodRows = $prodStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -2117,6 +2147,38 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
     $salesStmt->execute($salesBind);
     $salesRows = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // ── Input side, per product (the yield basis) ──
+    // Migration 011 records the raw input for each production run as
+    // primary_input_qty with a unit type ('kilo' or 'egg'); migration 016's
+    // batch basis converts that to an expected output. No input value is
+    // invented: a product with no run in the period has no input here and the
+    // template states that rather than defaulting the yield.
+    $runsSql = "SELECT pr.product_id,
+                       COALESCE(SUM(CASE WHEN pr.primary_input_type = 'egg' THEN pr.primary_input_qty ELSE 0 END), 0) AS egg_input_qty,
+                       COALESCE(SUM(CASE WHEN pr.primary_input_type <> 'egg' THEN pr.primary_input_qty ELSE 0 END), 0) AS kilo_input_qty
+                  FROM dl_production_runs pr
+                 WHERE pr.ledger_date BETWEEN ? AND ?
+                   AND pr.destination_branch_id IN ({$marks})";
+    $runsBind = array_merge([$dateFrom, $dateTo], $ids);
+    if ($productId > 0) {
+        $runsSql .= ' AND pr.product_id = ?';
+        $runsBind[] = $productId;
+    }
+    if ($shift !== '') {
+        $runsSql .= ' AND pr.shift = ?';
+        $runsBind[] = $shift;
+    }
+    $runsSql .= ' GROUP BY pr.product_id';
+    $runsStmt = $db->prepare($runsSql);
+    $runsStmt->execute($runsBind);
+    $runInput = [];
+    foreach ($runsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $runRow) {
+        $runInput[(int)$runRow['product_id']] = [
+            'kilo' => (float)$runRow['kilo_input_qty'],
+            'egg' => (float)$runRow['egg_input_qty'],
+        ];
+    }
+
     $products = [];
     $producedTotal = 0;
     $wastedTotal = 0;
@@ -2136,6 +2198,12 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
             'dispatched' => (int)$row['dispatched_qty'],
             'net_remaining' => (int)$row['remaining_qty'],
             'counted_variance' => (int)$row['counted_variance'],
+            // The batch input basis (migration 016). NULL on the product means
+            // "not configured", which is a stated yield gap, never 100%.
+            'batch_input_qty' => isset($row['batch_input_qty']) ? (float)$row['batch_input_qty'] : 0.0,
+            'batch_egg_qty' => isset($row['batch_egg_qty']) ? (float)$row['batch_egg_qty'] : 0.0,
+            'output_pieces_per_batch' => (int)($row['output_pieces_per_batch'] ?? 0),
+            'output_unit_label' => (string)($row['output_unit_label'] ?? 'pcs'),
         ];
         $producedTotal += (int)$row['produced_qty'];
         $wastedTotal += (int)$row['wastage_qty'];
@@ -2162,33 +2230,114 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
                 'dispatched' => 0,
                 'net_remaining' => 0,
                 'counted_variance' => 0,
+                'batch_input_qty' => 0.0,
+                'batch_egg_qty' => 0.0,
+                'output_pieces_per_batch' => 0,
+                'output_unit_label' => 'pcs',
             ];
         }
         $products[$pid]['sold'] = $sold;
     }
 
+    // Attach the recorded input to each product. A product with no run in the
+    // period keeps zero input and its yield state says so explicitly.
+    foreach ($products as &$productRef) {
+        $refPid = (int)$productRef['product_id'];
+        $productRef['input_kilo'] = $runInput[$refPid]['kilo'] ?? 0.0;
+        $productRef['input_egg'] = $runInput[$refPid]['egg'] ?? 0.0;
+    }
+    unset($productRef);
+
     $soldTotal = 0;
+    $theoreticalOutputTotal = 0;
+    $inputKiloTotal = 0.0;
+    $inputEggTotal = 0.0;
+    $yieldProductsTotal = 0;
+    $yieldProductsComputable = 0;
+    $yieldProductsMissingBasis = 0;
+    $yieldProductsMissingInput = 0;
     foreach ($products as &$product) {
         $soldTotal += (int)$product['sold'];
         $produced = (int)$product['produced'];
+        $sold = (int)$product['sold'];
+        $wasted = (int)$product['wasted'];
+        $remaining = (int)$product['net_remaining'];
+        $yieldProductsTotal++;
+
+        // Yield basis from migration 016: theoretical output is whole batches of
+        // input times the pieces each batch yields. BOTH the batch size and the
+        // pieces-per-batch are required; a NULL batch_input_qty is a stated gap.
+        $biq = (float)$product['batch_input_qty'];
+        $beq = (float)$product['batch_egg_qty'];
+        $oppb = (int)$product['output_pieces_per_batch'];
+        $inputKilo = (float)($product['input_kilo'] ?? 0.0);
+        $inputEgg = (float)($product['input_egg'] ?? 0.0);
+        $theoreticalOutput = 0;
+        if ($oppb > 0) {
+            if ($biq > 0 && $inputKilo > 0) {
+                $theoreticalOutput += (int)floor($inputKilo / $biq) * $oppb;
+            }
+            if ($beq > 0 && $inputEgg > 0) {
+                $theoreticalOutput += (int)floor($inputEgg / $beq) * $oppb;
+            }
+        }
+        $basisConfigured = $oppb > 0 && ($biq > 0 || $beq > 0);
+        $hasInput = $inputKilo > 0 || $inputEgg > 0;
+        $product['input_qty'] = round($inputKilo + $inputEgg, 3);
+        $product['theoretical_output'] = $theoreticalOutput;
+        $inputKiloTotal += $inputKilo;
+        $inputEggTotal += $inputEgg;
+        $theoreticalOutputTotal += $theoreticalOutput;
+
+        if ($theoreticalOutput > 0) {
+            // Production efficiency: what came out against what the input should
+            // have yielded. This is the standard yield, distinct from sell-through.
+            $product['yield_pct'] = round($produced / $theoreticalOutput * 100, 2);
+            $product['yield_state'] = '';
+            $product['yield_exceeds'] = $product['yield_pct'] > 100;
+            $yieldProductsComputable++;
+        } else {
+            $product['yield_pct'] = null;
+            $product['yield_exceeds'] = false;
+            if (!$basisConfigured) {
+                $product['yield_state'] = 'not computable: no batch input basis configured (batch_input_qty / batch_egg_qty with output_pieces_per_batch)';
+                $yieldProductsMissingBasis++;
+            } elseif (!$hasInput) {
+                $product['yield_state'] = 'not computable: no production input recorded for this product in the period';
+                $yieldProductsMissingInput++;
+            } else {
+                $product['yield_state'] = 'not computable: the recorded input does not complete a whole batch at the configured batch size';
+                $yieldProductsMissingInput++;
+            }
+        }
+
         if ($produced > 0) {
-            $product['efficiency_pct'] = round(((int)$product['sold']) / $produced * 100, 2);
-            $product['wastage_rate_pct'] = round(((int)$product['wasted']) / $produced * 100, 2);
-            $product['efficiency_state'] = '';
+            // Sell-through: demand conversion, NOT production efficiency.
+            $product['sell_through_pct'] = round($sold / $produced * 100, 2);
+            $product['wastage_rate_pct'] = round($wasted / $produced * 100, 2);
+            // Shrinkage: the part of production the mass balance cannot explain
+            // (produced - sold - wasted - remaining).
+            $product['shrinkage_pct'] = round(($produced - $sold - $wasted - $remaining) / $produced * 100, 2);
+            $product['sell_through_state'] = '';
             $product['wastage_state'] = '';
+            $product['shrinkage_state'] = '';
             // Sales above this product's own output are real, but they are not
             // attributable to this period's production; the row marks it rather
-            // than presenting >100% as an efficiency the product achieved.
-            $product['efficiency_exceeds'] = $product['efficiency_pct'] > 100;
+            // than presenting >100% as a rate the product achieved.
+            $product['sell_through_exceeds'] = $product['sell_through_pct'] > 100;
         } else {
-            $product['efficiency_pct'] = null;
+            $product['sell_through_pct'] = null;
             $product['wastage_rate_pct'] = null;
-            $product['efficiency_state'] = (int)$product['sold'] > 0
+            $product['shrinkage_pct'] = null;
+            $product['sell_through_state'] = $sold > 0
                 ? 'not computable: sold units came from an earlier period'
                 : 'not computable: nothing produced in this period';
             $product['wastage_state'] = 'not computable: nothing produced in this period';
-            $product['efficiency_exceeds'] = false;
+            $product['shrinkage_state'] = 'not computable: nothing produced in this period';
+            $product['sell_through_exceeds'] = false;
         }
+        // The mass balance identity: produced = sold + wasted + remaining + unaccounted.
+        $product['unaccounted'] = $produced - $sold - $wasted - $remaining;
         $product['unit'] = 'pcs';
     }
     unset($product);
@@ -2254,8 +2403,32 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         'net_remaining' => $netRemaining,
         'book_balance' => $begTotal + $producedTotal - $dispatchedTotal - $wastedTotal,
         'counted_variance' => $countedVariance,
-        'efficiency_pct' => $producedTotal > 0 ? round($soldTotal / $producedTotal * 100, 2) : null,
+        // Sell-through: demand conversion (sold / produced).
+        'sell_through_pct' => $producedTotal > 0 ? round($soldTotal / $producedTotal * 100, 2) : null,
+        'sell_through_state' => $producedTotal > 0 ? '' : 'not computable: nothing produced in this period',
+        // Yield: production efficiency (produced output / theoretical output on
+        // the batch basis). NULL when no product in scope has a computable basis;
+        // the coverage counts below carry the reason.
+        'yield_pct' => $theoreticalOutputTotal > 0 ? round($producedTotal / $theoreticalOutputTotal * 100, 2) : null,
+        'yield_state' => $theoreticalOutputTotal > 0
+            ? ''
+            : ($yieldProductsMissingBasis > 0
+                ? 'not computable: no batch input basis configured for the products in this scope'
+                : 'not computable: no production input recorded in this period'),
         'wastage_rate_pct' => $producedTotal > 0 ? round($wastedTotal / $producedTotal * 100, 2) : null,
+        // Shrinkage: unexplained loss on the mass balance.
+        'shrinkage_pct' => $producedTotal > 0
+            ? round(($producedTotal - $soldTotal - $wastedTotal - $netRemaining) / $producedTotal * 100, 2)
+            : null,
+        'shrinkage_state' => $producedTotal > 0 ? '' : 'not computable: nothing produced in this period',
+        'unaccounted' => $producedTotal - $soldTotal - $wastedTotal - $netRemaining,
+        'input_kilo' => round($inputKiloTotal, 3),
+        'input_egg' => round($inputEggTotal, 3),
+        'theoretical_output' => $theoreticalOutputTotal,
+        'yield_products_total' => $yieldProductsTotal,
+        'yield_products_computable' => $yieldProductsComputable,
+        'yield_products_missing_basis' => $yieldProductsMissingBasis,
+        'yield_products_missing_input' => $yieldProductsMissingInput,
         'production_min_date' => $productionMinDate,
         'production_max_date' => $productionMaxDate,
         'production_days' => $productionDays,
