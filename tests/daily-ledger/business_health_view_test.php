@@ -53,6 +53,21 @@ $h->test(
         && !str_contains($beforeFirstFormEnd, 'name="period"'),
     'date_from/date_to type=date and no typed period in the bar'
 );
+// Backward compatibility is part of the contract: an old bookmarked `period` URL
+// still resolves through the SAME canonical pair, and a picked range beats a stale
+// `period`, so there is no second source of truth.
+$h->test(
+    'an old bookmarked period URL still resolves through the same date pair',
+    ($legacyPeriodHtml = $render(['scope' => 'ALL', 'period' => '2026-10-05 to 2026-10-07']))
+        && preg_match('/name="date_from" value="2026-10-05"/', $legacyPeriodHtml) === 1
+        && preg_match('/name="date_to" value="2026-10-07"/', $legacyPeriodHtml) === 1
+);
+$h->test(
+    'a picked date range wins over a stale legacy period value',
+    ($stalePeriodHtml = $render(['scope' => 'ALL', 'date_from' => '2026-10-01', 'date_to' => '2026-10-03', 'period' => '2026-01-01 to 2026-01-02']))
+        && preg_match('/name="date_from" value="2026-10-01"/', $stalePeriodHtml) === 1
+        && preg_match('/name="date_to" value="2026-10-03"/', $stalePeriodHtml) === 1
+);
 $h->test('health verdict states its no-plan basis and operational gates', str_contains($html, 'there is no target, budget, quota, or plan') && str_contains($html, 'no unresolved variance flag remains') && str_contains($html, 'every branch is closed'));
 $h->test('unfinished reporting is not rendered as zero headline sales', str_contains($html, 'Awaiting finalization') && !str_contains($html, 'Gross sales</div><div class="mt-1 text-3xl font-semibold text-emerald-600">PHP 0.00'));
 $h->test('opportunity is named, measured, and linked to branch detail', str_contains($html, 'Where can operations be maximized?') && str_contains($html, 'ledger rows are pending') && preg_match('/href="[^"]+branch_id=\d+"/', $html) === 1);
