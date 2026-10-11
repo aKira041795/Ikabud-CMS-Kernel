@@ -5138,6 +5138,25 @@ MD;
                         // A never-purged instance has no version at all; say so rather than printing
                         // an empty gap that reads like a bug.
                         $versionBeforeLabel = $versionBefore === '' ? '(none yet)' : $versionBefore;
+
+                        // NEVER tick a purge that did not happen.
+                        //
+                        // `pageCacheBumpVersion()` returns void and suppresses its write failures, so
+                        // a purge run by a user that does not own the instance directory writes
+                        // nothing - and this printed "✓ ... version (none yet) → , flush marker
+                        // touched" over it. That version bump is the only signal stopping a warm
+                        // APCu worker from serving pre-purge HTML, so a false tick is worse than no
+                        // line at all: it tells a deploy that pages were purged while a whole tenant
+                        // still holds warm entries.
+                        if (empty($info['ok'])) {
+                            $errors[] = 'Page cache ' . $instance . ': purge did not take effect';
+                            out('  ' . yellow('△') . " Page cache {$instance}: NOT purged — version read back "
+                                . (($info['version_after'] ?? '') === '' ? 'empty' : (string)$info['version_after']));
+                            out('      ' . dim('cause: ') . 'cannot write ' . dirname((string)($info['flush_file'] ?? '')));
+                            out('      ' . dim('fix:   ') . 'run the purge as the web user, e.g. sudo -u www-data php ikabud cache:clear');
+                            continue;
+                        }
+
                         out('  ' . green('✓') . " Page cache {$instance}: version {$versionBeforeLabel} → {$info['version_after']}, flush marker touched");
                     }
                 } catch (\Throwable $e) {

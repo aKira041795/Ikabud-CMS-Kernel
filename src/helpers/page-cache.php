@@ -560,10 +560,25 @@ function pageCacheInvalidateInstances(array $instances): array
         $before = pageCacheReadVersion($instance);
         pageCacheBumpVersion($instance);
         pageCacheTouchFlush($instance);
+        $after = pageCacheReadVersion($instance);
+
+        // A successful bump ALWAYS leaves a readable token, so an empty or unreadable read-back
+        // means this instance was NOT purged.
+        //
+        // Not hypothetical. `pageCacheBumpVersion()` returns void and `@`-suppresses every write, so
+        // when the calling user does not own the instance directory - the deploy account versus the
+        // www-data that created it - it writes nothing and says nothing. `php ikabud cache:clear`
+        // then printed
+        //   "✓ Page cache pagecache_t1: version (none yet) → , flush marker touched"
+        // a green tick over a purge that never happened, on the one signal that stops a warm APCu
+        // worker serving pre-purge HTML. The evidence was already in this return value; nothing
+        // read it.
+        $ok = $after !== '' && $after !== '!unknown';
         $report[$instance] = [
             'version_before' => $before,
-            'version_after' => pageCacheReadVersion($instance),
+            'version_after' => $after,
             'flush_file' => pageCacheFlushFilePath($instance),
+            'ok' => $ok,
         ];
     }
 

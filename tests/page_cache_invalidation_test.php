@@ -79,6 +79,21 @@ echo "instance: {$instance}\n";
 echo 'fixture instances: ' . implode(', ', $fixtureInstances) . "\n\n";
 
 // ── Baseline: a written entry is served ───────────────────────────────────────
+// Normalise the flush marker BEFORE the baseline write, so this test starts from a state it
+// owns rather than inheriting one.
+//
+// Without this it cannot be run twice in a row. Section (g) purges the base instance, which
+// touches `.flush` to `time()`; the next run then writes its baseline entry inside that same
+// second, and pageCacheGet deliberately treats an entry written in the same second as the flush
+// as stale - mtimes have one-second resolution, so same-second is genuinely ambiguous and
+// rejecting is the safer choice (see the `>=` comment in pageCacheGet). The failure was
+// therefore the test being non-repeatable, NOT the freshness rule being wrong: fixing the
+// comparison to `>` would have made a purge in the same second as a build serve that build
+// stale until TTL.
+$flushFile = pageCacheFlushFilePath($instance);
+@touch($flushFile, time() - 3600);
+clearstatcache(true, $flushFile);
+
 app()->cache()->clearByUrlPattern($instance, $uri);
 pageCacheSet($uri, str_repeat('A', 200), 'test', 200);
 
@@ -256,6 +271,37 @@ pciAssert(
     "sweep returned {$secondPass}"
 );
 
+// ── i) A purge that could not take effect must say so ─────────────────────────
+// `pageCacheBumpVersion()` returns void and `@`-suppresses every write, so a purge run by a user
+// who does not own the instance directory writes nothing and says nothing. `php ikabud cache:clear`
+// then printed "✓ Page cache pagecache_t1: version (none yet) → , flush marker touched" - a green
+// tick over a purge that never happened, on the one signal that stops a warm APCu worker serving
+// pre-hash HTML. `ok` is what lets the command refuse to tick it.
+$landedInstance = $fixtureBase . '_t903';
+$blockedInstance = $fixtureBase . '_t904';
+$landedDir = STORAGE_PATH . '/cache/' . $landedInstance;
+$blockedDir = STORAGE_PATH . '/cache/' . $blockedInstance;
+@mkdir($landedDir, 0775, true);
+@mkdir($blockedDir, 0775, true);
+// Make the bump unable to land. The directory is ours, so this works; a write needs write
+// permission on the DIRECTORY, not on the file.
+@chmod($blockedDir, 0555);
+
+$purgeReport = pageCacheInvalidateInstances([$landedInstance, $blockedInstance]);
+
+pciAssert(
+    'a purge that landed reports ok',
+    !empty($purgeReport[$landedInstance]['ok']),
+    'version read back: ' . var_export($purgeReport[$landedInstance]['version_after'] ?? null, true)
+);
+pciAssert(
+    'a purge that could NOT land reports not-ok (this is what printed a false green)',
+    empty($purgeReport[$blockedInstance]['ok']),
+    'version read back: ' . var_export($purgeReport[$blockedInstance]['version_after'] ?? null, true)
+);
+
+@chmod($blockedDir, 0775);
+
 // ── Teardown: remove only the fixture instances this test created ─────────────
 // Section (g) already deletes them; tolerate that. Never touch a real tenant's directory -
 // only the two names this test minted.
@@ -267,6 +313,16 @@ foreach ($fixtureInstances as $fixtureInstance) {
         }
     }
     @rmdir($fixtureDir);
+}
+
+foreach ([$landedInstance => $landedDir, $blockedInstance => $blockedDir] as $leftoverDir) {
+    foreach (glob($leftoverDir . '/{*,.*}', GLOB_BRACE) ?: [] as $leftoverFile) {
+        if (is_file($leftoverFile)) {
+            @unlink($leftoverFile);
+        }
+    }
+    @chmod($leftoverDir, 0775);
+    @rmdir($leftoverDir);
 }
 
 // Lock fixtures: remove the temp lock directory this test created, so no fixture state is left on
