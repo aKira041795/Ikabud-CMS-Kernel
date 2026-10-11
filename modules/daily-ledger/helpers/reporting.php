@@ -1232,7 +1232,7 @@ const DL_OVERVIEW_FORECAST_WINDOW_DEFAULT = 14;
 const DL_OVERVIEW_FORECAST_WINDOW_MIN = 3;
 const DL_OVERVIEW_FORECAST_WINDOW_MAX = 90;
 const DL_OVERVIEW_PARETO_THRESHOLD = 0.80;
-const DL_OVERVIEW_SORT_FIELDS = ['amount', 'units'];
+const DL_OVERVIEW_SORT_FIELDS = ['amount', 'units', 'cumulative'];
 const DL_OVERVIEW_CHART_LIMIT_DEFAULT = 10;
 const DL_OVERVIEW_CHART_LIMIT_MAX = 25;
 
@@ -1666,6 +1666,14 @@ function dl_overviewSortLabel(string $sortBy, string $sortDir): string
 function dl_overviewSortProducts(array $rows, string $sortBy = 'amount', string $sortDir = 'desc'): array
 {
     $by = dl_overviewNormalizeSortBy($sortBy);
+    // 'cumulative' is offered so the cumulative-share column can be clicked. The cumulative figure is
+    // monotonic by construction - it is the running total in ranking order - so it cannot be its own
+    // sort key. Clicking that column therefore chooses the DIRECTION the running total is built from,
+    // which is the ranking basis (amount/units) in that direction. Mapping it here rather than
+    // reading $a['cumulative'] keeps it from sorting on a key the totals rows do not carry.
+    if ($by === 'cumulative') {
+        $by = 'amount';
+    }
     $ascending = dl_overviewNormalizeSortDir($sortDir) === 'asc';
     $other = $by === 'amount' ? 'units' : 'amount';
 

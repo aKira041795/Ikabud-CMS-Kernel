@@ -13110,6 +13110,11 @@ function handleAdminProductsPerformance(array $params = []): void
         'ranked_products' => $rankedRows,
         'ranked_total' => count($rankedProducts),
         'ranked_shown' => count($rankedRows),
+        // The cumulative column is built in ranking order, so its meaning depends on direction:
+        // descending accumulates down from the biggest product, ascending from the least. The view
+        // says which, instead of presenting one figure that silently means two different things.
+        'ranking_from' => $sortDir === 'asc' ? 'least' : 'biggest',
+        'cumulative_toggle_dir' => $sortDir === 'asc' ? 'desc' : 'asc',
         'product_q' => $listQuery,
         'min_share' => $listMinShare,
         'branch_products' => $branchProductTotals,
