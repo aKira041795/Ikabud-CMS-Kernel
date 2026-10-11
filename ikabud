@@ -4928,15 +4928,23 @@ MD;
                     $lockOldest = $lockMtime;
                 }
             }
-            if ($lockCount > 0) {
+
+            // The subtree table above counts EVERY file in this directory, including the rate-limit
+            // marker; this line counts locks only. Naming the marker keeps two adjacent lines from
+            // appearing to disagree, which is the same way a silently frozen counter hid a defect
+            // earlier - a report that contradicts itself is one an operator stops trusting.
+            $lockMarkers = is_file($lockDir . '/.swept') ? 1 : 0;
+
+            if ($lockCount > 0 || $lockMarkers > 0) {
                 $lockAge = $lockOldest !== null ? time() - $lockOldest : null;
                 // Threshold and rate limit are both one hour, so a working sweep holds the oldest
                 // file below roughly two hours. Beyond that it is not collecting.
                 $lockStuck = $lockAge !== null && $lockAge > 7200;
                 out('  ' . ($lockStuck ? yellow('!') : green('v')) . ' '
                     . sprintf(
-                        'Page locks: %d file(s), %s',
+                        'Page locks: %d lock file(s)%s, %s',
                         $lockCount,
+                        $lockMarkers > 0 ? ' + ' . $lockMarkers . ' marker' : '',
                         $lockAge === null ? 'age unknown' : sprintf('oldest %.1fh', $lockAge / 3600)
                     )
                     . ($lockStuck ? '  ->  not being collected (expected under ~2h)' : ''));
