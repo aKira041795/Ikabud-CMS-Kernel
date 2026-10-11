@@ -571,9 +571,16 @@
                 {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor' || user_role == 'viewer'}
                 <a href="{base_url}/admin/overview"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'overview'}bg-white/10 ring-1 ring-white/10{/if}"
-                   aria-label="Business Overview">
+                   aria-label="Business Health">
                     <i class="fas fa-chart-pie w-6" aria-hidden="true"></i>
-                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Overview</span>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Health</span>
+                </a>
+
+                <a href="{base_url}/admin/products/performance"
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'products-performance'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Products Overview">
+                    <i class="fas fa-box-open w-6" aria-hidden="true"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Products</span>
                 </a>
                 {/if}
 

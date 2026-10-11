@@ -12807,6 +12807,126 @@ function handleAdminOverview(array $params = []): void
     ]);
 }
 
+/**
+ * Products Overview: the product-level analytics that were deliberately removed
+ * from the Health view, on their own page. Thin by design - it wires the four
+ * existing, already-tested reporting helpers and adds no analytics SQL:
+ *
+ *   dl_overviewProductTotals        -> the ranked product set (one grouped query)
+ *   dl_overviewTopProducts          -> the top-N slice rendered in the table
+ *   dl_overviewPareto               -> the 80/20 concentration card
+ *   dl_overviewBranchProductTotals  -> the per-branch breakdown (one grouped query)
+ *
+ * Area scope is inherited from dl_reportFilters(), the single consumer shared
+ * with Reports and the Health view: dl_adminViewBranchIds() narrows the
+ * authorized set by the persisted area/network scope, then an explicit branch
+ * narrows it further. A viewer therefore sees ONLY their area, like every other
+ * view in this set. Nothing here writes business data.
+ */
+function handleAdminProductsPerformance(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    // Same read-only gate as the Health view and Reports: the owner reviews as
+    // `viewer`, so a viewer must render without an authorisation refusal.
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
+    $role = (string)($user['role'] ?? '');
+    $input = $ctx->input();
+
+    // Reuse the report filter contract. It owns date normalisation/limits, the
+    // branch predicate, and the area/branch intersection; this page must not
+    // assemble a second scope consumer.
+    $filters = dl_reportFilters($input, $user);
+    // Product analytics follow the Health view's official-rows default: pending
+    // rows (no ending yet) are excluded unless the viewer opts to include them.
+    $filters['pending_rows_mode'] = dl_overviewPendingRowsMode($input['pending_rows'] ?? null);
+
+    $db = $ctx->db();
+    $productTotals = dl_overviewProductTotals($db, $filters);
+
+    $sortBy = dl_overviewNormalizeSortBy($input['sort_by'] ?? 'amount');
+    $sortDir = dl_overviewNormalizeSortDir($input['sort_dir'] ?? 'desc');
+    // "What sells" is the default (amount desc); "what does not" is the same
+    // deterministic ranking read in the other direction. No new query either way.
+    $rankedProducts = dl_overviewSortProducts($productTotals, $sortBy, $sortDir);
+    $topProducts = dl_overviewTopProducts($rankedProducts, DL_OVERVIEW_TOP_PRODUCTS_LIMIT);
+    $topProducts = dl_overviewValueShares(dl_overviewBarPercentages($topProducts, 'amount'), 'amount');
+    $rank = 0;
+    foreach ($topProducts as &$topRow) {
+        $topRow['rank'] = ++$rank;
+    }
+    unset($topRow);
+
+    $pareto = dl_overviewPareto($productTotals);
+    $contributorRank = 0;
+    foreach ($pareto['contributors'] as &$contributor) {
+        $contributor['rank'] = ++$contributorRank;
+    }
+    unset($contributor);
+
+    // One grouped (branch_id, product_id) query, sliced per branch in PHP - the
+    // helper never issues a query per branch.
+    $branchProductTotals = dl_overviewBranchProductTotals(
+        $db,
+        $filters,
+        DL_OVERVIEW_PER_BRANCH_PRODUCTS_LIMIT,
+        $sortBy,
+        $sortDir
+    );
+    foreach ($branchProductTotals as &$branchRow) {
+        $branchRow['products'] = dl_overviewBarPercentages($branchRow['products'] ?? [], 'amount');
+    }
+    unset($branchRow);
+
+    $grandUnits = 0;
+    $grandAmount = 0.0;
+    foreach ($productTotals as $row) {
+        $grandUnits += (int)($row['units'] ?? 0);
+        $grandAmount += (float)($row['amount'] ?? 0);
+    }
+
+    $dateFrom = (string)($filters['date_from'] ?? '');
+    $dateTo = (string)($filters['date_to'] ?? '');
+    $periodLabel = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
+    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+
+    echo dlRender('modules/daily-ledger/admin/products-performance.disyl', [
+        'page_title' => 'Products Overview',
+        'user_name' => $userName,
+        'user_role' => $role,
+        'current_page' => 'products-performance',
+        // Opt this view into the shared area scope. helpers.php injects
+        // admin_view_scope only when the handler sets this flag, so without it
+        // the Area dropdown would render as nothing for an admin/viewer.
+        'admin_area_filter' => true,
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'filters' => $filters,
+        'view_scope' => (string)($filters['view_scope'] ?? 'ALL'),
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'period_label' => $periodLabel,
+        'branch_id' => (int)($filters['branch_id'] ?? 0),
+        'branches' => dl_reportFilterBranches($db, $filters),
+        'product_count' => count($productTotals),
+        'grand_units' => $grandUnits,
+        'grand_amount' => $grandAmount,
+        'top_products' => $topProducts,
+        'ranked_count' => count($rankedProducts),
+        'sort_by' => $sortBy,
+        'sort_dir' => $sortDir,
+        'sort_label' => dl_overviewSortLabel($sortBy, $sortDir),
+        'exclude_pending' => ($filters['pending_rows_mode'] ?? 'exclude') === 'exclude',
+        'pareto' => $pareto,
+        'branch_products' => $branchProductTotals,
+    ]);
+}
+
 function handleAdminReports(array $params = []): void
 {
     $ctx = module();

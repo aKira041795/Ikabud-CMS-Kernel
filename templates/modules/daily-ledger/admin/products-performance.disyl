@@ -1,0 +1,147 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Products Overview</h2>
+        <p class="text-sm text-gray-500">Product-level performance for the selected period: what sells, what does not, and where.</p>
+    </div>
+    <div class="flex gap-2">
+        <a class="btn btn-outline" href="{base_url}/admin/overview?date_from={date_from}&date_to={date_to}&branch_id={branch_id}">Business Health</a>
+        <a class="btn btn-outline" href="{base_url}/admin/reports/sales?date_from={date_from}&date_to={date_to}&branch_id={branch_id}">Detailed sales</a>
+    </div>
+</div>
+
+<!-- Primary filter: Area, its child Branch, the From/To date range, the ranking, and Apply. -->
+<form class="card mb-6 print-hide" action="{base_url}/admin/products/performance" method="GET" onsubmit="return window.dlLoadForm(this)">
+    <div class="card-body grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+        <div class="form-group">{include "modules/daily-ledger/admin/partials/scope-filter.disyl"}</div>
+        <div class="form-group">
+            <label class="form-label">Branch</label>
+            <select class="form-input" name="branch_id">
+                <option value="">All branches in area</option>
+                {foreach branches as br}<option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>{/foreach}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">From</label>
+            <input class="form-input" type="date" name="date_from" value="{date_from}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">To</label>
+            <input class="form-input" type="date" name="date_to" value="{date_to}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Rank by</label>
+            <select class="form-input" name="sort_by">
+                <option value="amount" {if sort_by == 'amount'}selected{/if}>Sales amount</option>
+                <option value="units" {if sort_by == 'units'}selected{/if}>Units sold</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Order</label>
+            <select class="form-input" name="sort_dir">
+                <option value="desc" {if sort_dir == 'desc'}selected{/if}>Highest first (what sells)</option>
+                <option value="asc" {if sort_dir == 'asc'}selected{/if}>Lowest first (what does not)</option>
+            </select>
+        </div>
+        <label class="inline-flex items-center gap-2 text-sm">
+            <input type="hidden" name="pending_rows" value="include">
+            <input type="checkbox" name="pending_rows" value="exclude" {if exclude_pending}checked{/if}> Official rows only
+        </label>
+        <button type="submit" class="btn btn-primary">Apply</button>
+    </div>
+</form>
+
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Products sold</div><div class="mt-1 text-3xl font-semibold">{product_count}</div><div class="text-sm text-gray-500">with at least one unit in {period_label}</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Units sold</div><div class="mt-1 text-3xl font-semibold text-indigo-600">{grand_units}</div><div class="text-sm text-gray-500">official, finalized rows</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Official sales</div><div class="mt-1 text-3xl font-semibold text-emerald-600">PHP {grand_amount | number_format:2}</div><div class="text-sm text-gray-500">across products in scope</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Pareto concentration</div>{if pareto.has_data}<div class="mt-1 text-3xl font-semibold">{pareto.contributor_count} <span class="text-sm text-gray-500">products</span></div><div class="text-sm text-gray-500">{pareto.contributor_share | number_format:1}% of sales · {pareto.bottom_count} trailing</div>{/if}{if pareto.has_data == false}<div class="mt-1 text-lg font-semibold text-amber-700">No finalized sales</div><div class="text-sm text-gray-500">No concentration to report for {period_label}.</div>{/if}</div></div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header"><span>Ranked products</span><span class="text-sm text-muted">{sort_label} · {top_products | count} of {ranked_count}</span></div>
+    {if top_products | count == 0}
+    <div class="card-body text-sm text-gray-500">No finalized product sales in {period_label}. Widen the date range or include pending rows.</div>
+    {/if}
+    {if top_products | count > 0}
+    <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Category</th><th class="text-right">Units</th><th class="text-right">Amount</th><th>Share of ranked sales</th></tr></thead>
+        <tbody>
+        {foreach top_products as row}
+        <tr>
+            <td>{row.rank}</td>
+            <td class="font-medium text-gray-900">{row.name}</td>
+            <td class="text-xs text-gray-500">{row.sku}</td>
+            <td class="text-xs text-gray-500">{row.product_category}</td>
+            <td class="text-right">{row.units}</td>
+            <td class="text-right">PHP {row.amount | number_format:2}</td>
+            <td>
+                <div class="flex items-center gap-2">
+                    <div class="h-2 flex-1 overflow-hidden rounded bg-gray-100"><div class="h-2 bg-emerald-500" style="width:{row.bar_pct}%"></div></div>
+                    <span class="w-14 text-right text-xs text-gray-500">{row.share_pct | number_format:1}%</span>
+                </div>
+            </td>
+        </tr>
+        {/foreach}
+        </tbody>
+    </table></div>
+    {/if}
+</div>
+
+<div class="card mb-6">
+    <div class="card-header"><span>Pareto 80/20</span><span class="text-sm text-muted">{pareto.contributor_share | number_format:1}% from {pareto.contributor_count} of {pareto.scope_count} products</span></div>
+    {if pareto.has_data}
+    <div class="card-body border-b border-gray-200 text-sm text-gray-700">
+        <p>{pareto.contributor_count} of {pareto.scope_count} products drive {pareto.contributor_share | number_format:1}% (PHP {pareto.contributor_amount | number_format:2}) of PHP {pareto.total_amount | number_format:2}. The remaining {pareto.bottom_count} product(s) contribute the rest.</p>
+    </div>
+    <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Product</th><th class="text-right">Amount</th><th class="text-right">Cumulative</th><th class="text-right">Cumulative share</th></tr></thead>
+        <tbody>
+        {foreach pareto.contributors as c}
+        <tr>
+            <td>{c.rank}</td>
+            <td class="font-medium text-gray-900">{c.name}</td>
+            <td class="text-right">PHP {c.amount | number_format:2}</td>
+            <td class="text-right">PHP {c.cumulative_amount | number_format:2}</td>
+            <td class="text-right">{c.cumulative_share | number_format:1}%</td>
+        </tr>
+        {/foreach}
+        </tbody>
+    </table></div>
+    {/if}
+    {if pareto.has_data == false}
+    <div class="card-body text-sm text-gray-500">No finalized product sales in {period_label}; the 80/20 concentration cannot be computed.</div>
+    {/if}
+</div>
+
+<div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Where - per-branch product performance</div>
+{if branch_products | count == 0}
+<div class="card mb-6"><div class="card-body text-sm text-gray-500">No branch recorded finalized product sales in {period_label}.</div></div>
+{/if}
+{foreach branch_products as branch}
+<div class="card mb-4">
+    <div class="card-header"><span>{branch.branch_name}</span><span class="text-sm text-muted">{sort_label}</span></div>
+    {if branch.products | count == 0}
+    <div class="card-body text-sm text-gray-500">No finalized product sales recorded.</div>
+    {/if}
+    {if branch.products | count > 0}
+    <div class="table-wrap"><table>
+        <thead><tr><th>Product</th><th>SKU</th><th class="text-right">Units</th><th class="text-right">Amount</th><th>Share within branch</th></tr></thead>
+        <tbody>
+        {foreach branch.products as p}
+        <tr>
+            <td class="font-medium text-gray-900">{p.name}</td>
+            <td class="text-xs text-gray-500">{p.sku}</td>
+            <td class="text-right">{p.units}</td>
+            <td class="text-right">PHP {p.amount | number_format:2}</td>
+            <td><div class="h-2 overflow-hidden rounded bg-gray-100"><div class="h-2 bg-indigo-500" style="width:{p.bar_pct}%"></div></div></td>
+        </tr>
+        {/foreach}
+        </tbody>
+    </table></div>
+    {/if}
+</div>
+{/foreach}
+{/block}

@@ -39,6 +39,9 @@ return [
         '/daily-ledger/admin/forecast'             => 'daily-ledger:handleAdminForecast',
         '/daily-ledger/admin/products'             => 'daily-ledger:handleAdminProducts',
         '/daily-ledger/admin/products/export'      => 'daily-ledger:handleProductsCsvExport',
+        // Product PERFORMANCE (analytical) is a separate page from product
+        // configuration (handleAdminProducts above). The catalogue stays untouched.
+        '/daily-ledger/admin/products/performance' => 'daily-ledger:handleAdminProductsPerformance',
         '/daily-ledger/admin/branches'             => 'daily-ledger:handleAdminBranches',
         '/daily-ledger/admin/deliveries'           => 'daily-ledger:handleAdminDeliveries',
         '/daily-ledger/admin/price-groups'         => 'daily-ledger:handleAdminPriceGroups',
