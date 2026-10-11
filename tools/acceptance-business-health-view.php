@@ -87,13 +87,17 @@ $linksToDetail = (bool)preg_match('/(href|data-branch-id|onclick)[^>]{0,120}(bra
 $check('A4', 'the opportunity is navigable to its detail', $linksToDetail,
     sprintf('detail link/affordance in analytics=%s', $linksToDetail ? 'yes' : 'NO'));
 
-// --- A7: not complicated - THREE controls in the primary bar ------------------------------------
+// A7: not complicated - the primary bar holds the scope controls and the date range.
+// Re-anchored 2026-10-11: the owner asked for a date RANGE, so the old single period
+// input becomes From + To. The pre-range ceiling of 4 (a836fc2d, before the owner's
+// comment 0cd79ce9) is the stale side; the ceiling moves with the added picker while
+// still refusing any other control.
 // Counted from the filter form only, because relocated controls must still exist elsewhere.
 $formHtml = $formEnd === false ? '' : substr($html, 0, $formEnd);
 preg_match_all('/<(select|input|button)\b/i', $formHtml, $m);
 $controlCount = count($m[1] ?? []);
-// The form always contains a submit; allow Area + Branch + period + submit = 4 elements.
-$check('A7', 'primary filter bar holds only Area, Branch, period (+submit)', $controlCount <= 4,
+// The form always contains a submit; allow Area + Branch + From + To + submit = 5 elements.
+$check('A7', 'primary filter bar holds only Area, Branch, the date range (+submit)', $controlCount <= 5,
     sprintf('%d form control element(s) found; the owner\'s own URL carried 11 parameters (forecast_window, forecast_period, sort_by, sort_dir, chart_limit, pending_rows x2 on top of scope/date/branch)', $controlCount));
 
 // --- A8: product detail belongs to the Products view, not here ----------------------------------

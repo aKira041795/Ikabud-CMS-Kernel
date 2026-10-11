@@ -42,7 +42,17 @@ $html = $render(['scope' => 'ALL']);
 $formEnd = strpos($html, '</form>');
 $beforeFirstFormEnd = $formEnd === false ? '' : substr($html, 0, $formEnd);
 preg_match_all('/<(select|input|button)\b/i', $beforeFirstFormEnd, $controls);
-$h->test('primary filter has exactly Area, Branch, Period, and Apply', count($controls[1] ?? []) === 4, 'controls=' . count($controls[1] ?? []));
+// Re-anchored 2026-10-11: the owner asked for a date RANGE and the chair's criterion
+// P4 allows Area + Branch + 2 dates + Apply. The pre-range exact count of 4 (added in
+// a44edb54, before the owner's comment) was the stale side; the ceiling is preserved.
+$h->test('primary filter has exactly Area, Branch, From, To, and Apply', count($controls[1] ?? []) === 5, 'controls=' . count($controls[1] ?? []));
+$h->test(
+    'period is two picked dates, not a typed range',
+    preg_match('/<input[^>]*type="date"[^>]*name="date_from"[^>]*>/i', $beforeFirstFormEnd) === 1
+        && preg_match('/<input[^>]*type="date"[^>]*name="date_to"[^>]*>/i', $beforeFirstFormEnd) === 1
+        && !str_contains($beforeFirstFormEnd, 'name="period"'),
+    'date_from/date_to type=date and no typed period in the bar'
+);
 $h->test('health verdict states its no-plan basis and operational gates', str_contains($html, 'there is no target, budget, quota, or plan') && str_contains($html, 'no unresolved variance flag remains') && str_contains($html, 'every branch is closed'));
 $h->test('unfinished reporting is not rendered as zero headline sales', str_contains($html, 'Awaiting finalization') && !str_contains($html, 'Gross sales</div><div class="mt-1 text-3xl font-semibold text-emerald-600">PHP 0.00'));
 $h->test('opportunity is named, measured, and linked to branch detail', str_contains($html, 'Where can operations be maximized?') && str_contains($html, 'ledger rows are pending') && preg_match('/href="[^"]+branch_id=\d+"/', $html) === 1);
@@ -60,6 +70,25 @@ $working = (int)($estate['working'] ?? 0);
 $silent = max(0, (int)($estate['active'] ?? 0) - $working);
 $h->test('14-day view distinguishes working from silent branches', str_contains($fourteen, $working . ' recorded activity · ' . $silent . ' silent'), "working={$working} silent={$silent}");
 $h->test('14-day ranking states its active-only comparison denominator', str_contains($fourteen, 'sales ranking includes only the ' . $working . ' branch(es) that recorded ledger activity'));
+
+$h->section('Comparison visual');
+$liveText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+$fourteenText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($fourteen), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+// The live default period has zero completed rows, so no honest sales comparison
+// exists. It must say so with a neutral pending indicator - never a zero or green up.
+$h->test(
+    'no honest comparison shows a neutral pending state, not zero or a green arrow',
+    str_contains($html, 'delta-indicator delta-pending')
+        && str_contains($html, 'Not yet comparable')
+        && !str_contains($html, 'delta-up')
+        && !preg_match('/(\+|-)\s*0\.0%/', $liveText)
+);
+// A period with finalized sales shows a signed delta and a directional indicator.
+$h->test(
+    'a comparable period shows a signed delta with a directional visual',
+    preg_match('/delta-indicator delta-(up|down|flat)/', $fourteen) === 1
+        && preg_match('/(\+|-)\s*[\d.,]+%/', $fourteenText) === 1
+);
 
 $h->section('Read-only source guard');
 $overviewStart = strpos((string)file_get_contents($base . '/modules/daily-ledger/handlers.php'), 'function handleAdminOverview');
