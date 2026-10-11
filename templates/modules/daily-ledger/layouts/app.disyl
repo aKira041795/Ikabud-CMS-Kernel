@@ -40,7 +40,7 @@
 
         .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(31 41 55); }
         .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        /* One height for every control. Without it a <select> and an <input type="date"> carrying the
+        /* One height for every control. Without it a select and a date input carrying the
            SAME .form-input padding render at different intrinsic heights (measured 35px against 41px),
            so any filter row looks ragged and the row's items-end alignment shifts every neighbour.
            textarea is excluded on purpose: it is multi-line and must grow with its content. */
@@ -505,8 +505,8 @@
                 <p id="dl-write-failure-text" class="mt-1 text-xs leading-5 text-red-800"></p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-                <button type="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="window.dlRetryWriteFailure()">Retry — safe, will not duplicate</button>
-                <button type="button" class="btn btn-accent btn-sm" onclick="window.dlClearWriteFailure()">Dismiss</button>
+                <a href="#" role="button" id="dl-write-failure-retry" class="btn btn-primary btn-sm" onclick="window.dlRetryWriteFailure(); return false">Retry — safe, will not duplicate</a>
+                <a href="#" role="button" class="btn btn-accent btn-sm" onclick="window.dlClearWriteFailure(); return false">Dismiss</a>
             </div>
         </div>
     </div>
@@ -538,12 +538,12 @@
                     {/if}
                 </div>
                 <span class="font-semibold text-base tracking-tight" x-show="sidebarOpen" x-cloak>{app_name}</span>
-		<button type="button" class="ml-auto p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
-			@click="sidebarOpen = !sidebarOpen"
+		<a href="#" role="button" class="ml-auto p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+			@click.prevent="sidebarOpen = !sidebarOpen"
 			:aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
 			:aria-expanded="sidebarOpen ? 'true' : 'false'">
 		    <i class="fas fa-bars" aria-hidden="true"></i>
-		</button>
+		</a>
             </div>
 
             {* Collapsed sidebar is icon-only, so each menu item needs a visible hint. The label is
@@ -751,12 +751,12 @@
 
         <div class="flex-1 flex flex-col overflow-hidden">
             <header class="bg-white/80 backdrop-blur border-b border-gray-200 h-16 flex items-center justify-between px-6">
-                <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                        @click="sidebarOpen = !sidebarOpen"
+                <a href="#" role="button" class="inline-flex items-center justify-center h-9 w-9 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        @click.prevent="sidebarOpen = !sidebarOpen"
                         :aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
                         :aria-expanded="sidebarOpen ? 'true' : 'false'">
                     <i class="fas fa-bars" aria-hidden="true"></i>
-                </button>
+                </a>
                 <div class="flex items-center gap-4">
                     {block header_shift}{/block}
                     <div class="text-right">

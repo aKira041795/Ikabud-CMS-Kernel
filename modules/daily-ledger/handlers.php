@@ -12457,12 +12457,24 @@ function handleAdminOverview(array $params = []): void
         ? (string)$input['date_from'] : $today;
     $dateTo = !empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_to'])
         ? (string)$input['date_to'] : $today;
+    // One primary Period control accepts either one exact day or an inclusive
+    // YYYY-MM-DD to YYYY-MM-DD range. Legacy/deep links using date_from/date_to
+    // remain valid, so reports can still link directly into the same context.
+    $periodInput = trim((string)($input['period'] ?? ''));
+    if (preg_match('/^(\d{4}-\d{2}-\d{2})(?:\s+to\s+(\d{4}-\d{2}-\d{2}))?$/i', $periodInput, $periodMatch)) {
+        $parsedFrom = dl_reportValidDate($periodMatch[1]);
+        $parsedTo = dl_reportValidDate($periodMatch[2] ?? $periodMatch[1]);
+        if ($parsedFrom !== null && $parsedTo !== null) {
+            $dateFrom = $parsedFrom;
+            $dateTo = $parsedTo;
+        }
+    }
     if ($dateFrom > $dateTo) {
         [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
+    $periodValue = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : 0;
-    // Ranking controls for the product tables. Pareto itself stays amount-ordered
-    // because cumulative accumulation is only meaningful strongest-first.
+    // Ranking controls are relocated into the branch comparison they affect.
     $sortBy = dl_overviewNormalizeSortBy($input['sort_by'] ?? 'amount');
     $sortDir = dl_overviewNormalizeSortDir($input['sort_dir'] ?? 'desc');
     // Chart-only controls: how many series to plot, and whether series with no
@@ -12477,8 +12489,9 @@ function handleAdminOverview(array $params = []): void
     // Reuse the report filter contract rather than assembling a fourth scope consumer inline.
     // Overview-specific pending semantics are layered on below; branch visibility comes from the
     // same dl_adminViewBranchIds() helper as reports and exports.
-    $filters = dl_reportFilters($input, $user);
+    $filters = dl_reportFilters(array_merge($input, ['date_from' => $dateFrom, 'date_to' => $dateTo]), $user);
     $filters['pending_rows_mode'] = $pendingRowsMode;
+    $branchId = (int)$filters['branch_id'];
     // Completeness of the period's ledger: the ranked tables drop pending rows, so an
     // all-pending day is empty. Report that as unfinished reporting, never as zero sales.
     $completeness = dl_overviewLedgerCompleteness($ctx->db(), $filters);
@@ -12513,23 +12526,9 @@ function handleAdminOverview(array $params = []): void
         }
     }
 
-    // Overall product totals feed both the ranked tables and the Pareto
-    // accumulation. Products with no completed sales are already excluded by the
-    // query itself.
-    $productTotals = dl_overviewProductTotals($ctx->db(), $filters);
-    $pareto = dl_overviewPareto($productTotals, DL_OVERVIEW_PARETO_THRESHOLD);
-    $topProducts = dl_overviewTopProducts(dl_overviewSortProducts($productTotals, $sortBy, $sortDir), DL_OVERVIEW_TOP_PRODUCTS_LIMIT);
-    foreach ($topProducts as &$tp) {
-        $tp['share'] = $pareto['total_amount'] > 0
-            ? round(((float)($tp['amount'] ?? 0)) / $pareto['total_amount'] * 100, 1)
-            : 0.0;
-    }
-    unset($tp);
-    $topProducts = dl_overviewBarPercentages($topProducts, 'amount');
-    // Pareto contributors are charted on the canonical amount order (which is
-    // still descending) with their cumulative share carried per row.
-    $pareto['contributors'] = dl_overviewBarPercentages($pareto['contributors'], 'amount');
-    $branchTopProducts = dl_overviewBranchProductTotals($ctx->db(), $filters, DL_OVERVIEW_PER_BRANCH_PRODUCTS_LIMIT, $sortBy, $sortDir);
+    // Product rankings and Pareto remain available on Reports. This health view
+    // deliberately stops its drill-down at branch.
+    $branchSignals = dl_overviewBranchSignals($ctx->db(), $filters);
 
     // Sales per branch for the period.
     $grandUnits = 0;
@@ -12576,12 +12575,19 @@ function handleAdminOverview(array $params = []): void
         $amount = $s ? (float)$s['total_amount'] : 0.0;
         $grandUnits += $units;
         $grandAmount += $amount;
+        $signal = $branchSignals[$bid] ?? ['rows_total' => 0, 'pending' => 0, 'completed' => 0, 'unresolved_variances' => 0, 'absolute_variance' => 0];
         $cards[] = [
             'branch_id' => $bid,
             'name' => $br['name'],
             'units' => $units,
             'amount' => $amount,
             'status' => $dayStatuses[$bid] ?? 'none',
+            'rows_total' => $signal['rows_total'],
+            'pending' => $signal['pending'],
+            'completed' => $signal['completed'],
+            'unresolved_variances' => $signal['unresolved_variances'],
+            'absolute_variance' => $signal['absolute_variance'],
+            'has_activity' => $signal['rows_total'] > 0,
         ];
     }
 
@@ -12601,7 +12607,7 @@ function handleAdminOverview(array $params = []): void
     $branchChartSource = dl_overviewSortProducts(array_map(static function (array $card): array {
         $card['id'] = (int)$card['branch_id'];
         return $card;
-    }, $cards), 'amount', 'desc');
+    }, $cards), $sortBy, $sortDir);
     $branchChartSellable = array_values(array_filter($branchChartSource, static fn(array $card): bool => (float)$card['amount'] > 0.0));
     $branchChart = dl_overviewChartSeries($branchChartSource, $chartLimit, $chartShowEmpty, 'amount');
     $branchChart = dl_overviewValueShares(dl_overviewBarPercentages($branchChart, 'amount'), 'amount');
@@ -12613,19 +12619,83 @@ function handleAdminOverview(array $params = []): void
     $forecastPeriod = dl_overviewNormalizeForecastPeriod((string)($input['forecast_period'] ?? 'daily'));
     $forecastRows = dl_overviewForecastRows($ctx->db(), $filters, $dateTo, $forecastWindow);
     $forecast = dl_overviewForecastSummary($forecastRows, $forecastPeriod);
-    // Forecast bars are scaled against the largest projected product volume. The
-    // table keeps every product; the chart plots the strongest $chartLimit so it
-    // stays readable when a period has many products.
-    $forecast['products'] = dl_overviewBarPercentages($forecast['products'], 'projected_units');
-    $forecastChart = dl_overviewValueShares(
-        dl_overviewBarPercentages(dl_overviewChartSeries($forecast['products'], $chartLimit, false, 'projected_units'), 'projected_units'),
-        'projected_units'
-    );
+    // Only the aggregate forecast belongs on Health. Product-level forecast
+    // rows remain available through the dedicated Forecast/Reports surfaces.
     $anchor = DateTimeImmutable::createFromFormat('!Y-m-d', $dateTo) ?: new DateTimeImmutable($dateTo);
     $forecastHistoryFrom = $anchor->modify('+' . (1 - $forecastWindow) . ' days')->format('Y-m-d');
     $forecastTargetDate = $anchor->modify('+1 day')->format('Y-m-d');
 
-    $periodLabel = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
+    // Compare with the immediately preceding period of equal inclusive length.
+    $fromDate = new DateTimeImmutable($dateFrom);
+    $toDate = new DateTimeImmutable($dateTo);
+    $periodDays = (int)$fromDate->diff($toDate)->days + 1;
+    $priorTo = $fromDate->modify('-1 day');
+    $priorFrom = $priorTo->modify('-' . ($periodDays - 1) . ' days');
+    $priorFilters = $filters;
+    $priorFilters['date_from'] = $priorFrom->format('Y-m-d');
+    $priorFilters['date_to'] = $priorTo->format('Y-m-d');
+    $priorAmount = dl_overviewOfficialSalesTotal($ctx->db(), $priorFilters);
+    $trendComparable = !$reportingPending;
+    $trendDirection = 'stable';
+    if ($trendComparable && $grandAmount > $priorAmount) { $trendDirection = 'improving'; }
+    elseif ($trendComparable && $grandAmount < $priorAmount) { $trendDirection = 'declining'; }
+    $trendPercent = $priorAmount > 0.0 ? (($grandAmount - $priorAmount) / $priorAmount) * 100 : 0.0;
+
+    $workingCards = array_values(array_filter($cards, static fn(array $card): bool => $card['has_activity']));
+    $silentCards = array_values(array_filter($cards, static fn(array $card): bool => !$card['has_activity']));
+    $pendingCards = array_values(array_filter($workingCards, static fn(array $card): bool => $card['pending'] > 0));
+    $varianceCards = array_values(array_filter($cards, static fn(array $card): bool => $card['unresolved_variances'] > 0));
+    usort($pendingCards, static fn(array $a, array $b): int => $b['pending'] <=> $a['pending']);
+    usort($varianceCards, static fn(array $a, array $b): int => $b['absolute_variance'] <=> $a['absolute_variance']);
+    $openCards = array_values(array_filter($cards, static fn(array $card): bool => $card['status'] === 'open'));
+    $closedCount = count(array_filter($cards, static fn(array $card): bool => $card['status'] === 'closed'));
+    $unresolvedVarianceCount = array_sum(array_column($cards, 'unresolved_variances'));
+    $absoluteVariance = array_sum(array_column($cards, 'absolute_variance'));
+
+    $healthVerdict = 'Healthy';
+    $healthReason = 'reporting is finalized, no unresolved variance flags remain, and every branch is closed for the end date';
+    $healthLead = $cards[0] ?? ['branch_id' => 0, 'name' => 'Scope'];
+    if ($completeness['pending'] > 0) {
+        $healthVerdict = 'Needs attention';
+        $healthLead = $pendingCards[0] ?? $healthLead;
+        $healthReason = $completeness['pending'] . ' ledger ending(s) are pending; ' . $healthLead['name'] . ' has ' . ($healthLead['pending'] ?? 0);
+    } elseif ($unresolvedVarianceCount > 0) {
+        $healthVerdict = 'Needs attention';
+        $healthLead = $varianceCards[0] ?? $healthLead;
+        $healthReason = $unresolvedVarianceCount . ' unresolved variance flag(s); ' . $healthLead['name'] . ' has absolute variance ' . ($healthLead['absolute_variance'] ?? 0);
+    } elseif (count($openCards) > 0 || $closedCount < count($cards)) {
+        $healthVerdict = 'Needs attention';
+        $healthLead = $openCards[0] ?? $healthLead;
+        $healthReason = $healthLead['name'] . ' is open or has no close status for ' . $dateTo;
+    }
+
+    $opportunity = $healthLead;
+    $opportunityTitle = 'Review branch status';
+    $opportunityMetric = 'No comparable activity metric is available.';
+    $opportunityPath = '/admin/reports/branch-summary';
+    if ($pendingCards !== []) {
+        $opportunity = $pendingCards[0];
+        $opportunityTitle = 'Complete pending endings at ' . $opportunity['name'];
+        $opportunityMetric = $opportunity['pending'] . ' of ' . $opportunity['rows_total'] . ' ledger rows are pending.';
+        $opportunityPath = '/admin/reports/data-integrity';
+    } elseif ($varianceCards !== []) {
+        $opportunity = $varianceCards[0];
+        $opportunityTitle = 'Resolve variance attention at ' . $opportunity['name'];
+        $opportunityMetric = $opportunity['unresolved_variances'] . ' unresolved flags; absolute variance ' . $opportunity['absolute_variance'] . '.';
+        $opportunityPath = '/admin/reports/variances';
+    } elseif ($workingCards !== []) {
+        usort($workingCards, static fn(array $a, array $b): int => $a['amount'] <=> $b['amount']);
+        $opportunity = $workingCards[0];
+        $opportunityTitle = 'Review headroom at ' . $opportunity['name'];
+        $opportunityMetric = 'PHP ' . number_format((float)$opportunity['amount'], 2) . ' official sales, ranked only against ' . count($workingCards) . ' branch(es) that recorded activity.';
+    } elseif ($silentCards !== []) {
+        $opportunity = $silentCards[0];
+        $opportunityTitle = 'Check recording coverage at ' . $opportunity['name'];
+        $opportunityMetric = 'No ledger activity was recorded; this is silence, not underperformance.';
+        $opportunityPath = '/admin/reports/data-integrity';
+    }
+
+    $periodLabel = $periodValue;
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/overview.disyl', [
@@ -12638,13 +12708,14 @@ function handleAdminOverview(array $params = []): void
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
+        'period_value' => $periodValue,
         'branch_id' => $branchId,
+        'view_scope' => (string)($filters['view_scope'] ?? 'ALL'),
         'branches' => $branches,
         'scoped_branch_count' => count($scopedBranches),
         'branch_cards' => $cards,
-        'top_products' => $topProducts,
-        // Denominator for the 80/20 statement: products with sales value only.
-        'product_scope_count' => $pareto['scope_count'],
+        'working_branches' => $workingCards,
+        'silent_branches' => $silentCards,
         'sort_by' => $sortBy,
         'sort_dir' => $sortDir,
         'sort_label' => dl_overviewSortLabel($sortBy, $sortDir),
@@ -12659,9 +12730,6 @@ function handleAdminOverview(array $params = []): void
         'branch_chart' => $branchChart,
         'branch_chart_pool' => $branchChartPool,
         'branch_chart_empty' => $branchChartEmpty,
-        'forecast_chart' => $forecastChart,
-        'branch_top_products' => $branchTopProducts,
-        'pareto' => $pareto,
         'net_sales' => $netSales,
         'net_sales_configured' => $netSales['configured'],
         'grand_units' => $grandUnits,
@@ -12674,6 +12742,21 @@ function handleAdminOverview(array $params = []): void
         'forecast_history_from' => $forecastHistoryFrom,
         'forecast_history_to' => $dateTo,
         'forecast_target_date' => $forecastTargetDate,
+        'prior_period_label' => $priorFrom->format('Y-m-d') . ' to ' . $priorTo->format('Y-m-d'),
+        'prior_amount' => $priorAmount,
+        'trend_comparable' => $trendComparable,
+        'trend_direction' => $trendDirection,
+        'trend_percent' => $trendPercent,
+        'health_verdict' => $healthVerdict,
+        'health_reason' => $healthReason,
+        'health_lead' => $healthLead,
+        'unresolved_variance_count' => $unresolvedVarianceCount,
+        'absolute_variance' => $absoluteVariance,
+        'closed_branch_count' => $closedCount,
+        'opportunity' => $opportunity,
+        'opportunity_title' => $opportunityTitle,
+        'opportunity_metric' => $opportunityMetric,
+        'opportunity_path' => $opportunityPath,
         'business_date_label' => $clockLabel['business_date'],
         'close_of_day_time' => $clockLabel['close_of_day_time'],
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],

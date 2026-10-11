@@ -1335,6 +1335,96 @@ function dl_overviewLedgerCompleteness(DatabaseContract $db, array $filters): ar
 }
 
 /**
+ * Per-branch activity, completeness, and unresolved variance signals for the
+ * Business Health view. A missing map entry means no ledger activity, not zero
+ * performance. Delivery variances are included because the canonical
+ * dl_variance_flags table records them with kind=delivery.
+ *
+ * @param array<string,mixed> $filters
+ * @return array<int,array{rows_total:int,pending:int,completed:int,unresolved_variances:int,absolute_variance:int}>
+ */
+function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
+{
+    $ids = array_values(array_filter(array_map('intval', $filters['accessible_branch_ids'] ?? []), static fn(int $id): bool => $id > 0));
+    if (($filters['branch_id'] ?? 0) > 0) {
+        $ids = in_array((int)$filters['branch_id'], $ids, true) ? [(int)$filters['branch_id']] : [];
+    }
+    if ($ids === []) {
+        return [];
+    }
+
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $bind = array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids);
+    $ledger = $db->prepare(
+        "SELECT branch_id, COUNT(*) rows_total,
+                SUM(CASE WHEN bal_end IS NULL THEN 1 ELSE 0 END) pending,
+                SUM(CASE WHEN bal_end IS NOT NULL THEN 1 ELSE 0 END) completed
+           FROM dl_daily_ledger
+          WHERE ledger_date BETWEEN ? AND ? AND branch_id IN ({$marks})
+          GROUP BY branch_id"
+    );
+    $ledger->execute($bind);
+    $signals = [];
+    foreach ($ledger->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $signals[(int)$row['branch_id']] = [
+            'rows_total' => (int)$row['rows_total'],
+            'pending' => (int)$row['pending'],
+            'completed' => (int)$row['completed'],
+            'unresolved_variances' => 0,
+            'absolute_variance' => 0,
+        ];
+    }
+
+    $variance = $db->prepare(
+        "SELECT branch_id, COUNT(*) unresolved_variances,
+                COALESCE(SUM(ABS(variance)), 0) absolute_variance
+           FROM dl_variance_flags
+          WHERE ledger_date BETWEEN ? AND ? AND branch_id IN ({$marks})
+            AND resolution_status <> 'corrected'
+          GROUP BY branch_id"
+    );
+    $variance->execute($bind);
+    foreach ($variance->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $id = (int)$row['branch_id'];
+        $signals[$id] ??= ['rows_total' => 0, 'pending' => 0, 'completed' => 0, 'unresolved_variances' => 0, 'absolute_variance' => 0];
+        $signals[$id]['unresolved_variances'] = (int)$row['unresolved_variances'];
+        $signals[$id]['absolute_variance'] = (int)$row['absolute_variance'];
+    }
+
+    return $signals;
+}
+
+/**
+ * Official sales total for a comparison period. This uses the same quantity,
+ * amount, provisional, and pending predicates as the overview total.
+ *
+ * @param array<string,mixed> $filters
+ */
+function dl_overviewOfficialSalesTotal(DatabaseContract $db, array $filters): float
+{
+    $ids = array_values(array_filter(array_map('intval', $filters['accessible_branch_ids'] ?? []), static fn(int $id): bool => $id > 0));
+    if (($filters['branch_id'] ?? 0) > 0) {
+        $ids = in_array((int)$filters['branch_id'], $ids, true) ? [(int)$filters['branch_id']] : [];
+    }
+    if ($ids === []) {
+        return 0.0;
+    }
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $amount = dl_ledgerSalesAmountSql('dl');
+    $sql = 'SELECT COALESCE(SUM(CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss')
+        . ' THEN 0 ELSE ' . $amount . " END), 0)
+          FROM dl_daily_ledger dl
+          LEFT JOIN dl_ledger_shift_status ss
+            ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+           AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+         WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN ({$marks})"
+        . dl_overviewPendingPredicate('dl');
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids));
+    return (float)$stmt->fetchColumn();
+}
+
+/**
  * Complete per-product totals for the period, ranked amount DESC then units
  * DESC with a stable id tie-breaker. One grouped query feeds both the overall
  * top-N slice and the Pareto accumulation.
