@@ -373,8 +373,12 @@ function pageCacheResponseHeaders(): array
     }
 
     // Never persist a header that could inject a second header line.
+    //
+    // SecurityHeaders::headers() is typed `array`, so the previous `is_array($headers) ? ... : []`
+    // guard was an unreachable branch (flagged by PHPStan). The filter below is the part that
+    // actually protects against header injection.
     return array_values(array_filter(
-        is_array($headers) ? $headers : [],
+        $headers,
         static fn ($h) => is_string($h) && $h !== '' && !str_contains($h, "\n") && !str_contains($h, "\r")
     ));
 }
@@ -537,7 +541,7 @@ function pageCacheInstanceNames(): array
  * actually crosses the worker boundary; the version catches workers that have a readable file.
  *
  * @param string[] $instances
- * @return array<string,array{version_before:int,version_after:int,flush_file:string}>
+ * @return array<string,array{version_before:string,version_after:string,flush_file:string}>
  */
 function pageCacheInvalidateInstances(array $instances): array
 {
@@ -560,7 +564,7 @@ function pageCacheInvalidateInstances(array $instances): array
  * Invalidate every page-cache instance in one call. Prefer capturing pageCacheInstanceNames()
  * BEFORE a bulk file clear and passing it to pageCacheInvalidateInstances().
  *
- * @return array<string,array{version_before:int,version_after:int,flush_file:string}>
+ * @return array<string,array{version_before:string,version_after:string,flush_file:string}>
  */
 function pageCacheInvalidateAllInstances(): array
 {

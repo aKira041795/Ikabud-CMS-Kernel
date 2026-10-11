@@ -489,6 +489,7 @@ class Cache
      * `*.cache` and are never touched.
      *
      * @param int|null $maxBytes Enforce a total size budget by evicting oldest-first. Null = no budget.
+     * @return array{pruned:int,kept:int,bytes_freed:int,errors:array<int,string>,evicted_for_space:int}
      */
     private function sweepExpiredCacheFiles(bool $dryRun, ?int $maxBytes = null): array
     {
@@ -590,24 +591,6 @@ class Cache
         return $result;
     }
 
-    /**
-     * Enforce cache size limit using LRU eviction
-     *
-     * Retained as the single-entry point for the budget so there is one implementation. It is NOT
-     * called per write: see maintenanceIfDue() for why.
-     */
-    private function enforceCacheLimit(): void
-    {
-        // Single source of truth for the budget. The previous inline implementation evicted the
-        // oldest *.cache file regardless of whether it had expired, using its own age ordering that
-        // did not agree with the read path; the sweep evicts only entries the read path would still
-        // serve, oldest first. Not called per write - see maintenanceIfDue().
-        if ($this->maxCacheSizeMB <= 0) {
-            return;
-        }
-        $this->sweepExpiredCacheFiles(false, $this->maxCacheSizeMB * 1024 * 1024);
-    }
-    
     /**
      * Store response in cache with tags for granular invalidation
      */
@@ -833,6 +816,8 @@ class Cache
      *
      * An entry with no stamp (written before generations existed, or by a host where the helper is
      * missing) is accepted, so this is backward compatible rather than a forced cold start.
+     *
+     * @param array<string,mixed> $entry
      */
     private function entryGenerationValid(string $instanceId, array $entry): bool
     {
