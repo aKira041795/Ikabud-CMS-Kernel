@@ -50,6 +50,7 @@ declare(strict_types=1);
     $envFile = dirname(__DIR__, 2) . '/.env';
     $cookieName = '';
     $appUrl = '';
+    $fastPathDisabled = false;
     if (is_file($envFile)) {
         // Fast scan: only read lines we need, no full .env parser
         $fh = @fopen($envFile, 'r');
@@ -78,9 +79,14 @@ declare(strict_types=1);
                             $appUrl = substr($appUrl, 1, -1);
                         }
                     }
+                } elseif (str_starts_with($line, 'PAGE_CACHE_FAST_PATH=')) {
+                    // Kill switch. Any value other than 1/true/on disables this path, so a bad
+                    // interaction can be turned off by editing .env rather than by deploying code.
+                    $flag = strtolower(trim(substr($line, 20), " \t\"'"));
+                    $fastPathDisabled = !in_array($flag, ['1', 'true', 'on', 'yes'], true);
                 }
-                // Once we have both, stop scanning
-                if ($cookieName !== '' && $appUrl !== '') {
+                // Once we have both, stop scanning - unless the kill switch still has to be read.
+                if ($cookieName !== '' && $appUrl !== '' && !$fastPathDisabled) {
                     break;
                 }
             }
@@ -93,6 +99,10 @@ declare(strict_types=1);
         $cookieHost = preg_replace('/[^a-z0-9]+/', '_', $cookieHost) ?? '';
         $cookieHost = trim($cookieHost, '_');
         $cookieName = ($cookieHost !== '' ? $cookieHost : 'app') . '_token';
+    }
+
+    if ($fastPathDisabled) {
+        return;
     }
 
     // Kernel auth cookie present → authenticated user → skip
@@ -168,7 +178,10 @@ declare(strict_types=1);
         ksort($params);
         $raw .= '?' . http_build_query($params);
     }
-    $cacheKey = 'page:' . $origin . ':' . md5($raw);
+    // Must match pageCacheKey() exactly. It was 'page:' while the canonical writer used
+    // 'page:v2:', so this lookup could never find an entry the writer had produced and the whole
+    // fast path was dead - one wasted md5 + stat per request instead of skipping the kernel boot.
+    $cacheKey = 'page:v2:' . $origin . ':' . md5($raw);
     $cacheFile = $instanceDir . '/' . md5($cacheKey) . '.cache';
 
     // ── 7. Check cache version ────────────────────────────────────────
@@ -287,12 +300,25 @@ declare(strict_types=1);
         return;
     }
 
+    // ── 10b. Header policy must have travelled with the entry ────────
+    // This path never boots the kernel, so it cannot build the security headers itself. Serving
+    // an entry that carries no policy would emit a page with NO Content-Security-Policy - a
+    // security regression, and exactly the trap that makes a dormant cache unsafe to enable.
+    // Fall through to the kernel instead, which sends the headers normally.
+    $entryHeaders = is_array($entry['headers'] ?? null) ? $entry['headers'] : [];
+    if ($entryHeaders === []) {
+        return;
+    }
+
     // ── 11. ETag conditional ──────────────────────────────────────────
     $etag = '"' . ($entry['etag'] ?? md5($entry['html'])) . '"';
     $clientEtag = trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
 
     if ($clientEtag === $etag) {
         http_response_code(304);
+        foreach ($entryHeaders as $entryHeader) {
+            header($entryHeader);
+        }
         header('ETag: ' . $etag);
         header('Cache-Control: public, no-cache');
         header('X-Page-Cache: fast-304');
@@ -301,6 +327,9 @@ declare(strict_types=1);
 
     // ── 12. Serve ─────────────────────────────────────────────────────
     http_response_code((int)($entry['status'] ?? 200));
+    foreach ($entryHeaders as $entryHeader) {
+        header($entryHeader);
+    }
     header('Content-Type: text/html; charset=UTF-8');
     header('ETag: ' . $etag);
     header('Cache-Control: public, no-cache');

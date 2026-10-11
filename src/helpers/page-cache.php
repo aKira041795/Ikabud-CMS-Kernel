@@ -307,8 +307,42 @@ function pageCacheSet(string $uri, string $html, string $moduleId, int $status =
         'uri' => $uri,
         'module' => $moduleId,
         '_cache_version' => pageCacheReadVersion(pageCacheInstance()),
+        // Header policy travels WITH the entry so a consumer that cannot boot the kernel can still
+        // emit the same security headers. See pageCacheResponseHeaders().
+        'headers' => pageCacheResponseHeaders(),
     ];
     app()->cache()->setWithTags(pageCacheInstance(), $key, $data, $tags, pageCacheTtlForModule($moduleId));
+}
+
+/**
+ * Build the response security headers that must accompany a cached page.
+ *
+ * The pre-bootstrap fast path serves cached HTML WITHOUT booting the kernel, so it cannot call
+ * SecurityHeaders itself. Storing the header set in the entry keeps the two paths from drifting:
+ * what the fast path replays is what the kernel produced. A consumer that finds no stored header
+ * policy must refuse to serve the entry rather than emit a page without CSP.
+ *
+ * Safe to cache because the policy is deterministic per scheme/host and deliberately carries no
+ * CSP nonce (see SecurityHeaders::buildCspHeaderValue()).
+ *
+ * @return array<int,string>
+ */
+function pageCacheResponseHeaders(): array
+{
+    if (!class_exists('Ikabud\\Kernel\\Http\\SecurityHeaders')) {
+        return [];
+    }
+    try {
+        $headers = (new \Ikabud\Kernel\Http\SecurityHeaders())->headers();
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    // Never persist a header that could inject a second header line.
+    return array_values(array_filter(
+        is_array($headers) ? $headers : [],
+        static fn ($h) => is_string($h) && $h !== '' && !str_contains($h, "\n") && !str_contains($h, "\r")
+    ));
 }
 
 // ── CSRF token detection ─────────────────────────────────────────────

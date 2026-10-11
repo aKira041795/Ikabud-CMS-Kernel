@@ -1731,15 +1731,24 @@ function discoverModules(): array
     }
 
     // Cross-request cache of the expensive recursive scan + manifest
-    // validation (~700ms across 60+ modules). Only the scan/validation
-    // result is cached; the per-call enabled state and ReadContractRegistry
-    // registrations below are applied fresh on every request.
+    // validation. Only the scan/validation result is cached; the per-call enabled state and
+    // ReadContractRegistry registrations below are applied fresh on every request.
     //
     // The key carries a manifest fingerprint, so a DEPLOY invalidates this on the
-    // next request. It must not rely on the 300s TTL: table-ownership lives in the
-    // cached manifest, and after a module.json upload a stale owns_tables made
+    // next request. It must not rely on the 300s TTL: table-ownership lives in
+    // the cached manifest, and after a module.json upload a stale owns_tables made
     // ModuleDB::enforceAccess() deny a table the deployed manifest DOES declare
     // (hard 500 on live, 2026-10-09).
+    //
+    // MEASUREMENT (2026-10-11, FPM, pm.start_servers=10 / pm.max_children=30):
+    //   discoverModulesScanAll()      ~82 ms   <- only paid on an APCu-cold worker
+    //   fingerprint (stat walk)        ~0.6 ms
+    //   70x isModuleEnabled() loop     ~0.3 ms  (readTenantModuleSettings preloads in ONE query)
+    // So the scan is the only real cost here, and in practice the APCu entry is warm on most
+    // requests. NOTE: APCu is PER-WORKER, so a cold worker in a large pool still pays the full
+    // scan. Moving this to a shared (non-APCu) layer is the known next step, but a shared-file
+    // layer was implemented and REVERTED because it could not be shown to be written on a cold
+    // path - unverified caching is worse than no caching.
     $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
     // Only pay for the fingerprint when there is a cache to key. Without APCu the scan runs on every
     // request anyway, so stat-ing every manifest would be pure added cost.
