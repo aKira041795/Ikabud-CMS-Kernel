@@ -1075,9 +1075,17 @@ function dl_reportFilterSummary(array $filters, string $branchLabel): string
  * source's undelivered stock (and crediting EVERY branch supplied by that source with the whole
  * of it) is the same class of error P1 removed from the efficiency view.
  *
+ * @param array<int,array<string,mixed>> $salesRows
+ * @param array<int,array<string,mixed>> $varianceRows
+ * @param array<int,array<string,mixed>> $inventoryRows
+ * @param array<string,array<string,bool>> $recordedCells Cells the BRANCH actually recorded, keyed
+ *        `branch:shift` then date. Without this the denominator is the product's own row-days, which
+ *        silently treats "the branch traded and this product was absent" the same as "nobody
+ *        reported": Sol measured most streams at 2, 5 or 11 of 14 days, so dividing by row-days
+ *        turned "20 units on the 2 days it appeared" into a daily demand of 10.
  * @return array<int,array<string,mixed>>
  */
-function dl_forecastDemand(array $salesRows, array $varianceRows, array $inventoryRows, int $window = 14, float $safetyRate = 0.10, ?array $spoilageRates = null): array
+function dl_forecastDemand(array $salesRows, array $varianceRows, array $inventoryRows, int $window = 14, float $safetyRate = 0.10, ?array $spoilageRates = null, array $recordedCells = []): array
 {
     $window = max(1, min(90, $window));
     $variance = [];
@@ -1148,7 +1156,20 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
         $dailySeries = is_array($group['daily'] ?? null) ? $group['daily'] : [];
         ksort($dailySeries);
         $daily = array_slice(array_values($dailySeries), -$window);
-        $days = max(1, count($daily));
+        $productDays = count($daily);
+        // The DENOMINATOR is the branch's recorded days for that shift, not the product's row-days.
+        // A branch-cell the branch recorded but the product is absent from is a MEASURED ZERO sale
+        // for this product: the branch traded and this product did not move. A cell nobody recorded
+        // is unreported, and it is excluded rather than counted as a sale of zero.
+        $cellKey = (int)$group['branch_id'] . ':' . $group['shift'];
+        $recordedCount = count($recordedCells[$cellKey] ?? []);
+        // A group with NO daily series at all is a movement-only key: there is no official sales row
+        // for this branch, product and shift anywhere in the window. The branch recording OTHER days
+        // does not turn this product's silence into a measured zero, so it gets no denominator and
+        // its suggestion is forced to 0 below - otherwise a movement row would read as demand
+        // (Sol F4). Only a group that HAS a measured series may use the branch's recorded days.
+        $denominator = $daily === [] ? 0 : ($recordedCount > 0 ? $recordedCount : $productDays);
+        $days = max(1, $denominator);
         $average = array_sum($daily) / $days;
         $varianceValues = $variance[$key] ?? [];
         $varianceAdjustment = $varianceValues ? array_sum($varianceValues) / count($varianceValues) : 0.0;
@@ -1167,7 +1188,20 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
             'sku' => $group['sku'],
             'product_name' => $group['product_name'],
             'shift' => $group['shift'],
-            'sample_days' => count($daily),
+            // sample_days is the DENOMINATOR the average actually divided by; product_days is how many
+            // of those days the product itself had a row. The difference is measured zero-sales days.
+            // It is the RAW denominator, not `max(1, ...)`: that clamp is only for the division below,
+            // and reporting it here made a movement-only row claim 1 sample day, which silently
+            // disarmed the "no measured sales => no suggestion" guard further down (Sol F8).
+            'sample_days' => $denominator,
+            'product_days' => $productDays,
+            'window_days' => $window,
+            'zero_sale_days' => max(0, $denominator - $productDays),
+            'coverage_state' => $productDays === 0
+                ? 'no sales recorded for this branch, product and shift in this window'
+                : ($days >= $window
+                    ? ''
+                    : sprintf('the branch recorded %d of %d day(s) in this window, so the average is per recorded day', $days, $window)),
             // Why a row can carry no average: it is a movement-only key, so a 0 here means "no sales
             // were measured for this branch, product and shift in this window", NOT "demand was
             // measured as zero". The page states which, so a 0 suggestion is never ambiguous.
@@ -1312,14 +1346,11 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $stmt->execute($bind);
     $variance = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // ── Stock on hand: the BRANCH's own latest counted ending ──
-    // The previous query read dl_commissary_product_ledger.remaining_qty for every branch supplied
-    // by any selected branch's commissary. That is the P1 defect in a new place: it credited a
-    // destination branch with its source's UNDELIVERED finished goods, and credited EVERY branch of
-    // one commissary with the whole of it, so the same stock offset many branches' requirements.
-    // A branch draws down its own shelf, so the offset is that branch's latest counted closing.
-    // One row per branch+product: the ending of the latest shift on the latest counted date.
-    $inventoryBranchIds = $filters['branch_id'] > 0 ? [$filters['branch_id']] : $ids;
+    // ── Stock on hand: the BRANCH's own latest counted ending, at or BEFORE the window end ──
+    // The lookup deliberately has no lower bound. Sol F4: restricting it to the window meant a valid
+    // count from the day before the window read as ZERO stock while a 9-day-old count inside the
+    // window was accepted, and neither row carried an as-of date to tell them apart.
+    $inventoryBranchIds = $filters['branch_id'] > 0 ? [(int)$filters['branch_id']] : $ids;
     $inventoryMarks = implode(',', array_fill(0, count($inventoryBranchIds), '?'));
     $inventorySql = "SELECT latest.branch_id, latest.product_id, latest.ledger_date,
                             latest.bal_end AS ending_qty
@@ -1328,7 +1359,7 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
                             SELECT dl.branch_id, dl.product_id,
                                    MAX(CONCAT(dl.ledger_date, ':', COALESCE(dl.shift, ''))) AS latest_key
                               FROM dl_daily_ledger dl
-                             WHERE dl.ledger_date BETWEEN ? AND ?
+                             WHERE dl.ledger_date <= ?
                                AND dl.bal_end IS NOT NULL
                                AND dl.branch_id IN ({$inventoryMarks})
                              GROUP BY dl.branch_id, dl.product_id
@@ -1336,9 +1367,9 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
                          ON newest.branch_id = latest.branch_id
                         AND newest.product_id = latest.product_id
                         AND newest.latest_key = CONCAT(latest.ledger_date, ':', COALESCE(latest.shift, ''))
-                      WHERE latest.ledger_date BETWEEN ? AND ?
+                      WHERE latest.ledger_date <= ?
                         AND latest.bal_end IS NOT NULL";
-    $inventoryBind = array_merge([$historyFrom, $historyTo], $inventoryBranchIds, [$historyFrom, $historyTo]);
+    $inventoryBind = array_merge([$historyTo], $inventoryBranchIds, [$historyTo]);
     if ($filters['product_id'] > 0) {
         $inventorySql .= ' AND latest.product_id = ?';
         $inventoryBind[] = $filters['product_id'];
@@ -1346,6 +1377,30 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $stmt = $db->prepare($inventorySql);
     $stmt->execute($inventoryBind);
     $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $stockAsOf = [];
+    foreach ($inventory as $invRow) {
+        $stockAsOf[(int)$invRow['branch_id'] . ':' . (int)$invRow['product_id']] = (string)$invRow['ledger_date'];
+    }
+
+    // ── The cells each BRANCH recorded, so a product absent from a traded day is a MEASURED zero ──
+    // Official-only, exactly like the sales rows that form the numerator: mixing an inclusive
+    // denominator with an official numerator would divide two populations.
+    $cellStmt = $db->prepare(
+        "SELECT DISTINCT dl.branch_id, dl.ledger_date, dl.shift
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_ledger_shift_status ss
+             ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+            AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+          WHERE dl.ledger_date BETWEEN ? AND ?
+            AND dl.branch_id IN ({$marks})"
+        . dl_officialOnlySqlPredicate('dl', 'ss')
+    );
+    $cellStmt->execute(array_merge([$historyFrom, $historyTo], $ids));
+    $recordedCells = [];
+    foreach ($cellStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $cellRow) {
+        $cellShift = strtoupper((string)($cellRow['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
+        $recordedCells[(int)$cellRow['branch_id'] . ':' . $cellShift][(string)$cellRow['ledger_date']] = true;
+    }
 
     // ── Every branch+product+shift that MOVED in the window ──
     // The forecast is otherwise driven by official sales rows, so a pair that carried movement but no
@@ -1425,7 +1480,33 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
         }
     }
 
-    return dl_forecastDemand($sales, $variance, $inventory, $window, 0.10, $spoilageRates);
+    $forecastRows = dl_forecastDemand($sales, $variance, $inventory, $window, 0.10, $spoilageRates, $recordedCells);
+
+    // Stamp the age of the stock each row applied. An undated level cannot be judged stale or
+    // current, which is why a 9-day-old count and a count from the day before the window were
+    // previously indistinguishable (Sol F4).
+    foreach ($forecastRows as &$forecastRow) {
+        $stockKey = (int)$forecastRow['branch_id'] . ':' . (int)$forecastRow['product_id'];
+        $asOf = $stockAsOf[$stockKey] ?? '';
+        $ageDays = null;
+        if ($asOf !== '') {
+            try {
+                $ageDays = (new DateTimeImmutable($historyTo))->diff(new DateTimeImmutable($asOf))->days;
+            } catch (Throwable) {
+                $ageDays = null;
+            }
+        }
+        $forecastRow['stock_as_of'] = $asOf;
+        $forecastRow['stock_age_days'] = $ageDays;
+        $forecastRow['stock_state'] = $asOf === ''
+            ? 'no counted ending recorded for this branch and product'
+            : ($ageDays !== null && $ageDays > $window
+                ? sprintf('stale: last counted %d day(s) before the window end', $ageDays)
+                : '');
+    }
+    unset($forecastRow);
+
+    return $forecastRows;
 }
 
 // ─── Business Overview Analytics ────────────────────────────────────────
@@ -2605,6 +2686,7 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         'receipt_docs' => 0,
         'receipt_days' => 0,
         'conversion_pct' => null,
+        'conversion_applies' => true,
         'conversion_state' => 'no stock received and no sales in this period',
         'conversion_exceeds' => false,
         'products' => [],
@@ -2737,8 +2819,12 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
                      INNER JOIN dl_branch_receiving_items bri ON bri.receiving_id = br.id
                     WHERE br.status = 'posted'
                       AND br.received_ledger_date BETWEEN ? AND ?
-                      AND br.branch_id IN ({$marks})";
-    $receiptBind = array_merge([$dateFrom, $dateTo], $ids);
+                      AND br.branch_id IN ({$marks})"
+        // A transfer whose ORIGIN is also inside the selected scope is internal movement, not network
+        // inflow: counting it made the same stock enter the denominator twice. At a single-branch
+        // scope the origin is outside, so the branch's receipt is real inflow and is kept.
+        . " AND NOT (br.origin_type = 'branch' AND br.origin_id IN ({$marks}))";
+    $receiptBind = array_merge([$dateFrom, $dateTo], $ids, $ids);
     if ($productId > 0) {
         $receiptSql .= ' AND bri.product_id = ?';
         $receiptBind[] = $productId;
@@ -2748,12 +2834,23 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
     $receiptStmt->execute($receiptBind);
     $receivedByProduct = [];
     $receivedTotal = 0;
-    $transferTotal = 0;
     foreach ($receiptStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $receiptRow) {
         $receivedByProduct[(int)$receiptRow['product_id']] = (int)$receiptRow['received_qty'];
         $receivedTotal += (int)$receiptRow['received_qty'];
-        $transferTotal += (int)$receiptRow['transfer_qty'];
     }
+
+    // The internal transfers the figure above EXCLUDED, so the page DISCLOSES what it left out rather
+    // than quietly shrinking the denominator (Sol F5).
+    $internalStmt = $db->prepare(
+        "SELECT COALESCE(SUM(bri.quantity_received), 0)
+           FROM dl_branch_receivings br
+           INNER JOIN dl_branch_receiving_items bri ON bri.receiving_id = br.id
+          WHERE br.status = 'posted' AND br.received_ledger_date BETWEEN ? AND ?
+            AND br.origin_type = 'branch' AND br.origin_id IN ({$marks})
+            AND br.branch_id IN ({$marks})"
+    );
+    $internalStmt->execute(array_merge([$dateFrom, $dateTo], $ids, $ids));
+    $transferTotal = (int)$internalStmt->fetchColumn();
 
     // Receipt coverage, so the page can state the window its inflow figure actually covers,
     // and the Add Stock adjustment TOTAL, which is disclosed as a reconciliation figure and
@@ -3192,7 +3289,22 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
             . 'its first covered day, so opening + produced - dispatched - wastage is negative. Reported as a gap.';
         $closingCalculated = null;
     }
+    // A producer's output leaves by DISPATCH, not by retail sale, so "stock conversion" is not its
+    // measure. Rendering 0.00% for a commissary that took returns in and sold nothing retail reads as
+    // failure when it is the expected state (Sol F5). The ratio is withheld when the scope holds no
+    // supplying branch at all.
+    $conversionApplies = $suppliedLabels !== [];
     $conversionPct = $receivedTotal > 0 ? round($soldTotal / $receivedTotal * 100, 2) : null;
+    if (!$conversionApplies) {
+        $conversionPct = null;
+    }
+    $conversionState = !$conversionApplies
+        ? 'not applicable: no branch in this scope is supplied by a commissary, so a producer\'s output leaves by dispatch and retail conversion is not its measure'
+        : ($receivedTotal > 0
+            ? ''
+            : ($soldTotal > 0
+                ? 'no stock received in this period; these units came from opening stock'
+                : 'no stock received and no sales in this period'));
 
     return [
         // Source production. Zero here means "no production recorded in this scope", which the
@@ -3252,11 +3364,8 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         'receipt_docs' => $receiptMeta['docs'],
         'receipt_days' => $receiptMeta['days'],
         'conversion_pct' => $conversionPct,
-        'conversion_state' => $receivedTotal > 0
-            ? ''
-            : ($soldTotal > 0
-                ? 'no stock received in this period; these units came from opening stock'
-                : 'no stock received and no sales in this period'),
+        'conversion_applies' => $conversionApplies,
+        'conversion_state' => $conversionState,
         'conversion_exceeds' => $conversionPct !== null && $conversionPct > 100.0,
         'products' => array_values($products),
         'pullout_rows' => $pulloutRows,

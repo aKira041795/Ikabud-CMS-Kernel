@@ -13528,6 +13528,7 @@ function handleAdminProductionEfficiency(array $params = []): void
         'receipt_days' => (int)$data['receipt_days'],
         'conversion_pct' => $data['conversion_pct'],
         'conversion_available' => $data['conversion_pct'] !== null,
+        'conversion_applies' => (bool)$data['conversion_applies'],
         'conversion_state' => (string)($data['conversion_state'] ?? ''),
         // A conversion above 100% is a COVERAGE finding, never a headline performance figure: the
         // stock sold came partly from opening stock, which the period inflow does not contain.
