@@ -104,12 +104,75 @@ File cache writes use a two-phase protocol:
 
 This prevents partial reads during concurrent access.
 
-### LRU Eviction
+### Retention and eviction
 
-When file cache exceeds `maxCacheSizeMB`:
-1. Sort entries by last access time (oldest first)
-2. Remove entries until total size is under limit
-3. Runs automatically on `set()` or explicitly via `gc()`
+Not LRU. There is no access-time tracking anywhere in `Cache`, and eviction is not per-write.
+
+A rate-limited maintenance sweep runs on the write path at most once per hour
+(`maintenanceIfDue()`, marker `storage/cache/.cache_maintenance`). The marker is written
+**before** the work, and if it cannot be written the sweep is skipped rather than run on every
+write. Each pass:
+
+1. prunes files whose `mtime + instance TTL` is in the past;
+2. then, if a budget is set and the surviving total exceeds it, evicts **oldest-mtime first**
+   down to 90% of the budget - the 10% headroom stops the next pass from being immediately due.
+
+`maxCacheSizeMB` defaults to 256 (`app.cache.max_size_mb`); `0` disables enforcement.
+
+Entry points: `Cache::maintenanceIfDue()` (automatic, write path), `Cache::pruneExpired()`,
+`Cache::previewExpired()`, and `php ikabud cache:prune`. `enforceCacheLimit()` was removed as
+dead code, and there is no `gc()`.
+
+Two properties worth knowing:
+
+- **Eviction orders by mtime, not by each entry's declared expiry.** Read-time expiry is
+  enforced separately from the entry's own `_cache_expires_at`, so a short-TTL entry is
+  correctly not served after its TTL but may still occupy disk until the sweep's
+  `mtime + TTL` rule retires it. Harmless while the tree sits far below budget (2.6 MB against
+  256 MB, measured 2026-10-11); revisit if a deployment approaches the budget.
+- **Per-write bounding was deliberately avoided.** It would cost a full directory walk plus a
+  `filesize()` per entry on every `set()`; the sweep's hot-path cost is one `filemtime()` that
+  returns immediately until the interval elapses.
+
+## Invalidation: two file-backed authorities
+
+Cross-worker invalidation cannot rely on APCu. APCu is per-worker (the php-fpm pool), and a CLI
+purge cannot reach another worker's store at all - so a purge signalled only through APCu reaches
+one worker and silently misses the rest. Both authorities below are therefore file-backed and
+read on the request path.
+
+| Authority | Covers | Location |
+|---|---|---|
+| Generation tokens | `Cache` instances, generation-bound memos, tenant routing and tenant-DB config | `storage/cache/generations/<namespace>/<key>.gen` |
+| Page-cache markers | Full-page cache (kernel layer and the pre-bootstrap fast path) | `<instance>/.cache_version`, `<instance>/.flush` |
+
+### Why they are not unified (closed decision, 2026-10-11)
+
+The page-cache markers stay in the instance directory because the **pre-bootstrap fast path
+computes those paths itself**, as string literals, before any helper can be loaded
+(`src/helpers/fast-path-cache.php`). Moving that layout onto the generations tree would require
+the literal path and the helper's path to stay in sync, and a mismatch there **silently skips the
+version check** - a defect this layer has already had once. The duplication is the cost of not
+re-introducing it.
+
+Generations are compared by **equality of an opaque token**, never by ordering. A bump writes a
+unique token via temp-file + `rename()`; a `+1` counter would be an unlocked read-modify-write and
+can lose a bump, which - the signals being compared by equality - means a purge that does not
+purge.
+
+**Falsifier:** if the fast path ever gains a bootstrap phase able to load helpers before it checks,
+the literal-path constraint disappears and the two authorities could merge.
+
+### The durable event bus is not an invalidation transport (closed decision, 2026-10-11)
+
+`EventBus::fireDurable()` provides producer-owned outbox + consumer inbox semantics, which is
+structurally the same problem as cross-worker invalidation - and **no cache registers a listener
+for it**. That is deliberate, not an omission. The generation authority already delivers
+cross-worker invalidation, and routing it through the bus would couple the bus to caches and add a
+durable outbox write per invalidation, for no gain the generation tokens do not provide.
+
+**Falsifier:** invalidation ever needs to survive a crash between the state change and the file
+write, or needs an auditable invalidation log. Neither is required today.
 
 ## Per-Request Caches
 
@@ -121,6 +184,29 @@ Several kernel subsystems maintain per-request in-memory caches that bypass the 
 | `EventTriggers` | `$triggerCache` (loaded triggers) | End of request |
 | `CapabilityBus` | APCu state storage with file fallback | TTL-based |
 | `ComponentLoader` | `$components` (loaded definitions) | `clear()` or end of request |
+
+## Operational bounds
+
+Growth is bounded by construction, not by an operator cron:
+
+| What | Bound | Mechanism |
+|---|---|---|
+| `*.cache` entries | 256 MB default | hourly rate-limited sweep, write path |
+| Page locks | collected once older than 1 h; sweeps at most hourly | `pageCacheSweepStaleLocks()`, triggered from `pageCacheGet()` (every page-cache read, hit or miss) |
+| Shared module-scan cache | one file per manifest fingerprint; superseded ones retired after 1 h | write-path stale cleanup |
+| Generation tokens | one file per namespace/key | bounded by tenants x concerns, not by traffic |
+
+Two of these were invisible until recently, and the reason is worth keeping. A bound that cannot
+be observed gets misread as a fault: with the page-lock sweep reachable only from the cache-miss
+path, a warm site never ran it, and the count sat unchanged at 239 across a deploy that contained
+the sweep - which looks identical to a working sweep doing nothing. `php ikabud cache:stats` now
+reports the page-lock count, the age of the oldest lock, and the age of the maintenance marker, so
+a single reading distinguishes "not running" from "not due".
+
+Bounds are also reported where they can be misread: the page-lock line judges on **count AND age
+together**, because either alone gives the wrong answer - age alone fires on an idle site (no
+page-cache reads, so no sweep, so the age grows while nothing accumulates), and count alone misses
+a stalled sweep on a low-traffic site.
 
 ## Conventions
 
