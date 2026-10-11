@@ -116,16 +116,31 @@ $hasRed = (bool)preg_match('/(rose|text-red|bg-red|red-)/i', $effHtml);
 $check('T2', 'improvement renders green and deterioration renders red', $hasGreen && $hasRed,
     sprintf('green class present=%s, red class present=%s', $hasGreen ? 'yes' : 'NO', $hasRed ? 'yes' : 'NO'));
 
-// --- T3: THE COLOUR MUST FOLLOW IMPROVEMENT, NOT RAW DIRECTION ----------------------------------
-// This is the trap. "up = green" is correct for yield and sell-through, and EXACTLY BACKWARDS for
-// wastage rate and residual: a rising wastage rate is a deterioration. A naive up/down colouring
-// would paint the worst news on the page green. So the view must say which way each metric improves.
-$invertedForLoss = (bool)preg_match('/lower is better|down is better|rising .{0,30}(worse|deteriorat)|higher .{0,30}(worse|deteriorat)/i', $effText)
-    || (bool)preg_match('/wastage[^.]{0,80}(improves|better)[^.]{0,40}(down|lower|fall)/i', $effText)
-    || (bool)preg_match('/direction[^.]{0,80}(metric|measure)[^.]{0,80}(improve|better)/i', $effText);
-$check('T3', 'the colour follows improvement, and says so for loss metrics', $invertedForLoss,
-    $invertedForLoss ? 'the page states which direction is an improvement'
-        : 'nothing states the direction of improvement, so a rising WASTAGE RATE would be painted green - the worst news on the page reading as good');
+// --- T3: THE COLOUR FOLLOWS IMPROVEMENT, PER METRIC ----------------------------------------------
+// Owner rule, verbatim: "if ineeficiency/wastage goes up, it's red, it it's reduced, green".
+// So the direction of "good" is METRIC-DEPENDENT and opposite on the two sides of this page:
+//     gain metrics    yield %, sell-through %   -> up is good    (green up,   red down)
+//     loss metrics    wastage rate, residual %  -> up is BAD     (red up,     green down)
+// A single global "up = green" would paint a RISING WASTAGE RATE green - the worst news on the page
+// reading as good. The falsifiable requirement is therefore that the page states the good direction
+// for each side, and that the two statements DIFFER, because one shared sentence would satisfy a
+// naive check while still colouring loss metrics backwards.
+$gainStated = (bool)preg_match('/(yield|sell[- ]?through)[^.]{0,90}(higher|up|rising|increase)[^.]{0,40}(better|good|improve)/i', $effText)
+    || (bool)preg_match('/(higher|up|rising)[^.]{0,60}(yield|sell[- ]?through)[^.]{0,60}(better|good|improve)/i', $effText);
+$lossStated = (bool)preg_match('/(wastage|waste|spoilage|residual|inefficien)[^.]{0,90}(lower|down|falling|reduc|declin)[^.]{0,40}(better|good|improve)/i', $effText)
+    || (bool)preg_match('/(lower|down|falling|reduc)[^.]{0,60}(wastage|waste|spoilage|residual|inefficien)[^.]{0,60}(better|good|improve)/i', $effText);
+$bothPresent = $gainStated && $lossStated;
+$check('T3', 'each metric states which direction is an improvement', $bothPresent,
+    sprintf('gain metrics (yield/sell-through) state up-is-better=%s; loss metrics (wastage/residual) state down-is-better=%s%s',
+        $gainStated ? 'yes' : 'NO', $lossStated ? 'yes' : 'NO',
+        $bothPresent ? '' : ' - one shared "up is green" sentence is not enough: it colours rising waste green'));
+
+$lossColourCorrect = (bool)preg_match('/(wastage|residual)[^>]{0,120}(down|decreas|reduc|fall)[^>]{0,60}(emerald|green)/i', $effHtml)
+    || (bool)preg_match('/(wastage|residual)[^>]{0,120}(up|increas|ris)[^>]{0,60}(rose|red)/i', $effHtml)
+    || (bool)preg_match('/is-(down|good)[^"]*(emerald|green)/i', $effHtml);
+$check('T3b', 'a falling loss metric renders green and a rising one red', $lossColourCorrect,
+    $lossColourCorrect ? 'the loss metrics colour by improvement, not by raw direction'
+        : 'no evidence that a rising wastage rate renders red - the owner rule is inverted for loss metrics');
 
 // --- T4: the WARNING arrows must not be confused with the direction colour ----------------------
 $keepsWarnings = (bool)preg_match('/yield_exceeds|sell_through_exceeds|exceeds/i', $effHtml);
