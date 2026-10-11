@@ -153,6 +153,33 @@ t('default template path format is correct', $result === 'modules/cms/public/sin
 // ═══════════════════════════════════════════════════════════════════
 echo "\n=== SYMLINK MANAGEMENT ===\n";
 
+// RESTORE ON EXIT. templates/_cms_active_theme is a single GLOBAL path shared by every tenant and
+// request, and this test activates several themes - and unlinks the link outright below - so
+// without a restore the suite leaves it pointing at whatever ran last, or missing entirely, while
+// tenant settings say otherwise. That mismatch is not hypothetical: it is how the link went stale
+// (pointing at entity-commerce-poc while active_theme was ark) and silently changed what a theme
+// resolved until the resolver was made authoritative. Registered BEFORE any mutation so a mid-test
+// failure still restores both the setting and the link.
+$__originalSymlinkTarget = is_link(CMS_THEME_SYMLINK) ? (string)readlink(CMS_THEME_SYMLINK) : null;
+$__originalActiveTheme = $oldSettings['active_theme'] ?? null;
+register_shutdown_function(static function () use ($__originalSymlinkTarget, $__originalActiveTheme): void {
+    if ($__originalActiveTheme !== null
+        && function_exists('getModuleSettings')
+        && function_exists('saveModuleSettings')
+    ) {
+        $current = getModuleSettings('cms');
+        if (($current['active_theme'] ?? null) !== $__originalActiveTheme) {
+            $current['active_theme'] = $__originalActiveTheme;
+            saveModuleSettings('cms', $current);
+        }
+    }
+
+    if (!function_exists('cmsActivateThemeSymlink')) {
+        return;
+    }
+    cmsActivateThemeSymlink($__originalSymlinkTarget !== null ? basename($__originalSymlinkTarget) : null);
+});
+
 // Clean up any existing symlink
 $link = CMS_THEME_SYMLINK;
 if (is_link($link)) {
