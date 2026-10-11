@@ -308,13 +308,26 @@ if (is_file($rejectFile)) {
     }
 }
 $restored = cacheGenerationRejectCounts();
-ksort($restored);
-$expected = $rejectsBaseline;
-ksort($expected);
+// INVARIANT: the test must not REDUCE the operator's counters, and must not leave its own namespace
+// behind. Exact equality is the WRONG assertion here: the counter is a shared file, so a live
+// php-fpm worker can legitimately increment it while the test runs. Demanding equality made this
+// flaky on any box that is serving traffic - observed 2026-10-11 as 2 spurious failures from
+// concurrent web requests, and a flaky test is worse than no test.
+$decreased = [];
+foreach ($rejectsBaseline as $ns => $n) {
+    if (($restored[$ns] ?? 0) < $n) {
+        $decreased[] = $ns . '=' . ($restored[$ns] ?? 0) . '<' . $n;
+    }
+}
 cgAssert(
-    'the shared reject counter is restored to its pre-test state',
-    $restored === $expected,
-    'before=' . json_encode($expected) . ' after=' . json_encode($restored)
+    'the shared reject counter is not reduced by the test',
+    $decreased === [],
+    implode(', ', $decreased)
+);
+cgAssert(
+    'the test leaves none of its own namespaces in the shared counter',
+    !array_key_exists($run, $restored),
+    implode(',', array_keys($restored))
 );
 
 $leaked = array_merge(

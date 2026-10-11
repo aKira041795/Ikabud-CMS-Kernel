@@ -25,7 +25,10 @@ class Cache
         'misses' => 0,
         'bypasses' => 0,
         'errors' => 0,
-        'compressed' => 0
+        'compressed' => 0,
+        // Reads the generation authority rejected. A sustained non-zero value means invalidation is
+        // actively preventing stale content from being served.
+        'stale_generation' => 0,
     ];
     
     /** @var int Compression threshold in bytes */
@@ -154,7 +157,11 @@ class Cache
     private function incrementStat(string $key): void
     {
         $this->ensureStatsLoaded();
-        $this->stats[$key]++;
+        // `?? 0` rather than `++`: a counter that was never registered used to emit
+        // "Undefined array key" on every increment, so adding a new counter warned in production
+        // until someone remembered this list. Registering the key in $stats keeps it discoverable
+        // in getStats(); this keeps an unregistered one harmless.
+        $this->stats[$key] = ($this->stats[$key] ?? 0) + 1;
     }
     
     /**
@@ -1050,7 +1057,8 @@ class Cache
             'misses' => 0,
             'bypasses' => 0,
             'errors' => 0,
-            'compressed' => 0
+            'compressed' => 0,
+            'stale_generation' => 0,
         ];
         
         // Clear persisted stats
