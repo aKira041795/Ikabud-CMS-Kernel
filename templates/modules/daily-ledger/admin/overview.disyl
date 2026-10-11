@@ -10,6 +10,43 @@
     <a class="btn btn-outline" href="{base_url}/admin/reports/sales?date_from={date_from}&date_to={date_to}&branch_id={branch_id}">Detailed sales analysis</a>
 </div>
 
+<!-- All-periods gross summary: the lifetime figure an owner wants first, then the pace it implies.
+     Deliberately ABOVE the filter bar - it is context for the period numbers below, not another
+     filter result. Denominators are stated because an average without one is not verifiable, and
+     this probe has areas with no sales at all, where "per month" and "per month with sales" differ
+     so much that the diluted figure reads as decline. -->
+<div class="card mb-6" id="dl-all-periods-summary">
+    <div class="card-header">
+        <span>Gross sales, all periods</span>
+        <span class="text-sm text-muted">{lifetime_span_label} · {lifetime_scope_label}</span>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Gross sales to date</div>
+                <div class="mt-1 text-2xl font-semibold text-gray-900">PHP {lifetime_gross | number_format:2}</div>
+                <div class="text-xs text-gray-500">official finalized sales only</div>
+            </div>
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Average per month</div>
+                <div class="mt-1 text-2xl font-semibold text-gray-900">PHP {lifetime_avg_monthly | number_format:2}</div>
+                <div class="text-xs text-gray-500">across {lifetime_active_months} months with recorded sales</div>
+            </div>
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Average per day</div>
+                <div class="mt-1 text-2xl font-semibold text-gray-900">PHP {lifetime_avg_daily | number_format:2}</div>
+                <div class="text-xs text-gray-500">across {lifetime_active_days} days with recorded sales</div>
+            </div>
+        </div>
+        <p class="mt-3 border-t border-gray-200 pt-3 text-xs text-gray-500">
+            Averages divide by the days and months that actually recorded official sales, not by every
+            calendar day since the first entry: a day with no ledger activity is missing reporting, not a
+            zero-sales day. Quantities are pieces. Money is <strong>official only</strong> - a provisional row
+            contributes units but no amount, and it is excluded here and from the denominators.
+        </p>
+    </div>
+</div>
+
 <!-- The primary bar intentionally has only Area, its child Branch, the From/To date range, and Apply. -->
 <form class="card mb-6 print-hide" action="{base_url}/admin/overview" method="GET" onsubmit="return window.dlLoadForm(this)">
     <div class="card-body grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">

@@ -140,21 +140,26 @@ $check('A7', 'the money basis (official only) is stated', $hasBlock && $statesBa
 
 // --- A8: the all-periods total respects the area/branch scope ----------------------------------
 // Falsifiable: narrowing the scope must move the lifetime figure, or the header contradicts the view.
-$worldTotal = null;
-if (preg_match_all('/(?:PHP|₱)\s*([0-9][0-9,]*\.[0-9]{2})/', $text, $amounts)) {
-    $worldTotal = max(array_map(static fn($v): float => (float)str_replace(',', '', $v), $amounts[1]));
+// It must compare against a scope that CAN differ. ALL versus AREA:2 cannot: every one of the 5355
+// ledger rows in this probe sits in area_id=2, so the two are legitimately identical and the check
+// would report a false red on correct work. AREA:1 (Dapitan) has no ledger rows at all, so a scoped
+// figure there must be zero - a difference the data cannot hide.
+$worldLifetime = null;
+if (preg_match('#id="dl-all-periods-summary".*?PHP\s*([0-9][0-9,]*\.[0-9]{2})#s', $html, $wlm)) {
+    $worldLifetime = (float)str_replace(',', '', $wlm[1]);
 }
-$scoped = $render(['scope' => 'AREA:2']);
-$scopedText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($scoped), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-$scopedTotal = null;
-if (preg_match_all('/(?:PHP|₱)\s*([0-9][0-9,]*\.[0-9]{2})/', $scopedText, $sam)) {
-    $scopedTotal = max(array_map(static fn($v): float => (float)str_replace(',', '', $v), $sam[1]));
+$narrowHtml = $render(['scope' => 'AREA:1']);
+$narrowLifetime = null;
+if (preg_match('#id="dl-all-periods-summary".*?PHP\s*([0-9][0-9,]*\.[0-9]{2})#s', $narrowHtml, $nlm)) {
+    $narrowLifetime = (float)str_replace(',', '', $nlm[1]);
 }
-$scopeAware = $worldTotal !== null && $scopedTotal !== null && $scopedTotal !== $worldTotal;
+$scopeAware = $worldLifetime !== null && $narrowLifetime !== null
+    && $worldLifetime > 0.0
+    && $narrowLifetime < $worldLifetime;
 $check('A8', 'the all-periods total respects the current area scope', $scopeAware,
-    sprintf('ALL largest amount=%s, AREA:2 largest amount=%s (must differ, or the header ignores the filter)',
-        $worldTotal === null ? '?' : number_format($worldTotal, 2),
-        $scopedTotal === null ? '?' : number_format($scopedTotal, 2)));
+    sprintf('ALL lifetime=%s, AREA:1 (no ledger rows) lifetime=%s - the scoped figure must be smaller, and ALL must not be zero',
+        $worldLifetime === null ? '?' : number_format($worldLifetime, 2),
+        $narrowLifetime === null ? '?' : number_format($narrowLifetime, 2)));
 
 // --- A9: regression - the existing health content survives -------------------------------------
 $hasVerdict = (bool)preg_match('/\b(healthy|attention|at risk|on track|declining|improving|stable)\b/i', $text);

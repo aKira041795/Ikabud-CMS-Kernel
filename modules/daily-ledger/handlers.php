@@ -12773,6 +12773,72 @@ function handleAdminOverview(array $params = []): void
     $periodLabel = $periodValue;
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $clockLabel = dl_operatingClockLabel();
+    // --- All-periods gross summary (owner request 2026-10-11) -------------------
+    // A business owner wants the lifetime figure first, then the monthly and daily pace. The
+    // numerator REUSES dl_overviewOfficialSalesTotal with the date bounds widened, so it cannot
+    // drift from the period totals the rest of the page shows. The denominator comes from ONE query
+    // built on the SAME joins and the SAME pending predicate, so the days and months counted are
+    // exactly the rows the money was summed from. Dividing an official-only total by days that
+    // include provisional rows understates the average, and an understated average reads to an
+    // owner as decline - which is the one failure this block must not have.
+    $lifetimeGross = 0.0;
+    $lifetimeFirstDate = '';
+    $lifetimeLastDate = '';
+    $lifetimeActiveDays = 0;
+    $lifetimeActiveMonths = 0;
+    $lifetimeAvgMonthly = 0.0;
+    $lifetimeAvgDaily = 0.0;
+    $lifetimeSpanLabel = 'No finalized sales recorded yet';
+    $lifetimeScopeLabel = 'all branches in scope';
+    // This handler reads the module DB through $ctx->db() and never binds a $db; guarding on $db
+    // silently skipped this whole block, which rendered a lifetime of PHP 0.00 with no span.
+    $db = $ctx->db();
+    if ($db !== null) {
+        $lifetimeFilters = $filters;
+        $lifetimeFilters['date_from'] = '1970-01-01';
+        $lifetimeFilters['date_to'] = $dateTo;
+        $lifetimeGross = dl_overviewOfficialSalesTotal($db, $lifetimeFilters);
+
+        $lifetimeIds = array_values(array_filter(
+            array_map('intval', $filters['accessible_branch_ids'] ?? []),
+            static fn(int $id): bool => $id > 0
+        ));
+        if (($filters['branch_id'] ?? 0) > 0) {
+            $lifetimeIds = in_array((int)$filters['branch_id'], $lifetimeIds, true)
+                ? [(int)$filters['branch_id']]
+                : [];
+        }
+        if ($lifetimeIds !== []) {
+            $lifetimeMarks = implode(',', array_fill(0, count($lifetimeIds), '?'));
+            // One single-quoted string, no escape sequences: single quotes do not interpret \n, so
+            // building this from '...\n' fragments sent a literal backslash-n to MySQL (1064).
+            $lifetimeSql = 'SELECT MIN(dl.ledger_date) AS first_date, MAX(dl.ledger_date) AS last_date, COUNT(DISTINCT dl.ledger_date) AS active_days, COUNT(DISTINCT DATE_FORMAT(dl.ledger_date, "%Y-%m")) AS active_months'
+                . ' FROM dl_daily_ledger dl'
+                . ' LEFT JOIN dl_ledger_shift_status ss'
+                . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
+                . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
+                . ' WHERE dl.branch_id IN (' . $lifetimeMarks . ')'
+                . dl_overviewPendingPredicate('dl');
+            $lifetimeStmt = $db->prepare($lifetimeSql);
+            $lifetimeStmt->execute($lifetimeIds);
+            $lifetimeRow = $lifetimeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $lifetimeFirstDate = (string)($lifetimeRow['first_date'] ?? '');
+            $lifetimeLastDate = (string)($lifetimeRow['last_date'] ?? '');
+            $lifetimeActiveDays = (int)($lifetimeRow['active_days'] ?? 0);
+            $lifetimeActiveMonths = (int)($lifetimeRow['active_months'] ?? 0);
+        }
+        $lifetimeAvgMonthly = $lifetimeActiveMonths > 0 ? $lifetimeGross / $lifetimeActiveMonths : 0.0;
+        $lifetimeAvgDaily = $lifetimeActiveDays > 0 ? $lifetimeGross / $lifetimeActiveDays : 0.0;
+        if ($lifetimeFirstDate !== '' && $lifetimeLastDate !== '') {
+            $lifetimeSpanLabel = $lifetimeFirstDate . ' to ' . $lifetimeLastDate;
+        }
+        $lifetimeScopeLabel = ($filters['branch_id'] ?? 0) > 0
+            ? 'the selected branch'
+            : ((string)($filters['view_scope'] ?? 'ALL') === 'ALL'
+                ? 'all branches in scope'
+                : (string)($filters['view_scope_label'] ?? 'the selected area'));
+    }
+
     echo dlRender('modules/daily-ledger/admin/overview.disyl', [
         'page_title' => 'Business Overview',
         'user_name' => $userName,
@@ -12829,6 +12895,17 @@ function handleAdminOverview(array $params = []): void
         'trend_percent_display' => $trendPercentDisplay,
         'trend_delta_display' => $trendDeltaDisplay,
         'trend_state' => $trendState,
+        // All-periods gross summary - the lifetime figure an owner wants first, with the pace it
+        // implies. Denominators are days and months WITH recorded official sales, stated on the page.
+        'lifetime_gross' => $lifetimeGross,
+        'lifetime_span_label' => $lifetimeSpanLabel,
+        'lifetime_scope_label' => $lifetimeScopeLabel,
+        'lifetime_first_date' => $lifetimeFirstDate,
+        'lifetime_last_date' => $lifetimeLastDate,
+        'lifetime_active_days' => $lifetimeActiveDays,
+        'lifetime_active_months' => $lifetimeActiveMonths,
+        'lifetime_avg_monthly' => $lifetimeAvgMonthly,
+        'lifetime_avg_daily' => $lifetimeAvgDaily,
         'trend_state_label' => $trendStateLabel,
         'trend_state_detail' => $trendStateDetail,
         'trend_pending_bar_pct' => $trendPendingBarPct,
