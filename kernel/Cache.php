@@ -240,8 +240,20 @@ class Cache
         if (self::$apcuAvailable) {
             $cached = apcu_fetch('cache_' . $apcuKey, $success);
             if ($success && is_array($cached)) {
-                $this->incrementStat('hits');
-                return $cached;
+                // A warm per-worker APCu entry MUST NOT be trusted on its own. APCu is local to
+                // THIS worker, so another worker's clearByTag() cannot delete it - all it can do
+                // is bump the shared generation file. Validating the stamp stored alongside the
+                // entry is what makes that bump reach every worker.
+                //
+                // Measured 2026-10-11: this tier returned immediately with no validation, so an
+                // invalidation issued by any other worker was invisible here until this entry's
+                // own TTL elapsed.
+                if ($this->entryGenerationValid($instanceId, $cached)) {
+                    $this->incrementStat('hits');
+                    return $cached;
+                }
+                apcu_delete('cache_' . $apcuKey);
+                $this->incrementStat('stale_generation');
             }
         }
         
@@ -305,6 +317,18 @@ class Cache
                 return null;
             }
 
+            // Same authority check for the disk tier. The shared copy is usually already unlinked
+            // by the invalidator, but a concurrent set() can repopulate it - the stamp makes that
+            // harmless instead of resurrecting invalidated data.
+            if (!$this->entryGenerationValid($instanceId, $result)) {
+                @unlink($file);
+                if (self::$apcuAvailable) {
+                    apcu_delete('cache_' . $apcuKey);
+                }
+                $this->incrementStat('stale_generation');
+                return null;
+            }
+
             // Promote to APCu using the remaining time from the stored expiry.
             if (self::$apcuAvailable) {
                 $remainingTtl = max(1, $expiresAt - time());
@@ -350,6 +374,10 @@ class Cache
             // 1800 s) and APCu re-promotions use the same default — meaning an
             // entry written with ttl=20 can survive stale for 30 minutes.
             $response['_cache_expires_at'] = time() + $cacheTtl;
+
+            // Bind the entry to the invalidation state at write time. It is read back on every
+            // get(), so a per-worker APCu copy cannot outlive a bump performed by another worker.
+            $response['_cache_gen'] = $this->generationStamp($instanceId);
 
             $data = serialize($response);
             
@@ -605,7 +633,19 @@ class Cache
         $cleared = 0;
         $instanceDir = $this->getInstanceDir($instanceId);
         $tagFile = $instanceDir . '/.tag_' . md5($tag) . '.idx';
-        
+
+        // BUMP THE AUTHORITY FIRST, before the early return. Unlinking files and deleting this
+        // worker's APCu key is not enough: every other worker still holds a warm APCu copy that no
+        // delete here can reach, and a missing tag index used to return before anything was
+        // published at all.
+        //
+        // lean-ctx: the generation is per INSTANCE, so a tag purge invalidates the whole instance
+        // rather than only the tagged entries. That is over-broad but always CORRECT, and purges
+        // are rare (content publish, theme change), so it is the right trade for now. Upgrade to
+        // per-(instance,tag) generations when a hot instance starts purging often enough that the
+        // collateral misses show up in the hit rate.
+        $this->bumpGeneration($instanceId);
+
         if (!file_exists($tagFile)) {
             return 0;
         }
@@ -629,7 +669,7 @@ class Cache
         
         // Remove tag index file
         @unlink($tagFile);
-        
+
         $this->logInvalidationNotice("Ikabud Cache: Cleared $cleared files for tag '$tag' in instance $instanceId");
         return $cleared;
     }
@@ -686,7 +726,56 @@ class Cache
         }
         
         $this->logInvalidationNotice("Ikabud Cache: Cleared $cleared files for instance $instanceId");
+        $this->bumpGeneration($instanceId);
         return $cleared;
+    }
+
+    /**
+     * Load the shared generation authority if the bootstrap did not already.
+     *
+     * Cache is constructible from CLI and test paths that never run public/index.php, so the
+     * helper is required defensively rather than assumed.
+     */
+    private static function ensureGenerationAuthority(): void
+    {
+        if (function_exists('cacheGenerationRead')) {
+            return;
+        }
+        $path = dirname(__DIR__) . '/src/helpers/cache-generation.php';
+        if (is_file($path)) {
+            require_once $path;
+        }
+    }
+
+    /** Generation token governing this instance ('' when the authority is unavailable). */
+    private function generationStamp(string $instanceId): string
+    {
+        self::ensureGenerationAuthority();
+        return function_exists('cacheGenerationRead') ? cacheGenerationRead('cache', $instanceId) : '';
+    }
+
+    /**
+     * Is the stamp stored with this entry still current?
+     *
+     * An entry with no stamp (written before generations existed, or by a host where the helper is
+     * missing) is accepted, so this is backward compatible rather than a forced cold start.
+     */
+    private function entryGenerationValid(string $instanceId, array $entry): bool
+    {
+        self::ensureGenerationAuthority();
+        if (!function_exists('cacheGenerationValid')) {
+            return true;
+        }
+        return cacheGenerationValid('cache', $entry['_cache_gen'] ?? null, $instanceId);
+    }
+
+    /** Publish a new generation for this instance so every worker revalidates. */
+    private function bumpGeneration(string $instanceId): void
+    {
+        self::ensureGenerationAuthority();
+        if (function_exists('cacheGenerationBump')) {
+            cacheGenerationBump('cache', $instanceId);
+        }
     }
     
     /**

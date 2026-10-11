@@ -94,6 +94,28 @@ class TemplateEngine
     private ?\Ikabud\Kernel\DiSyL\Cache\FragmentStore $fragmentStore = null;
     private ?\Ikabud\Kernel\DiSyL\Experiments\Bucketer $bucketer = null;
     private ?string $tenantId = null;
+
+    /**
+     * Resolve the tenant for a fragment cache operation, fail-closed.
+     *
+     * $tenantId above is nullable and NOTHING in the repository calls setTenantId() on the engine
+     * (every setTenantId() hit belongs to the TenantResolver, a different class). So the previous
+     * `$this->tenantId ?? '_global'` at the fragment call sites put EVERY tenant's fragment output
+     * into one shared namespace. The render context carries the resolved tenant - the same
+     * convention the tenant-scope resolution above already relies on - and FragmentStore falls back
+     * to the current request. Returning null hands that decision to the store instead of guessing
+     * '_global' here, where a wrong guess widens scope to all tenants.
+     *
+     * @param array<string,mixed> $context
+     */
+    private function resolveFragmentTenant(array $context): ?string
+    {
+        $tid = $context['_tenant_id'] ?? $context['tenant_id'] ?? null;
+        if ($tid === null || $tid === '') {
+            $tid = $this->tenantId;
+        }
+        return ($tid === null || $tid === '') ? null : (string) $tid;
+    }
     private ?string $subjectId = null;
     private ?string $requestId = null;
 
@@ -2637,7 +2659,7 @@ class TemplateEngine
             if (!$this->sandbox()->require('cache.invalidate', '{invalidate}', $m[0])) return '';
             $tags = $this->splitInlineArgs($m[1], $context);
             if ($tags !== []) {
-                $this->fragmentStore()->invalidate($tags, $this->tenantId ?? '_global');
+                $this->fragmentStore()->invalidate($tags, $this->resolveFragmentTenant($context));
             }
             return '';
         }, $content) ?? $content;
@@ -2691,7 +2713,7 @@ class TemplateEngine
         ) ?? $innerContent;
 
         $store = $this->fragmentStore();
-        $tenant = $this->tenantId ?? '_global';
+        $tenant = $this->resolveFragmentTenant($context);
         $hit = $store->tryGet($key, $deps, $tenant);
         if ($hit !== null) return $hit;
 
