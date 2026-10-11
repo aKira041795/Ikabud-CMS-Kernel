@@ -1239,6 +1239,16 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
                 $grossUp = $target - $expectedSales;
             }
             $grossNeed = max(0, (int)ceil($target));
+            // A row with NO measured sales must never be given a production number. Its zero average
+            // means "no sales were recorded", not "demand was measured as zero", and a variance flag
+            // on such a row was previously turned into expected demand. Sol F8 measured 14 rows
+            // issuing positive suggestions on nothing but a variance adjustment.
+            if ((int)$result[$index]['sample_days'] === 0) {
+                $expectedSales = 0.0;
+                $target = 0.0;
+                $grossUp = 0.0;
+                $grossNeed = 0;
+            }
             $inventoryApplied = min($remainingAvailable, $grossNeed);
             $remainingAvailable -= $inventoryApplied;
             $result[$index]['wastage_adjustment'] = round($wastageAdjustment, 2);
@@ -2869,14 +2879,54 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         ];
     }
 
+    // A closing count is a LEVEL, so the physical ending and its variance are taken from each
+    // product's LATEST counted day, never summed across every counted snapshot. Measured (Sol F6):
+    // summing the 312 counted snapshots reported 45,692 pcs of "physical count" and 5,465 of
+    // "counted variance" where the latest-per-product values are 22,216 and 3,957 - the same class
+    // of error P1 removed from closing stock.
+    $countedVariance = 0;
+    $countedRows = 0;
+    $physicalEndTotal = 0;
+    if ($hasProducerInScope) {
+        // Same rule the forecast uses for stock on hand: the latest DATE, then the latest SHIFT on
+        // that date. Summing AM and PM endings of the same day counts one closing twice.
+        $latestCountSql = "SELECT cpl.product_id,
+                                  COALESCE(SUM(cpl.actual_end_qty), 0) AS physical_end,
+                                  COALESCE(SUM(cpl.calc_variance), 0) AS counted_variance
+                             FROM dl_commissary_product_ledger cpl
+                             INNER JOIN (
+                                  SELECT product_id,
+                                         MAX(CONCAT(ledger_date, ':', COALESCE(shift, ''))) AS latest_key
+                                    FROM dl_commissary_product_ledger
+                                   WHERE ledger_date BETWEEN ? AND ?
+                                     AND actual_end_qty IS NOT NULL
+                                     AND commissary_branch_id IN ({$producerMarks})
+                                   GROUP BY product_id
+                             ) c ON c.product_id = cpl.product_id
+                                AND c.latest_key = CONCAT(cpl.ledger_date, ':', COALESCE(cpl.shift, ''))
+                            WHERE cpl.ledger_date BETWEEN ? AND ?
+                              AND cpl.actual_end_qty IS NOT NULL
+                              AND cpl.commissary_branch_id IN ({$producerMarks})";
+        $latestCountBind = array_merge([$dateFrom, $dateTo], $producerIds, [$dateFrom, $dateTo], $producerIds);
+        if ($productId > 0) {
+            $latestCountSql .= ' AND cpl.product_id = ?';
+            $latestCountBind[] = $productId;
+        }
+        $latestCountSql .= ' GROUP BY cpl.product_id';
+        $latestCountStmt = $db->prepare($latestCountSql);
+        $latestCountStmt->execute($latestCountBind);
+        foreach ($latestCountStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $countRow) {
+            $physicalEndTotal += (int)$countRow['physical_end'];
+            $countedVariance += (int)$countRow['counted_variance'];
+            $countedRows++;
+        }
+    }
+
     $products = [];
     $producedTotal = 0;
     $wastedTotal = 0;
     $dispatchedTotal = 0;
     $openingTotal = 0;
-    $countedVariance = 0;
-    $countedRows = 0;
-    $physicalEndTotal = 0;
     foreach ($prodRows as $row) {
         $pid = (int)$row['product_id'];
         $openingQty = (int)($openingByProduct[$pid] ?? 0);
@@ -2904,9 +2954,6 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $wastedTotal += (int)$row['wastage_qty'];
         $dispatchedTotal += (int)$row['dispatched_qty'];
         $openingTotal += $openingQty;
-        $countedVariance += (int)$row['counted_variance'];
-        $countedRows += (int)$row['counted_rows'];
-        $physicalEndTotal += (int)$row['physical_end_qty'];
     }
 
     // A product that SOLD but has no production row this period was produced in
@@ -2967,7 +3014,12 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         $dispatchedProduct = (int)$product['dispatched'];
         $opening = (int)$product['opening'];
         $received = (int)$product['received'];
-        $yieldProductsTotal++;
+        // Yield coverage is measured against the PRODUCED population, not every product with sales or
+        // receipts. Sol F7: counting all 178 rendered "0 of 178" when only 36 products produced
+        // anything, which makes a configuration gap look catalogue-wide.
+        if ($produced > 0) {
+            $yieldProductsTotal++;
+        }
 
         // Yield basis from migration 016: theoretical output is whole batches of
         // input times the pieces each batch yields. BOTH the batch size and the
@@ -3006,13 +3058,19 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
             $product['yield_exceeds'] = false;
             if (!$basisConfigured) {
                 $product['yield_state'] = 'not computable: no batch input basis configured (batch_input_qty / batch_egg_qty with output_pieces_per_batch)';
-                $yieldProductsMissingBasis++;
+                if ($produced > 0) {
+                    $yieldProductsMissingBasis++;
+                }
             } elseif (!$hasInput) {
                 $product['yield_state'] = 'not computable: no production input recorded for this product in the period';
-                $yieldProductsMissingInput++;
+                if ($produced > 0) {
+                    $yieldProductsMissingInput++;
+                }
             } else {
                 $product['yield_state'] = 'not computable: the recorded input does not complete a whole batch at the configured batch size';
-                $yieldProductsMissingInput++;
+                if ($produced > 0) {
+                    $yieldProductsMissingInput++;
+                }
             }
         }
 

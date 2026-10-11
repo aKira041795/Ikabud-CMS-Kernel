@@ -12554,6 +12554,7 @@ function handleAdminOverview(array $params = []): void
         $salesSql =
             'SELECT dl.branch_id, b.name AS branch_name,
                     COALESCE(SUM(' . dl_ledgerSalesQuantitySql('dl') . '), 0) AS total_units,
+                    COALESCE(SUM(CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss') . ' THEN 0 ELSE ' . dl_ledgerSalesQuantitySql('dl') . ' END), 0) AS official_units,
                     COALESCE(SUM(CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss') . ' THEN 0 ELSE ' . dl_ledgerSalesAmountSql('dl') . ' END), 0) AS total_amount,
                     COUNT(DISTINCT dl.product_id) AS product_count
              FROM dl_daily_ledger dl
@@ -12564,7 +12565,11 @@ function handleAdminOverview(array $params = []): void
              WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
         $salesBind = array_merge([$dateFrom, $dateTo], $scopedBranchIds);
         if ($pendingRowsMode === 'exclude') {
-            $salesSql .= dl_overviewPendingPredicate('dl');
+            // Units and the amount BESIDE them must describe one population. The amount has always been
+            // official-only; the units used the pending predicate alone, which removed nothing (a
+            // pending row's quantity is NULL) - so the card showed 102,615 inclusive units labelled
+            // "official, finalized rows" beside an official amount. Sol: F2.
+            $salesSql .= dl_officialOnlySqlPredicate('dl', 'ss');
         }
         $salesSql .= ' GROUP BY dl.branch_id, b.name ORDER BY b.name';
         $salesStmt = $ctx->db()->prepare($salesSql);
@@ -12582,10 +12587,16 @@ function handleAdminOverview(array $params = []): void
     }
 
     $cards = [];
+    $grandExcludedUnits = 0;
     foreach ($scopedBranches as $br) {
         $bid = (int)$br['id'];
         $s = $branchSalesMap[$bid] ?? null;
-        $units = $s ? (int)$s['total_units'] : 0;
+        // The basis decides WHICH unit population this card reports, and the two cannot be mixed:
+        // the amount beside it is official-only whatever the basis says.
+        $units = $s ? ($pendingRowsMode === 'exclude' ? (int)$s['official_units'] : (int)$s['total_units']) : 0;
+        if ($s && $pendingRowsMode === 'exclude') {
+            $grandExcludedUnits += max(0, (int)$s['total_units'] - (int)$s['official_units']);
+        }
         $amount = $s ? (float)$s['total_amount'] : 0.0;
         $grandUnits += $units;
         $grandAmount += $amount;
@@ -12875,6 +12886,9 @@ function handleAdminOverview(array $params = []): void
         'net_sales' => $netSales,
         'net_sales_configured' => $netSales['configured'],
         'grand_units' => $grandUnits,
+        // What the official basis removed. Sol F3: the Overview applied the basis to its ranked
+        // tables but never DISCLOSED the exclusion, so an owner could not tell how much was left out.
+        'grand_excluded_units' => $grandExcludedUnits,
         'grand_amount' => $grandAmount,
         'period_label' => $periodLabel,
         'forecast' => $forecast,

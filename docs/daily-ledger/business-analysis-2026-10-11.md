@@ -216,9 +216,58 @@ the change and green after.
 1. **Finalize shifts.** 16,348 units (15.9%) and 2,112 rows sit on shifts that were counted but
    never signed off; branch 9 is 54.6% of its volume in that state and five branches are at 100%. Every analysis in this document is bounded by that, and
    it is the cheapest fix available — it is an operational habit, not a schema change.
-2. **Close the cost gap if margin is wanted.** `unit_cost_snapshot` is already captured on receiving
-   items. Until it is joined into the product analytics, the module can report volume and revenue but
-   not profit.
+2. **Capture cost if margin is wanted.** `unit_cost_snapshot` exists on `dl_delivery_items` and
+   `dl_branch_receiving_items` but **every row is 0 or NULL** (measured: 0 of 3,209 and 0 of 2,433),
+   and several write paths insert a literal `0`. Until cost is entered at receiving, the module can
+   report volume and revenue but not profit — and no reporting change can fix that.
 3. **Add lot attribution before attempting production-efficiency claims over a sales period.** With
    4 days of production data and no sale→run link, "production efficiency" is measurable only inside
    the production window. The page now says exactly that instead of implying more.
+
+---
+
+## 10. Independent adversarial review (Sol), and what it changed
+
+Sol reviewed the analytics — full report at `docs/reviews/sol-analytics-review-2026-10-11.log` — with
+verdict **FALSIFIED**: the analytics were **not** production grade at the time of review. Five of its
+findings were real defects, each of which I reproduced with my own criterion before fixing it:
+
+| Finding | What was wrong | Fixed |
+|---|---|---|
+| F2 | The Overview's per-branch units used the *pending* predicate while the **amount beside them** used the official one — two different populations in one card. It rendered **102,615 inclusive units labelled "official, finalized rows"** when the official figure is **86,267**. | ✅ units now 86,267; the card states its basis and the volume excluded |
+| F6 | "Physical count 45,692" and "counted variance 5,465" were **sums of 312 daily count snapshots**. A closing count is a LEVEL, not a sum. Latest-per-product values: **22,216** and **3,957**. | ✅ `physical_end = 22,216` — matching Sol's independent figure exactly |
+| F7 | Yield coverage read "0 of 178", counting every product with production, sales *or* receipts. Only **36** products produced. | ✅ denominator is the produced population (36) |
+| F8 | **14 movement-only rows issued positive production suggestions** — a variance flag became expected demand on a zero average. | ✅ zero such rows; a row with no measured sales cannot be given a production number |
+| F2b | The efficiency "Sold" card said "official + provisional sales units" while rendering the official figure. | ✅ the card states the basis it is actually rendering |
+
+Sol also **CONFIRMED** the parts it could have broken: the SQL twin `dl_provisionalSqlExpr` and the PHP
+predicate `dl_rowIsProvisional` **agree on all 14,401 rows** (0 disagreements — including NULL
+`end_source`, missing shift rows, unfinished shifts and the derived ending); no other predicate
+negates the twin in a way that reintroduces the NULL trap; the two efficiency panels do not double
+count; and `dl_provisionalExclusion()` reconciles per branch.
+
+### Still open — recorded, not papered over
+
+These findings are **not** fixed. They are listed so no reader assumes otherwise.
+
+1. **The forecast's "14-day" average divides only by days that HAVE official sales.** Most demand
+   streams have 2, 5 or 11 sample days, not 14. Absent days are omitted rather than treated as
+   no-sales or as unreported, so **the displayed average can overstate daily demand**. The row shows
+   `sample_days`, but the window label implies more than the data supports. Resolving it needs a
+   decision — absent days as zero-sales, or as missing reporting — and those describe different
+   businesses that this data cannot currently tell apart.
+2. **At network scope, received stock includes 3,704 units of internal branch-to-branch transfer**, so
+   the conversion denominator is not purely external supply.
+3. **Branch 18's "stock conversion 0.00%"** is arithmetically exact and operationally misleading: a
+   commissary's role is not retail conversion, so a zero reads as failure when it is expected.
+4. **Forecast stock has no as-of date.** It is the latest count *inside the history window*, so a valid
+   count from the day before the window reads as zero while a 9-day-old count inside it is accepted.
+   Two tenant-207 products are 9 days stale.
+5. **`mixed` production/supply classification is a live branch with no data** on tenant 207, and
+   classification is branch-wide rather than branch-product-wide, so a hybrid branch cannot be
+   classified per product.
+6. **Yield is entirely unavailable, not thinly covered:** all 41 production runs have
+   `primary_input_qty = 0`, and **0 of the 36 produced products** has a batch basis configured. The
+   page correctly renders `n/a`; making yield real requires run inputs and the migration-016 basis to
+   be populated.
+

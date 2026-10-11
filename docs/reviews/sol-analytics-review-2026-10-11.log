@@ -1,0 +1,516 @@
+verdict: FALSIFIED
+
+findings:
+  1:
+    verdict: CONFIRMED
+    command: |
+      php /tmp/review_landed.php
+      rg -n "dl_provisionalSqlExpr|dl_officialOnlySqlPredicate|NOT" modules/daily-ledger -g '*.php'
+    output: |
+      rows=14401 php_prov=2697 sql_prov=2697 disagreements=0 raw_sql_NULL=11704
+
+      6,982 end_source NULL, ending set, AM, status missing
+      4,722 end_source NULL, ending set, PM, status finalized
+      2,112 end_source NULL, ending set, PM, status open
+        584 ending NULL
+          1 derived-from-movements
+
+      The only exclusion predicate found was:
+      COALESCE(dl_provisionalSqlExpr(...), 0) = 0
+      Other consumers use CASE WHEN expr THEN ..., not NOT(expr).
+    reasoning: |
+      `dl_rowIsProvisional()` and the SQL expression agree for every tenant-207 row in the
+      tested window, including missing status rows, AM/PM differences, unfinished shifts,
+      NULL endings and the derived ending.
+
+      The raw SQL expression is NULL on 11,704 official rows because
+      `NULL IN (...)` propagates NULL. Therefore it is only a semantic twin in boolean
+      contexts where NULL is treated as false. The official filter correctly uses COALESCE.
+      No remaining module predicate negates it or otherwise reintroduces the NULL trap.
+
+  2:
+    verdict: FALSIFIED
+    command: |
+      php /tmp/review_landed.php
+      php /tmp/render_review.php > /tmp/render_review.out
+    output: |
+      money={"incl_amount":"977815.47","official_amount":"789385.51"}
+      overview_headline_default_units=102615 (uses pending predicate)
+
+      Rendered Overview:
+        Units sold 102615 units
+        official, finalized rows
+        Gross sales PHP 789,385.51
+        official sales
+
+      Independently measured official units: 86,267
+      Provisional units excluded by the intended rule: 16,348
+    reasoning: |
+      Money is genuinely official-only in `dl_overviewProductTotals`,
+      `dl_overviewBranchProductTotals`, and `dl_overviewOfficialSalesTotal`: each uses
+      `CASE WHEN dl_provisionalSqlExpr(...) THEN 0 ELSE amount END`.
+
+      The main Overview headline did not receive the same fix. Its handler still applies
+      `dl_overviewPendingPredicate('dl')`, which removes only NULL endings and changes the
+      unit sum by zero. It consequently labels 102,615 inclusive units as “official,
+      finalized rows”; the correct official count is 86,267.
+
+      On a truly official-only view, the owner loses the operational signal “16,348 units
+      are carried by 2,697 provisional rows.” Overview exposes only 584 NULL-ending rows;
+      it does not disclose the other 2,113 provisional rows or their units. Efficiency
+      discloses 16,348 excluded units, but contains contradictory copy: its card says
+      “official + provisional sales units” while rendering 86,267 official units.
+
+  3:
+    verdict: PARTIALLY_CONFIRMED
+    command: |
+      php /tmp/review_landed.php
+    output: |
+      Branch 8:  inclusive=95,704 official=83,128 delta=12,576
+                 provisionalUnits=12,576 OK
+      Branch 9:  inclusive=6,911  official=3,139  delta=3,772
+                 provisionalUnits=3,772 OK
+      Every other branch: delta equals provisionalUnits (all zero-unit exclusions)
+      function_all={"rows":2697,"units":16348}
+
+      Efficiency:
+        inclusive sold=102,615
+        official sold=86,267
+        excluded_units=16,348
+
+      Overview headline default:
+        102,615, not 86,267
+    reasoning: |
+      `dl_provisionalExclusion()` independently reconciles per branch and across the
+      network. Efficiency's inclusive-minus-official calculation also reconciles, with no
+      branch mismatch.
+
+      Overview's product and branch-product helper totals reconcile when called in
+      official mode, but its visible headline does not use `dl_officialOnlySqlPredicate`.
+      `dl_provisionalExclusion()` is defined but not rendered by Overview. Thus there is no
+      data-level mismatch inside the helper, but the landed page does not consistently
+      apply or disclose that population.
+
+  4:
+    verdict: PARTIALLY_CONFIRMED
+    command: |
+      php /tmp/review_landed.php
+    output: |
+      Classes:
+        producer: branch 18 only
+        supplied: branches 8, 9, 11
+        mixed: 0
+        unknown: remaining 17 branches
+
+      Branch 18:
+        self_managed, CPL positive rows=69, runs=41,
+        commissary receipts=0, branch-transfer receipts=513, class=producer
+
+      Branches 21, 27, 28:
+        self_managed, no production/receipt evidence, class=unknown
+
+      produced_products=36 zero_priced=0
+    reasoning: |
+      `mixed` is logically reachable whenever both production evidence and commissary
+      receipt evidence exist; it is not dead code. It is simply absent from tenant 207.
+
+      Pricing does not affect production classification, and no positive-output product is
+      zero-priced here. The classifier has no void-state predicate because CPL has no void
+      marker and deleted production runs disappear; consequently it cannot distinguish
+      retained invalid evidence from valid evidence.
+
+      Treating a self-managed branch with no evidence as unknown is conservative and
+      preferable to fabricated production. However, classification is branch-wide rather
+      than branch-product-wide, so a hybrid branch cannot be truthfully classified for
+      individual products.
+
+  5:
+    verdict: PARTIALLY_CONFIRMED
+    command: |
+      php /tmp/review_landed.php
+    output: |
+      Source panel:
+        produced=8,828; dispatched=12,547; wastage=119
+
+      Destination panel:
+        received=100,632; internal branch transfers=3,704
+        official sold=86,267
+
+      Branch 18:
+        received=513, all from branch transfers:
+          branch 8 -> 18: 119
+          branch 9 -> 18: 394
+        official sold=0
+        stock conversion=0.00%
+    reasoning: |
+      The implementation no longer silently uses CPL output as destination receipts or
+      daily-ledger `addtl` as production. The SQL populations are separated.
+
+      Nevertheless, physical stock can appear on both sides as dispatch at a source and
+      receipt at a destination; this is legitimate double-entry movement only if users do
+      not add the panels together. More importantly, the network denominator includes
+      3,704 units transferred between branches already inside the selected scope. That is
+      not new network inflow and can cause the same stock to enter the denominator more
+      than once.
+
+      Branch 18's 513 units are returns/transfers into a commissary, not retail supply.
+      Reporting 0.00% “stock conversion” for a producer with no official retail sales is
+      arithmetically exact but operationally misleading. It invites the conclusion that
+      the commissary failed to sell received stock, although retail conversion is not its
+      role.
+
+  6:
+    verdict: PARTIALLY_CONFIRMED
+    command: |
+      php /tmp/review_landed.php
+      php /tmp/review_supp.php
+    output: |
+      Headline arithmetic:
+        opening=50 + produced=8,828 - dispatched=12,547 - wastage=119
+        calculated closing=-3,788 => rendered n/a with named gap
+
+      Product results:
+        178 products
+        55 negative calculated closings
+
+      Production ledger by date:
+        2026-10-08 beginning total=50
+        2026-10-09 beginning total=42,320
+
+      Physical counts:
+        page sums 312 count snapshots to 45,692
+        latest count per product: 178 products, 22,216
+        page counted variance=5,465
+        latest-count variance=3,957
+    reasoning: |
+      The formula itself is correct, and a named gap is better than printing negative
+      inventory. The gap is genuine: the first recorded day has an incomplete opening.
+
+      Migration 064 already provides the appropriate stock fields: `beg_qty` and
+      `actual_end_qty`. A prior physical ending can anchor the next opening. Production
+      runs cannot supply opening inventory; they contain inputs and output, not stock
+      levels. For this copy there is no pre-October-8 production ledger count from which
+      the requested-period opening can be reconstructed, so the aggregate closing really
+      is unreached.
+
+      A separate defect remains: the page sums physical ending snapshots and variances
+      across dates. A closing count is a level and must use the latest count per
+      branch-product, not 312 historical snapshots. Thus “Physical count: 45,692” and the
+      5,465 headline variance are business-misleading.
+
+  7:
+    verdict: FALSIFIED
+    command: |
+      php /tmp/review_landed.php
+    output: |
+      positive-produced products=36
+      positive-produced products with production runs=19
+      positive-produced products with configured batch basis=0
+
+      Efficiency output:
+        theoretical_output=0
+        yield_pct=NULL
+        yield coverage=0 of 178
+
+      All 41 production runs have primary_input_qty=0 in this copy.
+    reasoning: |
+      No actually produced product has a populated migration-016 batch basis, and recorded
+      run inputs are zero. Yield is therefore unavailable, not a measured efficiency.
+
+      The page correctly renders `n/a`, so it does not currently divide unrelated units.
+      However, “0 of 178” uses every product with production, sales or receipts as its
+      denominator; only 36 products had positive production. That coverage headline makes
+      the configuration gap appear catalogue-wide rather than production-population-wide.
+
+  8:
+    verdict: PARTIALLY_CONFIRMED
+    command: |
+      php /tmp/review_landed.php
+      php /tmp/review_supp.php
+    output: |
+      forecast_rows=788
+      movement_only=254
+      movement_only_nonzero_average=0
+      measured_average_mismatches=0
+      movement_only_positive_suggestion=14
+
+      Sample positive movement-only row:
+        branch=Rizal, CHEESE STREUSEL PM
+        sample_days=0, average_sales=0
+        variance_adjustment=12.5
+        suggested_production=13
+
+      Sample-day distribution:
+        0:254, 1:4, 2:174, 4:4, 5:174, 7:4, 10:11, 11:161, 12:2
+    reasoning: |
+      Movement-only rows do not enter the daily sales series, and no measured row's
+      average disagreed with an independent branch-product-shift aggregation. That part of
+      the claim holds.
+
+      A zero average is correctly labelled “no measured sales,” but it is not a demand
+      estimate. Fourteen such rows still issue positive production suggestions because
+      variance flags become expected demand. Conversely, a zero suggestion should be a
+      review/hold state, not evidence that demand is zero.
+
+      The larger statistical issue is that the “14-day” average divides only by dates with
+      official rows. Most measured streams have 2, 5 or 11 sample days, not 14. Missing
+      days are omitted rather than classified as zero-sales or missing reporting, so the
+      displayed average can substantially overstate daily demand.
+
+  9:
+    verdict: PARTIALLY_CONFIRMED
+    command: |
+      php /tmp/review_landed.php
+      php /tmp/review_supp.php
+    output: |
+      Forecast window: 2026-09-28 through 2026-10-11
+
+      latest-date PM NULL with AM counted:
+        0 cases in forecast window
+        0 cases all-time
+
+      Count freshness:
+        356 branch-products last counted 1 day before window end
+        2 branch-products last counted 9 days before window end
+
+      Stale cases:
+        Obay / UBE LOAF BIG: 2026-10-02 PM, ending 1
+        Obay / SOFTDRINKS: 8OZ: 2026-10-02 PM, ending 0
+    reasoning: |
+      Because the query filters `bal_end IS NOT NULL` before taking the maximum key, a NULL
+      PM with counted AM would select AM. That is appropriate for “latest counted ending,”
+      though no actual tenant-207 example exists.
+
+      Two actual offsets are nine days stale and are shown without an as-of date or
+      freshness warning. The query also looks only inside the history window: a valid
+      count immediately before that window becomes zero stock, while a nine-day-old count
+      inside it is accepted. The appropriate rule is latest known count at or before the
+      forecast cutoff, with age disclosed and a staleness threshold—not merely latest
+      within the averaging window.
+
+  10:
+    verdict: FALSIFIED
+    command: |
+      php /tmp/render_review.php > /tmp/render_review.out
+      php /tmp/review_landed.php
+      php /tmp/review_supp.php
+    output: |
+      Overview, 2026-09-01..2026-10-11:
+        gross sales to date = PHP 820,615.96
+        lifetime active months = 3
+        lifetime active days = 46
+        average/month = PHP 273,538.65
+        average/day = PHP 17,839.48
+        branches = 21; active=7; silent=14
+        units sold = 102,615 (labelled official; actual official=86,267)
+        gross sales = PHP 789,385.51
+        pending endings=584
+        unresolved variances=487; absolute variance=11,072
+        closed on 2026-10-11=0 of 21
+        health=Needs attention
+        aggregate daily forecast=4,363 units
+
+      Efficiency, same window:
+        produced=8,828; positive-output days=3; record days=4
+        wastage=119; wastage rate=1.35%
+        opening=50; dispatched=12,547; calculated closing=n/a
+        yield=n/a; yield coverage=0/178
+        physical-count sum=45,692; counted variance=5,465
+        received=100,632 across 138 documents and 36 days
+        internal receipts=3,704
+        official sold=86,267; excluded provisional units=16,348
+        conversion=85.73%
+        Add Stock adjustments=24,176
+    reasoning: |
+      Headline populations and likely owner conclusions:
+
+      - Gross sales to date: official sales amount from 2026-08-15 through the latest
+        official sale, across accessible branches. An owner will read lifetime turnover.
+        It is gross revenue, not profit.
+      - Average/month: lifetime gross divided by three calendar-month labels with activity.
+        August and October are partial months, so PHP 273,538.65 is arithmetically true but
+        not a normalized monthly run rate.
+      - Average/day: lifetime gross divided only by 46 days containing accepted rows.
+        It excludes silent dates and therefore describes an active reporting day, not an
+        average calendar or trading day.
+      - Branches/active/silent: row-presence coverage over the selected window. It says
+        where data exists, not which branch performed.
+      - Units sold: intended official sales units for the window. The visible 102,615 is
+        false under its label; 86,267 is the actual official population.
+      - Gross sales: official gross amount for the window. It supports turnover ranking,
+        not margin or cash collected.
+      - Trend: equal-length amount comparison, currently suppressed due to pending rows.
+        This is appropriately non-conclusive.
+      - Health: ledger finalization, variance and closure gates. “Needs attention” means
+        data/process incompleteness, not poor financial health.
+      - Pending, variance and closed counts: operational control populations over the
+        selected period/end date. They are not profitability measures.
+      - Aggregate forecast 4,363: sum of recorded-day demand projections. It looks like
+        next-day need but is based on uneven 0–12-day coverage inside a nominal 14-day
+        window and is therefore not statistically comparable across streams.
+
+      - Produced, dispatched, wastage: source-18 CPL flows over four recorded days, not the
+        full 41-day requested window. An owner must not read them as full-period network
+        production.
+      - Wastage rate 1.35%: 119/8,828 for the recorded producer output. Arithmetically
+        valid, but only four production-ledger days are covered.
+      - Closing stock: unavailable because the period opening is not recorded. This is the
+        correct state, although the underlying count summaries are not.
+      - Yield: unavailable because no produced product has a batch/input basis.
+      - Yield coverage 0/178: misleading denominator; most of the 178 are sales/receipt-only
+        products, not produced products.
+      - Counted variance 5,465 and physical ending 45,692: sums of repeated snapshots. An
+        owner would conclude current unexplained loss/current stock, but latest-per-product
+        values are 3,957 and 22,216 respectively.
+      - Stock received: posted receipt-item quantity for all destinations. At network scope
+        it includes 3,704 internal transfers and is not external supply.
+      - Sold: 86,267 official units under the default basis.
+      - Stock conversion 85.73%: official period sales divided by period receipts. It is
+        not cohort conversion: sales can come from opening stock, receipts can remain, and
+        internal transfers inflate the denominator.
+      - Add Stock 24,176: operator adjustment events, correctly separated from receipts;
+        it signals reconciliation activity, not supply.
+
+      The production coverage, snapshot aggregation, Overview unit-label defect, active-day
+      averages, uneven forecast denominator and receipt/sales cohort mismatch prevent these
+      analytics from being production-grade.
+
+  11:
+    verdict: CONFIRMED
+    command: |
+      php /tmp/review_unanswerable.php
+      php /tmp/review_supp.php
+    output: |
+      Sales ledger: 2026-08-15..2026-10-11, 53 distinct dates
+      Production runs: 2026-10-08..2026-10-10, 3 dates
+      CPL: 2026-10-08..2026-10-11, 4 dates
+
+      Receiving-item costs:
+        rows=2,433
+        NULL cost=2,385
+        zero/NULL cost=2,433
+
+      Relevant columns:
+        dl_products: current_price, no product cost
+        dl_production_runs: input quantity/type and yield, no material cost or lot
+        dl_daily_ledger: no production_run_id/lot_id
+        CPL: quantities and counts, no lot/cause/cost
+        cashier withdrawals: reason_code
+    reasoning: |
+      See `unanswerable_questions` below.
+
+twin_lockstep:
+  result: |
+    Yes for all 14,401 tenant-207 rows in 2026-09-01..2026-10-11.
+    Disagreement count: 0.
+  caveat: |
+    The raw SQL expression returns NULL on 11,704 official rows because end_source is
+    NULL. It remains lockstep in CASE-WHEN contexts and under
+    `COALESCE(expr,0)=0`; direct negation would not be safe. No current module consumer
+    was found using unsafe negation.
+
+misleading_figures:
+  - figure: "Overview Units sold: 102,615 — official, finalized rows"
+    likely_conclusion: 102,615 units are official.
+    problem: Actual official units are 86,267; 16,348 provisional units remain included.
+
+  - figure: "Average per month: PHP 273,538.65"
+    likely_conclusion: This is a normal full-month sales run rate.
+    problem: It divides by three touched month labels, including partial August and October.
+
+  - figure: "Average per day: PHP 17,839.48"
+    likely_conclusion: This is the business's typical daily sales.
+    problem: It divides only by 46 active reporting days and excludes silent dates.
+
+  - figure: "Business Health / Needs attention"
+    likely_conclusion: The business is financially unhealthy.
+    problem: The verdict measures finalization, variances and day closure only.
+
+  - figure: "Aggregate forecast: 4,363 units"
+    likely_conclusion: 4,363 units are required tomorrow.
+    problem: Streams average over uneven recorded-day denominators, often 2, 5 or 11 days rather than 14.
+
+  - figure: "Produced 8,828 / Wastage 119 / 1.35%"
+    likely_conclusion: This describes the selected 41-day network period.
+    problem: Production evidence covers source 18 for only four days.
+
+  - figure: "Yield coverage: 0 of 178"
+    likely_conclusion: All 178 products should have had measurable production yield.
+    problem: Only 36 had positive production; the denominator also contains sale/receipt-only products.
+
+  - figure: "Physical count: 45,692; Counted variance: 5,465"
+    likely_conclusion: These are current stock and current unexplained variance.
+    problem: They sum repeated physical-count snapshots; latest-per-product values are 22,216 and 3,957.
+
+  - figure: "Stock conversion: 85.73%"
+    likely_conclusion: 85.73% of received units were sold.
+    problem: No receipt-to-sale cohort link exists, opening stock is omitted, and 3,704 internal transfers inflate network receipts.
+
+  - figure: "Branch 18 stock conversion: 0.00%"
+    likely_conclusion: The commissary failed to convert received stock.
+    problem: Its 513 receipts are branch returns/transfers and it has no official retail sales role.
+
+  - figure: "Sold 86,267 — official + provisional sales units"
+    likely_conclusion: The number includes provisional units.
+    problem: The default data is official-only; the template contradicts the basis banner.
+
+  - figure: "Movement-only forecast with positive Suggested Production"
+    likely_conclusion: Sales history supports producing those units.
+    problem: Fourteen zero-sales-history rows receive positive suggestions solely from variance flags.
+
+unanswerable_questions:
+  cost:
+    question: What did each product or production run actually cost?
+    answer: |
+      Not answerable. `dl_products` has selling price but no product cost. Production runs
+      record only primary input quantity/type, not ingredient quantities and costs.
+      `dl_branch_receiving_items.unit_cost_snapshot` is zero/NULL for all 2,433 rows and
+      cannot establish manufacturing cost. A recipe/BOM, material issue quantities and
+      time-valid material/labour/overhead costs are required.
+
+  margin:
+    question: What is gross margin by product, branch or period?
+    answer: |
+      Not answerable. Official revenue exists, but there is no reliable COGS assigned to
+      sold units. A cost layer or lot-level COGS link from each sale to purchased or
+      produced inventory is required.
+
+  per_lot_attribution:
+    question: Which production lot supplied a receipt or sale, and did that lot sell through?
+    answer: |
+      Not answerable. `dl_production_runs.id` and `commissary_movement_id` exist, and
+      receiving items can reference a delivery item, but `dl_daily_ledger` has no
+      production-run/lot identifier. A durable run/lot ID propagated through dispatch,
+      receipt and sale depletion is required.
+
+  spoilage_by_cause:
+    question: Why did producer or destination stock spoil?
+    answer: |
+      Only partly answerable at branch-pullout level through
+      `dl_cashier_withdrawals.reason_code`. CPL stores only `wastage_qty`, with no cause,
+      lot or responsible process. Producer spoilage by cause requires a wastage event
+      table linked to CPL product, production run, quantity, cause and actor.
+
+  demand_seasonality:
+    question: What are weekly, monthly, holiday or annual demand patterns?
+    answer: |
+      Not reliably answerable. `dl_daily_ledger.ledger_date` permits a basic short
+      day-of-week series, but tenant 207 has only 53 distinct sales dates and production
+      has four days. There is no full seasonal cycle or promotion/holiday/closure context.
+      Longer complete history plus a trading calendar and promotion/event dimensions are
+      required.
+
+weakest_claim: |
+  The assertion that network stock conversion is materially distorted by internal
+  transfers is the least quantified part of this report. I measured 3,704 internal units
+  in its 100,632-unit denominator and proved that they are included, but I did not trace
+  each physical unit through repeated transfers to calculate the exact corrected
+  conversion percentage. Missing opening inventory independently prevents cohort
+  interpretation.
+
+unreached:
+  - A true period-opening inventory for source 18 before 2026-10-08 cannot be reconstructed; no earlier CPL count exists.
+  - True receipt-to-sale or production-lot conversion cannot be measured because sales have no lot/run link.
+  - Whether any retained CPL/run row represents a business-voided production event cannot be determined because those tables expose no void status.
+  - No actual tenant-207 case has a latest-day NULL PM ending with a counted AM ending; only the query's hypothetical behavior could be assessed.
+  - Corrected profitability, margin and long-run seasonality cannot be calculated from the available data.
