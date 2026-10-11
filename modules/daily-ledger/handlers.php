@@ -12842,9 +12842,11 @@ function handleAdminProductsPerformance(array $params = []): void
     // branch predicate, and the area/branch intersection; this page must not
     // assemble a second scope consumer.
     $filters = dl_reportFilters($input, $user);
-    // Product analytics follow the Health view's official-rows default: pending
-    // rows (no ending yet) are excluded unless the viewer opts to include them.
-    $filters['pending_rows_mode'] = dl_overviewPendingRowsMode($input['pending_rows'] ?? null);
+    // Product analytics are official-only on this page. A pending row carries no
+    // ending and therefore no quantity, so the four helpers already drop it from
+    // the ranking (HAVING units > 0); fixing the predicate here states the policy
+    // explicitly instead of exposing a toggle that cannot change any figure.
+    $filters['pending_rows_mode'] = 'exclude';
 
     $db = $ctx->db();
     $productTotals = dl_overviewProductTotals($db, $filters);
@@ -12921,7 +12923,6 @@ function handleAdminProductsPerformance(array $params = []): void
         'sort_by' => $sortBy,
         'sort_dir' => $sortDir,
         'sort_label' => dl_overviewSortLabel($sortBy, $sortDir),
-        'exclude_pending' => ($filters['pending_rows_mode'] ?? 'exclude') === 'exclude',
         'pareto' => $pareto,
         'branch_products' => $branchProductTotals,
     ]);

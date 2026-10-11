@@ -45,10 +45,6 @@
                 <option value="asc" {if sort_dir == 'asc'}selected{/if}>Lowest first (what does not)</option>
             </select>
         </div>
-        <label class="inline-flex items-center gap-2 text-sm">
-            <input type="hidden" name="pending_rows" value="include">
-            <input type="checkbox" name="pending_rows" value="exclude" {if exclude_pending}checked{/if}> Official rows only
-        </label>
         <button type="submit" class="btn btn-primary">Apply</button>
     </div>
 </form>
