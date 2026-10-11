@@ -4955,17 +4955,43 @@ MD;
 
             if ($lockCount > 0 || $lockMarkers > 0) {
                 $lockAge = $lockOldest !== null ? time() - $lockOldest : null;
-                // Threshold and rate limit are both one hour, so a working sweep holds the oldest
-                // file below roughly two hours. Beyond that it is not collecting.
-                $lockStuck = $lockAge !== null && $lockAge > 7200;
-                out('  ' . ($lockStuck ? yellow('!') : green('v')) . ' '
+                // Neither the age nor the count is a valid verdict ALONE, and both were tried here:
+                //
+                //   - age alone fires on an IDLE site. No page-cache reads means no sweep, so the
+                //     age grows while nothing accumulates. Caught doing exactly that on this host
+                //     (1 lock, 7.7h). Raising the threshold only moves the false positive.
+                //   - count alone misses the real failure. A stalled sweep was measured at 239
+                //     files, which any quota-derived threshold treats as trivial - and the code
+                //     would then have printed an "idle site" hint over a genuine stall, which is
+                //     worse than silence because it actively mislabels it.
+                //
+                // Together they separate all four states, because the two causes leave different
+                // fingerprints: an idle site has an old lock and almost no locks; a stalled sweep on
+                // a site with traffic has an old lock AND many locks.
+                //
+                //   aged + many   -> stalled: not collecting what traffic is creating
+                //   aged + few    -> idle: nothing to collect
+                //   fresh + many  -> working, high traffic
+                //   fresh + few   -> working, low traffic
+                $lockAged = $lockAge !== null && $lockAge > 7200;
+                $lockBusy = $lockCount > 50;    // beyond what a site without traffic would hold
+                $lockHeavy = $lockCount > 5000; // ~2.5-10% of a typical 50k-200k shared-host quota
+                $lockNote = '';
+                if ($lockHeavy) {
+                    $lockNote = '  ->  approaching typical inode quotas';
+                } elseif ($lockAged && $lockBusy) {
+                    $lockNote = '  ->  not being collected: aged AND a site with traffic';
+                } elseif ($lockAged) {
+                    $lockNote = '  (aged but the count is low - an idle site, not a stalled sweep)';
+                }
+                out('  ' . (($lockHeavy || ($lockAged && $lockBusy)) ? yellow('!') : green('v')) . ' '
                     . sprintf(
-                        'Page locks: %d lock file(s)%s, %s',
+                        'Page locks: %d lock file(s)%s, oldest %s',
                         $lockCount,
                         $lockMarkers > 0 ? ' + ' . $lockMarkers . ' marker' : '',
-                        $lockAge === null ? 'age unknown' : sprintf('oldest %.1fh', $lockAge / 3600)
+                        $lockAge === null ? 'unknown' : sprintf('%.1fh', $lockAge / 3600)
                     )
-                    . ($lockStuck ? '  ->  not being collected (expected under ~2h)' : ''));
+                    . $lockNote);
             }
         }
         out('');
