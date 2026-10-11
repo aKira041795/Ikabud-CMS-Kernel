@@ -143,9 +143,13 @@ $check('T3b', 'a falling loss metric renders green and a rising one red', $lossC
         : 'no evidence that a rising wastage rate renders red - the owner rule is inverted for loss metrics');
 
 // --- T4: the WARNING arrows must not be confused with the direction colour ----------------------
-$keepsWarnings = (bool)preg_match('/yield_exceeds|sell_through_exceeds|exceeds/i', $effHtml);
+// Read the TEMPLATE, not the render. These are conditional markers (they emit only when a product
+// exceeds its theoretical yield), so on data where nothing exceeds, a render-based check reports a
+// false red on a template that still has them - which is exactly what my first version did.
+$effTemplate = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/production-efficiency.disyl');
+$keepsWarnings = (bool)preg_match('/yield_exceeds|sell_through_exceeds|exceeds/i', $effTemplate);
 $check('T4', 'the existing "exceeds" warnings stay distinguishable', $keepsWarnings,
-    $keepsWarnings ? 'the exceedance warnings survive alongside the direction colour'
+    $keepsWarnings ? 'the exceedance warnings survive in the template alongside the direction colour'
         : 'the warnings were removed instead of distinguished - they say "check this", not "improving"');
 
 // --- T4: the forecast uses a PER-PRODUCT spoilage rate ------------------------------------------
