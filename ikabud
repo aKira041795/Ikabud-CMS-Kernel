@@ -4903,6 +4903,30 @@ MD;
             }
         }
 
+        // ── Shared kernel module-scan cache ───────────────────────
+        // Not strictly required for correctness - the file name carries a manifest fingerprint, so
+        // a deploy already invalidates it - but a purge that leaves 350 KB of stale scan behind is
+        // a purge that does not do what it says. It is rebuilt on the next request.
+        if (!$disylOnly && !$apcuOnly) {
+            $scanCleared = 0;
+            $scanFailed = [];
+            foreach (glob(STORAGE_PATH . '/cache/kernel/modules_*.cache') ?: [] as $scanFile) {
+                if (@unlink($scanFile)) {
+                    $scanCleared++;
+                } else {
+                    // Report it: a purge that leaves a stale file behind while printing a green
+                    // tick is how a purge silently stops purging (usually file ownership or a
+                    // read-only directory).
+                    $scanFailed[] = basename($scanFile);
+                }
+            }
+            out('  ' . green('✓') . " Shared module-scan cache: {$scanCleared} file(s) removed (rebuilt on the next request)");
+            foreach ($scanFailed as $failedFile) {
+                $errors[] = 'Shared module-scan cache: unable to remove ' . $failedFile;
+                out('  ' . yellow('△') . ' Shared module-scan cache: unable to remove ' . $failedFile);
+            }
+        }
+
         // ── APCu in-memory cache ──────────────────────────────────
         if (!$disylOnly) {
             if (function_exists('apcu_clear_cache')) {

@@ -1723,6 +1723,139 @@ function moduleManifestStateIsCurrent(string $dir, array $state): bool
     return true;
 }
 
+/**
+ * Path of the shared module-scan cache file for a manifest fingerprint.
+ *
+ * Why a file and not APCu: APCu is PER-WORKER. With pm.start_servers=10 / pm.max_children=30 the
+ * scan (~82 ms) is duplicated by every worker and repeated after every recycle, and on a host
+ * without APCu it is paid on EVERY request (measured in CLI: 274-334 ms per run).
+ *
+ * Extension is .cache, not .php: the payload is serialized data, and a file that is not valid PHP
+ * cannot be executed even if the cache directory were ever exposed by mistake.
+ *
+ * The fingerprint is in the file NAME, so a manifest change (a deploy) selects a different file
+ * and the old one is simply never read again. That matters for correctness, not just freshness:
+ * the payload carries owns_tables, and a stale owns_tables once made ModuleDB::enforceAccess()
+ * deny a table the deployed manifest does declare (hard 500 on live, 2026-10-09).
+ */
+function moduleScanSharedCacheFile(string $fingerprint): string
+{
+    $storage = defined('STORAGE_PATH')
+        ? (string)STORAGE_PATH
+        : (defined('BASE_PATH') ? BASE_PATH . '/storage' : dirname(__DIR__, 2) . '/storage');
+    $safe = preg_replace('/[^A-Za-z0-9_.\-]/', '', $fingerprint);
+
+    return rtrim($storage, '/') . '/cache/kernel/modules_' . ($safe !== '' ? $safe : 'nofp') . '.cache';
+}
+
+/**
+ * Read the shared module-scan cache.
+ *
+ * Returns null on ANY problem - missing, unreadable, corrupt, or written for a different
+ * fingerprint - so the caller re-scans. A cache that cannot be trusted is a slower request, never
+ * a broken one. The embedded fingerprint is checked as well as the file name: a file copied or
+ * renamed under the wrong key must not be believed.
+ *
+ * Format is serialize() rather than a PHP file of var_export()ed literals. Benchmarked on this
+ * payload (70 modules, 343 KB serialized vs 485 KB of literals): unserialize 2.7 ms against
+ * 7.2 ms to include the literal form, because the literal form has to CONSTRUCT the array every
+ * time whereas unserialize just parses. allowed_classes=false because the payload is arrays and
+ * scalars only, so an unexpected object can never be instantiated from this file.
+ */
+function moduleScanSharedCacheRead(string $fingerprint): ?array
+{
+    $file = moduleScanSharedCacheFile($fingerprint);
+    if (!is_file($file)) {
+        return null;
+    }
+
+    $raw = @file_get_contents($file);
+    if ($raw === false || $raw === '') {
+        return null;
+    }
+
+    try {
+        $payload = @unserialize($raw, ['allowed_classes' => false]);
+    } catch (\Throwable $e) {
+        return null;
+    }
+
+    if (!is_array($payload) || ($payload['_fingerprint'] ?? null) !== $fingerprint) {
+        return null;
+    }
+
+    $modules = $payload['modules'] ?? null;
+
+    return is_array($modules) ? $modules : null;
+}
+
+/**
+ * Publish the shared module-scan cache atomically. A concurrent reader must never see a partial
+ * file, so write a temp file and rename it into place. Returns whether the file is now readable
+ * for this fingerprint. Never throws: a read-only filesystem degrades to scanning.
+ */
+function moduleScanSharedCacheWrite(string $fingerprint, array $modules): bool
+{
+    $file = moduleScanSharedCacheFile($fingerprint);
+    $dir = dirname($file);
+    // This cache is written by BOTH php-fpm (as www-data) and CLI (as the developer). A directory
+    // owned by whichever wrote first, with default permissions, makes the other unable to refresh
+    // it - which is how a purge can report success while the file survives, and how a CLI-run test
+    // can fail against an FPM-written cache.
+    //
+    // The mode passed to mkdir() is MASKED BY UMASK (php-fpm typically 022 turns 0777 into 0755),
+    // so an explicit chmod is required; passing 0777 alone is not enough. 0777 matches
+    // storage/cache and its sibling instance directories.
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+    if (!is_dir($dir)) {
+        return false;
+    }
+    @chmod($dir, 0777);
+
+    try {
+        $suffix = bin2hex(random_bytes(4));
+    } catch (\Throwable $e) {
+        // random_bytes() can throw on a host with no CSPRNG; this function must NEVER throw.
+        $suffix = (string)mt_rand(100000, 999999);
+    }
+    $temp = $file . '.' . getmypid() . '.' . $suffix . '.tmp';
+    $payload = serialize(['_fingerprint' => $fingerprint, 'modules' => $modules]);
+
+    $written = @file_put_contents($temp, $payload, LOCK_EX);
+    // A SHORT write would otherwise be renamed into place and served as a valid-looking cache.
+    if ($written === false || $written !== strlen($payload)) {
+        @unlink($temp);
+        return false;
+    }
+    if (!@rename($temp, $file)) {
+        @unlink($temp);
+        return false;
+    }
+    if (function_exists('opcache_invalidate')) {
+        @opcache_invalidate($file, true);
+    }
+
+    // Drop files for other fingerprints ONCE THEY ARE OLD. The file name changes on every manifest
+    // change, so without any cleanup each deploy would leave another ~350 KB behind forever - but
+    // deleting every other fingerprint immediately lets two writers (for example the old and new
+    // fingerprint either side of a deploy) delete each other's publication. Age-gating keeps the
+    // growth bounded without that race.
+    $staleCutoff = time() - 3600;
+    foreach (glob($dir . '/modules_*.cache') ?: [] as $stale) {
+        if ($stale === $file) {
+            continue;
+        }
+        $staleMtime = @filemtime($stale);
+        if ($staleMtime !== false && $staleMtime < $staleCutoff) {
+            @unlink($stale);
+        }
+    }
+
+    return true;
+}
+
 function discoverModules(): array
 {
     // Per-request cache: avoid repeated fs scans + DB queries
@@ -1730,46 +1863,85 @@ function discoverModules(): array
         return $GLOBALS['_kernel_discovered_modules'];
     }
 
-    // Cross-request cache of the expensive recursive scan + manifest
-    // validation. Only the scan/validation result is cached; the per-call enabled state and
+    // Cross-request cache of the expensive recursive scan + manifest validation.
+    // Only the scan/validation result is cached; the per-call enabled state and
     // ReadContractRegistry registrations below are applied fresh on every request.
     //
-    // The key carries a manifest fingerprint, so a DEPLOY invalidates this on the
+    // TWO LAYERS, APCu first:
+    //   L1  APCu       - per worker, cheapest when warm.
+    //   L2  shared file - readable by EVERY worker, and the only layer that helps a worker that
+    //                     has never run the scan, plus any host without APCu (shared hosting).
+    //
+    // MEASUREMENT (2026-10-11, FPM, pm.start_servers=10 / pm.max_children=30). Cold breakdown of
+    // the FIRST call in a process, with the shared cache hit and no scan:
+    //   manifest fingerprint (stat walk)   ~7 ms
+    //   APCu lookup + shared file read     ~9 ms
+    //   kernelRegisterModuleReadContracts  ~99 ms   <- ONE-TIME per process, warm ~0.2 ms
+    //   per-module isModuleEnabled loop    ~1 ms
+    //   discoverModulesScanAll()            ~82 ms  <- ELIMINATED by the shared cache (0 invocations)
+    // In CLI, which has no APCu pool, the scan previously cost 274-334 ms on EVERY run.
+    //
+    // The next optimisation target is kernelRegisterModuleReadContracts(), not this cache: it takes
+    // kernel escalation, opens the DB, and calls registerReadContract() once per reads_tables entry
+    // across 70 modules. It is one-time per worker so it is amortised, but a large pool with
+    // pm=dynamic recycles pays it often.
+    //
+    // MEASUREMENT TRAP, hit three times in this file: measuring a "cold" candidate AFTER a prior
+    // discoverModules() call in the same process reports sub-millisecond numbers, because whatever
+    // you are timing has already been initialised. Every figure above was taken as the FIRST thing
+    // in a fresh process.
+    //
+    // The key carries a manifest fingerprint, so a DEPLOY invalidates BOTH layers on the
     // next request. It must not rely on the 300s TTL: table-ownership lives in
     // the cached manifest, and after a module.json upload a stale owns_tables made
     // ModuleDB::enforceAccess() deny a table the deployed manifest DOES declare
-    // (hard 500 on live, 2026-10-09).
-    //
-    // MEASUREMENT (2026-10-11, FPM, pm.start_servers=10 / pm.max_children=30):
-    //   discoverModulesScanAll()      ~82 ms   <- only paid on an APCu-cold worker
-    //   fingerprint (stat walk)        ~0.6 ms
-    //   70x isModuleEnabled() loop     ~0.3 ms  (readTenantModuleSettings preloads in ONE query)
-    // So the scan is the only real cost here, and in practice the APCu entry is warm on most
-    // requests. NOTE: APCu is PER-WORKER, so a cold worker in a large pool still pays the full
-    // scan. Moving this to a shared (non-APCu) layer is the known next step, but a shared-file
-    // layer was implemented and REVERTED because it could not be shown to be written on a cold
-    // path - unverified caching is worse than no caching.
+    // (hard 500 on live, 2026-10-09). The shared file uses the SAME fingerprint key as the APCu
+    // entry, so it cannot be more stale than the layer that already shipped.
     $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
-    // Only pay for the fingerprint when there is a cache to key. Without APCu the scan runs on every
-    // request anyway, so stat-ing every manifest would be pure added cost.
-    $cacheKey = 'kernel.discovered_modules_scan_v2_'
-        . ($apcuEnabled ? moduleManifestScanFingerprint() : 'nocache');
+    // The fingerprint now names the shared file, so it is always needed - and at ~7 ms for 70
+    // manifests it is cheap next to the 82 ms scan it guards.
+    $fingerprint = function_exists('moduleManifestScanFingerprint') ? moduleManifestScanFingerprint() : 'nofp';
+    $cacheKey = 'kernel.discovered_modules_scan_v2_' . $fingerprint;
+    $sharedFile = moduleScanSharedCacheFile($fingerprint);
+
     $result = null;
+    $servedByApcu = false;
     if ($apcuEnabled) {
         $cached = apcu_fetch($cacheKey, $success);
         if ($success && is_array($cached)) {
             $result = $cached;
+            $servedByApcu = true;
+        }
+    }
+
+    if ($result === null) {
+        $result = moduleScanSharedCacheRead($fingerprint);
+        if ($result !== null && $apcuEnabled) {
+            // Promote the shared hit into this worker. Without this, a worker that never ran the
+            // scan re-parses the 350 KB payload on EVERY request instead of once.
+            apcu_store($cacheKey, $result, 300);
         }
     }
 
     if ($result === null) {
         $result = discoverModulesScanAll();
+        // Shared FIRST, so the work is never duplicated by the next worker to ask.
+        moduleScanSharedCacheWrite($fingerprint, $result);
         if ($apcuEnabled) {
             // Short TTL (matches page-cache convention) so module.json edits
             // are picked up quickly during development while avoiding the
             // per-request recursive scan + validation across all modules.
             apcu_store($cacheKey, $result, 300);
         }
+    } elseif ($servedByApcu && (!is_file($sharedFile) || @filesize($sharedFile) === 0)) {
+        // Warm APCu but the shared copy is missing or empty: publish it now. Without this the file
+        // was only ever written on an APCu MISS, so on a server where APCu is warm the shared layer
+        // stayed empty forever - which is exactly why the first attempt at this could not be shown
+        // to work, and why every host without APCu kept paying the full scan.
+        // A file that exists but is corrupt is NOT repaired here: re-reading it on every warm
+        // request would cost more than it saves. The next worker with a cold APCu rejects it and
+        // republishes.
+        moduleScanSharedCacheWrite($fingerprint, $result);
     }
 
     // Publish the raw scan before per-module state can issue database queries.
@@ -1813,6 +1985,11 @@ function discoverModules(): array
  */
 function discoverModulesScanAll(): array
 {
+    // Observability, not behaviour. The release gate for the shared scan cache is "a fresh
+    // process with APCu disabled and a valid shared file must NOT call this at all", and that
+    // cannot be asserted by timing. See tests/module_scan_cache_test.php.
+    $GLOBALS['_kernel_module_scan_invocations'] = (int)($GLOBALS['_kernel_module_scan_invocations'] ?? 0) + 1;
+
     $dir = modulesPath();
     if (!is_dir($dir)) {
         return [];
