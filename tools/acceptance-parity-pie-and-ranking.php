@@ -151,7 +151,7 @@ $check('F6', 'rows run biggest contributor first, down to least', $ordered,
 // zeros is a false statement, and nothing above noticed it. So this asserts the values exist,
 // increase, and end where the ranking's total should land.
 $cumulatives = [];
-if (preg_match_all('#data-product-row.*?<td class="text-right">[0-9.]+%</td>\s*<td class="text-right">([0-9.]+)%</td>#s', $html, $cm)) {
+if (preg_match_all('#data-product-row.*?<td class="text-right">(?:<)?[0-9.]+%</td>\s*<td class="text-right">([0-9.]+)%</td>#s', $html, $cm)) {
     $cumulatives = array_map('floatval', $cm[1]);
 }
 $cumulativeOk = count($cumulatives) >= 2;

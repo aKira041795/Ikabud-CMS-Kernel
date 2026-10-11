@@ -168,7 +168,7 @@
             <td class="text-xs text-gray-600">{p.sku}</td>
             <td class="text-right">{p.units}</td>
             <td class="text-right">PHP {p.amount | number_format:2}</td>
-            <td class="text-right">{p.share | number_format:2}%</td>
+            <td class="text-right">{p.share_display}</td>
             <td class="text-right">{p.cumulative_share | number_format:2}%</td>
         </tr>
         {/foreach}

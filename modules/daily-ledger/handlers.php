@@ -13048,6 +13048,11 @@ function handleAdminProductsPerformance(array $params = []): void
         $runningShare = min(100.0, $runningShare + $rowShare);
         $rankedRow['share'] = round($rowShare, 3);
         $rankedRow['cumulative_share'] = round($runningShare, 3);
+        // A product that sold can still round to 0.00%, which reads as "sold nothing". Show it as
+        // below the display threshold instead of as zero - the number is small, not absent.
+        $rankedRow['share_display'] = ($rowAmount > 0.0 && $rowShare < 0.005)
+            ? '<0.01%'
+            : number_format($rowShare, 2) . '%';
         $rankedRow['slice_color'] = $pieColorByName[$rowName] ?? '';
         $rankedRow['slice_index'] = $pieIndexById[$pieKeyOf((array)$rankedRow)] ?? -1;
         $rankedRow['is_contributor'] = isset($pieColorByName[$rowName]);
