@@ -280,11 +280,24 @@ class DatabaseManager
             return self::$tenantDbConnectionRowCache[$tenantId];
         }
 
-        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && (bool)ini_get('apc.enabled');
         $apcuKey = 'ikabud:tenant_db_conn:' . $tenantId;
-        if ($apcuEnabled) {
-            $cached = apcu_fetch($apcuKey, $success);
-            if ($success) {
+        // Defensive require: DatabaseManager is reachable from CLI paths that never run public/index.php.
+        if (!function_exists('cacheMemoReadPair')) {
+            $genHelper = dirname(__DIR__, 2) . '/src/helpers/cache-generation.php';
+            if (is_file($genHelper)) {
+                require_once $genHelper;
+            }
+        }
+        // Bound to the tenant-DB generation. This row holds the connection details, so a stale copy
+        // can point a worker at the PREVIOUS database - the failure mode is wrong data, not slow
+        // data. A plain APCu entry with a TTL left every other worker on the old config meanwhile.
+        if (function_exists('cacheMemoReadPair')) {
+            [$found, $cached] = cacheMemoReadPair(
+                $apcuKey,
+                CACHE_GENERATION_CONFIG_NAMESPACE,
+                CACHE_GENERATION_CONFIG_TENANT_DB
+            );
+            if ($found) {
                 $this->incrementCounter('tenant_config_apcu_hits');
                 $row = is_array($cached) ? $cached : null;
                 self::$tenantDbConnectionRowCache[$tenantId] = $row;
@@ -304,8 +317,14 @@ class DatabaseManager
         $resolved = is_array($row) ? $row : null;
 
         self::$tenantDbConnectionRowCache[$tenantId] = $resolved;
-        if ($apcuEnabled) {
-            apcu_store($apcuKey, $resolved, $this->tenantDbConnectionCacheTtl());
+        if (function_exists('cacheMemoWrite')) {
+            cacheMemoWrite(
+                $apcuKey,
+                $resolved,
+                $this->tenantDbConnectionCacheTtl(),
+                CACHE_GENERATION_CONFIG_NAMESPACE,
+                CACHE_GENERATION_CONFIG_TENANT_DB
+            );
         }
 
         return $resolved;
@@ -647,9 +666,20 @@ class DatabaseManager
         unset($this->tenantDbPool[$tenantId]);
         unset(self::$tenantDbConnectionRowCache[$tenantId]);
 
-        $apcuEnabled = function_exists('apcu_delete') && (bool)ini_get('apc.enabled');
-        if ($apcuEnabled) {
+        // Own-worker delete (fast for THIS worker) PLUS a tenant-DB generation bump, which is the
+        // only signal the other php-fpm workers observe. Deleting the key alone left them using the
+        // previous connection - potentially a different database - for the rest of the TTL.
+        if (function_exists('apcu_delete')) {
             apcu_delete('ikabud:tenant_db_conn:' . $tenantId);
+        }
+        if (!function_exists('cacheGenerationBump')) {
+            $genHelper = dirname(__DIR__, 2) . '/src/helpers/cache-generation.php';
+            if (is_file($genHelper)) {
+                require_once $genHelper;
+            }
+        }
+        if (function_exists('cacheGenerationBump')) {
+            cacheGenerationBump(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_DB);
         }
 
         return $this->dbForTenant($tenantId);

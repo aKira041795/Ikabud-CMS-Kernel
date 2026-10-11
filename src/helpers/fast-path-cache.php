@@ -133,9 +133,25 @@ declare(strict_types=1);
 
     if ($host !== '' && function_exists('apcu_fetch') && apcu_enabled()) {
         $apcuKey = 'ikabud:tenant_host:' . sha1($host);
-        $record = apcu_fetch($apcuKey, $success);
-        if ($success && is_array($record) && isset($record['tenant_id'])) {
-            $tenantId = (int)$record['tenant_id'];
+        $entry = apcu_fetch($apcuKey, $success);
+        // The memo is a generation-bound wrapper: ['__gen' => token, '__value' => record|null].
+        //
+        // Unwrap it AND validate the generation. This is not just tidiness: $tenantId selects the
+        // instance directory below, so a stale tenant id would make this path look in the PREVIOUS
+        // tenant's directory and serve that tenant's cached page for a host that has since been
+        // reassigned. Reading the generation file directly (rather than loading the helper) keeps
+        // this pre-bootstrap path dependency-free; it is one small file read.
+        if ($success && is_array($entry) && array_key_exists('__gen', $entry)) {
+            $genFile = dirname(__DIR__, 2) . '/storage/cache/generations/kernel_config/tenant_routing.gen';
+            $currentGen = is_file($genFile) ? trim((string)@file_get_contents($genFile)) : '';
+            $stamp = (string)$entry['__gen'];
+            // An empty stamp is valid only while nothing has ever been published, matching
+            // cacheGenerationValid()'s backward-compatible rule.
+            $bound = ($stamp === $currentGen);
+            $record = $bound ? ($entry['__value'] ?? null) : null;
+            if (is_array($record) && isset($record['tenant_id'])) {
+                $tenantId = (int)$record['tenant_id'];
+            }
         }
     }
 

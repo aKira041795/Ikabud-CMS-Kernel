@@ -107,7 +107,16 @@ function cacheGenerationSafe(string $s): string
 /** Absolute path of the generation record for a namespace + key. */
 function cacheGenerationPath(string $namespace, string $key = CACHE_GENERATION_DEFAULT_KEY): string
 {
-    return cacheGenerationRoot() . '/' . cacheGenerationSafe($namespace) . '/' . cacheGenerationSafe($key) . '.gen';
+    // Memoised. This is called on hot paths - every generation-validated memo read - and the
+    // sanitising below costs roughly as much as reading the 20-byte file it locates. The set of
+    // namespace/key pairs is small and fixed, so the map cannot grow without bound in practice.
+    static $paths = [];
+    $mapKey = $namespace . "\0" . $key;
+    if (isset($paths[$mapKey])) {
+        return $paths[$mapKey];
+    }
+    return $paths[$mapKey] = cacheGenerationRoot() . '/'
+        . cacheGenerationSafe($namespace) . '/' . cacheGenerationSafe($key) . '.gen';
 }
 
 /**
@@ -118,21 +127,22 @@ function cacheGenerationPath(string $namespace, string $key = CACHE_GENERATION_D
  */
 function cacheGenerationRead(string $namespace, string $key = CACHE_GENERATION_DEFAULT_KEY): string
 {
+    // ONE syscall in the common case. Reading first and stat-ing only when the read yields nothing
+    // keeps the hot path at a single file_get_contents() while still distinguishing "never bumped"
+    // from "present but unreadable" - a distinction that matters, because the first is a valid
+    // generation and the second must not be allowed to validate anything.
     $file = cacheGenerationPath($namespace, $key);
-    if (!is_file($file)) {
-        return '';
-    }
     $raw = @file_get_contents($file);
-    if (!is_string($raw)) {
-        // Unreadable but present: treat as unknown rather than inventing '' (which would validate
-        // every old entry). A token that matches nothing forces a miss, which is fail-closed.
-        return '!unreadable';
+    if (is_string($raw) && trim($raw) !== '') {
+        return trim($raw);
     }
-    $raw = trim($raw);
-    if ($raw === '') {
-        return '!unreadable';
+
+    // Rare: absent, empty, or unreadable. One extra stat decides which.
+    if (!is_file($file)) {
+        return ''; // never bumped - a valid generation
     }
-    return $raw;
+    // Present but unreadable/empty: a token that matches nothing, so entries miss and are rebuilt.
+    return '!unreadable';
 }
 
 /**
@@ -406,6 +416,47 @@ function cacheGenerationStats(): array
 
 /** Namespace holding kernel configuration generations (module set, routes, schema, tenant config). */
 const CACHE_GENERATION_CONFIG_NAMESPACE = 'kernel_config';
+
+/**
+ * Generation keys within CACHE_GENERATION_CONFIG_NAMESPACE.
+ *
+ * Separate keys, not one shared counter: a tenant gaining a domain must not force every worker to
+ * recompute the module registry and every table's read contract. Bumping the narrow key keeps
+ * invalidation precise while still crossing the worker boundary, which is the property that matters.
+ */
+const CACHE_GENERATION_CONFIG_TENANT_ROUTING = 'tenant_routing';
+const CACHE_GENERATION_CONFIG_TENANT_DB = 'tenant_db';
+
+/**
+ * Read a generation-bound memo whose VALUE may legitimately be null.
+ *
+ * cacheMemoRead() returns null both for "no memo" and for "stale", which is ambiguous for a
+ * negative cache. Several kernel memos deliberately store null to mean "looked it up, nothing
+ * there" - an unmapped host, a tenant with no separate database. Collapsing that into "stale" would
+ * silently discard the negative cache and re-query the control database on every request.
+ *
+ * @return array{0:bool,1:mixed} [$found, $value]; $found is true only when a memo exists AND is
+ *         still bound to the current generation.
+ */
+function cacheMemoReadPair(string $apcuKey, string $namespace = CACHE_GENERATION_CONFIG_NAMESPACE, string $key = CACHE_GENERATION_DEFAULT_KEY): array
+{
+    if (!function_exists('apcu_fetch')) {
+        return [false, null];
+    }
+    $entry = @apcu_fetch($apcuKey, $ok);
+    if (!$ok || !is_array($entry) || !array_key_exists('__gen', $entry)) {
+        if ($ok) {
+            // Present but unstamped: written before this rule existed, so its staleness is unknown.
+            @apcu_delete($apcuKey);
+        }
+        return [false, null];
+    }
+    if (!cacheGenerationValid($namespace, (string)$entry['__gen'], $key)) {
+        @apcu_delete($apcuKey);
+        return [false, null];
+    }
+    return [true, $entry['__value'] ?? null];
+}
 
 /**
  * Read a per-worker APCu memo bound to a shared generation.

@@ -154,6 +154,23 @@ class TenantResolver
     }
 
     /**
+     * Load the generation authority if the bootstrap did not already.
+     *
+     * TenantResolver runs before much of the kernel on the request path, so the helper is required
+     * defensively rather than assumed.
+     */
+    private static function ensureGenerationHelper(): void
+    {
+        if (function_exists('cacheGenerationRead')) {
+            return;
+        }
+        $path = dirname(__DIR__) . '/src/helpers/cache-generation.php';
+        if (is_file($path)) {
+            require_once $path;
+        }
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public static function lookupControlHostRecord(string $host): ?array
@@ -163,29 +180,44 @@ class TenantResolver
             return null;
         }
 
+        self::ensureGenerationHelper();
+        // Read the routing generation ONCE per lookup and reuse it for both tiers, so the in-process
+        // cache and the APCu cache can never disagree about the generation they are valid for.
+        $generation = function_exists('cacheGenerationRead')
+            ? cacheGenerationRead(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING)
+            : '';
+
         if (array_key_exists($host, self::$controlHostCache)) {
             $entry = self::$controlHostCache[$host];
-            if (is_array($entry) && isset($entry['expires_at']) && $entry['expires_at'] > time()) {
+            if (is_array($entry) && isset($entry['expires_at']) && $entry['expires_at'] > time()
+                && ($entry['generation'] ?? '') === $generation
+            ) {
                 self::$controlHostCacheMetrics['memory_hits']++;
                 return $entry['value'];
             }
-            // Expired — fall through to refresh.
+            // Expired, OR a tenant-routing change was published by another worker. The in-process
+            // cache lives for the whole life of a php-fpm worker, so without the generation check it
+            // can outlive a domain reassignment that happened in a different worker.
             self::$controlHostCacheMetrics['memory_expired']++;
             unset(self::$controlHostCache[$host]);
         }
 
-        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
+        $ttl = max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30));
         $apcuKey = 'ikabud:tenant_host:' . sha1($host);
-        if ($apcuEnabled) {
-            $cached = apcu_fetch($apcuKey, $success);
-            if ($success) {
+        if (function_exists('cacheMemoReadPair')) {
+            [$found, $value] = cacheMemoReadPair(
+                $apcuKey,
+                CACHE_GENERATION_CONFIG_NAMESPACE,
+                CACHE_GENERATION_CONFIG_TENANT_ROUTING
+            );
+            if ($found) {
                 self::$controlHostCacheMetrics['apcu_hits']++;
-                $value = is_array($cached) ? $cached : null;
                 self::$controlHostCache[$host] = [
                     'value' => $value,
-                    'expires_at' => time() + max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30)),
+                    'expires_at' => time() + $ttl,
+                    'generation' => $generation,
                 ];
-                return $value;
+                return is_array($value) ? $value : null;
             }
         }
 
@@ -213,12 +245,18 @@ class TenantResolver
 
         self::$controlHostCache[$host] = [
             'value' => $result,
-            'expires_at' => time() + max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30)),
+            'expires_at' => time() + $ttl,
+            'generation' => $generation,
         ];
 
-        if ($apcuEnabled) {
-            $ttl = max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30));
-            apcu_store($apcuKey, $result, $ttl);
+        if (function_exists('cacheMemoWrite')) {
+            cacheMemoWrite(
+                $apcuKey,
+                $result,
+                $ttl,
+                CACHE_GENERATION_CONFIG_NAMESPACE,
+                CACHE_GENERATION_CONFIG_TENANT_ROUTING
+            );
         }
 
         if (function_exists('write_log') && (($_ENV['TENANT_HOST_CACHE_LOG'] ?? '0') === '1')) {
@@ -251,6 +289,15 @@ class TenantResolver
     {
         $memoryCleared = count(self::$controlHostCache);
         self::$controlHostCache = [];
+
+        // Publish a new TENANT-ROUTING generation. The APCu deletes below reach THIS worker only, and
+        // APCu is per-worker, so without this every other php-fpm worker keeps serving the old host
+        // mapping (or the stale negative result for a host that has since been mapped). This is the
+        // only invalidation signal that crosses the worker boundary.
+        self::ensureGenerationHelper();
+        if (function_exists('cacheGenerationBump')) {
+            cacheGenerationBump(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+        }
 
         $apcuCleared = 0;
         $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && (bool)ini_get('apc.enabled');

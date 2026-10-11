@@ -63,6 +63,34 @@ function hasFlag(string $flag): bool
     return in_array($flag, $params, true);
 }
 
+/**
+ * Publish a new tenant CONFIGURATION generation after a control-plane mutation.
+ *
+ * Every one of the tenant mutators below (add/remove domain, set canonical domain, set DB connection)
+ * changes data that the kernel caches per worker in APCu: the host→tenant routing record and the
+ * tenant DB connection row. Deleting those APCu keys from here would reach only THIS process, and a
+ * CLI purge runs in a separate process with its own (empty) APCu store anyway, so before this an
+ * operator change was invisible to the running php-fpm workers until their own TTLs expired -
+ * meaning a host could keep routing to the previous tenant, or a worker could keep using the previous
+ * database.
+ *
+ * Both keys are published because a single command may change routing, DB config, or both. They are
+ * RARE, operator-driven commands, so the collateral recomputation is not worth the risk of guessing
+ * which key a given mutation affects.
+ */
+function tenantConfigGenerationBump(): void
+{
+    $genHelper = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__)) . '/src/helpers/cache-generation.php';
+    if (!function_exists('cacheGenerationBump') && is_file($genHelper)) {
+        require_once $genHelper;
+    }
+    if (!function_exists('cacheGenerationBump')) {
+        return;
+    }
+    cacheGenerationBump(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+    cacheGenerationBump(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_DB);
+}
+
 function paramsWithoutFlags(array $params): array
 {
     return array_values(array_filter($params, fn($p) => !is_string($p) || !str_starts_with($p, '--')));
@@ -1364,6 +1392,7 @@ switch ($command) {
                 out('    ' . dim('entry: ') . $entryModuleId);
             }
             out('');
+            tenantConfigGenerationBump();
         } catch (\Throwable $e) {
             try {
                 $pdo = app()->controlDb();
@@ -1412,6 +1441,7 @@ switch ($command) {
             out('  ' . green('✓') . ' Added domain to tenant ' . cyan('#' . (string)$tenantId));
             out('    ' . dim('domain: ') . $domain);
             out('');
+            tenantConfigGenerationBump();
         } catch (\Throwable $e) {
             out('  ' . red('✗ Failed: ') . $e->getMessage());
             out('');
@@ -1450,6 +1480,7 @@ switch ($command) {
             out('  ' . green('✓') . ' Removed domain from tenant ' . cyan('#' . (string)$tenantId));
             out('    ' . dim('domain: ') . $domain);
             out('');
+            tenantConfigGenerationBump();
         } catch (\Throwable $e) {
             out('  ' . red('✗ Failed: ') . $e->getMessage());
             out('');
@@ -1511,6 +1542,7 @@ switch ($command) {
                 out('    Domain enforcement disabled — all domains serve content directly.');
             }
             out('');
+            tenantConfigGenerationBump();
         } catch (\Throwable $e) {
             out('  ' . red('✗ Failed: ') . $e->getMessage());
             out('');
@@ -1562,6 +1594,7 @@ switch ($command) {
             }
             out('  ' . green('✓') . ' Updated tenant DB connection for ' . cyan('#' . (string)$tenantId));
             out('');
+            tenantConfigGenerationBump();
         } catch (\Throwable $e) {
             out('  ' . red('✗ Failed: ') . $e->getMessage());
             out('');
@@ -2000,6 +2033,7 @@ switch ($command) {
             out('');
             out('  ' . green('✓') . bold(' Provisioning complete for tenant #' . (string)$tenantId . ' (' . $tenantKey . ')'));
             out('');
+            tenantConfigGenerationBump();
         } catch (\Throwable $e) {
             out('  ' . red('✗ Provisioning failed: ') . $e->getMessage());
             try {

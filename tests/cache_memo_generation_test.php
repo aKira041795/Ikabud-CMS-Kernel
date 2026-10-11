@@ -60,6 +60,9 @@ $memoKey = $run . ':value';
 // so this is cosmetic hygiene rather than a correctness requirement - but a test should leave the
 // generation it found.
 $genBefore = cacheConfigGeneration();
+// The tenant-routing generation is a SEPARATE key; snapshot it too so the test leaves the same
+// state it found (bumping is idempotent, but a test should not move a production counter).
+$routingGenBefore = cacheGenerationRead(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
 
 // The memo cases below deliberately trigger rejections, which land in the SHARED, operator-facing
 // counter. Snapshot and restore it, because a test that inflates a production metric is worse than
@@ -157,6 +160,42 @@ cmgAssert(
     var_export($stats[CACHE_GENERATION_CONFIG_NAMESPACE] ?? null, true)
 );
 
+// ── G) Negative caches: a stored null is a RESULT, not a miss ──────────────────
+// The tenant-host memo deliberately caches null for an unmapped host. cacheMemoRead() cannot express
+// that, because it returns null for both "absent" and "stale" - which is why the pair reader exists.
+// Without it, binding that memo would silently discard the negative cache and send every unmapped
+// host back to the control database on every single request.
+$negKey = $run . ':negative';
+cacheMemoWrite($negKey, null, 300, CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+[$negFound, $negValue] = cacheMemoReadPair($negKey, CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+cmgAssert(
+    '★ a cached null is FOUND (negative cache preserved, not treated as a miss)',
+    $negFound === true && $negValue === null,
+    'found=' . var_export($negFound, true)
+);
+
+cacheGenerationBump(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+[$negFoundAfter] = cacheMemoReadPair($negKey, CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+cmgAssert('★ a cached null is REJECTED once the routing generation moves', $negFoundAfter === false);
+
+// The pair reader must not trust an unstamped legacy entry either.
+@apcu_store($run . ':legacy_pair', ['tenant_id' => 1], 300);
+[$legacyFound] = cacheMemoReadPair($run . ':legacy_pair', CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+cmgAssert('an unstamped legacy entry is not found by the pair reader', $legacyFound === false);
+
+// ── H) The real mutator publishes a generation ─────────────────────────────────
+// Outcome level: after the kernel's own invalidation entry point runs, the routing generation must
+// have MOVED, because that value is the only thing the other php-fpm workers can observe. Deleting
+// APCu keys reaches the calling worker and nothing else.
+$routingGenPre = cacheGenerationRead(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+\Ikabud\Kernel\TenantResolver::clearControlHostCache();
+$routingGenPost = cacheGenerationRead(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING);
+cmgAssert(
+    '★ clearing the control-host cache publishes a new routing generation',
+    $routingGenPost !== '' && $routingGenPost !== $routingGenPre,
+    "before={$routingGenPre} after={$routingGenPost}"
+);
+
 // ── Cleanup ────────────────────────────────────────────────────────────────────
 @apcu_delete($run . ':probe');
 @apcu_delete($memoKey);
@@ -165,6 +204,11 @@ cmgAssert(
 // Restore the generation the test found, if one existed before it ran.
 if ($genBefore !== '') {
     @file_put_contents(cacheGenerationPath(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_DEFAULT_KEY), $genBefore, LOCK_EX);
+}
+// Same for the tenant-routing key: if the test created it, remove it rather than leave a counter that
+// did not exist before.
+if ($routingGenBefore !== '') {
+    @file_put_contents(cacheGenerationPath(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_CONFIG_TENANT_ROUTING), $routingGenBefore, LOCK_EX);
 }
 
 // Restore the SHARED reject counter: drop namespaces the test created and put pre-existing ones
@@ -189,20 +233,24 @@ if (is_file($rejectFile)) {
     }
 }
 $restored = cacheGenerationRejectCounts();
-// INVARIANT: the test must not REDUCE the operator's counters, and must not leave its own namespace
-// behind. Exact equality would be the wrong assertion: the counter is a shared file, so a live
-// php-fpm worker can legitimately increment it while the test runs (observed 2026-10-11 as spurious
-// failures on a box serving traffic). A flaky test is worse than no test.
-$decreased = [];
-foreach ($rejectsBaseline as $ns => $n) {
-    if (($restored[$ns] ?? 0) < $n) {
-        $decreased[] = $ns . '=' . ($restored[$ns] ?? 0) . '<' . $n;
+// ONLY assertions about the namespace this test OWNS - see the note in cache_generation_test.php.
+// The counter is a shared file that a live worker can increment at any moment, so asserting
+// invariants over AMBIENT namespaces makes the result depend on timing rather than on the code.
+cmgAssert(
+    'the test leaves none of its own namespaces in the shared counter',
+    !array_key_exists($run, $restored),
+    'remaining: ' . implode(',', array_keys($restored))
+);
+$dropped = [];
+foreach ($rejectsBaseline as $ns => $_) {
+    if (!array_key_exists($ns, $restored)) {
+        $dropped[] = $ns;
     }
 }
 cmgAssert(
-    'the shared reject counter is not reduced by the test',
-    $decreased === [],
-    implode(', ', $decreased)
+    'the test does not DELETE a pre-existing counter namespace',
+    $dropped === [],
+    implode(', ', $dropped)
 );
 
 $leaked = glob(dirname(cacheGenerationRoot()) . '/' . $run . '*') ?: [];
