@@ -6,13 +6,12 @@ declare(strict_types=1);
  *
  * Source: docs/reviews/sol-analytics-review-2026-10-11.log
  *
- *  R1/R2  THE FORECAST DENOMINATOR. The "14-day" average divided only by days the PRODUCT had an
- *         official row. Sol measured sample-day counts of 0, 1, 2, 4, 5, 7, 10, 11, 12 - most streams
- *         are nowhere near 14. Two different absences were treated identically:
- *           - the branch TRADED that day and this product has no row  -> a MEASURED ZERO
- *           - the branch did not trade / did not report at all       -> UNREPORTED, not a zero
- *         Counting only product-row days turns "sold 20 on the 2 days it appeared" into a daily
- *         demand of 10, which overstates what a production planner must make.
+ *  R1/R2  THE FORECAST DENOMINATOR. R1 (state the window and the row's own coverage) still holds.
+ *         R2 WAS SUPERSEDED on 2026-10-11 by the chair consult (session
+ *         forecast-enhancement-2026-10-11) and is now re-anchored to the corrected contract: the
+ *         denominator is the days the product could actually be BOUGHT, because the module's own
+ *         contract treats an absent row as UNKNOWN rather than a recorded zero, and 71.2% of the
+ *         zero-sale cells in the measured window were days the product was not stocked at all.
  *  R3     At network scope the received-stock figure included 3,704 units moved BETWEEN branches
  *         already inside the scope, so stock was counted as network inflow twice.
  *  R4     A PRODUCER branch rendered "stock conversion 0.00%". Exact, and misleading: a producer's
@@ -20,6 +19,7 @@ declare(strict_types=1);
  *  R5     Forecast stock took the latest count INSIDE the window, with no as-of date: a valid count
  *         the day before the window read as zero stock, while a 9-day-old count inside it was
  *         accepted with no freshness warning.
+ *  R6     A row with movement but no measured sales was given a production number (Sol F8).
  *
  * Usage: php tools/acceptance-analytics-remaining.php
  */
@@ -84,47 +84,71 @@ foreach ($recordedStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $c) {
     $recordedCells[(int)$c['branch_id'] . ':' . $shift][(string)$c['ledger_date']] = true;
 }
 
-// Find a stream the branch DID trade on more days than the product has rows.
-$demandStmt = $db->prepare(
-    "SELECT dl.branch_id, dl.product_id, dl.shift, COUNT(DISTINCT dl.ledger_date) AS product_days
+// --- R2: the denominator is the days the product could actually be BOUGHT ----------------------
+// SUPERSEDED (2026-10-11, chair consult session forecast-enhancement-2026-10-11). This check used to
+// require the denominator to EXCEED the product's own row-days, on the theory that a day the branch
+// traded without this product is a measured zero-sale day. Two things falsified that:
+//   * the module's own contract (docs/daily-ledger/unfinalized-shift-sales-semantics.md) says a
+//     recorded zero requires "a row exists ... NOT AN ABSENT ROW" - an absent row is UNKNOWN;
+//   * measured, 1,578 of 2,215 zero-sale cells (71.2%) are days the product could not be bought at
+//     all (beg 0 and nothing received), so the old rule fed unbuyable days into the average.
+// It reported branch 8 product 34 AM as 0.73/day when that stream sold 8 units on its one buyable
+// day. The check now asserts the corrected contract, and `available_days` is the number the
+// criterion computes for ITSELF from the ledger so this cannot pass by agreeing with the code.
+$availableStmt = $db->prepare(
+    "SELECT COUNT(*) AS available_days, SUM(CASE WHEN dl.bal_end IS NULL THEN 0 ELSE GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) END) AS units
        FROM dl_daily_ledger dl
-      WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id = 8
-      GROUP BY dl.branch_id, dl.product_id, dl.shift ORDER BY product_days ASC LIMIT 400"
+      WHERE dl.ledger_date BETWEEN ? AND ?
+        AND dl.branch_id = ? AND dl.product_id = ? AND dl.shift = ?
+        AND dl.bal_end IS NOT NULL
+        AND (COALESCE(dl.beg_bal,0) > 0 OR COALESCE(dl.addtl,0) > 0)"
 );
-$demandStmt->execute(['2026-09-28', '2026-10-11']);
+$denominatorFixed = false;
+$detail = 'no stream found to test';
 $thinStream = null;
-$branchRecordedDays = count($recordedCells['8:PM'] ?? []) + count($recordedCells['8:AM'] ?? []);
-foreach ($demandStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
-    $shift = strtoupper((string)$s['shift']) === 'PM' ? 'PM' : 'AM';
-    $branchDays = count($recordedCells['8:' . $shift] ?? []);
-    if ($branchDays > (int)$s['product_days'] && (int)$s['product_days'] > 0) {
-        $thinStream = ['branch_id' => 8, 'product_id' => (int)$s['product_id'], 'shift' => $shift,
-                       'product_days' => (int)$s['product_days'], 'branch_days' => $branchDays];
+// Prefer the measured worst case from the chair consult so the check names a stream a reader can
+// re-derive by hand: branch 8 product 34 AM.
+foreach ($rows as $candidateRow) {
+    if ((int)$candidateRow['branch_id'] === 8 && (int)$candidateRow['product_id'] === 34 && (string)$candidateRow['shift'] === 'AM') {
+        $thinStream = ['branch_id' => 8, 'product_id' => 34, 'shift' => 'AM'];
         break;
     }
 }
-$denominatorFixed = false;
-$detail = 'no thin stream found to test';
 if ($thinStream !== null) {
+    $availableStmt->execute(['2026-09-28', '2026-10-11', 8, 34, 'AM']);
+    $measured = $availableStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $availableDays = (int)($measured['available_days'] ?? 0);
+    $measuredUnits = (int)($measured['units'] ?? 0);
     foreach ($rows as $r) {
-        if ((int)$r['branch_id'] === $thinStream['branch_id']
-            && (int)$r['product_id'] === $thinStream['product_id']
-            && (string)$r['shift'] === $thinStream['shift']) {
-            // The denominator must exceed the product's own row-days, because the branch's recorded
-            // days without this product are measured zero-sales days.
-            $denominatorFixed = (int)($r['sample_days'] ?? 0) > $thinStream['product_days'];
-            $detail = sprintf('branch 8 product %d %s: product row-days=%d, branch recorded days=%d, row sample_days=%s',
-                $thinStream['product_id'], $thinStream['shift'], $thinStream['product_days'],
-                $thinStream['branch_days'], var_export($r['sample_days'] ?? null, true));
+        if ((int)$r['branch_id'] === 8 && (int)$r['product_id'] === 34 && (string)$r['shift'] === 'AM') {
+            // The denominator must be exactly the number of buyable, fully recorded days, and the
+            // average must be the units over THOSE days - not diluted by unbuyable ones.
+            $denominatorFixed = (int)($r['sample_days'] ?? 0) === $availableDays
+                && $availableDays > 0
+                && abs((float)($r['average_sales'] ?? -1) - round($measuredUnits / $availableDays, 2)) < 0.01;
+            $detail = sprintf('branch 8 product 34 AM: %d buyable day(s) carrying %d units -> row sample_days=%s, average=%s (expected %s). The 10 unbuyable days are reported separately as censored_days=%s',
+                $availableDays, $measuredUnits, var_export($r['sample_days'] ?? null, true),
+                var_export($r['average_sales'] ?? null, true), number_format($measuredUnits / max(1, $availableDays), 2),
+                var_export($r['censored_days'] ?? null, true));
             break;
         }
     }
-    if ($detail === 'no thin stream found to test') {
+    if ($detail === 'no stream found to test') {
         $detail = 'stream not found in the forecast output';
     }
+} else {
+    // Fall back to any stream with at least one buyable day so the check still runs on another tenant.
+    foreach ($rows as $r) {
+        if ((int)($r['available_days'] ?? 0) > 0) {
+            $denominatorFixed = (int)($r['sample_days'] ?? -1) === (int)$r['available_days'];
+            $detail = sprintf('branch %d product %d %s: available_days=%d, sample_days=%s',
+                (int)$r['branch_id'], (int)$r['product_id'], (string)$r['shift'],
+                (int)$r['available_days'], var_export($r['sample_days'] ?? null, true));
+            break;
+        }
+    }
 }
-$check('R2', 'days the branch traded without this product count as zero-sales days', $denominatorFixed,
-    $detail);
+$check('R2', 'the average divides by the days the product could be bought', $denominatorFixed, $detail);
 
 // --- R3: network receipts exclude transfers between branches already in scope --------------------
 $effAll = dl_productionEfficiencyData($db, ['accessible_branch_ids' => $allBranchIds, 'branch_id' => 0,

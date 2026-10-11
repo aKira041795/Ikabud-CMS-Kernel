@@ -433,28 +433,34 @@ $h->section('DB Forecast Anchoring');
 $forecastRows = dl_overviewForecastRows($db, $overviewFilters([$branchAlpha], $branchAlpha), '2031-06-03', 14);
 $alphaForecast = dl_overviewForecastSummary($forecastRows, 'daily');
 $alphaDaily = array_column($alphaForecast['products'], 'projected_units', 'product_id');
-// Re-anchored. The denominator is now the days the BRANCH recorded that shift, not the days the
-// PRODUCT had a row. Alpha recorded AM on 2031-06-01 (P1, P2) and 2031-06-02 (P1) - two recorded
-// days - so P1 = 10 units / 2 = 5, and P2 = 10 units / 2 = 5: its silence on 06-02 is a MEASURED
-// zero, because the branch traded that shift and reported it. Under the old product-row denominator
-// P2 was 10/1 = 10, which overstates daily demand and makes a planner produce double.
-$h->test('forecast anchors history at the selected date_to', ($alphaDaily[$productP1] ?? null) === 5 && ($alphaDaily[$productP2] ?? null) === 5);
-// The basis itself, so a return to the product-row denominator cannot pass silently: P2 has ONE
-// sales row but the branch recorded TWO days, and it is the branch's days that the average divides by.
+// Re-anchored TWICE, and the second correction is the one that matters. e2ba1e76 made the
+// denominator the days the BRANCH recorded that shift, which counted a product with NO row on a
+// traded day as a measured zero. The module's own contract
+// (docs/daily-ledger/unfinalized-shift-sales-semantics.md) says a recorded zero requires "a row
+// exists ... NOT AN ABSENT ROW", and the chair consult on 2026-10-11 measured that rule's cost on
+// real data: 71.2% of zero-sale cells were days the product was not stocked at all, and branch 8
+// product 34 AM was reported as 0.73/day when it sold 8 units on its single buyable day.
+//
+// Alpha records AM on 2031-06-01 (P1, P2) and 2031-06-02 (P1):
+//   P1 = 10 units over its 2 buyable days = 5
+//   P2 = 10 units over its 1 buyable day  = 10   (06-02 has no P2 row: UNKNOWN, not zero)
+$h->test('forecast anchors history at the selected date_to', ($alphaDaily[$productP1] ?? null) === 5 && ($alphaDaily[$productP2] ?? null) === 10);
+// The basis itself, so the superseded rule cannot come back silently: P2 has ONE recorded row and
+// the branch recorded TWO days, and it is the row-bearing, buyable day that the average divides by.
 $alphaSampleDays = [];
 foreach ($forecastRows as $alphaRow) {
     if ((string)($alphaRow['shift'] ?? '') === 'AM') {
         $alphaSampleDays[(int)$alphaRow['product_id']] = (int)($alphaRow['sample_days'] ?? 0);
     }
 }
-$h->test('the denominator is the branch\'s recorded days, not the product\'s own row-days',
-    ($alphaSampleDays[$productP1] ?? null) === 2 && ($alphaSampleDays[$productP2] ?? null) === 2);
+$h->test('an absent row is not counted as a measured zero-demand day',
+    ($alphaSampleDays[$productP1] ?? null) === 2 && ($alphaSampleDays[$productP2] ?? null) === 1);
 $alphaWeekly = dl_overviewForecastSummary($forecastRows, 'weekly');
 $alphaWeeklyByProduct = array_column($alphaWeekly['products'], 'projected_units', 'product_id');
-$h->test('DB weekly forecast applies the period factor to per-day averages', ($alphaWeeklyByProduct[$productP1] ?? null) === 35 && ($alphaWeeklyByProduct[$productP2] ?? null) === 35);
+$h->test('DB weekly forecast applies the period factor to per-day averages', ($alphaWeeklyByProduct[$productP1] ?? null) === 35 && ($alphaWeeklyByProduct[$productP2] ?? null) === 70);
 $alphaMonthly = dl_overviewForecastSummary($forecastRows, 'monthly');
 $alphaMonthlyByProduct = array_column($alphaMonthly['products'], 'projected_units', 'product_id');
-$h->test('DB monthly forecast applies the period factor to per-day averages', ($alphaMonthlyByProduct[$productP1] ?? null) === 150 && ($alphaMonthlyByProduct[$productP2] ?? null) === 150);
+$h->test('DB monthly forecast applies the period factor to per-day averages', ($alphaMonthlyByProduct[$productP1] ?? null) === 150 && ($alphaMonthlyByProduct[$productP2] ?? null) === 300);
 $emptyForecast = dl_overviewForecastSummary(dl_overviewForecastRows($db, $overviewFilters([$branchAlpha], $branchAlpha), '2032-01-15', 14), 'daily');
 $h->test('empty history renders no fabricated forecast', $emptyForecast['products'] === [] && $emptyForecast['total_units'] === 0);
 

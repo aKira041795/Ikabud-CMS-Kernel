@@ -1146,6 +1146,26 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
         if ($hasSales) {
             $date = (string)($row['ledger_date'] ?? '');
             $groups[$key]['daily'][$date] = ($groups[$key]['daily'][$date] ?? 0) + max(0, (int)$row['sales']);
+            // AVAILABILITY is a property of this cell alone and is counted here, per recorded cell,
+            // never inferred from the branch's other rows. `beg_bal > 0 || addtl > 0` is "the product
+            // could have been bought": a day that opens empty and receives nothing cannot produce a
+            // sale at any level of demand, so its zero is CENSORED - unbuyable, not low-demand.
+            // Measured on tenant 207: 1,578 of 2,215 zero-sale cells (71.2%) are of this kind, and
+            // 49.8% of ALL cells. Dividing by them reported branch 8 product 34 AM as 0.73/day when
+            // it sold 8 units on the single day it was stocked. Keyed by date so a duplicate row
+            // cannot be counted twice, and `available` always wins over `censored` for one date.
+            $available = ((int)($row['beg_bal'] ?? 0) > 0) || ((int)($row['addtl'] ?? 0) > 0);
+            if (array_key_exists('beg_bal', $row) || array_key_exists('addtl', $row)) {
+                $groups[$key]['has_availability'] = true;
+            }
+            if ($available) {
+                $groups[$key]['available'][$date] = true;
+            } else {
+                $groups[$key]['censored'][$date] = true;
+            }
+            if ($available && (int)$row['sales'] === 0) {
+                $groups[$key]['zero_sales'][$date] = true;
+            }
         }
     }
 
@@ -1157,18 +1177,41 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
         ksort($dailySeries);
         $daily = array_slice(array_values($dailySeries), -$window);
         $productDays = count($daily);
-        // The DENOMINATOR is the branch's recorded days for that shift, not the product's row-days.
-        // A branch-cell the branch recorded but the product is absent from is a MEASURED ZERO sale
-        // for this product: the branch traded and this product did not move. A cell nobody recorded
-        // is unreported, and it is excluded rather than counted as a sale of zero.
+        // The branch's recorded cells for this shift, and this stream's own classification of them.
+        // A date counted as available is never also censored, whatever order the rows arrived in.
         $cellKey = (int)$group['branch_id'] . ':' . $group['shift'];
         $recordedCount = count($recordedCells[$cellKey] ?? []);
-        // A group with NO daily series at all is a movement-only key: there is no official sales row
-        // for this branch, product and shift anywhere in the window. The branch recording OTHER days
-        // does not turn this product's silence into a measured zero, so it gets no denominator and
-        // its suggestion is forced to 0 below - otherwise a movement row would read as demand
-        // (Sol F4). Only a group that HAS a measured series may use the branch's recorded days.
-        $denominator = $daily === [] ? 0 : ($recordedCount > 0 ? $recordedCount : $productDays);
+        $availableDays = count($group['available'] ?? []);
+        $censoredDays = count(array_diff_key($group['censored'] ?? [], $group['available'] ?? []));
+        // The DENOMINATOR is the days this product could actually be BOUGHT and its sale was
+        // recorded - not the days the branch traded. Two earlier rules are both wrong, and the
+        // module's own contract (docs/daily-ledger/unfinalized-shift-sales-semantics.md: a recorded
+        // zero requires "a row exists ... NOT AN ABSENT ROW") is what settles it:
+        //   * a product absent from a day the branch recorded is UNKNOWN, not a measured zero;
+        //   * a day the product could not be bought is CENSORED, not low demand.
+        // Counting either one as zero demand drags every suggestion toward zero.
+        // A movement-only key has no daily series at all, so it keeps 0 and cannot be suggested
+        // (Sol F8). The recorded-days/product-days fallback exists only for a caller that supplies
+        // no availability information at all - and "no information" is NOT "the product was
+        // unavailable": a pure unit fixture keeps the previous row-day denominator, while a caller
+        // that DOES supply the stock columns and reports an empty shelf gets a censored cell that
+        // divides nothing.
+        $hasAvailability = !empty($group['has_availability']);
+        if ($hasAvailability) {
+            $denominator = $availableDays;
+        } else {
+            $denominator = $daily === [] ? 0 : ($recordedCount > 0 ? $recordedCount : $productDays);
+        }
+        // The clamp protects the DIVISION only. It must never be reported as sample_days, or the
+        // downstream "no measured sales => no production number" guard can never fire (Sol F8).
+        $days = max(1, $denominator);
+        // Branch-recorded days this product has no row for. Reported, never counted as demand.
+        $unknownDays = $hasAvailability ? max(0, $recordedCount - $availableDays - $censoredDays) : 0;
+        $zeroSaleDays = count($group['zero_sales'] ?? []);
+        // The evidence gate, so a row says how much it is worth instead of implying it. The
+        // thresholds are the chair's proposed engineering gates (2026-10-11), not statistics.
+        $evidenceBase = $hasAvailability ? $availableDays : $days;
+        $evidenceStatus = $evidenceBase >= 10 ? 'sufficient' : ($evidenceBase >= 5 ? 'provisional' : 'insufficient');
         $days = max(1, $denominator);
         $average = array_sum($daily) / $days;
         $varianceValues = $variance[$key] ?? [];
@@ -1189,19 +1232,25 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
             'product_name' => $group['product_name'],
             'shift' => $group['shift'],
             // sample_days is the DENOMINATOR the average actually divided by; product_days is how many
-            // of those days the product itself had a row. The difference is measured zero-sales days.
-            // It is the RAW denominator, not `max(1, ...)`: that clamp is only for the division below,
-            // and reporting it here made a movement-only row claim 1 sample day, which silently
-            // disarmed the "no measured sales => no suggestion" guard further down (Sol F8).
+            // days the product has a recorded row. It is the RAW denominator, not `max(1, ...)`: that
+            // clamp is only for the division below, and reporting it here made a movement-only row
+            // claim 1 sample day, which silently disarmed the "no measured sales => no suggestion"
+            // guard further down (Sol F8).
             'sample_days' => $denominator,
             'product_days' => $productDays,
             'window_days' => $window,
-            'zero_sale_days' => max(0, $denominator - $productDays),
-            'coverage_state' => $productDays === 0
-                ? 'no sales recorded for this branch, product and shift in this window'
+            // What the average rests on, and what it left out. A forecast that shrinks its own
+            // denominator without saying so cannot be audited or backtested.
+            'available_days' => $availableDays,
+            'censored_days' => $censoredDays,
+            'unknown_days' => $unknownDays,
+            'evidence_status' => $evidenceStatus,
+            'zero_sale_days' => $zeroSaleDays,
+            'coverage_state' => $denominator === 0
+                ? 'the product could not be bought on any recorded day in this window'
                 : ($days >= $window
                     ? ''
-                    : sprintf('the branch recorded %d of %d day(s) in this window, so the average is per recorded day', $days, $window)),
+                    : sprintf('the product was buyable on %d of %d day(s) in this window, so the average is per buyable day', $availableDays, $window)),
             // Why a row can carry no average: it is a movement-only key, so a 0 here means "no sales
             // were measured for this branch, product and shift in this window", NOT "demand was
             // measured as zero". The page states which, so a 0 suggestion is never ambiguous.
