@@ -4911,6 +4911,39 @@ MD;
         }
         out('');
 
+        // Page-lock hygiene. The file COUNT cannot tell an operator whether the sweep is working -
+        // 239 files is healthy if they are being collected and a leak if they are not, and both look
+        // identical in the table above. The AGE of the oldest lock is the signal: with the sweep
+        // running it stays near the one-hour threshold, and without it the number grows without
+        // bound. This exists because a deploy containing the sweep left the count at exactly 239 -
+        // the sweep was reachable only from the miss path, and a warm site barely misses.
+        $lockDir = $cacheRoot . '/page-locks';
+        if (is_dir($lockDir)) {
+            $lockCount = 0;
+            $lockOldest = null;
+            foreach (glob($lockDir . '/*.lock') ?: [] as $lockFile) {
+                $lockCount++;
+                $lockMtime = @filemtime($lockFile);
+                if ($lockMtime !== false && ($lockOldest === null || $lockMtime < $lockOldest)) {
+                    $lockOldest = $lockMtime;
+                }
+            }
+            if ($lockCount > 0) {
+                $lockAge = $lockOldest !== null ? time() - $lockOldest : null;
+                // Threshold and rate limit are both one hour, so a working sweep holds the oldest
+                // file below roughly two hours. Beyond that it is not collecting.
+                $lockStuck = $lockAge !== null && $lockAge > 7200;
+                out('  ' . ($lockStuck ? yellow('!') : green('v')) . ' '
+                    . sprintf(
+                        'Page locks: %d file(s), %s',
+                        $lockCount,
+                        $lockAge === null ? 'age unknown' : sprintf('oldest %.1fh', $lockAge / 3600)
+                    )
+                    . ($lockStuck ? '  ->  not being collected (expected under ~2h)' : ''));
+            }
+        }
+        out('');
+
         // THE metric that separates "invalidation works" from "invalidation is merely configured".
         // A successful bump proves nothing on its own, and a hit rate cannot tell valid reuse from
         // stale reuse. A rate of 0% in steady state is healthy; a sustained non-zero rate means

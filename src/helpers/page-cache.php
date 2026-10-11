@@ -258,6 +258,16 @@ function pageCacheTags(string $uri, string $moduleId): array
  */
 function pageCacheGet(string $uri): ?array
 {
+    // Bound the lock directory HERE, not on the miss path.
+    //
+    // `pageCacheLockAcquire()` is only reached after a MISS (module-manager returns early on a hit),
+    // so hanging the sweep off it meant maintenance ran only on the requests that are rare exactly
+    // when the cache is doing its job. Measured on a live install 2026-10-11: the lock count stayed
+    // at 239 across a deploy that contained the sweep, because a warm site barely misses. Locks are
+    // created by PAST misses, so they must be collected by a path that runs regardless - this one
+    // runs for every page-cache read, hit or miss. Rate-limited, so the usual cost is one stat.
+    pageCacheSweepStaleLocks();
+
     $key = pageCacheKey($uri);
     $instance = pageCacheInstance();
     $entry = app()->cache()->get($instance, $key);
@@ -679,15 +689,16 @@ function pageCacheLockDir(): string
 function pageCacheSweepStaleLocks(int $maxAgeSeconds = 3600, ?string $lockDir = null): int
 {
     $lockDir = $lockDir ?? pageCacheLockDir();
-    if (!is_dir($lockDir)) {
-        return 0;
-    }
 
-    // Rate-limited to one sweep per $maxAgeSeconds. Without this the glob below would run on every
-    // cache miss; with it, a miss pays a single stat and the directory stays bounded.
+    // Rate-limited to one sweep per $maxAgeSeconds, and this now runs on the page-cache READ path
+    // (every cached request), so the not-due case must be one syscall. The directory check and the
+    // glob only happen when a sweep is actually due.
     $marker = $lockDir . '/.swept';
     $markerAge = @filemtime($marker);
     if ($markerAge !== false && $markerAge > time() - $maxAgeSeconds) {
+        return 0;
+    }
+    if (!is_dir($lockDir)) {
         return 0;
     }
     @touch($marker);
@@ -722,11 +733,9 @@ function pageCacheLockAcquire(string $uri): mixed
         @mkdir($lockDir, 0775, true);
     }
 
-    // Bound the directory here, at the one place that creates lock files. Opportunistic and
-    // self-maintaining: it needs no cron entry and no operator action, which is the same property
-    // the cache retention sweep has.
-    pageCacheSweepStaleLocks();
-
+    // Bound the directory from pageCacheGet(), which runs for every page-cache read. Triggering it
+    // here instead would only cover misses, and a warm site barely misses - which is exactly why a
+    // live lock directory stayed at 239 files across a deploy that contained this sweep.
     $lockFile = $lockDir . '/' . md5($uri) . '.lock';
     $fp = @fopen($lockFile, 'c');
     if ($fp === false) {
