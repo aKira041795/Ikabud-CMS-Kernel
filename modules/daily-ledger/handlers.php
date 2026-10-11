@@ -13395,7 +13395,10 @@ function handleAdminProductionEfficiency(array $params = []): void
     // scope consumer. Units follow the product ranking (a provisional row
     // contributes units); money is official-only and this view shows none.
     $filters = dl_reportFilters($input, $user);
-    $filters['pending_rows_mode'] = 'include';
+    // Official-only basis. The same hidden+checkbox pair the Overview uses, so "official" means the
+    // module's single definition (dl_rowIsProvisional) on both pages. An absent or unrecognised value
+    // resolves to the OFFICIAL basis - the direction that cannot overstate a figure.
+    $filters['pending_rows_mode'] = dl_overviewPendingRowsMode($input['pending_rows'] ?? null);
 
     // The production-vs-pullout filter. GET only, on the same page; unknown
     // values fall back to the default so a tampered request cannot pick a fourth
@@ -13499,6 +13502,11 @@ function handleAdminProductionEfficiency(array $params = []): void
         'sources' => $data['sources'],
         // ── Destination panel (every branch in scope).
         'sold' => (int)$data['sold'],
+        // Official-only basis, stated on the page with the volume it removed.
+        'official_only' => (bool)$data['official_only'],
+        'exclude_provisional' => (bool)$data['official_only'],
+        'units_basis' => (string)$data['units_basis'],
+        'excluded_units' => (int)$data['excluded_units'],
         'received' => (int)$data['received'],
         'received_internal' => (int)$data['received_internal'],
         'adjustment_add' => (int)$data['adjustment_add'],

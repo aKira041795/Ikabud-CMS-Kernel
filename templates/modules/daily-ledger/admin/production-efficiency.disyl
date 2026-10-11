@@ -40,9 +40,22 @@
                 <option value="all" {if movement_view == 'all'}selected{/if}>Both</option>
             </select>
         </div>
+        <div class="form-group">
+            <label class="inline-flex items-center gap-2 text-sm"><input type="hidden" name="pending_rows" value="include"><input type="checkbox" name="pending_rows" value="exclude" {if exclude_provisional}checked{/if}> Official rows only</label>
+        </div>
         <button type="submit" class="btn btn-primary">Apply</button>
     </div>
 </form>
+
+<!-- Basis. Money on this page is official-only; the UNIT counts follow the same rule only when the
+     owner asks for it, and the page then states how many units that removed. The Overview uses the
+     same control and the same definition of "official" (dl_rowIsProvisional), so the two pages can
+     never disagree about which rows a basis admitted. -->
+<div class="rounded-lg {if official_only}bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200{/if}{if official_only == false}bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200{/if} p-4 text-sm mb-4">
+    <strong>Basis: {units_basis}.</strong>
+    {if official_only}Excluded from the unit counts: <strong>{excluded_units} pcs</strong> carried by provisional rows &mdash; shifts never finalized, derived or zero-forced endings, and entries with no count yet. Everything above is an official figure.{/if}
+    {if official_only == false}Tick <em>Official rows only</em> to exclude provisional rows and see official figures instead.{/if}
+</div>
 
 <!-- TWO PANELS, deliberately never merged into one ratio. SOURCE PRODUCTION is what the branches that
      actually produce recorded; STOCK MOVEMENT is what every branch in scope received and sold. The

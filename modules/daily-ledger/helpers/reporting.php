@@ -1659,7 +1659,10 @@ function dl_overviewProductTotals(DatabaseContract $db, array $filters): array
         $bind[] = (int)$filters['branch_id'];
     }
     if (dl_overviewPendingRowsMode($filters['pending_rows_mode'] ?? null) === 'exclude') {
-        $sql .= dl_overviewPendingPredicate('dl');
+        // "Official rows only" must MEAN official. The pending predicate alone removes nothing from a
+        // units total - a pending row's quantity is NULL and SUM() already ignores it, measured - so
+        // the 2,697 provisional rows carrying 16,348 units in this window survived it.
+        $sql .= dl_officialOnlySqlPredicate('dl', 'ss');
     }
     // HAVING units > 0 drops products with no completed sales. A dl_daily_ledger
     // row can exist while nothing was sold (a pending row yields a NULL quantity
@@ -1726,7 +1729,9 @@ function dl_overviewBranchProductTotals(
         $bind[] = (int)$filters['branch_id'];
     }
     if (dl_overviewPendingRowsMode($filters['pending_rows_mode'] ?? null) === 'exclude') {
-        $sql .= dl_overviewPendingPredicate('dl');
+        // Same official definition as the overall product totals, so the two tables on one page can
+        // never disagree about which rows the basis admitted.
+        $sql .= dl_officialOnlySqlPredicate('dl', 'ss');
     }
     // Same no-sales exclusion as the overall totals: only products that actually
     // sold are ranked per branch.
@@ -2332,6 +2337,61 @@ function dl_efficiencySupplySources(DatabaseContract $db, array $ids, string $da
 }
 
 /**
+ * SQL predicate dropping PROVISIONAL rows, so an "official only" basis is the module's single
+ * definition of official (dl_rowIsProvisional / dl_provisionalSqlExpr) and not a second one.
+ *
+ * `dl_overviewPendingPredicate()` is NOT enough on its own, and that is measured: it drops only
+ * `bal_end IS NULL`, whose quantity is NULL, so SUM() already ignored those rows. On tenant 207
+ * (2026-09-01..2026-10-11) the pending filter changes the units total by ZERO (102,615 either way)
+ * while 2,697 rows are provisional and carry 16,348 units - 2,112 of them because the SHIFT was
+ * never finalized. A control labelled "Official rows only" that removes nothing is a lie of the
+ * same kind as the ratios P1 removed.
+ *
+ * WRITTEN AS `COALESCE(expr, 0) = 0`, NOT `NOT (expr)`, AND THAT IS LOAD-BEARING. The twin's first
+ * term is `end_source IN (...)`; for a row whose end_source is NULL that evaluates to NULL, so
+ * `NOT (FALSE OR NULL OR FALSE OR FALSE)` is NULL and WHERE drops the row. Measured: `AND NOT (...)`
+ * matched 0 of 14,401 rows where 11,704 were official - it emptied the Products page completely.
+ * COALESCE(...,0) = 0 keeps the twin in lockstep with dl_rowIsProvisional(), which treats a NULL
+ * end_source as NOT provisional (it is only `in_array(null, [...])` = false).
+ *
+ * The caller must have LEFT JOINed dl_ledger_shift_status under $shiftAlias.
+ */
+function dl_officialOnlySqlPredicate(string $alias = 'dl', string $shiftAlias = 'ss'): string
+{
+    return ' AND COALESCE(' . dl_provisionalSqlExpr($alias, $shiftAlias) . ', 0) = 0';
+}
+
+/**
+ * How many of a branch's rows in this window are provisional, and how many units they carry.
+ * Stated on the page so an owner can see what an official-only basis left out.
+ *
+ * @return array{rows:int,units:int}
+ */
+function dl_provisionalExclusion(DatabaseContract $db, array $ids, string $dateFrom, string $dateTo): array
+{
+    $ids = array_values(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0));
+    if ($ids === [] || $dateFrom === '' || $dateTo === '') {
+        return ['rows' => 0, 'units' => 0];
+    }
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $qty = dl_ledgerSalesQuantitySql('dl');
+    $prov = dl_provisionalSqlExpr('dl', 'ss');
+    $stmt = $db->prepare(
+        "SELECT COALESCE(SUM(CASE WHEN {$prov} THEN 1 ELSE 0 END), 0) AS rows_n,
+                COALESCE(SUM(CASE WHEN {$prov} THEN COALESCE({$qty}, 0) ELSE 0 END), 0) AS units
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_ledger_shift_status ss
+             ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+            AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+          WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN ({$marks})"
+    );
+    $stmt->execute(array_merge([$dateFrom, $dateTo], $ids));
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    return ['rows' => (int)($row['rows_n'] ?? 0), 'units' => (int)($row['units'] ?? 0)];
+}
+
+/**
  * How a pullout/return reason maps onto the efficiency panel.
  *
  * This is deliberately NOT a new vocabulary: it labels the result of
@@ -2526,6 +2586,9 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         'production_positive_days' => 0,
         // Destination panel.
         'sold' => 0,
+        'official_only' => false,
+        'excluded_units' => 0,
+        'units_basis' => '',
         'received' => 0,
         'received_internal' => 0,
         'adjustment_add' => 0,
@@ -2744,11 +2807,20 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
     $productionPositiveDays = (int)($coverage['positive_days'] ?? 0);
 
     // ── Sales side, per product (the ranking's own quantity expression) ──
+    // BOTH bases are summed in one pass so an official-only figure and the volume it removed come
+    // from the same scan. A pending row's quantity is NULL and SUM() already ignores it, so the only
+    // basis that changes anything is the fuller dl_rowIsProvisional() definition used here.
     $qty = dl_ledgerSalesQuantitySql('dl');
+    $provExpr = dl_provisionalSqlExpr('dl', 'ss');
+    $officialOnly = dl_overviewPendingRowsMode($filters['pending_rows_mode'] ?? null) === 'exclude';
     $salesSql = "SELECT dl.product_id, p.name AS product_name, p.sku,
-                        COALESCE(SUM({$qty}), 0) AS sold_qty
+                        COALESCE(SUM({$qty}), 0) AS sold_qty,
+                        COALESCE(SUM(CASE WHEN {$provExpr} THEN 0 ELSE {$qty} END), 0) AS sold_official_qty
                    FROM dl_daily_ledger dl
                    INNER JOIN dl_products p ON p.id = dl.product_id
+                   LEFT JOIN dl_ledger_shift_status ss
+                     ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+                    AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
                   WHERE dl.ledger_date BETWEEN ? AND ?
                     AND dl.branch_id IN ({$marks})";
     $salesBind = array_merge([$dateFrom, $dateTo], $ids);
@@ -2840,9 +2912,12 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
     // A product that SOLD but has no production row this period was produced in
     // an earlier period. It must still appear, with produced = 0 and an explicit
     // "not computable" state, rather than being dropped or shown as 0% failure.
+    $salesInclusiveTotal = 0;
     foreach ($salesRows as $row) {
         $pid = (int)$row['product_id'];
-        $sold = (int)$row['sold_qty'];
+        $soldInclusive = (int)$row['sold_qty'];
+        $sold = $officialOnly ? (int)$row['sold_official_qty'] : $soldInclusive;
+        $salesInclusiveTotal += $soldInclusive;
         if (!isset($products[$pid])) {
             $products[$pid] = [
                 'product_id' => $pid,
@@ -3106,6 +3181,13 @@ function dl_productionEfficiencyData(DatabaseContract $db, array $filters): arra
         // receipts 83783 plus Add Stock adjustments 23761, so addtl is an accumulator of
         // receipts and operator corrections and cannot serve as "stock received".
         'sold' => $soldTotal,
+        // The basis the unit counts are on, and what an official-only basis removed. Stating the
+        // exclusion is what stops an official figure being read as the whole picture.
+        'official_only' => $officialOnly,
+        'excluded_units' => max(0, $salesInclusiveTotal - $soldTotal),
+        'units_basis' => $officialOnly
+            ? 'official only: provisional rows (unfinalized shifts, derived or zero-forced endings, and pending entries) are excluded from every unit count on this page'
+            : 'official + provisional: provisional rows are INCLUDED, so the unit counts are larger than an official-only view would show',
         'received' => $receivedTotal,
         'received_internal' => $transferTotal,
         'adjustment_add' => $adjustmentAddTotal,
