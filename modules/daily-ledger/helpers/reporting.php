@@ -1464,7 +1464,9 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $movementMarks = implode(',', array_fill(0, count($movementIds), '?'));
     $movementStmt = $db->prepare(
         "SELECT dl.branch_id, dl.product_id, dl.shift, p.sku, p.name AS product_name,
-                COUNT(*) AS movement_rows
+                SUM(CASE WHEN COALESCE(dl.beg_bal,0) <> 0 OR COALESCE(dl.addtl,0) <> 0
+                           OR COALESCE(dl.withdraw,0) <> 0 OR COALESCE(dl.bal_end,0) <> 0
+                         THEN 1 ELSE 0 END) AS movement_rows
            FROM dl_daily_ledger dl
            INNER JOIN dl_products p ON p.id = dl.product_id
           WHERE dl.ledger_date BETWEEN ? AND ?
@@ -1552,8 +1554,28 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
             : ($ageDays !== null && $ageDays > $window
                 ? sprintf('stale: last counted %d day(s) before the window end', $ageDays)
                 : '');
+        // Stamped on every row so the filter, the page and the criterion all read the SAME verdict
+        // rather than each re-deriving "did anything happen here".
+        $forecastRow['has_activity'] = dl_forecastRowHasActivity($forecastRow);
     }
     unset($forecastRow);
+
+    // The activity filter, then the quantity order.
+    //
+    // BOTH are opt-in, and deliberately so. They are PAGE controls: a caller that does not ask for
+    // them gets the full population in the neutral order. Defaulting them here looked harmless and
+    // was not - the Overview's aggregate projection calls this same function, so a display checkbox
+    // on the Forecast page silently changed what the Overview summarized, and one of its tests
+    // caught it. A filter that hides rows must be applied where the hiding is being asked for.
+    if (($filters['empty_rows_mode'] ?? null) === 'exclude') {
+        $forecastRows = array_values(array_filter(
+            $forecastRows,
+            static fn(array $forecastRow): bool => !empty($forecastRow['has_activity'])
+        ));
+    }
+    if (($filters['sort_dir'] ?? null) !== null) {
+        $forecastRows = dl_forecastSortByQty($forecastRows, (string)$filters['sort_dir']);
+    }
 
     return $forecastRows;
 }
@@ -2208,6 +2230,73 @@ function dl_overviewNormalizeForecastPeriod(string $period): string
 function dl_overviewForecastPeriodDays(string $period): int
 {
     return DL_OVERVIEW_FORECAST_PERIODS[dl_overviewNormalizeForecastPeriod($period)];
+}
+
+/**
+ * Resolve the "exclude rows with no movement or sales" control on the forecast.
+ *
+ * Mirrors dl_overviewPendingRowsMode(): the form posts a hidden "include" followed by the checkbox
+ * "exclude", so the surviving value is "exclude" only while the box stays ticked. An absent
+ * parameter - a plain page load - means the default, and the default is to EXCLUDE: measured on
+ * tenant 207, 534 of 788 forecast rows (68%) neither sold nor moved, so showing them by default buries
+ * the rows a planner can act on.
+ *
+ * @param mixed $value
+ */
+function dl_forecastEmptyRowsMode($value): string
+{
+    return strtolower(trim((string)$value)) === 'include' ? 'include' : 'exclude';
+}
+
+/**
+ * Whether a forecast row carries any business activity: it sold units, or stock actually moved.
+ *
+ * TWO TRAPS, both measured, and this function exists so neither is re-derived elsewhere:
+ *
+ * 1. A forecast row has NO `sales` key. dl_forecastDemand() consumes the per-cell sales while
+ *    building the groups and returns them AGGREGATED as `average_sales`; reading $row['sales'] reads
+ *    an undefined index, so every row that actually sold looks activity-less. That mistake dropped
+ *    branch 8 product 34 AM - a stream with a real 8.00/day average - from the filtered list on the
+ *    first attempt.
+ * 2. `movement_rows` is counted from rows whose quantities are NOT all zero, deliberately: a ledger
+ *    row can exist with every quantity at zero (someone opened the cell, or a carry wrote a 0), and
+ *    measured on tenant 207 there are 1,215 such rows across 207 keys. A row COUNT would report
+ *    movement where none happened.
+ *
+ * A row that MOVED but did not sell IS activity and is never excluded - only a row with neither.
+ */
+function dl_forecastRowHasActivity(array $row): bool
+{
+    if ((float)($row['average_sales'] ?? 0) > 0.0) {
+        return true;
+    }
+
+    return (int)($row['movement_rows'] ?? 0) > 0;
+}
+
+/**
+ * Order forecast rows by the quantity a planner acts on. Always applies branch/product/shift as
+ * tie-breakers, so the order is deterministic for equal quantities and a re-render cannot shuffle the
+ * list under the operator's cursor.
+ *
+ * @param array<int,array<string,mixed>> $rows
+ * @return array<int,array<string,mixed>>
+ */
+function dl_forecastSortByQty(array $rows, string $sortDir): array
+{
+    $direction = dl_overviewNormalizeSortDir($sortDir);
+    usort($rows, static function (array $a, array $b) use ($direction): int {
+        $aQty = (float)($a['suggested_production'] ?? 0);
+        $bQty = (float)($b['suggested_production'] ?? 0);
+        if ($aQty !== $bQty) {
+            return $direction === 'asc' ? ($aQty <=> $bQty) : ($bQty <=> $aQty);
+        }
+
+        return [(string)($a['branch_name'] ?? ''), (string)($a['product_name'] ?? ''), (string)($a['shift'] ?? '')]
+            <=> [(string)($b['branch_name'] ?? ''), (string)($b['product_name'] ?? ''), (string)($b['shift'] ?? '')];
+    });
+
+    return $rows;
 }
 
 /**

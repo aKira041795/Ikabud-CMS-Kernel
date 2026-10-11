@@ -13576,6 +13576,11 @@ function handleAdminForecast(array $params = []): void
     $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
     $input = $ctx->input();
     $filters = dl_reportFilters($input, $user);
+    // The activity filter and the quantity order are FILTERS, so they live in $filters where
+    // dl_forecastRows() reads them - not applied to the rendered rows, which would leave the counts
+    // on the page describing a different population than the table below them.
+    $filters['empty_rows_mode'] = dl_forecastEmptyRowsMode($input['empty_rows'] ?? null);
+    $filters['sort_dir'] = dl_overviewNormalizeSortDir($input['sort_dir'] ?? null);
     $targetDate = dl_reportValidDate((string)($input['target_date'] ?? ''))
         ?: (new DateTimeImmutable(dl_businessDate()))->modify('+1 day')->format('Y-m-d');
     $window = max(3, min(90, (int)($input['window'] ?? 14)));
@@ -13607,6 +13612,17 @@ function handleAdminForecast(array $params = []): void
         'target_date' => $targetDate,
         'window' => $window,
         'rows' => $rows,
+        // State for the two new controls, so the template renders what is in force rather than
+        // guessing it from the request (a plain page load carries neither parameter).
+        'exclude_empty' => $filters['empty_rows_mode'] === 'exclude',
+        'sort_dir' => $filters['sort_dir'],
+        // Carried by the sort links so clicking a direction keeps the filters in force instead of
+        // silently resetting the scope, the period and the checkbox to their defaults.
+        'empty_rows_param' => (string)$filters['empty_rows_mode'],
+        'view_scope' => (string)($filters['view_scope'] ?? 'ALL'),
+        'date_from' => (string)($filters['date_from'] ?? ''),
+        'date_to' => (string)($filters['date_to'] ?? ''),
+        'branch_id' => (int)($filters['branch_id'] ?? 0),
         'product_count' => count(array_unique(array_column($rows, 'product_id'))),
         'branch_count' => count(array_unique(array_column($rows, 'branch_id'))),
         'movement_only_count' => count(array_filter($rows, static fn(array $row): bool => (int)($row['sample_days'] ?? 0) === 0)),
