@@ -428,9 +428,21 @@ $h->test(
         && dl_reportInlineRowLimit('CSV') === DL_REPORT_INLINE_ROW_LIMIT_CSV
         && dl_reportInlineRowLimit('pdf') === DL_REPORT_INLINE_ROW_LIMIT
 );
-$h->test('forecast inventory is restricted to accessible branch commissaries',
-    str_contains($reportingSource, 'SELECT DISTINCT assigned_commissary_id')
-    && str_contains($reportingSource, '$inventoryBranchIds')
+// The scan is bounded to the FUNCTION and comments are STRIPPED. The fix's own comment names the
+// table it removed while explaining why, and a scan that reads comments reports the explanation as
+// the defect - which is exactly how this assertion failed the first time it was re-anchored.
+$forecastStart = (int)strpos($reportingSource, 'function dl_forecastRows');
+$forecastNext = (int)strpos($reportingSource, "\nfunction ", $forecastStart + 1);
+$forecastFunction = $forecastNext > $forecastStart
+    ? substr($reportingSource, $forecastStart, $forecastNext - $forecastStart)
+    : substr($reportingSource, $forecastStart);
+$forecastCode = (string)preg_replace('#/\*.*?\*/#s', '', $forecastFunction);
+$forecastCode = (string)preg_replace('#//[^\n]*#', '', $forecastCode);
+$h->test('forecast stock is the accessible branches\' own, never a source commissary\'s',
+    str_contains($reportingSource, '$inventoryBranchIds')
+    && str_contains($forecastCode, 'latest.bal_end AS ending_qty')
+    && str_contains($forecastCode, 'dl.branch_id IN ({$inventoryMarks})')
+    && !str_contains($forecastCode, 'dl_commissary_product_ledger')
 );
 $narrowed = dl_reportFilters(['branch_id' => 999999], ['id' => 1, 'role' => 'admin', 'branch_ids' => [$branchId]]);
 $h->test('inaccessible explicit branch filter is preserved and cannot widen to all branches',

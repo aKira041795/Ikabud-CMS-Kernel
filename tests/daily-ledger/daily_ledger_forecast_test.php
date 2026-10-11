@@ -9,20 +9,23 @@ $h->fingerprint('modules/daily-ledger/helpers/reporting.php');
 require_once $h->basePath() . '/modules/daily-ledger/helpers/reporting.php';
 
 $h->section('Moving Average and Adjustments');
+// Every row is scoped to a BRANCH: a production suggestion is actioned at a place, so the branch is
+// part of the group key. Stock on hand is the branch's OWN counted ending (ending_qty), never a
+// commissary's undelivered finished goods.
 $sales = [
-    ['product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-01', 'sales' => 10],
-    ['product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-02', 'sales' => 20],
-    ['product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 30],
-    ['product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'PM', 'ledger_date' => '2026-08-03', 'sales' => null],
+    ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-01', 'sales' => 10],
+    ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-02', 'sales' => 20],
+    ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 30],
+    ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99001, 'sku' => 'T-1', 'product_name' => 'Test Bread', 'shift' => 'PM', 'ledger_date' => '2026-08-03', 'sales' => null],
 ];
 $variances = [
-    ['product_id' => 99001, 'shift' => 'AM', 'variance' => 3],
-    ['product_id' => 99001, 'shift' => 'AM', 'variance' => -4],
+    ['branch_id' => 1, 'product_id' => 99001, 'shift' => 'AM', 'variance' => 3],
+    ['branch_id' => 1, 'product_id' => 99001, 'shift' => 'AM', 'variance' => -4],
 ];
 $inventory = [
-    ['product_id' => 99001, 'ledger_date' => '2026-08-01', 'wastage_qty' => 1, 'remaining_qty' => 2],
-    ['product_id' => 99001, 'ledger_date' => '2026-08-02', 'wastage_qty' => 3, 'remaining_qty' => 4],
-    ['product_id' => 99001, 'ledger_date' => '2026-08-03', 'wastage_qty' => 2, 'remaining_qty' => 5],
+    ['branch_id' => 1, 'product_id' => 99001, 'ledger_date' => '2026-08-01', 'wastage_qty' => 1, 'ending_qty' => 2],
+    ['branch_id' => 1, 'product_id' => 99001, 'ledger_date' => '2026-08-02', 'wastage_qty' => 3, 'ending_qty' => 4],
+    ['branch_id' => 1, 'product_id' => 99001, 'ledger_date' => '2026-08-03', 'wastage_qty' => 2, 'ending_qty' => 5],
 ];
 $forecast = dl_forecastDemand($sales, $variances, $inventory, 3, 0.10);
 $row = $forecast[0] ?? [];
@@ -30,22 +33,58 @@ $h->test('three-day moving average is hand-computed 20', ($row['average_sales'] 
 $h->test('positive variance adjustment is averaged without negative netting', ($row['variance_adjustment'] ?? null) === 1.5);
 $h->test('wastage adjustment averages recorded wastage', ($row['wastage_adjustment'] ?? null) === 2.0);
 $h->test('projected demand includes variance and wastage', ($row['projected_demand'] ?? null) === 23.5);
-$h->test('latest remaining quantity is read', ($row['remaining_qty'] ?? null) === 5);
-$h->test('suggested production applies safety and remaining stock', ($row['suggested_production'] ?? null) === 21);
-$h->test('product stock is applied only once across shifts', ($row['inventory_applied'] ?? null) === 5);
+$h->test('the branch\'s own latest counted ending is read as stock on hand', ($row['stock_on_hand'] ?? null) === 5);
+$h->test('the row names its branch', ($row['branch_name'] ?? '') === 'Branch One' && ($row['branch_id'] ?? 0) === 1);
+$h->test('suggested production applies safety and the branch\'s own stock', ($row['suggested_production'] ?? null) === 21);
+$h->test('branch stock is applied only once across shifts', ($row['inventory_applied'] ?? null) === 5);
 $h->test('pending null sales are excluded', count($forecast) === 1);
 
-$twoShifts = dl_forecastDemand([
-    ['product_id' => 99002, 'product_name' => 'Shift Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 10],
-    ['product_id' => 99002, 'product_name' => 'Shift Bread', 'shift' => 'PM', 'ledger_date' => '2026-08-03', 'sales' => 10],
+$h->section('Per-branch separation');
+// The defect this guards: two branches selling the same product were averaged into ONE suggestion
+// nobody could action. Measured on tenant 207, 356 rows served 788 branch x product x shift streams.
+$perBranch = dl_forecastDemand([
+    ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99003, 'product_name' => 'Shared Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 100],
+    ['branch_id' => 2, 'branch_name' => 'Branch Two', 'product_id' => 99003, 'product_name' => 'Shared Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 10],
 ], [], [
-    ['product_id' => 99002, 'ledger_date' => '2026-08-03', 'wastage_qty' => 4, 'remaining_qty' => 8],
+    ['branch_id' => 1, 'product_id' => 99003, 'ledger_date' => '2026-08-03', 'ending_qty' => 0],
+    ['branch_id' => 2, 'product_id' => 99003, 'ledger_date' => '2026-08-03', 'ending_qty' => 0],
+], 3, 0.0);
+$branchOne = null;
+$branchTwo = null;
+foreach ($perBranch as $perBranchRow) {
+    if ((int)$perBranchRow['branch_id'] === 1) {
+        $branchOne = $perBranchRow;
+    }
+    if ((int)$perBranchRow['branch_id'] === 2) {
+        $branchTwo = $perBranchRow;
+    }
+}
+$h->test('one product+shift sold at two branches yields two rows, not one average',
+    count($perBranch) === 2 && $branchOne !== null && $branchTwo !== null);
+$h->test('each branch keeps its own sales average',
+    ($branchOne['average_sales'] ?? null) === 100.0 && ($branchTwo['average_sales'] ?? null) === 10.0);
+$h->test('each branch gets its own suggestion, not a shared one',
+    ($branchOne['suggested_production'] ?? null) === 100 && ($branchTwo['suggested_production'] ?? null) === 10);
+$h->test('one branch\'s stock is never applied to another branch',
+    dl_forecastDemand([
+        ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99004, 'product_name' => 'Stocked Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 50],
+        ['branch_id' => 2, 'branch_name' => 'Branch Two', 'product_id' => 99004, 'product_name' => 'Stocked Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 50],
+    ], [], [
+        ['branch_id' => 1, 'product_id' => 99004, 'ledger_date' => '2026-08-03', 'ending_qty' => 40],
+    ], 3, 0.0)[1]['suggested_production'] === 50
+);
+
+$twoShifts = dl_forecastDemand([
+    ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99002, 'product_name' => 'Shift Bread', 'shift' => 'AM', 'ledger_date' => '2026-08-03', 'sales' => 10],
+    ['branch_id' => 1, 'branch_name' => 'Branch One', 'product_id' => 99002, 'product_name' => 'Shift Bread', 'shift' => 'PM', 'ledger_date' => '2026-08-03', 'sales' => 10],
+], [], [
+    ['branch_id' => 1, 'product_id' => 99002, 'ledger_date' => '2026-08-03', 'wastage_qty' => 4, 'ending_qty' => 8],
 ], 3, 0.0);
 $h->test('product-level wastage is distributed rather than duplicated per shift',
     count($twoShifts) === 2
     && array_sum(array_column($twoShifts, 'wastage_adjustment')) === 4.0
 );
-$h->test('remaining product stock is consumed once across shift suggestions',
+$h->test('branch stock is consumed once across shift suggestions',
     array_sum(array_column($twoShifts, 'inventory_applied')) === 8
     && array_sum(array_column($twoShifts, 'suggested_production')) === 16
 );

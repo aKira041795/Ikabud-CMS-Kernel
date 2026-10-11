@@ -1061,88 +1061,145 @@ function dl_reportFilterSummary(array $filters, string $branchLabel): string
  *
  * @return array<int,array<string,mixed>>
  */
+/**
+ * Pure PHP forecast aggregation. Rows are grouped per BRANCH, product and shift.
+ *
+ * WHY THE BRANCH IS IN THE KEY. The previous version grouped on `product:shift` only, so at
+ * all-branch scope every branch's sales were averaged into ONE suggestion that no branch could
+ * action: measured on tenant 207 (2026-09-01..2026-10-11) that produced 356 rows for 788 real
+ * branch x product x shift demand streams, and pid 110 PANDESAL AM - sold at branches 8 and 9 -
+ * rendered as a single averaged figure. A production suggestion is actioned at a place.
+ *
+ * STOCK ON HAND IS THE BRANCH'S OWN. The offset is `ending_qty`, the branch's latest counted
+ * closing, not the commissary's unsold finished goods. Crediting a destination branch with its
+ * source's undelivered stock (and crediting EVERY branch supplied by that source with the whole
+ * of it) is the same class of error P1 removed from the efficiency view.
+ *
+ * @return array<int,array<string,mixed>>
+ */
 function dl_forecastDemand(array $salesRows, array $varianceRows, array $inventoryRows, int $window = 14, float $safetyRate = 0.10, ?array $spoilageRates = null): array
 {
     $window = max(1, min(90, $window));
     $variance = [];
     foreach ($varianceRows as $row) {
+        $bid = (int)($row['branch_id'] ?? 0);
         $pid = (int)($row['product_id'] ?? 0);
         $shift = strtoupper((string)($row['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
-        $key = $pid . ':' . $shift;
+        $key = $bid . ':' . $pid . ':' . $shift;
         $variance[$key][] = max(0, (int)($row['variance'] ?? 0));
     }
 
+    // The branch's own shelf. One row per branch+product is expected (the latest counted shift);
+    // a caller that supplies no ending contributes no offset rather than borrowing one.
     $inventory = [];
     foreach ($inventoryRows as $row) {
-        $pid = (int)($row['product_id'] ?? 0);
-        $date = (string)($row['ledger_date'] ?? '');
-        $inventory[$pid]['wastage'][$date] = ($inventory[$pid]['wastage'][$date] ?? 0) + max(0, (int)($row['wastage_qty'] ?? 0));
-        if (!isset($inventory[$pid]['latest_date']) || $date > $inventory[$pid]['latest_date']) {
-            $inventory[$pid]['latest_date'] = $date;
-            $inventory[$pid]['remaining'] = 0;
+        if (!array_key_exists('ending_qty', $row)) {
+            continue;
         }
-        if ($date === ($inventory[$pid]['latest_date'] ?? '')) {
-            $inventory[$pid]['remaining'] += (int)($row['remaining_qty'] ?? 0);
+        $bid = (int)($row['branch_id'] ?? 0);
+        $pid = (int)($row['product_id'] ?? 0);
+        $key = $bid . ':' . $pid;
+        $date = (string)($row['ledger_date'] ?? '');
+        $inventory[$key]['wastage'][$date] = ($inventory[$key]['wastage'][$date] ?? 0) + max(0, (int)($row['wastage_qty'] ?? 0));
+        if (!isset($inventory[$key]['latest_date']) || $date > $inventory[$key]['latest_date']) {
+            $inventory[$key]['latest_date'] = $date;
+            $inventory[$key]['remaining'] = 0;
+        }
+        if ($date === ($inventory[$key]['latest_date'] ?? '')) {
+            $inventory[$key]['remaining'] += max(0, (int)$row['ending_qty']);
         }
     }
 
     $groups = [];
     foreach ($salesRows as $row) {
-        if (($row['sales'] ?? null) === null) {
+        // A row with NO sales value is normally skipped: it is an unfinalized entry and contributes
+        // neither a sale nor a measured zero. A movement-only row is different - it is a real
+        // branch+product+shift that carries stock movement but no measured sales, and the owner
+        // asked to see exactly those ("all products with movement"). It creates the row without
+        // adding anything to the daily series, so it can never dilute the average.
+        $hasSales = ($row['sales'] ?? null) !== null;
+        $isMovementOnly = !empty($row['movement_only']);
+        if (!$hasSales && !$isMovementOnly) {
             continue;
         }
+        $bid = (int)($row['branch_id'] ?? 0);
         $pid = (int)($row['product_id'] ?? 0);
         $shift = strtoupper((string)($row['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
-        $key = $pid . ':' . $shift;
+        $key = $bid . ':' . $pid . ':' . $shift;
+        $groups[$key]['branch_id'] = $bid;
+        $groups[$key]['branch_name'] = (string)($row['branch_name'] ?? '');
+        $groups[$key]['source_class'] = (string)($row['source_class'] ?? 'unknown');
+        $groups[$key]['source_label'] = (string)($row['source_label'] ?? 'source not declared');
         $groups[$key]['product_id'] = $pid;
         $groups[$key]['sku'] = (string)($row['sku'] ?? '');
         $groups[$key]['product_name'] = (string)($row['product_name'] ?? '');
         $groups[$key]['shift'] = $shift;
-        $date = (string)($row['ledger_date'] ?? '');
-        $groups[$key]['daily'][$date] = ($groups[$key]['daily'][$date] ?? 0) + max(0, (int)$row['sales']);
+        $groups[$key]['movement_rows'] = max((int)($groups[$key]['movement_rows'] ?? 0), (int)($row['movement_rows'] ?? 0));
+        if ($hasSales) {
+            $date = (string)($row['ledger_date'] ?? '');
+            $groups[$key]['daily'][$date] = ($groups[$key]['daily'][$date] ?? 0) + max(0, (int)$row['sales']);
+        }
     }
 
     $result = [];
     foreach ($groups as $key => $group) {
-        ksort($group['daily']);
-        $daily = array_slice(array_values($group['daily']), -$window);
+        // A movement-only group has no daily series at all - it was created by a key with no measured
+        // sales - so the series is defaulted rather than assumed.
+        $dailySeries = is_array($group['daily'] ?? null) ? $group['daily'] : [];
+        ksort($dailySeries);
+        $daily = array_slice(array_values($dailySeries), -$window);
         $days = max(1, count($daily));
         $average = array_sum($daily) / $days;
         $varianceValues = $variance[$key] ?? [];
         $varianceAdjustment = $varianceValues ? array_sum($varianceValues) / count($varianceValues) : 0.0;
-        $wastageValues = array_values($inventory[$group['product_id']]['wastage'] ?? []);
+        $stockKey = (int)$group['branch_id'] . ':' . (int)$group['product_id'];
+        $wastageValues = array_values($inventory[$stockKey]['wastage'] ?? []);
         $productWastage = $wastageValues ? array_sum($wastageValues) / count($wastageValues) : 0.0;
         $projected = $average + $varianceAdjustment;
         $safety = $projected * max(0.0, min(1.0, $safetyRate));
-        $remaining = (int)($inventory[$group['product_id']]['remaining'] ?? 0);
+        $remaining = (int)($inventory[$stockKey]['remaining'] ?? 0);
         $result[] = [
+            'branch_id' => (int)$group['branch_id'],
+            'branch_name' => (string)$group['branch_name'],
+            'source_class' => (string)$group['source_class'],
+            'source_label' => (string)$group['source_label'],
             'product_id' => $group['product_id'],
             'sku' => $group['sku'],
             'product_name' => $group['product_name'],
             'shift' => $group['shift'],
             'sample_days' => count($daily),
+            // Why a row can carry no average: it is a movement-only key, so a 0 here means "no sales
+            // were measured for this branch, product and shift in this window", NOT "demand was
+            // measured as zero". The page states which, so a 0 suggestion is never ambiguous.
+            'sales_basis' => $daily === []
+                ? 'movement only: no measured sales for this branch, product and shift in this window'
+                : '',
+            'movement_rows' => (int)($group['movement_rows'] ?? 0),
             'average_sales' => round($average, 2),
             'variance_adjustment' => round($varianceAdjustment, 2),
             'product_wastage' => $productWastage,
             'wastage_adjustment' => 0.0,
             'projected_demand' => round($projected, 2),
             'safety_margin' => round($safety, 2),
-            'remaining_qty' => $remaining,
+            'stock_on_hand' => $remaining,
             'inventory_applied' => 0,
             'suggested_production' => 0,
         ];
     }
-    usort($result, static fn(array $a, array $b): int => [$a['product_name'], $a['shift']] <=> [$b['product_name'], $b['shift']]);
+    usort($result, static fn(array $a, array $b): int => [$a['branch_name'], $a['product_name'], $a['shift']] <=> [$b['branch_name'], $b['product_name'], $b['shift']]);
 
     // Commissary wastage and remaining stock are product-level values, not
     // shift-level values. Distribute wastage by each shift's demand share and
     // consume remaining stock once (AM before PM) instead of applying both in
     // full to every shift.
-    $productIndexes = [];
+    // Stock and spoilage are per BRANCH and product, not per product. Two branches supplied by the
+    // same commissary hold DIFFERENT stock, and applying one branch's shelf to another branch's
+    // suggestion is the same class of error P1 removed from the efficiency view.
+    $branchProductIndexes = [];
     foreach ($result as $index => $row) {
-        $productIndexes[(int)$row['product_id']][] = $index;
+        $branchProductIndexes[(int)$row['branch_id'] . ':' . (int)$row['product_id']][] = $index;
     }
-    foreach ($productIndexes as $indexes) {
+    foreach ($branchProductIndexes as $indexes) {
         $pid = (int)$result[$indexes[0]]['product_id'];
         // Per-product spoilage for the standard gross-up. A rate at or above
         // 100% cannot be grossed up (the target would be unbounded), so it is
@@ -1157,7 +1214,7 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
             }
         }
         $demandTotal = array_sum(array_map(static fn(int $index): float => (float)$result[$index]['average_sales'], $indexes));
-        $remainingAvailable = max(0, (int)$result[$indexes[0]]['remaining_qty']);
+        $remainingAvailable = max(0, (int)$result[$indexes[0]]['stock_on_hand']);
         foreach ($indexes as $index) {
             $share = $demandTotal > 0.0
                 ? (float)$result[$index]['average_sales'] / $demandTotal
@@ -1212,9 +1269,20 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $sales = dl_reportSalesData($db, $historyFilters)['rows'];
     $sales = array_values(array_filter($sales, static fn(array $row): bool => $row['status_label'] === 'official'));
 
+    // Say WHERE each suggestion acts and whether it is a production requirement or a supply
+    // requirement. The classifier is the same evidence-based one the production-efficiency view
+    // uses, so the two pages cannot disagree about what a branch is.
+    $forecastSources = dl_efficiencySupplySources($db, $filters['accessible_branch_ids'], $historyFrom, $historyTo);
+    foreach ($sales as &$salesRow) {
+        $sourceInfo = $forecastSources[(int)($salesRow['branch_id'] ?? 0)] ?? null;
+        $salesRow['source_class'] = (string)($sourceInfo['class'] ?? 'unknown');
+        $salesRow['source_label'] = (string)($sourceInfo['label'] ?? 'source not declared');
+    }
+    unset($salesRow);
+
     $ids = $filters['accessible_branch_ids'];
     $marks = implode(',', array_fill(0, count($ids), '?'));
-    $varianceSql = "SELECT product_id, shift, variance FROM dl_variance_flags
+    $varianceSql = "SELECT branch_id, product_id, shift, variance FROM dl_variance_flags
                      WHERE branch_id IN ({$marks}) AND ledger_date BETWEEN ? AND ?
                        AND kind IN ('ending','sales')";
     $bind = array_merge($ids, [$historyFrom, $historyTo]);
@@ -1234,25 +1302,103 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $stmt->execute($bind);
     $variance = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // ── Stock on hand: the BRANCH's own latest counted ending ──
+    // The previous query read dl_commissary_product_ledger.remaining_qty for every branch supplied
+    // by any selected branch's commissary. That is the P1 defect in a new place: it credited a
+    // destination branch with its source's UNDELIVERED finished goods, and credited EVERY branch of
+    // one commissary with the whole of it, so the same stock offset many branches' requirements.
+    // A branch draws down its own shelf, so the offset is that branch's latest counted closing.
+    // One row per branch+product: the ending of the latest shift on the latest counted date.
     $inventoryBranchIds = $filters['branch_id'] > 0 ? [$filters['branch_id']] : $ids;
     $inventoryMarks = implode(',', array_fill(0, count($inventoryBranchIds), '?'));
-    $inventorySql = "SELECT product_id, ledger_date, wastage_qty, remaining_qty
-                       FROM dl_commissary_product_ledger
-                      WHERE ledger_date BETWEEN ? AND ?
-                        AND commissary_branch_id IN (
-                            SELECT DISTINCT assigned_commissary_id
-                              FROM dl_branches
-                             WHERE id IN ({$inventoryMarks})
-                               AND assigned_commissary_id IS NOT NULL
-                        )";
-    $inventoryBind = array_merge([$historyFrom, $historyTo], $inventoryBranchIds);
+    $inventorySql = "SELECT latest.branch_id, latest.product_id, latest.ledger_date,
+                            latest.bal_end AS ending_qty
+                       FROM dl_daily_ledger latest
+                       INNER JOIN (
+                            SELECT dl.branch_id, dl.product_id,
+                                   MAX(CONCAT(dl.ledger_date, ':', COALESCE(dl.shift, ''))) AS latest_key
+                              FROM dl_daily_ledger dl
+                             WHERE dl.ledger_date BETWEEN ? AND ?
+                               AND dl.bal_end IS NOT NULL
+                               AND dl.branch_id IN ({$inventoryMarks})
+                             GROUP BY dl.branch_id, dl.product_id
+                       ) newest
+                         ON newest.branch_id = latest.branch_id
+                        AND newest.product_id = latest.product_id
+                        AND newest.latest_key = CONCAT(latest.ledger_date, ':', COALESCE(latest.shift, ''))
+                      WHERE latest.ledger_date BETWEEN ? AND ?
+                        AND latest.bal_end IS NOT NULL";
+    $inventoryBind = array_merge([$historyFrom, $historyTo], $inventoryBranchIds, [$historyFrom, $historyTo]);
     if ($filters['product_id'] > 0) {
-        $inventorySql .= ' AND product_id = ?';
+        $inventorySql .= ' AND latest.product_id = ?';
         $inventoryBind[] = $filters['product_id'];
     }
     $stmt = $db->prepare($inventorySql);
     $stmt->execute($inventoryBind);
     $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // ── Every branch+product+shift that MOVED in the window ──
+    // The forecast is otherwise driven by official sales rows, so a pair that carried movement but no
+    // sales produced NO row at all. Measured on tenant 207 (2026-09-01..2026-10-11): 420 branch-product
+    // pairs carried movement and 209 of them sold nothing, so those simply vanished from the page - an
+    // owner could not see dead stock, nor a product a branch stocks and never sells.
+    // Owner: "all products with movement".
+    // Scoped to the SELECTED branch: dl_reportSalesData() narrows its own rows with
+    // `AND dl.branch_id = ?`, so a movement query that used the whole accessible set would add rows
+    // for every branch the user can reach and the branch filter would appear not to work.
+    $movementIds = ($filters['branch_id'] ?? 0) > 0 ? [(int)$filters['branch_id']] : $ids;
+    $movementMarks = implode(',', array_fill(0, count($movementIds), '?'));
+    $movementStmt = $db->prepare(
+        "SELECT dl.branch_id, dl.product_id, dl.shift, p.sku, p.name AS product_name,
+                COUNT(*) AS movement_rows
+           FROM dl_daily_ledger dl
+           INNER JOIN dl_products p ON p.id = dl.product_id
+          WHERE dl.ledger_date BETWEEN ? AND ?
+            AND dl.branch_id IN ({$movementMarks})"
+        . ($filters['product_id'] > 0 ? ' AND dl.product_id = ?' : '')
+        . ($filters['shift'] !== '' ? ' AND dl.shift = ?' : '')
+        . ' GROUP BY dl.branch_id, dl.product_id, dl.shift, p.sku, p.name'
+    );
+    $movementBind = array_merge([$historyFrom, $historyTo], $movementIds);
+    if ($filters['product_id'] > 0) {
+        $movementBind[] = $filters['product_id'];
+    }
+    if ($filters['shift'] !== '') {
+        $movementBind[] = $filters['shift'];
+    }
+    $movementStmt->execute($movementBind);
+
+    $keysWithMeasuredSales = [];
+    foreach ($sales as $salesRow) {
+        $keysWithMeasuredSales[(int)($salesRow['branch_id'] ?? 0) . ':' . (int)($salesRow['product_id'] ?? 0)
+            . ':' . strtoupper((string)($salesRow['shift'] ?? ''))] = true;
+    }
+    $addedMovementKeys = [];
+    foreach ($movementStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $movedRow) {
+        $movedShift = strtoupper((string)($movedRow['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
+        $movedKey = (int)$movedRow['branch_id'] . ':' . (int)$movedRow['product_id'] . ':' . $movedShift;
+        if (isset($keysWithMeasuredSales[$movedKey]) || isset($addedMovementKeys[$movedKey])) {
+            continue;
+        }
+        $addedMovementKeys[$movedKey] = true;
+        $movedSource = $forecastSources[(int)$movedRow['branch_id']] ?? null;
+        // sales => null so it contributes NOTHING to the daily series; movement_only so the row is
+        // still created. A 0 average on this row means "no sales were measured", which the page says.
+        $sales[] = [
+            'branch_id' => (int)$movedRow['branch_id'],
+            'branch_name' => (string)($movedSource['name'] ?? ''),
+            'product_id' => (int)$movedRow['product_id'],
+            'sku' => (string)($movedRow['sku'] ?? ''),
+            'product_name' => (string)($movedRow['product_name'] ?? ''),
+            'shift' => $movedShift,
+            'ledger_date' => '',
+            'sales' => null,
+            'movement_only' => true,
+            'movement_rows' => (int)$movedRow['movement_rows'],
+            'source_class' => (string)($movedSource['class'] ?? 'unknown'),
+            'source_label' => (string)($movedSource['label'] ?? 'source not declared'),
+        ];
+    }
 
     // Reuse the production-efficiency view's own spoilage rate (wasted / produced)
     // instead of inventing a second definition. The efficiency aggregate runs over
