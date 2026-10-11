@@ -56,6 +56,12 @@ function cgAssert(string $label, bool $condition, string $detail = ''): void
 /** Fresh namespace so runs never collide with real cache state. */
 $run = 'cgtest_' . getmypid() . '_' . substr(bin2hex(random_bytes(4)), 0, 6);
 
+// Snapshot the SHARED reject counter. Cache::get()/set() always bind to the namespace 'cache' -
+// only the KEY carries the instance id - so this test inevitably increments a live, operator-facing
+// counter. It is restored on the way out, because a test that inflates a production metric is worse
+// than having no metric at all.
+$rejectsBaseline = cacheGenerationRejectCounts();
+
 // ── 0) Preconditions ────────────────────────────────────────────────────────────
 $apcuLive = @apcu_store('cg_probe_' . $run, 1, 60) === true;
 cgAssert(
@@ -243,11 +249,16 @@ cgAssert(
     is_array($nsStats) && $nsStats['reads'] >= 2 && $nsStats['rejects'] >= 1,
     var_export($nsStats, true)
 );
+// Fleet visibility: rejects must be readable from ANY process, including CLI where APCu is off.
+// This is a plain file read, so it works here and would work from a separate worker - which is the
+// entire reason rejects are not stored in APCu.
+cgAssert(
+    '★ reject counts are shared (visible from any process, not just this worker)',
+    (cacheGenerationRejectCounts()[$run] ?? 0) >= 1,
+    var_export(cacheGenerationRejectCounts(), true)
+);
 
 // ── Cleanup ────────────────────────────────────────────────────────────────────
-app()->cache()->clear($inst);
-app()->cache()->clear($instNoApcu);
-@apcu_delete('cg_probe_' . $run);
 $rmrf = function (string $dir) use (&$rmrf): void {
     if (!is_dir($dir)) {
         return;
@@ -257,8 +268,60 @@ $rmrf = function (string $dir) use (&$rmrf): void {
     }
     @rmdir($dir);
 };
+
+app()->cache()->clear($inst);
+app()->cache()->clear($instNoApcu);
+@apcu_delete('cg_probe_' . $run);
 $rmrf(dirname(cacheGenerationPath($run, 'seq')));
 $rmrf($fragRoot);
+
+// clear() removes the entries but leaves the now-empty instance directories behind, and every
+// bump() wrote a generation record under the shared 'cache' namespace. Both are cleaned up
+// explicitly, because a test that leaks into storage/cache is the exact defect this repo hit in
+// cms_theme_test (a literal that leaked a symlink target).
+foreach (glob(dirname(cacheGenerationRoot()) . '/cgtest_*') ?: [] as $d) {
+    $rmrf($d);
+}
+foreach (glob(cacheGenerationRoot() . '/cache/cgtest_*.gen') ?: [] as $g) {
+    @unlink($g);
+}
+
+// Restore the SHARED reject counter to its pre-test state: drop namespaces the test created and
+// put every pre-existing namespace back to its baseline count. The map itself is production state.
+$rejectFile = cacheGenerationRejectFile();
+if (is_file($rejectFile)) {
+    $rejectMap = json_decode((string)@file_get_contents($rejectFile), true);
+    if (is_array($rejectMap)) {
+        foreach ($rejectMap as $ns => $_) {
+            if (!array_key_exists($ns, $rejectsBaseline)) {
+                unset($rejectMap[$ns]);
+            }
+        }
+        foreach ($rejectsBaseline as $ns => $n) {
+            $rejectMap[$ns] = $n;
+        }
+        if ($rejectMap === []) {
+            @unlink($rejectFile);
+        } else {
+            @file_put_contents($rejectFile, json_encode($rejectMap), LOCK_EX);
+        }
+    }
+}
+$restored = cacheGenerationRejectCounts();
+ksort($restored);
+$expected = $rejectsBaseline;
+ksort($expected);
+cgAssert(
+    'the shared reject counter is restored to its pre-test state',
+    $restored === $expected,
+    'before=' . json_encode($expected) . ' after=' . json_encode($restored)
+);
+
+$leaked = array_merge(
+    glob(dirname(cacheGenerationRoot()) . '/cgtest_*') ?: [],
+    glob(cacheGenerationRoot() . '/cache/cgtest_*') ?: []
+);
+cgAssert('the test leaves no cache or generation files behind', $leaked === [], implode(',', $leaked));
 
 echo "\n============================================================\n";
 echo "Cache generation tests: {$passed} passed, {$failed} failed\n";

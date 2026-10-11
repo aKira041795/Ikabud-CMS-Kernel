@@ -194,8 +194,84 @@ function cacheGenerationValid(string $namespace, ?string $stamp, string $key = C
     if ($stamp === cacheGenerationRead($namespace, $key)) {
         return true;
     }
-    cacheGenerationStatsInc('cache_gen_rejects:' . cacheGenerationSafe($namespace));
+    cacheGenerationStatsNoteReject($namespace);
     return false;
+}
+
+/**
+ * Count a rejected stale read in a SHARED, fleet-visible place.
+ *
+ * Rejects are the rare, actionable event - they mean invalidation is actively preventing stale
+ * content from being served - so a locked file write here costs nothing measurable. It is
+ * file-backed rather than APCu-backed ON PURPOSE: APCu is per-worker and php.ini sets
+ * apc.enable_cli=0, so an APCu-only reject counter is invisible to `php ikabud cache:stats` and
+ * therefore invisible to the operator who is supposed to act on it.
+ *
+ * The READS denominator stays in APCu, because it increments on every read and must remain cheap.
+ * It is reported as the current worker's own view, which the output says rather than quietly
+ * presenting it as a fleet total.
+ */
+function cacheGenerationStatsNoteReject(string $namespace): void
+{
+    $file = cacheGenerationRejectFile();
+    $dir = dirname($file);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+        @chmod($dir, 0777);
+    }
+    $fp = @fopen($file, 'c+');
+    if ($fp === false) {
+        return;
+    }
+    if (!flock($fp, LOCK_EX)) {
+        fclose($fp);
+        return;
+    }
+    $raw = stream_get_contents($fp);
+    $map = (is_string($raw) && $raw !== '') ? json_decode($raw, true) : [];
+    if (!is_array($map)) {
+        $map = [];
+    }
+    $ns = cacheGenerationSafe($namespace);
+    $map[$ns] = (int)($map[$ns] ?? 0) + 1;
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($map));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+}
+
+/** Path of the shared reject counter. */
+function cacheGenerationRejectFile(): string
+{
+    return cacheGenerationRoot() . '/_rejects.json';
+}
+
+/**
+ * Shared reject counts, namespace => count.
+ *
+ * Readable from ANY process, including CLI where APCu is disabled, which is the whole reason this
+ * counter is not stored in APCu.
+ *
+ * @return array<string,int>
+ */
+function cacheGenerationRejectCounts(): array
+{
+    $file = cacheGenerationRejectFile();
+    if (!is_file($file)) {
+        return [];
+    }
+    $raw = @file_get_contents($file);
+    $decoded = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($decoded)) {
+        return [];
+    }
+    $out = [];
+    foreach ($decoded as $ns => $n) {
+        $out[(string)$ns] = (int)$n;
+    }
+    return $out;
 }
 
 /**
@@ -228,15 +304,32 @@ function cacheGenerationStatsInc(string $key): void
  * from stale reuse (chair consult 2026-10-11, Q7).
  *
  * apcu_cache_info() lists keys but not values, so the keys are enumerated and each value is then
- * fetched. APCu is per-worker, so this reports the CURRENT worker only — correct for a CLI/diagnostic
- * call, not a fleet aggregate.
+ * fetched. REJECTS are shared (file-backed) and therefore fleet-visible; READS are APCu-backed and
+ * therefore describe the current worker only. That split is deliberate and stated in the output.
  *
- * @return array<string,array{reads:int,rejects:int,rate:float}>
+ * @return array<string,array{reads:int,rejects:int,rate:float|null}> A null rate means the
+ *         denominator is unknown (no APCu in this process), NOT that the rate is zero.
  */
 function cacheGenerationStats(): array
 {
     $out = [];
+
+    // Rejects come from the SHARED file so they survive a worker boundary and are visible from CLI.
+    foreach (cacheGenerationRejectCounts() as $ns => $n) {
+        // rate defaults to null, NOT 0.0: see the docblock - 0% beside a non-zero reject count reads
+        // as healthy and would hide the signal.
+        $out[$ns] ??= ['reads' => 0, 'rejects' => 0, 'rate' => null];
+        $out[$ns]['rejects'] = $n;
+    }
+
+    // Reads come from this worker's APCu: the denominator increments on every read, so it must
+    // stay cheap, and it is reported as a per-worker view rather than a fleet total.
     if (!function_exists('apcu_cache_info') || !function_exists('apcu_fetch')) {
+        foreach ($out as $ns => $row) {
+            // No denominator available: report null, never 0.0. A rate of "0%" beside a non-zero
+            // reject count reads as healthy and would hide exactly the signal being measured.
+            $out[$ns]['rate'] = null;
+        }
         return $out;
     }
     $info = @apcu_cache_info();
@@ -255,15 +348,17 @@ function cacheGenerationStats(): array
         if (!is_int($value)) {
             continue;
         }
-        $out[$ns] ??= ['reads' => 0, 'rejects' => 0, 'rate' => 0.0];
+        $out[$ns] ??= ['reads' => 0, 'rejects' => 0, 'rate' => null];
+        // Only reads are APCu-backed here. Rejects come from the shared file above and must not be
+        // overwritten by a per-worker value.
         if ($field === 'cache_gen_reads') {
             $out[$ns]['reads'] = $value;
-        } elseif ($field === 'cache_gen_rejects') {
-            $out[$ns]['rejects'] = $value;
         }
     }
     foreach ($out as $ns => $row) {
-        $out[$ns]['rate'] = $row['reads'] > 0 ? round(100 * $row['rejects'] / $row['reads'], 2) : 0.0;
+        $out[$ns]['rate'] = $row['reads'] > 0
+            ? round(100 * $row['rejects'] / $row['reads'], 2)
+            : null;
     }
     return $out;
 }

@@ -1034,6 +1034,7 @@ switch ($command) {
         out('    ' . green('disyl:inspect') . ' <file>       Inspect template variables, components, sources');
         out('    ' . green('cache:clear') . '                 Clear all runtime caches (DiSyL compiled, file cache, APCu)');
         out('    ' . green('cache:prune') . ' [--dry-run]     Remove expired file-cache entries');
+        out('    ' . green('cache:stats') . '                 Cache footprint, expiry and stale-rejection metrics');
         out('    ' . green('cache:clear') . ' --disyl-only    Clear only DiSyL compiled template cache');
         out('    ' . green('cache:clear') . ' --apcu-only     Clear only APCu in-memory cache');
         out('    ' . green('theme:validate') . ' <slug>     Validate theme manifest, tokens, templates, anti-patterns');
@@ -4809,6 +4810,100 @@ MD;
             out('');
             exit(1);
         }
+
+    // ── cache:stats ───────────────────────────────────────────────
+    case 'cache:stats':
+        banner();
+        out('  ' . bold('Cache Stats'));
+        out('');
+
+        $cacheRoot = STORAGE_PATH . '/cache';
+        $fmtBytes = static function (int $b): string {
+            if ($b >= 1048576) return round($b / 1048576, 2) . ' MB';
+            if ($b >= 1024) return round($b / 1024, 1) . ' KB';
+            return $b . ' B';
+        };
+
+        // Footprint per top-level subtree. Growth is the thing an operator cannot see today, and on
+        // shared hosting a full disk quota breaks sessions, logs and uploads together - not just the
+        // cache. Read-only and off the request path, so it costs nothing per request.
+        $rows = [];
+        foreach (glob($cacheRoot . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+            $bytes = 0;
+            $files = 0;
+            $it = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($it as $f) {
+                if ($f->isFile()) {
+                    $bytes += $f->getSize();
+                    $files++;
+                }
+            }
+            $rows[basename($dir)] = ['bytes' => $bytes, 'files' => $files];
+        }
+        uasort($rows, static fn(array $a, array $b): int => $b['bytes'] <=> $a['bytes']);
+
+        $totalBytes = array_sum(array_column($rows, 'bytes'));
+        $totalFiles = array_sum(array_column($rows, 'files'));
+        out('  ' . dim(sprintf('%-36s %10s %8s', 'subtree', 'size', 'files')));
+        foreach ($rows as $name => $r) {
+            out(sprintf('  %-36s %10s %8d', $name, $fmtBytes((int)$r['bytes']), (int)$r['files']));
+        }
+        out('  ' . dim(str_repeat('-', 56)));
+        out(sprintf('  %-36s %10s %8d', 'TOTAL', $fmtBytes((int)$totalBytes), (int)$totalFiles));
+        out('');
+
+        // Reclaimable now, without waiting for a read to happen to touch each entry.
+        //
+        // Scheduling note: nothing runs this automatically. On shared hosting cron is the only
+        // scheduler, so a production install should add:
+        //   15 4 * * *  cd /path/to/app && php ikabud cache:prune >/dev/null 2>&1
+        // The filesystem is bounded by scheduled pruning, NOT by an in-request LRU scan: Cache's
+        // enforceCacheLimit() walks *.cache across every subtree, including pagecache/ and other
+        // modules' directories, so enabling maxCacheSizeMB would let an ordinary Cache::set()
+        // evict the page cache.
+        try {
+            $cache = new \Ikabud\Kernel\Cache($cacheRoot);
+            $preview = $cache->previewExpired();
+            out('  ' . green('v') . ' ' . (int)($preview['pruned'] ?? 0)
+                . ' expired entries reclaimable (' . $fmtBytes((int)($preview['bytes_freed'] ?? 0)) . ')'
+                . '  ->  php ikabud cache:prune');        } catch (\Throwable $e) {
+            out('  ' . yellow('!') . ' expired scan unavailable: ' . $e->getMessage());
+        }
+        out('');
+
+        // THE metric that separates "invalidation works" from "invalidation is merely configured".
+        // A successful bump proves nothing on its own, and a hit rate cannot tell valid reuse from
+        // stale reuse. A rate of 0% in steady state is healthy; a sustained non-zero rate means
+        // writers are invalidating faster than readers stop using what they had.
+        $genHelper = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__)) . '/src/helpers/cache-generation.php';
+        if (!function_exists('cacheGenerationStats') && is_file($genHelper)) {
+            require_once $genHelper;
+        }
+        out('  ' . bold('Invalidation (stale-rejection rate)'));
+        if (function_exists('cacheGenerationStats')) {
+            $genStats = cacheGenerationStats();
+            if ($genStats === []) {
+                out('  ' . dim('no validated cache reads recorded in this worker yet'));
+            } else {
+                out('  ' . dim(sprintf('%-30s %8s %8s %8s', 'namespace', 'reads', 'rejects', 'rate')));
+                uasort($genStats, static fn(array $a, array $b): int => $b['rejects'] <=> $a['rejects']);
+                foreach ($genStats as $ns => $s) {
+                    $rate = $s['rate'];
+                    $rateText = $rate === null ? '     n/a' : sprintf('%7.2f%%', (float)$rate);
+                    $line = sprintf('%-30s %8d %8d %s', (string)$ns, (int)$s['reads'], (int)$s['rejects'], $rateText);
+                    out('  ' . (((int)$s['rejects']) > 0 ? yellow($line) : dim($line)));
+                }
+            }
+            out('  ' . dim('rejects are shared (all workers); reads are this worker only (APCu).'));
+        } else {
+            out('  ' . yellow('!') . ' generation helper not loadable');
+        }
+        out('');
+
+        exit(0);
 
     // ── cache:clear ───────────────────────────────────────────────
     case 'cache:clear':
