@@ -849,6 +849,14 @@ function cmsApplyThemeSymlinkState(?string $slug): void
     }
 
     kernelFlushCodeCaches();
+
+    // Any cached page was rendered with the PREVIOUS theme's templates. Without this the
+    // pre-bootstrap fast path keeps serving the old theme's markup until TTL, so activating a
+    // theme appears to do nothing. pageCacheInvalidateAllInstances() covers every tenant, not
+    // just the current one.
+    if (function_exists('pageCacheInvalidateAllInstances')) {
+        pageCacheInvalidateAllInstances();
+    }
 }
 
 /**

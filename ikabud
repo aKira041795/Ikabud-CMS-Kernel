@@ -4819,6 +4819,22 @@ MD;
         out('  ' . bold('Cache Clear'));
         out('');
 
+        // Capture the page-cache instance list BEFORE the file clear below. Cache::clearAll()
+        // deletes the tenant cache directories, so enumerating afterwards finds nothing and
+        // those tenants would never be purged - a purge that reports success without purging.
+        $pageCacheInstances = [];
+        if (!$disylOnly && !$apcuOnly) {
+            if (!function_exists('pageCacheInstanceNames')) {
+                $pageCacheHelper = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__)) . '/src/helpers/page-cache.php';
+                if (is_file($pageCacheHelper)) {
+                    require_once $pageCacheHelper;
+                }
+            }
+            if (function_exists('pageCacheInstanceNames')) {
+                $pageCacheInstances = pageCacheInstanceNames();
+            }
+        }
+
         $totalCleared = 0;
         $errors = [];
 
@@ -4861,6 +4877,29 @@ MD;
             } catch (\Throwable $e) {
                 $errors[] = 'File cache: ' . $e->getMessage();
                 out('  ' . yellow('△') . ' File cache: ' . $e->getMessage());
+            }
+        }
+
+        // ── Page cache (pre-bootstrap fast path) ──────────────────
+        // Must run AFTER the file clear above. Deleting the cache files also deletes
+        // `.cache_version` and `.flush`, and the fast path treats a MISSING version file as
+        // "skip the version check" and a MISSING `.flush` as "accept" - so a warm APCu L1
+        // entry would have survived the clear and kept being served. Re-creating both markers
+        // after the delete is what makes the purge actually take effect in php-fpm workers,
+        // whose APCu cannot be cleared from CLI at all.
+        if (!$disylOnly && !$apcuOnly) {
+            if (function_exists('pageCacheInvalidateInstances') && $pageCacheInstances !== []) {
+                try {
+                    foreach (pageCacheInvalidateInstances($pageCacheInstances) as $instance => $info) {
+                        out('  ' . green('✓') . " Page cache {$instance}: version {$info['version_before']} → {$info['version_after']}, flush marker touched");
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Page cache: ' . $e->getMessage();
+                    out('  ' . yellow('△') . ' Page cache: ' . $e->getMessage());
+                }
+            } else {
+                $errors[] = 'Page cache: invalidation helper unavailable';
+                out('  ' . yellow('△') . ' Page cache: invalidation helper unavailable');
             }
         }
 

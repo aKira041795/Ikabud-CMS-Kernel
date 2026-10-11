@@ -52,16 +52,19 @@ function pageCacheVersionFile(string $instance): string
 
 function pageCacheReadVersion(string $instance): int
 {
-    if (function_exists('apcu_fetch')) {
-        $v = apcu_fetch(pageCacheVersionKey($instance));
-        if (is_int($v) && $v > 0) {
-            return $v;
-        }
-    }
+    // File first, APCu second. The version is memoised in APCu for 24h and APCu is per-worker,
+    // so a memo written before a CLI purge would shadow the bumped file forever and the purge
+    // would silently do nothing. One small read per lookup is far cheaper than that failure.
     $f = pageCacheVersionFile($instance);
     if (is_file($f)) {
         $v = (int)@file_get_contents($f);
         if ($v > 0) {
+            return $v;
+        }
+    }
+    if (function_exists('apcu_fetch')) {
+        $v = apcu_fetch(pageCacheVersionKey($instance));
+        if (is_int($v) && $v > 0) {
             return $v;
         }
     }
@@ -231,10 +234,41 @@ function pageCacheTags(string $uri, string $moduleId): array
 function pageCacheGet(string $uri): ?array
 {
     $key = pageCacheKey($uri);
-    $entry = app()->cache()->get(pageCacheInstance(), $key);
+    $instance = pageCacheInstance();
+    $entry = app()->cache()->get($instance, $key);
     if (!is_array($entry) || !isset($entry['html'])) {
         return null;
     }
+
+    // Honour the SAME purge signals as the pre-bootstrap fast path.
+    //
+    // THE DEFECT THIS FIXES: this layer had no version and no flush check at all, so it answered
+    // every purge with its warm entry. Bumping `.cache_version` and touching `.flush` is the only
+    // way a purge can reach every php-fpm worker - APCu is per-worker and cannot be cleared from
+    // CLI - and the kernel layer simply ignored both signals. That is why `php ikabud cache:clear`
+    // appeared to do nothing and a theme edit looked like it had not been saved.
+    $currentVersion = pageCacheReadVersion($instance);
+    if ($currentVersion > 0
+        && isset($entry['_cache_version'])
+        && (int)$entry['_cache_version'] !== $currentVersion
+    ) {
+        return null;
+    }
+
+    // An entry that cannot be dated cannot be proven to predate the last flush, so it is stale.
+    // Note the explicit `$entryStamp === 0` branch: writing `$entryStamp > 0 && ...` would SKIP
+    // the check for exactly the entries that need it most.
+    // `>=` rather than `>`: file mtimes have one-second resolution, so an entry written in the
+    // same second as the purge would otherwise be accepted and served stale until TTL.
+    $entryStamp = (int)($entry['_cached_at_ts'] ?? 0);
+    if ($entryStamp === 0 && isset($entry['cached_at'])) {
+        $entryStamp = (int)strtotime((string)$entry['cached_at']);
+    }
+    $flushFile = pageCacheFlushFilePath($instance);
+    if (is_file($flushFile) && ($entryStamp === 0 || filemtime($flushFile) >= $entryStamp)) {
+        return null;
+    }
+
     return $entry;
 }
 
@@ -264,6 +298,12 @@ function pageCacheSet(string $uri, string $html, string $moduleId, int $status =
         'status' => $status,
         'etag' => $etag,
         'cached_at' => date('Y-m-d H:i:s'),
+        // Numeric write time. The pre-bootstrap fast path compares this against the `.flush`
+        // mtime to decide whether a purge has happened since the entry was written, and that
+        // comparison is the ONLY invalidation signal that crosses a php-fpm worker boundary
+        // (APCu is per-worker and cannot be cleared from CLI). Without this key the check was
+        // skipped entirely and every cached entry was served until TTL expired.
+        '_cached_at_ts' => time(),
         'uri' => $uri,
         'module' => $moduleId,
         '_cache_version' => pageCacheReadVersion(pageCacheInstance()),
@@ -381,6 +421,82 @@ function pageCacheFlushAll(): int
     pageCacheBumpVersion($instance);
     pageCacheTouchFlush($instance);
     return app()->cache()->clearByTags($instance, ['pagecache:all']);
+}
+
+/**
+ * List every page-cache instance that must be invalidated together: the base instance plus one
+ * per tenant.
+ *
+ * MUST BE CALLED BEFORE ANY BULK FILE CLEAR. `Cache::clearAll()` deletes the tenant cache
+ * directories, so globbing afterwards silently returns nothing and those tenants are never
+ * purged - which is exactly how a purge can report success while stale pages keep being served.
+ *
+ * Symlinked directories are skipped: this function's output is used to WRITE marker files into
+ * each name, and following a symlink would let a purge write outside the cache tree.
+ *
+ * @return string[]
+ */
+function pageCacheInstanceNames(): array
+{
+    $base = defined('PAGE_CACHE_INSTANCE') ? (string)PAGE_CACHE_INSTANCE : 'pagecache';
+    $storagePath = rtrim((string)(defined('STORAGE_PATH')
+        ? STORAGE_PATH
+        : (defined('BASE_PATH') ? BASE_PATH . '/storage' : dirname(__DIR__, 3) . '/storage')), '/');
+
+    $names = [$base];
+    foreach (glob($storagePath . '/cache/' . $base . '_t*', GLOB_ONLYDIR) ?: [] as $dir) {
+        if (is_link($dir)) {
+            continue;
+        }
+        $names[] = basename($dir);
+    }
+    // A tenant can be served before its cache dir exists; cover the current instance too.
+    if (function_exists('pageCacheInstance')) {
+        $names[] = pageCacheInstance();
+    }
+
+    return array_values(array_unique(array_filter($names, static fn ($i) => $i !== '')));
+}
+
+/**
+ * Bump the version and touch the flush marker for each named instance.
+ *
+ * WHY BOTH MARKERS MATTER: `pageCacheFlushAll()` only invalidates `pageCacheInstance()`, which
+ * from CLI is the tenant-less `pagecache` instance because there is no tenant context, so a CLI
+ * purge used to leave `pagecache_t1` untouched. Deleting cache files is also NOT sufficient -
+ * APCu is per-worker, cannot be cleared from CLI, and a warm entry survives the file being gone.
+ * The `.flush` mtime is read fresh from disk by every worker on every request, which is what
+ * actually crosses the worker boundary; the version catches workers that have a readable file.
+ *
+ * @param string[] $instances
+ * @return array<string,array{version_before:int,version_after:int,flush_file:string}>
+ */
+function pageCacheInvalidateInstances(array $instances): array
+{
+    $report = [];
+    foreach ($instances as $instance) {
+        $before = pageCacheReadVersion($instance);
+        pageCacheBumpVersion($instance);
+        pageCacheTouchFlush($instance);
+        $report[$instance] = [
+            'version_before' => $before,
+            'version_after' => pageCacheReadVersion($instance),
+            'flush_file' => pageCacheFlushFilePath($instance),
+        ];
+    }
+
+    return $report;
+}
+
+/**
+ * Invalidate every page-cache instance in one call. Prefer capturing pageCacheInstanceNames()
+ * BEFORE a bulk file clear and passing it to pageCacheInvalidateInstances().
+ *
+ * @return array<string,array{version_before:int,version_after:int,flush_file:string}>
+ */
+function pageCacheInvalidateAllInstances(): array
+{
+    return pageCacheInvalidateInstances(pageCacheInstanceNames());
 }
 
 // ── Cache Warm-Up ────────────────────────────────────────────────────

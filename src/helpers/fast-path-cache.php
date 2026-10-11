@@ -178,14 +178,19 @@ declare(strict_types=1);
     $versionApcuKey = 'pagecache:version:' . $instanceDirName;
 
     $currentVersion = 0;
-    if (function_exists('apcu_fetch')) {
+    // Read the FILE first, APCu only as a fallback. The version is memoised in APCu for 24h
+    // and APCu is per-worker, so a CLI purge that bumps the file would never reach a worker
+    // holding an older memo - that memo would keep matching entries written before the purge,
+    // and the purge would silently do nothing. One small file read is cheap next to serving a
+    // stale page after an explicit purge.
+    if (is_file($versionFile)) {
+        $currentVersion = (int)@file_get_contents($versionFile);
+    }
+    if ($currentVersion === 0 && function_exists('apcu_fetch')) {
         $v = apcu_fetch($versionApcuKey);
         if (is_int($v) && $v > 0) {
             $currentVersion = $v;
         }
-    }
-    if ($currentVersion === 0 && is_file($versionFile)) {
-        $currentVersion = (int)@file_get_contents($versionFile);
     }
 
     // ── 8. APCu L1: try in-memory first ──────────────────────────────
@@ -199,8 +204,16 @@ declare(strict_types=1);
             if (isset($cached['_cache_expires_at']) && time() < (int)$cached['_cache_expires_at']) {
                 // Check version match
                 if (!isset($cached['_cache_version']) || $cached['_cache_version'] === $currentVersion) {
-                    // Check .flush file mtime
-                    if (!is_file($flushFile) || !isset($cached['_cached_at_ts']) || filemtime($flushFile) <= $cached['_cached_at_ts']) {
+                    // Check .flush file mtime.
+                    // An entry with no usable write time is treated as STALE. Testing
+                    // `!isset($cached['_cached_at_ts'])` as an ACCEPT condition meant every entry
+                    // written before that key existed bypassed the flush check completely, so a
+                    // purge could never invalidate a warm APCu entry and stale HTML was served
+                    // until TTL - which is what made theme edits look like they did nothing.
+                    $entryStamp = isset($cached['_cached_at_ts'])
+                        ? (int)$cached['_cached_at_ts']
+                        : (isset($cached['cached_at']) ? (int)strtotime((string)$cached['cached_at']) : 0);
+                    if ($entryStamp > 0 && (!is_file($flushFile) || filemtime($flushFile) < $entryStamp)) {
                         $entry = $cached;
                     }
                 }
@@ -243,16 +256,22 @@ declare(strict_types=1);
             return;
         }
 
-        // Check .flush file
-        if (!isset($entry['_cached_at_ts'])) {
-            $entry['_cached_at_ts'] = isset($entry['cached_at'])
-                ? strtotime((string)$entry['cached_at']) ?: time()
-                : time();
-        }
-        if (is_file($flushFile) && filemtime($flushFile) > $entry['_cached_at_ts']) {
+        // Check .flush file.
+        // Never fabricate `time()` here: an entry that cannot be dated would then always look
+        // newer than the flush marker and would be immune to every purge.
+        $entryStamp = isset($entry['_cached_at_ts'])
+            ? (int)$entry['_cached_at_ts']
+            : (isset($entry['cached_at']) ? (int)strtotime((string)$entry['cached_at']) : 0);
+        if ($entryStamp === 0) {
+            // Cannot prove this predates the last flush, so treat it as stale.
             @unlink($cacheFile);
             return;
         }
+        if (is_file($flushFile) && filemtime($flushFile) >= $entryStamp) {
+            @unlink($cacheFile);
+            return;
+        }
+        $entry['_cached_at_ts'] = $entryStamp;
 
         // Promote to APCu L1 for next request (stampede-safe: only first writer wins)
         if (function_exists('apcu_add')) {
