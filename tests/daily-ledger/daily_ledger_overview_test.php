@@ -212,7 +212,7 @@ $h->test('fractional net percent is preserved', dl_overviewNetSalesPercent('12.5
 $netConfigured = dl_overviewNetSales(200.0, '12.5');
 $h->test('positive net percent applies exact deduction', $netConfigured['configured'] === true && $netConfigured['net'] === 175.0 && $netConfigured['percent'] === 12.5);
 $netZero = dl_overviewNetSales(200.0, '0');
-$h->test('0% net renders as not configured without a duplicate gross net value', $netZero['configured'] === false && $netZero['net'] === 200.0);
+$h->test('a 0% deduction is not configured and does not duplicate the gross net value', $netZero['configured'] === false && $netZero['net'] === 200.0);
 
 // ─── Pareto (pure) ──────────────────────────────────────────────
 $h->section('Pareto 80/20');
@@ -574,14 +574,16 @@ $branchChartSection = static function (string $html): string {
 };
 
 $h->test('viewer page exposes no POST/mutation form', !preg_match('/<form[^>]+method=["\']post/i', $viewerHtml));
+// The net-sales value and the 0% configuration state are now rendered on the
+// Health surface itself, so the named assertion examines $viewerHtml. The prior
+// version read $branchSummaryHtml while claiming to test the viewer page.
+$alphaSummaryRow = preg_match('/<tr><td>Overview Alpha<\/td>.*?<\/tr>/s', $branchSummaryHtml, $alphaSummaryMatch) ? $alphaSummaryMatch[0] : '';
 $h->test(
     'viewer page shows the configured net sales label',
-    str_contains($viewerHtml, '/admin/reports/sales')
-        && str_contains($branchSummaryHtml, '<th>Net</th>')
-        && str_contains($branchSummaryHtml, 'PHP 150.00')
-        && str_contains($branchSummaryHtml, 'PHP 135.00')
+    str_contains($viewerHtml, 'Net sales after')
+        && str_contains($viewerHtml, 'PHP 135.00')
+        && str_contains($viewerHtml, '/admin/reports/branch-summary')
 );
-$alphaSummaryRow = preg_match('/<tr><td>Overview Alpha<\/td>.*?<\/tr>/s', $branchSummaryHtml, $alphaSummaryMatch) ? $alphaSummaryMatch[0] : '';
 $h->test(
     'viewer page shows the per-branch net value',
     $alphaSummaryRow !== ''
@@ -726,26 +728,24 @@ $h->test(
 );
 
 // 0% is a valid but ambiguous setting. Keep the configuration contract honest:
-// the field is still declared, and 0% is "not configured" rather than a net equal
-// to gross. (The old on-page hint is gone; see the note on the assertion below.)
+// the field is still declared, 0% is "not configured" rather than a net equal to
+// gross, and the Health view renders the explicit on-page hint for it.
 saveModuleSettings('daily-ledger', ['net_sales_deduction_percent' => '0']);
 if (function_exists('invalidateTenantModuleSettingsCache')) {
     invalidateTenantModuleSettingsCache();
 }
 dlModuleSettings(true);
 $zeroNetHtml = $renderAs('viewer', $viewerId, 'branch_id=' . $branchAlpha . '&date_from=2031-06-01&date_to=2031-06-03');
-// 0% is a valid but ambiguous setting. The Health view no longer renders any net
-// figure at all (net moved to the Branch Consolidated Summary report), so the
-// old on-page "Not configured" hint has no new rendering to anchor to. The
-// surviving contract is the setting itself: it is still declared with its human
-// label, and 0% still resolves to "not configured" rather than echoing gross as
-// a net amount. The removed on-page hint is reported as a restructure loss.
+// 0% is a valid but ambiguous setting. The Health view renders the on-page
+// "Not configured" hint for it, so the named assertion inspects $zeroNetHtml
+// rather than only the setting helpers.
 $h->test(
     '0% net renders the configuration hint',
     is_array($netField)
         && (string)($netField['label'] ?? '') === 'Net Sales Deduction %'
         && dl_overviewNetSales(150.0, '0')['configured'] === false
         && dl_overviewNetSales(150.0, '0')['net'] === 150.0
+        && str_contains($zeroNetHtml, 'Not configured')
 );
 $h->test('0% net does not render a misleading net amount', !str_contains($zeroNetHtml, 'Net PHP') && !str_contains($zeroNetHtml, 'deduction from'));
 saveModuleSettings('daily-ledger', ['net_sales_deduction_percent' => '10']);

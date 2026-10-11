@@ -134,15 +134,15 @@
 </div>
 
 <div class="card mb-6">
-    <div class="card-header"><span>Products ranked, biggest contributor down to least</span><span class="text-sm text-muted">{ranked_shown} of {ranked_total} shown</span></div>
+    <div class="card-header"><span>{if ranking_from == 'biggest'}Products ranked, biggest contributor down to least{/if}{if ranking_from == 'least'}Products ranked, long tail accumulating to the whole catalogue{/if}</span><span class="text-sm text-muted">{ranked_shown} of {ranked_total} shown</span></div>
     <div class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs leading-relaxed text-gray-600">
         <strong class="text-gray-700">How "cumulative share" is derived.</strong>
         Products are ranked by {sort_label}. A row's <em>share of sales</em> is its own amount divided by the total for the period.
         Its <em>cumulative share</em> is that share <strong>plus the share of every row above it</strong> - a running total down the ranking,
-        so the last row always reaches 100.00%. That running total is what makes the 80/20 line readable: the row where it first crosses 80% marks the products that drive 80% of sales.
+        so the last row always reaches 100.00%. {if ranking_from == 'biggest'}That running total is what makes the 80/20 line readable: the row where it first crosses 80% marks the products that drive 80% of sales.{/if}{if ranking_from == 'least'}Read in this ascending order, the row where the running total first crosses 80% lies deep in the long tail: it marks how much of the catalogue it takes to accumulate 80% of sales, not the products that drive it.{/if}
         
-Because it is built in ranking order, this ordering accumulates <strong>down from the {ranking_from} product</strong>.
-        <a class="font-medium text-indigo-600 underline" href="{base_url}/admin/products/performance?scope={view_scope}&amp;branch_id={branch_id}&amp;date_from={date_from}&amp;date_to={date_to}&amp;sort_by=amount&amp;sort_dir={cumulative_toggle_dir}&amp;product_q={product_q}&amp;min_share={min_share}">Build it from the {if ranking_from == 'biggest'}least{/if}{if ranking_from == 'least'}biggest{/if} instead</a>
+{if ranking_from == 'biggest'}Because it is built in ranking order, this ordering accumulates <strong>down from the biggest product</strong>.{/if}{if ranking_from == 'least'}Because it is built in ascending ranking order, the running total accumulates <strong>up from the least product</strong>: the first rows are the long tail and the last rows are the biggest sellers.{/if}
+        <a class="font-medium text-indigo-600 underline" href="{base_url}/admin/products/performance?scope={view_scope}&amp;branch_id={branch_id}&amp;date_from={date_from}&amp;date_to={date_to}&amp;sort_by=cumulative&amp;sort_dir={cumulative_toggle_dir}&amp;product_q={product_q}&amp;min_share={min_share}">Build it from the {if ranking_from == 'biggest'}least{/if}{if ranking_from == 'least'}biggest{/if} instead</a>
         - the small products then add up to the same 100%, which answers how little the long tail contributes.
     </div>
     <form class="card-body border-b border-gray-200 grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end" method="GET" action="{base_url}/admin/products/performance" onsubmit="return window.dlLoadForm(this)">
@@ -168,7 +168,7 @@ Because it is built in ranking order, this ordering accumulates <strong>down fro
     {/if}
     {if ranked_shown > 0}
     <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th></th><th>Product</th><th>SKU</th><th class="text-right">Units</th><th class="text-right">Amount</th><th class="text-right">Share of sales</th><th class="text-right"><a class="underline decoration-dotted" title="Cumulative share is the running total of shares down the ranking, so it cannot be its own sort key. Clicking reverses which end it accumulates from." href="{base_url}/admin/products/performance?scope={view_scope}&amp;branch_id={branch_id}&amp;date_from={date_from}&amp;date_to={date_to}&amp;sort_by=amount&amp;sort_dir={cumulative_toggle_dir}&amp;product_q={product_q}&amp;min_share={min_share}">Cumulative share {if ranking_from == 'biggest'}&#9660;{/if}{if ranking_from == 'least'}&#9650;{/if}</a></th></tr></thead>
+        <thead><tr><th>#</th><th></th><th>Product</th><th>SKU</th><th class="text-right">Units</th><th class="text-right">Amount</th><th class="text-right">Share of sales</th><th class="text-right"><a class="underline decoration-dotted" title="Cumulative share is the running total of shares down the ranking, so it cannot be its own sort key. Clicking reverses which end it accumulates from." href="{base_url}/admin/products/performance?scope={view_scope}&amp;branch_id={branch_id}&amp;date_from={date_from}&amp;date_to={date_to}&amp;sort_by=cumulative&amp;sort_dir={cumulative_toggle_dir}&amp;product_q={product_q}&amp;min_share={min_share}">Cumulative share {if ranking_from == 'biggest'}&#9660;{/if}{if ranking_from == 'least'}&#9650;{/if}</a></th></tr></thead>
         <tbody>
         {foreach ranked_products as p}
         <tr data-product-row data-slice-row="{p.slice_index}">

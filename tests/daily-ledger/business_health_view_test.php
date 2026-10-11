@@ -88,7 +88,12 @@ $h->test('14-day ranking states its active-only comparison denominator', str_con
 
 $h->section('Comparison visual');
 $liveText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-$fourteenText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($fourteen), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+// The repaired rule blocks a trend when EITHER period has any pending row, so the
+// original 14-day fixture (2026-09-28..2026-10-11) is correctly non-comparable.
+// The pair below is fully finalized in both 14-day windows and is the genuine
+// comparable case the assertion names.
+$comparable = $render(['scope' => 'ALL', 'period' => '2026-09-15 to 2026-09-28']);
+$comparableText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($comparable), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 // The live default period has zero completed rows, so no honest sales comparison
 // exists. It must say so with a neutral pending indicator - never a zero or green up.
 $h->test(
@@ -101,8 +106,8 @@ $h->test(
 // A period with finalized sales shows a signed delta and a directional indicator.
 $h->test(
     'a comparable period shows a signed delta with a directional visual',
-    preg_match('/delta-indicator delta-(up|down|flat)/', $fourteen) === 1
-        && preg_match('/(\+|-)\s*[\d.,]+%/', $fourteenText) === 1
+    preg_match('/delta-indicator delta-(up|down|flat)/', $comparable) === 1
+        && preg_match('/(\+|-)\s*[\d.,]+%/', $comparableText) === 1
 );
 
 $h->section('Read-only source guard');

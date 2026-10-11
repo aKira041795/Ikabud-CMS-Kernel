@@ -12499,6 +12499,17 @@ function handleAdminOverview(array $params = []): void
     // all-pending day is empty. Report that as unfinished reporting, never as zero sales.
     $completeness = dl_overviewLedgerCompleteness($ctx->db(), $filters);
     $reportingPending = $completeness['pending'] > 0 && $completeness['completed'] === 0;
+    // Three distinct sales states from the row counts: nothing recorded is not a
+    // measured zero, and an all-pending period is unfinished rather than zero. A
+    // part-pending period that already has finalized rows still shows the numeric
+    // official figure; its trend is blocked separately because a partly-pending
+    // comparison is not authoritative either.
+    $salesState = 'finalized';
+    if ($completeness['rows_total'] === 0) {
+        $salesState = 'no-sales';
+    } elseif ($completeness['completed'] === 0) {
+        $salesState = 'pending';
+    }
     $accessibleBranchIds = array_values(array_map('intval', $filters['accessible_branch_ids'] ?? [0]));
 
     // Branch selection narrows the displayed scope. An explicitly requested
@@ -12591,6 +12602,11 @@ function handleAdminOverview(array $params = []): void
             'unresolved_variances' => $signal['unresolved_variances'],
             'absolute_variance' => $signal['absolute_variance'],
             'has_activity' => $signal['rows_total'] > 0,
+            // A pending branch has no measured sale, so the view must not print
+            // PHP 0.00 for it as though that were a result.
+            'sales_state' => $signal['rows_total'] === 0
+                ? 'no-sales'
+                : ($signal['completed'] === 0 ? 'pending' : 'finalized'),
         ];
     }
 
@@ -12638,15 +12654,35 @@ function handleAdminOverview(array $params = []): void
     $priorFilters['date_from'] = $priorFrom->format('Y-m-d');
     $priorFilters['date_to'] = $priorTo->format('Y-m-d');
     $priorAmount = dl_overviewOfficialSalesTotal($ctx->db(), $priorFilters);
-    $trendComparable = !$reportingPending;
+    $priorCompleteness = dl_overviewLedgerCompleteness($ctx->db(), $priorFilters);
+    // A comparison is honest only when BOTH periods are fully finalized and carry a
+    // meaningful sales baseline. An empty baseline, a pending baseline, or any
+    // pending rows in either period cannot support an authoritative percentage, so
+    // an explicit named state is rendered instead.
+    $trendComparable = false;
+    $trendState = 'no-baseline';
+    if ($completeness['rows_total'] === 0) {
+        $trendState = 'no-sales';
+    } elseif ($completeness['pending'] > 0) {
+        $trendState = 'pending';
+    } elseif ($priorCompleteness['rows_total'] === 0) {
+        $trendState = 'no-baseline';
+    } elseif ($priorCompleteness['pending'] > 0 || $priorCompleteness['completed'] === 0) {
+        $trendState = 'pending-prior';
+    } elseif ($priorAmount <= 0.0) {
+        $trendState = 'no-baseline';
+    } else {
+        $trendComparable = true;
+        $trendState = 'comparable';
+    }
     $trendDirection = 'stable';
     if ($trendComparable && $grandAmount > $priorAmount) { $trendDirection = 'improving'; }
     elseif ($trendComparable && $grandAmount < $priorAmount) { $trendDirection = 'declining'; }
     $trendPercent = $priorAmount > 0.0 ? (($grandAmount - $priorAmount) / $priorAmount) * 100 : 0.0;
     $trendDelta = $grandAmount - $priorAmount;
     // The visual indicator's direction is derived from the real comparison, never
-    // hard-coded. 'pending' is the honest no-comparison state: it carries no arrow,
-    // no green, and no zero claim.
+    // hard-coded. Any non-comparable state carries no arrow, no green, and no zero
+    // claim; the template renders the explicit state text instead of a percentage.
     $trendVisual = 'pending';
     if ($trendComparable) {
         $trendVisual = $trendDirection === 'improving' ? 'up' : ($trendDirection === 'declining' ? 'down' : 'flat');
@@ -12654,15 +12690,23 @@ function handleAdminOverview(array $params = []): void
     $trendArrow = $trendVisual === 'up' ? '▲' : ($trendVisual === 'down' ? '▼' : ($trendVisual === 'flat' ? '■' : '—'));
     $trendPercentDisplay = ($trendPercent > 0 ? '+' : '') . number_format($trendPercent, 1) . '%';
     $trendDeltaDisplay = ($trendDelta > 0 ? '+' : '') . number_format($trendDelta, 2);
-    // When the current period has no honest sales comparison, the one real
-    // period-over-period number it still has is its reporting backlog. Compare that
-    // rather than showing a -100% sales fall that only means "not counted yet".
-    $priorCompleteness = dl_overviewLedgerCompleteness($ctx->db(), $priorFilters);
-    $trendPendingDelta = $completeness['pending'] - $priorCompleteness['pending'];
-    $trendPendingPercent = $priorCompleteness['pending'] > 0
-        ? ($trendPendingDelta / $priorCompleteness['pending']) * 100
-        : 0.0;
-    $trendPendingPercentDisplay = ($trendPendingPercent > 0 ? '+' : '') . number_format($trendPendingPercent, 1) . '%';
+    $trendStateLabel = 'Not yet comparable';
+    $trendStateDetail = 'Not yet comparable; the two periods cannot be compared.';
+    if ($trendState === 'no-sales') {
+        $trendStateLabel = 'No sales recorded';
+        $trendStateDetail = 'No sales recorded in this period; there is nothing to compare.';
+    } elseif ($trendState === 'pending') {
+        $trendStateLabel = 'Pending finalization';
+        $trendStateDetail = 'Not yet comparable: ' . $completeness['pending'] . ' row(s) pending finalization; no sales comparison is made.';
+    } elseif ($trendState === 'pending-prior') {
+        $trendStateLabel = 'Pending finalization';
+        $trendStateDetail = 'Not yet comparable: the previous period (' . $priorFrom->format('Y-m-d') . ' to ' . $priorTo->format('Y-m-d') . ') still has ' . $priorCompleteness['pending'] . ' row(s) pending finalization.';
+    } elseif ($trendState === 'no-baseline') {
+        $trendStateLabel = 'No baseline';
+        $trendStateDetail = 'No baseline: the previous period (' . $priorFrom->format('Y-m-d') . ' to ' . $priorTo->format('Y-m-d') . ') has no finalized sales to compare.';
+    }
+    // Reporting backlog is shown as a count and a bar, never as a signed
+    // percentage that would read as a sales performance claim.
     $trendPendingBarPct = $completeness['rows_total'] > 0
         ? (int)round(100 * $completeness['pending'] / $completeness['rows_total'])
         : 0;
@@ -12754,6 +12798,7 @@ function handleAdminOverview(array $params = []): void
         'chart_show_empty' => $chartShowEmpty,
         'exclude_pending' => $pendingRowsMode === 'exclude',
         'reporting_pending' => $reportingPending,
+        'sales_state' => $salesState,
         'pending_ledger_rows' => $completeness['pending'],
         // The form carries this marker, so the cue can tell a submitted filter
         // from a plain page load where the same defaults are in force.
@@ -12783,9 +12828,9 @@ function handleAdminOverview(array $params = []): void
         'trend_arrow' => $trendArrow,
         'trend_percent_display' => $trendPercentDisplay,
         'trend_delta_display' => $trendDeltaDisplay,
-        'trend_pending_delta' => $trendPendingDelta,
-        'trend_pending_percent' => $trendPendingPercent,
-        'trend_pending_percent_display' => $trendPendingPercentDisplay,
+        'trend_state' => $trendState,
+        'trend_state_label' => $trendStateLabel,
+        'trend_state_detail' => $trendStateDetail,
         'trend_pending_bar_pct' => $trendPendingBarPct,
         'trend_bar_pct' => $trendBarPct,
         'prior_pending_rows' => $priorCompleteness['pending'],
