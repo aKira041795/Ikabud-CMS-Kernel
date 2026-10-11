@@ -36,6 +36,7 @@ $handlers = [
     'overview' => 'handleAdminOverview',
     'sales' => 'handleAdminSales',
     'settings' => 'handleAdminSettings',
+    'commissary' => 'handleAdminCommissary',
 ];
 if (!isset($handlers[$view])) {
     fwrite(STDERR, "Unknown view\n");
@@ -49,6 +50,16 @@ $html = (string)ob_get_clean();
 $status = http_response_code();
 $formEnd = strpos($html, '</form>');
 $analytics = $formEnd === false ? $html : substr($html, $formEnd + 7);
+// The commissary selector is rendered inside the filter form, so parse the OPTIONS of the
+// commissary_id select. Other views return an empty map. This is the rendered output, not a
+// re-run of the handler's data query, so a narrowing mutation cannot hide behind a green probe.
+$commissaryOptions = [];
+if (preg_match('/<select[^>]*name="commissary_id"[^>]*>(.*?)<\/select>/s', $html, $selectMatch)) {
+    preg_match_all('/<option value="(\d+)"[^>]*>([^<]*)<\/option>/', $selectMatch[1], $optionMatches, PREG_SET_ORDER);
+    foreach ($optionMatches as $optionMatch) {
+        $commissaryOptions[(int)$optionMatch[1]] = trim((string)$optionMatch[2]);
+    }
+}
 echo json_encode([
     'status' => is_int($status) ? $status : 200,
     // The canonical Area control moved from the layout banner into the shared partial
@@ -59,5 +70,6 @@ echo json_encode([
     'has_b' => $markerB !== '' && str_contains($html, $markerB),
     'analytics_has_a' => $markerA !== '' && str_contains($analytics, $markerA),
     'analytics_has_b' => $markerB !== '' && str_contains($analytics, $markerB),
+    'commissary_options' => $commissaryOptions,
     'row_count' => substr_count($html, '<tr'),
 ], JSON_THROW_ON_ERROR);

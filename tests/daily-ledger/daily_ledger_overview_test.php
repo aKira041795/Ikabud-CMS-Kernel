@@ -15,9 +15,14 @@ require_once __DIR__ . '/../harness/TestHarness.php';
 
 $h = new TestHarness('daily-ledger-overview', TestHarness::MODE_INTEGRATION, 'localhost');
 
-// Rendering the Overview compiles DiSyL templates, and the compiler emits a named info line per
-// compile. Expected noise, declared so the log assertion still catches anything ELSE.
+// Rendering the Overview compiles DiSyL templates, and the compiler emits named info timing
+// lines: `disyl.compile.phases` when it compiles, and `disyl.render.breakdown` (cache_path
+// "compiled") on the compiled path that a cold cache takes. Both are expected engine
+// telemetry, declared here so the log assertion still catches anything ELSE. Without the
+// render line this suite fails only on the first run after a template change (measured:
+// 1 fail, then 0, 0) — a flaky guard.
 $h->allowLogLines('disyl.compile.phases');
+$h->allowLogLines('disyl.render.breakdown');
 
 $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/helpers/reporting.php');

@@ -54,6 +54,20 @@ function dl_reportFilters(array $input, array $user): array
     )));
     $viewScope = function_exists('dl_adminAreaScope') ? dl_adminAreaScope($user, $input) : ['type' => 'ALL', 'branch_ids' => [], 'value' => 'ALL'];
     $requestedBranch = max(0, (int)($input['branch_id'] ?? 0));
+    // The Area scope is the parent of the Branch filter. A branch that is authorized but sits
+    // outside the now-effective scope (because the Area changed under it) is a stale dependent:
+    // reset it to All Branches instead of letting the explicit-branch predicate match nothing.
+    // Deny-by-default is preserved: a branch the actor cannot access AT ALL is left in place, so
+    // the downstream IN + equality predicates still return no rows rather than widening.
+    if ($requestedBranch > 0 && !in_array($requestedBranch, $accessible, true)) {
+        $authorized = array_values(array_unique(array_filter(
+            array_map('intval', dl_accessibleBranchIds($user)),
+            static fn(int $id): bool => $id > 0
+        )));
+        if (in_array($requestedBranch, $authorized, true)) {
+            $requestedBranch = 0;
+        }
+    }
     // Preserve an explicit inaccessible branch so the downstream IN + equality
     // predicates return no rows. Falling back to zero here would silently widen
     // a tampered request to every branch the actor can access.
@@ -1274,6 +1288,49 @@ function dl_overviewNetSales(float $gross, $settingValue): array
         'configured' => $configured,
         'gross' => $gross,
         'net' => $configured ? $gross * (1 - $percent / 100) : $gross,
+    ];
+}
+
+/**
+ * Whether the period's activity is still awaiting an ending count.
+ *
+ * The ranked product tables drop pending rows, so an all-pending day renders an empty
+ * table. Reporting "No sales recorded" there states a business result the data cannot
+ * support: nothing has been finalised yet, so nothing has been ruled out. This counts
+ * the ledger rows in scope so the overview can tell "nobody has finished counting"
+ * apart from "there was no activity at all".
+ *
+ * @param array<string,mixed> $filters
+ * @return array{rows_total:int,pending:int,completed:int}
+ */
+function dl_overviewLedgerCompleteness(DatabaseContract $db, array $filters): array
+{
+    $ids = array_values(array_filter(array_map('intval', $filters['accessible_branch_ids'] ?? []), static fn(int $id): bool => $id > 0));
+    if ($ids === []) {
+        return ['rows_total' => 0, 'pending' => 0, 'completed' => 0];
+    }
+
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $sql = "SELECT COUNT(*) AS rows_total,
+                   SUM(CASE WHEN dl.bal_end IS NULL THEN 1 ELSE 0 END) AS pending,
+                   SUM(CASE WHEN dl.bal_end IS NOT NULL THEN 1 ELSE 0 END) AS completed
+              FROM dl_daily_ledger dl
+             WHERE dl.ledger_date BETWEEN ? AND ?
+               AND dl.branch_id IN ({$marks})";
+    $bind = array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids);
+    if (($filters['branch_id'] ?? 0) > 0) {
+        $sql .= ' AND dl.branch_id = ?';
+        $bind[] = (int)$filters['branch_id'];
+    }
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    return [
+        'rows_total' => (int)($row['rows_total'] ?? 0),
+        'pending' => (int)($row['pending'] ?? 0),
+        'completed' => (int)($row['completed'] ?? 0),
     ];
 }
 

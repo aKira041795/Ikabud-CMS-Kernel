@@ -26,6 +26,11 @@ require_once $base . '/modules/daily-ledger/helpers.php';
 require_once $base . '/modules/daily-ledger/handlers-deliveries.php';
 require_once $base . '/modules/daily-ledger/handlers.php';
 $h->fingerprint('modules/daily-ledger/handlers.php');
+$h->fingerprint('tests/daily-ledger/daily_ledger_admin_area_filters_harness.php');
+// Rendering the Daily Sheet through the shared area-filters harness compiles DiSyL templates,
+// which emits named engine timing lines (disyl.compile.phases / disyl.render.breakdown). Declared
+// here so the log assertion still catches anything ELSE.
+$h->allowLogLines('disyl.compile.phases', 'disyl.render.breakdown');
 
 app()->tenant()->setTenantId(207);
 $ctx = modulePushContext('daily-ledger');
@@ -153,28 +158,45 @@ $h->test(
 );
 
 // The data fact that makes the narrowing wrong, reported so the reason is visible when this file is
-// read: area 2's members are ordinary branches and every live commissary sits in another area.
+// read: area 2 contains RIZAL-COMMIS1 (id 18) but not Pagadian Commisary (id 21). A selector narrowed
+// by the area scope therefore drops the outside hub, and the rendered guard below goes red.
 $areaMemberIds = array_map(
     'intval',
     $db->query('SELECT id FROM dl_branches WHERE area_id = 2 AND is_active = 1')->fetchAll(PDO::FETCH_COLUMN) ?: []
 );
 $commissaryIdsAll = array_map('intval', array_column($commissaries, 'id'));
-// Assert the BEHAVIOUR - the selector is not narrowed by the area scope - not a premise about the
-// data. The previous form required "none of area 2's members is a commissary", which is simply
-// false: RIZAL-COMMIS1 lives in Dipolog, i.e. area_id 2. It passed only for as long as the area
-// scope was ignored for this role, which left $areaMemberIds empty; once the scope began working
-// (2026-10-11) the false premise surfaced as a failure even though the selector was still correct
-// and listed both commissaries. A commissary that lies OUTSIDE the selected area must therefore
-// still be offered - that is the thing that proves no narrowing happened - and it is falsifiable:
-// narrow the selector by the area and the outside ones disappear.
 $commissariesOutsideArea = array_values(array_diff($commissaryIdsAll, $areaMemberIds));
+
+// OBSERVE THE RENDERED SELECTOR, not a re-run of its data query. The previous form fetched every
+// active commissary independently, so narrowing the handler's selector left it green - a decorative
+// guard. This renders the real handler under an AREA scope through the shared area-filters harness
+// (the same pattern used by daily_ledger_area_rollout_test.php) and inspects the <option> values it
+// actually emitted. The assertion is falsifiable: restore the area narrowing and the outside hub
+// vanishes from rendered_selector.
+$selectorHarness = __DIR__ . '/daily_ledger_admin_area_filters_harness.php';
+$selectorOutput = [];
+$selectorExit = 0;
+exec(
+    escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($selectorHarness)
+    . ' ' . escapeshellarg('commissary') . ' ' . escapeshellarg('AREA:2')
+    . ' ' . escapeshellarg('') . ' ' . escapeshellarg('') . ' ' . escapeshellarg('admin') . ' 2>&1',
+    $selectorOutput,
+    $selectorExit
+);
+$selectorRendered = json_decode(implode("\n", $selectorOutput), true);
+$selectorOptions = is_array($selectorRendered['commissary_options'] ?? null)
+    ? array_map('intval', array_keys($selectorRendered['commissary_options']))
+    : [];
 $h->test(
     'the selector lists every active commissary, including ones outside the selected area',
-    count($commissaryIdsAll) > 1
+    $selectorExit === 0
+        && is_array($selectorRendered)
+        && ($selectorRendered['status'] ?? 0) === 200
+        && count($commissaryIdsAll) > 1
         && $commissariesOutsideArea !== []
-        && count(array_intersect($commissaryIdsAll, $commissariesOutsideArea)) === count($commissariesOutsideArea),
-    'commissaries=[' . implode(',', $commissaryIdsAll) . '] area2=[' . implode(',', $areaMemberIds)
-        . '] outside_area=[' . implode(',', $commissariesOutsideArea) . ']'
+        && count(array_intersect($commissaryIdsAll, $selectorOptions)) === count($commissaryIdsAll),
+    'rendered_selector=[' . implode(',', $selectorOptions) . '] commissaries=[' . implode(',', $commissaryIdsAll)
+        . '] area2=[' . implode(',', $areaMemberIds) . '] outside_area=[' . implode(',', $commissariesOutsideArea) . ']'
 );
 
 $h->done();

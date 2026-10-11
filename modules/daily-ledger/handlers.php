@@ -12479,6 +12479,10 @@ function handleAdminOverview(array $params = []): void
     // same dl_adminViewBranchIds() helper as reports and exports.
     $filters = dl_reportFilters($input, $user);
     $filters['pending_rows_mode'] = $pendingRowsMode;
+    // Completeness of the period's ledger: the ranked tables drop pending rows, so an
+    // all-pending day is empty. Report that as unfinished reporting, never as zero sales.
+    $completeness = dl_overviewLedgerCompleteness($ctx->db(), $filters);
+    $reportingPending = $completeness['pending'] > 0 && $completeness['completed'] === 0;
     $accessibleBranchIds = array_values(array_map('intval', $filters['accessible_branch_ids'] ?? [0]));
 
     // Branch selection narrows the displayed scope. An explicitly requested
@@ -12647,6 +12651,8 @@ function handleAdminOverview(array $params = []): void
         'chart_limit' => $chartLimit,
         'chart_show_empty' => $chartShowEmpty,
         'exclude_pending' => $pendingRowsMode === 'exclude',
+        'reporting_pending' => $reportingPending,
+        'pending_ledger_rows' => $completeness['pending'],
         // The form carries this marker, so the cue can tell a submitted filter
         // from a plain page load where the same defaults are in force.
         'filters_applied' => !empty($input['filters_applied']),
@@ -20106,8 +20112,13 @@ function handleAdminCommissary(): void
     // A commissary is a supply hub, NOT a geographic area. An ADMIN area selection must not narrow
     // this selector: an area's ordinary branch ids may contain no hub at all. Operational actors are
     // different: their presentation set is always their assigned set, so an unrelated hub must not
-    // appear as an option. This is display filtering only; authorization remains unchanged.
-    if ($applyViewBranchFilter) {
+    // appear as an option. An explicit COMMISSARY scope does describe the hub, so it still narrows.
+    // This is display filtering only; authorization remains unchanged. NOTE: $applyViewBranchFilter
+    // is deliberately not reused as-is here — it narrows for admin+AREA, which is right for the
+    // branch rows below but wrong for this hub selector.
+    $narrowCommissarySelector = $applyViewBranchFilter
+        && ($role !== 'admin' || ($viewScope['type'] ?? 'ALL') === 'COMMISSARY');
+    if ($narrowCommissarySelector) {
         $commissariesStmt = $db->query("SELECT b.id, b.code, b.name FROM dl_branches b WHERE b.is_commissary = 1 AND b.is_active = 1 AND b.id IN ({$viewBranchSql}) ORDER BY b.name ASC");
     } else {
         $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
