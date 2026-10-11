@@ -159,11 +159,22 @@ $areaMemberIds = array_map(
     $db->query('SELECT id FROM dl_branches WHERE area_id = 2 AND is_active = 1')->fetchAll(PDO::FETCH_COLUMN) ?: []
 );
 $commissaryIdsAll = array_map('intval', array_column($commissaries, 'id'));
+// Assert the BEHAVIOUR - the selector is not narrowed by the area scope - not a premise about the
+// data. The previous form required "none of area 2's members is a commissary", which is simply
+// false: RIZAL-COMMIS1 lives in Dipolog, i.e. area_id 2. It passed only for as long as the area
+// scope was ignored for this role, which left $areaMemberIds empty; once the scope began working
+// (2026-10-11) the false premise surfaced as a failure even though the selector was still correct
+// and listed both commissaries. A commissary that lies OUTSIDE the selected area must therefore
+// still be offered - that is the thing that proves no narrowing happened - and it is falsifiable:
+// narrow the selector by the area and the outside ones disappear.
+$commissariesOutsideArea = array_values(array_diff($commissaryIdsAll, $areaMemberIds));
 $h->test(
-    'the selector lists every active commissary, none of which area 2 contains',
+    'the selector lists every active commissary, including ones outside the selected area',
     count($commissaryIdsAll) > 1
-        && array_intersect($areaMemberIds, $commissaryIdsAll) === [],
-    'commissaries=[' . implode(',', $commissaryIdsAll) . '] area2=[' . implode(',', $areaMemberIds) . ']'
+        && $commissariesOutsideArea !== []
+        && count(array_intersect($commissaryIdsAll, $commissariesOutsideArea)) === count($commissariesOutsideArea),
+    'commissaries=[' . implode(',', $commissaryIdsAll) . '] area2=[' . implode(',', $areaMemberIds)
+        . '] outside_area=[' . implode(',', $commissariesOutsideArea) . ']'
 );
 
 $h->done();

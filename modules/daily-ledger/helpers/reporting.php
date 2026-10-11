@@ -50,7 +50,13 @@ function dl_reportFilters(array $input, array $user): array
         static fn(int $id): bool => $id > 0
     )));
     $viewScope = function_exists('dl_adminAreaScope') ? dl_adminAreaScope($user, $input) : ['type' => 'ALL', 'branch_ids' => [], 'value' => 'ALL'];
-    if (($user['role'] ?? '') === 'admin' && ($viewScope['type'] ?? 'ALL') !== 'ALL') {
+    // THE THIRD GATE. Admin used to be hard-coded here as well as in AdminAreaScope::resolve() and
+    // dl_adminViewBranchIds(). On 2026-10-11 the viewer role was added to the other two and this one
+    // was missed, which is exactly what made the half-fix visible: the Area picker read "Dipolog" and
+    // the branch dropdown narrowed 22 -> 10, while every table and total stayed business-wide because
+    // they are built from accessible_branch_ids, which this predicate controls. All three now ask
+    // AdminAreaScope::appliesTo(), so the role list exists in one place.
+    if (AdminAreaScope::appliesTo((string)($user['role'] ?? '')) && ($viewScope['type'] ?? 'ALL') !== 'ALL') {
         // This narrows report presentation only. The canonical authorization set
         // above is computed first and is never replaced or persisted from scope.
         $visible = array_map('intval', $viewScope['branch_ids'] ?? []);

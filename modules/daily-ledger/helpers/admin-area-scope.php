@@ -13,6 +13,24 @@ final class AdminAreaScope
 {
     private const SESSION_PREFIX = 'daily_ledger.admin_view_scope.';
 
+    /** Roles that browse every branch and may therefore persist a per-view AREA scope. */
+    private const SCOPED_VIEW_ROLES = ['admin', 'viewer'];
+
+    /**
+     * Does this role use the persisted per-view area scope?
+     *
+     * THE single owner of that question. It exists because the answer was written in two places -
+     * resolve() and dl_adminViewBranchIds() - and on 2026-10-11 one was updated for the viewer role
+     * and the other was not. The result was measurable and exactly the kind of half-fix this file
+     * exists to prevent: the Area dropdown rendered and read "Area: Dipolog" while every Table and
+     * chart on the page stayed business-wide, because the picker used resolve() and the data used
+     * dl_adminViewBranchIds(). Both now ask here, so they cannot disagree again.
+     */
+    public static function appliesTo(string $role): bool
+    {
+        return in_array($role, self::SCOPED_VIEW_ROLES, true);
+    }
+
     /**
      * Identity of the view whose scope is being resolved.
      *
@@ -54,7 +72,11 @@ final class AdminAreaScope
         }
 
         // View scope cannot become an authorization input for operational roles.
-        if ($role !== 'admin' || !$db) {
+        // Admin and viewer both browse EVERY branch (see dl_accessibleBranchIds), so both get the
+        // persisted per-view area scope. Operational roles are still refused: cashier / production /
+        // supervisor are scoped by their assignment, and a view filter must never act as an
+        // authorization input for them.
+        if (!self::appliesTo($role) || !$db) {
             return self::result('ALL', 0, 'All branches', [], 'ALL', $areas, $commissaries);
         }
 
@@ -174,7 +196,10 @@ function dl_adminAreaScope(array $user, ?array $request = null): array
 function dl_adminViewBranchIds(array $user, ?array $request = null): array
 {
     $authorized = array_values(array_unique(array_map('intval', dl_accessibleBranchIds($user))));
-    if (($user['role'] ?? '') !== 'admin') {
+    // MUST use the same predicate as AdminAreaScope::resolve(). It previously tested
+    // `role !== 'admin'`, so a viewer passed straight through with every branch while the Area picker
+    // beside it was correctly scoped - the control read "Area: Dipolog" over business-wide figures.
+    if (!AdminAreaScope::appliesTo((string)($user['role'] ?? ''))) {
         return dl_assignedBranchNetwork($authorized);
     }
 
