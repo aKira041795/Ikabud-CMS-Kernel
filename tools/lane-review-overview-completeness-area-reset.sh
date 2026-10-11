@@ -61,7 +61,7 @@ against it rather than against the summary below.
    and look for deleted assertions, relaxed comparisons, removed cases, or a check that now passes
    vacuously. `git diff HEAD -- tests/` is your surface. Report any weakening as a finding even if
    suites are green.
-6. DOES THE ACCEPTANCE CRITERION DISCRIMINATE? Run `php .ai/next-acceptance.php` and confirm it is now
+6. DOES THE ACCEPTANCE CRITERION DISCRIMINATE? Run `php tools/acceptance-daily-ledger-overview.php` and confirm it is now
    GREEN. Then check it could have failed: was any part of it edited to make it pass? It is owned by
    the chair and must be byte-identical to HEAD apart from nothing at all - report if it changed.
 7. ANYTHING UNNAMED? Read the WHOLE diff, not just the files the contract names. A lane that changed

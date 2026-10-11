@@ -133,29 +133,31 @@ $h->test(
 // This reads the handler's own list query and refuses any interpolated scope in it.
 $h->section('The AREA scope must not narrow the commissary selector');
 
-$handlerSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
 // EVERY commissary list query, not the first one found. There are several (the handler's own list
 // plus earlier single-quoted readers such as $ctx->db()->query('SELECT id, code, name ... ORDER BY
 // name')), and checking only the first match inspected a line that could not interpolate anything -
 // which made an earlier version of this guard pass even with the scope re-added. Assert over all of
 // them so the query that actually feeds the selector cannot be missed.
-$listQueryLines = [];
-foreach (explode("\n", $handlerSrc) as $handlerLine) {
-    if (strpos($handlerLine, 'FROM dl_branches WHERE is_commissary = 1 AND is_active = 1') !== false
-        && stripos($handlerLine, 'ORDER BY name') !== false) {
-        $listQueryLines[] = $handlerLine;
-    }
-}
-$narrowed = array_values(array_filter(
-    $listQueryLines,
-    static fn(string $listLine): bool => str_contains($listLine, '{$')
-));
+// REMOVED: 'EVERY commissary list query is free of an interpolated scope'.
+//
+// That assertion scanned handlers.php as TEXT for a commissary list query and refused any `{$...}`
+// interpolation in it. An independent review found it decorative: it required the literal
+// 'FROM dl_branches WHERE ...', while the query that feeds the selector is ALIASED
+// ('FROM dl_branches b WHERE b.is_commissary = 1 ...'), so a single ' b' made the pattern miss the
+// only query that mattered and the guard passed while the selector was narrowed.
+//
+// Widening the pattern to match aliases was tried and MEASURED, and it makes things worse, not
+// better: the clean tree then reports narrowed=1 and the assertion FAILS, because the scoped branch
+// legitimately contains `AND b.id IN ({$viewBranchSql})` inside `if ($applyViewBranchFilter)`. An
+// interpolated scope is correct INSIDE that guard and wrong only when applied unconditionally, and a
+// source-text scanner cannot distinguish the two - it has no view of control flow. The premise is
+// what is broken, so repairing the matcher was never going to work.
+//
+// It is superseded by the RENDERED assertion in this file, which drives the real handler and was
+// independently shown to go red when the selector is narrowed by the scope. A guard that cannot
+// distinguish correct code from the defect it names is not a guard; keeping it would only train
+// people to ignore it.
 
-$h->test(
-    'EVERY commissary list query is free of an interpolated scope',
-    $listQueryLines !== [] && $narrowed === [],
-    count($listQueryLines) . ' list query/queries found; narrowed=' . count($narrowed)
-);
 
 // The data fact that makes the narrowing wrong, reported so the reason is visible when this file is
 // read: area 2 contains RIZAL-COMMIS1 (id 18) but not Pagadian Commisary (id 21). A selector narrowed

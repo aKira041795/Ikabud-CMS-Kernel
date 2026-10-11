@@ -200,7 +200,10 @@
         {/if}
         {if branch_cards | count > 0}
         {if branch_chart | count == 0}
-        <div class="px-4 py-6 text-sm text-gray-500">No branch sales recorded for this period.</div>
+        <div class="px-4 py-6 text-sm text-gray-500">
+            {if reporting_pending}Reporting is pending for this period: {pending_ledger_rows} ledger row(s) are not yet finalized, so no branch sales have been reported yet.{/if}
+            {if reporting_pending == false}No branch sales recorded for this period.{/if}
+        </div>
         {/if}
         {/if}
         {foreach branch_cards as card}
@@ -254,7 +257,10 @@
             <tbody>
                 {if top_products | count == 0}
                 <tr>
-                    <td colspan="8" class="text-center text-sm text-gray-500 py-6">No sales recorded for this period.</td>
+                    <td colspan="8" class="text-center text-sm text-gray-500 py-6">
+                        {if reporting_pending}Reporting is pending for this period: {pending_ledger_rows} ledger row(s) are not yet finalized, so no sales have been reported yet.{/if}
+                        {if reporting_pending == false}No sales recorded for this period.{/if}
+                    </td>
                 </tr>
                 {/if}
                 {foreach top_products as idx => tp}
@@ -285,7 +291,10 @@
     </div>
     <div class="card-body p-0">
         {if branch_top_products | count == 0}
-        <div class="px-4 py-6 text-sm text-gray-500">No branch sales recorded for this period.</div>
+        <div class="px-4 py-6 text-sm text-gray-500">
+            {if reporting_pending}Reporting is pending for this period: {pending_ledger_rows} ledger row(s) are not yet finalized, so no branch sales have been reported yet.{/if}
+            {if reporting_pending == false}No branch sales recorded for this period.{/if}
+        </div>
         {/if}
         {foreach branch_top_products as btp}
         <div class="border-b border-gray-100 last:border-b-0">
@@ -327,7 +336,10 @@
     </div>
     <div class="card-body">
         {if pareto.has_data == false}
-        <div class="text-sm text-gray-500">No sales amount recorded for this period, so no Pareto analysis is available.</div>
+        <div class="text-sm text-gray-500">
+            {if reporting_pending}Reporting is pending for this period: {pending_ledger_rows} ledger row(s) are not yet finalized, so no sales amount has been reported yet.{/if}
+            {if reporting_pending == false}No sales amount recorded for this period, so no Pareto analysis is available.{/if}
+        </div>
         {/if}
         {if pareto.has_data}
         <p class="text-sm text-gray-700 mb-3">

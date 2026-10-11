@@ -5,7 +5,7 @@
 # Chair-dispatched 2026-10-11. Two decidable defects plus two test-integrity repairs. The acceptance
 # criterion was BUILT AND MEASURED RED ON THE UNCHANGED TREE before this dispatch:
 #
-#   php .ai/next-acceptance.php   ->  2 RED, exit 1
+#   php tools/acceptance-daily-ledger-overview.php   ->  2 RED, exit 1
 #
 #   [A] today=2026-10-11 rows=103 pending=103 completed=0 | page says "No sales recorded": YES
 #   [B] branch 13 is in area 1 but not area 2 | after scope=AREA:2 the filter still carries
@@ -27,7 +27,7 @@ http://baronledger.test against a copy of the production DB. A viewer account ex
 viewer123. DO NOT write business data anywhere - render and resolve only.
 
 # YOUR ACCEPTANCE CRITERION (run it FIRST, confirm it is RED, and make it GREEN)
-    php .ai/next-acceptance.php        # currently: 2 RED, exit 1
+    php tools/acceptance-daily-ledger-overview.php        # currently: 2 RED, exit 1
 It is written and owned by the chair. Do not weaken it, rewrite it to pass, or delete it. If you
 believe a check is wrong, say so in your report with evidence and leave the file intact.
 
@@ -86,7 +86,7 @@ then SHOW the mutation that turns it red: apply it, show the red output, restore
 
 # REPORT
 status: PASS|FAIL|PARTIAL|BLOCKED
-acceptance_before: the RED output you got from php .ai/next-acceptance.php
+acceptance_before: the RED output you got from php tools/acceptance-daily-ledger-overview.php
 acceptance_after: the GREEN output
 item_a: file:line, what was inconsistent, the fix, and what the page now says for each of the three states
 item_b: file:line, where the normalization lives, and the before/after of the stale branch_id case
