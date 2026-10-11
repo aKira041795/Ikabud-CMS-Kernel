@@ -4903,6 +4903,24 @@ MD;
             out('  ' . green('v') . ' ' . (int)($preview['pruned'] ?? 0)
                 . ' expired entries reclaimable (' . $fmtBytes((int)($preview['bytes_freed'] ?? 0)) . ')'
                 . '  ->  php ikabud cache:prune');
+
+            // WHEN the automatic sweep last ran. Without this the reclaimable figure cannot be read
+            // on its own: a large number means either "the sweep is broken" or "the sweep is not due
+            // yet", and one reading cannot tell them apart. That ambiguity produced three wrong
+            // conclusions on 2026-10-11, each from a static snapshot where the answer was timing.
+            //
+            // No warning threshold here, deliberately: the marker is written BEFORE the work and the
+            // sweep runs on the WRITE path, so on a quiet site an age above the interval is normal
+            // rather than a fault. The number is reported so the reader can judge it against the
+            // reclaimable figure beside it.
+            $maintenanceMarker = $cacheRoot . '/.cache_maintenance';
+            $maintenanceAge = is_file($maintenanceMarker)
+                ? time() - (int)@filemtime($maintenanceMarker)
+                : null;
+            out('      ' . dim('last automatic sweep: ') . ($maintenanceAge === null
+                ? yellow('never on this host') . dim(' - the next cache write will run one')
+                : cyan(sprintf('%.1fh ago', $maintenanceAge / 3600))
+                    . dim(' (runs at most hourly, on the write path)')));
             out('      ' . dim('Retention is bounded automatically (hourly sweep). A cron entry is'));
             out('      ' . dim('optional and only reclaims expiry space sooner:'));
             out('      ' . dim('  15 4 * * *  cd <app-root> && php ikabud cache:prune >/dev/null 2>&1'));
