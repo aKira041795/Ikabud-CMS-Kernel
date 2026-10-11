@@ -10,7 +10,7 @@
     <a class="btn btn-outline" href="{base_url}/admin/reports/sales?date_from={date_from}&date_to={date_to}&branch_id={branch_id}">Detailed sales analysis</a>
 </div>
 
-<!-- The primary bar intentionally has only Area, its child Branch, one Period field, and Apply. -->
+<!-- The primary bar intentionally has only Area, its child Branch, the From/To date range, and Apply. -->
 <form class="card mb-6 print-hide" action="{base_url}/admin/overview" method="GET" onsubmit="return window.dlLoadForm(this)">
     <div class="card-body grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
         <div class="form-group">{include "modules/daily-ledger/admin/partials/scope-filter.disyl"}</div>
@@ -22,8 +22,12 @@
             </select>
         </div>
         <div class="form-group">
-            <label class="form-label">Period</label>
-            <input class="form-input" name="period" value="{period_value}" placeholder="YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD">
+            <label class="form-label" for="overview-date-from">From</label>
+            <input class="form-input" id="overview-date-from" type="date" name="date_from" value="{date_from}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="overview-date-to">To</label>
+            <input class="form-input" id="overview-date-to" type="date" name="date_to" value="{date_to}">
         </div>
         <button type="submit" class="btn btn-primary">Apply</button>
     </div>
@@ -35,7 +39,7 @@
     <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branches in scope</div><div class="mt-1 text-3xl font-semibold">{scoped_branch_count}</div><div class="text-sm text-gray-500">{working_branches | count} recorded activity · {silent_branches | count} silent</div></div></div>
     <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Units sold</div>{if reporting_pending}<div class="mt-1 text-lg font-semibold text-amber-700">Awaiting finalization</div><div class="text-sm text-gray-500">{pending_ledger_rows} pending ledger rows</div>{/if}{if reporting_pending == false}<div class="mt-1 text-3xl font-semibold text-indigo-600">{grand_units} <span class="text-sm text-gray-500">units</span></div><div class="text-sm text-gray-500">official, finalized rows</div>{/if}</div></div>
     <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Gross sales</div>{if reporting_pending}<div class="mt-1 text-lg font-semibold text-amber-700">Awaiting finalization</div><div class="text-sm text-gray-500">Unfinished reporting is not PHP 0.00</div>{/if}{if reporting_pending == false}<div class="mt-1 text-3xl font-semibold text-emerald-600">PHP {grand_amount | number_format:2}</div><div class="text-sm text-gray-500">official sales</div>{/if}</div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Trend vs previous period</div>{if trend_comparable}<div class="mt-1 text-2xl font-semibold">{trend_direction}</div><div class="text-sm text-gray-500">{trend_percent | number_format:1}% · previous PHP {prior_amount | number_format:2}</div>{/if}{if trend_comparable == false}<div class="mt-1 text-lg font-semibold text-amber-700">Not yet comparable</div><div class="text-sm text-gray-500">Current reporting is pending</div>{/if}</div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Trend vs previous period</div>{if trend_comparable}<div class="mt-1 flex items-center gap-2"><span class="delta-indicator delta-{trend_visual} inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-semibold {if trend_visual == 'up'}bg-emerald-50 text-emerald-700{/if}{if trend_visual == 'down'}bg-rose-50 text-rose-700{/if}{if trend_visual == 'flat'}bg-slate-100 text-slate-600{/if}" aria-label="sales trend {trend_visual} {trend_percent_display}"><span aria-hidden="true">{trend_arrow}</span><span>{trend_percent_display}</span></span><span class="text-sm text-gray-500">PHP {trend_delta_display}</span></div><div class="mt-2 h-2 w-full overflow-hidden rounded bg-gray-100" role="img" aria-label="sales {trend_delta_display} versus previous period"><div class="h-2 {if trend_visual == 'up'}bg-emerald-500{/if}{if trend_visual == 'down'}bg-rose-500{/if}{if trend_visual == 'flat'}bg-slate-400{/if}" style="width:{trend_bar_pct}%"></div></div><div class="text-sm text-gray-500">previous PHP {prior_amount | number_format:2}</div>{/if}{if trend_comparable == false}<div class="mt-1 flex items-center gap-2"><span class="delta-indicator delta-pending inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-sm font-semibold text-amber-700" aria-label="comparison pending finalization"><span aria-hidden="true">{trend_arrow}</span><span>{trend_pending_percent_display}</span></span><span class="text-sm text-gray-500">reporting backlog</span></div><div class="mt-2 h-2 w-full overflow-hidden rounded bg-gray-100" role="img" aria-label="{pending_ledger_rows} pending reporting rows"><div class="h-2 bg-amber-400" style="width:{trend_pending_bar_pct}%"></div></div><div class="text-sm text-gray-500">Not yet comparable: {pending_ledger_rows} row(s) pending finalization · previous {prior_period_label}</div>{/if}</div></div>
 </div>
 
 <!-- 2. Is it healthy? -->
@@ -56,7 +60,7 @@
     <div class="card"><div class="card-body"><div class="text-sm font-semibold">Completeness</div><div class="mt-2 text-2xl font-semibold">{pending_ledger_rows} pending</div><div class="text-xs text-gray-500">Pending endings are unfinished, never zero sales.</div></div></div>
     <div class="card"><div class="card-body"><div class="text-sm font-semibold">Variance</div><div class="mt-2 text-2xl font-semibold">{unresolved_variance_count} unresolved</div><div class="text-xs text-gray-500">Absolute variance: {absolute_variance}</div></div></div>
     <div class="card"><div class="card-body"><div class="text-sm font-semibold">Day status</div><div class="mt-2 text-2xl font-semibold">{closed_branch_count} closed</div><div class="text-xs text-gray-500">of {scoped_branch_count} branches on {date_to}</div></div></div>
-    <div class="card"><div class="card-body"><div class="text-sm font-semibold">Trend</div><div class="mt-2 text-2xl font-semibold">{trend_direction}</div><div class="text-xs text-gray-500">Compared with {prior_period_label}</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-sm font-semibold">Trend</div>{if trend_comparable}<div class="mt-2 flex items-center gap-2"><span class="delta-indicator delta-{trend_visual} inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-semibold {if trend_visual == 'up'}bg-emerald-50 text-emerald-700{/if}{if trend_visual == 'down'}bg-rose-50 text-rose-700{/if}{if trend_visual == 'flat'}bg-slate-100 text-slate-600{/if}"><span aria-hidden="true">{trend_arrow}</span><span>{trend_percent_display}</span></span></div><div class="text-xs text-gray-500">Compared with {prior_period_label} (PHP {prior_amount | number_format:2})</div>{/if}{if trend_comparable == false}<div class="mt-2 text-2xl font-semibold text-amber-700">Not yet comparable</div><div class="text-xs text-gray-500">Compared with {prior_period_label} · {trend_pending_percent_display} reporting backlog</div>{/if}</div></div>
 </div>
 
 <!-- 4. Where can operations be maximized? -->
@@ -75,7 +79,7 @@
     <div class="card-header"><span>Branches with recorded activity</span><span class="text-sm text-muted">branch drill-down</span></div>
     <div class="card-body border-b border-gray-200 print-hide">
         <form action="{base_url}/admin/overview" method="GET" onsubmit="return window.dlLoadForm(this)" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
-            <input type="hidden" name="scope" value="{view_scope}"><input type="hidden" name="period" value="{period_value}"><input type="hidden" name="branch_id" value="{branch_id}">
+            <input type="hidden" name="scope" value="{view_scope}"><input type="hidden" name="date_from" value="{date_from}"><input type="hidden" name="date_to" value="{date_to}"><input type="hidden" name="branch_id" value="{branch_id}">
             <div><label class="form-label">Rank by</label><select class="form-input" name="sort_by"><option value="amount" {if sort_by == 'amount'}selected{/if}>Sales amount</option><option value="units" {if sort_by == 'units'}selected{/if}>Units sold</option></select></div>
             <div><label class="form-label">Order</label><select class="form-input" name="sort_dir"><option value="desc" {if sort_dir == 'desc'}selected{/if}>Highest first</option><option value="asc" {if sort_dir == 'asc'}selected{/if}>Lowest first</option></select></div>
             <div><label class="form-label">Rows plotted</label><select class="form-input" name="chart_limit"><option value="5" {if chart_limit == 5}selected{/if}>5</option><option value="10" {if chart_limit == 10}selected{/if}>10</option><option value="25" {if chart_limit == 25}selected{/if}>25</option><option value="0" {if chart_limit == 0}selected{/if}>All</option></select></div>
@@ -84,14 +88,14 @@
             <button class="btn btn-primary" type="submit">Update comparison</button>
         </form>
     </div>
-    {if branch_chart | count > 0}<div class="card-body border-b border-gray-200"><div class="space-y-3">{foreach branch_chart as b}<div><div class="flex justify-between gap-3 text-sm"><a class="font-semibold text-indigo-700" href="{base_url}/admin/overview?scope={view_scope}&period={period_value}&branch_id={b.branch_id}">{b.name}</a><span>PHP {b.amount | number_format:2} · {b.units} units</span></div><div class="mt-1 h-3 overflow-hidden bg-gray-100"><div class="h-3 bg-emerald-500" style="width:{b.bar_pct}%"></div></div></div>{/foreach}</div></div>{/if}
-    {foreach working_branches as card}<div class="flex items-center justify-between gap-4 border-b border-gray-100 px-4 py-3"><div><a class="text-sm font-semibold text-indigo-700" href="{base_url}/admin/overview?scope={view_scope}&period={period_value}&branch_id={card.branch_id}">{card.name}</a><div class="text-xs text-gray-500">{card.completed} finalized · {card.pending} pending · {card.unresolved_variances} variance flags</div></div><div class="text-right text-sm"><div>PHP {card.amount | number_format:2}</div><div class="text-xs text-gray-500">{card.status}</div></div></div>{/foreach}
+    {if branch_chart | count > 0}<div class="card-body border-b border-gray-200"><div class="space-y-3">{foreach branch_chart as b}<div><div class="flex justify-between gap-3 text-sm"><a class="font-semibold text-indigo-700" href="{base_url}/admin/overview?scope={view_scope}&date_from={date_from}&date_to={date_to}&branch_id={b.branch_id}">{b.name}</a><span>PHP {b.amount | number_format:2} · {b.units} units</span></div><div class="mt-1 h-3 overflow-hidden bg-gray-100"><div class="h-3 bg-emerald-500" style="width:{b.bar_pct}%"></div></div></div>{/foreach}</div></div>{/if}
+    {foreach working_branches as card}<div class="flex items-center justify-between gap-4 border-b border-gray-100 px-4 py-3"><div><a class="text-sm font-semibold text-indigo-700" href="{base_url}/admin/overview?scope={view_scope}&date_from={date_from}&date_to={date_to}&branch_id={card.branch_id}">{card.name}</a><div class="text-xs text-gray-500">{card.completed} finalized · {card.pending} pending · {card.unresolved_variances} variance flags</div></div><div class="text-right text-sm"><div>PHP {card.amount | number_format:2}</div><div class="text-xs text-gray-500">{card.status}</div></div></div>{/foreach}
 </div>
 
 <div class="card mb-6">
     <div class="card-header"><span>Branches with no recorded activity</span><span class="text-sm text-muted">not ranked</span></div>
     {if silent_branches | count == 0}<div class="card-body text-sm text-gray-500">Every branch in scope recorded at least one ledger row.</div>{/if}
-    {foreach silent_branches as card}<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div><a class="text-sm font-semibold text-indigo-700" href="{base_url}/admin/overview?scope={view_scope}&period={period_value}&branch_id={card.branch_id}">{card.name}</a><div class="text-xs text-gray-500">No ledger rows; no performance conclusion is made.</div></div><span class="text-xs text-gray-500">{card.status}</span></div>{/foreach}
+    {foreach silent_branches as card}<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3"><div><a class="text-sm font-semibold text-indigo-700" href="{base_url}/admin/overview?scope={view_scope}&date_from={date_from}&date_to={date_to}&branch_id={card.branch_id}">{card.name}</a><div class="text-xs text-gray-500">No ledger rows; no performance conclusion is made.</div></div><span class="text-xs text-gray-500">{card.status}</span></div>{/foreach}
 </div>
 
 <!-- 5. How? -->
@@ -106,7 +110,7 @@
     <div class="card-header"><span>Aggregate business forecast</span><span class="text-sm text-muted">target {forecast_target_date}</span></div>
     <div class="card-body">
         <form action="{base_url}/admin/overview" method="GET" onsubmit="return window.dlLoadForm(this)" class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3 items-end print-hide">
-            <input type="hidden" name="scope" value="{view_scope}"><input type="hidden" name="period" value="{period_value}"><input type="hidden" name="branch_id" value="{branch_id}">
+            <input type="hidden" name="scope" value="{view_scope}"><input type="hidden" name="date_from" value="{date_from}"><input type="hidden" name="date_to" value="{date_to}"><input type="hidden" name="branch_id" value="{branch_id}">
             <div><label class="form-label">History window (days)</label><input type="number" min="3" max="90" class="form-input" name="forecast_window" value="{forecast_window}"></div>
             <div><label class="form-label">Forecast period</label><select class="form-input" name="forecast_period"><option value="daily" {if forecast_period == 'daily'}selected{/if}>Daily</option><option value="weekly" {if forecast_period == 'weekly'}selected{/if}>Weekly</option><option value="monthly" {if forecast_period == 'monthly'}selected{/if}>Monthly</option></select></div>
             <button class="btn btn-primary" type="submit">Update forecast</button>

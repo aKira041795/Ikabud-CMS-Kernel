@@ -12453,15 +12453,18 @@ function handleAdminOverview(array $params = []): void
     $input = $ctx->input();
 
     $today = dl_businessDate();
-    $dateFrom = !empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_from'])
-        ? (string)$input['date_from'] : $today;
-    $dateTo = !empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_to'])
-        ? (string)$input['date_to'] : $today;
-    // One primary Period control accepts either one exact day or an inclusive
-    // YYYY-MM-DD to YYYY-MM-DD range. Legacy/deep links using date_from/date_to
-    // remain valid, so reports can still link directly into the same context.
+    // The Period is a date RANGE picked from two type="date" controls. There is ONE
+    // canonical pair ($dateFrom/$dateTo); no other period value is retained.
+    $hasFromInput = !empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_from']);
+    $hasToInput = !empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_to']);
+    $dateFrom = $hasFromInput ? (string)$input['date_from'] : $today;
+    $dateTo = $hasToInput ? (string)$input['date_to'] : $today;
+    // A URL bookmarked before the range control still uses the old single `period`
+    // field. It resolves through the SAME canonical pair, and only when neither date
+    // control supplied a value, so a stale `period` can never override a picked range.
     $periodInput = trim((string)($input['period'] ?? ''));
-    if (preg_match('/^(\d{4}-\d{2}-\d{2})(?:\s+to\s+(\d{4}-\d{2}-\d{2}))?$/i', $periodInput, $periodMatch)) {
+    if (!$hasFromInput && !$hasToInput
+        && preg_match('/^(\d{4}-\d{2}-\d{2})(?:\s+to\s+(\d{4}-\d{2}-\d{2}))?$/i', $periodInput, $periodMatch)) {
         $parsedFrom = dl_reportValidDate($periodMatch[1]);
         $parsedTo = dl_reportValidDate($periodMatch[2] ?? $periodMatch[1]);
         if ($parsedFrom !== null && $parsedTo !== null) {
@@ -12640,6 +12643,34 @@ function handleAdminOverview(array $params = []): void
     if ($trendComparable && $grandAmount > $priorAmount) { $trendDirection = 'improving'; }
     elseif ($trendComparable && $grandAmount < $priorAmount) { $trendDirection = 'declining'; }
     $trendPercent = $priorAmount > 0.0 ? (($grandAmount - $priorAmount) / $priorAmount) * 100 : 0.0;
+    $trendDelta = $grandAmount - $priorAmount;
+    // The visual indicator's direction is derived from the real comparison, never
+    // hard-coded. 'pending' is the honest no-comparison state: it carries no arrow,
+    // no green, and no zero claim.
+    $trendVisual = 'pending';
+    if ($trendComparable) {
+        $trendVisual = $trendDirection === 'improving' ? 'up' : ($trendDirection === 'declining' ? 'down' : 'flat');
+    }
+    $trendArrow = $trendVisual === 'up' ? '▲' : ($trendVisual === 'down' ? '▼' : ($trendVisual === 'flat' ? '■' : '—'));
+    $trendPercentDisplay = ($trendPercent > 0 ? '+' : '') . number_format($trendPercent, 1) . '%';
+    $trendDeltaDisplay = ($trendDelta > 0 ? '+' : '') . number_format($trendDelta, 2);
+    // When the current period has no honest sales comparison, the one real
+    // period-over-period number it still has is its reporting backlog. Compare that
+    // rather than showing a -100% sales fall that only means "not counted yet".
+    $priorCompleteness = dl_overviewLedgerCompleteness($ctx->db(), $priorFilters);
+    $trendPendingDelta = $completeness['pending'] - $priorCompleteness['pending'];
+    $trendPendingPercent = $priorCompleteness['pending'] > 0
+        ? ($trendPendingDelta / $priorCompleteness['pending']) * 100
+        : 0.0;
+    $trendPendingPercentDisplay = ($trendPendingPercent > 0 ? '+' : '') . number_format($trendPendingPercent, 1) . '%';
+    $trendPendingBarPct = $completeness['rows_total'] > 0
+        ? (int)round(100 * $completeness['pending'] / $completeness['rows_total'])
+        : 0;
+    // The comparable bar plots the current total against the taller of the two
+    // periods, so the owner sees the size of the move, not just its sign.
+    $trendBarPct = max($grandAmount, $priorAmount) > 0.0
+        ? (int)round(100 * $grandAmount / max($grandAmount, $priorAmount))
+        : 0;
 
     $workingCards = array_values(array_filter($cards, static fn(array $card): bool => $card['has_activity']));
     $silentCards = array_values(array_filter($cards, static fn(array $card): bool => !$card['has_activity']));
@@ -12747,6 +12778,17 @@ function handleAdminOverview(array $params = []): void
         'trend_comparable' => $trendComparable,
         'trend_direction' => $trendDirection,
         'trend_percent' => $trendPercent,
+        'trend_delta' => $trendDelta,
+        'trend_visual' => $trendVisual,
+        'trend_arrow' => $trendArrow,
+        'trend_percent_display' => $trendPercentDisplay,
+        'trend_delta_display' => $trendDeltaDisplay,
+        'trend_pending_delta' => $trendPendingDelta,
+        'trend_pending_percent' => $trendPendingPercent,
+        'trend_pending_percent_display' => $trendPendingPercentDisplay,
+        'trend_pending_bar_pct' => $trendPendingBarPct,
+        'trend_bar_pct' => $trendBarPct,
+        'prior_pending_rows' => $priorCompleteness['pending'],
         'health_verdict' => $healthVerdict,
         'health_reason' => $healthReason,
         'health_lead' => $healthLead,
